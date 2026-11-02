@@ -119,7 +119,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 			t.Fatal("zero-width live Restore", err)
 		}
 		enginetest.DeleteCount(t, s, "DELETE FROM t", 1)
-		if len(ends.Rows) != 1 || e.Storage.Relations[ref.Address].Ends == ends || len(e.Storage.Relations[ref.Address].Ends.Rows) != 2 {
+		if ends.Len() != 1 || e.Storage.Relations[ref.Address].Ends == ends || e.Storage.Relations[ref.Address].Ends.Len() != 2 {
 			t.Fatal("committed deletion root mutated/reused")
 		}
 		enginetest.DeleteCount(t, s, "DELETE FROM t", 0)

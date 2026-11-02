@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/workadmission"
@@ -51,13 +52,22 @@ type EvalFrame struct {
 	QueryProvenance     []int
 	queryRowSource      *Source
 	// Borrowed full logical tuples only while rechecking locked occurrences.
-	QueryCurrentRows  [][]sqltype.Value
-	PhysicalTable     ids.ObjectRef // Existing generated recipe's containing physical row.
-	PresenceSlots     []int
-	Presence          []bool
-	DomainValue       sqltype.Value
-	DomainFrameUsage  sqltype.Usage
-	DomainValueActive bool
+	QueryCurrentRows                        [][]sqltype.Value
+	QueryCurrentVersions                    []storage.RowVersion // Borrowed in QueryOccurrences order during EPQ.
+	QueryProjectedVersions                  []storage.RowVersion // Borrowed exact rowmark output cache.
+	PhysicalTable                           ids.ObjectRef        // Actual physical row; generated recipes use only its table.
+	PhysicalVersion                         storage.RowVersion
+	OldPhysicalTable                        ids.ObjectRef
+	OldPhysicalVersion                      storage.RowVersion
+	QueryRawXmax                            map[ids.VersionID]uint32 // Immutable source/frame presentation only.
+	PhysicalRawXmax                         map[ids.VersionID]uint32 // Immutable pre-mutation target capture.
+	PhysicalXmax, OldPhysicalXmax           uint32
+	PhysicalXmaxValid, OldPhysicalXmaxValid bool
+	PresenceSlots                           []int
+	Presence                                []bool
+	DomainValue                             sqltype.Value
+	DomainFrameUsage                        sqltype.Usage
+	DomainValueActive                       bool
 }
 
 // EvalStatement is the statement runtime: cancellation context, bound

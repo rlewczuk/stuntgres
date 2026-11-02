@@ -1,13 +1,14 @@
-package exec
+package enginetests
 
 import (
 	"math"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func TestPgrowlocksLogicalTID(t *testing.T) {
+func TestLogicalTID(t *testing.T) {
 	var typ *sqltype.Descriptor
 	for _, builtin := range sqltype.Builtins() {
 		if builtin.ID() == sqltype.Tid {
@@ -20,7 +21,7 @@ func TestPgrowlocksLogicalTID(t *testing.T) {
 		block   uint32
 		offset  uint16
 	}{{1, 0, 1}, {65535, 0, 65535}, {65536, 1, 1}, {maximum, math.MaxUint32 - 1, 65535}} {
-		block, offset, err := PgrowlocksLogicalTID(ids.VersionID(tc.version))
+		block, offset, err := storage.LogicalTID(ids.VersionID(tc.version))
 		if err != nil || block != tc.block || offset != tc.offset {
 			t.Fatal(tc, block, offset, err)
 		}
@@ -34,13 +35,13 @@ func TestPgrowlocksLogicalTID(t *testing.T) {
 		}
 	}
 	for _, version := range []uint64{0, maximum + 1, math.MaxUint64} {
-		if _, _, err := PgrowlocksLogicalTID(ids.VersionID(version)); err == nil || err.Error() != "stuntgres: logical row version exceeds tid range" {
+		if _, _, err := storage.LogicalTID(ids.VersionID(version)); err == nil || err.Error() != "stuntgres: logical row version exceeds tid range" {
 			t.Fatal("unchecked TID", version, err)
 		}
 	}
 	for _, version := range []uint64{1, 65534, 65535, 65536, maximum - 1} {
-		a, b, _ := PgrowlocksLogicalTID(ids.VersionID(version))
-		c, d, _ := PgrowlocksLogicalTID(ids.VersionID(version + 1))
+		a, b, _ := storage.LogicalTID(ids.VersionID(version))
+		c, d, _ := storage.LogicalTID(ids.VersionID(version + 1))
 		if a == c && b == d {
 			t.Fatal("adjacent versions collide", version)
 		}

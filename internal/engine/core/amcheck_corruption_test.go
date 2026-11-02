@@ -110,7 +110,7 @@ func TestAmcheckHeapRecipes(t *testing.T) {
 	if err := amcheckUnitCall(t, e, "SELECT bt_index_check('i',false)"); err != nil {
 		t.Fatal(err)
 	}
-	block, offset, err := exec.PgrowlocksLogicalTID(missing.Version)
+	block, offset, err := storage.LogicalTID(missing.Version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestAmcheckHeapRecipes(t *testing.T) {
 	damaged.Entries = damaged.Entries[1:]
 	damaged.Membership = nil
 	e.Storage.IndexRoots[definition.Address()] = damaged
-	block, offset, err = exec.PgrowlocksLogicalTID(expressionRoot.Entries[0].Version)
+	block, offset, err = storage.LogicalTID(expressionRoot.Entries[0].Version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestAmcheckHeapRecipes(t *testing.T) {
 	if err := amcheckUnitCall(t, e, "SELECT bt_index_check('representation_i',false)"); err != nil {
 		t.Fatal(err)
 	}
-	block, offset, err = exec.PgrowlocksLogicalTID(represented.Entries[0].Version)
+	block, offset, err = storage.LogicalTID(represented.Entries[0].Version)
 	if err != nil {
 		t.Fatal(err)
 	}

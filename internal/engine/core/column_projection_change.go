@@ -51,7 +51,7 @@ func (scope *StatementScope) StageProjectedColumnRoots(address ids.ObjectAddress
 		}
 		scope.Stage.Rows[address] = writes
 	}
-	if deletes == nil || len(deletes.Rows) == 0 {
+	if deletes.Len() == 0 {
 		delete(scope.Stage.Deletes, address)
 	} else {
 		if scope.Stage.Deletes == nil {

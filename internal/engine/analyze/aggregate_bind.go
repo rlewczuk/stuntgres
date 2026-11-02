@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -58,9 +59,9 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 			left, right = left.Next, right.Next
 		}
 		return left == nil && right == nil
-	case plan.TableOIDExpr:
-		o, ok := other.(plan.TableOIDExpr)
-		return ok && e.Owner == o.Owner && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && e.QueryOccurrence == o.QueryOccurrence
+	case plan.SystemAttributeExpr:
+		o, ok := other.(plan.SystemAttributeExpr)
+		return ok && e.SubID == o.SubID && e.Owner == o.Owner && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && e.QueryOccurrence == o.QueryOccurrence && e.Old == o.Old && e.Absent == o.Absent && e.Merge == o.Merge && e.Side == o.Side
 	case plan.GroupingExpr:
 		o, ok := other.(plan.GroupingExpr)
 		if !ok || !comparison.SameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
@@ -416,14 +417,14 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		return plan.GroupExpr{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.FrameID()}, nil
 	case *plan.WindowExpr:
 		return e, nil
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		if e.Scope == 0 || e.Frame != b.FrameID() {
 			return e, nil
 		}
-		name := "tableoid"
+		name := catalog.SystemAttributeName(e.SubID)
 		for _, q := range b.Query.Namespace.Qualifiers {
-			if q.TableOIDOccurrence == e.QueryOccurrence {
-				name = q.Name + ".tableoid"
+			if q.SystemOccurrence == e.QueryOccurrence {
+				name = q.Name + "." + catalog.SystemAttributeName(e.SubID)
 				break
 			}
 		}

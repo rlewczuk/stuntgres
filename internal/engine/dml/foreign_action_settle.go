@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func PrepareForeignActions(h FinishHost) ([]ForeignKeyJob, Authority, error) {
 	}
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		if err = h.GrantForeignKey(ref, 0, modes[ref], nil); err != nil {
+		if err = h.GrantForeignKey(ref, storage.RowVersion{}, modes[ref], nil); err != nil {
 			return nil, auth, err
 		}
 	}

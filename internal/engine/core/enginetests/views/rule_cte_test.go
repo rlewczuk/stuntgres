@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -286,7 +287,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	// execution replaces its normalized predicate through the command's state.
 	firstState := dml.NewInsertConflictState(firstConflict)
 	firstState.Predicate = enginetest.RuleUnitInt(sink, 12)
-	firstState.MarkAffected(ids.RowID(42), 0)
+	firstState.MarkAffected(storage.RowVersion{Row: 42, Version: 42}, 0)
 	second := compose()
 	secondDefinition, secondConflict := executable(second)
 	if firstConflict == secondConflict || firstConflict == recipe || secondConflict == recipe || firstDefinition == definition || secondDefinition == definition {
@@ -300,7 +301,8 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			t.Fatal("unchanged analyzed conflict recipes were unnecessarily cloned")
 		}
 	}
-	if firstConflict.Predicate == nil || firstState.Affected != 1 || firstState.AffectedRows[ids.RowID(42)] != 0 || definition.Mutation != &modifierBinding || definition.Owner != 3 || scan.CTE != definition {
+	slot, affected := firstState.AffectedSlot(storage.RowVersion{Row: 42, Version: 42})
+	if firstConflict.Predicate == nil || firstState.Affected != 1 || !affected || slot != 0 || definition.Mutation != &modifierBinding || definition.Owner != 3 || scan.CTE != definition {
 		t.Fatal("command cardinality or frozen definition/provider state changed")
 	}
 	// Executable descendants use the same stored-action refresh authority.

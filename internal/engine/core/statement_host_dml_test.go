@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -148,11 +149,15 @@ func TestStatementHostStageReplacement(t *testing.T) {
 	scope, b, source := deleteProbeScope(t, s)
 	h := scope.WriteHost()
 	old := source.Committed[:1]
-	batch := index.WriteBatch{Values: [][]sqltype.Value{old[0].Values}, ActionMode: lock.MultiNoKeyAction}
+	var accepted [1]storage.RowVersion
+	batch := index.WriteBatch{Values: [][]sqltype.Value{old[0].Values}, ActionMode: lock.MultiNoKeyAction, Accepted: accepted[:]}
+	if err := h.AcquireUpdateRow(b.Ref, old[0], lock.ForNoKeyUpdate); err != nil {
+		t.Fatal(err)
+	}
 
 	scope.UniqueBinding = &index.UniqueWriteBinding{}
 	stale, err := h.StageReplacement(b.Ref, old, batch, nil, dml.ReplaceMerge)
-	if err != nil || !stale || len(scope.Stage.Rows[b.Ref.Address]) != 0 {
+	if err != nil || !stale.IndexStale || len(scope.Stage.Rows[b.Ref.Address]) != 0 || accepted[0].Version != 0 {
 		t.Fatal("stale binding staged", stale, err)
 	}
 	scope.UniqueBinding = nil
@@ -164,13 +169,13 @@ func TestStatementHostStageReplacement(t *testing.T) {
 		t.Fatal("failed window kept its physical events")
 	}
 
-	if err := h.AcquireUpdateRow(b.Ref, old[0].Row, lock.ForNoKeyUpdate); err != nil {
-		t.Fatal(err)
-	}
 	stale, err = h.StageReplacement(b.Ref, old, batch, nil, dml.ReplaceMerge)
 	staged := scope.Stage.Rows[b.Ref.Address]
-	if err != nil || stale || len(staged) != 1 || staged[0].Row != old[0].Row || staged[0].Version == old[0].Version {
+	if err != nil || stale.IndexStale || stale.RecheckIndex >= 0 || len(staged) != 1 || staged[0].Row != old[0].Row || staged[0].Version == old[0].Version {
 		t.Fatal("replacement not staged", stale, err, staged)
+	}
+	if accepted[0].Version != staged[0].Version || accepted[0].Row != old[0].Row || accepted[0].InsertFullXID == 0 || accepted[0].InsertFullXID != staged[0].InsertFullXID {
+		t.Fatal("RETURNING did not capture the admitted physical successor", accepted[0], staged[0])
 	}
 	if len(core.ScopeMultiEvents(scope)) != 0 {
 		t.Fatal("physical events not flushed")

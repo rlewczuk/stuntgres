@@ -12,14 +12,78 @@ family statement executors (the `*cmds` packages) call its exported API.
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
 heaps from the current committed map without mutating captured maps or retained
-row vectors. Physical-session TEMP collation maintenance uses this same path:
-retiring one owner's objects must preserve unrelated committed heap replacements
-and peer TEMP objects. Fallible preparation and expression evaluation stay
-outside the installation lock.
+row vectors. Materialized replacement birth normalization detaches only its
+version metadata vector during preparation, reusing already-owned publication
+vectors and sharing immutable tuple payloads. Savepoint and journal captures
+keep their private birth metadata after commit. Physical-session TEMP collation
+maintenance uses this same path: retiring one owner's objects must preserve
+unrelated committed heap replacements and peer TEMP objects. Fallible preparation
+and expression evaluation stay outside the installation lock.
 MERGE latest-row admission preserves transaction-local replacements and the
 retained snapshot frontier. A later committed target update or deletion raises
 serialization failure through the shared visibility conflict check; ordinary
 statement failure and savepoint recovery own the private-write rollback boundary.
+
+Owner disposal retains only genuine created private tuple versions and their
+actual predecessor chains in canonical relation storage. Admission/owner locks
+precede `Engine.Mu`; retention invokes no callbacks or lock-manager operations.
+Failed statement stages, full abort, savepoint/exception rewind, physical session
+end and prepared abort all pass through these boundaries. PREPARE transfers the
+same immutable roots without aborting them; restored/current versions remain
+owned, not duplicated as debris.
+Heap replacement captures otherwise-lost versions against their exact predecessor
+in `WriteStage.DiscardedHeaps` and then the validated catalog journal. This keeps
+surviving storage-generation fences intact across repeated refresh, savepoints
+and PREPARE. Final disposal materializes debris only in a still-installed exact
+heap; destructive replacement retires inaccessible slots without rebinding by
+address. Canonical cohort capture includes deferred batches, and exact repair
+headers remain independent of owner rollback. Old roots and payload backing
+remain immutable; private-only relation definitions are never installed by
+retention.
+
+RI row capture and post-grant refresh borrow canonical `HeapHeaderRoot` under
+`Engine.Mu` together with committed/end/index roots. Private shadows retain
+genuine exact-version/stamp history, not a RowID-wide replacement. Stable RI
+captures borrow the same captured current header authority over retained
+version/end vectors; captured old roots and tuple payloads remain immutable.
+Restore's FK scan uses the same locked capture boundary.
+
+Tuple admission borrows the actual captured physical version. The immutable
+header's inherited repair-anchor pair selects its manager resource through
+`exec.TupleResource`; ordinary grants retain their RowID key and allocation path.
+Capture and after-wait readmission run under `Engine.Mu`, but manager waits and
+grant inspection never do. Replacement/deletion acceptance compares the same
+admitted key under Owner → Engine lock order, readmitting changed keys unlocked
+before retrying the acceptance window. Queued physical events carry their
+actually admitted resource, not a later header-derived key. Old ticket/queue,
+relation and advisory ownership survive target-local repair.
+Immediate `PhysicalRowLock` publication uses only that existing admitted grant,
+without discovering/reacquiring a newer header key. Updating events originate
+only at actual replacement/deletion acceptance; a rejected proposal never adds
+a successor0 updater to a physical version already updated by another owner.
+The same final window also compares the canonical successor with the producer's
+expected VersionID. A changed/nonlive replacement returns an indexed, wholly
+unaccepted producer recheck, not index staleness; deletion keeps original
+captured-source authority separate from its checked current version. The DML
+producer owns its precise predicate/RHS/prologue boundary outside these locks.
+DELETE latest-row authority remains its exact captured storage identity, not the
+source reference's epoch. After that check, tuple admission derives a current
+lock reference while retaining the original request; domain, transaction epoch
+and storage incarnation checks still apply. UPDATE and MERGE retain their
+request-epoch gates.
+Ordinary source ordinals survive latest-row resolution as validated position
+hints, including the actual position of a genuine successor. DELETE uses that
+hint for its final exact physical lookup; single-row replacement windows carry
+the same scalar through `WriteBatch`. Every use rechecks VersionID, and missing
+or stale positions retain canonical historical/additional fallback. Hints add no
+tuple authority, header ownership, side registry or ordinary-path allocation.
+
+Demanded raw xmax capture samples exact canonical headers, releases metadata
+locks for the shared manager batch, then readmits the storage/header publication.
+Detached XID/MultiXact scalars belong only to immutable source/frame presentation;
+they never become full-XID deletion, private-history or publication authority.
+Current-row/RETURNING projection follows genuine event flushing. Expression
+evaluation remains pure; source/statement cleanup retires its own captures.
 
 Replication-slot lifecycle calls borrow the current effective actor under
 Engine → Session lock order, requiring its own superuser/REPLICATION attribute.
@@ -857,7 +921,7 @@ independent candidates and cannot parse, allocate or re-emit load warnings.
 
 ## Contrib runtimes
 
-The amcheck, `verify_heapam`, pageinspect, pgrowlocks, pgstattuple,
+The amcheck, `verify_heapam`, pageinspect, pgrowlocks, pgstattuple, pg_surgery,
 tablefunc (crosstab, connectby, normal_rand) and generic file runtimes are the
 leaf [`core/contrib`](contrib/README.md). Core owns `contrib.Host` on
 `statementHost` (`contrib_statement_host.go`), the `contrib.Authority` that
@@ -889,6 +953,13 @@ adapters and `PageinspectNotice`, and these host pieces:
 - `GenericFileAuthority`: the routine principal's `pg_read_server_files`
   membership and the path settings, borrowed in Engine -> Settings ->
   Session order.
+
+Persistent exact-version freezing belongs to the relation's immutable header
+root, not a transaction's write journal. Cohort capture includes actual aborted
+and deferred-discarded versions as well as live and prepared owners; no payload
+is recreated from a supplied TID. Old captures retain their original headers.
+The repair's scoped relation contribution is independent of ordinary tuple and
+relation ticket ownership, so clearing visibility cannot release peer resources.
 
 `WithMaintenanceOwner` supplies this one scoped owner environment: current
 routine authority, activated execution, nested restricted frames and safe
@@ -1041,6 +1112,10 @@ Volatile nested commands snapshot complete projected private roots instead of
 merging their removed entries with older transaction writes. Thus AFTER TRUNCATE
 reads the staged empty target even when earlier commands wrote it in the same
 transaction; read-only routine policies retain their calling-query frontier.
+Activation detaches only deletion roots still borrowed from the owner-mutable
+statement stage, including both physical-collision maps. Retained nested data
+views therefore keep their exact deletion frontier through later stage writes
+and exception rewind; already immutable unrelated roots remain shared.
 
 Reached static PL and SQL commands execute with their description's parameter
 count (the accepted binding's count for frozen SQL-standard commands), not the
@@ -2740,6 +2815,14 @@ fold ownership components use `RUN='^TestPgcryptoPolicy'`.
 Trusted local comment replay admission and bootstrap/namespace authority use
 `RUN='^TestTrustedRestoreComment'`; public comment and native-control outcomes
 remain in the owning reference scenarios.
+
+Genuine tuple-discard, deferred heap-incarnation and composed repair/owner
+transitions use `RUN='^TestPgsurgeryFreezeRetention$'`, inspecting actual roots,
+headers and immutable payload backing. Public SQL repair witnesses remain in
+the dual-mode reference family.
+Sibling deletion checkpoint ownership uses
+`RUN='^TestPgsurgeryFreezeDeletionOwnership$'`, retaining genuine physical
+targets and immutable stage roots through protected rollback.
 
 Engine tests whose code is mostly in a lower package or a `*cmds` family live
 in test-only `core/enginetests/<area>` packages (`functions`, `types`,

@@ -125,6 +125,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgFreespaceProviderOf(proc) == extension.StockPgFreespace
 	case functions.PgvisibilityExtension:
 		installed = extension.PgvisibilityProviderOf(proc) == extension.StockPgvisibility
+	case functions.PgsurgeryExtension:
+		installed = extension.PgsurgeryProviderOf(proc) == extension.StockPgsurgery
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.XML2Extension:
@@ -185,6 +187,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgFreespace.ValidateProcedure(r.catalog, p)
 	case extension.PgvisibilityProviderOf(p) != nil:
 		return extension.StockPgvisibility.ValidateProcedure(r.catalog, p)
+	case extension.PgsurgeryProviderOf(p) != nil:
+		return extension.StockPgsurgery.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.XML2ProviderOf(p) != nil:
@@ -420,6 +424,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgvisibilityExpr{Pgvisibility: c, Procedure: p, Ref: ref}, nil
+	case functions.Pgsurgery:
+		if err := extension.ValidatePgsurgeryIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgsurgeryCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgsurgeryExpr{Pgsurgery: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

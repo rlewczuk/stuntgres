@@ -22,39 +22,12 @@ func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error 
 	if s.LockTicket == nil || s.LockTicket.Ref() != s.TxRef || session.TxOwnerOf(s.TxRef) != s.Owner || s.TxRef.Session() != s.Op.Session.SessionToken || candidate.Storage == nil || candidate.Storage != s.mutationStorage(candidate.Ref) || candidate.Row == 0 || candidate.Version == 0 || candidate.Ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
-	e := s.Engine()
-	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate, policy)
-	if err != nil {
-		return err
-	}
-	if request != nil {
-		if s.ReplacementRead {
-			e.ReplacementMu.RUnlock()
-			s.ReplacementRead = false
-		}
-		if err = request.Wait(); err != nil {
-			return err
-		}
-		if s.implicit {
-			e.ReplacementMu.RLock()
-			s.ReplacementRead = true
-		}
-	}
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if err = s.ValidateLockedRelation(e); err != nil {
-		return err
-	}
-	if candidate.Ref.Domain() != e.Catalog.Domain || candidate.Ref.Epoch != e.Catalog.State.Epoch() || candidate.Storage != e.PrivateStorageLocked(s.PendingCatalog(), candidate.Ref.Address) {
-		return ids.ErrCatalogReplaced
-	}
-	return nil
+	return s.acquireUpdateRowMode(candidate.Ref, storage.RowVersion{Row: candidate.Row, Version: candidate.Version}, lock.ForUpdate)
 }
 
 // Delete transfers only the original identity, never a value-based substitute.
 // A peer committed deletion is a successful skip after arbitration.
-func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool, err error) {
+func (w *WriteStage) Delete(candidate visibility.DeleteCandidate, expected storage.RowVersion) (deleted bool, err error) {
 	if w == nil || w.self != w || w.scope == nil {
 		return false, errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -75,17 +48,16 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if err := s.Active(); err != nil {
 		return false, err
 	}
-	if !s.Engine().Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate) {
-		return false, errors.New("stuntgres: deletion requires its row grant")
+	original, hint, err := s.lockDeletionStage(candidate, expected)
+	if err != nil {
+		return false, err
 	}
-	s.Owner.Mu.Lock()
+	e := s.Engine()
 	defer s.Owner.Mu.Unlock()
+	defer e.Mu.Unlock()
 	if !s.worked || s.Owner.State == session.TxIdle || s.Owner.State == session.TxAborted || s.Owner.Ref != s.TxRef {
 		return false, errors.New("stuntgres: inactive write stage")
 	}
-	e := s.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
 	if candidate.Ref.Domain() != e.Catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
@@ -103,7 +75,14 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if candidate.Own {
 		captured = data.Own[candidate.Ref.Address]
 	}
-	if candidate.Ordinal < 0 || candidate.Ordinal >= len(captured) || captured[candidate.Ordinal].Row != candidate.Row || captured[candidate.Ordinal].Version != candidate.Version {
+	capturedHere := candidate.Ordinal >= 0 && candidate.Ordinal < len(captured) && captured[candidate.Ordinal].Row == candidate.Row && captured[candidate.Ordinal].Version == candidate.Version
+	if !capturedHere && data.Headers[candidate.Ref.Address] != nil {
+		_, _, inPrefix := storage.RowByVersion(captured, candidate.Row, candidate.Version, -1)
+		if !inPrefix {
+			_, _, capturedHere = storage.RowByVersion(data.Headers[candidate.Ref.Address].Additional, candidate.Row, candidate.Version, -1)
+		}
+	}
+	if !capturedHere {
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.OwnWrites[candidate.Ref.Address]
@@ -111,24 +90,33 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if store == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
-	if !candidate.Own {
-		rows = store.Versions
+	candidate.Own = original.Born == 0 && !original.ForcedFrozen
+	var slot int
+	var found bool
+	if candidate.Own {
+		_, slot, found = storage.RowByVersion(rows, original.Row, original.Version, hint)
+		if !found {
+			_, slot, found = storage.RowByVersion(w.Rows[candidate.Ref.Address], original.Row, original.Version, hint)
+		}
+	} else {
+		_, slot, found = store.PhysicalVersion(original.Version, hint)
 	}
-	original, slot, found := storage.RowByID(rows, candidate.Row, candidate.Ordinal)
 	relation, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(candidate.Ref.Address)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !visibility.LiveVersion(original, e.Visibility.CommitSeq(), store.Ends, s.OwnDeletes[candidate.Ref.Address]) {
-		return false, nil
-	}
 	candidate.Version, candidate.Ordinal = original.Version, slot
+	candidate.RepairStamp = original.RepairStamp
+	candidate.BaseRepairStamp = original.BaseHeaderStamp()
 	if candidate.Own {
 		candidate.Base = original.Base
+	} else {
+		candidate.Base = 0
+		candidate.BaseRepairStamp = 0
 	}
 	root := w.Deletes[candidate.Ref.Address]
 	if root != nil {
-		if _, duplicate := root.Rows[candidate.Row]; duplicate {
+		if existing, duplicate := root.Lookup(candidate.Row, candidate.Version); duplicate && existing.Version == candidate.Version {
 			return false, errors.New("stuntgres: duplicate staged deletion")
 		}
 	}
@@ -149,6 +137,13 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	if err := e.SerializableWriteLocked(s, candidate.Ref, event[:]); err != nil {
 		return err
 	}
+	if err := e.AssignTransactionXIDLocked(s.TxRef); err != nil {
+		return err
+	}
+	candidate.EndFullXID = e.Visibility.FullXIDLocked(s.TxRef)
+	physical := original
+	physical.RepairStamp = candidate.RepairStamp
+	candidate.Storage.Headers = storage.EndHeapHeaders(candidate.Storage.Headers, []storage.RowVersion{physical}, candidate.EndFullXID)
 	if w.Deletes == nil {
 		w.Deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
 	}
@@ -157,12 +152,12 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 		root = &visibility.PrivateDeletes{Rows: make(map[ids.RowID]visibility.DeleteCandidate)}
 		w.Deletes[candidate.Ref.Address] = root
 	}
-	root.Rows[candidate.Row] = candidate
+	root.Set(candidate)
 	if s.foreignEffectRelevant(candidate.Ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		s.recordForeignEffect(candidate.Ref, original, storage.RowVersion{})
 	}
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.Ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
+	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{Resource: s.admittedTuple(candidate.Ref, original), Version: original.Version}, Mode: lock.MultiUpdateAction})
 	e.initializeTemporaryBuffersLocked(s, candidate.Ref)
 	s.recordStatsTuple(candidate.Ref, 0, 0, 1)
 	return nil

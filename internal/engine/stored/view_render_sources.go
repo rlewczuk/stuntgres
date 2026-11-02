@@ -498,7 +498,7 @@ func (v *QueryRenderer) usingOrderAliasNeeded(bound *plan.JoinNode, ns analyze.V
 		}
 		captured := false
 		for path, column := range v.columns {
-			if !column.TableOID && path.Query == v.Frame && path.Clause == analyze.ViewOrderLiteral && column.Frame == v.Frame && column.Slot == offset+slot {
+			if column.SystemAttribute == 0 && path.Query == v.Frame && path.Clause == analyze.ViewOrderLiteral && column.Frame == v.Frame && column.Slot == offset+slot {
 				captured = true
 				break
 			}

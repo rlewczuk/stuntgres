@@ -82,7 +82,7 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 				*occurrences = make(map[viewWriteOccurrence]int)
 			}
 			(*occurrences)[key] = slot
-			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, TableOIDRead: leaf.TableOIDRead})
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead})
 			b.SubqueryDemand = true
 		}
 		return slot, nil
@@ -104,7 +104,7 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 	}
 	ownFrames(root)
 	translate := func(n expr.Expr) (expr.Expr, bool, error) {
-		if system, ok := n.(plan.TableOIDExpr); ok && system.Scope != 0 && frames[system.Frame] {
+		if system, ok := n.(plan.SystemAttributeExpr); ok && system.Scope != 0 && system.QueryOccurrence > 0 && frames[system.Frame] {
 			slot, err := mapOccurrence(system.QueryOccurrence - 1)
 			if err != nil {
 				return nil, false, err

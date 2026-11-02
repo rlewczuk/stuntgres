@@ -60,7 +60,7 @@ func newColcuUnitFixture(t *testing.T) colcuUnitFixture {
 		t.Fatal(err)
 	}
 	sevenExpr := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: seven}
-	tableoid := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage()}, Owner: view.Owner().Domain.Ref(view.Epoch(), table.Address())}
+	tableoid := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage()}, Owner: view.Owner().Domain.Ref(view.Epoch(), table.Address())}
 	table.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{
 		4: {OID: 20560, Kind: catalog.GenerationStored, Expression: repeated, Planned: repeated},
 		5: {OID: 20561, Kind: catalog.GenerationVirtual, Expression: column(table, 3), Planned: column(table, 3)},

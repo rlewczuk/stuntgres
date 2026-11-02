@@ -146,9 +146,15 @@ func (e *Engine) StageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 			}
 		}
 	}
+	if err := e.AssignTransactionXIDLocked(ref); err != nil {
+		return err
+	}
 	versions, err := e.Storage.AllocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
+	}
+	for i := range versions {
+		versions[i].InsertFullXID = e.Visibility.FullXIDLocked(ref)
 	}
 	stage.initialTables = map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: versions}}
 	stage.InitialTx = ref

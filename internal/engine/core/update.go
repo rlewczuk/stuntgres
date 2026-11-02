@@ -9,37 +9,20 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 // SQL waits never retain replacement admission or state/manager mutexes.
-func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
-	e := s.Engine()
+func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error {
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
-	if request != nil {
-		if s.ReplacementRead {
-			e.ReplacementMu.RUnlock()
-			s.ReplacementRead = false
-		}
-		err = request.Wait()
-	}
-	if err != nil {
+	if err := s.acquireTuple(ref, row, nil, mode, policy); err != nil {
 		return err
 	}
-	if s.implicit && !s.ReplacementRead {
-		e.ReplacementMu.RLock()
-		s.ReplacementRead = true
-	}
+	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if err := s.ValidateLockedRelation(e); err != nil {
-		return err
-	}
-	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {
-		return ids.ErrCatalogReplaced
-	}
-	return nil
+	return s.ValidateLockedRelation(e)
 }
 
 // executeUpdate runs the dml UPDATE executor over the scope's host.

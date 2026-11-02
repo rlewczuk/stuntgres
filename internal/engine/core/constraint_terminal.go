@@ -44,11 +44,13 @@ func (s *StatementScope) releaseTerminalScope() {
 	s.RoutineAuth, s.ForeignActionAuth = AuthorizationView{}, nil
 	s.RoutineDependencies = nil
 	s.Stage.Rows, s.Stage.Deletes, s.Stage.Stats = nil, nil, nil
+	s.Stage.DiscardedHeaps = nil
 	s.OwnWrites, s.OwnDeletes = nil, nil
 	s.Catalog, s.CatalogAuthority = nil, nil
 	s.currentSnapshot = nil
 	s.QuerySources, s.QueryLockContext = nil, nil
 	s.LockTicket = nil
+	s.tupleAdmissions = nil
 	if s.authority != nil {
 		s.authority.Host = nil
 	}

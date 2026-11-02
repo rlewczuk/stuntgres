@@ -161,6 +161,21 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 	if len(parts) == 2 {
 		if scope, newValues := b.outerReturningScope(parser.ObjectName{Parts: parts[:1]}); scope != nil {
 			relation := scope.relation
+			if subID, typeID := catalog.SystemAttribute(parts[1].Text); subID != 0 && relation.HasSystemAttributes() {
+				n := b.targetSystemAttribute(parts[1].Text, scope.frame, raw.Pos)
+				n.Info = b.Info(b.Type(typeID).Usage(), raw.Pos, expr.Properties{RowDependent: true})
+				mode := scope.returning.mode
+				n.Old = !newValues && mode != ReturningDelete
+				n.Absent = !newValues && mode == returningInsert || newValues && mode == ReturningDelete
+				if mode == returningMerge {
+					n.Merge = true
+					n.Side = exec.MergeOldSide
+					if newValues {
+						n.Side = exec.MergeNewSide
+					}
+				}
+				return n, nil
+			}
 			slot, ok := relation.Index[parts[1].Text]
 			if !ok {
 				return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[0].Text, parts[1].Text), raw.Pos)
@@ -199,8 +214,8 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, stringForbiddenColumn(*namespace, match.Slot, raw.Pos)
 		}
 	}
-	if name == "tableoid" {
-		if system, err := b.queryTableOID(namespace, qualified, match, frame, raw.Pos); system != nil || err != nil {
+	if catalog.IsSystemColumn(name) {
+		if system, err := b.querySystemAttribute(name, namespace, qualified, match, frame, raw.Pos); system != nil || err != nil {
 			return system, err
 		}
 	}
@@ -209,16 +224,6 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			demand[match.Slot] = true
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
-	}
-	if b.Target.mergeWhen && b.FrameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
-		for _, q := range namespace.Qualifiers {
-			if len(parts) > 1 && (q.Name != parts[len(parts)-2].Text || len(parts) == 3 && q.Schema != parts[0].Text) {
-				continue
-			}
-			if relation, ok := b.authorityRelation(b.Query.Auth, q.Ref.Address); ok && relation.RelationKind == catalog.TableRelation {
-				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
-			}
-		}
 	}
 	if len(parts) == 1 {
 		for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
@@ -236,8 +241,8 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 				}
 				match = c
 			}
-			if name == "tableoid" {
-				if system, err := b.queryTableOID(scope.namespace, nil, match, scope.frame, raw.Pos); system != nil || err != nil {
+			if catalog.IsSystemColumn(name) {
+				if system, err := b.querySystemAttribute(name, scope.namespace, nil, match, scope.frame, raw.Pos); system != nil || err != nil {
 					return system, err
 				}
 			}
@@ -445,7 +450,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		namespace, _ := b.authorityDescriptor(b.Query.Auth, relation.Namespace())
 		q := QueryQualifier{Name: relation.Name(), Original: relation.Name(), Schema: namespace.Name(), Ref: ref, Columns: columns}
 		if relation.HasSystemAttributes() {
-			q.TableOIDOccurrence = leaf + 1
+			q.SystemOccurrence = leaf + 1
 		}
 		b.Query.Hidden = append(b.Query.Hidden, q)
 		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name(), Sample: sample}, QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{q}, Frame: relation.Columns}, nil
@@ -537,7 +542,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		q := QueryQualifier{Name: n.Name.Text, Alias: n.Name.Text, Columns: ns.Columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.Ref, q.Schema, q.Original = ns.Qualifiers[0].Ref, ns.Qualifiers[0].Schema, ns.Qualifiers[0].Original
-			q.TableOIDOccurrence = ns.Qualifiers[0].TableOIDOccurrence
+			q.SystemOccurrence = ns.Qualifiers[0].SystemOccurrence
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
@@ -601,8 +606,8 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		captures := append([]plan.FunctionCorrelation(nil), functionFromCaptures(left)...)
 		for _, capture := range functionFromCaptures(right) {
 			if capture.QueryOccurrence != 0 && capture.Frame == b.FrameID() {
-				if !queryNamespaceHasTableOID(&lns, capture.QueryOccurrence) {
-					if !queryNamespaceHasTableOID(inherited, capture.QueryOccurrence) {
+				if !queryNamespaceHasSystemAttribute(&lns, capture.QueryOccurrence) {
+					if !queryNamespaceHasSystemAttribute(inherited, capture.QueryOccurrence) {
 						return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function correlation occurrence")
 					}
 					captures = append(captures, capture)

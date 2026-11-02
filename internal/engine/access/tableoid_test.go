@@ -30,7 +30,9 @@ func TestQueryTableOIDAdmission(t *testing.T) {
 	if err := v.Check(env, Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("table SELECT rejected", err)
 	}
-	if !copy.HasSupportedAttribute(-6) || copy.HasAttribute(-6) {
-		t.Fatal("system identity became a dense column")
+	for _, subID := range []int32{-1, -2, -4, -6} {
+		if !copy.HasSupportedAttribute(subID) || copy.HasAttribute(subID) {
+			t.Fatal("system identity became a dense column", subID)
+		}
 	}
 }

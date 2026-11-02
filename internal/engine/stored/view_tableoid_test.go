@@ -10,38 +10,38 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func storedTableOIDFixture(t *testing.T) (catalog.Read, *RoutineProgram, analyze.ViewLiteralPath) {
+func storedSystemAttributeFixture(t *testing.T, name string) (catalog.Read, *RoutineProgram, analyze.ViewLiteralPath) {
 	t.Helper()
 	read, relation, _, _ := routineCaptureFixture(t)
-	oid, ok := read.LookupType(sqltype.Oid)
+	subID, typeID := catalog.SystemAttribute(name)
+	oid, ok := read.LookupType(typeID)
 	if !ok {
 		t.Fatal("OID fixture type")
 	}
 	ref := read.Domain().Ref(read.Epoch(), relation.Address())
 	pos := parser.Position{Offset: 7, Character: 8}
-	raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "tableoid", Pos: pos}}}, Pos: pos}
+	raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Pos: pos}
 	syntax := &parser.Select{Targets: []parser.Expr{raw}, From: &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: relation.Name()}}}}}
-	n := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Pos: pos, Property: expr.Properties{RowDependent: true}}, Owner: ref, Scope: 1, Frame: 1, QueryOccurrence: 1}
+	n := plan.SystemAttributeExpr{SubID: subID, Info: expr.Info{Usage: oid.Usage(), Pos: pos, Property: expr.Properties{RowDependent: true}}, Owner: ref, Scope: 1, Frame: 1, QueryOccurrence: 1}
 	source := &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: 0, RangeName: relation.Name()}
-	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "tableoid", Usage: oid.Usage()}}, Expressions: []expr.Expr{n}, Child: source, Frame: 1, Syntax: syntax}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: name, Usage: oid.Usage()}}, Expressions: []expr.Expr{n}, Child: source, Frame: 1, Syntax: syntax}
 	query := &plan.Query{Root: project}
 	path := analyze.ViewLiteralPath{Query: 1, Clause: analyze.ViewTargetLiteral}
 	attribute := ref
-	attribute.Address.SubID = -6
+	attribute.Address.SubID = subID
 	dependencies := []catalog.ExpressionDependency{{Ref: attribute, Revision: relation.Revision()}}
-	v := NewView(ViewParts{Query: query, Syntax: syntax, Frames: map[uint32]*plan.ProjectNode{1: project}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []ViewLeaf{{Ref: ref, Attributes: relation.Attributes, TableOIDRead: true}}, Dependencies: dependencies, Columns: map[analyze.ViewLiteralPath]analyze.ViewColumn{path: {TableOID: true, Owner: ref, Scope: 1, Frame: 1, Occurrence: 1}}})
-	binding := analyze.Binding{Query: query, QuerySources: []exec.Leaf{{Ref: ref, Relation: relation, TableOIDRead: true}}, Dependencies: dependencies}
+	v := NewView(ViewParts{Query: query, Syntax: syntax, Frames: map[uint32]*plan.ProjectNode{1: project}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []ViewLeaf{{Ref: ref, Attributes: relation.Attributes, SystemAttributeRead: true}}, Dependencies: dependencies, Columns: map[analyze.ViewLiteralPath]analyze.ViewColumn{path: {SystemAttribute: subID, Owner: ref, Scope: 1, Frame: 1, Occurrence: 1}}})
+	binding := analyze.Binding{Query: query, QuerySources: []exec.Leaf{{Ref: ref, Relation: relation, SystemAttributeRead: true}}, Dependencies: dependencies}
 	return read, NewRoutineProgram([]RuleAction{NewRuleAction(RuleActionParts{Syntax: syntax, Binding: binding, Presentation: v})}), path
 }
 
 func TestStoredTableOIDCaptureValidation(t *testing.T) {
 	for _, kind := range []string{"missing", "extra", "mode", "scope", "frame", "occurrence", "owner", "foreign", "stale", "admission"} {
 		t.Run(kind, func(t *testing.T) {
-			read, p, path := storedTableOIDFixture(t)
+			read, p, path := storedSystemAttributeFixture(t, "tableoid")
 			if err := p.Validate(read); err != nil {
 				t.Fatal("valid tableoid capture", err)
 			}
@@ -55,7 +55,7 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 				extra.Node = 99
 				v.columns[extra] = c
 			case "mode":
-				c.TableOID = false
+				c.SystemAttribute = 0
 			case "scope":
 				c.Scope = 0
 			case "frame":
@@ -69,7 +69,7 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 			case "stale":
 				c.Owner = read.Domain().Ref(c.Owner.Epoch+1, c.Owner.Address)
 			case "admission":
-				v.sources[0].TableOIDRead = false
+				v.sources[0].SystemAttributeRead = false
 			}
 			if kind != "missing" && kind != "extra" {
 				v.columns[path] = c
@@ -79,7 +79,7 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 			}
 		})
 	}
-	read, p, _ := storedTableOIDFixture(t)
+	read, p, _ := storedSystemAttributeFixture(t, "tableoid")
 	n := p.actions[0].binding.Query.Root.(*plan.ProjectNode).Expressions[0]
 	refs, err := ExpressionDependRefs(context.Background(), read, n)
 	if err != nil || len(refs) != 1 || refs[0].SubID != -6 || refs[0].ObjectID != p.actions[0].binding.QuerySources[0].Ref.Address.ObjectID {
@@ -87,8 +87,8 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 	}
 	for _, kind := range []string{"valid", "missing", "extra", "wrong-source", "ordinary-slot", "not-correlated"} {
 		t.Run("function_"+kind, func(t *testing.T) {
-			read, p, _ := storedTableOIDFixture(t)
-			system := p.actions[0].binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.TableOIDExpr)
+			read, p, _ := storedSystemAttributeFixture(t, "tableoid")
+			system := p.actions[0].binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.SystemAttributeExpr)
 			array, ok := read.LookupArray(system.ResultUsage().Type)
 			if !ok {
 				t.Fatal("missing OID array")
@@ -119,7 +119,7 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 func TestStoredTableOIDRemap(t *testing.T) {
 	for _, bad := range []string{"", "foreign", "stale", "nil-domain"} {
 		t.Run("source_"+bad, func(t *testing.T) {
-			read, p, path := storedTableOIDFixture(t)
+			read, p, path := storedSystemAttributeFixture(t, "tableoid")
 			a := p.actions[0].binding.QuerySources[0].Ref.Address
 			b, c := a, a
 			b.ObjectID++
@@ -131,7 +131,7 @@ func TestStoredTableOIDRemap(t *testing.T) {
 			}
 			if bad != "" {
 				project := p.actions[0].binding.Query.Root.(*plan.ProjectNode)
-				n := project.Expressions[0].(plan.TableOIDExpr)
+				n := project.Expressions[0].(plan.SystemAttributeExpr)
 				switch bad {
 				case "foreign":
 					n.Owner = new(ids.Domain).Ref(read.Epoch(), a)
@@ -154,7 +154,7 @@ func TestStoredTableOIDRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			mapped := next.(*RoutineProgram).actions[0]
-			n := mapped.binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.TableOIDExpr)
+			n := mapped.binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.SystemAttributeExpr)
 			capture := mapped.presentation.columns[path]
 			if n.Owner.Address != b || capture.Owner != n.Owner || n.Frame != 1 || n.QueryOccurrence != 1 || capture.Occurrence != 1 {
 				t.Fatal("reference remapped more than once or coordinates lost", n, capture)
@@ -164,15 +164,15 @@ func TestStoredTableOIDRemap(t *testing.T) {
 					t.Fatal("negative reference lost remap", dep)
 				}
 			}
-			if original := p.actions[0].binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.TableOIDExpr); original.Owner.Address != a {
+			if original := p.actions[0].binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.SystemAttributeExpr); original.Owner.Address != a {
 				t.Fatal("original mutated")
 			}
 		})
 	}
 	t.Run("function_coordinates", func(t *testing.T) {
-		read, p, _ := storedTableOIDFixture(t)
+		read, p, _ := storedSystemAttributeFixture(t, "tableoid")
 		project := p.actions[0].binding.Query.Root.(*plan.ProjectNode)
-		system := project.Expressions[0].(plan.TableOIDExpr)
+		system := project.Expressions[0].(plan.SystemAttributeExpr)
 		array, ok := read.LookupArray(system.ResultUsage().Type)
 		if !ok {
 			t.Fatal("missing OID array")
@@ -188,7 +188,7 @@ func TestStoredTableOIDRemap(t *testing.T) {
 		}
 		mapped := node.(*plan.JoinNode)
 		mappedFunction := mapped.Right.(*plan.FunctionFromNode)
-		mappedSystem := mappedFunction.Calls[0].(plan.UnnestExpr).Args[0].(plan.ArrayExpr).Elements[0].(plan.TableOIDExpr)
+		mappedSystem := mappedFunction.Calls[0].(plan.UnnestExpr).Args[0].(plan.ArrayExpr).Elements[0].(plan.SystemAttributeExpr)
 		if mapped.Frame != 4 || mappedFunction.Frame != 4 || mapped.Captures[0].Frame != 4 || mapped.Captures[0].QueryOccurrence != 6 || mappedFunction.Captures[0].QueryOccurrence != 6 || mappedSystem.QueryOccurrence != 6 || mappedSystem.Frame != 4 || mappedSystem.Owner != system.Owner || !mapped.CorrelationIdentityPrefix || mapped.Left.(*plan.SourceNode).Occurrence != 5 {
 			t.Fatal("function source coordinate remap lost provenance", mapped, mappedFunction, mappedSystem)
 		}

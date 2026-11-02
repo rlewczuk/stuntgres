@@ -92,10 +92,10 @@ func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, err
 			if n.Negate {
 				text = "NOT " + text
 			}
-		case plan.TableOIDExpr:
-			text = "tableoid"
+		case plan.SystemAttributeExpr:
+			text = catalog.SystemAttributeName(n.SubID)
 			if occurrence := r.occurrences[n.QueryOccurrence-1]; occurrence != nil {
-				text = catalog.Identifier(occurrence.RangeName) + ".tableoid"
+				text = catalog.Identifier(occurrence.RangeName) + "." + catalog.SystemAttributeName(n.SubID)
 			}
 		case plan.GroupExpr:
 			text, err = r.groupExpression(root, n.Frame, n.Slot)

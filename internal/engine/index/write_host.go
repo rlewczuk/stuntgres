@@ -80,6 +80,7 @@ type UniqueProbe struct {
 	Schema        string
 	Root          *storage.IndexRoot
 	Versions      []storage.RowVersion
+	Headers       *storage.HeapHeaderRoot
 	Authority     access.View // for the ON CONFLICT check and key disclosure
 }
 

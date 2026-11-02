@@ -15,6 +15,16 @@ func rowVersions(pairs ...int) []storage.RowVersion {
 	return rows
 }
 
+func replacementVersions(previous []storage.RowVersion, pairs ...int) []storage.RowVersion {
+	rows := rowVersions(pairs...)
+	for i := range rows {
+		if predecessor, _, found := storage.RowByID(previous, rows[i].Row, -1); found {
+			rows[i].PrivateHistory = storage.RetainHeapPredecessor(predecessor)
+		}
+	}
+	return rows
+}
+
 func sameRows(t *testing.T, label string, got []storage.RowVersion, want ...int) {
 	t.Helper()
 	expected := rowVersions(want...)
@@ -35,11 +45,11 @@ func TestWriteSetMergesKeepRetainedPrefixes(t *testing.T) {
 	old := rowVersions(1, 10, 2, 20, 3, 30)
 	sameRows(t, "empty old", MergePrivateRows(nil, rowVersions(4, 40), true), 4, 40)
 
-	single := MergePrivateRows(old, rowVersions(2, 21), true)
+	single := MergePrivateRows(old, replacementVersions(old, 2, 21), true)
 	sameRows(t, "single replacement", single, 1, 10, 2, 21, 3, 30)
 	sameRows(t, "retained after single", old, 1, 10, 2, 20, 3, 30)
 
-	several := MergePrivateRows(old, rowVersions(3, 31, 5, 50, 1, 11), true)
+	several := MergePrivateRows(old, replacementVersions(old, 3, 31, 5, 50, 1, 11), true)
 	sameRows(t, "several", several, 1, 11, 2, 20, 3, 31, 5, 50)
 	sameRows(t, "retained after several", old, 1, 10, 2, 20, 3, 30)
 
@@ -72,7 +82,7 @@ func TestWriteSetMergesPrepareOwnWrites(t *testing.T) {
 		t.Fatal("a full vector must be copied into a larger one")
 	}
 
-	next = PrepareOwnWrites(previous, map[ids.ObjectAddress][]storage.RowVersion{a: rowVersions(1, 11)}, true)
+	next = PrepareOwnWrites(previous, map[ids.ObjectAddress][]storage.RowVersion{a: replacementVersions(full, 1, 11)}, true)
 	sameRows(t, "replacement", next[a], 1, 11)
 	sameRows(t, "retained after replacement", full, 1, 10)
 }
@@ -92,8 +102,16 @@ func TestWriteSetMergesDeletions(t *testing.T) {
 	if len(earlier.Rows) != 1 || earlier.Rows[1].Version != 10 || len(previous) != 1 {
 		t.Fatal("the earlier overlay was mutated")
 	}
-	if got := next[a].Rows; len(got) != 2 || got[1].Version != 11 || got[2].Version != 20 {
-		t.Fatalf("merged overlay %v", got)
+	if next[a].Len() != 3 {
+		t.Fatal("same-RowID physical deletions collapsed", next[a])
+	}
+	for row, version := range map[ids.RowID]ids.VersionID{1: 10, 2: 20} {
+		if candidate, ok := next[a].Lookup(row, version); !ok || candidate.Version != version {
+			t.Fatal("missing exact prior deletion", row, version)
+		}
+	}
+	if candidate, ok := next[a].Lookup(1, 11); !ok || candidate.Version != 11 {
+		t.Fatal("missing exact sibling deletion", candidate, ok)
 	}
 	if next[b] != staged[b] {
 		t.Fatal("a new relation must take its staged overlay")

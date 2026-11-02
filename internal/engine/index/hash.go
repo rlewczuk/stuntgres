@@ -235,7 +235,8 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			}
 		}
 	}
-	var ended map[ids.RowID]ids.VersionID
+	var ended map[ids.VersionID]ids.RowID
+	scanEnded := binding.Expression != nil
 	var touched map[uint64]bool
 	var added map[uint64][]storage.HashEntry
 	touch := func(h uint64) {
@@ -244,15 +245,15 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 		touched[h] = true
 	}
-	end := func(row storage.RowVersion) error {
+	end := func(row ids.RowID, version ids.VersionID, values []sqltype.Value) error {
 		if ended == nil {
-			ended = make(map[ids.RowID]ids.VersionID)
+			ended = make(map[ids.VersionID]ids.RowID)
 		}
-		ended[row.Row] = row.Version
+		ended[version] = row
 		// A plain physical key can locate its bucket without evaluating SQL.
 		// Expression keys are located below by their stored entry identity.
-		if binding.Expression == nil {
-			key := row.Values[binding.Slot]
+		if binding.Expression == nil && len(values) > binding.Slot {
+			key := values[binding.Slot]
 			if !key.IsNull() {
 				h, err := binding.Provider.Hash(ctx, key)
 				if err != nil {
@@ -260,6 +261,10 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 				}
 				touch(h)
 			}
+		} else if binding.Expression == nil {
+			// A repaired historical base can be absent from the head vector.
+			// Locate any actual stored membership by exact identity below.
+			scanEnded = true
 		}
 		return nil
 	}
@@ -271,15 +276,17 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		// an index version consumes stored index identity, never old-row SQL.
 		if row.Base != 0 && materialize {
 			position := PublicationSlot(p, i)
-			if position < 0 || position >= len(p.Root) || p.Root[position].Row != row.Row || p.Root[position].Version != row.Base {
-				return nil, fmt.Errorf("stuntgres: invalid hash update predecessor")
+			predecessor, _, found := storage.RowByVersion(p.Root, row.Row, row.Base, position)
+			var values []sqltype.Value
+			if found {
+				values = predecessor.Values
 			}
-			if err := end(p.Root[position]); err != nil {
+			if err := end(row.Row, row.Base, values); err != nil {
 				return nil, err
 			}
 		}
 		if p.Deletion != nil {
-			if deletion, ok := p.Deletion.Rows[row.Row]; ok && deletion.Version == row.Version {
+			if deletion, ok := p.Deletion.Lookup(row.Row, row.Version); ok && deletion.Version == row.Version {
 				continue
 			}
 		}
@@ -329,15 +336,16 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 	}
 	if p.Deletion != nil && materialize {
-		for id, deletion := range p.Deletion.Rows {
+		for id, deletion := range p.Deletion.All() {
 			if deletion.Own {
 				continue
 			}
-			row, _, found := storage.RowByID(p.Root, id, deletion.Ordinal)
-			if !found || row.Version != deletion.Version {
-				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
+			row, _, found := storage.RowByVersion(p.Root, id, deletion.Version, deletion.Ordinal)
+			var values []sqltype.Value
+			if found {
+				values = row.Values
 			}
-			if err := end(row); err != nil {
+			if err := end(id, deletion.Version, values); err != nil {
 				return nil, err
 			}
 		}
@@ -345,7 +353,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	if len(ended) != 0 && binding.Expression != nil {
+	if len(ended) != 0 && scanEnded {
 		for h, bucket := range old.Hash.Buckets {
 			if touched[h] {
 				continue
@@ -354,7 +362,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if ended[entry.Row] == entry.Version {
+				if ended[entry.Version] == entry.Row {
 					touch(h)
 					break
 				}
@@ -378,7 +386,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if ended[entry.Row] != entry.Version {
+			if ended[entry.Version] != entry.Row {
 				next = append(next, entry)
 			}
 		}

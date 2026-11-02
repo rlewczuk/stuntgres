@@ -404,6 +404,19 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		if extension.ValidatePgvisibilityCall(view, current, call) != nil {
 			return false
 		}
+	case plan.InstalledPgsurgeryExpr:
+		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgsurgeryIdentity(view, current, n.Ref) != nil {
+			return false
+		}
+		call := n.Pgsurgery
+		call.RoutineReference = current
+		if extension.ValidatePgsurgeryCall(view, current, call) != nil {
+			return false
+		}
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

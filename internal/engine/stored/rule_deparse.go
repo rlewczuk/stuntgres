@@ -61,7 +61,7 @@ func (a *ruleRendering) renderer(v *View) *QueryRenderer {
 	}
 	if v != nil && v.frames[1] != nil {
 		for occurrence, leaf := range v.sources {
-			if !leaf.TableOIDRead {
+			if !leaf.SystemAttributeRead {
 				continue
 			}
 			source := viewSourceAt(analyze.ViewFromRoot(v.frames[1]), occurrence)

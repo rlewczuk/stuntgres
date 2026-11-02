@@ -34,10 +34,25 @@ standard library. It never imports the root engine. Layering is in
   default. Genuine heap aliases share the existing concrete heap implementation.
   PostgreSQL native handler ABI loading, extension binaries, page rewrites and
   physical WAL remain external mechanisms, not alternate successful no-ops.
+  `PrivateDeletes` retains one ordinary row slot plus supplementary exact-version
+  collision facts. `Lookup(RowID, VersionID)` checks an exact selected Version
+  before genuine nonzero Base lineage; a row match alone never ends a sibling.
+  `All`, `Len`, `Clone` and unpublished `Set`/`Delete` cover both maps with one
+  fact per Version. Selected and Base repair-admission stamps are
+  distinct, so a pre-repair successor cannot hide a newly restored predecessor.
+  `PrivateDeletes.Ends(RowVersion)` owns that effective private-end predicate for
+  heap liveness, conflict and RI consumers; `Lookup` is raw presence only.
+  Captured committed physical ends apply to normal ancestors too; stable fetch
+  keeps concurrent-update diagnostic precedence before a later physical end.
 - **Repeatable-read fetch conflicts:** `RepeatableConflict` (`repeatable.go`),
   the 40001 "concurrent update"/"concurrent delete" rule for a row fetched
-  under a stable snapshot, over its frontier and the end markers. The DML
-  latest-row readers and the FK action admission call it.
+  under a stable snapshot, over its frontier and the end markers. Repaired heads
+  check their committed physical end before the ordinary zero-birth own-write
+  exemption: a retained aborted tuple can remain Born 0 after repair, so zero
+  birth alone does not prove caller ownership. The repaired header overrides
+  stale pre-repair end markers; ordinary committed heads retain concurrent-update
+  diagnostic precedence over later deletion. Fresh snapshots do not conflict.
+  The DML latest-row readers and the FK action admission call this rule.
 - **Write-set merges** (`write_set.go`): `MergePrivateRows`, `MergeDeletions`
   and `PrepareOwnWrites` combine a statement's staged private rows and
   deletions with the transaction's earlier ones. They never mutate either
@@ -216,6 +231,8 @@ Package units cover the registry, XID assignment, live versions, views, safe
 snapshots, the SSI graph and write-set merges. Engine tests exercise the
 registry through sessions, publication and SQL functions; the
 transaction-identity units seed wrap, horizon and collision state.
+Exact sibling deletion/base lookup, clone ownership and repair-admission
+stamps use `RUN='^TestPrivateDeletes'`.
 
 ```sh
 make check RACE=1 RUN='^Test(LiveVersionOverlayAndEnds|NextFullXID|Registry(CommitSeq|XIDAssignment)|SafeSnapshot(Abandon|FenceWakes|Wait)|SerializableGraph|SerializablePrecommit|View(ForgedCopy|RetainRelease)|WriteSetMerges)'

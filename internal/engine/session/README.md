@@ -66,6 +66,16 @@ Named CLUSTER uses the transactional utility journal and remains read-only
 eligible; bare CLUSTER has no all-target snapshot or journal. Both describe
 without target lookup and report the CLUSTER utility tag with zero affected rows.
 
+`Journal.DiscardedHeaps` retains immutable actual private tuple headers against
+their exact storage pointer when projection or replacement loses an owner root.
+Journal clones, savepoint marks and PREPARE share these batches and their payload
+backing; appenders detach the slice. A batch is not a new relation or committed
+visibility state. Core owns disposition under owner → Engine locking: restored
+versions remain ordinary owners, surviving journal fences defer materialization,
+and final disposal retains only still-current exact heap incarnations. Neither
+private relation creation nor same-address replacement authorizes exporting old
+slots into installed storage.
+
 
 
 ## What it owns
@@ -165,8 +175,9 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   Private Writes carry immutable `RowVersion.PrivateHistory` roots, so the same
   owner, savepoint and prepared transfers preserve actual superseded versions
   without a second synchronized map. Restore/abort discard only the abandoned
-  roots. `ColumnProjection` transforms both heads and predecessor payloads into
-  fresh vectors; old marks and captured roots remain immutable.
+  roots. `ColumnProjection` transforms heads, committed/discarded predecessor
+  payloads and repaired additional versions into fresh vectors while preserving
+  exact header/slot authority. Old marks and captured roots remain immutable.
   The same owner holds the TEMP tablespace selector: immutable builtin OIDs,
   assignment identity, transaction identity and a circular cursor, serialized by
   statement admission. Failed creation consumes a destination; unchanged savepoint
@@ -583,6 +594,9 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   order and the first error.
 - **Storage projections** (`storage_projection.go`): column-shape and private
   snapshot projections that read only catalog, storage and visibility records.
+  Attribute-shape replacements transport exact tuple/header history but break
+  uninterrupted TRUNCATE lineage; transporting rows never grants a later
+  TRUNCATE authority over an earlier retired incarnation.
 - **Statement data views** (`data_view.go`, `snapshot_roots.go`):
   `DataViewInput` with `ValidateView` (an already captured view still covers
   the refs) and `Capture` (a new immutable `visibility.View`: RC target roots,
@@ -695,6 +709,9 @@ wrappers, the root fence types and the fence check order, and the root slot
 types.
 
 ## Testing
+
+Private deletion projection and savepoint backing preserve every physical
+sibling through `RUN='^TestPrivateDeletionProjectionCollisions$'`.
 
 Physical pgcrypto activation, combined ISN/pgcrypto/pg_trgm projection and precise
 typed resets, journals, ancestry and detached/retained ownership use

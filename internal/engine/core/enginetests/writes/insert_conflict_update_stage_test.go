@@ -60,7 +60,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.Stage.Rows[ref.Address]
-				if len(stage) != k || scope.InsertConflict.Affected != k || len(scope.InsertConflict.AffectedRows) != k || scope.InsertConflict.AffectedRows[stage[k-1].Row] != k-1 {
+				slot, affected := scope.InsertConflict.AffectedSlot(stage[k-1])
+				if len(stage) != k || scope.InsertConflict.Affected != k || len(scope.InsertConflict.AffectedVersions) != k+min(k, size) || !affected || slot != k-1 {
 					t.Fatal("append order/identity lookup/count", k, len(stage), scope.InsertConflict.Affected)
 				}
 				if k == 1 {

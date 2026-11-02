@@ -14,7 +14,22 @@ func TestReferenceXIDFeatureSmoke(t *testing.T) {
 	want := [][]any{{int64(1), "0", "0", "0"}, {int64(2), "4294967295", "18446744073709551615", "4294967295"}, {int64(3), nil, nil, nil}, {int64(4), "4294967295", "18446744073709551615", "4294967295"}, {int64(5), "0", "9223372036854775808", "0"}}
 	xidReferenceBackends(t, p, func(t *testing.T, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE TABLE xid_smoke(id INT,x XID,y XID8,c CID)", 0))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO xid_smoke VALUES(1,'0','0','0'),(2,'4294967295','18446744073709551615','4294967295'),(3,NULL,NULL,NULL)", 3))
+		tx, err := b.DB.BeginTx(p.Ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Exec("INSERT INTO xid_smoke VALUES(1,'0','0','0'),(2,'4294967295','18446744073709551615','4294967295'),(3,NULL,NULL,NULL)", 3))
+		var insertXID string
+		if err := tx.QueryRowContext(p.Ctx, "SELECT pg_current_xact_id()::xid").Scan(&insertXID); err != nil {
+			t.Fatal(err)
+		}
+		if xid, err := strconv.ParseUint(insertXID, 10, 32); err != nil || xid < 3 {
+			t.Fatal("invalid inserting transaction identity", insertXID, err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
 		q := "INSERT INTO xid_smoke VALUES($1,$2,$3,$4)"
 		stmt, err := b.DB.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -26,6 +41,9 @@ func TestReferenceXIDFeatureSmoke(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, 5, "0", "9223372036854775808", "0"))
 		xidReferenceRoutes(t, p.Ctx, b, fixture.Select("SELECT id,x,y,c FROM xid_smoke ORDER BY id", []string{"id", "x", "y", "c"}, []string{"INT4", "XID", "XID8", "CID"}, want))
 		xidReferenceRoutes(t, p.Ctx, b, fixture.Select("SELECT x=(-1)::int4 AS xe,c='4294967295'::cid AS ce,y>'9223372036854775808'::xid8 AS yg,y::xid AS low FROM xid_smoke WHERE id=2", []string{"xe", "ce", "yg", "low"}, []string{"BOOL", "BOOL", "BOOL", "XID"}, [][]any{{true, true, true, "4294967295"}}))
+		xidReferenceRoutes(t, p.Ctx, b, fixture.Select("SELECT xmin FROM xid_smoke WHERE id<=3 ORDER BY id", []string{"xmin"}, []string{"XID"}, [][]any{{insertXID}, {insertXID}, {insertXID}}))
+		xidReferenceRoutes(t, p.Ctx, b, fixture.Select("SELECT xmin FROM xid_smoke WHERE id=99", []string{"xmin"}, []string{"XID"}, nil))
+		xidReferenceRoutes(t, p.Ctx, b, fixture.Select("SELECT id,xmin FROM xid_smoke WHERE xmin=$1::xid ORDER BY id", []string{"id", "xmin"}, []string{"INT4", "XID"}, [][]any{{int64(1), insertXID}, {int64(2), insertXID}, {int64(3), insertXID}}, insertXID))
 		for _, q := range []string{"SELECT x<'1'::xid FROM xid_smoke WHERE id=99", "SELECT c<>'1'::cid FROM xid_smoke WHERE id=3"} {
 			typ, op := "xid", "<"
 			if strings.Contains(q, "c<>") {
@@ -53,7 +71,6 @@ func TestReferenceXIDFeatureSmoke(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 				}
 			}
-			xidReferenceAnalysisError(t, p, b, fixture.ImplicitError("SELECT xmin FROM xid_smoke", fixture.Diagnostic{Code: "42703", Message: `column "xmin" does not exist`, Position: "8"}))
 		}
 	})
 	var dump bytes.Buffer

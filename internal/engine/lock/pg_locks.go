@@ -137,7 +137,7 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 			continue
 		}
 		catalogACL := resource.Kind == CatalogACLResource || resource.Kind == DefaultACLResource || resource.Kind == RoleSettingResource
-		if (resource.Kind == OrdinaryResource || catalogACL) && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
+		if (resource.Kind == OrdinaryResource || resource.Kind == RepairedTupleResource || catalogACL) && resource.completion == nil && resource.Domain() != m.roleDomain && (resource.Domain() != domain || resource.Epoch != epoch) ||
 			(resource.Kind == AdvisoryBigintResource || resource.Kind == AdvisoryPairResource) && resource.Database != domain {
 			continue
 		}

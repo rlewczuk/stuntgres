@@ -144,14 +144,14 @@ func BuildGin(ctx context.Context, bindings []sqltype.GinBinding, entries []Inde
 	return root, nil
 }
 
-func mergeGinPostings(ctx context.Context, old, added []GinPosting, ended map[ids.RowID]ids.VersionID, materialize bool) ([]GinPosting, error) {
+func mergeGinPostings(ctx context.Context, old, added []GinPosting, ended map[ids.VersionID]ids.RowID, materialize bool) ([]GinPosting, error) {
 	changed := len(added) > 0
 	if !changed {
 		for _, p := range old {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if ended[p.Row] == p.Version {
+			if ended[p.Version] == p.Row {
 				changed = true
 				break
 			}
@@ -186,7 +186,7 @@ func mergeGinPostings(ctx context.Context, old, added []GinPosting, ended map[id
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if ended[p.Row] == p.Version {
+		if ended[p.Version] == p.Row {
 			continue
 		}
 		for j < len(added) && compareGinPosting(added[j], p) < 0 {
@@ -209,18 +209,18 @@ func mergeGinPostings(ctx context.Context, old, added []GinPosting, ended map[id
 
 // MergeGin merges each affected dictionary/list once and shares unchanged
 // posting backing. Ended predecessors are exact versions, not SQL row values.
-func MergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.RowID]ids.VersionID, input sqltype.InputEnvironment) (*GinRoot, error) {
+func MergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) (*GinRoot, error) {
 	return mergeGin(ctx, old, added, ended, input, true)
 }
 
 // ValidateGinMerge performs the same fallible extraction/comparison work as a
 // merge, retaining only delta-sized scratch. No installation payload escapes.
-func ValidateGinMerge(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.RowID]ids.VersionID, input sqltype.InputEnvironment) error {
+func ValidateGinMerge(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) error {
 	_, err := mergeGin(ctx, old, added, ended, input, false)
 	return err
 }
 
-func mergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.RowID]ids.VersionID, input sqltype.InputEnvironment, materialize bool) (*GinRoot, error) {
+func mergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment, materialize bool) (*GinRoot, error) {
 	if old == nil {
 		return nil, fmt.Errorf("stuntgres: missing GIN predecessor")
 	}

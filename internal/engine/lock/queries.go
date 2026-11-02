@@ -17,18 +17,17 @@ func (m *Manager) holdsLocked(t *Ticket, resource Resource, modes Mode) bool {
 	return m.valid(t) && entry != nil && entry.holders[t].Mode&modes != 0
 }
 
-// MissingRowGrant returns the index of the first row the live ticket does not
-// hold for update, or -1 when it holds them all. An invalid ticket misses at
-// the first row; an empty row set never misses.
-func (m *Manager) MissingRowGrant(t *Ticket, ref ids.ObjectRef, rows []ids.RowID) int {
+// MissingRowGrant returns the first exact admitted tuple resource the live
+// ticket does not hold for update, or -1. An empty row set never misses.
+func (m *Manager) MissingRowGrant(t *Ticket, ref ids.ObjectRef, rows []Resource) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.missingRowGrantLocked(t, ref, rows)
 }
 
-func (m *Manager) missingRowGrantLocked(t *Ticket, ref ids.ObjectRef, rows []ids.RowID) int {
+func (m *Manager) missingRowGrantLocked(t *Ticket, ref ids.ObjectRef, rows []Resource) int {
 	for i, row := range rows {
-		if !m.holdsLocked(t, Resource{ObjectRef: ref, Row: row}, ForNoKeyUpdate|ForUpdate) {
+		if row.ObjectRef != ref || !validTupleResource(row) || !m.holdsLocked(t, row, ForNoKeyUpdate|ForUpdate) {
 			return i
 		}
 	}
@@ -38,7 +37,7 @@ func (m *Manager) missingRowGrantLocked(t *Ticket, ref ids.ObjectRef, rows []ids
 // ReplacementGrants observes a descendant replacement's target RowExclusive
 // grant and its row update grants in one critical section. missing is the
 // first row lacking a grant, or -1.
-func (m *Manager) ReplacementGrants(t *Ticket, ref ids.ObjectRef, rows []ids.RowID) (target bool, missing int) {
+func (m *Manager) ReplacementGrants(t *Ticket, ref ids.ObjectRef, rows []Resource) (target bool, missing int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.holdsLocked(t, Resource{ObjectRef: ref}, RowExclusive), m.missingRowGrantLocked(t, ref, rows)

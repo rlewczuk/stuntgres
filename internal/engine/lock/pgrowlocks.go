@@ -44,8 +44,8 @@ func (m *Manager) Pgrowlocks(ctx context.Context, caller *Ticket, tuples []Pgrow
 		if !m.validMultiTuple(caller, key) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		row := m.multiRows[key]
-		if len(row.members) == 0 {
+		row, xmax, multi, present := m.rawTupleHeader(key)
+		if !present {
 			continue
 		}
 		lockOnly, running, ownUpdater := true, false, false
@@ -64,7 +64,7 @@ func (m *Manager) Pgrowlocks(ctx context.Context, caller *Ticket, tuples []Pgrow
 			continue
 		}
 		record := PgrowlocksRecord{
-			Tuple: key, Locker: row.id, Multi: row.id != 0,
+			Tuple: key, Locker: xmax, Multi: multi,
 			Members: make([]PgrowlocksMember, len(row.members)),
 		}
 		var lastXID uint32
@@ -85,9 +85,6 @@ func (m *Manager) Pgrowlocks(ctx context.Context, caller *Ticket, tuples []Pgrow
 				lastXID = member.XID
 			}
 			record.Members[i] = PgrowlocksMember{XID: member.XID, Mode: mode, PID: pid}
-			if !record.Multi {
-				record.Locker = member.XID
-			}
 		}
 		rows = append(rows, record)
 	}

@@ -42,7 +42,7 @@ type DataViewInput struct {
 	// filter. Neither read-routing policy grants publication authority.
 	// Static callbacks avoid importing view/index here.
 	SameLineage           func(old, current *catalog.Relation, a, b *storage.Relation) bool
-	SameStableReadLineage  func(old, current *catalog.Relation, a, b *storage.Relation) bool
+	SameStableReadLineage func(old, current *catalog.Relation, a, b *storage.Relation) bool
 	CrossedTruncate       func(old, current *catalog.Relation, a, b *storage.Relation) bool
 	SameRowShape          func(a, b *catalog.Relation) bool
 }
@@ -174,6 +174,12 @@ func (in *DataViewInput) captureRoot(data *visibility.Data, address ids.ObjectAd
 		data.RewrittenFrontiers[address] = rewrite.Frontier
 	}
 	data.Committed[address] = c.versions
+	if stored.Headers != nil {
+		if data.Headers == nil {
+			data.Headers = make(map[ids.ObjectAddress]*storage.HeapHeaderRoot)
+		}
+		data.Headers[address] = stored.Headers
+	}
 	if data.Generations != nil {
 		data.Generations[address] = visibility.Generation{Storage: stored, NeedsBirthFilter: c.needsBirthFilter}
 	} else {

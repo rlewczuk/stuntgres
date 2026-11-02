@@ -27,6 +27,7 @@ type plExceptionCheckpoint struct {
 	serial                                      uint64
 	rows                                        map[ids.ObjectAddress][]storage.RowVersion
 	deletes                                     map[ids.ObjectAddress]*visibility.PrivateDeletes
+	discardedHeaps                              []session.HeapDiscard
 	replacing                                   bool
 	ownWrites                                   map[ids.ObjectAddress][]storage.RowVersion
 	ownDeletes                                  map[ids.ObjectAddress]*visibility.PrivateDeletes
@@ -67,7 +68,7 @@ func exceptionDeletes(deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) 
 	copy := maps.Clone(deletes)
 	for a, root := range copy {
 		if root != nil {
-			copy[a] = &visibility.PrivateDeletes{Rows: maps.Clone(root.Rows)}
+			copy[a] = root.Clone()
 		}
 	}
 	return copy
@@ -138,6 +139,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		foreignActions: exceptionForeignActions(s.foreignActionsSlot), indexes: exceptionIndexes(s.indexesSlot), multiEvents: slices.Clone(s.multiEvents),
 		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, ProjectedRoots: s.ProjectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
+	c.discardedHeaps = s.Stage.DiscardedHeaps[:len(s.Stage.DiscardedHeaps):len(s.Stage.DiscardedHeaps)]
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
 	c.afterTriggers = cloneAfterState(s.afterTriggers)
 	c.alterNames = maps.Clone(s.alterNames)
@@ -230,9 +232,18 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 	t.Mu.Lock()
 	t.Stats.Take(&s.Stage.Stats)
 	if rollback {
+		e := s.Engine()
+		e.Mu.Lock()
+		keepJournal := c.catalog
+		if keepJournal == nil {
+			keepJournal = mark.Catalog
+		}
+		c.catalog = e.discardWritesLocked(s.TxRef, s.PendingCatalog(), s.Stage.Rows, c.rows, keepJournal, heapDiscardDifference(s.Stage.DiscardedHeaps, c.discardedHeaps))
+		e.Mu.Unlock()
 		restoreSavepoint(t, mark, t.Session.Settings.PrepareSavepointRestore(mark.Settings))
 		retireStatsObjects(s.Engine(), t.Session, s.TxRef.Epoch(), false, s.Catalog, c.catalog, t.Catalog)
 		s.Stage.Rows, s.Stage.Deletes, s.Stage.Replacing = c.rows, c.deletes, c.replacing
+		s.Stage.DiscardedHeaps = c.discardedHeaps
 		s.Stage.Stats = nil
 		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
 		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority

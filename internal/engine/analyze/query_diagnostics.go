@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -73,7 +74,8 @@ func QueryColumnDiagnostic(entries []QueryQualifier, qualifier, name string, pos
 				}
 			}
 		}
-		if name == "tableoid" && exactAttributes == 0 && q.TableOIDOccurrence != 0 {
+		subID, _ := catalog.SystemAttribute(name)
+		if subID != 0 && exactAttributes == 0 && q.SystemOccurrence != 0 {
 			exactAttributes = 1
 		}
 		if exactAttributes == 1 && (qualifier == "" || qualifier == q.Name) {

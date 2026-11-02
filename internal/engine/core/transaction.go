@@ -24,6 +24,16 @@ type EndResult struct{ Committed bool }
 func clearTransaction(t *session.TransactionOwner, committed bool) {
 	if !committed {
 		discardStatementStatsPortals(t)
+		e := EngineOf(t.Session)
+		e.Mu.Lock()
+		e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, nil, nil, nil)
+		e.Mu.Unlock()
+	}
+	if committed && t.Catalog != nil {
+		e := EngineOf(t.Session)
+		e.Mu.Lock()
+		e.settleHeapDiscardsLocked(t.Ref, t.Catalog.DiscardedHeaps, nil, nil)
+		e.Mu.Unlock()
 	}
 	releaseReplicationOrigins(t)
 	settleStatsLedger(EngineOf(t.Session), t.Session, &t.Stats, false)

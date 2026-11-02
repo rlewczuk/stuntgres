@@ -38,7 +38,7 @@ type Runtime interface {
 	EvalColumn(ColumnExpr) (sqltype.Value, error)
 	EvalGroup(GroupExpr) (sqltype.Value, error)
 	EvalGrouping(GroupingExpr) (sqltype.Value, error)
-	EvalTableOID(TableOIDExpr) (sqltype.Value, error)
+	EvalSystemAttribute(SystemAttributeExpr) (sqltype.Value, error)
 	EvalReturningColumn(ReturningColumnExpr) (sqltype.Value, error)
 	EvalReturningWholeRow(ReturningWholeRowExpr) (sqltype.Value, error)
 	EvalMergeAction(MergeActionExpr) (sqltype.Value, error)

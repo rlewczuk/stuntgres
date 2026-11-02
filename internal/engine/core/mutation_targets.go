@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -127,8 +126,12 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 	if s.View == nil || s.View.Data().GenerationAt(ref.Address) != store {
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
-	var small [8]ids.RowID
-	target, missing := s.Engine().Locks.ReplacementGrants(s.LockTicket, ref, dml.VersionRows(small[:0], old))
+	var small [8]lock.Resource
+	resources := small[:0]
+	for _, row := range old {
+		resources = append(resources, s.admittedTuple(ref, row))
+	}
+	target, missing := s.Engine().Locks.ReplacementGrants(s.LockTicket, ref, resources)
 	if s.LockTicket == nil || s.LockTicket.Ref() != s.TxRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}
@@ -137,11 +140,72 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		if i == missing {
 			return errors.New("stuntgres: replacement requires its row grant")
 		}
-		captured := data.Committed[ref.Address]
-		if row.Born == 0 {
-			captured = data.Own[ref.Address]
+		// A current admitted replacement may be a genuine descendant of
+		// the frozen candidate. Match exact predecessor identities, never
+		// another same-RowID visible head or an arbitrary later insertion.
+		found := false
+		for version, prior := row, row.PrivateHistory; ; {
+			if version.Row != row.Row {
+				break
+			}
+			captured := data.Committed[ref.Address]
+			if version.Born == 0 && !version.ForcedFrozen {
+				captured = data.Own[ref.Address]
+			}
+			_, _, found = storage.RowByVersion(captured, version.Row, version.Version, -1)
+			if !found {
+				if headers := data.Headers[ref.Address]; headers != nil {
+					_, _, found = storage.RowByVersion(headers.Additional, version.Row, version.Version, -1)
+				}
+			}
+			if found || prior == nil {
+				break
+			}
+			version, prior = prior.Version, prior.Next
 		}
-		if _, _, found := storage.RowByID(captured, row.Row, -1); !found {
+		if !found {
+			// Committed heads intentionally clear PrivateHistory; genuine
+			// predecessor payloads move to Relation.Retained. Capture the
+			// immutable current link root, not a newer logical RowID head.
+			e := s.Engine()
+			e.Mu.Lock()
+			current := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
+			var headers *storage.HeapHeaderRoot
+			if current == store {
+				headers = current.Headers
+			}
+			e.Mu.Unlock()
+			if current != store {
+				return ids.ErrCatalogReplaced
+			}
+			var additional []storage.RowVersion
+			if capturedHeaders := data.Headers[ref.Address]; capturedHeaders != nil {
+				additional = capturedHeaders.Additional
+			}
+			for _, captured := range [3][]storage.RowVersion{data.Committed[ref.Address], data.Own[ref.Address], additional} {
+				for _, candidate := range captured {
+					if candidate.Row != row.Row {
+						continue
+					}
+					version := candidate.Version
+					for version < row.Version {
+						next := headers.Header(version).Successor
+						if next <= version || next > row.Version {
+							break
+						}
+						version = next
+					}
+					if version == row.Version {
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+		}
+		if !found {
 			return errors.New("stuntgres: replacement is outside its candidate view")
 		}
 	}

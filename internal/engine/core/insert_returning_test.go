@@ -245,7 +245,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
-		accepted, retry, err := dml.AppendAcceptedInsert(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row})
+		accepted, retry, _, err := dml.AppendAcceptedInsert(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row})
 		if err != nil || accepted || !retry || len(scope.Stage.Rows[b.Ref.Address]) != 0 || scope.InsertReturning.Rows.Count != 0 {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.Stage.Rows)
 		}

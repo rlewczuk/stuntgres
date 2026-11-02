@@ -114,6 +114,8 @@ func (h *statementHost) RetainedForeignKeyRows(ref ids.ObjectRef, current table.
 				return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 			}
 			retained = current
+			// Header repair is nontransactional. Borrow the captured current
+			// canonical header root with the retained version/end vectors.
 			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.Owner.Frontier
 		}
 	}
@@ -124,7 +126,7 @@ func (h *statementHost) RefreshForeignKeyRows(ref ids.ObjectRef, rows *table.For
 	return h.scope().refreshForeignKeyRows(ref, rows)
 }
 
-func (h *statementHost) GrantForeignKey(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
+func (h *statementHost) GrantForeignKey(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode, stored *storage.Relation) error {
 	return h.scope().ForeignKeyGrant(ref, row, mode, stored)
 }
 
@@ -140,8 +142,8 @@ func (h *statementHost) AdmitForeignAction(ref ids.ObjectRef, job *dml.ForeignKe
 	return h.scope().admitForeignAction(ref, job, writable)
 }
 
-func (h *statementHost) ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) {
-	return h.scope().foreignActionRow(ref, candidate)
+func (h *statementHost) ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion, mode lock.Mode) (storage.RowVersion, bool, error) {
+	return h.scope().foreignActionRow(ref, candidate, mode)
 }
 
 func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) error {
@@ -150,49 +152,60 @@ func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVe
 
 // RI's generated writable SPI command takes its own READ COMMITTED pair.
 // STABLE callees borrow this pair, not the suspended parent DML snapshot.
-func (h *statementHost) BeginForeignActionSnapshot(job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (func(),error) {
-	s:=h.scope()
-	if s.Owner.Isolation.Stable(){return nil,nil}
-	e:=s.Engine()
-	snapshot,frontier,capture,demand:=s.currentSnapshot,s.snapshotFrontier,s.exportCapture,s.exportRootDemand
-	target,targets,targetAdmission:=s.snapshotTarget,s.snapshotTargets,s.snapshotTargetAdmission
-	parentView,inquiry:=s.View,s.Inquiry
-	s.currentSnapshot,s.exportCapture=nil,nil
-	s.snapshotFrontier=0
-	s.snapshotTarget=visibility.Root{}
-	s.snapshotTargets=nil
-	s.snapshotTargetAdmission=false
-	s.View=nil
-	s.Inquiry=inquirySnapshot{}
-	s.exportRootDemand=false
+func (h *statementHost) BeginForeignActionSnapshot(job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (func(), error) {
+	s := h.scope()
+	if s.Owner.Isolation.Stable() {
+		return nil, nil
+	}
+	e := s.Engine()
+	snapshot, frontier, capture, demand := s.currentSnapshot, s.snapshotFrontier, s.exportCapture, s.exportRootDemand
+	target, targets, targetAdmission := s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission
+	parentView, inquiry := s.View, s.Inquiry
+	s.currentSnapshot, s.exportCapture = nil, nil
+	s.snapshotFrontier = 0
+	s.snapshotTarget = visibility.Root{}
+	s.snapshotTargets = nil
+	s.snapshotTargetAdmission = false
+	s.View = nil
+	s.Inquiry = inquirySnapshot{}
+	s.exportRootDemand = false
 	e.Mu.Lock()
-	read:=e.PrivateCatalogLocked(s.PendingCatalog())
-	childEvent:=stored.TriggerUpdate
-	if action==parser.ForeignKeyCascade&&event.Next.Row==0{childEvent=stored.TriggerDelete}
-	attributes:=job.Definition.Attributes
-	if event.Next.Row==0&&len(job.Definition.DeleteAttributes)!=0{attributes=job.Definition.DeleteAttributes}
-	if action==parser.ForeignKeySetDefault{
-		for _,attribute:=range attributes{
-			for slot,actual:=range job.Child.Attributes{
-				if actual==attribute{
-					node,_:=analyze.ColumnDefault(read,job.Child,slot)
-					s.NoteUtilityExpressionDemandLocked(read,node)
+	read := e.PrivateCatalogLocked(s.PendingCatalog())
+	childEvent := stored.TriggerUpdate
+	if action == parser.ForeignKeyCascade && event.Next.Row == 0 {
+		childEvent = stored.TriggerDelete
+	}
+	attributes := job.Definition.Attributes
+	if event.Next.Row == 0 && len(job.Definition.DeleteAttributes) != 0 {
+		attributes = job.Definition.DeleteAttributes
+	}
+	if action == parser.ForeignKeySetDefault {
+		for _, attribute := range attributes {
+			for slot, actual := range job.Child.Attributes {
+				if actual == attribute {
+					node, _ := analyze.ColumnDefault(read, job.Child, slot)
+					s.NoteUtilityExpressionDemandLocked(read, node)
 					break
 				}
 			}
 		}
 	}
-	s.exportRootDemand=s.exportRootDemand||retainedWriteExportRootDemand(read,nil,job.Child,childEvent)||triggerExportRootDemand(read,job.Child,childEvent,attributes)||foreignActionExportRootDemand(read,job.Child,childEvent,attributes,nil)
+	s.exportRootDemand = s.exportRootDemand || retainedWriteExportRootDemand(read, nil, job.Child, childEvent) || triggerExportRootDemand(read, job.Child, childEvent, attributes) || foreignActionExportRootDemand(read, job.Child, childEvent, attributes, nil)
 	e.Mu.Unlock()
-	restore:=func(){
-		if s.View!=nil&&s.View!=parentView{s.View.Release()}
-		s.currentSnapshot,s.snapshotFrontier,s.exportCapture=snapshot,frontier,capture
-		s.exportRootDemand=demand
-		s.snapshotTarget,s.snapshotTargets,s.snapshotTargetAdmission=target,targets,targetAdmission
-		s.View,s.Inquiry=parentView,inquiry
+	restore := func() {
+		if s.View != nil && s.View != parentView {
+			s.View.Release()
+		}
+		s.currentSnapshot, s.snapshotFrontier, s.exportCapture = snapshot, frontier, capture
+		s.exportRootDemand = demand
+		s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission = target, targets, targetAdmission
+		s.View, s.Inquiry = parentView, inquiry
 	}
-	if err:=s.snapshotDataPhase();err!=nil{restore();return nil,err}
-	return restore,nil
+	if err := s.snapshotDataPhase(); err != nil {
+		restore()
+		return nil, err
+	}
+	return restore, nil
 }
 
 // PlanForeignActionInput reads the statement's input environment, captures

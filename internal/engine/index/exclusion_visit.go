@@ -47,13 +47,13 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 	own := scan.Pending[ticket]
 	var v ExclusionVisit
 	visit := func(entry ExclusionEntry, owner *lock.Ticket, committed bool) error {
-		if owner == ticket && entry.Row.Row == current.Row.Row {
+		if owner == ticket && entry.Row.Row == current.Row.Row && (entry.Row.Version == current.Row.Version || current.Row.Base != 0 && entry.Row.Version == current.Row.Base) {
 			return nil
 		}
 		if owner != nil && owner != ticket && !entry.Admitted {
 			return nil
 		}
-		if own != nil && own.Ended[parent][entry.Row.Row] == entry.Row.Version && committed {
+		if own != nil && own.Ended[parent][entry.Row.Version] == entry.Row.Row && committed {
 			return nil
 		}
 		match, err := constraintKeysMatch(op.Context(), bound, current.Keys, entry.Keys)
@@ -71,7 +71,7 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 		}
 		if committed {
 			for pending, p := range scan.Pending {
-				if pending != ticket && p.Ended[parent][entry.Row.Row] == entry.Row.Version {
+				if pending != ticket && p.Ended[parent][entry.Row.Version] == entry.Row.Row {
 					v.Potential = true
 					v.Wait = pending
 					return nil

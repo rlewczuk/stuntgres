@@ -36,7 +36,9 @@ func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, cata
 	if !ok {
 		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
 	}
-	if err := catalog.ValidateRelationTableMethod(view, parent); err != nil { return nil, catalog.Read{}, err }
+	if err := catalog.ValidateRelationTableMethod(view, parent); err != nil {
+		return nil, catalog.Read{}, err
+	}
 	return parent, view, nil
 }
 
@@ -138,6 +140,10 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	namespace, _ := current.Namespace(parent.Namespace())
 	root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), idx.Address())
 	var versions []storage.RowVersion
+	var headers *storage.HeapHeaderRoot
+	if stored := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address); stored != nil {
+		headers = stored.Headers
+	}
 	if heads {
 		if stored := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address); stored != nil {
 			versions = stored.Versions
@@ -150,7 +156,7 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	if namespace == nil {
 		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
-	return index.UniqueProbe{Parent: parent, Index: idx, View: current, Schema: namespace.Name(), Root: root, Versions: versions, Authority: auth.View}, nil
+	return index.UniqueProbe{Parent: parent, Index: idx, View: current, Schema: namespace.Name(), Root: root, Versions: versions, Headers: headers, Authority: auth.View}, nil
 }
 
 func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.IndexRoot, error) {

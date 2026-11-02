@@ -1174,7 +1174,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 			if err != nil {
 				return err
 			}
-			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil, heap)
+			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions, Headers: source[a].Headers, Repaired: source[a].RepairedVersions()}, frontier, source[a].Ends, nil, heap)
 			if err != nil {
 				return err
 			}

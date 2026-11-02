@@ -108,6 +108,8 @@ func TestQueryTableRoutinePublication(t *testing.T) {
 					t.Fatal("root stage lost genuine function INSERT or CTAS value", exportRows(scope.Stage.Rows[calls.Address]), exportRows(scope.Stage.Rows[created]))
 				}
 				assertUnpublished()
+				abortBacking := enginetest.CaptureHeapAbort(store)
+				createdCalls := scope.Stage.Rows[calls.Address]
 				var primary, want error
 				if outcome == "cancel" {
 					cancel()
@@ -123,7 +125,11 @@ func TestQueryTableRoutinePublication(t *testing.T) {
 					t.Fatal("Finish retained statement/stage authority")
 				}
 				if want != nil {
-					assertUnpublished()
+					assertRetained()
+					enginetest.AssertHeapAbort(t, store, abortBacking, 1, createdCalls...)
+					if e.CatalogRead().State() != before.State() || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[calls.Address] != store {
+						t.Fatal("rejected CTAS published catalog/roles/rows/frontier")
+					}
 					if e.CatalogRead().Get(created) != nil || e.Storage.Relations[created] != nil {
 						t.Fatal("rejected destination became committed")
 					}

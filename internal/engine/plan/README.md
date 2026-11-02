@@ -250,6 +250,13 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   TEXT children through rebuild, retag, substitution, grouping and stored
   rendering. Its shared scalar protocols retain current validation mode for the
   STABLE operation and authentic callable dependencies for immutable folds.
+  `InstalledPgsurgeryExpr` retains its genuine freeze procedure/reference and
+  lexical formal slots through rebuild, substitution and occurrence matching.
+  VOID results never fold into a cached repair or grant; stored transport remaps
+  symbolic identities rather than retaining a host or physical tuple handles.
+  Its statement discriminator retains the lexical-to-formal slot projection;
+  the shared analyzed jumble streams the genuine callable OID and typed children,
+  never mutable routine spelling or a cached execution grant.
   `InstalledSSLInfoExpr` keeps exact procedure/reference authority around the
   zero-child inquiry recipe, even though embedded connections always take its
   non-TLS branch. Rebuild, retag, substitution and grouping preserve the wrapper;
@@ -338,7 +345,7 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
 - `FrameValue` and `ParameterValue` are the plain column and parameter reads by
   scalar coordinates, so the hot path copies no node.
 - One `Eval*` method per frame or executor node (`EvalColumn`, `EvalGroup`,
-  `EvalGrouping`, `EvalTableOID`, `EvalReturningColumn`, `EvalReturningWholeRow`,
+  `EvalGrouping`, `EvalSystemAttribute`, `EvalReturningColumn`, `EvalReturningWholeRow`,
   `EvalMergeAction`, `EvalCachedOrder`, `EvalWindow`, `EvalDomainValue`,
   `EvalUpdateOutput`, `EvalSubquery`, `EvalSQLRoutine`) holds that node's
   evaluation body in `exec`.

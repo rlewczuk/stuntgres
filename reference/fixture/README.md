@@ -47,8 +47,8 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   every nested value, metadata and cleanup callback; a source recorder cannot
   prove consumed rows or recorded cursor closure on an independent destination.
   `RawBackend` selects codec assertions; it does not install recording middleware.
-  `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`) and
-  regtype (`_REGTYPE`) arrays, as native strings and pq byte slices before
+  `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`),
+  regtype (`_REGTYPE`) and transaction-ID (`_XID`) arrays, as native strings and pq byte slices before
   normalization; scalar `CHAR` remains a string on both backends.
   Scalar `XID` retains a nonnil byte slice on both backends; exact unsigned
   decimal payloads are compared after the raw transport assertion.

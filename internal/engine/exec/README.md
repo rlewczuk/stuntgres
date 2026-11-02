@@ -161,7 +161,7 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Derived/frozen sources share that same slot, and held-source Host detachment
   or reattachment does not resample settings or change the captured policy.
   Query identity demand retains source-occurrence lineage for virtual recipes
-  and ordinary `tableoid` alike, independently of rowmark demand. An unmarked
+  and typed system attributes alike, independently of rowmark demand. An unmarked
   identity-only capture still supplies physical prefixes to materialized adapters.
   Expression identity demand propagates explicitly through stored/derived query
   states and their joins/SRF expansion even when inner expressions do not read
@@ -169,10 +169,22 @@ typmods; naming is captured only on failure and is never retained in result tupl
   effective-version and recheck caches require actual rowmarks. Each expanded
   SRF row retains the child's resolved occurrence vector and selected provenance
   when demanded; materialized cells alone are not physical authority.
-  A tableoid leaf follows its lexical frame and actual physical source reference;
-  outer absence is typed NULL, not inferred
-  from ordinary tuple values. Generated-owner recipes retain their separate
-  zero-coordinate mode. Neither path fabricates a stored datum or row counter.
+  A system leaf follows its lexical frame and actual physical source; ctid uses
+  the captured VersionID, and xmin uses the immutable effective header. Demanded
+  xmax uses detached manager raw facts in an immutable source/frame overlay,
+  including lock-only, inherited MultiXact and ended/aborted raw headers.
+  Expression evaluation never contacts the manager or modifies RowVersion's
+  full-XID fields. EPQ finalizes a new presentation publication after genuine
+  physical events; prior frames retain their original map/scalars. Mutation and
+  OLD/NEW frames capture actual accepted headers after event flushing. Outer
+  absence is typed NULL, independent of tuple width. ctid/xmin/tableoid-only
+  consumers do not allocate raw capture batches. Generated-owner tableoid recipes
+  retain their separate zero-coordinate mode; neither path fabricates a stored
+  datum or row counter.
+  `ProjectedQueryVersions` borrows only the accepted physical frontier, never a
+  RowID-retargeted head. Materialized MERGE retains demanded immutable version
+  slices/raw publications alongside its already-owned source provenance; closing
+  the cursor does not turn later action/RETURNING into a fresh source scan.
   Dependent function sources reuse the same lineage on each invocation. An
   explicit identity-prefix marker carries zero-column ancestors without inventing
   a tuple slot, and nested joins merge it with their local-left source identities.
@@ -539,6 +551,13 @@ typmods; naming is captured only on failure and is never retained in result tupl
   STRICT NULL. The host captures the exact target and computes the compact
   logical model; ten typed fields form one owned RECORD. FROM evaluates the
   scalar once and expands NULL as one all-NULL row.
+- **Installed surgery** (`pgsurgery.go`): authentic declaration and current
+  schema USAGE/routine EXECUTE admission precede runtime child evaluation.
+  Lexical operands evaluate once into two formal slots; STRICT NULL returns
+  typed NULL VOID without invoking the body. Nonnull calls pass the unchanged
+  typed TID array and decoded class OID to the statement host, returning nonnull
+  VOID only after successful publication. Prepared recipes retain no permission
+  result or heap handle; the host readmits target authority at publication.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed six-value frame projects formal slots without
@@ -600,7 +619,7 @@ on `statementHost`, a defined type over `StatementScope`.
 |---|---|---|
 | Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. Partial aggregate workers use the outer CTE snapshot captured before launch, including nil, never a sibling support body's lexical scratch. |
 | Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`. |
-| Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait, then takes `Engine.Mu`. `LatestQueryRow` takes `Engine.Mu` and records the physical row event after releasing it. |
+| Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks`, `CaptureTupleXmax` | Admission uses actual RowVersion and exact immutable header resources, releases the replacement read across waits, and revalidates afterward. Latest-row reads follow only genuine successors. Raw presentation captures release all metadata locks before manager inspection and retain detached immutable scalars. |
 | Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign`, `AsyncAppendEnabled` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. Async eligibility reads the immutable admission snapshot once. |
 | Admission | `RoutineAdmission` | Reads statement-owned routine authority and dependency manifest without a lock; fails once the statement has finished. |
 | Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.Mu`. |
@@ -1024,6 +1043,8 @@ Freespace layout, released identity and composed capture ownership use
 `RUN='^TestPgFreespace'`.
 Installed visibility runtime and composed capture ownership use
 `RUN='^TestPgvisibility'`.
+Surgery invocation and composed definition ownership use
+`RUN='^TestPgsurgeryFreezeProvider'`.
 
 
 Crosstab pivot, directional type compatibility and source cleanup units share
@@ -1056,7 +1077,7 @@ Typed foreign query contract, layout, request-copy and resource units use
 `RUN='^TestFDWQuery'`, including composed prepared-owner coverage in core.
 Mixed hierarchy lineage, alternative-member recheck and rewind ownership use
 `RUN='^TestForeignHierarchy'`, also with `RACE=1`.
-Query source identity units use `RUN='^TestQueryTableOID'`; virtual recipe
+Query source identity units use `RUN='^TestQuery(TableOID|SystemAttribute)'`; virtual recipe
 consumers additionally use `RUN='^TestGeneratedVirtual'`. Catalog key index units
 here and candidate admission units in `internal/engine/core` use
 `RUN='^TestCatalogKey'` (with `RACE=1`); their public outcomes are
@@ -1089,7 +1110,7 @@ Real-sort pause, ordering and cancellation units use
 Public controls belong to `reference/aggregates` and its family selector.
 
 ```sh
-make check RUN='^Test(MissingPreparation|InstallPreparation|AcceptedDefault|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
+make check RUN='^Test(MissingPreparation|InstallPreparation|AcceptedDefault|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice)'
 make check RUN='^Test(CreateAggregate|AggregateFinal|AggregateMoving|AggregateOrdered)'
 make check RUN='^Test(PLpgSQLQueryLoopLifetime|FTSQueryFunctionsBatch)'  # row owners
 make check RUN='^TestReferenceQuery'   # public query execution; add REFERENCE=1 for the oracle

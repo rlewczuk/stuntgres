@@ -209,7 +209,7 @@ func TestOperatorFamilySupportExecution(t *testing.T) {
 		t.Fatal("sorted maintained root", rows(root))
 	}
 	inserted := storage.RowVersion{Row: 5, Version: 5, Values: []sqltype.Value{value(0)}}
-	delta := &index.RowPublication{Store: store, Root: store.Versions, Next: append(append([]storage.RowVersion(nil), store.Versions...), inserted), Writes: []storage.RowVersion{inserted}, SingleSlot: -1, Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{1: {Version: 1, Ordinal: 0}}}}
+	delta := &index.RowPublication{Store: store, Root: store.Versions, Next: append(append([]storage.RowVersion(nil), store.Versions...), inserted), Writes: []storage.RowVersion{inserted}, SingleSlot: -1, Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{1: {Row: 1, Version: 1, Ordinal: 0}}}}
 	next, err := index.MergeIndexRoot(evaluation, parent, idx, root.Entries, delta, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil || !reflect.DeepEqual(rows(next), []ids.RowID{5, 2, 4, 3}) {
 		t.Fatal("insert/remove root", next, err)

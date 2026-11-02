@@ -309,10 +309,17 @@ heap and owner-restricted genuine index builds, then atomically publishes heap,
 index roots, logical `pg_class.relfilenode` locators and rewrite facts. Work and
 callbacks are detached; the final current-authority/cancellation gate precedes
 the first install. Immutable predecessor roots remain owned by retained readers.
-Captured genuine UPDATE predecessors use existing `InspectRetainedVacuum`, not a
-new history authority. Protected roots transfer unchanged; quiescent work retires
-the captured history with checked dead/removed counts. Final capture fences both
-that root and the conservative retirement decision. Native Storage, Retention
+Captured heads, committed predecessors, discarded versions and exact header roots
+share one final generation/root fence. Detached maintenance uses effective exact
+headers: repaired live historical versions survive and FULL promotes them into
+the replacement's ordinary row vector. Eligible genuine slots retire under the
+existing conservative gate; INDEX_CLEANUP OFF preserves indexed dead slots rather
+than inventing or following redirects. FULL/type rewrites preserve their incumbent
+row/version/insertion identities; independent control imports remint them.
+Guarded FULL's physical cardinality includes retained discarded insertions as
+well as committed predecessors; quiescent retirement removes each exact slot.
+Neither pass mutates earlier captured discarded headers, links or tuple backing.
+Native Storage, Retention
 and Publication witnesses cover exact counts/current-copy sizing, saved private
 savepoint/prepared roots, immutable node/link/header/end/full-XID/payload ownership
 and cancellation/recapture/Reset/Restore with nonempty committed history.

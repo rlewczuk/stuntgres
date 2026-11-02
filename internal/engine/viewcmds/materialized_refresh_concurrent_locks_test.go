@@ -150,7 +150,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	frontier := e.Visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true

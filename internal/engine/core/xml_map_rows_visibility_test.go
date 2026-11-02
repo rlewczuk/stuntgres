@@ -3,9 +3,9 @@ package core_test
 import (
 	"context"
 	"maps"
-	"slices"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,8 +13,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -27,13 +27,13 @@ import (
 // activation or descriptor implementation participates in this ownership proof.
 type xmlPreparationContext struct {
 	context.Context
-	scope *core.StatementScope
-	address ids.ObjectAddress
-	seen bool
-	writes []storage.RowVersion
-	deletes *visibility.PrivateDeletes
-	wantWrites []storage.RowVersion
-	wantDeletes map[ids.RowID]visibility.DeleteCandidate
+	scope         *core.StatementScope
+	address       ids.ObjectAddress
+	seen          bool
+	writes        []storage.RowVersion
+	deletes       *visibility.PrivateDeletes
+	wantWrites    []storage.RowVersion
+	wantDeletes   *visibility.PrivateDeletes
 	wrongFrontier bool
 }
 
@@ -45,14 +45,15 @@ func (c *xmlPreparationContext) Err() error {
 		frame, more := frames.Next()
 		preparing = preparing || strings.HasSuffix(frame.Function, ".(*StatementScope).xmlMappingPrepare")
 		describing = describing || strings.HasSuffix(frame.Function, ".(*Engine).describeOperation")
-		if !more { break }
+		if !more {
+			break
+		}
 	}
 	if preparing && describing {
 		c.seen = true
 		c.writes = xmlPreparationRowsCopy(c.scope.OwnWrites[c.address])
-		c.deletes = &visibility.PrivateDeletes{}
-		if deleted := c.scope.OwnDeletes[c.address]; deleted != nil { c.deletes.Rows = maps.Clone(deleted.Rows) }
-		c.wrongFrontier = c.wrongFrontier || !reflect.DeepEqual(c.writes, c.wantWrites) || !reflect.DeepEqual(c.deletes.Rows, c.wantDeletes)
+		c.deletes = c.scope.OwnDeletes[c.address].Clone()
+		c.wrongFrontier = c.wrongFrontier || !reflect.DeepEqual(c.writes, c.wantWrites) || !reflect.DeepEqual(c.deletes, c.wantDeletes)
 	}
 	return c.Context.Err()
 }
@@ -74,29 +75,34 @@ func xmlPreparationRowsCopy(rows []storage.RowVersion) []storage.RowVersion {
 // value backing, delete pointers and candidate-map identity are saved separately,
 // so neither an in-place mutation nor an equal replacement can pass.
 type xmlPreparationRoots struct {
-	writes map[ids.ObjectAddress][]storage.RowVersion
-	deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
-	writeHeaders map[ids.ObjectAddress][]storage.RowVersion
-	valueHeaders map[ids.ObjectAddress][][]sqltype.Value
-	deletePointers map[ids.ObjectAddress]*visibility.PrivateDeletes
-	deleteMaps map[ids.ObjectAddress]map[ids.RowID]visibility.DeleteCandidate
-	wantWrites map[ids.ObjectAddress][]storage.RowVersion
-	wantDeletes map[ids.ObjectAddress]*visibility.PrivateDeletes
+	writes            map[ids.ObjectAddress][]storage.RowVersion
+	deletes           map[ids.ObjectAddress]*visibility.PrivateDeletes
+	writeHeaders      map[ids.ObjectAddress][]storage.RowVersion
+	valueHeaders      map[ids.ObjectAddress][][]sqltype.Value
+	deletePointers    map[ids.ObjectAddress]*visibility.PrivateDeletes
+	deleteMaps        map[ids.ObjectAddress]map[ids.RowID]visibility.DeleteCandidate
+	deleteVersionMaps map[ids.ObjectAddress]map[ids.VersionID]visibility.DeleteCandidate
+	wantWrites        map[ids.ObjectAddress][]storage.RowVersion
+	wantDeletes       map[ids.ObjectAddress]*visibility.PrivateDeletes
 }
 
 func xmlPreparationSaveRoots(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) xmlPreparationRoots {
 	saved := xmlPreparationRoots{
 		writes: writes, deletes: deletes, writeHeaders: maps.Clone(writes), deletePointers: maps.Clone(deletes),
 		valueHeaders: make(map[ids.ObjectAddress][][]sqltype.Value), deleteMaps: make(map[ids.ObjectAddress]map[ids.RowID]visibility.DeleteCandidate),
-		wantWrites: make(map[ids.ObjectAddress][]storage.RowVersion), wantDeletes: make(map[ids.ObjectAddress]*visibility.PrivateDeletes),
+		deleteVersionMaps: make(map[ids.ObjectAddress]map[ids.VersionID]visibility.DeleteCandidate),
+		wantWrites:        make(map[ids.ObjectAddress][]storage.RowVersion), wantDeletes: make(map[ids.ObjectAddress]*visibility.PrivateDeletes),
 	}
 	for address, rows := range writes {
 		saved.wantWrites[address] = xmlPreparationRowsCopy(rows)
-		for _, row := range rows { saved.valueHeaders[address] = append(saved.valueHeaders[address], row.Values) }
+		for _, row := range rows {
+			saved.valueHeaders[address] = append(saved.valueHeaders[address], row.Values)
+		}
 	}
 	for address, deleted := range deletes {
 		saved.deleteMaps[address] = deleted.Rows
-		saved.wantDeletes[address] = &visibility.PrivateDeletes{Rows: maps.Clone(deleted.Rows)}
+		saved.deleteVersionMaps[address] = deleted.Versions
+		saved.wantDeletes[address] = deleted.Clone()
 	}
 	return saved
 }
@@ -108,18 +114,26 @@ func (saved xmlPreparationRoots) assert(t *testing.T, writes map[ids.ObjectAddre
 	}
 	// Normalize nil snapshots only for content: identity above still distinguishes
 	// nil from a replacement empty map, and all actual witness roots are nonempty.
-	if len(writes) != len(saved.wantWrites) || len(deletes) != len(saved.wantDeletes) { t.Fatal("private root membership changed") }
+	if len(writes) != len(saved.wantWrites) || len(deletes) != len(saved.wantDeletes) {
+		t.Fatal("private root membership changed")
+	}
 	for address, want := range saved.wantWrites {
 		rows, header := writes[address], saved.writeHeaders[address]
-		if !reflect.DeepEqual(rows, want) || len(rows) != len(header) || cap(rows) != cap(header) || reflect.ValueOf(rows).Pointer() != reflect.ValueOf(header).Pointer() { t.Fatal("private row content or backing changed") }
+		if !reflect.DeepEqual(rows, want) || len(rows) != len(header) || cap(rows) != cap(header) || reflect.ValueOf(rows).Pointer() != reflect.ValueOf(header).Pointer() {
+			t.Fatal("private row content or backing changed")
+		}
 		for i, row := range rows {
 			values := saved.valueHeaders[address][i]
-			if len(row.Values) != len(values) || cap(row.Values) != cap(values) || reflect.ValueOf(row.Values).Pointer() != reflect.ValueOf(values).Pointer() { t.Fatal("private value backing changed") }
+			if len(row.Values) != len(values) || cap(row.Values) != cap(values) || reflect.ValueOf(row.Values).Pointer() != reflect.ValueOf(values).Pointer() {
+				t.Fatal("private value backing changed")
+			}
 		}
 	}
 	for address, want := range saved.wantDeletes {
 		deleted := deletes[address]
-		if deleted != saved.deletePointers[address] || !reflect.DeepEqual(deleted, want) || reflect.ValueOf(deleted.Rows).UnsafePointer() != reflect.ValueOf(saved.deleteMaps[address]).UnsafePointer() { t.Fatal("private delete content or backing changed") }
+		if deleted != saved.deletePointers[address] || !reflect.DeepEqual(deleted, want) || reflect.ValueOf(deleted.Rows).UnsafePointer() != reflect.ValueOf(saved.deleteMaps[address]).UnsafePointer() || reflect.ValueOf(deleted.Versions).UnsafePointer() != reflect.ValueOf(saved.deleteVersionMaps[address]).UnsafePointer() {
+			t.Fatal("private delete content or backing changed")
+		}
 	}
 }
 
@@ -130,9 +144,13 @@ func assertXMLPreparationPresentation(t *testing.T, scope *core.StatementScope, 
 	t.Helper()
 	wantInput, wantOutput := scope.Op.EffectiveSettings().Presentation()
 	input := scope.Input
-	if input.Regclass == nil || input.Regtype == nil || input.TypeDiagnosticName == nil || input.TypeDiagnosticName(sqltype.Int4) == "" { t.Fatal("missing refreshed catalog input authority") }
+	if input.Regclass == nil || input.Regtype == nil || input.TypeDiagnosticName == nil || input.TypeDiagnosticName(sqltype.Int4) == "" {
+		t.Fatal("missing refreshed catalog input authority")
+	}
 	oid, err := input.Regclass.ResolveRegclass(context.Background(), "xr_prepare_owner")
-	if err != nil || ids.OID(oid) != scope.QuerySources[0].Ref.Address.ObjectID { t.Fatal("refreshed resolver lost caller relation", oid, err) }
+	if err != nil || ids.OID(oid) != scope.QuerySources[0].Ref.Address.ObjectID {
+		t.Fatal("refreshed resolver lost caller relation", oid, err)
+	}
 	wantInput.TransactionStart = beforeInput.TransactionStart
 	wantInput.LockedDomainInput, wantInput.DomainChecks = beforeInput.LockedDomainInput, beforeInput.DomainChecks
 	wantInput.ExactSnapshot, wantInput.RawBoxReplay = beforeInput.ExactSnapshot, beforeInput.RawBoxReplay
@@ -143,14 +161,22 @@ func assertXMLPreparationPresentation(t *testing.T, scope *core.StatementScope, 
 	wantInput.Operator, wantInput.Regproc = input.Operator, input.Regproc
 	wantInput.Regcollation, wantInput.Regnamespace, wantInput.RegTS, wantInput.ACLItem = input.Regcollation, input.Regnamespace, input.RegTS, input.ACLItem
 	input.TypeDiagnosticName = nil
-	if !reflect.DeepEqual(input, wantInput) { t.Fatal("refreshed input policy or enclosing boundary changed") }
+	if !reflect.DeepEqual(input, wantInput) {
+		t.Fatal("refreshed input policy or enclosing boundary changed")
+	}
 	wantOutput.Regclass, wantOutput.Regtype, wantOutput.Regproc = beforeOutput.Regclass, beforeOutput.Regtype, beforeOutput.Regproc
 	wantOutput.Regrole, wantOutput.Operator = beforeOutput.Regrole, beforeOutput.Operator
 	wantOutput.Regcollation, wantOutput.Regnamespace, wantOutput.RegTS, wantOutput.ACLItem = beforeOutput.Regcollation, beforeOutput.Regnamespace, beforeOutput.RegTS, beforeOutput.ACLItem
-	if !reflect.DeepEqual(scope.Output, wantOutput) { t.Fatal("refreshed output policy or enclosing formatter owner changed") }
-	if scope.Inquiry.CurrentSchemaResult.Type() != nil { t.Fatal("actor-dependent inquiry cache was not cleared") }
+	if !reflect.DeepEqual(scope.Output, wantOutput) {
+		t.Fatal("refreshed output policy or enclosing formatter owner changed")
+	}
+	if scope.Inquiry.CurrentSchemaResult.Type() != nil {
+		t.Fatal("actor-dependent inquiry cache was not cleared")
+	}
 	for _, cached := range core.InquirySearchPathResults(&scope.Inquiry) {
-		if cached.Type() != nil { t.Fatal("actor-dependent search-path cache was not cleared") }
+		if cached.Type() != nil {
+			t.Fatal("actor-dependent search-path cache was not cleared")
+		}
 	}
 }
 
@@ -167,43 +193,67 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			enginetest.SessionSQL(t, reader, `DELETE FROM xr_prepare_owner WHERE x=1`)
 			scope := pgrowlocksUnitScope(t, e, reader)
 			address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}), Name: "xr_prepare_owner"})
-			if len(scope.OwnWrites[address]) != 1 || scope.OwnDeletes[address] == nil { t.Fatal("missing real private INSERT/DELETE") }
+			if len(scope.OwnWrites[address]) != 1 || scope.OwnDeletes[address] == nil {
+				t.Fatal("missing real private INSERT/DELETE")
+			}
 			integer := enginetest.Usage(e, sqltype.Int4).Type
 			four, err := sqltype.Integer(integer, 4)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			e.Mu.Lock()
 			staged, err := e.Storage.AllocateRowVersionsLocked([][]sqltype.Value{{four}}, e.Catalog.State)
 			var original, removed storage.RowVersion
 			for _, row := range e.Storage.Relations[address].Versions {
 				value, _ := row.Values[0].Integer()
-				if value == 1 { original = row }
-				if value == 2 { removed = row }
+				if value == 1 {
+					original = row
+				}
+				if value == 2 {
+					removed = row
+				}
 			}
 			e.Mu.Unlock()
-			if err != nil || original.Version == 0 || removed.Version == 0 { t.Fatal("staged storage setup", err) }
+			if err != nil || original.Version == 0 || removed.Version == 0 {
+				t.Fatal("staged storage setup", err)
+			}
 			own := scope.OwnWrites[address][0]
 			ownValue, ownErr := own.Values[0].Integer()
-			if ownErr != nil || ownValue != 3 || own.Row == 0 || own.Version == 0 || own.Row == staged[0].Row || own.Version == staged[0].Version { t.Fatal("caller INSERT candidate is not distinct x3", own, ownErr) }
-			deleted := scope.OwnDeletes[address].Rows
-			if len(deleted) != 1 || deleted[original.Row].Row != original.Row || deleted[original.Row].Version != original.Version { t.Fatal("caller DELETE candidate is not original x1", deleted) }
+			if ownErr != nil || ownValue != 3 || own.Row == 0 || own.Version == 0 || own.Row == staged[0].Row || own.Version == staged[0].Version {
+				t.Fatal("caller INSERT candidate is not distinct x3", own, ownErr)
+			}
+			deleted, deletedOK := scope.OwnDeletes[address].Lookup(original.Row, original.Version)
+			if !deletedOK || scope.OwnDeletes[address].Len() != 1 || deleted.Row != original.Row || deleted.Version != original.Version {
+				t.Fatal("caller DELETE candidate is not original x1", deleted)
+			}
 			scope.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{address: staged}
 			scope.Stage.Deletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {Rows: map[ids.RowID]visibility.DeleteCandidate{removed.Row: {Row: removed.Row, Version: removed.Version}}}}
 			// Real caller relation/source/view and authorization roots distinguish
 			// restoration from an accidentally empty fresh lexical context.
 			read := e.CatalogRead()
 			relation, _ := read.Relation(address)
-			if relation == nil { t.Fatal("missing caller relation descriptor") }
+			if relation == nil {
+				t.Fatal("missing caller relation descriptor")
+			}
 			ref := e.Catalog.Domain.Ref(read.Epoch(), address)
-			if err := scope.AcquireRelation(enginetest.Statement(t, `SELECT x FROM xr_prepare_owner`), true); err != nil { t.Fatal(err) }
-			if len(scope.QuerySources) == 0 { t.Fatal("missing caller relation source") }
-			if err := core.ScopeSnapshotDataPhase(scope); err != nil { t.Fatal(err) }
+			if err := scope.AcquireRelation(enginetest.Statement(t, `SELECT x FROM xr_prepare_owner`), true); err != nil {
+				t.Fatal(err)
+			}
+			if len(scope.QuerySources) == 0 {
+				t.Fatal("missing caller relation source")
+			}
+			if err := core.ScopeSnapshotDataPhase(scope); err != nil {
+				t.Fatal(err)
+			}
 			scope.Owner.Mu.Lock()
 			e.Mu.Lock()
 			outerView, viewErr := scope.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
 			auth, authErr := core.ScopeWriteAuthorizationLocked(scope, e)
 			e.Mu.Unlock()
 			scope.Owner.Mu.Unlock()
-			if viewErr != nil || authErr != nil { t.Fatal(viewErr, authErr) }
+			if viewErr != nil || authErr != nil {
+				t.Fatal(viewErr, authErr)
+			}
 			scope.RoutineAuth = auth
 			authority := &exec.Authority{Host: core.HostOf(scope)}
 			core.SetScopeAuthority(scope, authority)
@@ -212,14 +262,20 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			scope.Domains.InputCatalog = read
 			scope.Inquiry.CommentCatalog = read
 			scope.Identity, err = exec.CaptureIdentity(auth.Catalog, auth.Roles, auth.State, scope.Op.Session.DatabaseName)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			nameType, _ := read.LookupType(sqltype.Name)
 			scope.Inquiry.CurrentSchemaResult = sqltype.String(nameType, "caller_cached_schema")
 			*core.InquirySearchPathResults(&scope.Inquiry) = [2]sqltype.Value{sqltype.String(nameType, "caller_cached_path"), sqltype.String(nameType, "caller_cached_implicit_path")}
 			scope.Input.LockedDomainInput, scope.Input.DomainChecks = scope, scope
 			// A stale caller presentation must be refreshed, not restored over
 			// effective settings; the enclosing execution boundary stays owned.
-			if scope.Input.XMLMode == sqltype.XMLDocument { scope.Input.XMLMode = sqltype.XMLContent } else { scope.Input.XMLMode = sqltype.XMLDocument }
+			if scope.Input.XMLMode == sqltype.XMLDocument {
+				scope.Input.XMLMode = sqltype.XMLContent
+			} else {
+				scope.Input.XMLMode = sqltype.XMLDocument
+			}
 			scope.Output.XMLBinaryHex = !scope.Output.XMLBinaryHex
 			scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: ref, Revision: relation.Revision()}}
 			lexical := &proc.PLFrame{Values: []sqltype.Value{four}}
@@ -248,10 +304,12 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			// Readonly excludes the current stage; writable preparation must add
 			// these exact disjoint candidates, not merely the same row count.
 			wantRows := xmlPreparationRowsCopy(ownRoots.wantWrites[address])
-			wantDeleted := maps.Clone(ownRoots.wantDeletes[address].Rows)
+			wantDeleted := ownRoots.wantDeletes[address].Clone()
 			if volatility == expr.Volatile {
 				wantRows = append(wantRows, xmlPreparationRowsCopy(stageRoots.wantWrites[address])...)
-				for row, candidate := range stageRoots.wantDeletes[address].Rows { wantDeleted[row] = candidate }
+				for _, candidate := range stageRoots.wantDeletes[address].All() {
+					wantDeleted.Set(candidate)
+				}
 			}
 			assertRestored := func() {
 				t.Helper()
@@ -261,20 +319,30 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 				if scope.View != outerView || outerView.Load() != viewData || scope.Expected != expected || core.ScopeAuthority(scope) != authority || authority.Host != core.HostOf(scope) || scope.Domains.InputCatalog != read || scope.Inquiry.CommentCatalog != read {
 					t.Fatal("caller view/source/authority/type/catalog owner changed")
 				}
-				if !reflect.DeepEqual(*scope.Expected, expectedContent) || reflect.ValueOf(scope.Expected.Results).Pointer() != reflect.ValueOf(expectedColumns).Pointer() || !reflect.DeepEqual(lexical.Values, []sqltype.Value{four}) || reflect.ValueOf(lexical.Values).Pointer() != reflect.ValueOf(lexicalValues).Pointer() { t.Fatal("caller description or lexical datum content/backing changed") }
+				if !reflect.DeepEqual(*scope.Expected, expectedContent) || reflect.ValueOf(scope.Expected.Results).Pointer() != reflect.ValueOf(expectedColumns).Pointer() || !reflect.DeepEqual(lexical.Values, []sqltype.Value{four}) || reflect.ValueOf(lexical.Values).Pointer() != reflect.ValueOf(lexicalValues).Pointer() {
+					t.Fatal("caller description or lexical datum content/backing changed")
+				}
 				if !reflect.DeepEqual(scope.QuerySources, sourceContent) || reflect.ValueOf(scope.QuerySources).Pointer() != reflect.ValueOf(sources).Pointer() || !reflect.DeepEqual(core.ScopeRLSDataRefs(scope), refContent) || reflect.ValueOf(core.ScopeRLSDataRefs(scope)).Pointer() != reflect.ValueOf(refs).Pointer() || !reflect.DeepEqual(scope.RoutineDependencies, dependencyContent) || reflect.ValueOf(scope.RoutineDependencies).Pointer() != reflect.ValueOf(dependencies).Pointer() {
 					t.Fatal("caller source/ref/dependency content or backing changed")
 				}
-				if !reflect.DeepEqual(saved, core.ScopeSQLRoutineLexicalScratch(scope)) || !core.SameSQLRoutineDemand(demand, core.ScopeSQLRoutine(scope)) || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(scope)) != lexical || core.ScopeActiveSQLRoutineDepth(scope) != 0 { t.Fatal("caller lexical scratch not restored") }
+				if !reflect.DeepEqual(saved, core.ScopeSQLRoutineLexicalScratch(scope)) || !core.SameSQLRoutineDemand(demand, core.ScopeSQLRoutine(scope)) || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(scope)) != lexical || core.ScopeActiveSQLRoutineDepth(scope) != 0 {
+					t.Fatal("caller lexical scratch not restored")
+				}
 				// The lexical comparison intentionally excludes refreshed actor
 				// and presentation fields. Assert their real semantics separately.
 				e.Mu.Lock()
 				liveAuth, err := scope.RoutineAuthorizationLocked()
 				e.Mu.Unlock()
-				if err != nil { t.Fatal(err) }
-				if scope.RoutineAuth.Catalog != liveAuth.Catalog || !reflect.DeepEqual(scope.RoutineAuth.Roles, liveAuth.Roles) || scope.RoutineAuth.State != liveAuth.State || scope.RoutineAuth.Session != liveAuth.Session || scope.RoutineAuth.Statement != liveAuth.Statement { t.Fatal("refreshed authorization does not match live caller") }
+				if err != nil {
+					t.Fatal(err)
+				}
+				if scope.RoutineAuth.Catalog != liveAuth.Catalog || !reflect.DeepEqual(scope.RoutineAuth.Roles, liveAuth.Roles) || scope.RoutineAuth.State != liveAuth.State || scope.RoutineAuth.Session != liveAuth.Session || scope.RoutineAuth.Statement != liveAuth.Statement {
+					t.Fatal("refreshed authorization does not match live caller")
+				}
 				liveIdentity, err := exec.CaptureIdentity(liveAuth.Catalog, liveAuth.Roles, liveAuth.State, scope.Op.Session.DatabaseName)
-				if err != nil || !reflect.DeepEqual(scope.Identity, liveIdentity) { t.Fatal("refreshed identity does not match live actor", err) }
+				if err != nil || !reflect.DeepEqual(scope.Identity, liveIdentity) {
+					t.Fatal("refreshed identity does not match live actor", err)
+				}
 				assertXMLPreparationPresentation(t, scope, beforeInput, beforeOutput)
 			}
 			text := enginetest.Usage(e, sqltype.Text).Type
@@ -293,8 +361,10 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 				scope.Op.Ctx = observed
 				enginetest.State(t, invoke(tc.query, functions.XMLQuerySchema), tc.state)
 				wantWrites, wantDeletes := 1, 1
-				if volatility == expr.Volatile { wantWrites, wantDeletes = 2, 2 }
-				if !observed.seen || observed.deletes == nil || observed.wrongFrontier || !reflect.DeepEqual(observed.writes, wantRows) || !reflect.DeepEqual(observed.deletes.Rows, wantDeleted) || len(observed.writes) != wantWrites || len(observed.deletes.Rows) != wantDeletes {
+				if volatility == expr.Volatile {
+					wantWrites, wantDeletes = 2, 2
+				}
+				if !observed.seen || observed.deletes == nil || observed.wrongFrontier || !reflect.DeepEqual(observed.writes, wantRows) || !reflect.DeepEqual(observed.deletes, wantDeleted) || len(observed.writes) != wantWrites || observed.deletes.Len() != wantDeletes {
 					t.Fatalf("preparation caller frontier: seen=%v writes=%d deletes=%v", observed.seen, len(observed.writes), observed.deletes)
 				}
 				assertRestored()

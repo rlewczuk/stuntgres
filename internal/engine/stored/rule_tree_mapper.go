@@ -95,14 +95,14 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				}
 			}
 			switch node := value.(type) {
-			case plan.TableOIDExpr:
+			case plan.SystemAttributeExpr:
 				if node.Scope == 0 {
 					return node, false, nil
 				}
 				next := frame(node.Frame)
 				changed := next != node.Frame
 				node.Frame = next
-				if offset != 0 {
+				if offset != 0 && node.QueryOccurrence != 0 {
 					node.QueryOccurrence += offset
 					changed = true
 				}

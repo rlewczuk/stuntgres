@@ -166,14 +166,14 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{2: 7, 3: 8, 5: 10})
 	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-	p = &index.RowPublication{Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 7}, 1: {Version: 6}}}}
+	p = &index.RowPublication{Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Row: 2, Version: 7}, 1: {Row: 1, Version: 6}}}}
 	next, err = index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
-	p = &index.RowPublication{Writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 12, Own: true}}}}
+	p = &index.RowPublication{Writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, Deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Row: 2, Version: 12, Own: true}}}}
 	next, err = index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)

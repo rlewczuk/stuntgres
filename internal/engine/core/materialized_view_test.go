@@ -26,7 +26,7 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := [][]sqltype.Value{{value}}
-	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	store := core.StageInitialTables(stage)[d.Address()]

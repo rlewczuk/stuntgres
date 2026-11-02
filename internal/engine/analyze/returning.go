@@ -303,6 +303,20 @@ func (b *Binder) returningColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	name := parts[len(parts)-1].Text
+	if subID, _ := catalog.SystemAttribute(name); subID != 0 && b.Target.Relation.HasSystemAttributes() {
+		n := b.targetSystemAttribute(name, b.FrameID(), raw.Pos)
+		mode := b.Target.returningAliases.mode
+		n.Old = !newValues && mode != ReturningDelete
+		n.Absent = !newValues && mode == returningInsert || newValues && mode == ReturningDelete
+		if mode == returningMerge {
+			n.Merge = true
+			n.Side = exec.MergeOldSide
+			if newValues {
+				n.Side = exec.MergeNewSide
+			}
+		}
+		return n, nil
+	}
 	slot, ok := b.Target.Relation.Index[name]
 	if !ok {
 		if len(parts) > 1 {

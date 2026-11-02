@@ -138,18 +138,22 @@ func TestReferenceTIDControls(t *testing.T) {
 		run(fixture.Exec("CREATE VIEW tid_view AS SELECT id,v,'(,)'::tid AS origin FROM tid_saved", 0))
 		run(fixture.Select("SELECT * FROM tid_saved ORDER BY id", []string{"id", "v"}, []string{"INT4", "TID"}, [][]any{{int64(1), "(1,2)"}, {int64(2), "(4294967295,0)"}, {int64(3), nil}}))
 		run(fixture.Select("SELECT origin FROM tid_view ORDER BY id", []string{"origin"}, []string{"TID"}, [][]any{{"(0,0)"}, {"(0,0)"}, {"(0,0)"}}))
-		if b.PG {
-			run(fixture.Select("SELECT count(*) AS n FROM tid_saved WHERE ctid IS NOT NULL", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}}))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("42703", `column "ctid" does not exist`)
-			d.Position = "8"
-			d.Hint = `Perhaps you meant to reference the column "tid_saved.id".`
-			s := fixture.ErrorDiagnostic("SELECT ctid FROM tid_saved", d)
-			s.SelectRows = true
-			run(s)
-			s.Prepared = true
-			s.ErrorStage = "prepare"
-			run(s)
+		var physicalTID string
+		if err := b.DB.QueryRowContext(p.Ctx, "SELECT ctid FROM tid_saved WHERE id=1").Scan(&physicalTID); err != nil {
+			t.Fatal(err)
+		}
+		for _, prepared := range []bool{false, true} {
+			for _, s := range []fixture.Step{
+				fixture.Select("SELECT count(*) AS n,count(DISTINCT ctid) AS identities FROM tid_saved WHERE ctid>'(0,0)'::tid", []string{"n", "identities"}, []string{"INT8", "INT8"}, [][]any{{int64(3), int64(3)}}),
+				fixture.Select("SELECT ctid FROM tid_saved WHERE id=1", []string{"ctid"}, []string{"TID"}, [][]any{{physicalTID}}),
+				fixture.Select("SELECT ctid FROM tid_saved WHERE false", []string{"ctid"}, []string{"TID"}, nil),
+				fixture.Select("SELECT id,v FROM tid_saved WHERE ctid=$1::tid", []string{"id", "v"}, []string{"INT4", "TID"}, [][]any{{int64(1), "(1,2)"}}, physicalTID),
+			} {
+				s.Prepared = prepared
+				run(s)
+			}
+		}
+		if !b.PG {
 			canceled, cancel := context.WithCancel(p.Ctx)
 			cancel()
 			_, err := b.DB.ExecContext(canceled, "INSERT INTO tid_saved VALUES(4,$1)", "(2,3)")

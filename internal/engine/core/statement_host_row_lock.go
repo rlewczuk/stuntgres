@@ -3,33 +3,35 @@ package core
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
-// The source manifest, not target-only DML authority or a re-resolved name,
-// identifies each grant. Waiting shares the existing journal/deadline machinery.
-// It may block in the lock manager: the replacement read lock is released
-// across the wait and retaken for implicit statements, then Engine.mu is taken.
-func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan.RowMark) (bool, error) {
+// The source manifest identifies the grant. Manager waits never retain owner or
+// Engine mutexes; repaired headers split only the exact target's resource.
+func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row storage.RowVersion, mark plan.RowMark) (bool, error) {
 	s := h.scope()
 	if err := s.Active(); err != nil {
 		return false, err
 	}
-	if s.LockTicket == nil || s.LockTicket.Ref() != s.TxRef || session.TxOwnerOf(s.TxRef) != s.Owner || s.TxRef.Session() != s.Op.Session.SessionToken || row == 0 || leaf.Storage == nil {
+	if s.LockTicket == nil || s.LockTicket.Ref() != s.TxRef || session.TxOwnerOf(s.TxRef) != s.Owner || s.TxRef.Session() != s.Op.Session.SessionToken || row.Row == 0 || row.Version == 0 || leaf.Storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
 	e := s.Engine()
-	// Conditional requests reuse the manager's atomic immediate-grant branch:
-	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
+	e.Mu.Lock()
+	_, err := CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf)
+	e.Mu.Unlock()
+	if err != nil {
+		return false, err
+	}
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, NoWait: mark.Wait != parser.RowLockBlock, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: leaf.Ref, Row: row}, mark.Mode, policy)
+	err = s.acquireTuple(leaf.Ref, row, leaf.Storage, mark.Mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
 		if mark.Wait == parser.RowLockSkip {
 			return false, nil
@@ -39,89 +41,105 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 	if err != nil {
 		return false, err
 	}
-	if request != nil {
-		if s.ReplacementRead {
-			e.ReplacementMu.RUnlock()
-			s.ReplacementRead = false
-		}
-		if err = request.Wait(); err != nil {
-			return false, err
-		}
-		if s.implicit {
-			e.ReplacementMu.RLock()
-			s.ReplacementRead = true
-		}
-	}
 	e.Mu.Lock()
-	defer e.Mu.Unlock()
 	_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf)
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(s.TxRef)
 	}
+	e.Mu.Unlock()
 	return err == nil, err
 }
 
-// LatestQueryRow takes Engine.mu for the current version and records the
-// physical row event after releasing it.
-func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVersion, hint int, mode lock.Mode) (result storage.RowVersion, present bool, err error) {
+// Resolve exact physical membership and only genuine successor links. The
+// stable KEY SHARE exception preserves its original snapshot value while the
+// event still belongs to the actually admitted current physical tuple.
+func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVersion, hint int, mark plan.RowMark) (storage.RowVersion, bool, error) {
 	s := h.scope()
 	e := s.Engine()
-	var physical storage.RowVersion
-	defer func() {
-		if err != nil || !present {
-			return
+	original := candidate
+	for {
+		e.Mu.Lock()
+		_, err := CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf)
+		var latest dml.LatestRow
+		if err == nil {
+			src := s.latestRowSourceLocked(e, leaf.Ref.Address)
+			src.Stable = false
+			latest, err = dml.LatestUpdateRow(src, dml.RowRequest{Ref: leaf.Ref, Row: candidate.Row, Physical: candidate.Version, Hint: hint})
 		}
-		kind, failure := lock.MultiLockMode(mode)
-		if failure != nil {
-			err = failure
-			return
+		current := latest.Version
+		result := current
+		var resource lock.Resource
+		if err == nil {
+			resource, err = s.tupleResourceLocked(leaf.Ref, current, leaf.Storage)
 		}
-		err = s.physicalRowEvent(leaf.Ref, physical, kind, 0)
-	}()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if _, err := CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.PendingCatalog()), s.PendingCatalog(), leaf); err != nil {
-		return storage.RowVersion{}, false, err
-	}
-	store := leaf.Storage
-	rows := store.Versions
-	if candidate.Born == 0 {
-		rows = s.OwnWrites[leaf.Ref.Address]
-	}
-	current, _, found := storage.RowByID(rows, candidate.Row, hint)
-	if !found {
-		return storage.RowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
-	}
-	physical = current
-	present = visibility.LiveVersion(current, e.Visibility.CommitSeq(), store.Ends, s.OwnDeletes[leaf.Ref.Address])
-	if s.Owner.Isolation.Stable() && current.Born != 0 {
-		changed := current.Born > s.Owner.Frontier
-		if store.Ends != nil {
-			end, ok := store.Ends.Rows[current.Row]
-			changed = changed || ok && end.Version == current.Version && end.End > s.Owner.Frontier
-		}
-		if changed {
-			// KEY SHARE retains RR values only across compatible replacements.
-			// A key transition after the frontier remains incompatible even if
-			// later updates restore the key or change only payload.
-			if mode == lock.ForKeyShare && present && current.Version != candidate.Version && current.KeyChangedAt <= s.Owner.Frontier {
-				return candidate, true, nil
+		if err == nil && s.Owner.Isolation.Stable() && current.Born != 0 {
+			changed := current.Born > s.Owner.Frontier
+			if leaf.Storage.Ends != nil {
+				end, ok := leaf.Storage.Ends.Lookup(current.Row, current.Version)
+				changed = changed || ok && end.End > s.Owner.Frontier
 			}
-			return storage.RowVersion{}, false, SQLError("40001", "could not serialize access due to concurrent update")
+			if changed {
+				if mark.Mode == lock.ForKeyShare && latest.Live && current.Version != original.Version && current.KeyChangedAt <= s.Owner.Frontier {
+					result = original
+				} else {
+					err = SQLError("40001", "could not serialize access due to concurrent update")
+				}
+			}
 		}
+		admitted := s.admittedTuple(leaf.Ref, candidate)
+		if err == nil && resource == admitted {
+			s.rememberTuple(leaf.Ref, current, admitted)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			return storage.RowVersion{}, false, err
+		}
+		if !latest.Live {
+			return result, false, nil
+		}
+		if resource != admitted {
+			ok, err := h.AcquireQueryRow(leaf, current, mark)
+			if err != nil || !ok {
+				return storage.RowVersion{}, false, err
+			}
+			candidate = current
+			continue
+		}
+		kind, err := lock.MultiLockMode(mark.Mode)
+		if err != nil {
+			return storage.RowVersion{}, false, err
+		}
+		if err := s.recordPhysicalRowLock(admitted, current, kind); err != nil {
+			return storage.RowVersion{}, false, err
+		}
+		return result, true, nil
 	}
-	return current, present, nil
 }
 
-func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode lock.MultiMode, successor ids.VersionID) error {
+// Immediate lock-only effects belong to the grant already acquired/rechecked by
+// the caller. Repair can replace its header key afterwards, but must not move
+// this old grant's event to a newer key or turn the publisher into another wait.
+// Updating effects are published only by actual Stage acceptance with its real
+// predecessor/successor, never by an unaccepted DML proposal.
+func (s *StatementScope) physicalRowLock(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error {
+	kind, err := lock.MultiLockMode(mode)
+	if err != nil {
+		return err
+	}
 	e := s.Engine()
 	e.Mu.Lock()
-	err := e.AssignTransactionXIDLocked(s.TxRef)
+	admitted := s.admittedTuple(ref, row)
+	err = e.AssignTransactionXIDLocked(s.TxRef)
 	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
-	return s.Engine().Locks.PhysicalEvents(s.LockTicket, []lock.MultiEvent{{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: row.Row}, row.Version}, Mode: mode, Successor: successor}})
+	return s.recordPhysicalRowLock(admitted, row, kind)
+}
+
+func (s *StatementScope) recordPhysicalRowLock(resource lock.Resource, row storage.RowVersion, mode lock.MultiMode) error {
+	e := s.Engine()
+	return e.Locks.PhysicalEvents(s.LockTicket, []lock.MultiEvent{{Tuple: lock.MultiTuple{Resource: resource, Version: row.Version}, Mode: mode}})
 }
 
 func (s *StatementScope) flushPhysicalEvents() error {
@@ -138,7 +156,7 @@ func (s *StatementScope) flushPhysicalEvents() error {
 		s.multiEvents = events[:0]
 		return assignmentErr
 	}
-	err := s.Engine().Locks.PhysicalEvents(s.LockTicket, events)
+	err := e.Locks.PhysicalEvents(s.LockTicket, events)
 	clear(events)
 	s.multiEvents = events[:0]
 	return err

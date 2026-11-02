@@ -426,7 +426,7 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 // and slot, independently of composite expansion occurrences.
 func (v *viewLiteralValidator) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
 	column, ok := v.columns[path]
-	if column.TableOID || column.Owner != (ids.ObjectRef{}) || column.Scope != 0 || column.Occurrence != 0 {
+	if column.SystemAttribute != 0 || column.SystemOld || column.SystemAbsent || column.SystemMerge || column.SystemSide != 0 || column.Owner != (ids.ObjectRef{}) || column.Scope != 0 || column.Occurrence != 0 {
 		return fmt.Errorf("stuntgres: invalid ordinary view column mode")
 	}
 	if v.triggerRows != nil {
@@ -694,8 +694,8 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 			(*compositeCount)++
 			return nil
 		}
-		if captured, ok := v.columns[path]; ok && captured.TableOID {
-			if err := v.validateTableOIDOccurrence(path, r.Pos); err != nil {
+		if captured, ok := v.columns[path]; ok && captured.SystemAttribute != 0 {
+			if err := v.validateSystemAttributeOccurrence(path, r.Pos); err != nil {
 				return err
 			}
 			(*columnCount)++

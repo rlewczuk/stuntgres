@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
@@ -35,9 +34,12 @@ type Host interface {
 	OpenNamedRelation(name string, schema plan.QuerySchema) (*Source, error)
 
 	// Row locks: lock waits and current row versions at grant time.
-	AcquireQueryRow(leaf Leaf, row ids.RowID, mark plan.RowMark) (bool, error)
-	LatestQueryRow(leaf Leaf, candidate storage.RowVersion, hint int, mode lock.Mode) (storage.RowVersion, bool, error)
+	AcquireQueryRow(leaf Leaf, row storage.RowVersion, mark plan.RowMark) (bool, error)
+	LatestQueryRow(leaf Leaf, candidate storage.RowVersion, hint int, mark plan.RowMark) (storage.RowVersion, bool, error)
 	QueryLocks() *LockContext
+	// CaptureTupleXmax captures detached presentation scalars outside metadata
+	// locks, readmitting the exact canonical header after manager inspection.
+	CaptureTupleXmax(ref ids.ObjectRef, rows []storage.RowVersion) ([]uint32, error)
 
 	// Foreign owner: release the replacement read lock before external I/O;
 	// enlist the statement's foreign transaction participant.

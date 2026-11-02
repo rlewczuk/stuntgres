@@ -40,7 +40,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	store := &storage.Relation{Versions: rows, Ends: ends, Generation: 5}
 	old := slices.Clone(rows)
 	candidate, err := vacuumScan(context.Background(), rows, ends, 2, 4, true)
-	if err != nil || candidate.Removed != 1 || candidate.Live != 2 || candidate.Dead != 0 || len(candidate.Versions) != 2 || len(candidate.Ends.Rows) != 2 {
+	if err != nil || candidate.Removed != 1 || candidate.Live != 2 || candidate.Dead != 0 || len(candidate.Versions) != 2 || candidate.Ends.Len() != 2 {
 		t.Fatal(candidate, err)
 	}
 	if candidate.Versions[0].Row != 2 || candidate.Versions[0].Version != 20 || candidate.Versions[0].Born != 1 || candidate.Versions[0].InsertFullXID != 3 || &candidate.Versions[0].Values[0] != &payload[0] || candidate.Versions[1].Values != nil {
@@ -77,7 +77,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	if err != nil || rebound.Hash.Prefix != 2 || rebound.Hash.Generation != 6 || rebound.Hash.RowEntries[2] != prefixHash.RowEntries[2] {
 		t.Fatal("freeze-only hash binding lost original coverage/pointers", rebound, err)
 	}
-	if !reflect.DeepEqual(rows, old) || len(ends.Rows) != 3 || len(root.Entries) != 3 || root.Entries[1].Position != 1 || hash.Hash.RowEntries[2] != &bucket[1] {
+	if !reflect.DeepEqual(rows, old) || ends.Len() != 3 || len(root.Entries) != 3 || root.Entries[1].Position != 1 || hash.Hash.RowEntries[2] != &bucket[1] {
 		t.Fatal("retained root mutated")
 	}
 	// A mismatched-version marker is not removal authority, including Born0.
@@ -89,7 +89,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	}
 	allEnds := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}, 2: {Version: 20, End: 2}, 3: {Version: 30, End: 2}}}
 	all, err := vacuumScan(context.Background(), rows, allEnds, 2, 4, true)
-	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || len(all.Ends.Rows) != 0 {
+	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || all.Ends.Len() != 0 {
 		t.Fatal("all-dead compaction", all, err)
 	}
 	empty, err := vacuumScan(context.Background(), nil, nil, 2, 4, true)

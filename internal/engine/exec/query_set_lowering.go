@@ -179,6 +179,13 @@ func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFro
 		evaluation.QueryOccurrences = state.Invocation.QueryOccurrences
 		evaluation.QueryProvenance = state.Invocation.QueryProvenance
 		evaluation.QueryCurrentRows = state.Invocation.QueryCurrentRows
+		evaluation.QueryCurrentVersions = state.Invocation.QueryCurrentVersions
+		evaluation.PhysicalTable, evaluation.PhysicalVersion = state.Invocation.PhysicalTable, state.Invocation.PhysicalVersion
+		evaluation.OldPhysicalTable, evaluation.OldPhysicalVersion = state.Invocation.OldPhysicalTable, state.Invocation.OldPhysicalVersion
+		evaluation.QueryProjectedVersions = state.Invocation.QueryProjectedVersions
+		evaluation.QueryRawXmax, evaluation.PhysicalRawXmax = state.Invocation.QueryRawXmax, state.Invocation.PhysicalRawXmax
+		evaluation.PhysicalXmax, evaluation.PhysicalXmaxValid = state.Invocation.PhysicalXmax, state.Invocation.PhysicalXmaxValid
+		evaluation.OldPhysicalXmax, evaluation.OldPhysicalXmaxValid = state.Invocation.OldPhysicalXmax, state.Invocation.OldPhysicalXmaxValid
 	} else if n.Correlated {
 		return Stage{}, fmt.Errorf("stuntgres: missing function invocation frame")
 	}

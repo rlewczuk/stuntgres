@@ -99,7 +99,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			nextMetadata = &next
 		}
 		progress("seq scanning heap", 0, 0, 0)
-		candidate, err := storage.RewriteVacuum(s.Op.Context(), capture.Rows, capture.Ends, capture.Retained, capture.Frontier, capture.Cutoff, capture.Retire, func(scanned int, written int64) { progress("seq scanning heap", int64(scanned), written, 0) })
+		candidate, err := storage.RewriteHeapVacuum(s.Op.Context(), storage.Relation{Versions: capture.Rows, Ends: capture.Ends, Retained: capture.Retained, Discarded: capture.Discarded, Headers: capture.Headers}, capture.Frontier, capture.Cutoff, capture.Retire, func(scanned int, written int64) { progress("seq scanning heap", int64(scanned), written, 0) })
 		if err != nil {
 			return false, err
 		}

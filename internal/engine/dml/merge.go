@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -82,6 +83,8 @@ type MergeActionRow struct {
 	Payload    int
 	Deletion   visibility.DeleteCandidate
 	UpdateMode lock.MultiMode
+	PairIndex  int           // Original owned materialized source/candidate occurrence.
+	Expected   ids.VersionID // Actual producer-checked DELETE version.
 }
 
 type MergeRows struct {
@@ -89,8 +92,14 @@ type MergeRows struct {
 	Predecessors  []storage.RowVersion
 	Actions       []MergeActionRow
 	Returning     *exec.FinalRows
-	StagedActions int // Accepted prefix already visible to later BEFORE invocations.
+	StagedActions int           // Accepted prefix already visible to later BEFORE invocations.
+	producer      mergeProducer // Execution-only; never copied into plans or results.
 }
+
+// ReleaseProducer detaches execution frames without closing caller-owned
+// sources/state or the completed RETURNING rows. Stage calls it terminally;
+// callers also defer it for cancellation before the explicit stage boundary.
+func (r *MergeRows) ReleaseProducer() { r.producer = mergeProducer{} }
 
 type MergeCandidate struct {
 	UpdateCandidate

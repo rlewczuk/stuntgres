@@ -43,14 +43,35 @@ reuse their supplied context without per-row activation or context allocation.
   `ReadmitRevalidation` (recaptures write authority under `Engine.Mu`, then
   readmits programs unlocked after a stale binding) and the write windows
   `PrepareReplacement`, `StageInsert`, `StageReplacement`,
-  `AppendAcceptedInsert` and `Delete`. Each window takes the owner mutex and
-  `Engine.Mu` itself and never waits.
+  `AppendAcceptedInsert` and `Delete`. Acceptance takes Owner then Engine
+  mutexes. Replacement/deletion grant inspection and changed repair-key
+  readmission run outside both mutexes; the final exact-key check and accepted
+  action publication share the same Engine window.
 - `RowLocks`: `AcquireRow`, `AcquireUpdateRow` and `AcquirePartitionLock` wait
-  with the caller holding nothing; `LatestRow` reads one row per `RowKind`
-  under one lock.
+  with the caller holding nothing; `LatestRow` captures its canonical current
+  version, readmits a genuine successor unlocked, then rechecks the publication.
   MERGE prefers an own target version; otherwise stable snapshots reject
   committed updates or deletions beyond their frontier before selecting actions.
   Read-committed successor rechecks retain the captured source occurrence.
+  Requests retain actual VersionID and follow only committed/own physical
+  successor links, reset to self by repair. Mutation deduplication and conflict
+  cardinality key exact version/header identities, not every same-RowID sibling.
+  Latest-row results also retain the actual validated vector ordinal, or -1
+  for a historical/additional version. Single-row UPDATE and conflict replacement
+  windows pass this hint without allocating a parallel vector; acceptance still
+  validates exact VersionID and falls back canonically after movement.
+  The insert overlay records both accepted and consumed original headers while
+  its affected-row count still advances once per accepted action.
+  Grants carry actual RowVersion, including RI row grants; a zero RowVersion is
+  relation-only admission. Events retain the actually admitted resource.
+  `PhysicalRowLock` accepts only row-lock modes and publishes on that existing
+  grant without another wait. Proposals emit no speculative updating event:
+  actual Stage acceptance owns the updater and real successor/deletion event.
+  Genuine preceding lock-only work and old updater history survive retries.
+  Demanded raw xmax remains immutable presentation, separate from candidate
+  full-XID/end provenance. Qualification borrows the captured source header;
+  current-row rechecks and RETURNING finalize detached scalars after real event
+  flushing, without manager calls from expressions.
 - `Presentation`: `RowDetail`, `SchemaName`, `CaptureRegclassOutput`.
 - `BeforeStatement` is relevance-gated by logical relation/event metadata before
   defaults, source consumption, row iteration or foreign participant effects.
@@ -128,6 +149,10 @@ opportunity. Helper SQL owns independent nested frames. Each admitted action/che
 borrows the paired internal trigger scope for defaults, child BEFORE bodies and
 producer qualification; transition exposure follows that scope's exit.
 Post-action validation does not manufacture a second invocation.
+Final FK checks capture physical parent/child inventories only after an eligible
+row check demands them, reusing that immutable capture within the job. Unchanged
+parent keys and unrelated retained deferred exclusions do not demand private
+shadow maps, row grants or another comparison pass.
 `Staged` never locks; the job, authority and
 row-image captures and the internal action windows each lock once and never
 wait; `GrantForeignKey` waits with the caller holding nothing, then locks to
@@ -260,7 +285,36 @@ Package-internal helpers keep lower-case names.
   exported `EvaluateInsertQuery` remains consuming for ordinary INSERT callers.
 - `ApplyValidated` and `ReplaceRows` own the work around the `Stage` windows.
   After a stale unique binding they run `ReadmitRevalidation`, reprobe every row
-  (or readmit DO NOTHING) and retry.
+  (or readmit DO NOTHING) and retry. Physical RETURNING is supplied only after
+  actual admission: incremental INSERT returns its exact accepted RowVersion;
+  replacement/routed batches borrow optional caller-owned Accepted slots filled
+  before AFTER triggers. DELETE reads its exact admitted end header. Projection
+  never guesses the newest RowID head or the last tuple staged by a trigger.
+- Tuple proposal changes are distinct from stale index bindings:
+  `ReplacementStageResult.RecheckIndex` identifies the first failed predecessor
+  in a wholly unaccepted window; `ReplaceRows` returns its internal tuple control
+  and index to the producing executor. UPDATE demands the initial RHS before
+  genuine BEFORE prelocking, while ordinary grant admission keeps its existing
+  boundary. Eligible FROM pairs demand SET once before target deduplication;
+  an own accepted successor is an actual predecessor, not external EPQ that
+  repeats the frozen source targetlist. Late UPDATE/DELETE retries selected
+  qualification/projection below completed BEFORE, without replaying it.
+  ON CONFLICT retains VALUES/EXCLUDED/BEFORE INSERT across unique discovery and
+  skips completed UPDATE BEFORE on late retry. RI keeps its original command
+  snapshot and ordinary isolation checks. Count/AFTER/RETURNING follow acceptance.
+- MERGE owns its distinct ON/class/WHEN/action/prologue recheck in the existing
+  noncopyable, execution-private `MergeRows` allocation. Source completion still
+  precedes target production; the explicit Assemble/Stage boundary remains.
+  Initial changed-version follow-chain reads acquire the all-arm strong grant
+  before reclassification; resource identity equality does not upgrade mode.
+  Deleted BY SOURCE targets preserve the genuine NULL-source NOT MATCHED
+  opportunity and its actual defaults/constraints.
+  Rare indexed replay replaces only an unaccepted failed occurrence, retaining
+  unrelated pending RHS/RETURNING and accepted prefixes. Immutable materialized
+  source identities/raw captures outlive cursor close; no cursor is retained.
+  `StageMergeRows` clears its producer on every terminal exit; callers abandoning
+  an assembled result before Stage call `ReleaseProducer` without closing their
+  separately owned State/inputs or completed RETURNING.
 - Both INSERT row paths check `RowSecurity.CheckProposal` after generation and
   routing and before constraints; UPDATE checks NEW between generation and
   constraints. OLD policy guards (`MutationMatches`) precede user predicates and
@@ -311,9 +365,15 @@ Package-internal helpers keep lower-case names.
   caller holding nothing; all waits go through `GrantForeignKey`. Accepted
   predecessor/successor events retain command ownership and independent action/
   check progress. Settlement follows newly appended causal events to a fixed
-  point; completed actions are not replayed. Candidate checks use owned final
-  child versions and parent old images, while probes retain full private
-  visibility. `ActingAs` copies authority once per job/action, never per row.
+  point; completed actions are not replayed. Candidate checks select exact final
+  child VersionIDs and parent old images, with exact event-old predecessor
+  lookup for unchanged-key suppression. Supporting-index probes retain actual
+  private writes but do not infer index membership from repaired heap payloads.
+  Stable action composition retains matching exact versions and follows only
+  their captured current header successor chains, stopping at self-link. Fresh
+  same-RowID siblings outside those chains remain independent candidates, with
+  canonical grants and latest-row snapshot checks before predicate/mutation.
+  `ActingAs` copies authority once per job/action, never per row.
 
 ## What stays in the engine
 
@@ -334,6 +394,13 @@ Package-internal helpers keep lower-case names.
   `catalog_fence.go`).
 
 ## Testing
+
+Physical target-header demand and nested RETURNING capture use
+`RUN='^TestReturningSystemAttribute'`.
+
+Canonical latest-row identity, validated ordinals, genuine successor positions,
+immutable captures and allocation-free known lookups use
+`RUN='^TestLatestRowPhysicalHints$'`.
 
 Unit tests here cover the ON CONFLICT predicate proofs, target admission,
 `CompleteCTEMutation`, COPY filter row admission and the routed RLS proposal

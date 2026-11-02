@@ -281,25 +281,26 @@ retry:
 				break
 			}
 			private := h.PrivateRows(ref.Address)
-			if index.UniqueRowExcluded(entry.Row, excluded) || index.UniqueRowDeleted(entry.Row, private.OwnDeletes, private.StagedDeletes) {
+			if index.UniqueRowExcluded(entry.Row, entry.Version, excluded) || index.UniqueRowDeleted(probe.Headers.Apply(storage.RowVersion{Row: entry.Row, Version: entry.Version}), private.OwnDeletes, private.StagedDeletes) {
 				continue
 			}
+			target := probe.Headers.Apply(storage.RowVersion{Row: entry.Row, Version: entry.Version})
 			replaced := false
 			if overlay := c.WriteOverlay(); overlay != nil {
-				_, replaced = overlay.AffectedRows[entry.Row]
+				_, replaced = overlay.AffectedSlot(target)
 				if !replaced {
-					_, replaced = InsertOwnRow(h, ref, entry.Row)
+					_, replaced = InsertOwnRow(h, ref, target)
 				}
 			} else {
 				for _, own := range private.Own {
-					if own.Row == entry.Row {
+					if own.Replaces(target) {
 						replaced = true
 						break
 					}
 				}
 				if !replaced {
 					for _, own := range private.Staged {
-						if own.Row == entry.Row {
+						if own.Replaces(target) {
 							replaced = true
 							break
 						}
@@ -317,15 +318,16 @@ retry:
 							return UniqueConflict{}, err
 						}
 					}
-					outcome.Row = head
 					outcome.Position = entry.Position
-					outcome.Committed = head.Born != 0
+					head = probe.Headers.Apply(head)
+					outcome.Row = head
+					outcome.Committed = head.Born != 0 || head.ForcedFrozen
 				}
 				return outcome, nil
 			}
 		}
 		if c.WriteOverlay() != nil {
-			own, found, err := probeInsertWriteOverlay(h, ref, bound, &evaluation, key, excluded, purpose)
+			own, found, err := probeInsertWriteOverlay(h, ref, bound, &evaluation, key, excluded, purpose, probe.Headers)
 			if err != nil {
 				return UniqueConflict{}, err
 			}
@@ -335,20 +337,29 @@ retry:
 						return UniqueConflict{}, err
 					}
 				}
-				outcome.Row, outcome.Position = own, -1
+				outcome.Row, outcome.Position = probe.Headers.Apply(own), -1
+				outcome.Committed = outcome.Row.ForcedFrozen
 				return outcome, nil
 			}
 		} else {
 			private := h.PrivateRows(ref.Address)
 			for overlayIndex, overlay := range [2][]storage.RowVersion{private.Staged, private.Own} {
 				for _, own := range overlay {
+					own = probe.Headers.Apply(own)
 					fresh := h.PrivateRows(ref.Address)
 					if overlayIndex == 1 {
-						if _, _, replaced := storage.RowByID(fresh.Staged, own.Row, -1); replaced {
+						replaced := false
+						for _, staged := range fresh.Staged {
+							if staged.Replaces(probe.Headers.Apply(own)) {
+								replaced = true
+								break
+							}
+						}
+						if replaced {
 							continue
 						}
 					}
-					if index.UniqueRowExcluded(own.Row, excluded) || index.UniqueRowDeleted(own.Row, fresh.OwnDeletes, fresh.StagedDeletes) {
+					if index.UniqueRowExcluded(own.Row, own.Version, excluded) || index.UniqueRowDeleted(own, fresh.OwnDeletes, fresh.StagedDeletes) {
 						continue
 					}
 					equal, err := matchesExistingUnique(h, bound, own, &evaluation, key, purpose)
@@ -362,6 +373,7 @@ retry:
 							}
 						}
 						outcome.Row = own
+						outcome.Committed = own.ForcedFrozen
 						outcome.Position = -1
 						return outcome, nil
 					}

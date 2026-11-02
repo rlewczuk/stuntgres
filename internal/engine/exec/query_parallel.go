@@ -175,6 +175,7 @@ func ParallelQuerySource(source *Source) (*Source, error) {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	return &Source{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
+		Headers: source.Headers, Repaired: source.Repaired, RawXmax: source.RawXmax,
 		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns, ScanFraction: source.ScanFraction,
 		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host}, nil
 }
@@ -279,6 +280,9 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		}
 	}()
 	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := captureQueryXmax(project, source); err != nil {
 		return nil, 0, err
 	}
 	input, output := sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}

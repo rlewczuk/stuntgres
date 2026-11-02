@@ -435,8 +435,13 @@ func (PgStatStatements) JumbleFields(s expr.StatementFields) {
 }
 func (Pgstattuple) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.Pgstattuple") }
 func (Pgvisibility) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Pgvisibility") }
-func (Point) JumbleFields(s expr.StatementFields)        { s.JumbleText("functions.Point") }
-func (Polygon) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.Polygon") }
+func (n Pgsurgery) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.Pgsurgery")
+	s.JumbleUint64(uint64(n.Slots[0]))
+	s.JumbleUint64(uint64(n.Slots[1]))
+}
+func (Point) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.Point") }
+func (Polygon) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Polygon") }
 func (publicationInfo) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.publicationInfo")
 }

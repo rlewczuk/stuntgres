@@ -19,21 +19,26 @@ func (e DomainValueExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return runtime.EvalDomainValue(e)
 }
 
-type TableOIDExpr struct {
+type SystemAttributeExpr struct {
 	expr.Info
 	Owner ids.ObjectRef
-	// Zero coordinates denote the generated-owner recipe. Query mode binds
-	// one lexical frame and a one-based source occurrence, never a row slot.
+	SubID int32 // Canonical pg_attribute identity; never an ordinary row slot.
+	// Zero coordinates denote the generated-owner tableoid recipe. Query mode
+	// binds a lexical frame and one-based source occurrence; occurrence zero
+	// with a nonzero frame denotes the writer-supplied physical mutation target.
 	Scope, Frame    uint32
 	QueryOccurrence int
+	Old, Absent     bool // RETURNING transition side; never a second source.
+	Merge           bool
+	Side            MergeReturningSide
 }
 
-func (n TableOIDExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n SystemAttributeExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, err := nodeRuntimeOf(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return runtime.EvalTableOID(n)
+	return runtime.EvalSystemAttribute(n)
 }
 
 // The retained plan reads a physical leaf window, preserving the named column's

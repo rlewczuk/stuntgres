@@ -37,7 +37,7 @@ func (c *AmcheckCapture) corrupt(kind string) error {
 	return amcheckError("XX002", fmt.Sprintf("%s for index \"%s\"", kind, c.Index.Name()))
 }
 func (c *AmcheckCapture) missing(row storage.RowVersion, parent bool) error {
-	block, offset, err := exec.PgrowlocksLogicalTID(row.Version)
+	block, offset, err := storage.LogicalTID(row.Version)
 	if err != nil {
 		return err
 	}
@@ -337,10 +337,10 @@ func amcheckSameKeys(a, b []sqltype.Value) bool {
 }
 func (c *AmcheckCapture) checkMaps(ctx context.Context, positions map[ids.VersionID]int) error {
 	if c.Root.Membership != nil {
-		if len(c.Root.Membership) != len(c.Root.Entries) {
+		if c.Root.MembershipLen() != len(c.Root.Entries) {
 			return c.corrupt("item order invariant violated")
 		}
-		for row, version := range c.Root.Membership {
+		for row, version := range c.Root.Members() {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -351,14 +351,15 @@ func (c *AmcheckCapture) checkMaps(ctx context.Context, positions map[ids.Versio
 		}
 	}
 	if c.Root.RowEntries != nil {
-		if len(c.Root.RowEntries) != len(c.Root.Entries) {
+		if c.Root.RowEntryLen() != len(c.Root.Entries) {
 			return c.corrupt("item order invariant violated")
 		}
-		for row, at := range c.Root.RowEntries {
+		for metadata := range c.Root.RowEntryIdentities() {
+			at, row := metadata.Position, metadata.Row
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if at < 0 || at >= len(c.Root.Entries) || c.Root.Entries[at].Row != row {
+			if at < 0 || at >= len(c.Root.Entries) || c.Root.Entries[at].Row != row || c.Root.Entries[at].Version != metadata.Version {
 				return c.corrupt("item order invariant violated")
 			}
 		}

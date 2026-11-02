@@ -288,6 +288,11 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		scope.AbortStatsPopulation()
 		t.Stats.Take(&scope.Stage.Stats)
 	}
+	if !committed && scope != nil && !scope.Finished && scope.TxRef == t.Ref {
+		e.Mu.Lock()
+		t.Catalog = e.discardWritesLocked(t.Ref, scope.PendingCatalog(), scope.Stage.Rows, t.Writes, t.Catalog, scope.Stage.DiscardedHeaps)
+		e.Mu.Unlock()
+	}
 	old = t.Ticket
 	t.Ticket = nil
 	captureOwnerStatementStats(t, scope)

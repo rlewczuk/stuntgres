@@ -166,6 +166,14 @@ builds a binder.
   their roots are rebuilt against destination row and descriptor identities.
   Ordinary GiST and SP-GiST partitioned indexes use the same parent/child publication and
   attachment path as partitioned constraint indexes.
+- **Private physical identity:** `UniqueRowDeleted` accepts an effective captured
+  `RowVersion`, including its repair stamp, and delegates to `PrivateDeletes.Ends`.
+  `BuildVisibleStore` captures genuine repaired additional versions
+  once, preserves untouched siblings and suppresses a replacement Base only at
+  its captured repair-admission stamp. Ordinary private heads retain their
+  existing owner visibility. Association validation matches exact versions and
+  actual predecessor chains, never a unique-RowID assumption; captures share
+  immutable payload backing.
 - **Compact B-tree statistics** (`pgstatindex.go`): `CapturePgstattupleStats` borrows
   one effective immutable root, parent versions/ends, commit frontier and actual
   private produced outputs. It validates row/version associations, counts resident
@@ -291,6 +299,11 @@ builds a binder.
   as fresh truth. Ordinary `OutputMatches` remains strict.
 - **Write-time records and enforcement** (`write_candidate.go`, `insertion.go`,
   `unique*.go`, `exclusion_*.go`, `constraint.go`): `WriteCandidate`,
+  `WriteBatch` (optional caller-owned `Accepted` physical-version output slots
+  follow Values through Prefix/Slice; Set clears stale admission, and nil keeps
+  the ordinary write path allocation-free; an explicitly known scalar
+  `PredecessorHint` belongs only to a single-row replacement window, survives
+  unchanged windows and is cleared by expansion or different slices),
   `UniqueWriteBinding`, `UniqueKeyHash` (the opaque key the engine pins in the
   lock manager), `ValidateUniques`, `ValidateExclusions`, the exclusion
   projection/event records, and `UniqueKeyDetailAllowed` (key disclosure over
@@ -458,6 +471,11 @@ pending passes; asks its context source for a context per comparison),
 `ExclusionProjection` methods, `ExclusionShapeEntries`). Each edit works on a
 `ProjectionLocked` copy and replaces slices and maps, so an installed
 projection never changes.
+Projection ends and incremental retirement sets are keyed by actual VersionID
+with their RowID association. Two repaired siblings can therefore acquire ordinary
+new index entries and end independently without shadowing one another. Projection
+edits remove only exact selected/base versions; another sibling remains a genuine
+constraint candidate. Repair itself does not recreate missing index entries.
 
 Deferrable UNIQUE/PK reuse this projection/admission machinery with their real
 equality ordering and NULL semantics, not synthetic EXCLUDE definitions or eager
@@ -516,6 +534,10 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   at Execute, after predicate qualification and before rows are installed;
   failed batches, waits and builds preserve predecessor rows and roots.
   Maintenance rebuilds roots atomically without changing rows or identities.
+  Partial membership and stored-key ordinals use canonical exact-version lookup.
+  The ordinary RowID fast path retains one genuine entry; collision maps own only
+  additional versions. Construction, probing, verification and maintenance consume
+  the same identity helpers, including hash-entry backing pointers.
 - **Class identity.** Operator classes resolve through current catalog
   descriptors, exact method OID and real family members; the physical method
   enum is not class identity. Declared identity compares with
@@ -572,6 +594,12 @@ method-specific empty-root constructor. It rebinds providers to a real private
 empty store without evaluating SQL keys; remint retains normal descriptor,
 provider and unique-root validation rather than importing source TEMP entries.
 
+Independent destination remint assigns fresh row/version identities to every
+captured visible tuple, including repaired siblings that shared one source RowID.
+It clears source ends, discarded/predecessor roots and repair/slot authority;
+ordinary insertion visibility owns the destination. Preserving FULL/type rewrites
+retain their existing identity contract and do not use this import cutover.
+
 ## What stays in the engine
 
 The statement executors (CREATE INDEX with its CONCURRENTLY phases, ALTER
@@ -586,6 +614,12 @@ write-time loops
 `dml`'s and reach this host through `dml.Host`.
 
 ## Testing
+
+Private deletion/capture ownership and sibling repair-admission stamps use
+`RUN='^TestIndexPrivateDeletionVersionCapture$'`.
+
+Caller-owned accepted-version and exact predecessor-position windows use
+`RUN='^TestWriteBatch(AcceptedVersions|PredecessorHint)$'`.
 
 Compact statistics layout arithmetic and cancellation units use
 `RUN='^TestPgstat(index|hashindex)Approximation$'` from `enginetests/`.
@@ -654,6 +688,7 @@ make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and
 make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings and transport
 make check RUN='^TestBtreeGINTemporal' # typed temporal equivalence, exact postings and sealed lifecycle
 make check RUN='^TestBtreeGINText' # text-family typed equivalence, posting triples and ownership
+make check RUN='^TestPgsurgeryFreezeIndexVersions'   # exact sibling deltas, projections, membership and probes
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

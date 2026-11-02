@@ -204,7 +204,7 @@ func preparedBoundaryCapture(e *core.Engine, entry *session.PreparedTransaction)
 		}
 		value.Deletes = maps.Clone(prepared.Deletes)
 		for address, deletion := range value.Deletes {
-			value.Deletes[address] = &visibility.PrivateDeletes{Rows: maps.Clone(deletion.Rows)}
+			value.Deletes[address] = deletion.Clone()
 		}
 		value.Roots = maps.Clone(prepared.Roots)
 		if prepared.Catalog != nil {

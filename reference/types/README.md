@@ -116,7 +116,9 @@ Rules:
   and selected aggregate FILTER ownership across nested calls/error recovery.
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`
-- TID: `RUN='^TestReferenceTID'`
+- TID: `RUN='^TestReferenceTID'`. Controls also check typed direct/prepared ctid
+  reads, distinct valid physical identities and lookup by a captured physical TID,
+  independently of stored user TID values.
 - Internal quoted CHAR: `RUN='^TestReferenceInternalChar'`
 - Catalog integer/OID vectors: `RUN='^TestReferenceCatalogVectors'`
 - BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`

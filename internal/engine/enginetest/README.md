@@ -28,6 +28,11 @@ it imports core and lower packages, and nothing imports it except tests.
   session cleanup. `RestoreOperation` instead initializes an explicitly
   private replay owner without a physical database slot or persisted
   startup-default capture.
+  Detached catalog fixture rows use `CatalogTransaction` for a genuine admitted
+  source owner. This constructor never commits. After explicitly publishing the
+  stage, `CommitCatalogTransaction` finishes its otherwise empty source owner,
+  releasing its full-XID maintenance horizon without republishing rows. Failed
+  or discarded stages leave their source owners to unconditional session cleanup.
 
 ## Helpers
 
@@ -47,6 +52,7 @@ it imports core and lower packages, and nothing imports it except tests.
 | `NextSessionID()` | session identifier for a test that starts a session itself |
 | `StartSession(t, e, defaults)`, `SessionSQL(t, s, sql)` | session ended at cleanup, and execution in one operation of it |
 | `TransactionOperation`, `TransactionBegin`, `TransactionEnd`, `TransactionRows` | explicit transactions on a session, and integer row checks |
+| `CatalogTransaction`, `CommitCatalogTransaction` | admitted source ownership and explicit post-publication completion for detached catalog fixture rows |
 | `PreparedDescription(t, e, s, sql)`, `PreparedExecute(e, s, stmt, d)` | describe a statement, then execute it against that expected description |
 | `ProtocolReader{Data: b}` | `session.ProtocolInput` over bytes for Bind and fastpath messages; `Position` counts consumed bytes |
 | `QueryFixture(t, e, sql)` | table `t` with four rows, the query bound through `core.Describe`, and a captured source costed for the parallel worker alternative |
@@ -76,6 +82,7 @@ it imports core and lower packages, and nothing imports it except tests.
 | `StatisticsUnitCreate`, `StatisticsUnitStage`, `StatisticsUnitDescriptor`, `AnalyzeFacts`, `VacuumStore` | extended statistics stages, relation statistics and a table's storage |
 | `DeleteCount`, `UniqueClaimsEmpty`, `UniqueKeyBucketsEmpty`, `BtreeKeys`, `HashCaptureQuery`, `PlannerCostCommand` | write counts, unique-claim and B-tree key inspection, a captured hash query, and an admitted planner command |
 | `PreparedUnitStatement`, `PreparedBoundaryName`, `PreparedBoundaryInteger`, `PreparedFoldProtocolTry`, `PreparedFoldProtocolRows`, `FoldRootsReusable` | prepared statements and boundaries, protocol fold commands and their rows, and fold-root reuse |
+| `CaptureHeapAbort`, `AssertHeapAbort`, `AssertJournalDiscards` | immutable committed heap roots and exact created-version disposal; journal comparisons preserve every non-disposal field |
 
 ## Stages
 

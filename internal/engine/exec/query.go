@@ -45,9 +45,13 @@ type Source struct {
 	Ref  ids.ObjectRef
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
-	StoredRef        ids.ObjectRef
-	PhysicalRefs     []ids.ObjectRef // Materialized mixed-hierarchy row identities.
-	Committed, Own   []storage.RowVersion
+	StoredRef      ids.ObjectRef
+	PhysicalRefs   []ids.ObjectRef // Materialized mixed-hierarchy row identities.
+	Committed, Own []storage.RowVersion
+	// Headers and repaired candidates are immutable statement captures.
+	Headers          *storage.HeapHeaderRoot
+	Repaired         []storage.RowVersion
+	RawXmax          map[ids.VersionID]uint32 // Immutable demand-only presentation capture.
 	PartialMask      *storage.IndexRoot
 	Singleton        bool
 	RlsDenied        bool
@@ -140,7 +144,7 @@ func (s *Source) Count() int {
 		}
 		return s.InheritanceEnds[len(s.InheritanceEnds)-1]
 	}
-	return len(s.Committed) + len(s.Own)
+	return len(s.Committed) + len(s.Own) + len(s.Repaired)
 }
 
 func (s *Source) Row(i int) []sqltype.Value {
@@ -218,10 +222,16 @@ func (s *Source) VersionAt(i int) storage.RowVersion {
 		segment, index := s.inheritanceSegment(i)
 		return segment.Prefix.VersionAt(segment.Prefix.RawIndex(index))
 	}
-	if i < len(s.Committed) {
-		return s.Committed[i]
+	var row storage.RowVersion
+	switch {
+	case i < len(s.Committed):
+		row = s.Committed[i]
+	case i < len(s.Committed)+len(s.Own):
+		row = s.Own[i-len(s.Committed)]
+	default:
+		row = s.Repaired[i-len(s.Committed)-len(s.Own)]
 	}
-	return s.Own[i-len(s.Committed)]
+	return s.Headers.Apply(row)
 }
 
 func (s *Source) Close() {
@@ -292,6 +302,8 @@ func (s *Source) Close() {
 	}
 	s.View = nil
 	s.Committed, s.Own = nil, nil
+	s.Headers, s.Repaired = nil, nil
+	s.RawXmax = nil
 	s.Authority, s.Host = nil, nil
 	s.PartialMask = nil
 	s.Anonymous = nil
@@ -966,6 +978,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		}
 		if !state.IdentityReads {
 			state.IdentityReads = QueryHasIdentityReads(n)
+		}
+		if err := captureQueryXmax(n, state.Source); err != nil {
+			return Stage{}, err
 		}
 		var owner *CTEInvocation
 		if n.CTEOwner {

@@ -41,7 +41,7 @@ func BindingRequirements(b Binding, stmt parser.Statement, visit func(Requiremen
 		return nil
 	}
 	request := func(privilege authorization.Privileges, columns []int) error {
-		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, Columns: columns})
+		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, Columns: columns, WholeRelation: privilege == authorization.SelectPrivilege && b.SystemAttributeRead})
 	}
 	whole := func(privilege authorization.Privileges) error {
 		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, WholeRelation: true})
@@ -87,21 +87,21 @@ func BindingRequirements(b Binding, stmt parser.Statement, visit func(Requiremen
 				return err
 			}
 		}
-		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
+		if b.SystemAttributeRead || b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	case *parser.Delete:
 		if err := whole(authorization.DeletePrivilege); err != nil {
 			return err
 		}
-		if len(b.UsedColumns) != 0 {
+		if b.SystemAttributeRead || len(b.UsedColumns) != 0 {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	case *parser.Update:
 		if err := request(authorization.UpdatePrivilege, b.Targets); err != nil {
 			return err
 		}
-		if len(b.UsedColumns) != 0 {
+		if b.SystemAttributeRead || len(b.UsedColumns) != 0 {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	default:
@@ -115,7 +115,7 @@ func SourceReadRequirements(source *exec.Leaf, visit func(Requirement) error) er
 		return nil
 	}
 	r := Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.SelectPrivilege}
-	if source.TableOIDRead {
+	if source.SystemAttributeRead {
 		r.WholeRelation = true
 		if err := visit(r); err != nil {
 			return err

@@ -191,7 +191,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := view.LookupType(sqltype.Oid)
-	ownerValue := plan.TableOIDExpr{Info: expr.Info{Usage: oidType.Usage()}, Owner: view.Owner().Domain.Ref(view.Epoch(), leaf.Address())}
+	ownerValue := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oidType.Usage()}, Owner: view.Owner().Domain.Ref(view.Epoch(), leaf.Address())}
 	if affected, err := partition.CheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}

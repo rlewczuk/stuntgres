@@ -90,7 +90,7 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21)
 					store := e.Storage.Relations[ref.Address]
 					head := store.Versions[0]
-					if store.Ends.Rows[head.Row].Version != head.Version {
+					if end, ok := store.Ends.Lookup(head.Row, head.Version); !ok || end.Version != head.Version {
 						t.Fatal("deleted captured rather than latest version")
 					}
 				}
@@ -243,7 +243,8 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			switch mode {
 			case "commit":
 				_, err = e.Commit(op, tx)
-				if err != nil || e.Visibility.CommitSeq() != frontier+1 || ts.Versions[0].Born != e.Visibility.CommitSeq() || us.Ends.Rows[old[1].Row].End != e.Visibility.CommitSeq() {
+				end, ended := us.Ends.Lookup(old[1].Row, old[1].Version)
+				if err != nil || e.Visibility.CommitSeq() != frontier+1 || ts.Versions[0].Born != e.Visibility.CommitSeq() || !ended || end.End != e.Visibility.CommitSeq() {
 					t.Fatal("head/end not one frontier", err)
 				}
 			case "restore_fenced":

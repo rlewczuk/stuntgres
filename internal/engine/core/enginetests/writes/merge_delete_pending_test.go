@@ -125,6 +125,9 @@ func TestMergeDeleteMixedPendingCancellation(t *testing.T) {
 		case <-joined:
 		case <-time.After(5 * time.Second):
 			t.Error("DELETE worker failed to retire")
+			// Finish and operation release happen in the worker; even a
+			// failed observer must join before session cleanup starts.
+			<-joined
 		}
 	})
 	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
@@ -181,12 +184,18 @@ func TestMergeDeleteRestartRowLocks(t *testing.T) {
 			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
-			row := e.Storage.Relations[ref.Address].Versions[0].Row
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			a := enginetest.TransactionBegin(t, holder)
 			locked := enginetest.SessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			locked.Rows.Close()
 			b := enginetest.TransactionBegin(t, writer)
 			enginetest.SessionSQL(t, writer, "UPDATE t SET v=20")
+			writer.Transactions.Mu.Lock()
+			current := writer.Transactions.Writes[ref.Address][0]
+			writer.Transactions.Mu.Unlock()
+			if current.Row != original.Row || current.Version == original.Version {
+				t.Fatal("writer did not create the expected exact successor", original, current)
+			}
 			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t.v=20 THEN DELETE WHEN MATCHED THEN UPDATE SET v=t.v+1"
 			if bySource {
 				q = "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id AND t.v=10 WHEN MATCHED THEN UPDATE SET v=t.v+1 WHEN NOT MATCHED BY SOURCE THEN DELETE"
@@ -194,9 +203,9 @@ func TestMergeDeleteRestartRowLocks(t *testing.T) {
 			done := mergeUpdatePendingExecute(t, worker, q)
 			// The originally selected nonkey UPDATE requests NKU. Following the
 			// committed predecessor upgrades before either DELETE arm is selected.
-			enginetest.RowLockPending(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRowLock(t, e, ref, original, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate, done)
 			enginetest.TransactionEnd(t, writer, b, true)
-			enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
+			mergeUpdatePendingRowLock(t, e, ref, current, worker, holder.Transactions.Ticket, lock.ForUpdate, done)
 			enginetest.TransactionRows(t, peer, "SELECT v FROM t", 20)
 			enginetest.TransactionEnd(t, holder, a, false)
 			mergeUpdatePendingOutcome(t, done, 1, nil)

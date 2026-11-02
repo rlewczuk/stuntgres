@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
@@ -240,13 +239,13 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*core.Engine, *catalog.Relation
 	t.Helper()
 	e := engine.New()
 	ps, p := queryCreateStage(t, e, "p", 1)
-	if err := e.StageQueryTableRows(context.Background(), ps, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), ps, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
 	c.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(p.Address()), Columns: map[int32]catalog.InheritedColumn{c.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
-	if err := e.StageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, cs)

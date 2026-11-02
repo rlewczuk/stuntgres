@@ -114,6 +114,8 @@ func TestEventTriggerDDLCommandsPublication(t *testing.T) {
 					t.Fatal("missing exact helper-derived audit and callback row effects", exportRows(scope.Stage.Rows[audit.Address]), exportRows(scope.Stage.Rows[target.Address]))
 				}
 				assertCommitted()
+				targetAbort, auditAbort := enginetest.CaptureHeapAbort(targetStore), enginetest.CaptureHeapAbort(auditStore)
+				createdTarget, createdAudit := scope.Stage.Rows[target.Address], scope.Stage.Rows[audit.Address]
 				veto := errors.New("helper command terminal Finish veto")
 				var primary error
 				want := error(context.Canceled)
@@ -127,7 +129,12 @@ func TestEventTriggerDDLCommandsPublication(t *testing.T) {
 				if err := scope.Finish(primary); err != want {
 					t.Fatal("real Finish lost cancellation or terminal veto", err)
 				}
-				assertCommitted()
+				assertRetained()
+				enginetest.AssertHeapAbort(t, targetStore, targetAbort, 1, createdTarget...)
+				enginetest.AssertHeapAbort(t, auditStore, auditAbort, 1, createdAudit...)
+				if e.CatalogRead().State() != before.State() || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[target.Address] != targetStore || e.Storage.Relations[audit.Address] != auditStore {
+					t.Fatal("rejected command published catalog/roles/rows/frontier")
+				}
 				if !scope.Finished || scope.EventCommand != nil || scope.View != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.OwnWrites != nil || scope.OwnDeletes != nil || core.ActiveScopeOfLease(op.Lease) != nil || core.OperationCatalog(op) != op.Session.Transactions.Catalog {
 					t.Fatal("rejected Finish retained live statement/stage authority")
 				}

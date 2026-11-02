@@ -155,6 +155,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgvisibilityExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledPgsurgeryExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledDblinkBuildSQLInsertExpr:
@@ -314,9 +316,9 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
 	case plan.ColumnExpr:
 		r.Add(n.Origin.Address)
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		address := n.Owner.Address
-		address.SubID = -6
+		address.SubID = n.SubID
 		r.Add(address)
 	case functions.SequenceCall:
 		r.Add(n.Ref.Address)

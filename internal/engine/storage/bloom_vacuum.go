@@ -49,11 +49,12 @@ func remapVacuumBloom(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 	}
 	if root.Membership != nil {
 		next.Membership = make(map[ids.RowID]ids.VersionID, len(next.Entries))
+		next.MembershipVersions = nil
 		for _, entry := range next.Entries {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			next.Membership[entry.Row] = entry.Version
+			next.SetMember(entry.Row, entry.Version)
 		}
 	}
 	return &next, ctx.Err()

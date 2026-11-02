@@ -19,7 +19,7 @@ func (t *TransactionOwner) SerializableWriteSurvives(address ids.ObjectAddress, 
 		if root == nil {
 			return false
 		}
-		candidate, ok := root.Rows[event.Row]
+		candidate, ok := root.Lookup(event.Row, event.Base)
 		return ok && candidate.Version == event.Base
 	}
 	for _, row := range t.Writes[address] {

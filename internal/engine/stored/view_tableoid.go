@@ -8,14 +8,23 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // The source occurrence belongs to the captured lexical frame. It is never an
 // ordinary output slot, including for zero-column relations and outer joins.
-func (v *View) tableOIDSource(read catalog.Read, column analyze.ViewColumn) (*plan.SourceNode, error) {
-	if !column.TableOID || column.Scope != 1 || column.Frame == 0 || column.Occurrence <= 0 || column.Slot != 0 || column.RuleSide != 0 || column.RuleRef != (ids.ObjectRef{}) || column.Owner.Address.SubID != 0 {
+func (v *View) systemAttributeSource(read catalog.Read, column analyze.ViewColumn) (*plan.SourceNode, error) {
+	if catalog.SystemAttributeName(column.SystemAttribute) == "" || column.Scope != 1 || column.Frame == 0 || column.Occurrence < 0 || column.Slot != 0 || column.RuleSide != 0 || column.RuleRef != (ids.ObjectRef{}) || column.Owner.Address.SubID != 0 {
 		return nil, fmt.Errorf("stuntgres: invalid frozen tableoid coordinates")
+	}
+	if column.Occurrence == 0 {
+		relation, ok := read.Relation(column.Owner.Address)
+		if !v.mutationFrame || column.Frame != 1 || !ok || !relation.HasSupportedAttribute(column.SystemAttribute) || !ViewReferenceValid(read, nil, column.Owner) {
+			return nil, fmt.Errorf("stuntgres: invalid frozen mutation system attribute")
+		}
+		return nil, nil
+	}
+	if column.SystemOld || column.SystemAbsent || column.SystemMerge || column.SystemSide != 0 {
+		return nil, fmt.Errorf("stuntgres: source system attribute has a mutation side")
 	}
 	owner := v.frames[column.Frame]
 	if owner == nil {
@@ -31,20 +40,21 @@ func (v *View) tableOIDSource(read catalog.Read, column analyze.ViewColumn) (*pl
 	if v.consumer != (ids.ObjectAddress{}) {
 		consumer, _ = read.Relation(v.consumer)
 	}
-	if !ok || leaf.Ref != column.Owner || !leaf.TableOIDRead || !relation.HasSystemAttributes() || !ViewReferenceValid(read, consumer, column.Owner) {
+	if !ok || leaf.Ref != column.Owner || !leaf.SystemAttributeRead || !relation.HasSystemAttributes() || !ViewReferenceValid(read, consumer, column.Owner) {
 		return nil, fmt.Errorf("stuntgres: invalid frozen tableoid owner")
 	}
 	return source, nil
 }
 
-func (v *viewLiteralValidator) validateTableOIDOccurrence(path analyze.ViewLiteralPath, pos parser.Position) error {
+func (v *viewLiteralValidator) validateSystemAttributeOccurrence(path analyze.ViewLiteralPath, pos parser.Position) error {
 	column := v.columns[path]
-	if _, err := v.tableOIDSource(v.read, column); err != nil {
+	if _, err := v.systemAttributeSource(v.read, column); err != nil {
 		return err
 	}
 	found := false
-	matches := func(n plan.TableOIDExpr) bool {
-		return n.Owner == column.Owner && n.Scope == column.Scope && n.Frame == column.Frame && n.QueryOccurrence == column.Occurrence && n.ResultUsage().Type.ID() == sqltype.Oid
+	matches := func(n plan.SystemAttributeExpr) bool {
+		_, typeID := catalog.SystemAttribute(catalog.SystemAttributeName(column.SystemAttribute))
+		return n.SubID == column.SystemAttribute && n.Old == column.SystemOld && n.Absent == column.SystemAbsent && n.Merge == column.SystemMerge && n.Side == column.SystemSide && n.Owner == column.Owner && n.Scope == column.Scope && n.Frame == column.Frame && n.QueryOccurrence == column.Occurrence && n.ResultUsage().Type.ID() == typeID
 	}
 	var grouped func(plan.Node, int) bool
 	grouped = func(root plan.Node, slot int) bool {
@@ -55,7 +65,7 @@ func (v *viewLiteralValidator) validateTableOIDOccurrence(path analyze.ViewLiter
 			return false
 		}
 		if aggregate, ok := root.(*plan.AggregateNode); ok && slot >= 0 && slot < len(aggregate.Keys) {
-			if n, ok := aggregate.Keys[slot].(plan.TableOIDExpr); ok && matches(n) {
+			if n, ok := aggregate.Keys[slot].(plan.SystemAttributeExpr); ok && matches(n) {
 				return true
 			}
 		}
@@ -64,7 +74,7 @@ func (v *viewLiteralValidator) validateTableOIDOccurrence(path analyze.ViewLiter
 	}
 	plan.VisitCTEQuery(v.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
-			if n, ok := node.(plan.TableOIDExpr); ok && n.SourcePosition() == pos && matches(n) {
+			if n, ok := node.(plan.SystemAttributeExpr); ok && n.SourcePosition() == pos && matches(n) {
 				found = true
 			}
 			if n, ok := node.(plan.GroupExpr); ok && n.Frame == column.Frame && n.SourcePosition() == pos && grouped(v.frames[column.Frame], n.Slot) {
@@ -80,7 +90,7 @@ func (v *viewLiteralValidator) validateTableOIDOccurrence(path analyze.ViewLiter
 
 func (v *QueryRenderer) setSourceQualifier(node plan.Node, qualifier string) {
 	source, ok := node.(*plan.SourceNode)
-	if !ok || source.Occurrence < 0 || source.Occurrence >= len(v.sources) || !v.sources[source.Occurrence].TableOIDRead {
+	if !ok || source.Occurrence < 0 || source.Occurrence >= len(v.sources) || !v.sources[source.Occurrence].SystemAttributeRead {
 		return
 	}
 	if v.sourceQualifiers == nil {
@@ -89,16 +99,27 @@ func (v *QueryRenderer) setSourceQualifier(node plan.Node, qualifier string) {
 	v.sourceQualifiers[source] = qualifier
 }
 
-func (v *QueryRenderer) tableOIDSQL(read catalog.Read, column analyze.ViewColumn) (string, error) {
-	source, err := v.tableOIDSource(read, column)
+func (v *QueryRenderer) systemAttributeSQL(read catalog.Read, column analyze.ViewColumn) (string, error) {
+	source, err := v.systemAttributeSource(read, column)
 	if err != nil {
 		return "", err
+	}
+	if source == nil {
+		relation, ok := read.Relation(column.Owner.Address)
+		if !ok || v.ruleAction == nil || v.ruleTarget != column.Owner {
+			return "", fmt.Errorf("stuntgres: missing frozen mutation system attribute presentation")
+		}
+		qualifier := v.ruleAction.targetQualifier(relation)
+		if v.ruleAction.returning && (column.SystemOld || column.SystemAbsent) {
+			qualifier = v.ruleAction.policy.identifier(v.ruleAction.returningAlias(column.SystemOld))
+		}
+		return qualifier + "." + catalog.SystemAttributeName(column.SystemAttribute), nil
 	}
 	qualifier := v.sourceQualifiers[source]
 	if qualifier == "" {
 		return "", fmt.Errorf("stuntgres: missing frozen tableoid source qualifier")
 	}
-	return qualifier + ".tableoid", nil
+	return qualifier + "." + catalog.SystemAttributeName(column.SystemAttribute), nil
 }
 
 // Function argument captures use the same lexical occurrence as their scalar
@@ -118,7 +139,7 @@ func validateTableOIDFunctionCaptures(function *plan.FunctionFromNode) error {
 	var failure error
 	for _, call := range function.Calls {
 		analyze.WalkQueryArgumentExpression(call, func(node expr.Expr) {
-			system, ok := node.(plan.TableOIDExpr)
+			system, ok := node.(plan.SystemAttributeExpr)
 			if !ok || system.Scope != 1 || system.Frame != function.Frame {
 				return
 			}

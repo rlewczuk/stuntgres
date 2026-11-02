@@ -55,7 +55,22 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		// A private CREATE WITH DATA has own rows on the old empty store.
 		// REFRESH replaces that complete target, not an append to those rows.
 		a := r.Original.Address()
-		if len(scope.OwnWrites[a]) != 0 || scope.OwnDeletes[a] != nil {
+		scope.Owner.Mu.Lock()
+		e.Mu.Lock()
+		if previous := e.PrivateStorageLocked(prior, a); previous != nil && previous != e.Storage.Relations[a] {
+			batch := e.captureDiscardedRowsLocked(scope.TxRef, prior, a, previous.Versions, nil)
+			scope.Stage.DiscardedHeaps = appendHeapDiscard(scope.Stage.DiscardedHeaps, batch)
+		}
+		e.Mu.Unlock()
+		scope.Owner.Mu.Unlock()
+		if len(scope.OwnWrites[a]) != 0 || scope.OwnDeletes[a] != nil || len(scope.Stage.Rows[a]) != 0 || scope.Stage.Deletes[a] != nil {
+			scope.projectPrivateRoots()
+			scope.Owner.Mu.Lock()
+			e.Mu.Lock()
+			batch := e.captureDiscardedRowsLocked(scope.TxRef, prior, a, scope.Stage.Rows[a], scope.Owner.Writes[a])
+			scope.Stage.DiscardedHeaps = appendHeapDiscard(scope.Stage.DiscardedHeaps, batch)
+			e.Mu.Unlock()
+			scope.Owner.Mu.Unlock()
 			scope.StageProjectedColumnRoots(a, nil, nil)
 			delete(scope.Stage.Rows, a)
 			delete(scope.Stage.Deletes, a)
@@ -96,6 +111,10 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
 	if err == nil {
+		for _, batch := range scope.Stage.DiscardedHeaps {
+			changes.DiscardedHeaps = appendHeapDiscard(changes.DiscardedHeaps, batch)
+		}
+		scope.Stage.DiscardedHeaps = nil
 		e.transferReplicationOriginsLocked(stage, scope.TxRef)
 		scope.absorbStatsPopulation()
 		scope.Catalog = changes
@@ -179,7 +198,15 @@ func (s *StatementScope) DiscardRemovedWrites(stage *CatalogStage) {
 	rows, deletes := s.Stage.Rows, s.Stage.Deletes
 	s.Stage.Rows = make(map[ids.ObjectAddress][]storage.RowVersion, len(rows))
 	for a, values := range rows {
-		if _, removed := stage.Removal(a); !removed {
+		if _, removed := stage.Removal(a); removed {
+			s.Owner.Mu.Lock()
+			e := s.Engine()
+			e.Mu.Lock()
+			batch := e.captureDiscardedRowsLocked(s.TxRef, s.PendingCatalog(), a, values, s.Owner.Writes[a])
+			s.Stage.DiscardedHeaps = appendHeapDiscard(s.Stage.DiscardedHeaps, batch)
+			e.Mu.Unlock()
+			s.Owner.Mu.Unlock()
+		} else {
 			s.Stage.Rows[a] = values
 		}
 	}

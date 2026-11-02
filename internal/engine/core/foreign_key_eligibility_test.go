@@ -132,7 +132,10 @@ func TestDeferredForeignKeyEventEligibilityAdmission(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					previous, ok := rows.Previous(row.Row)
+					if row.PrivateHistory == nil {
+						t.Fatal("missing genuine immediate predecessor", row)
+					}
+					previous, ok := rows.Previous(row.Row, row.PrivateHistory.Version.Version)
 					if !ok || previous.Born != 0 || previous.Version == row.Version || (tc.name != "own-inserted" && row.Base == 0) {
 						t.Fatal("lost actual immediate own predecessor provenance", previous, row)
 					}

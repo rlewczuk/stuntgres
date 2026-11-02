@@ -36,20 +36,27 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				partitionRoutingUnitAssignment(t, &b, 1)
 			}
 			if phase == "latest_captured_delete" {
-				// The frozen candidate keeps version21, while the canonical Delete
-				// must end the actual latest same-RowID predecessor under its lock.
+				// The frozen candidate keeps its genuine predecessor identity;
+				// only its canonical successor link authorizes a later version.
+				e.Mu.Lock()
+				store := e.Storage.Relations[leaf.Address()]
 				latest := old
 				latest.Version = e.Storage.AllocateVersionLocked()
-				latest.Born = 2
-				e.Storage.Relations[leaf.Address()].Versions = []storage.RowVersion{latest}
+				latest.Born, latest.Base = 2, old.Version
+				latest.PrivateHistory = storage.RetainHeapPredecessor(old)
+				store.Retained = &storage.HeapPredecessor{Version: old, Next: store.Retained}
+				store.Headers = storage.ReplaceHeapHeaders(store.Headers, []storage.RowVersion{latest}, 0)
+				store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{old.Row: {Version: old.Version, End: 2}}}
+				store.Versions = []storage.RowVersion{latest}
 				e.Visibility.SetCommitSeqLocked(2)
+				e.Mu.Unlock()
 				old = latest
 			}
 			underlying, cancel := context.WithCancel(scope.Op.Context())
 			defer cancel()
 			checkpoint := &rangePartitionPhaseContext{Context: underlying, target: "dml.ApplyValidated", effect: func() {
-				deletion := scope.Stage.Deletes[leaf.Address()]
-				if deletion == nil || !deletion.Rows[old.Row].Moved {
+				deletion, found := scope.Stage.Deletes[leaf.Address()].Lookup(old.Row, old.Version)
+				if !found || !deletion.Moved {
 					t.Error("destination insertion preceded canonical source deletion")
 				}
 				if phase == "stale_destination_binding" {
@@ -83,7 +90,7 @@ func TestPartitionRoutingPublication(t *testing.T) {
 						t.Fatal("same-leaf UPDATE staged movement")
 					}
 				} else {
-					deletion := scope.Stage.Deletes[leaf.Address()].Rows[old.Row]
+					deletion, _ := scope.Stage.Deletes[leaf.Address()].Lookup(old.Row, old.Version)
 					next := scope.Stage.Rows[destination.Address()][0]
 					if !deletion.Moved || deletion.Version != old.Version || next.Row == old.Row || next.Version == old.Version || next.Base != 0 {
 						t.Fatal("invalid movement lineage", deletion, next)
@@ -104,7 +111,7 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				}
 			} else if phase != "same_leaf" {
 				store := e.Storage.Relations[leaf.Address()]
-				if end := store.Ends.Rows[old.Row]; !end.Moved || end.Version != old.Version || end.End == 0 {
+				if end, ok := store.Ends.Lookup(old.Row, old.Version); !ok || !end.Moved || end.End == 0 {
 					t.Fatal("committed movement provenance lost", end)
 				}
 			}
@@ -128,24 +135,33 @@ func partitionRoutingPublicationCapturedDeletionAuthority(t *testing.T) {
 	scope, b, source := partitionRoutingUnitScope(t, e, root, false)
 	physical := dml.MutationPhysicalRow(source, 0, b)
 	captured := physical.Deletion()
-	if err := scope.WriteHost().AcquireUpdateRow(physical.Leaf.Ref, captured.Row, lock.ForUpdate); err != nil {
+	if err := scope.WriteHost().AcquireUpdateRow(physical.Leaf.Ref, physical.Version, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	store := e.Storage.Relations[leaf.Address()]
-	latest := store.Versions[0]
+	e.Mu.Lock()
+	predecessor := store.Versions[0]
+	latest := predecessor
 	latest.Version = e.Storage.AllocateVersionLocked()
+	latest.Born, latest.Base = 2, predecessor.Version
+	latest.PrivateHistory = storage.RetainHeapPredecessor(predecessor)
+	store.Retained = &storage.HeapPredecessor{Version: predecessor, Next: store.Retained}
+	store.Headers = storage.ReplaceHeapHeaders(store.Headers, []storage.RowVersion{latest}, 0)
+	store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{predecessor.Row: {Version: predecessor.Version, End: 2}}}
 	store.Versions = []storage.RowVersion{latest}
+	e.Visibility.SetCommitSeqLocked(2)
+	e.Mu.Unlock()
 	bad := captured
 	bad.Version = latest.Version
 	bad.Moved = true
-	if deleted, err := scope.Writes().Delete(bad); err == nil || deleted {
+	if deleted, err := scope.Writes().Delete(bad, latest); err == nil || deleted {
 		t.Fatal("latest identity bypassed captured candidate gate")
 	}
 	captured.Moved = true
-	if deleted, err := scope.Writes().Delete(captured); err != nil || !deleted {
+	if deleted, err := scope.Writes().Delete(captured, latest); err != nil || !deleted {
 		t.Fatal("captured predecessor was not refreshed canonically", deleted, err)
 	}
-	if staged := scope.Stage.Deletes[leaf.Address()].Rows[captured.Row]; staged.Version != latest.Version || !staged.Moved {
+	if staged, ok := scope.Stage.Deletes[leaf.Address()].Lookup(captured.Row, latest.Version); !ok || !staged.Moved {
 		t.Fatal("latest movement end not staged", staged)
 	}
 	if err := scope.Finish(errors.New("discard authority probe")); err == nil {
@@ -162,10 +178,12 @@ func partitionRoutingPublicationPrivateMovementCopy(t *testing.T) {
 	mark := map[ids.ObjectAddress]*visibility.PrivateDeletes{address: before}
 	staged := map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {Rows: map[ids.RowID]visibility.DeleteCandidate{8: {Row: 8, Version: 10}}}}
 	merged := visibility.MergeDeletions(mark, staged)
-	if !merged[address].Rows[7].Moved || merged[address].Rows[8].Moved || len(merged[address].Rows) != 2 {
+	moved, movedOK := merged[address].Lookup(7, 9)
+	ordinary, ordinaryOK := merged[address].Lookup(8, 10)
+	if !movedOK || !ordinaryOK || !moved.Moved || ordinary.Moved || merged[address].Len() != 2 {
 		t.Fatal("private publication lost movement provenance", merged[address])
 	}
-	if len(mark[address].Rows) != 1 || !mark[address].Rows[7].Moved || mark[address] != before {
+	if retained, ok := mark[address].Lookup(7, 9); !ok || mark[address].Len() != 1 || !retained.Moved || mark[address] != before {
 		t.Fatal("merge mutated the savepoint's immutable deletion root")
 	}
 }

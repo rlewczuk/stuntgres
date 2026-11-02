@@ -220,7 +220,7 @@ func partitionRoutingGrowthFences(s *core.StatementScope, e *core.Engine, old *c
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		return errors.New("UPDATE admission accepted a genuine descriptor/storage replacement")
 	}
-	_, err = s.WriteHost().LatestRow(dml.RowRequest{Kind: dml.RowUpdate, Ref: physical.Leaf.Ref, Row: physical.Version.Row, Storage: physical.Leaf.Storage, Hint: physical.Hint})
+	_, err = s.WriteHost().LatestRow(dml.RowRequest{Kind: dml.RowUpdate, Ref: physical.Leaf.Ref, Row: physical.Version.Row, Physical: physical.Version.Version, Storage: physical.Leaf.Storage, Hint: physical.Hint})
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		return errors.New("UPDATE latest-row read accepted a replaced captured target")
 	}

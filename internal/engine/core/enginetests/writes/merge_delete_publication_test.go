@@ -119,13 +119,18 @@ func TestMergeDeleteLineage(t *testing.T) {
 			}
 			var candidate visibility.DeleteCandidate
 			for _, root := range scope.Stage.Deletes {
-				for _, c := range root.Rows {
+				for _, c := range root.All() {
 					candidate = c
 				}
 			}
 			if candidate.Row == 0 {
 				scope.Finish(errors.New("missing candidate"))
 				t.Fatal("no actual deletion candidate")
+			}
+			expected, _, found := candidate.Storage.PhysicalVersion(candidate.Version, candidate.Ordinal)
+			if !found {
+				scope.Finish(errors.New("missing physical candidate"))
+				t.Fatal("missing physical candidate")
 			}
 			switch fault {
 			case "ordinal":
@@ -140,9 +145,9 @@ func TestMergeDeleteLineage(t *testing.T) {
 			}
 			if fault == "copiedStage" {
 				copy := *scope.Writes()
-				_, err = copy.Delete(candidate)
+				_, err = copy.Delete(candidate, expected)
 			} else {
-				_, err = scope.Writes().Delete(candidate)
+				_, err = scope.Writes().Delete(candidate, expected)
 			}
 			if err == nil {
 				scope.Finish(errors.New("accepted foreign deletion"))

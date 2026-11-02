@@ -112,7 +112,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	d.ObjectAddress.ObjectID++
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	node := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	node := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}

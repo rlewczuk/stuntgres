@@ -71,7 +71,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	leaf := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.

@@ -163,7 +163,7 @@ func TestExplainRangeViewDemandContexts(t *testing.T) {
 				if len(definition.Sources()) != 1 {
 					t.Fatal("stored fixture lost its single actual base occurrence", definition.Sources())
 				}
-				if definition.Sources()[0].TableOIDRead != tc.tableoid {
+				if definition.Sources()[0].SystemAttributeRead != tc.tableoid {
 					t.Fatal("fixture lost actual tableoid read-channel fact", definition.Sources())
 				}
 				baseRelation, ok := auth.Catalog.Relation(definition.Sources()[0].Ref.Address)

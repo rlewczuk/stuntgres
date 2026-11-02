@@ -47,7 +47,7 @@ func TestVacuumFullStorage(t *testing.T) {
 				t.Fatal("unjustified freeze", copy)
 			}
 		}
-		if !reflect.DeepEqual(rows, original) || len(ends.Rows) != 1 {
+		if !reflect.DeepEqual(rows, original) || ends.Len() != 1 {
 			t.Fatal("retained predecessor mutated")
 		}
 		maintenance := storage.Maintenance{Live: 9, Dead: 8, Inserts: 3, Deletes: 1, Modifications: 4, InsertsSince: 3, VacuumCount: 7}
@@ -69,7 +69,7 @@ func TestVacuumFullStorage(t *testing.T) {
 	}
 	allEnds := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 11, End: 3}, 2: {Version: 22, End: 3}, 3: {Version: 33, End: 3}}}
 	all, err := storage.RewriteVacuum(context.Background(), rows, allEnds, nil, 3, 9, true, nil)
-	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || len(all.Ends.Rows) != 0 || len(allEnds.Rows) != 3 {
+	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || all.Ends.Len() != 0 || allEnds.Len() != 3 {
 		t.Fatal("all-dead rewrite", all, err)
 	}
 	frozen := slices.Clone(rows)

@@ -343,7 +343,7 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			}
 		}
 		next = n
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		n.Owner = rowRef(n.Owner)
 		next = n
 	case plan.ReturningColumnExpr:
@@ -510,6 +510,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		next = n
 	case plan.InstalledPgvisibilityExpr:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
+	case plan.InstalledPgsurgeryExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)

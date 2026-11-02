@@ -161,13 +161,13 @@ func logicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry, 
 	if d.Predicate != nil {
 		root.Membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {
-			root.Membership[entry.Row] = entry.Version
+			root.SetMember(entry.Row, entry.Version)
 		}
 	}
 	if (d.Unique || d.IsExclusion()) && d.HasRuntimeDomainKeyConversion() {
 		root.RowEntries = make(map[ids.RowID]int, len(entries))
-		for i, entry := range entries {
-			root.RowEntries[entry.Row] = i
+		for i := range entries {
+			root.SetRowEntry(i)
 		}
 	}
 	return root

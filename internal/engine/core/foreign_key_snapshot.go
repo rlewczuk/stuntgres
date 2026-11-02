@@ -29,7 +29,7 @@ func (h *statementHost) CheckForeignKeySnapshot(ref ids.ObjectRef, job dml.Forei
 		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	rows := table.ForeignKeyRows{Storage: retained.Storage, Committed: retained.Versions, Ends: retained.Ends, Frontier: s.Owner.Frontier, Root: capture.Root}
+	rows := table.ForeignKeyRows{Storage: retained.Storage, Committed: retained.Versions, Headers: retained.Storage.Headers, Ends: retained.Ends, Frontier: s.Owner.Frontier, Root: capture.Root}
 	view := e.PrivateCatalogLocked(s.PendingCatalog())
 	namespace, ok := view.Namespace(job.Parent.Namespace())
 	e.Mu.Unlock()

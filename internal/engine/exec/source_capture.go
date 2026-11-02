@@ -37,5 +37,9 @@ func CapturePrefix(view *visibility.View, ref ids.ObjectRef) (*Source, error) {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	return &Source{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
+	source := &Source{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address), Headers: data.Headers[ref.Address]}
+	if source.Headers != nil {
+		source.Repaired = source.Headers.Additional
+	}
+	return source, nil
 }

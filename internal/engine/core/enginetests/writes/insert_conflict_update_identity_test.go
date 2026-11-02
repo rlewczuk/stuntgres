@@ -53,7 +53,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		if err != nil || replacement.Committed || len(stage) != 1 || replacement.Row.Row != old.Row || replacement.Row.Version != stage[0].Version || replacement.Row.Base != old.Version || replacement.Row.Version == old.Version || enginetest.Export(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
-		if _, affected := scope.InsertConflict.AffectedRows[replacement.Row.Row]; !affected {
+		if _, affected := scope.InsertConflict.AffectedSlot(replacement.Row); !affected {
 			t.Fatal("command origin missing")
 		}
 		if err := scope.Finish(nil); err != nil {
@@ -68,7 +68,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
 		nextContext := scope2.ActivateRuntime(op2.Context())
 		own, err := dml.ProbeUniqueRow(nextContext, scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
-		if err != nil || own.Committed || own.Row.Row != prior.Row || own.Row.Version != prior.Version || len(scope2.InsertConflict.AffectedRows) != 0 {
+		if err != nil || own.Committed || own.Row.Row != prior.Row || own.Row.Version != prior.Version || len(scope2.InsertConflict.AffectedVersions) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
 		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: nextContext, Input: scope2.Input, Output: scope2.Output, Host: core.HostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

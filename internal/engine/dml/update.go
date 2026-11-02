@@ -77,6 +77,10 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 		inputs = from
 		defer from.Close()
 	}
+	rawDemand, err := captureMutationXmax(h, b, source, inputs)
+	if err != nil {
+		return Outcome{}, err
+	}
 	input, outputEnv := h.Environments()
 	state := exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: outputEnv, Locking: inputs.Locks != nil}
 	state.Methods = h.AdmittedPlannerMethods()
@@ -85,6 +89,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	defer outcome.finishSources(&state, &err)
 	eval := state.Evaluation(ctx)
 	eval.DefaultOccurrence = in.DefaultOccurrence
+	eval.PhysicalRawXmax = source.RawXmax
 	var smallUpdateOutputs [4]sqltype.Value
 	if b.Update.OutputWidth != 0 {
 		if b.Update.OutputWidth <= len(smallUpdateOutputs) {
@@ -145,14 +150,14 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	for i := range source.Count() {
 		physical := MutationPhysicalRow(source, i, b)
 		old := physical.Version
-		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || old.Row != positioned.Row) {
+		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
 			continue
 		}
 		if sourceCount == 0 {
 			continue
 		}
 		eval.Row = physical.Values(old)
-		eval.PhysicalTable = physical.Leaf.Ref
+		eval.PhysicalTable, eval.PhysicalVersion = physical.Leaf.Ref, old
 		visible, _, err := exec.EvaluateRowSecurity(h.Command().RLS.Old, &eval, eval.Row)
 		if err != nil {
 			return Outcome{}, err
@@ -165,7 +170,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				return Outcome{}, err
 			}
 			eval.Row = physical.Values(old)
-			eval.PhysicalTable = physical.Leaf.Ref
+			eval.PhysicalTable, eval.PhysicalVersion = physical.Leaf.Ref, old
 			if b.Update.From != nil {
 				copy(frame, eval.Row)
 				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
@@ -186,7 +191,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 		old    []storage.RowVersion
 		rows   index.WriteBatch
 		staged int
-		prior  map[ids.RowID]struct{}
+		prior  map[ids.VersionID]struct{}
 	}
 	var single physicalBatch
 	single.ref = b.Ref
@@ -205,224 +210,286 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			batches[i].rows.Values = make([][]sqltype.Value, 0, capacity)
 		}
 	}
+	var accepted []storage.RowVersion
+	if returningHasPhysicalHeaders(b.Returning) {
+		accepted = make([]storage.RowVersion, 1)
+	}
 	var count int64
+candidateLoop:
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return Outcome{}, err
 		}
 		ref := candidate.Physical.Leaf.Ref
-		if err := h.AcquireUpdateRow(ref, candidate.Row, lock.ForNoKeyUpdate); err != nil {
-			return Outcome{}, err
-		}
-		latest, err := h.LatestRow(UpdateRowRequest(ref, candidate))
-		old, live := latest.Version, latest.Live
-		if err != nil {
-			return Outcome{}, err
-		}
-		if !live {
-			continue
-		}
-		oldValues := candidate.Physical.Values(old)
-		eval.Row = oldValues
-		eval.PhysicalTable = ref
-		eval.OldRow = nil
+		// BEFORE prelocking demands the source targetlist before it can
+		// wait. Ordinary admission keeps its existing grant-before-demand
+		// boundary; neither path replays one pair merely for an own winner.
+		eval.Row = candidate.Physical.Values(candidate.RowVersion)
+		eval.PhysicalTable, eval.PhysicalVersion = ref, candidate.RowVersion
+		eval.PhysicalXmaxValid, eval.OldPhysicalXmaxValid = false, false
 		if b.Update.From != nil {
-			copy(frame, oldValues)
+			copy(frame, eval.Row)
 			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.SourceIndex)))
 			eval.Row = frame
 			eval.BindQueryIdentity(stage.Source, stage.Index(candidate.SourceIndex))
 		}
-		if old.Version != candidate.Version {
-			if err := h.PhysicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
-				return Outcome{}, err
-			}
-			matches, err := MutationMatches(h, &eval, b.Update.Predicate)
+		prelock := HasRowTriggers(candidate.Physical.Leaf.Relation, stored.TriggerUpdate, stored.TriggerBefore)
+		var initialRow []sqltype.Value
+		initialReady := false
+		if prelock {
+			initialRow, err = EvaluateUpdateAssignments(&eval, b.Update, b.Targets, candidate.Physical.Values(candidate.RowVersion))
 			if err != nil {
 				return Outcome{}, err
 			}
-			if !matches {
-				continue
+			initialReady = true
+		}
+		identity := MutationRowIdentity{Ref: ref, Row: candidate.Row, Version: candidate.Version}
+		beforeDone, late := false, false
+		beforeDeleteDone := false
+		mode := lock.ForNoKeyUpdate
+		if prelock {
+			var layout []int
+			if candidate.Physical.Segment != nil {
+				layout = candidate.Physical.Segment.Layout
 			}
-		}
-		// RHS and bounds see the unchanged old frame; partial writes compose
-		// only in this private replacement. Losing FROM pairs still demand SET.
-		row, err := EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
-		if err != nil {
-			return Outcome{}, err
-		}
-		identity := MutationRowIdentity{Ref: ref, Row: candidate.Row}
-		if b.Update.From != nil && updated[identity] {
-			continue
-		}
-		physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
-		before, failure := BeforeMutationUpdate(h, b, candidate.Physical, old, row, physicalRow)
-		if failure != nil {
-			return Outcome{}, failure
-		}
-		if !before.Proceed {
-			continue
-		}
-		physicalRow = before.Row
-		destination, physicalRow, err := prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
-		if err != nil {
-			return Outcome{}, err
-		}
-		keyChanged := destination != nil
-		if !keyChanged {
-			keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
-		}
-		if err != nil {
-			return Outcome{}, err
-		}
-		if keyChanged {
-			if err := h.AcquireUpdateRow(ref, old.Row, lock.ForUpdate); err != nil {
-				return Outcome{}, err
-			}
-			latest, err := h.LatestRow(UpdateRowRequest(ref, candidate))
+			mode, err = updatePrelockMode(h, ref, b.Targets, layout)
 			if err != nil {
 				return Outcome{}, err
 			}
-			if !latest.Live {
-				continue
+		}
+		request := UpdateRowRequest(ref, candidate)
+		request.GrantMode = mode
+	retryCandidate:
+		for {
+			if err := h.AcquireUpdateRow(ref, candidate.Physical.Version, mode); err != nil {
+				return Outcome{}, err
 			}
-			if latest.Version.Version != old.Version {
-				old = latest.Version
-				oldValues = candidate.Physical.Values(old)
-				eval.Row = oldValues
-				if b.Update.From != nil {
-					copy(frame, oldValues)
-					copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.SourceIndex)))
-					eval.Row = frame
+			if !initialReady {
+				initialRow, err = EvaluateUpdateAssignments(&eval, b.Update, b.Targets, candidate.Physical.Values(candidate.RowVersion))
+				if err != nil {
+					return Outcome{}, err
 				}
+				initialReady = true
+			}
+			// Each eligible FROM pair demands SET once, including losing
+			// pairs, but its already accepted target is not external EPQ.
+			if b.Update.From != nil && updated[identity] {
+				continue candidateLoop
+			}
+			latest, err := h.LatestRow(request)
+			old, live := latest.Version, latest.Live
+			if err != nil {
+				return Outcome{}, err
+			}
+			if !live {
+				continue candidateLoop
+			}
+			externalChange := old.Version != candidate.Version && (old.Born != 0 || old.ForcedFrozen)
+			oldValues := candidate.Physical.Values(candidate.RowVersion)
+			if externalChange || late {
+				oldValues = candidate.Physical.Values(old)
+			}
+			eval.Row = oldValues
+			eval.PhysicalTable, eval.PhysicalVersion = ref, old
+			eval.OldPhysicalTable, eval.OldPhysicalVersion = ref, old
+			eval.PhysicalXmaxValid, eval.OldPhysicalXmaxValid = false, false
+			eval.OldRow = nil
+			if b.Update.From != nil {
+				copy(frame, oldValues)
+				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.SourceIndex)))
+				eval.Row = frame
+				eval.BindQueryIdentity(stage.Source, stage.Index(candidate.SourceIndex))
+			}
+			if externalChange || prelock {
+				if err := h.PhysicalRowLock(ref, old, mode); err != nil {
+					return Outcome{}, err
+				}
+			}
+			if err := exec.CaptureReturningXmax(&eval, rawDemand); err != nil {
+				return Outcome{}, err
+			}
+			if externalChange || late {
 				matches, err := MutationMatches(h, &eval, b.Update.Predicate)
 				if err != nil {
 					return Outcome{}, err
 				}
 				if !matches {
-					continue
+					continue candidateLoop
 				}
+			}
+			// RHS and bounds see the unchanged old frame; partial writes compose
+			// only in this private replacement. Losing FROM pairs still demand SET.
+			row := initialRow
+			if externalChange || late {
 				row, err = EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
 				if err != nil {
 					return Outcome{}, err
 				}
-				physicalRow = ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+			}
+			physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+			if !beforeDone {
 				before, failure := BeforeMutationUpdate(h, b, candidate.Physical, old, row, physicalRow)
 				if failure != nil {
 					return Outcome{}, failure
 				}
+				beforeDone = true
 				if !before.Proceed {
-					continue
+					continue candidateLoop
 				}
 				physicalRow = before.Row
-				destination, physicalRow, err = prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
-				if err != nil {
-					return Outcome{}, err
-				}
-				keyChanged = destination != nil
-				if !keyChanged {
-					keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
-				}
-				if err != nil {
-					return Outcome{}, err
-				}
 			}
-		}
-		if destination != nil {
-			moved, err := moveUpdateRow(h, b, candidate.Physical, old, destination, physicalRow, row, &eval)
+			destination, physicalRow, err := prepareUpdateRow(h, b, candidate.Physical, schema, physicalRow, row, &eval)
 			if err != nil {
 				return Outcome{}, err
 			}
-			if !moved {
-				continue
+			keyChanged := destination != nil
+			if !keyChanged {
+				keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
 			}
-		} else {
-			if err := ClaimUniqueRow(ctx, h, ref, old); err != nil {
+			if err != nil {
 				return Outcome{}, err
 			}
-			old.PendingKeyChange = old.PendingKeyChange || keyChanged
-			batch := &single
-			for i := range batches {
-				if batches[i].ref == ref {
-					batch = &batches[i]
-					break
-				}
-			}
-			batch.old = append(batch.old, old)
-			actionMode := lock.MultiNoKeyAction
 			if keyChanged {
-				actionMode = lock.MultiUpdateAction
-			}
-			if err := h.PhysicalRowEvent(ref, old, actionMode, 0); err != nil {
-				return Outcome{}, err
-			}
-			proposal := index.WriteCandidate{Values: physicalRow}
-			if err := CheckUniqueRow(ctx, h, ref, &proposal, batch.old, batch.rows); err != nil {
-				return Outcome{}, err
-			}
-			if err := CheckViewRow(h, &b, row, &eval); err != nil {
-				return Outcome{}, err
-			}
-			if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
-				for i, slot := range candidate.Physical.Segment.Layout {
-					row[i] = physicalRow[slot]
-				}
-			}
-			batch.rows.Append(proposal)
-			one := batch.rows.Slice(len(batch.old)-1, len(batch.old))
-			one.ActionMode = actionMode
-			// Other action producers can have staged this physical target already.
-			// Index only their prefix/additions; our accepted targets are distinct
-			// and appending never mutates a prefix retained by an earlier view.
-			existing := h.PrivateRows(ref.Address).Staged
-			if len(existing) < batch.staged {
-				batch.staged = 0
-			}
-			for _, predecessor := range existing[batch.staged:] {
-				if batch.prior == nil {
-					batch.prior = make(map[ids.RowID]struct{})
-				}
-				batch.prior[predecessor.Row] = struct{}{}
-			}
-			_, overlap := batch.prior[old.Row]
-			if overlap {
-				err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
-			} else {
-				err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
-			}
-			if err != nil {
-				return Outcome{}, err
-			}
-			batch.staged = len(h.PrivateRows(ref.Address).Staged)
-			if ref != b.Ref && NeedsTransition(b.Relation, stored.TriggerUpdate) {
-				if err := captureTransition(h, b, stored.TriggerUpdate, candidate.Physical.Values(old), row); err != nil {
+				if err := h.AcquireUpdateRow(ref, old, lock.ForUpdate); err != nil {
 					return Outcome{}, err
 				}
-			}
-		}
-		if output != nil {
-			eval.Row, eval.OldRow = row, oldValues
-			if b.Update.From != nil {
-				copy(frame, row)
-				eval.Row = frame
-			}
-			for i, expr := range b.Returning.Expressions {
-				value, err := expr.Eval(&eval)
+				strongRequest := request
+				strongRequest.GrantMode = lock.ForUpdate
+				latest, err := h.LatestRow(strongRequest)
 				if err != nil {
 					return Outcome{}, err
 				}
-				if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.Columns[i].Usage.Type {
-					return Outcome{}, errors.New("stuntgres: invalid finalized UPDATE value")
+				if !latest.Live {
+					continue candidateLoop
 				}
-				output.Values = append(output.Values, value)
+				if latest.Version.Version != old.Version {
+					late = true
+					continue retryCandidate
+				}
 			}
-			output.Count++
-			if err := h.Command().CapturedRow(); err != nil {
-				return Outcome{}, err
+			if destination != nil {
+				moved, err := moveUpdateRow(h, b, candidate.Physical, old, destination, physicalRow, row, &eval, accepted, &beforeDeleteDone)
+				if errors.Is(err, ErrTupleRecheck) {
+					late = true
+					continue retryCandidate
+				}
+				if err != nil {
+					return Outcome{}, err
+				}
+				if !moved {
+					continue candidateLoop
+				}
+			} else {
+				if err := ClaimUniqueRow(ctx, h, ref, old); err != nil {
+					return Outcome{}, err
+				}
+				old.PendingKeyChange = old.PendingKeyChange || keyChanged
+				batch := &single
+				for i := range batches {
+					if batches[i].ref == ref {
+						batch = &batches[i]
+						break
+					}
+				}
+				batch.old = append(batch.old, old)
+				actionMode := lock.MultiNoKeyAction
+				if keyChanged {
+					actionMode = lock.MultiUpdateAction
+				}
+				proposal := index.WriteCandidate{Values: physicalRow}
+				if err := CheckUniqueRow(ctx, h, ref, &proposal, batch.old, batch.rows); err != nil {
+					return Outcome{}, err
+				}
+				if err := CheckViewRow(h, &b, row, &eval); err != nil {
+					return Outcome{}, err
+				}
+				if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
+					for i, slot := range candidate.Physical.Segment.Layout {
+						row[i] = physicalRow[slot]
+					}
+				}
+				batch.rows.Append(proposal)
+				one := batch.rows.Slice(len(batch.old)-1, len(batch.old))
+				one.ActionMode = actionMode
+				one.PredecessorHint, one.PredecessorHintKnown = latest.Hint, latest.Hint >= 0
+				if accepted != nil {
+					one.Accepted = accepted
+				}
+				// Other action producers can have staged this physical target already.
+				// Index only their prefix/additions; our accepted targets are distinct
+				// and appending never mutates a prefix retained by an earlier view.
+				existing := h.PrivateRows(ref.Address).Staged
+				if len(existing) < batch.staged {
+					batch.staged = 0
+				}
+				for _, predecessor := range existing[batch.staged:] {
+					if batch.prior == nil {
+						batch.prior = make(map[ids.VersionID]struct{})
+					}
+					batch.prior[predecessor.Version] = struct{}{}
+					for prior := predecessor.PrivateHistory; prior != nil; prior = prior.Next {
+						batch.prior[prior.Version.Version] = struct{}{}
+					}
+				}
+				_, overlap := batch.prior[old.Version]
+				if overlap {
+					_, err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
+				} else {
+					_, err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
+				}
+				if errors.Is(err, ErrTupleRecheck) {
+					DiscardExclusion(h, &proposal)
+					batch.old = batch.old[:len(batch.old)-1]
+					batch.rows = batch.rows.Slice(0, len(batch.rows.Values)-1)
+					late = true
+					continue retryCandidate
+				}
+				if err != nil {
+					return Outcome{}, err
+				}
+				if accepted != nil {
+					eval.PhysicalVersion = accepted[0]
+					if accepted[0].PrivateHistory != nil {
+						eval.OldPhysicalVersion = accepted[0].PrivateHistory.Version
+					}
+					eval.OldPhysicalVersion.DeleteFullXID = accepted[0].InsertFullXID
+				}
+				batch.staged = len(h.PrivateRows(ref.Address).Staged)
+				if ref != b.Ref && NeedsTransition(b.Relation, stored.TriggerUpdate) {
+					if err := captureTransition(h, b, stored.TriggerUpdate, candidate.Physical.Values(old), row); err != nil {
+						return Outcome{}, err
+					}
+				}
 			}
-		}
-		count++
-		if b.Update.From != nil {
-			updated[identity] = true
+			if output != nil {
+				eval.Row, eval.OldRow = row, oldValues
+				if b.Update.From != nil {
+					copy(frame, row)
+					eval.Row = frame
+				}
+				if err := exec.CaptureReturningXmax(&eval, returningReadsXmax(b.Returning)); err != nil {
+					return Outcome{}, err
+				}
+				for i, expr := range b.Returning.Expressions {
+					value, err := expr.Eval(&eval)
+					if err != nil {
+						return Outcome{}, err
+					}
+					if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.Columns[i].Usage.Type {
+						return Outcome{}, errors.New("stuntgres: invalid finalized UPDATE value")
+					}
+					output.Values = append(output.Values, value)
+				}
+				output.Count++
+				if err := h.Command().CapturedRow(); err != nil {
+					return Outcome{}, err
+				}
+			}
+			count++
+			if b.Update.From != nil {
+				updated[identity] = true
+			}
+			break
 		}
 	}
 	if output != nil && b.Returning.RegclassOutput && output.Count != 0 {

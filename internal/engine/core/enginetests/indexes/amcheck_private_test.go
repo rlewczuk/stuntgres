@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -124,7 +123,7 @@ func TestAmcheckPrivateAuthority(t *testing.T) {
 					t.Fatal("outer output adopted", err)
 				}
 			} else {
-				block, offset, err := exec.PgrowlocksLogicalTID(rows[0].Version)
+				block, offset, err := storage.LogicalTID(rows[0].Version)
 				if err != nil {
 					t.Fatal(err)
 				}

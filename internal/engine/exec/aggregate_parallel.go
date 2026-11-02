@@ -162,6 +162,9 @@ func ParallelAggregatePlan(root plan.Node, source *Source) (*plan.AggregateNode,
 
 func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, workers int) (RowResult, int, error) {
 	defer source.Close()
+	if err := captureQueryXmax(root, source); err != nil {
+		return nil, 0, err
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}

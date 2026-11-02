@@ -12,5 +12,8 @@ func (b *Binder) mutationTargetNamespace() QueryNamespace {
 		name = b.Target.alias
 	}
 	qualifier := QueryQualifier{Name: name, Original: b.Target.Name, Alias: b.Target.alias, Ref: b.Target.Ref, Columns: columns, Schema: b.Query.Auth.ReadCatalog().Get(b.Target.Relation.Namespace()).Name(), LateralForbidden: true}
+	if b.Target.Relation.HasSystemAttributes() {
+		qualifier.SystemOccurrence = -1 // Current physical mutation target.
+	}
 	return QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{qualifier}, Frame: b.Target.Relation.Columns}
 }

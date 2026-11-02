@@ -99,7 +99,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 		e.ReplacementMu.Lock()
 		e.Mu.Lock()
 		root := e.Storage.Relations[ref.Address].Ends
-		published := root != nil && len(root.Rows) == 2 && e.Visibility.CommitSeq() == frontier+1
+		published := root.Len() == 2 && e.Visibility.CommitSeq() == frontier+1
 		e.Mu.Unlock()
 		e.ReplacementMu.Unlock()
 		writer <- published
@@ -258,12 +258,13 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
 				root := scope.Stage.Deletes[ref.Address]
 				first := oldStorage.Versions[0].Row
-				if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first {
+				candidate, found := root.Lookup(first, oldStorage.Versions[0].Version)
+				if !found || root.Len() != 1 || candidate.Row != first {
 					t.Fatal("earlier matching row was not privately staged before wait")
 				}
 				if explicit {
 					prior := waiter.Transactions.Deletes[ref.Address]
-					if len(waiter.Transactions.Writes[ref.Address]) != 1 || prior == nil || len(prior.Rows) != 1 {
+					if len(waiter.Transactions.Writes[ref.Address]) != 1 || prior.Len() != 1 {
 						t.Fatal("explicit prior INSERT/DELETE work absent before replacement")
 					}
 				}
@@ -368,7 +369,8 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	// The writer excludes implicit readmission: row one was staged before the
 	// wait, but the newly granted row two must not reach the stage/publication.
 	root := scope.Stage.Deletes[ref.Address]
-	if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first || oldStorage.Ends != nil {
+	candidate, found := root.Lookup(first, oldStorage.Versions[0].Version)
+	if !found || root.Len() != 1 || candidate.Row != first || oldStorage.Ends != nil {
 		t.Fatal("DELETE advanced past readmission or failed to stage earlier private row")
 	}
 	select {

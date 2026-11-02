@@ -541,6 +541,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if p.Installed != m.Declaration || p.Display != display || p.DeclarationBody != body || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}
+	case StockPgsurgery:
+		count = 1
+		name, signature, result, volatility = "heap_force_freeze", "2205,1010", 2278, expr.Volatile
+		if ext.Provider != "pg_surgery" || ext.Version != "1.0" || slot != 0 || p.Installed != pgsurgeryDeclaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_surgery", HasBinary: true}) || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.DeclarationBody != nil || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgvisibility:
 		count = len(PgvisibilityMembers)
 		if slot >= count {

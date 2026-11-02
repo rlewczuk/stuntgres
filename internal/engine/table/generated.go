@@ -266,8 +266,8 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
-	case plan.TableOIDExpr:
-		if !stored.ReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
+	case plan.SystemAttributeExpr:
+		if n.SubID != -6 || n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 || n.Old || n.Absent || n.Merge || n.Side != 0 || !stored.ReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil

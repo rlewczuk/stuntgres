@@ -87,6 +87,7 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 		old := e.Storage.Relations[ref.Address].Versions
 		stage := []storage.RowVersion{old[n-1]}
 		stage[0].Version++
+		stage[0].PrivateHistory = storage.RetainHeapPredecessor(old[n-1])
 		private = allocated(func() {
 			next := visibility.MergePrivateRows(old, stage, true)
 			if len(next) != n || next[n-1].Version != stage[0].Version || old[n-1].Version == stage[0].Version {
@@ -248,7 +249,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)
 	if err == nil {
-		err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
+		_, err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
 	}
 	if err != nil {
 		scope.Finish(err)

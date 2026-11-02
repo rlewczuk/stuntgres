@@ -547,6 +547,18 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   STRICT VOLATILE PARALLEL UNSAFE invokers. Installation preserves unrelated
   default grants, revokes PUBLIC EXECUTE, grants the genuine scan principal and
   records the final initial ACLs. Current membership never selects execution.
+- **pg_surgery** (`pgsurgery_provider.go`) owns the single sealed
+  `heap_force_freeze(reloid regclass, tids tid[]) RETURNS void` declaration.
+  The relocatable 1.0 provider is superuser-required and untrusted; its C member
+  is STRICT VOLATILE PARALLEL UNSAFE and invoker-security. Installation revokes
+  PUBLIC EXECUTE while retaining other creation-default grants and recording the
+  genuine initial ACL. Sealed origin, not spelling or current membership, selects
+  freeze through rename, detachment, foreign attachment and native remapping.
+  Runtime routine/schema privileges and target ownership remain live checks.
+  This unsafe last-resort operation repairs exact version headers outside ordinary
+  DML undo; it can expose conflicting versions and bypass index/constraint checks.
+  Callers must isolate concurrent access; logical repair does not repair physical
+  pages, WAL or unreadable tuple payloads.
 - **pgstattuple** (`pgstattuple_provider.go`): the superuser, untrusted,
   relocatable 1.5 provider installs eight declarations: `pgstatindex(text/regclass)`,
   `pgstathashindex(regclass)`, `pgstattuple(text/regclass)`,
@@ -926,6 +938,8 @@ DDL and catalogs),
 Freespace layout, released identity and composed capture ownership use
 `RUN='^TestPgFreespace'`.
 Visibility provider and expression ownership use `RUN='^TestPgvisibility'`.
+Surgery declaration, remapping and prepared-owner authority use
+`RUN='^TestPgsurgeryFreezeProvider'`.
 Pgcrypto formal/kernel, authenticated OUT/source, retained definition and remap
 ownership units use `RUN='^TestPgcryptoArmor'`; incumbent provider units use
 `RUN='^TestPgcrypto'`.

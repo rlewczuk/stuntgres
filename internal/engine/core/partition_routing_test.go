@@ -174,7 +174,7 @@ func TestPartitionRoutingLatestRow(t *testing.T) {
 	e, _, _, leaf, _ := partitionRoutingUnitEngine(t)
 	store := e.Storage.Relations[leaf.Address()]
 	row := store.Versions[0]
-	request := dml.RowRequest{Row: row.Row, Storage: store, Hint: 0}
+	request := dml.RowRequest{Row: row.Row, Physical: row.Version, Storage: store, Hint: 0}
 	for _, moved := range []bool{false, true} {
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{row.Row: {Version: row.Version, End: 2, Moved: moved}}}
 		source := dml.LatestRowSource{Store: store, CommitSeq: 2}

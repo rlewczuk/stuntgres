@@ -75,12 +75,13 @@ const (
 	CatalogACLResource
 	DefaultACLResource
 	RoleSettingResource
+	RepairedTupleResource
 )
 
-// Row zero is the relation resource; logical rows use their stable RowID.
-// Keep the comparable key inline (at most 128 bytes); oversized map keys make
-// even ordinary immediate requests escape. Default claims share High/Low only
-// under their distinct kind, and keep their class in the tag's existing padding.
+// Row zero is the relation resource; ordinary logical rows use their stable
+// RowID. RepairedTupleResource instead stores its real repair-anchor VersionID
+// in Row and its full stamp in High/Low. Keep the comparable key inline (at most
+// 128 bytes); oversized map keys make ordinary immediate requests escape.
 type Resource struct {
 	ids.ObjectRef
 	// Keep the discriminators adjacent: Resource must remain small enough for
@@ -170,7 +171,7 @@ type Hold struct {
 	Mode              Mode
 	Shared, Exclusive uint64
 	ordinary          Mode
-	scoped            [2]uint64
+	scoped            [3]uint64
 }
 
 type relationEntry struct {
@@ -579,11 +580,17 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.Database != nil || !catalogACL && !roleSetting && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || roleSetting || ref.Address.ClassID != ids.RoleClassID) {
+	} else if t.persistent || ref.Database != nil || !catalogACL && !roleSetting && ref.Kind != RepairedTupleResource && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || roleSetting || ref.Address.ClassID != ids.RoleClassID) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
-	if roleSetting {
+	if ref.Kind == RepairedTupleResource {
+		if !validTupleResource(ref) || ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() ||
+			mode != ForUpdate && mode != ForNoKeyUpdate && mode != ForKeyShare && mode != ForShare {
+			m.mu.Unlock()
+			return nil, errors.New("stuntgres: invalid repaired tuple lock request")
+		}
+	} else if roleSetting {
 		if ref.Domain() != m.roleDomain || ref.Epoch != m.roleEpoch || mode != AccessExclusive ||
 			ref.Address != (ids.ObjectAddress{}) && (ref.Address.ClassID != ids.DatabaseClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0) ||
 			ref.Low != 0 || ref.DefaultClass != 0 || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil {
@@ -831,7 +838,6 @@ func (m *Manager) endLocked(t *Ticket, err error, notify **relationRequest) {
 		m.retire(ref, e)
 	}
 	clear(t.resources)
-	m.retireMultiOwnerLocked(t)
 	t.multiContributions = nil
 	t.multiCache = nil
 }
@@ -849,7 +855,7 @@ func (m *Manager) Fence(domain *ids.Domain, epoch ids.CatalogEpoch) {
 		}
 		m.retireMultiXactsLocked(domain)
 		for ref, entry := range m.entries {
-			if (ref.Kind == OrdinaryResource || ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource) && ref.Domain() == domain && ref.Epoch < epoch {
+			if (ref.Kind == OrdinaryResource || ref.Kind == RepairedTupleResource || ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource) && ref.Domain() == domain && ref.Epoch < epoch {
 				for _, request := range entry.pending {
 					if !request.terminal {
 						terminalRequest(request, ids.ErrCatalogReplaced, &notify)

@@ -45,7 +45,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
 			stage, parent := queryCreateStage(t, e, "p", 1)
-			if err := e.StageQueryTableRows(context.Background(), stage, parent, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
+			if err := e.StageQueryTableRows(context.Background(), stage, parent, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, stage)
@@ -55,7 +55,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				storage := e.Storage.Relations[parent.Address()]
 				childStage, d := queryCreateStage(t, e, "c", 1)
 				d.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address()), Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
-				if err := e.StageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
+				if err := e.StageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, childStage)

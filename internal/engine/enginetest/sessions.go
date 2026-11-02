@@ -99,6 +99,35 @@ func TransactionBegin(t testing.TB, s *session.Session) ids.TxRef {
 	return ref
 }
 
+// CatalogTransaction supplies a real source owner for detached catalog fixture
+// construction. It never commits; session cleanup aborts an unfinished owner.
+func CatalogTransaction(t testing.TB, e *core.Engine) ids.TxRef {
+	t.Helper()
+	return TransactionBegin(t, StartSession(t, e, nil))
+}
+
+// CommitCatalogTransaction completes a fixture's source owner after the caller
+// explicitly publishes its catalog stage. Failed or discarded stages instead
+// leave their owners to session cleanup.
+func CommitCatalogTransaction(t testing.TB, stage *core.CatalogStage) {
+	t.Helper()
+	if stage.InitialTx == (ids.TxRef{}) {
+		return
+	}
+	owner := session.TxOwnerOf(stage.InitialTx)
+	if owner == nil || owner.Ref != stage.InitialTx {
+		t.Fatal("catalog fixture lost its source owner")
+	}
+	if len(owner.Writes) != 0 || len(owner.Deletes) != 0 || owner.Catalog != nil {
+		t.Fatal("catalog fixture source still owns unpublished effects")
+	}
+	TransactionEnd(t, owner.Session, stage.InitialTx, true)
+	owner.Session.RequestEnd(session.CleanClose)
+	if err := owner.Session.WaitEnd(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TransactionEnd commits or rolls back the transaction ref of s.
 func TransactionEnd(t testing.TB, s *session.Session, ref ids.TxRef, commit bool) core.EndResult {
 	t.Helper()

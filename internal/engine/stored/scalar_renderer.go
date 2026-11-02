@@ -169,8 +169,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.arraySQL(ctx, view, n)
 	case plan.SubscriptExpr:
 		return r.subscriptSQL(ctx, view, n)
-	case plan.TableOIDExpr:
-		if n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 || r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Owner) || n.Owner.Address != r.Owner.Address() || u.Type.ID() != sqltype.Oid {
+	case plan.SystemAttributeExpr:
+		if n.SubID != -6 || n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 || r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Owner) || n.Owner.Address != r.Owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.Owner)
@@ -188,6 +188,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 	case plan.InstalledPgFreespaceExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgvisibilityExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledPgsurgeryExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)

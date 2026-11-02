@@ -10,14 +10,14 @@ import (
 
 // collectIndexDelta evaluates only newly admitted rows, preferring actual
 // produced keys. Ended identities and key outputs are collected once per batch.
-func collectIndexDelta(evaluation *exec.Context, parent, index *catalog.Relation, p *RowPublication, reconstruct bool, o *Ordering) ([]storage.IndexEntry, map[ids.RowID]ids.VersionID, error) {
+func collectIndexDelta(evaluation *exec.Context, parent, index *catalog.Relation, p *RowPublication, reconstruct bool, o *Ordering) ([]storage.IndexEntry, map[ids.VersionID]ids.RowID, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	count := len(p.Writes)
 	if p.Deletion != nil {
-		count += len(p.Deletion.Rows)
+		count += p.Deletion.Len()
 	}
-	ended := make(map[ids.RowID]ids.VersionID, count)
+	ended := make(map[ids.VersionID]ids.RowID, count)
 	added := make([]storage.IndexEntry, 0, len(p.Writes))
 	var preparation ExecutionPreparation
 	for i, row := range p.Writes {
@@ -25,10 +25,10 @@ func collectIndexDelta(evaluation *exec.Context, parent, index *catalog.Relation
 			return nil, nil, err
 		}
 		if row.Base != 0 {
-			ended[row.Row] = row.Base
+			ended[row.Base] = row.Row
 		}
 		if p.Deletion != nil {
-			if end, ok := p.Deletion.Rows[row.Row]; ok && end.Version == row.Version {
+			if end, ok := p.Deletion.Lookup(row.Row, row.Version); ok && end.Version == row.Version {
 				continue
 			}
 		}
@@ -66,12 +66,12 @@ func collectIndexDelta(evaluation *exec.Context, parent, index *catalog.Relation
 		added = append(added, entry)
 	}
 	if p.Deletion != nil {
-		for id, end := range p.Deletion.Rows {
+		for id, end := range p.Deletion.All() {
 			if err := ctx.Err(); err != nil {
 				return nil, nil, err
 			}
 			if !end.Own {
-				ended[id] = end.Version
+				ended[end.Version] = id
 			}
 		}
 	}

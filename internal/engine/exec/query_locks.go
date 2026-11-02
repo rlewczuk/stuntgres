@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -15,7 +16,8 @@ import (
 // manifest. Outer joins settle local input marks at source demand, before match
 // filtering. The admitted top-level StatementScope.querySources stays unchanged.
 type LockContext struct {
-	Leaves []QueryLockLeaf
+	Leaves  []QueryLockLeaf
+	RawXmax map[ids.VersionID]uint32 // Immutable publication; frames retain prior maps.
 	// Identity-only physical manifests retain transparent lineage for cursors,
 	// tableoid and virtual reads without rowmark version caches or tuple locks.
 	// Ordinary initialized contexts remain semantic (the zero value).
@@ -434,7 +436,7 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 					continue
 				}
 				candidate := locator.Version
-				acquired, err := host.AcquireQueryRow(locator.Leaf, candidate.Row, mark)
+				acquired, err := host.AcquireQueryRow(locator.Leaf, candidate, mark)
 				if err != nil {
 					return false, err
 				}
@@ -442,9 +444,17 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 					live = false
 					break
 				}
-				current, present, err := host.LatestQueryRow(locator.Leaf, candidate, locator.Hint, mark.Mode)
+				current, present, err := host.LatestQueryRow(locator.Leaf, candidate, locator.Hint, mark)
 				if err != nil {
 					return false, err
+				}
+				if locks.RawXmax != nil && present {
+					raw, err := host.CaptureTupleXmax(locator.Leaf.Ref, []storage.RowVersion{current})
+					if err != nil {
+						return false, err
+					}
+					publishLockedXmax(locks, current.Version, raw[0])
+					evaluation.QueryRawXmax = locks.RawXmax
 				}
 				live = live && present
 				changed = changed || current.Version != candidate.Version
@@ -493,10 +503,10 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 				}
 				evaluation.OrderValues = child.OrderRow(i)
 				offset := 0
-				previousRows := evaluation.QueryCurrentRows
-				evaluation.QueryCurrentRows = currentRows
+				previousRows, previousVersions := evaluation.QueryCurrentRows, evaluation.QueryCurrentVersions
+				evaluation.QueryCurrentRows, evaluation.QueryCurrentVersions = currentRows, versions
 				replacement, ok, err := RecheckLockedQuery(node, state.Source, currentRows, &evaluation, scratch, &offset, row)
-				evaluation.QueryCurrentRows = previousRows
+				evaluation.QueryCurrentRows, evaluation.QueryCurrentVersions = previousRows, previousVersions
 				if err != nil {
 					return false, err
 				}

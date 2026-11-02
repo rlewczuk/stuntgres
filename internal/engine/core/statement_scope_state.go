@@ -92,6 +92,7 @@ type StatementScope struct {
 	ReplacementRead             bool
 	LockTicket                  *lock.Ticket
 	multiEvents                 []lock.MultiEvent
+	tupleAdmissions             map[tupleIdentity]lock.Resource
 	QuerySources                []exec.Leaf
 	QueryLockAdmission          analyze.LockAdmission
 	QueryLockContext            *exec.LockContext
@@ -167,10 +168,11 @@ type StatementSlot interface {
 }
 
 type WriteStage struct {
-	self      *WriteStage
-	scope     *StatementScope
-	Rows      map[ids.ObjectAddress][]storage.RowVersion
-	Deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Stats     statistics.Ledger
-	Replacing bool // Rows replace complete private roots instead of appending.
+	self           *WriteStage
+	scope          *StatementScope
+	Rows           map[ids.ObjectAddress][]storage.RowVersion
+	Deletes        map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats          statistics.Ledger
+	DiscardedHeaps []session.HeapDiscard
+	Replacing      bool // Rows replace complete private roots instead of appending.
 }

@@ -314,6 +314,9 @@ call live here.
   predecessor retirement without current-row compaction. No physical index
   archive is maintained. Heap predecessor retirement still respects protected
   horizons and immutable old captures.
+  The capture/fence includes discarded and exact header roots. Effective repaired
+  versions survive their cleared prior ends; actual later committed ends remain
+  eligible. INDEX_CLEANUP precedence also controls genuine dead-slot retirement.
   Targets carry immutable occurrence columns; selection already encodes ONLY.
   FULL uses the same retirement/index capture fences but forces a new heap
   incarnation and genuinely rebuilds indexes rather than remapping produced keys.
@@ -323,6 +326,14 @@ call live here.
   Restore (`RestoredForeignKeys`). A `ForeignKeyScan` carries a
   `ForeignKeyRowsCapture` callback that takes `Engine.Mu`, so callers hold
   nothing.
+  `ForeignKeyRows` captures the canonical immutable heap-header root alongside
+  its row/end vectors; `Storage` is an incarnation fence, never a live header
+  reader. `CapturePrivateShadows` indexes exact version/admission stamps and
+  genuine predecessor histories once at capture. `Each` includes repaired
+  additional physical versions once, without suppressing same-RowID siblings.
+  `EachPrivate` visits only actual Own/Staged writes before a supporting-index
+  probe; heap repair never recreates absent index membership. `Previous` takes
+  both RowID and VersionID, including real private history and repaired payloads.
   Supporting UNIQUE/PK constraints must be nondeferrable; eligible standalone
   unique indexes remain valid targets. Implicit primary-key selection and explicit
   target/provider validation retain their distinct PostgreSQL 55000 diagnostics.
@@ -562,6 +573,8 @@ SQL-free trigger-owned constraint name/rename/drop units use
 `RUN='^TestTriggerDeferredConstraint'`.
 SQL-free statistics captured-authority and expression-presentation units use
 `RUN='^TestDeparseStatistics'`.
+Exact RI header/shadow ownership and composed capture use
+`RUN='^TestPgsurgeryFreezeForeignKey'`.
 
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'

@@ -212,7 +212,7 @@ func (b *Binder) InListHasVar(node expr.Expr) bool {
 		switch n := child.(type) {
 		case plan.ColumnExpr:
 			found = found || n.Frame == frame
-		case plan.TableOIDExpr:
+		case plan.SystemAttributeExpr:
 			found = found || n.Scope != 0 && n.Frame == frame
 		case plan.ReturningWholeRowExpr:
 			found = found || n.Frame == frame

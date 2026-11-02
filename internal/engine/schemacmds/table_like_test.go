@@ -85,12 +85,12 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if got.Origin.Domain() != e.Catalog.Domain || got.Origin.Epoch != current.Epoch || got.Origin.Address.ObjectID != destination.Address().ObjectID || got.Origin.Address.SubID != 3 || got.Slot != 2 || column.Origin != columnRef || column.Slot != 1 {
 		t.Fatal(got, column)
 	}
-	owner := plan.TableOIDExpr{Info: expr.Info{Usage: enginetest.Usage(e, sqltype.Oid)}, Owner: ref}
+	owner := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: enginetest.Usage(e, sqltype.Oid)}, Owner: ref}
 	mapped, err = stored.RemapLikeExpression(&in, owner, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(plan.TableOIDExpr).Owner.Domain() != e.Catalog.Domain || mapped.(plan.TableOIDExpr).Owner.Epoch != current.Epoch || mapped.(plan.TableOIDExpr).Owner.Address != destination.Address() || owner.Owner != ref {
+	if mapped.(plan.SystemAttributeExpr).Owner.Domain() != e.Catalog.Domain || mapped.(plan.SystemAttributeExpr).Owner.Epoch != current.Epoch || mapped.(plan.SystemAttributeExpr).Owner.Address != destination.Address() || owner.Owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := enginetest.Usage(e, sqltype.Regclass)

@@ -441,7 +441,9 @@ Explicit dictionary selection, rules, diagnostics and native ownership/replay:
 - <a id="operator-oid-aliases"></a>`regoperator`: `RUN='^TestReferenceRegOperator'`
 - `regproc`, `regprocedure`: `RUN='^TestReferenceRegProc'`
 - `regtype`: `RUN='^TestReferenceRegtype'`
-- `xid`, `cid`, `xid8`: `RUN='^TestReferenceXID'`
+- `xid`, `cid`, `xid8`: `RUN='^TestReferenceXID'`. The smoke scenario checks typed
+  direct/prepared xmin reads against the actual inserting transaction's XID,
+  including empty-result metadata and a rebound system-column predicate.
 
 The shard row is a template: expand it to one exact name, for example
 `RUN='^TestReferenceComparisonBetweenStrings$'`.

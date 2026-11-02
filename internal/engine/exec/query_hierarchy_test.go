@@ -29,11 +29,11 @@ type hierarchyHost struct {
 
 func (h *hierarchyHost) Context() context.Context { return context.Background() }
 func (h *hierarchyHost) QueryLocks() *LockContext { return h.locks }
-func (h *hierarchyHost) AcquireQueryRow(leaf Leaf, row ids.RowID, _ plan.RowMark) (bool, error) {
-	h.acquired = append(h.acquired, QueryPhysicalRow{Leaf: leaf, Version: storage.RowVersion{Row: row}})
+func (h *hierarchyHost) AcquireQueryRow(leaf Leaf, row storage.RowVersion, _ plan.RowMark) (bool, error) {
+	h.acquired = append(h.acquired, QueryPhysicalRow{Leaf: leaf, Version: row})
 	return true, nil
 }
-func (h *hierarchyHost) LatestQueryRow(leaf Leaf, candidate storage.RowVersion, hint int, _ lock.Mode) (storage.RowVersion, bool, error) {
+func (h *hierarchyHost) LatestQueryRow(leaf Leaf, candidate storage.RowVersion, hint int, _ plan.RowMark) (storage.RowVersion, bool, error) {
 	if leaf.Ref != h.acquired[len(h.acquired)-1].Leaf.Ref || leaf.Relation != h.acquired[len(h.acquired)-1].Leaf.Relation || hint != 1 {
 		return storage.RowVersion{}, false, errors.New("wrong physical leaf or raw storage hint")
 	}
@@ -320,7 +320,7 @@ func TestForeignHierarchyLineage(t *testing.T) {
 				Expressions: []expr.Expr{
 					plan.ColumnExpr{Info: expr.Info{Usage: f.integer.Usage()}, Scope: 1, Frame: 1, Slot: 0},
 					plan.ColumnExpr{Info: expr.Info{Usage: f.integer.Usage()}, Origin: origin, Scope: 1, Frame: 1, Slot: 0, Virtual: logical.ColumnMeta.Generations[1].Planned, VirtualOwner: logical, VirtualAttribute: 1, RowWidth: 2, QueryOccurrence: 1},
-					plan.TableOIDExpr{Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1},
+					plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1},
 				},
 			}
 			stage, err := OpenQueryProjectStage(context.Background(), f.state, project)
@@ -486,7 +486,7 @@ func TestForeignHierarchyRecheckIdentity(t *testing.T) {
 		if i > 0 {
 			want = f.foreign.Ref
 		}
-		oid, err := evaluation.EvalTableOID(plan.TableOIDExpr{Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1})
+		oid, err := evaluation.EvalSystemAttribute(plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1})
 		number, oidErr := oid.OID()
 		if err != nil || oidErr != nil || number != uint32(want.Address.ObjectID) {
 			t.Fatal("tableoid selected absent sibling", oid, err, oidErr)
@@ -533,7 +533,7 @@ func TestForeignHierarchyRecheckIdentity(t *testing.T) {
 	if absent, err := evaluation.queryOperandAbsent(0); err != nil || !absent {
 		t.Fatal("NULL extension inferred from visible cells", absent, err)
 	}
-	oid, err := evaluation.EvalTableOID(plan.TableOIDExpr{Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1})
+	oid, err := evaluation.EvalSystemAttribute(plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: f.oid.Usage()}, Owner: f.source.Ref, Scope: 1, Frame: 1, QueryOccurrence: 1})
 	if err != nil || !oid.IsNull() {
 		t.Fatal("absent tableoid is not typed NULL", oid, err)
 	}

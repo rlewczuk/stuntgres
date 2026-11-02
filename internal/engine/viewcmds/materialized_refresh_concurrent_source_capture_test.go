@@ -46,7 +46,7 @@ func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 		t.Fatal("source outer stage", skipped, err)
 	}
 	d.Populated = true
-	if err := e.StageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -134,7 +134,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}
 		}
-		if innerEnds == nil || len(innerEnds.Rows) != 1 || visibility.LiveVersion(deleted, frontier, snapshot.Ends[inner.Address()], nil) ||
+		if innerEnds.Len() != 1 || visibility.LiveVersion(deleted, frontier, snapshot.Ends[inner.Address()], nil) ||
 			!visibility.LiveVersion(innerVersions[0], frontier, snapshot.Ends[inner.Address()], nil) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
@@ -180,7 +180,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.DomainBases = []catalog.Descriptor{provider}
-	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, outer, e.Storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, outer, e.Storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true

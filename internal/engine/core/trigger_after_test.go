@@ -206,9 +206,12 @@ func TestTriggerAfterCancellation(t *testing.T) {
 	if _, err := dml.BindUniqueWrite(s.WriteHost(), ref); err != nil {
 		t.Fatal(err)
 	}
-	accepted, stale, err := dml.AppendAcceptedInsert(s.WriteHost(), ref, &index.WriteCandidate{Values: row})
+	accepted, stale, physical, err := dml.AppendAcceptedInsert(s.WriteHost(), ref, &index.WriteCandidate{Values: row})
 	if err != nil || !accepted || stale {
 		t.Fatal(accepted, stale, err)
+	}
+	if physical.Version == 0 || physical.InsertFullXID == 0 || physical.Version != s.Stage.Rows[relation.Address()][0].Version || physical.Row != s.Stage.Rows[relation.Address()][0].Row {
+		t.Fatal("AFTER queue replaced the actual admitted INSERT identity", physical)
 	}
 	if len(s.Stage.Rows[relation.Address()]) != 1 || core.ScopeAfterTestFrames(s)[0].Rows != 1 {
 		t.Fatal("cancellation witness lacks accepted row and pending AFTER event")

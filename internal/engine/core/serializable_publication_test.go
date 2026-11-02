@@ -29,7 +29,7 @@ type serializableStorageSnapshot struct {
 	generation uint64
 	ends       *storage.DeletionRoot
 	rows       []storage.RowVersion
-	endRows    map[ids.RowID]storage.RowEnd
+	endRows    *storage.DeletionRoot
 }
 type serializableIndexSnapshot struct {
 	pointer *storage.IndexRoot
@@ -57,10 +57,7 @@ func serializableSnapshotPublication(e *core.Engine) serializablePublicationSnap
 		for i := range rows {
 			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}
-		var ends map[ids.RowID]storage.RowEnd
-		if store.Ends != nil {
-			ends = maps.Clone(store.Ends.Rows)
-		}
+		ends := store.Ends.Clone()
 		s.storage[address] = serializableStorageSnapshot{store, store.Generation, store.Ends, rows, ends}
 	}
 	for address, root := range e.Storage.IndexRoots {

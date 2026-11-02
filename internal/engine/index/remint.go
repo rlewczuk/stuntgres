@@ -74,6 +74,7 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			selected[identity] = i
 			row.Row, row.Version = ids.RowID(rowID), ids.VersionID(versionID)
 			row.Base, row.Born = 0, base.Frontier+1
+			row.DeleteFullXID, row.ForcedFrozen, row.RepairStamp, row.ForcedEnd = 0, false, 0, 0
 			if !base.PreserveProvenance {
 				row.InsertFullXID, row.Frozen, row.ImportFrozen = 0, true, true
 			}
@@ -87,6 +88,7 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 		// belong to the replaced incarnation and must not be inherited.
 		relation.Maintenance = storage.Maintenance{Live: int64(len(relation.Versions))}
 		relation.Retained = nil
+		relation.Discarded, relation.Headers, relation.Ends = nil, nil, nil
 	}
 	roots, err := snapshot.Transport(ctx, view, relations, positions)
 	if err != nil {

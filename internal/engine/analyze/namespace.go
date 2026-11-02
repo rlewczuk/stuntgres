@@ -33,7 +33,7 @@ type QueryQualifier struct {
 	SourceRoot                    plan.Node
 	NullExtended                  bool
 	LateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
-	TableOIDOccurrence            int  // Eligible real source, one-based; zero means no implicit attribute.
+	SystemOccurrence              int  // Positive: one-based source; -1: physical DML target; zero: none.
 	SystemColumnsHidden           bool // JOIN operands remain qualified-only.
 }
 

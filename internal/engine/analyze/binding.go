@@ -25,28 +25,29 @@ type Binding struct {
 	PLCallOutputs []PLCallOutput
 	// Only owned scalar fingerprint/source spans survive pure-OUT compaction.
 	// These are not executable, foldable or descriptor-bearing children.
-	callOutputJumble   *statementCallJumble
-	Relation           *catalog.Relation
-	Storage            *storage.Relation
-	Ref                ids.ObjectRef
-	ViewWrite          ViewWriteSlot
-	Targets            []int
-	ArrayTargets       []*plan.ArrayAssignmentTarget
-	UsedColumns        []int
-	Query              *plan.Query
-	CTEs               []*plan.CTEDefinition
-	CTESelectBodies    bool
-	QuerySources       []exec.Leaf
-	VisibilitySnapshot bool
-	ExportRoots        bool
-	SubqueryDemand     bool
-	CommandQuery       bool
-	CurrentOf          string // UPDATE and DELETE WHERE CURRENT OF.
-	Predicate          expr.Expr
-	Returning          *Returning
-	Dependencies       []catalog.ExpressionDependency
-	Parameters         ParameterInfo
-	Expressions        [][]expr.Expr
+	callOutputJumble    *statementCallJumble
+	Relation            *catalog.Relation
+	Storage             *storage.Relation
+	Ref                 ids.ObjectRef
+	ViewWrite           ViewWriteSlot
+	Targets             []int
+	ArrayTargets        []*plan.ArrayAssignmentTarget
+	UsedColumns         []int
+	SystemAttributeRead bool // Target system reads demand relation-level SELECT.
+	Query               *plan.Query
+	CTEs                []*plan.CTEDefinition
+	CTESelectBodies     bool
+	QuerySources        []exec.Leaf
+	VisibilitySnapshot  bool
+	ExportRoots         bool
+	SubqueryDemand      bool
+	CommandQuery        bool
+	CurrentOf           string // UPDATE and DELETE WHERE CURRENT OF.
+	Predicate           expr.Expr
+	Returning           *Returning
+	Dependencies        []catalog.ExpressionDependency
+	Parameters          ParameterInfo
+	Expressions         [][]expr.Expr
 	// Statement kind payloads.
 	Update *UpdateBinding
 	Merge  *MergeBinding

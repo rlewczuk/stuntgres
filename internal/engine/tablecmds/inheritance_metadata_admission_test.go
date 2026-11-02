@@ -155,7 +155,7 @@ func inheritanceMetadataChild(t *testing.T, e *core.Engine, parent *catalog.Rela
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if err := e.StageQueryTableRows(context.Background(), stage, child, [][]sqltype.Value{{inheritanceQueryInt(e, value)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, child, [][]sqltype.Value{{inheritanceQueryInt(e, value)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

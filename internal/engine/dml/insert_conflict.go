@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -146,11 +147,11 @@ func BindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *Ins
 	return analyze.Binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: analyze.InsertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
 
-func (c *InsertConflictState) MarkAffected(id ids.RowID, slot int) {
-	if c.AffectedRows == nil {
-		c.AffectedRows = make(map[ids.RowID]int)
+func (c *InsertConflictState) MarkAffected(row storage.RowVersion, slot int) {
+	if c.AffectedVersions == nil {
+		c.AffectedVersions = make(map[writeVersionIdentity]int)
 	}
-	c.AffectedRows[id] = slot
+	c.AffectedVersions[writeIdentity(row)] = slot
 	c.Affected++
 }
 

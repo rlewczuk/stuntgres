@@ -66,14 +66,16 @@ type TemporalConstant struct {
 }
 
 type ViewColumn struct {
-	Frame      uint32
-	Slot       int
-	RuleRef    ids.ObjectRef
-	RuleSide   uint32
-	TableOID   bool
-	Owner      ids.ObjectRef
-	Scope      uint32
-	Occurrence int
+	Frame                                uint32
+	Slot                                 int
+	RuleRef                              ids.ObjectRef
+	RuleSide                             uint32
+	SystemAttribute                      int32
+	SystemOld, SystemAbsent, SystemMerge bool
+	SystemSide                           plan.MergeReturningSide
+	Owner                                ids.ObjectRef
+	Scope                                uint32
+	Occurrence                           int
 }
 
 // Namespace labels and frame slots are immutable analysis metadata, not an

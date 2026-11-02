@@ -24,7 +24,7 @@ type ExclusionEntry struct {
 
 type ExclusionProjection struct {
 	Entries map[ids.ObjectAddress][]ExclusionEntry
-	Ended   map[ids.ObjectAddress]map[ids.RowID]ids.VersionID
+	Ended   map[ids.ObjectAddress]map[ids.VersionID]ids.RowID
 }
 
 // ConstraintEvent is one index, FK, or user constraint-trigger obligation.
@@ -152,7 +152,7 @@ func ExclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, r
 }
 
 func cloneExclusionProjection(old *ExclusionProjection) *ExclusionProjection {
-	p := &ExclusionProjection{Entries: make(map[ids.ObjectAddress][]ExclusionEntry), Ended: make(map[ids.ObjectAddress]map[ids.RowID]ids.VersionID)}
+	p := &ExclusionProjection{Entries: make(map[ids.ObjectAddress][]ExclusionEntry), Ended: make(map[ids.ObjectAddress]map[ids.VersionID]ids.RowID)}
 	if old != nil {
 		p.Entries = maps.Clone(old.Entries)
 		p.Ended = maps.Clone(old.Ended)
@@ -164,10 +164,24 @@ func cloneExclusionProjection(old *ExclusionProjection) *ExclusionProjection {
 // it is not a member) and ends the rows e excludes. Entries of other indexes
 // stay, so a later index insertion keeps the earlier projections.
 func (e ExclusionEdit) Apply(p *ExclusionProjection, parent ids.ObjectAddress, row storage.RowVersion) {
+	if len(e.Excluded) != 0 {
+		ends := maps.Clone(p.Ended[parent])
+		if ends == nil {
+			ends = make(map[ids.VersionID]ids.RowID)
+		}
+		for _, old := range e.Excluded {
+			ends[old.Version] = old.Row
+			if old.Base != 0 {
+				ends[old.Base] = old.Row
+			}
+		}
+		p.Ended[parent] = ends
+	}
 	entries := p.Entries[e.Index]
 	next := make([]ExclusionEntry, 0, len(entries)+1)
 	for _, entry := range entries {
-		if entry.Row.Row != row.Row {
+		same := entry.Row.Row == row.Row && (entry.Row.Version == row.Version || row.Base != 0 && entry.Row.Version == row.Base)
+		if !same && p.Ended[parent][entry.Row.Version] != entry.Row.Row {
 			next = append(next, entry)
 		}
 	}
@@ -175,19 +189,6 @@ func (e ExclusionEdit) Apply(p *ExclusionProjection, parent ids.ObjectAddress, r
 		next = append(next, ExclusionEntry{Row: row, Keys: e.Keys, Admitted: e.Admitted})
 	}
 	p.Entries[e.Index] = next
-	if len(e.Excluded) != 0 {
-		ends := maps.Clone(p.Ended[parent])
-		if ends == nil {
-			ends = make(map[ids.RowID]ids.VersionID)
-		}
-		for _, old := range e.Excluded {
-			ends[old.Row] = old.Version
-			if old.Base != 0 {
-				ends[old.Row] = old.Base
-			}
-		}
-		p.Ended[parent] = ends
-	}
 }
 
 // DiscardVersion drops every entry of version.
@@ -206,21 +207,21 @@ func (p *ExclusionProjection) DiscardVersion(version ids.VersionID) {
 	}
 }
 
-// EndRow ends a globally allocated row identity on every projected index.
+// EndRow ends one exact version on every projected index, never its siblings.
 func (p *ExclusionProjection) EndRow(address ids.ObjectAddress, row ids.RowID, version ids.VersionID) {
 	ends := maps.Clone(p.Ended[address])
 	if ends == nil {
-		ends = make(map[ids.RowID]ids.VersionID)
+		ends = make(map[ids.VersionID]ids.RowID)
 	}
-	ends[row] = version
+	ends[version] = row
 	p.Ended[address] = ends
 	for idx, entries := range p.Entries {
-		if !slices.ContainsFunc(entries, func(e ExclusionEntry) bool { return e.Row.Row == row }) {
+		if !slices.ContainsFunc(entries, func(e ExclusionEntry) bool { return e.Row.Row == row && e.Row.Version == version }) {
 			continue
 		}
 		next := make([]ExclusionEntry, 0, len(entries))
 		for _, entry := range entries {
-			if entry.Row.Row != row {
+			if entry.Row.Row != row || entry.Row.Version != version {
 				next = append(next, entry)
 			}
 		}

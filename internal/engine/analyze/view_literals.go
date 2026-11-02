@@ -271,11 +271,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return nil
 		}
 	case parser.ColumnExpr, parser.StarExpr:
-		if column, ok := bound.(plan.TableOIDExpr); ok && column.Scope != 0 {
+		if column, ok := bound.(plan.SystemAttributeExpr); ok && column.Scope != 0 {
 			if b.Capture.Columns == nil {
 				b.Capture.Columns = make(map[ViewLiteralPath]ViewColumn)
 			}
-			b.Capture.Columns[path] = ViewColumn{TableOID: true, Owner: column.Owner, Scope: column.Scope, Frame: column.Frame, Occurrence: column.QueryOccurrence}
+			b.Capture.Columns[path] = ViewColumn{SystemAttribute: column.SubID, SystemOld: column.Old, SystemAbsent: column.Absent, SystemMerge: column.Merge, SystemSide: column.Side, Owner: column.Owner, Scope: column.Scope, Frame: column.Frame, Occurrence: column.QueryOccurrence}
 			return nil
 		}
 		if column, ok := bound.(plan.ColumnExpr); ok {
@@ -766,6 +766,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		}
 		if n, ok := bound.(plan.InstalledPgvisibilityExpr); ok {
 			if err := extension.ValidatePgvisibilityIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, n.Args)
+		}
+		if n, ok := bound.(plan.InstalledPgsurgeryExpr); ok {
+			if err := extension.ValidatePgsurgeryIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err
 			}
 			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {

@@ -158,6 +158,8 @@ capture sees a complete pre-merge or post-merge state without peer Admission.
 TxRef and VersionID deduplication prevent double counting during PREPARE.
 Dirty and Vacuum classification use actual creator/end provenance, including
 Vacuum's different own/peer handling of inserted-and-ended versions.
+Genuine discarded insertions retain their physical allocation as dead facts
+until eligible maintenance; transaction rollback alone does not prune them.
 
 Detached allocation models run after releasing every metadata mutex. Heap
 pages pack actual aligned row allocations and item pointers into 8192-byte
@@ -200,6 +202,11 @@ The shared owner cohort supplies genuine heads, ends, private predecessors and
 detached prepared versions together with actual advertised snapshot protection.
 Exact tuple-maintenance sampling runs outside owner/Engine mutexes, before the
 single detached storage kernel and final identity/cancellation readmission.
+Raw xmax presence remains distinct from active ownership and effective freezing.
+An ended raw header stops requiring maintenance only when its actual owners'
+full-XID provenance precedes the captured successful-VACUUM frozen bound.
+Unknown provenance and active contributions remain conservative. Ordinary
+frozen xmin keeps its original SQL raw XID; no raw-XID value proves all-frozen.
 
 Valid catalog heaps consume their registered immutable catalog/RoleRead producer,
 without outer projection pruning or synthesized ownership. The checked stateless
@@ -208,6 +215,28 @@ proof clears bits. Foreign TEMP buffer restrictions depend on represented VM
 coverage and actual heap EOF; the page-reading relation source requires buffer
 authority even when empty. No provider path mutates a freezer, VM store or lock
 owner. Every exit releases only its own relation contribution.
+
+### pg_surgery
+
+`pgsurgery.go` authenticates the installed freeze declaration and current
+routine/schema authority, validates the immutable TID array, and opens the exact
+target with a scoped RowExclusive contribution. After waiting, target descriptor,
+heap incarnation, current ownership and routine authority are checked again under
+the normal ordered owner cohort. Sorted block batches publish immutable headers
+for actual versions only; notices are queued and delivered after all metadata
+mutexes are released. Completed repair publication survives later cancellation,
+statement errors and owner rollback. It does not settle lock tickets or release
+another owner's relation, tuple or advisory resources.
+
+Target kind is checked before access-method identity and table ownership, including
+for empty TID arrays. Partitioned indexes use their genuine parent descriptor;
+a heap-compatible handler under another method OID still fails the exact heap-AM
+identity check. Rejection publishes no heap headers.
+
+Forced freezing is unsafe visibility repair: it may expose otherwise invisible
+versions and does not validate payloads, constraints or indexes. The runtime owns
+no physical page/WAL recovery mechanism and emits no unconditional warning.
+
 
 ### pageinspect
 
@@ -350,6 +379,10 @@ rejecting physical listing. Nodes retain neither authority nor physical state.
 - Dblink provider, metadata, detached-construction and retained-carrier ownership
   units use `RUN='^Test(DblinkBuildSQLDelete|DblinkInsert|DblinkUpdate|DblinkGetPkey)'`
   in this package, core and its binder enginetests.
+- Installed surgery target, publication and provider ownership units use
+  `RUN='^TestPgsurgeryFreeze'` in core and its enginetests. Target units invoke
+  the installed host against published descriptors, retaining original heap
+  roots across kind and method rejection before ownership checks.
 - The runtimes' engine tests stay in core until their census owners move them
   (`RUN='^Test(Amcheck|Connectby|GenericFile|Pageinspect|Pgrowlocks|Pgstat|Tablefunc|VerifyHeapam)'`
   over `./internal/engine/core`; core's README lists the per-family

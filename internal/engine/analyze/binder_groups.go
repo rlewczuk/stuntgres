@@ -23,6 +23,7 @@ import (
 // expressions may use for it. DML, rule and generated-column binding set it;
 // column resolution, RETURNING and target-use tracking read it.
 type targetContext struct {
+	SystemAttributeRead   bool
 	Relation              *catalog.Relation
 	InsertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
 	Ref                   ids.ObjectRef
@@ -30,7 +31,7 @@ type targetContext struct {
 	GeneratedOwner        *catalog.Relation
 	deleteTarget          bool
 	deleteUsingSources    bool
-	mergeWhen             bool
+	mergeWhenFrame        uint32 // Restriction belongs to this expression's lexical query, not nested SELECTs.
 	mergeInput            bool
 	Name                  string
 	alias                 string
@@ -76,7 +77,7 @@ type ConsumerContext struct {
 	CopyWhere               bool
 	CheckDefinitionEquality bool
 	VisibilitySnapshot      bool
-	ExportRoots bool
+	ExportRoots             bool
 	CatalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.
 	// Materialized definitions need frozen renderer metadata while retaining
 	// their distinct, post-analysis bound-parameter diagnostic.

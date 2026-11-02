@@ -212,7 +212,7 @@ func inheritanceAlterGrandchild(t *testing.T, e *core.Engine, c *catalog.Relatio
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
 	g.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(c.Address()), Columns: map[int32]catalog.InheritedColumn{g.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
-	if err := e.StageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

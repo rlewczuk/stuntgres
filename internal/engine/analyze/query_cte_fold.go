@@ -134,7 +134,7 @@ func PushCTEOccurrence(host Host, view catalog.Read, node plan.Node, predicate e
 				} else {
 					found = true
 				}
-			case plan.TableOIDExpr, plan.MergeActionExpr, plan.ReturningWholeRowExpr, plan.SubqueryExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr, plan.CachedOrderExpr:
+			case plan.SystemAttributeExpr, plan.MergeActionExpr, plan.ReturningWholeRowExpr, plan.SubqueryExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr, plan.CachedOrderExpr:
 				safe = false
 			}
 		})
@@ -200,7 +200,7 @@ func pushCTEInput(host Host, view catalog.Read, node plan.Node, predicate expr.E
 			if n.Frame != frame {
 				unsafe = true
 			}
-		case plan.TableOIDExpr:
+		case plan.SystemAttributeExpr:
 			unsafe = unsafe || n.Scope != 0 && n.Frame != frame
 		case plan.ReturningWholeRowExpr:
 			unsafe = unsafe || n.Frame != frame

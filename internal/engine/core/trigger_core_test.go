@@ -437,7 +437,7 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 					t.Fatal("required Close did not veto accepted trigger row", veto)
 				}
 			} else {
-				accepted, stale, err := dml.AppendAcceptedInsert(h, ref, &index.WriteCandidate{Values: row})
+				accepted, stale, _, err := dml.AppendAcceptedInsert(h, ref, &index.WriteCandidate{Values: row})
 				if err != nil || !accepted || stale {
 					t.Fatal("real stage admission", accepted, stale, err)
 				}

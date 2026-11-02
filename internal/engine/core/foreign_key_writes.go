@@ -28,7 +28,7 @@ func (s *StatementScope) CaptureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 	if storage == nil {
 		return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	r := table.ForeignKeyRows{Storage: storage, Committed: storage.Versions, Ends: storage.Ends, Own: s.OwnWrites[ref.Address], Staged: s.Stage.Rows[ref.Address], PriorDeletes: s.OwnDeletes[ref.Address], CurrentDeletes: s.Stage.Deletes[ref.Address], Frontier: e.Visibility.CommitSeq()}
+	r := table.ForeignKeyRows{Storage: storage, Committed: storage.Versions, Headers: storage.Headers, Ends: storage.Ends, Own: s.OwnWrites[ref.Address], Staged: s.Stage.Rows[ref.Address], PriorDeletes: s.OwnDeletes[ref.Address], CurrentDeletes: s.Stage.Deletes[ref.Address], Frontier: e.Visibility.CommitSeq()}
 	r.Index = idx
 	if idx != (ids.ObjectAddress{}) {
 		r.Root = index.EffectiveRoot(e.Storage.IndexRoots, changes, idx)
@@ -40,22 +40,22 @@ func (s *StatementScope) CaptureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 		r.Own = nil
 		r.PriorDeletes = nil
 	}
-	if len(r.Own)+len(r.Staged) > 0 {
-		r.Shadow = make(map[ids.RowID]uint8, len(r.Own)+len(r.Staged))
-		for _, v := range r.Own {
-			r.Shadow[v.Row] |= 1
-		}
-		for _, v := range r.Staged {
-			r.Shadow[v.Row] |= 2
-		}
-	}
+	r.CapturePrivateShadows()
 	return r, nil
 }
 
-func (s *StatementScope) ForeignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
+func (s *StatementScope) ForeignKeyGrant(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode, stored *storage.Relation) error {
 	e := s.Engine()
+	if row.Row != 0 || row.Version != 0 {
+		if err := s.acquireTuple(ref, row, stored, mode, lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}); err != nil {
+			return err
+		}
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		return s.ValidateLockedRelation(e)
+	}
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.ReplacementRead {
 			e.ReplacementMu.RUnlock()
@@ -162,7 +162,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	s.foreignKeys().KeyTargets = targets
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		if err := s.ForeignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
+		if err := s.ForeignKeyGrant(ref, storage.RowVersion{}, lock.ShareRowExclusive, nil); err != nil {
 			return err
 		}
 	}
@@ -184,7 +184,8 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.Fo
 	if storage == nil || storage != rows.Storage {
 		return ids.ErrCatalogReplaced
 	}
-	rows.Committed, rows.Ends, rows.Frontier = storage.Versions, storage.Ends, e.Visibility.CommitSeq()
+	rows.Committed, rows.Headers, rows.Ends, rows.Frontier = storage.Versions, storage.Headers, storage.Ends, e.Visibility.CommitSeq()
+	rows.CapturePrivateShadows()
 	rows.Root = index.EffectiveRoot(e.Storage.IndexRoots, changes, rows.Index)
 	if rows.Root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")

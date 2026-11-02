@@ -588,12 +588,13 @@ host methods.
   only descriptor lookup normalizes to the whole owner. Capture honors staged
   definitions, and validation, rendering and remapping preserve the original
   provenance and revision while using checked current labels.
-  Tableoid occurrences use a tagged `ViewColumn` capture with full source ref,
-  lexical frame and occurrence, never an ordinary slot. Validation closes the
-  capture over the executable source; rendering uses that source's checked
-  current qualifier. Frozen leaves retain a separate table SELECT requirement.
-  Executable and presentation refs remap once together, preserving attribute -6
-  in semantic dependencies without weakening foreign-domain or epoch fences.
+  System attributes use a tagged `ViewColumn` capture with the exact negative
+  subID, full source ref, lexical frame and occurrence, never an ordinary slot.
+  Validation closes the capture over the executable source and result type;
+  rendering uses that source's checked current qualifier and attribute name.
+  Frozen leaves retain a separate table SELECT requirement. Executable and
+  presentation refs remap once together, preserving subIDs -1/-2/-4/-6 without
+  weakening foreign-domain or epoch fences.
   Frozen typed identifier operands keep operand-only dependency purpose through
   view, rule and routine-default manifests. Actual relation/rewrite sources and
   callable uses remain executable; executable use of the same identity wins.
@@ -1440,12 +1441,19 @@ Rendering uses current authentic names while preserving the unnamed first input
 and lexical argument order; only named formals receive `=>`. Views, scalar
 defaults/checks and independent destination remapping never retain execution ACLs.
 
+`InstalledPgsurgeryExpr` uses the same reference/literal/dependency, remap, retag
+and rendering lanes. Both genuine input names render in lexical order; the
+volatile VOID carrier preserves installed origin without caching current grants.
+Native recipe replay remaps declaration identity, while visible-row transport
+remints physical tuple identities rather than serializing repair history.
 
-Scalar type reownership visits current rows, their private predecessor roots
-and committed retained heap headers through the same datum mapper. Compatible
-transports preserve exact no-op roots and unchanged suffixes; changed payloads
-and headers are copy-on-write. Old captures and transaction/end provenance remain
-unchanged, including when a later datum conversion fails.
+
+Scalar type reownership visits current rows, private/committed/discarded predecessor
+roots and repaired additional payloads through the same datum mapper.
+`ReownRelation` transports the complete canonical relation; `ReownVersions`
+transports a private row vector. Compatible transports preserve exact no-op roots
+and unchanged suffixes; changed payloads and headers are copy-on-write. Old captures
+and transaction/end provenance remain unchanged, including when a later conversion fails.
 
 
 ## Testing
@@ -1454,6 +1462,8 @@ Rewrite definition ownership, range-slot identity and cancellation use
 `make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.
 Installed visibility recipe, declaration and retained backing ownership use
 `RUN='^TestPgvisibility'`.
+Surgery declaration and retained backing ownership use
+`RUN='^TestPgsurgeryFreezeProvider'`.
 Trigger definition invariants, alias identity and remap ownership use
 `RUN='^TestTriggerTransition(Definition|Remap)$'`.
 Symbolic query-leaf remap/retag ownership and persistent capture rejection use
@@ -1489,7 +1499,7 @@ remap, `pg_depend`, provenance and validator tests live in `internal/engine`
 and `internal/engine/core`.
 Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
-Frozen source-identity captures and remapping use `RUN='^TestStoredTableOID'`.
+Frozen source-identity captures and remapping use `RUN='^TestStored(TableOID|SystemAttribute)'`.
 Formal-derived routine result validation and shared occurrence remapping use
 `RUN='^TestSQLRoutine(Result|Procedure)'`, also with `RACE=1`; malformed shapes and foreign
 child generations must fail without changing the original declaration.

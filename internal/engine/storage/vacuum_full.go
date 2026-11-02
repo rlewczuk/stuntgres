@@ -17,7 +17,7 @@ func RewriteVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, r
 	}
 	c.Versions = make([]RowVersion, 0, len(rows)-int(c.Removed))
 	c.Positions = make([]int, len(rows))
-	c.Ends = &DeletionRoot{Rows: make(map[ids.RowID]RowEnd)}
+	c.Ends = &DeletionRoot{}
 	for i, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return VacuumCandidate{}, err
@@ -31,8 +31,8 @@ func RewriteVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, r
 			}
 			c.Versions = append(c.Versions, row)
 			if ends != nil {
-				if end, ok := ends.Rows[row.Row]; ok {
-					c.Ends.Rows[row.Row] = end
+				if end, ok := ends.Lookup(row.Row, row.Version); ok {
+					c.Ends.Set(row.Row, end)
 				}
 			}
 		}
@@ -63,5 +63,5 @@ func NewRewriteRelation(c VacuumCandidate, generation uint64, maintenance Mainte
 		return nil, err
 	}
 	maintenance.RecordRewrite(c)
-	return &Relation{Versions: c.Versions, Ends: c.Ends, Retained: c.Retained, Generation: generation + 1, Maintenance: maintenance}, nil
+	return &Relation{Versions: c.Versions, Ends: c.Ends, Retained: c.Retained, Discarded: c.Discarded, Headers: c.Headers, Generation: generation + 1, Maintenance: maintenance}, nil
 }

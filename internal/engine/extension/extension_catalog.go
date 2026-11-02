@@ -146,6 +146,9 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 	if provider := PgvisibilityProviderOf(d); provider != nil {
 		return d.Extension, provider.ValidateProcedure(v, d)
 	}
+	if provider := PgsurgeryProviderOf(d); provider != nil {
+		return d.Extension, provider.ValidateProcedure(v, d)
+	}
 	if provider := PageinspectProviderOf(d); provider != nil {
 		return d.Extension, provider.ValidateProcedure(v, d)
 	}

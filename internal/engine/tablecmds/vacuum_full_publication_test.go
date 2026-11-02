@@ -3,7 +3,6 @@ package tablecmds_test
 import (
 	"bytes"
 	"context"
-	"maps"
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine"
@@ -28,7 +27,7 @@ type fullOwnedSnapshot struct {
 	rows                []storage.RowVersion
 	headers             []storage.RowVersion
 	ends                *storage.DeletionRoot
-	endValues           map[ids.RowID]storage.RowEnd
+	endValues           *storage.DeletionRoot
 	predecessors        *storage.HeapPredecessor
 	history             map[*storage.HeapPredecessor]fullOwnedPredecessor
 	generation          uint64
@@ -72,9 +71,7 @@ func captureFullOwned(t *testing.T, e *core.Engine, name string) fullOwnedSnapsh
 	for _, row := range store.Versions {
 		captureFullHistory(row.PrivateHistory, v.history)
 	}
-	if store.Ends != nil {
-		v.endValues = maps.Clone(store.Ends.Rows)
-	}
+	v.endValues = store.Ends.Clone()
 	v.entries = make(map[ids.ObjectAddress][]storage.IndexEntry)
 	v.buckets = make(map[ids.ObjectAddress]map[uint64][]storage.HashEntry)
 	v.ranges = make(map[ids.ObjectAddress][]storage.BrinRange)
@@ -125,7 +122,7 @@ func (v fullOwnedSnapshot) retained(t *testing.T) {
 			t.Fatal("retained physical predecessor link/header/end/full-XID/payload changed")
 		}
 	}
-	if v.ends != nil && !maps.Equal(v.endValues, v.ends.Rows) {
+	if !reflect.DeepEqual(v.endValues, v.ends) {
 		t.Fatal("retained end map mutated")
 	}
 	for address, root := range v.indexes {

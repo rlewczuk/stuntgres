@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"maps"
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -242,7 +243,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if store == nil || !live || a.SubID != 0 {
 				return ids.ErrCatalogReplaced
 			}
-			prepared = append(prepared, index.RowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Retained: store.Retained, Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
+			prepared = append(prepared, index.RowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Retained: store.Retained, Headers: store.Headers, FullXID: e.Visibility.FullXIDLocked(ref), Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
 			return nil
 		}
 		for a, rows := range writes {
@@ -321,6 +322,40 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				return err
 			}
 		}
+		// Refresh journals and savepoints may retain these private metadata
+		// vectors. Birth normalization needs its own vector, not new payloads.
+		var materializedVersions map[ids.ObjectAddress][]storage.RowVersion
+		if materialize && c != nil {
+			for address, shape := range c.Storage {
+				if !shape.Rewritten || shape.Relation.RelationKind != catalog.MaterializedViewRelation {
+					continue
+				}
+				rows := shape.Replacement.Versions
+				preparedRows := false
+				for i := range prepared {
+					p := &prepared[i]
+					if p.Store != shape.Replacement {
+						continue
+					}
+					rows, preparedRows = p.Next, true
+					if len(p.Root) != 0 && len(rows) != 0 && &p.Root[0] == &rows[0] {
+						rows = slices.Clone(rows)
+						p.Next = rows
+					}
+					break
+				}
+				if !preparedRows {
+					rows = slices.Clone(rows)
+				}
+				if len(rows) == 0 {
+					continue
+				}
+				if materializedVersions == nil {
+					materializedVersions = make(map[ids.ObjectAddress][]storage.RowVersion)
+				}
+				materializedVersions[address] = rows
+			}
+		}
 		indexCatalog := nextCatalog
 		if indexCatalog == nil {
 			indexCatalog = current
@@ -392,7 +427,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		changed := e.RoleStore.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.Catalog.State != current || c != nil && e.Visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
-				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || p.Store.Retained != p.Retained || !storage.SameVersionRoot(p.Store.Versions, p.Root) {
+				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || p.Store.Retained != p.Retained || p.Store.Headers != p.Headers || !storage.SameVersionRoot(p.Store.Versions, p.Root) {
 					changed = true
 					break
 				}
@@ -501,6 +536,18 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if c != nil {
 			relationMetadata = e.prepareRelationMetadataLocked(nextCatalog, c)
 		}
+		for _, p := range prepared {
+			if p.NextHeaders != p.Headers {
+				for _, ended := range p.Ended {
+					header := p.NextHeaders.Header(ended.Version)
+					if header.RepairStamp != ended.RepairStamp {
+						continue
+					}
+					header.End = e.Visibility.CommitSeq() + 1
+					p.NextHeaders.Versions = p.NextHeaders.Versions.Set(ended.Version, header)
+				}
+			}
+		}
 		// No callback, allocation or failure remains after this point.
 		e.installNotificationPublicationLocked(notifications)
 		if c != nil {
@@ -532,10 +579,11 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		for _, p := range prepared {
+			p.Store.Headers = p.NextHeaders
 			for prior := p.NextRetained; prior != p.Retained; prior = prior.Next {
 				prior.End = e.Visibility.CommitSeq() + 1
 				prior.EndFullXID = e.Visibility.FullXIDLocked(ref)
-				if prior.Version.Born == 0 {
+				if prior.Version.Born == 0 && !prior.Version.ForcedFrozen {
 					prior.Version.Born = prior.End
 					prior.Version.InsertFullXID = prior.EndFullXID
 					prior.Version.Base = 0
@@ -576,16 +624,19 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 				p.Next[slot] = row
 			}
-			if p.NextEnds != nil {
-				for id, candidate := range p.Deletion.Rows {
+			if p.Deletion != nil {
+				for id, candidate := range p.Deletion.All() {
+					if candidate.RepairStamp != p.Headers.Header(candidate.Version).RepairStamp {
+						continue
+					}
 					p.Store.Maintenance.Deletes++
 					p.Store.Maintenance.Modifications++
 					p.Store.Maintenance.Live--
 					p.Store.Maintenance.Dead++
-					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.Visibility.CommitSeq() + 1, Moved: candidate.Moved}
+					p.NextEnds.Set(id, storage.RowEnd{Row: id, Version: candidate.Version, End: e.Visibility.CommitSeq() + 1, EndFullXID: candidate.EndFullXID, Moved: candidate.Moved})
 				}
-				p.Store.Ends = p.NextEnds
 			}
+			p.Store.Ends = p.NextEnds
 			p.Store.Versions = p.Next
 			p.Store.Generation++
 			e.Visibility.InitializeMaintenanceLocked(p.Store)
@@ -610,6 +661,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					shape.Replacement.MaterializedLineage = token
 				}
 				if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
+					shape.Replacement.Versions = materializedVersions[address]
 					for i := range shape.Replacement.Versions {
 						shape.Replacement.Versions[i].Born = e.Visibility.CommitSeq() + 1
 						shape.Replacement.Versions[i].InsertFullXID = e.Visibility.FullXIDLocked(ref)

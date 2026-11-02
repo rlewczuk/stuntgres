@@ -279,9 +279,12 @@ func (j *StatementJumble) expression(node expr.Expr) {
 		j.flag(n.Old)
 		j.number(uint64(n.Side))
 		return
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		j.number(uint64(n.QueryOccurrence))
+		j.number(uint64(n.SubID))
 		j.number(j.outerDepth(n.Frame))
+		j.flag(n.Old)
+		j.number(uint64(n.Side))
 		return
 	case plan.AggregateExpr:
 		j.number(uint64(n.Slot))

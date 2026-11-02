@@ -443,7 +443,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if ended[entry.Row] != entry.Version {
+			if ended[entry.Version] != entry.Row {
 				entries = append(entries, entry)
 			}
 		}
@@ -485,7 +485,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if ended[entry.Row] == entry.Version {
+		if ended[entry.Version] == entry.Row {
 			continue
 		}
 		for j < len(added) {

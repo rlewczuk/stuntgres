@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
@@ -124,28 +123,26 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignK
 
 // Locate the latest live physical row after the row grant, including this
 // statement's replacements. Stable snapshots use the ordinary conflict seam.
-func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) {
+func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.RowVersion, mode lock.Mode) (storage.RowVersion, bool, error) {
 	e := s.Engine()
 	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if err := s.validateForeignActionLocked(e, ref); err != nil {
+	err := s.validateForeignActionLocked(e, ref)
+	var stored *storage.Relation
+	if err == nil {
+		stored = s.foreignActionsOrZero().Admissions[ref.Address].Storage
+	}
+	e.Mu.Unlock()
+	if err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
-	if index.UniqueRowDeleted(candidate.Row, s.OwnDeletes[ref.Address], s.Stage.Deletes[ref.Address]) {
-		return storage.RowVersion{}, false, nil
+	latest, err := s.WriteHost().LatestRow(dml.RowRequest{Kind: dml.RowUpdate, Ref: ref, Row: candidate.Row, Physical: candidate.Version, Storage: stored, Hint: -1, GrantMode: mode})
+	if err != nil {
+		return storage.RowVersion{}, false, err
 	}
-	for _, rows := range [][]storage.RowVersion{s.Stage.Rows[ref.Address], s.OwnWrites[ref.Address], stored.Versions} {
-		row, _, found := storage.RowByID(rows, candidate.Row, -1)
-		if !found {
-			continue
-		}
-		if err := visibility.RepeatableConflict(s.Owner.Isolation.Stable(), s.Owner.Frontier, row, stored.Ends); err != nil {
-			return storage.RowVersion{}, false, err
-		}
-		return row, visibility.LiveVersion(row, e.Visibility.CommitSeq(), stored.Ends, nil), nil
-	}
-	return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
+	e.Mu.Lock()
+	err = s.validateForeignActionLocked(e, ref)
+	e.Mu.Unlock()
+	return latest.Version, latest.Live, err
 }
 
 func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) (err error) {
@@ -164,12 +161,13 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		}
 	}()
 	e := s.Engine()
-	if !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
+	if !e.Locks.Holds(s.LockTicket, s.admittedTuple(ref, old), lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
-	s.Owner.Mu.Lock()
+	if err := s.lockTupleStage(ref, []storage.RowVersion{old}, nil, lock.MultiUpdateAction); err != nil {
+		return err
+	}
 	defer s.Owner.Mu.Unlock()
-	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return err
@@ -180,13 +178,18 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if !s.worked || s.Owner.State == session.TxIdle || s.Owner.State == session.TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
-	if index.UniqueRowDeleted(old.Row, s.OwnDeletes[ref.Address], w.Deletes[ref.Address]) {
+	childStorage := s.foreignActionsOrZero().Admissions[ref.Address].Storage
+	old = childStorage.Headers.Apply(old)
+	if index.UniqueRowDeleted(old, s.OwnDeletes[ref.Address], w.Deletes[ref.Address]) {
 		return nil
 	}
-	childStorage := s.foreignActionsOrZero().Admissions[ref.Address].Storage
-	candidate := visibility.DeleteCandidate{Ref: ref, Storage: childStorage, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
-	if old.Born != 0 {
-		candidate.Base = old.Version
+	if err := s.checkTupleProposalLocked(ref, old, -1); err != nil {
+		return err
+	}
+	candidate := visibility.DeleteCandidate{Ref: ref, Storage: childStorage, Row: old.Row, Version: old.Version, Own: old.Born == 0 && !old.ForcedFrozen, RepairStamp: old.RepairStamp}
+	if candidate.Own {
+		candidate.Base = old.Base
+		candidate.BaseRepairStamp = old.BaseHeaderStamp()
 	}
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err

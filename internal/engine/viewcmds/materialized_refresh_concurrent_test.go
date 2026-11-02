@@ -53,7 +53,7 @@ func concurrentUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 		t.Fatal("materialized stage", err, skipped)
 	}
 	d.Populated = true
-	if err := e.StageQueryTableRows(context.Background(), stage, d, nil, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, nil, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -84,7 +84,7 @@ func concurrentUnitReplace(t *testing.T, e *core.Engine, d *catalog.Relation, ro
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	viewcmds.MaterializedStage(stage).Replacement.Concurrent = concurrent
@@ -365,7 +365,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		old := e.Storage.Relations[d.Address()]
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, count)
-		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
+		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, rows, true, enginetest.CatalogTransaction(t, e)); err != nil {
 			t.Fatal(err)
 		}
 		viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
@@ -413,7 +413,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				}
 				return
 			}
-			if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
+			if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, enginetest.CatalogTransaction(t, e)); err != nil {
 				t.Fatal(err)
 			}
 			viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
@@ -476,7 +476,7 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 	rows[1][0] = rows[0][0]
 	for _, concurrent := range []bool{false, true} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
+		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, enginetest.CatalogTransaction(t, e)); err != nil {
 			t.Fatal(err)
 		}
 		viewcmds.MaterializedStage(stage).Replacement.Concurrent = concurrent
@@ -506,7 +506,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	d = e.Catalog.State.MustRelation(d.Address())
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true

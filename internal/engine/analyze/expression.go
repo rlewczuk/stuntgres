@@ -254,7 +254,7 @@ func (b *Binder) column(raw parser.ColumnExpr) (node expr.Expr, err error) {
 		if qualified {
 			if name == "tableoid" {
 				ref := b.Query.Sources[0].Ref
-				return plan.TableOIDExpr{Info: b.Info(b.Type(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
+				return plan.SystemAttributeExpr{SubID: -6, Info: b.Info(b.Type(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
 			}
 			if catalog.IsSystemColumn(name) {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)

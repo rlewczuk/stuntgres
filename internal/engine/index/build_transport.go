@@ -186,19 +186,61 @@ func BuildPositions(ctx context.Context, store *storage.Relation) (map[RowIdenti
 }
 
 func BuildVisibleStore(ctx context.Context, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (*storage.Relation, error) {
-	if len(writes) == 0 && (deletes == nil || len(deletes.Rows) == 0) {
+	additional := store.RepairedVersions()
+	if len(writes) == 0 && deletes.Len() == 0 && len(additional) == 0 {
 		return store, nil
 	}
-	replaced := make(map[ids.RowID]bool, len(writes))
+	type replacement struct {
+		stamp uint64
+		exact bool
+	}
+	replaced := make(map[ids.VersionID]replacement, len(writes))
+	markPredecessor := func(version ids.VersionID, stamp uint64) {
+		prior, exists := replaced[version]
+		if !prior.exact && (!exists || prior.stamp < stamp) {
+			replaced[version] = replacement{stamp: stamp}
+		}
+	}
 	for _, row := range writes {
-		replaced[row.Row] = true
+		replaced[row.Version] = replacement{exact: true}
+		if row.Base != 0 {
+			markPredecessor(row.Base, row.BaseHeaderStamp())
+		}
+		for prior := row.PrivateHistory; prior != nil; prior = prior.Next {
+			markPredecessor(prior.Version.Version, prior.Version.RepairStamp)
+		}
 	}
 	var live []storage.RowVersion
+	var seen map[ids.VersionID]bool
+	if len(additional) != 0 {
+		seen = make(map[ids.VersionID]bool, len(store.Versions)+len(additional))
+	}
 	for _, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !replaced[row.Row] && visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
+		if seen != nil {
+			seen[row.Version] = true
+		}
+		row = store.Headers.Apply(row)
+		prior, replaced := replaced[row.Version]
+		shadowed := replaced && (prior.exact || !row.ForcedFrozen || prior.stamp == row.RepairStamp)
+		if !shadowed && visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
+			live = append(live, row)
+		}
+	}
+	for _, row := range additional {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if seen[row.Version] {
+			continue
+		}
+		seen[row.Version] = true
+		row = store.Headers.Apply(row)
+		prior, replaced := replaced[row.Version]
+		shadowed := replaced && (prior.exact || !row.ForcedFrozen || prior.stamp == row.RepairStamp)
+		if !shadowed && visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
 			live = append(live, row)
 		}
 	}
@@ -206,7 +248,8 @@ func BuildVisibleStore(ctx context.Context, store *storage.Relation, writes []st
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !UniqueRowDeleted(row.Row, deletes) {
+		row = store.Headers.Apply(row)
+		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
 			live = append(live, row)
 		}
 	}

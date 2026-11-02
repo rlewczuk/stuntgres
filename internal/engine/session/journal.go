@@ -32,18 +32,21 @@ type Journal struct {
 	InitialReads         map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
 	Generators           map[ids.ObjectAddress]*storage.SequenceGenerator
 	Storage              map[ids.ObjectAddress]StorageChange
-	Dependencies         []DependencyObservation
-	CachedBase           *catalog.State
-	Cached               catalog.Read
-	Enum                 EnumSlot
-	RolesBase            *access.RoleRecord
-	Roles                *access.RoleRecord
-	RetiredRoles         map[authorization.PrincipalRef]struct{}
-	Fences               []Fence // Feature commit preconditions, in recording order.
-	Domain               DomainSlot
-	DomainChanged        bool
-	Indexes              IndexSlot
-	Statistics           map[ids.ObjectAddress]StatisticsChange
+	// Deferred genuine tuple debris retains its exact heap incarnation until
+	// owner disposal, without invalidating this journal's own storage fences.
+	DiscardedHeaps []HeapDiscard
+	Dependencies   []DependencyObservation
+	CachedBase     *catalog.State
+	Cached         catalog.Read
+	Enum           EnumSlot
+	RolesBase      *access.RoleRecord
+	Roles          *access.RoleRecord
+	RetiredRoles   map[authorization.PrincipalRef]struct{}
+	Fences         []Fence // Feature commit preconditions, in recording order.
+	Domain         DomainSlot
+	DomainChanged  bool
+	Indexes        IndexSlot
+	Statistics     map[ids.ObjectAddress]StatisticsChange
 }
 
 // StorageChange is a relation's private storage in the journal.
@@ -67,6 +70,14 @@ type StorageChange struct {
 	// original-to-final concurrent provenance. A plain rewrite breaks the latter.
 	MaterializedConcurrent bool
 	MaterializedContinuous bool
+}
+
+// HeapDiscard owns immutable created versions lost by a private stage/root.
+// Storage, not Address alone, decides whether disposal may retain the slots.
+type HeapDiscard struct {
+	Address  ids.ObjectAddress
+	Storage  *storage.Relation
+	Versions *storage.HeapPredecessor
 }
 
 // MergeFills merges the added-column fills into the change and drops the
@@ -105,6 +116,7 @@ func (c *Journal) Clone() *Journal {
 		return n
 	}
 	n.ParameterWritten, n.ParameterIncarnation = c.ParameterWritten, c.ParameterIncarnation
+	n.DiscardedHeaps = c.DiscardedHeaps[:len(c.DiscardedHeaps):len(c.DiscardedHeaps)]
 	cloneDefaults(c, n)
 	if c.Enum != nil {
 		n.Enum = c.Enum.Clone()

@@ -7,21 +7,61 @@ import (
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
-// LatestRow takes Engine.mu once, validates the locked relations and reads
-// the requested row with its kind's gate, row source, isolation policy and
-// errors. It never waits.
+// LatestRow resolves the original exact candidate, then admits any differently
+// keyed genuine successor unlocked and repeats the canonical read after waiting.
 func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 	s := h.scope()
 	e := s.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+	var additional lock.Resource
+	for {
+		e.Mu.Lock()
+		latest, err := h.latestRowLocked(r)
+		if err != nil || !latest.Live {
+			e.Mu.Unlock()
+			return latest, err
+		}
+		ref := r.Ref
+		if r.Kind == dml.RowDelete {
+			// DELETE's captured heap, not the source reference's epoch, owns
+			// latest-row authority. After that gate, locks use the current
+			// incarnation; tupleResourceLocked still validates domain/TxRef.
+			ref.Epoch = e.Catalog.State.Epoch()
+		}
+		resource, err := s.tupleResourceLocked(ref, latest.Version, r.Storage)
+		identity := storage.RowVersion{Row: r.Row, Version: r.Physical}
+		if err == nil && (resource == s.admittedTuple(ref, identity) || resource == additional) {
+			s.rememberTuple(ref, latest.Version, resource)
+			e.Mu.Unlock()
+			return latest, nil
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			return dml.LatestRow{}, err
+		}
+		mode := r.GrantMode
+		if mode == 0 {
+			mode = lock.ForNoKeyUpdate
+		}
+		if err := s.acquireUpdateRowMode(ref, latest.Version, mode); err != nil {
+			return dml.LatestRow{}, err
+		}
+		additional = s.admittedTuple(ref, latest.Version)
+	}
+}
+
+func (h *statementHost) latestRowLocked(r dml.RowRequest) (dml.LatestRow, error) {
+	s := h.scope()
+	e := s.Engine()
 	if err := s.ValidateLockedRelation(e); err != nil {
 		return dml.LatestRow{}, err
+	}
+	if r.Storage != nil && r.Storage != e.PrivateStorageLocked(s.PendingCatalog(), r.Ref.Address) {
+		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
 	switch r.Kind {
 	case dml.RowUpdate:
@@ -46,12 +86,14 @@ func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 // dml readers. Caller holds Engine.mu.
 func (s *StatementScope) latestRowSourceLocked(e *Engine, address ids.ObjectAddress) dml.LatestRowSource {
 	return dml.LatestRowSource{
-		Store:      e.PrivateStorageLocked(s.PendingCatalog(), address),
-		OwnWrites:  s.OwnWrites[address],
-		OwnDeletes: s.OwnDeletes[address],
-		CommitSeq:  e.Visibility.CommitSeq(),
-		Stable:     s.Owner.Isolation.Stable(),
-		Frontier:   s.Owner.Frontier,
+		Store:         e.PrivateStorageLocked(s.PendingCatalog(), address),
+		OwnWrites:     s.OwnWrites[address],
+		OwnDeletes:    s.OwnDeletes[address],
+		StagedWrites:  s.Stage.Rows[address],
+		StagedDeletes: s.Stage.Deletes[address],
+		CommitSeq:     e.Visibility.CommitSeq(),
+		Stable:        s.Owner.Isolation.Stable(),
+		Frontier:      s.Owner.Frontier,
 	}
 }
 
@@ -61,8 +103,8 @@ func (s *StatementScope) latestEpochsCurrentLocked(e *Engine, r dml.RowRequest) 
 	return r.Ref.Epoch == e.Catalog.State.Epoch() && s.TxRef.Epoch() == e.Catalog.State.Epoch()
 }
 
-// Committed hits retain their provider's exact physical hint. Private overlays
-// are keyed by RowID, with this command's replacement ahead of prior writes.
+// Committed and private hits retain exact physical identity; current-command
+// replacements precede prior writes through the common successor reader.
 func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
 	ref := r.Ref
 	if ref.Epoch != e.Catalog.State.Epoch() {
@@ -87,24 +129,10 @@ func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowReque
 	if !ok {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
-	var row storage.RowVersion
-	var found bool
-	if !r.Own {
-		row, _, found = storage.RowByID(store.Versions, r.Row, r.Hint)
-	} else {
-		if slot, ok := s.InsertConflict.AffectedRows[r.Row]; ok {
-			row, found = s.Stage.Rows[ref.Address][slot], true
-		}
-		if !found {
-			row, found = dml.InsertOwnRow(s.WriteHost(), ref, r.Row)
-		}
-	}
-	if !found {
-		return dml.LatestRow{}, errors.New("stuntgres: invalid conflict update predecessor")
-	}
-	if err := visibility.RepeatableConflict(s.Owner.Isolation.Stable(), s.Owner.Frontier, row, store.Ends); err != nil {
+	latest, err := dml.LatestUpdateRow(dml.LatestRowSource{Store: store, OwnWrites: s.OwnWrites[ref.Address], StagedWrites: s.Stage.Rows[ref.Address], OwnDeletes: s.OwnDeletes[ref.Address], StagedDeletes: s.Stage.Deletes[ref.Address], CommitSeq: e.Visibility.CommitSeq(), Stable: s.Owner.Isolation.Stable(), Frontier: s.Owner.Frontier}, r)
+	if err != nil {
 		return dml.LatestRow{}, err
 	}
-	live := visibility.LiveVersion(row, e.Visibility.CommitSeq(), store.Ends, s.OwnDeletes[ref.Address]) && !index.UniqueRowDeleted(row.Row, s.Stage.Deletes[ref.Address])
-	return dml.LatestRow{Version: row, Live: live, Parent: parent, Schema: namespace.Name()}, nil
+	latest.Parent, latest.Schema = parent, namespace.Name()
+	return latest, nil
 }

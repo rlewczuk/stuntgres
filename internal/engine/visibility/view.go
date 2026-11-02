@@ -32,6 +32,8 @@ type Data struct {
 	Own                    map[ids.ObjectAddress][]storage.RowVersion
 	Ends                   map[ids.ObjectAddress]*storage.DeletionRoot
 	Deleted                map[ids.ObjectAddress]*PrivateDeletes
+	// Captured immutable physical headers; nil keeps the ordinary fast path.
+	Headers map[ids.ObjectAddress]*storage.HeapHeaderRoot
 	// DynamicRoots retains immutable prefixes for runtime-selected inspection
 	// targets. Only statements with an installed inspection dependency allocate it.
 	DynamicRoots map[ids.ObjectAddress]Root

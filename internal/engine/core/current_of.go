@@ -9,8 +9,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// The named cursor owns its retained execution. Mutations borrow only a physical
-// occurrence and then remap its stable RowID into their fresh command view.
+// The named cursor owns its retained execution. Mutations borrow its physical
+// occurrence and follow only captured successor links in their fresh view.
 func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationRowIdentity, error) {
 	c := PayloadOf(s.Op.Session).Cursors.Entries[b.CurrentOf]
 	if c == nil || (!c.promoted && c.tx != s.TxRef) {
@@ -68,5 +68,5 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 	if storage != physical.Leaf.Storage {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	return dml.MutationRowIdentity{Ref: physical.Leaf.Ref, Row: physical.Version.Row}, nil
+	return dml.MutationRowIdentity{Ref: physical.Leaf.Ref, Row: physical.Version.Row, Version: physical.Version.Version}, nil
 }

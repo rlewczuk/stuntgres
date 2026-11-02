@@ -22,7 +22,9 @@ selected fields. Unknown families fail classification, never reflection or a
 fallback identity. The PG18 projection deliberately ignores relation
 OIDs/schema, plain Var types and target output aliases, while retaining effective
 unqualified range names, positional/outer/returning Vars and selected constant,
-parameter, callable, operator and special-expression fields. Source replacement
+parameter, callable, operator and special-expression fields. System-attribute
+Vars retain their canonical negative subID, source occurrence, lexical depth and
+RETURNING side, not physical tuple headers or catalog lifetime. Source replacement
 locations are separate from the hash. Squashed lists renumber external
 parameters in source order; without a squash, constants start after the highest
 explicit parameter. `JumbleUtility` classifies every raw root and nested syntax
@@ -336,6 +338,12 @@ late builtin provider annotations, and before publishing the relational node.
 Scalar XML callers, including constructor arguments and XMLROOT versions, keep
 their existing synthetic source-spine presentation rather than acquiring
 relational replay recipes.
+
+Installed surgery binding authenticates the single freeze declaration independently
+of its current name or extension membership. Ordinary overload and named-input
+resolution supplies REGCLASS/TID-array coercion, executable dependencies and a
+volatile VOID carrier. Stored literal capture records the genuine routine
+reference; held SQL still follows ordinary invalidation and reparse semantics.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before
@@ -692,11 +700,21 @@ library, and never the root engine or `session`. The engine, the root driver
   looking for its column, without retrying outer relations on a missing column.
   Allowed correlation preserves frame identity, stable attribute origins,
   descriptors and separate target/source read manifests.
-  Eligible real sources expose `tableoid` independently of ordinary slots.
+  Eligible real sources expose typed `ctid`, `xmin`, `xmax` and `tableoid`
+  independently of ordinary slots. `SystemAttributeExpr.SubID` retains the
+  canonical negative attribute identity through dependency and frame binding.
   Comma items contribute unqualified system candidates; explicit JOIN operands
   remain relation-qualified-only. Ordinary names shadow within each visible
   item, not across items. System reads mark a separate table SELECT requirement,
-  never a negative index in dense `Uses`; CHECK keeps its own consumer namespace.
+  never a negative index in dense `Uses`; mutation targets retain the same
+  whole-relation SELECT demand independently of FROM/USING sources. RETURNING
+  uses physical target frames, including zero-column heaps; CHECK and generated
+  expressions keep their existing consumer restrictions and owner-only tableoid.
+  MERGE WHEN checks the resolved physical occurrence before binding a system
+  read: only tableoid is allowed there. ON and action projections retain ordinary
+  system-attribute access; same-named derived columns remain ordinary columns.
+  The WHEN restriction belongs to its lexical expression frame, not a nested
+  SELECT's local or correlated reads.
   Function-source arguments capture system source occurrences separately from
   ordinary slots. Local-left occurrence membership determines dependency and
   RIGHT/FULL rejection even for zero-column sources; ancestor captures remain
@@ -782,6 +800,8 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
 Installed visibility binding, remap and retained definition ownership use
 `RUN='^TestPgvisibility'`.
+Surgery binding, remap and retained definition ownership use
+`RUN='^TestPgsurgeryFreezeProvider'`.
 Retained registry lookup destination-input demand and unchanged capture-error
 propagation use `RUN='^TestRegLookup(RelType|CollRole)RetainedInput$'`.
 
@@ -798,7 +818,7 @@ units that build bindings, grep `internal/engine/*_test.go` and
 `internal/engine/core/` for `Describe(` and the payload names.
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
-- Source identity binding and lexical frame semantics: `RUN='^TestQueryTableOID'`
+- Source identity binding and lexical frame semantics: `RUN='^TestQuery(TableOID|SystemAttribute)'`
 - Function-source declaration knowledge and independent nominal row identity:
   `RUN='^TestFunctionSourceDeclarationMetadata$'`.
 - Aggregate capture purpose/synthetic builtin scope:

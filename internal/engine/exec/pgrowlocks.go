@@ -3,26 +3,17 @@ package exec
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// PgrowlocksLogicalTID maps a logical row version to its (block, offset) tid.
-func PgrowlocksLogicalTID(version ids.VersionID) (uint32, uint16, error) {
-	if version == 0 || uint64(version) > uint64(math.MaxUint32)*65535 {
-		return 0, 0, fmt.Errorf("stuntgres: logical row version exceeds tid range")
-	}
-	n := uint64(version) - 1
-	return uint32(n / 65535), uint16(n%65535 + 1), nil
-}
 
 // CheckPgrowlocksTable checks that d is an ordinary table the current user may
 // inspect: pg_stat_scan_tables membership or SELECT on the table.
@@ -62,9 +53,13 @@ func PgrowlocksPrefix(ctx context.Context, view *visibility.View, ref ids.Object
 			return nil, err
 		}
 		version := source.VersionAt(source.RawIndex(i))
+		resource, err := TupleResource(ref, version, source.Headers)
+		if err != nil {
+			return nil, err
+		}
 		tuples[i] = lock.PgrowlocksTuple{
-			Tuple:            lock.MultiTuple{Resource: lock.Resource{ObjectRef: ref, Row: version.Row}, Version: version.Version},
-			PrivateInsertion: version.Born == 0,
+			Tuple:            lock.MultiTuple{Resource: resource, Version: version.Version},
+			PrivateInsertion: version.Born == 0 && !version.ForcedFrozen,
 		}
 	}
 	return tuples, nil
@@ -95,7 +90,7 @@ func PgrowlocksValues(ctx context.Context, result *sqltype.Descriptor, records [
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		block, offset, err := PgrowlocksLogicalTID(record.Tuple.Version)
+		block, offset, err := storage.LogicalTID(record.Tuple.Version)
 		if err != nil {
 			return nil, err
 		}

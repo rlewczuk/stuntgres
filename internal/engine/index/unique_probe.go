@@ -39,7 +39,7 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 	if purpose == ProbeRevalidation {
 		if root.Hash != nil {
 			if root.Hash.RowEntries != nil {
-				entry := root.Hash.RowEntries[row.Row]
+				entry := root.Hash.RowEntry(row.Row, row.Version)
 				if entry == nil {
 					return false, nil, nil
 				}
@@ -51,22 +51,22 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 			}
 			for _, bucket := range root.Hash.Buckets {
 				for _, entry := range bucket {
-					if entry.Row == row.Row {
-						if entry.Version != row.Version {
-							return false, nil, ids.ErrCatalogReplaced
-						}
+					if entry.Row == row.Row && entry.Version == row.Version {
 						bound.Scratch[0] = entry.Key
 						return true, bound.Scratch, nil
 					}
 				}
 			}
 		} else {
-			if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
+			if idx.SQLIndex.Predicate != nil && !root.IsMember(row.Row, row.Version) {
 				return false, nil, nil
 			}
 			if root.RowEntries != nil {
-				ordinal, exists := root.RowEntries[row.Row]
-				if !exists || ordinal < 0 || ordinal >= len(root.Entries) {
+				ordinal, exists := root.RowEntry(row.Row, row.Version)
+				if !exists {
+					return false, nil, nil
+				}
+				if ordinal < 0 || ordinal >= len(root.Entries) {
 					return false, nil, ids.ErrCatalogReplaced
 				}
 				entry := root.Entries[ordinal]
@@ -76,10 +76,7 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 				return true, entry.Keys, nil
 			}
 			for _, entry := range root.Entries {
-				if entry.Row == row.Row {
-					if entry.Version != row.Version {
-						return false, nil, ids.ErrCatalogReplaced
-					}
+				if entry.Row == row.Row && entry.Version == row.Version {
 					return true, entry.Keys, nil
 				}
 			}
@@ -105,7 +102,7 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 			}
 			return false, nil, nil
 		}
-		entry := root.Hash.RowEntries[row.Row]
+		entry := root.Hash.RowEntry(row.Row, row.Version)
 		if entry == nil {
 			return false, nil, nil
 		}
@@ -115,12 +112,15 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 		bound.Scratch[0] = entry.Key
 		return true, bound.Scratch, nil
 	}
-	if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
+	if idx.SQLIndex.Predicate != nil && !root.IsMember(row.Row, row.Version) {
 		return false, nil, nil
 	}
 	if idx.SQLIndex.HasRuntimeDomainKeyConversion() {
-		ordinal, ok := root.RowEntries[row.Row]
-		if !ok || ordinal < 0 || ordinal >= len(root.Entries) {
+		ordinal, ok := root.RowEntry(row.Row, row.Version)
+		if !ok {
+			return false, nil, nil
+		}
+		if ordinal < 0 || ordinal >= len(root.Entries) {
 			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
 		}
 		entry := root.Entries[ordinal]

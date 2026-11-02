@@ -22,7 +22,9 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 		// The frozen query supplies the actual retained executable manifest.
 		// Check its original lanes/stamps before any authorized stamp change;
 		// the operation's Procedure mapper separately checks source ownership.
-		if err := validateRoutineCapture(RuleAction{presentation: original}, original.dependencies, catalog.Read{}); err != nil { return nil, err }
+		if err := validateRoutineCapture(RuleAction{presentation: original}, original.dependencies, catalog.Read{}); err != nil {
+			return nil, err
+		}
 	}
 	definition := *original
 	definition.routineInputs = slices.Clone(original.routineInputs)
@@ -40,7 +42,7 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	if len(original.columns) != 0 {
 		definition.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(original.columns))
 		for path, column := range original.columns {
-			if column.TableOID {
+			if column.SystemAttribute != 0 {
 				column.Owner = ref(column.Owner)
 			}
 			if column.RuleSide != 0 {
@@ -128,7 +130,9 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	for i := range definition.dependencies {
 		definition.dependencies[i].Ref = ref(definition.dependencies[i].Ref)
 	}
-	if err := refresh.apply(definition.dependencies); err != nil { return nil, err }
+	if err := refresh.apply(definition.dependencies); err != nil {
+		return nil, err
+	}
 	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper, refreshDependency: refresh}
 	var root plan.Node
 	var err error

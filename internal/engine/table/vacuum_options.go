@@ -16,6 +16,7 @@ type VacuumOptions struct {
 	Freeze, Verbose, Analyze, Full, SkipLocked bool
 	ProcessMain, ProcessToast, DisableSkipping bool
 	SkipDatabase, OnlyDatabase, Buffer         bool
+	SkipIndexCleanup                           bool
 	Parallel                                   int
 }
 
@@ -78,12 +79,15 @@ func NormalizeVacuum(s *parser.Vacuum) (VacuumOptions, error) {
 				return o, sqlError("42601", name+" requires a Boolean value")
 			}
 		case "index_cleanup":
+			o.SkipIndexCleanup = false
 			if !v.HasValue || strings.EqualFold(v.Value.Text, "auto") {
 				continue
 			}
-			if _, ok := vacuumBoolean(v.Value); !ok {
+			cleanup, ok := vacuumBoolean(v.Value)
+			if !ok {
 				return o, sqlError("42601", name+" requires a Boolean value")
 			}
+			o.SkipIndexCleanup = !cleanup
 		case "parallel":
 			if !v.HasValue {
 				return o, vacuumOptionError("42601", "parallel option requires a value between 0 and 1024", v.Name.Pos)

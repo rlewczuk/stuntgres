@@ -58,7 +58,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal(result, err)
 			}
 			defer result.Rows.Close()
-			if scope.Completed || len(scope.Stage.Rows[b.Address]) != 2 || scope.Stage.Deletes[a.Address] == nil || len(scope.Stage.Deletes[a.Address].Rows) != 2 || core.ScopeCTEInvocation(scope) != nil {
+			if scope.Completed || len(scope.Stage.Rows[b.Address]) != 2 || scope.Stage.Deletes[a.Address].Len() != 2 || core.ScopeCTEInvocation(scope) != nil {
 				t.Fatal("not one unpublished complete stage")
 			}
 			view := scope.View.Load()

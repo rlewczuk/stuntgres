@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -47,10 +46,7 @@ func PreflightACLItems(ctx context.Context, view catalog.Read, relations map[ids
 			continue
 		}
 		if root := relations[relation.Address()]; root != nil {
-			for _, version := range root.Versions {
-				if !visibility.LiveVersion(version, frontier, root.Ends, nil) {
-					continue
-				}
+			for _, version := range storage.VisibleHeapVersions(root, frontier) {
 				for i, value := range version.Values {
 					if _, generated := relation.ColumnMeta.Generations[relation.Attributes[i]]; generated {
 						continue

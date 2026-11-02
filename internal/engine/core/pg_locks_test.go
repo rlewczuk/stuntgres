@@ -299,6 +299,10 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	t.Helper()
 	e, _, d := typedUnitCatalog(t, false)
+	if route == "row_grant" {
+		setup := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, setup, "INSERT INTO typed VALUES(1,'owned')")
+	}
 	owner, ticket := blockingUnitOwner(t, e)
 	op, err := owner.Acquire(context.Background())
 	if err != nil {
@@ -323,7 +327,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		v, _ := sqltype.Integer(enginetest.Usage(e, sqltype.Int4).Type, 1)
 		err = scope.Writes().Apply(ref, [][]sqltype.Value{{v, sqltype.String(enginetest.Usage(e, sqltype.Text).Type, "owned")}})
 	case "row_grant":
-		_, err = (*core.StatementHost)(scope).AcquireQueryRow(exec.Leaf{Ref: ref, Relation: d, Storage: store}, 1, plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockBlock})
+		_, err = (*core.StatementHost)(scope).AcquireQueryRow(exec.Leaf{Ref: ref, Relation: d, Storage: store}, store.Versions[0], plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockBlock})
 	case "catalog":
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)

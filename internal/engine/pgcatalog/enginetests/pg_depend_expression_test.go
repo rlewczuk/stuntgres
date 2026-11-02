@@ -71,7 +71,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 		{"runtime_numeric_cast", plan.CoercionExpr{Info: expr.Info{Usage: regclass.Usage()}, Child: plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}}, nil},
 		{"repeated_var", functions.Binary{Info: expr.Info{Usage: domain.Usage()}, Args: []expr.Expr{variable, variable}}, []ids.ObjectAddress{column}},
 		{"dead_case", plan.CaseExpr{Arms: []plan.CaseBranch{{Condition: plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}, Result: variable}}, Otherwise: scalar}, []ids.ObjectAddress{column, provider}},
-		{"tableoid", plan.TableOIDExpr{Owner: ref(parent)}, []ids.ObjectAddress{pgDependUnitAddress(1259, 48001, -6)}},
+		{"tableoid", plan.SystemAttributeExpr{SubID: -6, Owner: ref(parent)}, []ids.ObjectAddress{pgDependUnitAddress(1259, 48001, -6)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

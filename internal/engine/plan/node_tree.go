@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -109,8 +110,8 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			}
 		}
 		err = AppendQueryTree(ctx, out, n.QueryPlan.Root)
-	case TableOIDExpr:
-		fmt.Fprintf(out, "TableOID owner %d", n.Owner.Address.ObjectID)
+	case SystemAttributeExpr:
+		fmt.Fprintf(out, "SystemAttribute %s owner %d", catalog.SystemAttributeName(n.SubID), n.Owner.Address.ObjectID)
 	case LiteralExpr:
 		out.WriteString("Const")
 		if n.Value.IsNull() {

@@ -19,6 +19,9 @@ type VacuumCapture struct {
 	Rows       []storage.RowVersion
 	Ends       *storage.DeletionRoot
 	Retained   *storage.HeapPredecessor
+	Discarded  *storage.HeapPredecessor
+	Headers    *storage.HeapHeaderRoot
+	KeepDead   bool
 	Generation uint64
 	Frontier   ids.CommitSeq
 	Cutoff     uint64
@@ -59,7 +62,7 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 // rewrites the catalog also needs the same catalog state. Caller holds
 // Engine.mu.
 func (c VacuumCapture) SameLocked(current VacuumCapture, store *storage.Store, rewritesCatalog bool) bool {
-	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Retained == c.Retained && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
+	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Retained == c.Retained && current.Discarded == c.Discarded && current.Headers == c.Headers && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
 	if rewritesCatalog && current.Catalog != c.Catalog {
 		same = false
 	}
@@ -94,7 +97,8 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 	}
 	state := VacuumProgress{Phase: "scanning heap", Capacity: int64(len(c.Rows)) * 8}
 	progress(state)
-	candidate, err := storage.InspectVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, c.Retire, func(completed int, dead int64) {
+	rows := storage.EffectiveHeapRows(c.Rows, c.Headers)
+	candidate, err := storage.InspectVacuum(ctx, rows, c.Ends, c.Frontier, c.Cutoff, c.Retire, func(completed int, dead int64) {
 		state.Scanned, state.DeadItems = completed, dead
 		progress(state)
 	})
@@ -104,7 +108,7 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 	if candidate.Removed != 0 || candidate.Frozen != 0 {
 		state.Phase = "vacuuming heap"
 		progress(state)
-		candidate, err = storage.MaterializeVacuum(ctx, c.Rows, c.Ends, c.Frontier, c.Cutoff, candidate, func(completed int) {
+		candidate, err = storage.MaterializeVacuum(ctx, rows, c.Ends, c.Frontier, c.Cutoff, candidate, func(completed int) {
 			state.Vacuumed = completed
 			progress(state)
 		})
@@ -112,19 +116,11 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 			return VacuumPass{}, err
 		}
 	}
-	var retainedDead, retainedRemoved int64
-	candidate.Retained, retainedDead, retainedRemoved, err = storage.InspectRetainedVacuum(ctx, c.Retained, c.Frontier, c.Retire)
+	candidate, err = storage.MaintainHeapHistory(ctx, candidate, storage.Relation{Versions: c.Rows, Ends: c.Ends, Retained: c.Retained, Discarded: c.Discarded, Headers: c.Headers}, c.Frontier, c.Retire, c.Attached != 0, c.KeepDead)
 	if err != nil {
 		return VacuumPass{}, err
 	}
-	candidate.Dead, err = storage.AddSize(candidate.Dead, retainedDead)
-	if err == nil {
-		candidate.Removed, err = storage.AddSize(candidate.Removed, retainedRemoved)
-	}
-	if err != nil {
-		return VacuumPass{}, err
-	}
-	changed := !storage.SameVersionRoot(candidate.Versions, c.Rows) || candidate.Ends != c.Ends || candidate.Retained != c.Retained
+	changed := !storage.SameVersionRoot(candidate.Versions, c.Rows) || candidate.Ends != c.Ends || candidate.Retained != c.Retained || candidate.Discarded != c.Discarded || candidate.Headers != c.Headers
 	pass := VacuumPass{Candidate: candidate, Generation: c.Generation}
 	if changed {
 		if pass.Generation == ^uint64(0) {

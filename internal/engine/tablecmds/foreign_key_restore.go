@@ -119,11 +119,13 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 	}
 	// The Restore scan reads the committed rows and index roots directly.
 	capture := func(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
 		store := e.Storage.Relations[ref.Address]
 		if store == nil {
 			return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 		}
-		rows := table.ForeignKeyRows{Storage: store, Committed: store.Versions, Ends: store.Ends, Frontier: e.Visibility.CommitSeq()}
+		rows := table.ForeignKeyRows{Storage: store, Committed: store.Versions, Headers: store.Headers, Ends: store.Ends, Frontier: e.Visibility.CommitSeq()}
 		if idx != (ids.ObjectAddress{}) {
 			rows.Index, rows.Root = idx, e.Storage.IndexRoots[idx]
 		}
@@ -139,14 +141,18 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 		if snapshotValid && len(unvalidated) != 0 {
 			keep := 0
 			for _, definition := range definitions {
-				if !unvalidated[definition.BoundOID] { keep++ }
+				if !unvalidated[definition.BoundOID] {
+					keep++
+				}
 			}
 			if keep == 0 {
 				definitions = nil
 			} else if keep != len(definitions) {
 				filtered := make([]table.RestoredForeignKey, 0, keep)
 				for _, definition := range definitions {
-					if !unvalidated[definition.BoundOID] { filtered = append(filtered, definition) }
+					if !unvalidated[definition.BoundOID] {
+						filtered = append(filtered, definition)
+					}
 				}
 				definitions = filtered
 			}
@@ -161,7 +167,9 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	auth.Catalog = view
 	for _, child := range view.Relations() {
 		ownerAuth := auth
@@ -169,9 +177,13 @@ func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Op
 		ownerAuth.Recapture(view)
 		scan := table.ForeignKeyScan{View: ownerAuth.View, Env: ownerAuth, Domain: e.Catalog.Domain, Capture: capture}
 		for slot, key := range child.Constraints.ForeignKeys {
-			if pendingIDs[key.OID] || key.NotValid || snapshotValid && unvalidated[key.OID] { continue }
+			if pendingIDs[key.OID] || key.NotValid || snapshotValid && unvalidated[key.OID] {
+				continue
+			}
 			selected := [1]table.RestoredForeignKey{{BoundOID: key.OID, BoundSlot: slot}}
-			if err := table.ScanRestoredForeignKeys(ctx, scan, child, selected[:]); err != nil { return err }
+			if err := table.ScanRestoredForeignKeys(ctx, scan, child, selected[:]); err != nil {
+				return err
+			}
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(ctx, stage)

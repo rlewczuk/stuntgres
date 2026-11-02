@@ -53,7 +53,10 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previous, ok := rows.Previous(current.Row)
+	if current.PrivateHistory == nil {
+		t.Fatal("missing genuine immediate predecessor", current)
+	}
+	previous, ok := rows.Previous(current.Row, current.PrivateHistory.Version.Version)
 	if !ok || current.Base == 0 || previous.Born != 0 {
 		t.Fatal("real prior-own predecessor missing", current, previous)
 	}

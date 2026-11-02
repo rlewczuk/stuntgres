@@ -8,8 +8,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// The existing manager arbitrates by RowID. History additionally identifies the
-// exact immutable version: a successor copies original raw xmax, not its new action.
+// The existing manager arbitrates by the admitted tuple resource. History also
+// identifies the exact immutable version: successors copy the original raw xmax.
 type MultiTuple struct {
 	Resource
 	Version ids.VersionID
@@ -85,6 +85,11 @@ type multiRow struct {
 	// An inherited singleton's tuple header is KEYSHR|LOCK_ONLY even when
 	// its immutable original member has a stronger mode.
 	inheritedSingleton bool
+	// Rewinding a subaction can revoke its updater contribution while the
+	// top-level owner later commits. Raw membership alone cannot revive it.
+	updaterAborted          bool
+	inheritedUpdaterAborted bool
+	inheritedLockOnly       bool
 }
 type MultiEvent struct {
 	Tuple     MultiTuple
@@ -180,7 +185,7 @@ func (m *Manager) retireMultiXactsLocked(domain *ids.Domain) {
 }
 
 func (m *Manager) validMultiTuple(owner *Ticket, key MultiTuple) bool {
-	return !owner.persistent && key.Kind == OrdinaryResource && key.Database == nil && !key.RoleTuple && key.Name == (ids.NameKey{}) && key.Row != 0 && key.High == 0 && key.Low == 0 && key.DefaultClass == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.ObjectID != 0 && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == owner.ref.Domain() && key.Epoch == owner.ref.Epoch()
+	return !owner.persistent && validTupleResource(key.Resource) && key.Version != 0 && key.ObjectRef.Domain() == owner.ref.Domain() && key.Epoch == owner.ref.Epoch()
 }
 
 // No Engine/owner mutex is held. The whole batch is prepared privately before
@@ -328,7 +333,7 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			}
 			members := make([]MultiMember, 0, len(old.members)+1)
 			for _, member := range old.members {
-				if live(member, key) || member.Mode.updating() && member.owner != nil && member.owner.CompletionState() == ids.TxCommitted {
+				if live(member, key) || member.Mode.updating() && !old.inheritedSingleton && !old.updaterAborted && member.owner != nil && member.owner.CompletionState() == ids.TxCommitted {
 					members = append(members, member)
 				}
 			}
@@ -351,6 +356,8 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			if mode.updating() {
 				row.inheritedID, row.inheritedMembers = old.id, old.members
 				row.inheritedOwnerModes = inheritedOwnerModes
+				row.inheritedUpdaterAborted = old.updaterAborted
+				row.inheritedLockOnly = old.inheritedSingleton
 			}
 			if len(members) > 1 {
 				id, err := intern(members)
@@ -367,12 +374,12 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			successor := key
 			successor.Version = event.Successor
 			action := getRow(key)
-			// heap_update copies the ORIGINAL raw xmax, not the computed action ID
-			// or a live-only/strongest-mode reconstruction. Old records stay immutable.
-			inherited := multiRow{id: action.inheritedID, members: action.inheritedMembers}
-			inherited.inheritedSingleton = inherited.id == 0 && len(inherited.members) == 1
-			rows[successor] = inherited
-			for _, member := range inherited.members {
+			// Copy the ORIGINAL raw bag only while a genuine original locker
+			// survives. Ended/aborted members stay in that immutable bag, but
+			// cannot by themselves supply successor ownership or raw xmax.
+			var inherited multiRow
+			lockerRemains := false
+			for _, member := range action.inheritedMembers {
 				var running bool
 				if member.owner == owner {
 					running = action.inheritedOwnerModes&(1<<member.Mode) != 0 &&
@@ -380,11 +387,17 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 				} else {
 					running = live(member, key)
 				}
-				if running {
+				if running && (!member.Mode.updating() || action.inheritedLockOnly) {
+					lockerRemains = true
 					c := multiContribution{member.owner, successor}
 					contributions[c] = getContribution(member.owner, successor) | (1 << member.Mode)
 				}
 			}
+			if lockerRemains {
+				inherited = multiRow{id: action.inheritedID, members: action.inheritedMembers, updaterAborted: action.inheritedUpdaterAborted}
+				inherited.inheritedSingleton = inherited.id == 0 && len(inherited.members) == 1
+			}
+			rows[successor] = inherited
 		}
 	}
 	if m.multiRows == nil {
@@ -446,8 +459,14 @@ func (m *Manager) restoreMultiContributionsLocked(t *Ticket, held Checkpoint) {
 			t.multiContributions[tuple] = bits
 		}
 		row := m.multiRows[tuple]
+		for _, member := range row.members {
+			if member.owner == t && member.Mode.updating() {
+				row.updaterAborted = bits&(1<<member.Mode) == 0
+				m.multiRows[tuple] = row
+				break
+			}
+		}
 		if row.id != 0 {
-			m.retireMultiTupleLocked(tuple)
 			continue
 		}
 		members := make([]MultiMember, 0, len(row.members))
@@ -463,29 +482,14 @@ func (m *Manager) restoreMultiContributionsLocked(t *Ticket, held Checkpoint) {
 		}
 		canonicalMultiMembers(members)
 		row.inheritedSingleton = saved.InheritedSingleton[tuple.Version]
-		row.members = members
-		if len(members) == 0 {
-			delete(m.multiRows, tuple)
-		} else {
+		// A rollback removes effective contributions, not the physical raw
+		// header left by the aborted action or lock. A restored prior grant
+		// can still restore its singleton status.
+		if len(members) != 0 {
+			row.members = members
 			m.multiRows[tuple] = row
 		}
 	}
-}
-
-func (m *Manager) retireMultiOwnerLocked(owner *Ticket) {
-	for tuple := range owner.multiContributions {
-		m.retireMultiTupleLocked(tuple)
-	}
-}
-
-func (m *Manager) retireMultiTupleLocked(tuple MultiTuple) {
-	for _, member := range m.multiRows[tuple].members {
-		ticket := member.owner
-		if ticket != nil && !ticket.OwnershipEnded() && ticket.CompletionState() != ids.TxAborted && ticket.multiContributions[tuple]&(1<<member.Mode) != 0 {
-			return
-		}
-	}
-	delete(m.multiRows, tuple)
 }
 
 func multiTransactionAge(next, xid uint32) int32 {

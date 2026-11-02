@@ -38,6 +38,9 @@ func (e *Engine) finishPreparedLocked(p *session.PreparedPublication) {
 	if p == nil {
 		return
 	}
+	if p.Entry.Catalog != nil {
+		e.settleHeapDiscardsLocked(p.Entry.Ref, p.Entry.Catalog.DiscardedHeaps, nil, nil)
+	}
 	e.prepared.RemoveLocked(p.Entry.GID)
 	e.prepareReplicationOriginsLocked(p.Entry.Ref, false)
 	e.releaseReplicationOriginsLocked(p.Entry.Ref)
@@ -93,6 +96,9 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 	if err != nil {
 		s.AbortStatsPopulation()
 		t.Stats.Take(&s.Stage.Stats)
+		e.Mu.Lock()
+		t.Catalog = e.discardWritesLocked(ref, s.PendingCatalog(), s.Stage.Rows, t.Writes, t.Catalog, s.Stage.DiscardedHeaps)
+		e.Mu.Unlock()
 		ticket := t.Ticket
 		t.Ticket = nil
 		e.endSerializable(ref, false)
@@ -130,6 +136,7 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
 		if err == nil {
+			e.discardWritesLocked(entry.Ref, entry.Catalog, entry.Writes, nil, nil, nil)
 			settleStatsLedger(e, op.Session, &entry.Stats, false)
 			retireStatsObjects(e, op.Session, entry.Ref.Epoch(), false, entry.Catalog)
 			e.prepared.RemoveLocked(gid)

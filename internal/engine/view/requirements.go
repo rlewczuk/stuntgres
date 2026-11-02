@@ -27,7 +27,7 @@ func SourceRequirementLeaf(a access.View, owner *catalog.Relation, occurrence in
 	if err != nil {
 		return exec.Leaf{}, err
 	}
-	source := exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, TableOIDRead: leaf.TableOIDRead, Mark: stored.ViewLeafRowMark(definition, occurrence, inherited), Uses: make([]int, 0, len(leaf.Reads))}
+	source := exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead, Mark: stored.ViewLeafRowMark(definition, occurrence, inherited), Uses: make([]int, 0, len(leaf.Reads))}
 	for _, attribute := range leaf.Reads {
 		slot := relation.IndexForAttribute(attribute)
 		if slot < 0 {

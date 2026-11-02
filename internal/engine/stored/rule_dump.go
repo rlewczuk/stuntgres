@@ -115,11 +115,22 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 				return action.policy.identifier(name), true, nil
 			}
 		}
-		if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope != 0 {
+		if system, ok := expr.(plan.SystemAttributeExpr); ok && system.Scope != 0 {
 			if action.presentation == nil {
 				return "", true, fmt.Errorf("stuntgres: missing tableoid source presentation")
 			}
-			if _, err := action.presentation.tableOIDSource(view, analyze.ViewColumn{TableOID: true, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence}); err != nil {
+			if system.QueryOccurrence == 0 {
+				relation, ok := view.Relation(system.Owner.Address)
+				if !ok || system.Owner != action.binding.Ref || !relation.HasSupportedAttribute(system.SubID) || !ViewReferenceValid(view, nil, system.Owner) {
+					return "", true, fmt.Errorf("stuntgres: invalid rule mutation system attribute")
+				}
+				qualifier := action.targetQualifier(relation)
+				if action.returning && (system.Old || system.Absent) {
+					qualifier = action.policy.identifier(action.returningAlias(system.Old))
+				}
+				return qualifier + "." + catalog.SystemAttributeName(system.SubID), true, nil
+			}
+			if _, err := action.presentation.systemAttributeSource(view, analyze.ViewColumn{SystemAttribute: system.SubID, SystemOld: system.Old, SystemAbsent: system.Absent, SystemMerge: system.Merge, SystemSide: system.Side, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence}); err != nil {
 				return "", true, err
 			}
 			qualifier := action.sourceQualifiers[system.QueryOccurrence-1]
@@ -129,7 +140,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			if qualifier == "" {
 				return "", true, fmt.Errorf("stuntgres: missing rule tableoid qualifier")
 			}
-			return qualifier + ".tableoid", true, nil
+			return qualifier + "." + catalog.SystemAttributeName(system.SubID), true, nil
 		}
 		if column, ok := expr.(plan.ReturningColumnExpr); ok && action.returning {
 			relation, exists := view.Relation(action.binding.Ref.Address)

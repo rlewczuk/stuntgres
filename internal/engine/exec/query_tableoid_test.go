@@ -15,7 +15,7 @@ func TestQueryTableOIDIdentity(t *testing.T) {
 	parent := domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000})
 	child := domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001})
 	source := &Source{Ref: parent, Occurrence: 7, Inheritance: []InheritanceQuerySegment{{Leaf: Leaf{Ref: child}, Prefix: &Source{Anonymous: [][]sqltype.Value{{sqltype.Null(oid)}}}}}, InheritanceEnds: []int{1}}
-	n := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: parent, Scope: 1, Frame: 4, QueryOccurrence: 1}
+	n := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: parent, Scope: 1, Frame: 4, QueryOccurrence: 1}
 	outer := Context{EvalStatement: EvalStatement{Context: context.Background()}, EvalFrame: EvalFrame{Scope: 1, Frame: 4, Query: &State{Source: source, IdentityReads: true}, QueryOccurrences: []int{7}, QueryProvenance: []int{0}}}
 	inner := Context{EvalStatement: EvalStatement{Context: context.Background()}, EvalFrame: EvalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	value, err := n.Eval(&inner)
@@ -31,7 +31,7 @@ func TestQueryTableOIDIdentity(t *testing.T) {
 		t.Fatal("outer absence", value, err)
 	}
 	outer.QueryProvenance[0] = 0
-	for _, bad := range []func(*Context, *plan.TableOIDExpr){func(c *Context, n *plan.TableOIDExpr) { c.Query = nil }, func(c *Context, n *plan.TableOIDExpr) { c.QueryOccurrences = nil }, func(c *Context, n *plan.TableOIDExpr) { n.QueryOccurrence = 2 }, func(c *Context, n *plan.TableOIDExpr) { n.Frame = 99 }, func(c *Context, n *plan.TableOIDExpr) { c.QueryProvenance = []int{2} }} {
+	for _, bad := range []func(*Context, *plan.SystemAttributeExpr){func(c *Context, n *plan.SystemAttributeExpr) { c.Query = nil }, func(c *Context, n *plan.SystemAttributeExpr) { c.QueryOccurrences = nil }, func(c *Context, n *plan.SystemAttributeExpr) { n.QueryOccurrence = 2 }, func(c *Context, n *plan.SystemAttributeExpr) { n.Frame = 99 }, func(c *Context, n *plan.SystemAttributeExpr) { c.QueryProvenance = []int{2} }} {
 		copy, node := outer, n
 		bad(&copy, &node)
 		if _, err := node.Eval(&copy); err == nil {
@@ -49,7 +49,7 @@ func TestQueryTableOIDIdentity(t *testing.T) {
 
 func TestQueryTableOIDIdentityDemand(t *testing.T) {
 	typ := asyncUnitType(t, sqltype.Oid)
-	column := plan.TableOIDExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, QueryOccurrence: 1}
+	column := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, QueryOccurrence: 1}
 	query := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{column}}}
 	edge := plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage()}, QueryPlan: query}
 	if !BoundHasIdentityReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) || !QueryHasIdentityReads(&plan.ProjectNode{Expressions: []expr.Expr{edge}}) {
@@ -85,7 +85,7 @@ func TestQueryTableOIDFunctionCorrelation(t *testing.T) {
 	bundle := &Source{Sources: []*Source{ancestor, local}}
 	state := State{Source: bundle, Frame: 1, IdentityReads: true}
 	state.Invocation = &Context{EvalStatement: EvalStatement{Context: context.Background()}, EvalFrame: EvalFrame{Scope: 1, Frame: 1, Query: &state, QueryOccurrences: []int{7}, QueryProvenance: []int{0}}}
-	first := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ancestorRef, Scope: 1, Frame: 1, QueryOccurrence: 1}
+	first := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ancestorRef, Scope: 1, Frame: 1, QueryOccurrence: 1}
 	second := first
 	second.Owner, second.QueryOccurrence = localRef, 2
 	call := plan.UnnestExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Args: []expr.Expr{plan.ArrayExpr{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{RowDependent: true}}, Elements: []expr.Expr{first, second}}}}

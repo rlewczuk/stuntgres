@@ -207,9 +207,17 @@ func stageMaterializedRows(e *core.Engine, ctx context.Context, s *core.CatalogS
 	if err := view.CheckMaterializedRows(d, rows); err != nil {
 		return err
 	}
+	if len(rows) != 0 {
+		if err := e.AssignTransactionXIDLocked(tx); err != nil {
+			return err
+		}
+	}
 	versions, err := e.Storage.AllocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
+	}
+	for i := range versions {
+		versions[i].InsertFullXID = e.Visibility.FullXIDLocked(tx)
 	}
 	next := *d
 	next.ObjectRevision++

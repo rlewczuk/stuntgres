@@ -20,11 +20,11 @@ func TestCatalogTableOIDSubobjectValidation(t *testing.T) {
 			r := &Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, RelationKind: tc.kind, CatalogView: tc.view, Attributes: []int32{1, 3}, ColumnMeta: ColumnMetadata{Dropped: map[int32]AttributeMetadata{2: {}}}}
 			store.State.SetDescriptor(r.Address(), r)
 			view := store.Current()
-			for _, sub := range []int32{-7, -6, -1, 1, 2, 3, 4} {
+			for _, sub := range []int32{-7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4} {
 				address := r.Address()
 				address.SubID = sub
 				err := store.ValidateObjectRefLocked(view, store.Domain.Ref(view.Epoch(), address))
-				want := sub == 1 || sub == 3 || sub == -6 && tc.eligible
+				want := sub == 1 || sub == 3 || SystemAttributeName(sub) != "" && tc.eligible
 				if (err == nil) != want {
 					t.Fatalf("attribute %d: %v eligible=%t", sub, err, want)
 				}

@@ -68,9 +68,13 @@ func Pgrowlocks[A Authority](h Host[A], text string, result *sqltype.Descriptor)
 		err = exec.CheckPgrowlocksTable(auth.Access(), auth, ref, descriptor)
 	}
 	var view *visibility.View
+	var headers *storage.HeapHeaderRoot
 	local := false
 	if err == nil {
 		view, local, err = h.RelationDataViewLocked(ref)
+	}
+	if err == nil {
+		headers = stored.Headers
 	}
 	h.ReleaseOwnerEngineLocked()
 	if err != nil {
@@ -90,7 +94,7 @@ func Pgrowlocks[A Authority](h Host[A], text string, result *sqltype.Descriptor)
 	h.ReacquireEngine()
 	valid := h.CatalogEpochLocked() == ref.Epoch &&
 		h.PrivateCatalogLocked(h.PendingCatalog()).Get(ref.Address) == descriptor &&
-		h.PrivateStorageLocked(ref.Address) == stored
+		h.PrivateStorageLocked(ref.Address) == stored && stored.Headers == headers
 	h.ReleaseEngineLocked()
 	if !valid {
 		return nil, ids.ErrCatalogReplaced

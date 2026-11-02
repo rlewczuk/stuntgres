@@ -5,11 +5,13 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -50,7 +52,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				if err = core.ScopeAcquireRow(s, visibility.DeleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
-				if err = dml.ReplaceRows(s.ActivateRuntime(s.Op.Context()), s.WriteHost(), ref, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}, dml.ReplaceMerge); err != nil {
+				if _, err = dml.ReplaceRows(s.ActivateRuntime(s.Op.Context()), s.WriteHost(), ref, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}, dml.ReplaceMerge); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -96,6 +98,90 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				t.Fatal("immutable predecessor payload changed")
 			}
 			enginetest.LockEmpty(t, e)
+		})
+	}
+}
+
+// Published heads deliberately have no PrivateHistory. Descendant authority
+// must follow actual immutable successor links from the captured physical
+// candidate, while rejecting both a later insertion and a reset same-RowID link.
+func TestInheritanceDMLCommittedSuccessorAuthority(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		name := "committed_chain"
+		if reset {
+			name = "repaired_same_rowid_sibling"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := engine.New()
+			peer := enginetest.StartSession(t, e, nil)
+			for _, q := range []string{
+				"CREATE TABLE p(v INT)",
+				"CREATE TABLE c() INHERITS(p)",
+				"INSERT INTO c VALUES(20)",
+			} {
+				enginetest.SessionSQL(t, peer, q)
+			}
+			p := e.CatalogRead().MustRelation(enginetest.CatalogRef(t, e, e.CatalogRead(), "p").Address)
+			scope, done := inheritanceDMLScope(t, e, p, context.Background())
+			defer done()
+			if err := core.ScopeAcquireInheritedMutationTargets(scope, &parser.Update{}); err != nil {
+				t.Fatal(err)
+			}
+			child := scope.InheritedTargets[0]
+			refs := scope.Command.TargetRefs(scope.LockedRef)
+			e.Mu.Lock()
+			view, err := scope.AcquireDataViewsLocked(e, refs)
+			e.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			captured := view.Data().Committed[child.Ref.Address][0]
+			enginetest.SessionSQL(t, peer, "UPDATE ONLY c SET v=30")
+			enginetest.SessionSQL(t, peer, "UPDATE ONLY c SET v=40")
+			enginetest.SessionSQL(t, peer, "INSERT INTO c VALUES(90)")
+			e.Mu.Lock()
+			store := child.Storage
+			current, later := store.Versions[0], store.Versions[1]
+			headers, retained := store.Headers, store.Retained
+			e.Mu.Unlock()
+			if current.PrivateHistory != nil || current.Version == captured.Version || current.Row != captured.Row || retained == nil {
+				t.Fatal("fixture did not publish a real detached committed predecessor chain", current, captured)
+			}
+			version := captured.Version
+			for version < current.Version {
+				next := headers.Header(version).Successor
+				if next <= version {
+					break
+				}
+				version = next
+			}
+			if version != current.Version {
+				t.Fatal("fixture lost actual committed successor links")
+			}
+			if reset {
+				freezeTupleRepair(t, e, store, captured, child.Ref)
+			}
+			host := scope.WriteHost()
+			if err := host.AcquireUpdateRow(child.Ref, current, lock.ForNoKeyUpdate); err != nil {
+				t.Fatal(err)
+			}
+			err = host.PrepareReplacement(child.Ref, []storage.RowVersion{current})
+			if reset {
+				if err == nil {
+					t.Fatal("reset original link admitted an unlinked same-RowID sibling")
+				}
+			} else if err != nil {
+				t.Fatal("real committed descendant lost captured authority", err)
+			}
+			if err := host.AcquireUpdateRow(child.Ref, later, lock.ForNoKeyUpdate); err != nil {
+				t.Fatal(err)
+			}
+			if err := host.PrepareReplacement(child.Ref, []storage.RowVersion{later}); err == nil {
+				t.Fatal("later unrelated insertion acquired captured candidate authority")
+			}
+			if view.Data().Committed[child.Ref.Address][0].Version != captured.Version {
+				t.Fatal("authority validation mutated the frozen candidate root")
+			}
 		})
 	}
 }

@@ -4,50 +4,76 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// StageMergeRows stages the assembled MERGE actions in action order: each
-// DELETE alone, and each run of INSERTs or of UPDATEs with one lock mode as
-// one batch.
+// StageMergeRows owns the explicit acceptance boundary after source completion.
+// Its embedded producer consumes only changed candidates; index staleness stays
+// within ReplaceRows. No ordinary payload/context copying is needed.
 func StageMergeRows(ctx context.Context, h Host, rows *MergeRows, ref ids.ObjectRef) error {
+	if rows == nil {
+		return errors.New("stuntgres: missing MERGE producer")
+	}
+	if rows.producer.owner != nil && rows.producer.owner != rows {
+		return errors.New("stuntgres: copied MERGE producer")
+	}
+	defer rows.ReleaseProducer()
+	for {
+		failed, err := stageMergeWindow(ctx, h, rows, ref)
+		if !errors.Is(err, ErrTupleRecheck) {
+			return err
+		}
+		if rows.producer.owner != rows || failed < rows.StagedActions || failed >= len(rows.Actions) {
+			return errors.New("stuntgres: invalid MERGE producer recheck")
+		}
+		if err := rows.producer.recheck(ctx, h, rows, failed); err != nil {
+			return err
+		}
+	}
+}
+
+func stageMergeWindow(ctx context.Context, h Host, rows *MergeRows, ref ids.ObjectRef) (int, error) {
 	for start := rows.StagedActions; start < len(rows.Actions); {
 		action := rows.Actions[start]
 		if action.Action == parser.MergeDeleteAction {
-			if _, err := h.Delete(action.Deletion); err != nil {
-				return err
+			expected := storage.RowVersion{Row: action.Deletion.Row, Version: action.Expected}
+			if _, err := h.Delete(action.Deletion, expected); err != nil {
+				return start, err
 			}
 			start++
+			rows.StagedActions = start
 			continue
 		}
 		end := start + 1
-		for end < len(rows.Actions) && rows.Actions[end].Action == action.Action && rows.Actions[end].UpdateMode == action.UpdateMode {
+		for end < len(rows.Actions) && rows.Actions[end].Action == action.Action && rows.Actions[end].UpdateMode == action.UpdateMode && rows.Actions[end].Payload == rows.Actions[end-1].Payload+1 {
 			end++
 		}
 		first, last := action.Payload, rows.Actions[end-1].Payload+1
-		var err error
 		if action.Action == parser.MergeUpdateAction {
 			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.UpdateMode
-			err = ReplaceRows(ctx, h, ref, rows.Predecessors[first:last], batch, ReplaceMerge)
-		} else {
-			err = ApplyValidated(ctx, h, ref, rows.WriteBatch.Slice(first, last))
-		}
-		if err != nil {
-			return err
+			failed, err := ReplaceRows(ctx, h, ref, rows.Predecessors[first:last], batch, ReplaceMerge)
+			if err != nil {
+				if errors.Is(err, ErrTupleRecheck) {
+					return start + failed, err
+				}
+				return -1, err
+			}
+		} else if err := ApplyValidated(ctx, h, ref, rows.WriteBatch.Slice(first, last)); err != nil {
+			return -1, err
 		}
 		start = end
+		rows.StagedActions = start
 	}
-	rows.StagedActions = len(rows.Actions)
-	return nil
+	return -1, nil
 }
 
 // Source completion and ON membership precede every action wait. Match marks
@@ -74,6 +100,8 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	var presenceSlots []int
 	var presenceCount int
 	var presence []bool
+	var projected [][]storage.RowVersion
+	var raw []map[ids.VersionID]uint32
 	for {
 		present, err := cursor.Next(ctx, scratch)
 		if err != nil {
@@ -93,6 +121,23 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 				occurrences = exec.AppendQueryOccurrences(nil, stage.Source)
 			}
 			provenance = exec.AppendQueryProvenance(provenance, stage.Source, stage.Index(stage.Position-1))
+			versions := exec.ProjectedQueryVersions(stage.Source, stage.Index(stage.Position-1))
+			if versions != nil && projected == nil {
+				projected = make([][]storage.RowVersion, sourceCount)
+			}
+			if projected != nil {
+				projected = append(projected, versions)
+			}
+			capture := state.Source.RawXmax
+			if locks := state.Source.Locks; locks != nil && locks.RawXmax != nil {
+				capture = locks.RawXmax
+			}
+			if capture != nil && raw == nil {
+				raw = make([]map[ids.VersionID]uint32, sourceCount)
+			}
+			if raw != nil {
+				raw = append(raw, capture)
+			}
 		}
 		if stage, ok := cursor.(*exec.Stage); ok && stage.Source.PresenceCount != 0 {
 			presenceSlots, presenceCount = stage.Source.PresenceSlots, stage.Source.PresenceCount
@@ -108,10 +153,18 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	}
 	frame := make([]sqltype.Value, len(b.Relation.Columns)+width)
 	evaluation := state.Evaluation(ctx)
+	evaluation.PhysicalRawXmax = target.RawXmax
+	evaluation.QueryRawXmax = state.Source.RawXmax
 	evaluation.Row = frame
 	evaluation.PresenceSlots = presenceSlots
 	evaluation.QueryOccurrences = occurrences
 	bindIdentity := func(index int) {
+		if projected != nil {
+			evaluation.QueryProjectedVersions = projected[index]
+		}
+		if raw != nil {
+			evaluation.QueryRawXmax = raw[index]
+		}
 		if state.IdentityReads {
 			width := len(occurrences)
 			evaluation.QueryProvenance = provenance[index*width : (index+1)*width]
@@ -125,8 +178,8 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	capture := func(i int, class parser.MergeMatch, source int) MergeCandidate {
 		slot := target.RawIndex(i)
 		old := target.VersionAt(slot)
-		deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: old.Row, Version: old.Version, Ordinal: slot}
-		if slot >= len(target.Committed) {
+		deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: old.Row, Version: old.Version, Ordinal: slot, RepairStamp: old.RepairStamp}
+		if slot >= len(target.Committed) && !old.ForcedFrozen {
 			deletion.Own = true
 			deletion.Ordinal -= len(target.Committed)
 		}
@@ -142,6 +195,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 		for i := range target.Count() {
 			old := target.VersionAt(target.RawIndex(i))
 			copy(frame, old.Values)
+			evaluation.PhysicalTable, evaluation.PhysicalVersion = b.Ref, old
 			truth, err := MergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
 				return nil, err
@@ -173,186 +227,55 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	result := &MergeRows{}
 	_, outputEnv := h.Environments()
 	output := newMergeReturningOutput(b, outputEnv)
+	physicalReturning := returningHasPhysicalHeaders(b.Returning)
+	if physicalReturning {
+		result.Accepted = make([]storage.RowVersion, 0)
+	}
 	if output != nil {
 		result.Returning = output.Rows
 	}
 	complete := false
 	defer func() {
+		if !complete {
+			result.ReleaseProducer()
+		}
 		if !complete && result.Returning != nil {
 			result.Returning.Close()
 		}
 	}()
-	var accepted map[ids.RowID]bool
+	var accepted map[ids.VersionID]bool
 	if len(b.Merge.UpdateTargets) != 0 || b.Merge.HasDelete {
-		accepted = make(map[ids.RowID]bool)
+		accepted = make(map[ids.VersionID]bool)
 	}
-	var excluded []storage.RowVersion
-	for _, candidate := range pairs {
-		if err := ctx.Err(); err != nil {
+	result.producer = mergeProducer{
+		owner: result, binding: b, catalog: in.Catalog, schema: in.Schema,
+		targetRaw: target.RawXmax, state: state, pairs: pairs,
+		projected: projected, raw: raw,
+		sources: sources, nullSource: nullSource, frame: frame, width: width,
+		occurrences: occurrences, provenance: provenance, presenceSlots: presenceSlots,
+		presence: presence, presenceCount: presenceCount,
+		unique: unique, physicalReturning: physicalReturning, output: output, accepted: accepted,
+	}
+	for i := range pairs {
+		if err := result.producer.producePair(ctx, h, result, output, i, false, true); err != nil {
 			return nil, err
-		}
-		source := nullSource
-		if candidate.SourceIndex >= 0 {
-			source = sources[candidate.SourceIndex*width : (candidate.SourceIndex+1)*width]
-			copy(frame[len(b.Relation.Columns):], source)
-			bindIdentity(candidate.SourceIndex)
-			if presenceCount != 0 {
-				evaluation.Presence = presence[candidate.SourceIndex*presenceCount : (candidate.SourceIndex+1)*presenceCount]
-			}
-		} else {
-			evaluation.Presence = nil
-			evaluation.QueryProvenance = nil
-		}
-		old, class := candidate.RowVersion, candidate.Class
-		setFrame := func() {
-			switch class {
-			case parser.MergeMatched:
-				copy(frame, old.Values)
-				evaluation.Row = frame
-			case parser.MergeNotMatchedBySource:
-				evaluation.Row = old.Values
-			case parser.MergeNotMatched:
-				evaluation.Row = source
-			}
-		}
-		setFrame()
-		if class == parser.MergeMatched && b.Merge.HasBySource {
-			// BY SOURCE action classification owns a guarded ON evaluation,
-			// distinct from candidate matching and later update-chain rechecks.
-			// Initial BY SOURCE has no source row, so its guard skips ON.
-			matched, err := MergeMatches(&evaluation, b.Merge.On)
-			if err != nil {
-				return nil, err
-			}
-			if !matched {
-				class = parser.MergeNotMatchedBySource
-				setFrame()
-			}
-		}
-		arm, err := SelectMergeArm(b.Merge, &evaluation, class)
-		if err != nil {
-			return nil, err
-		}
-		if arm == nil || arm.Action == parser.MergeNothingAction {
-			continue
-		}
-		sourceAfter := false
-		if class != parser.MergeNotMatched {
-			if arm.Action == parser.MergeDeleteAction {
-				err = h.AcquireRow(candidate.Deletion)
-			} else {
-				err = h.AcquireUpdateRow(b.Ref, old.Row, lock.ForNoKeyUpdate)
-			}
-			if err != nil {
-				return nil, err
-			}
-			current, err := h.LatestRow(MergeRowRequest(b.Ref, candidate.UpdateCandidate))
-			latest, live := current.Version, current.Live
-			if err != nil {
-				return nil, err
-			}
-			if latest.Version != old.Version && live {
-				strong, err := mergeFollowChainStrong(h, b)
-				if err != nil {
-					return nil, err
-				}
-				if strong && arm.Action != parser.MergeDeleteAction {
-					if err := h.AcquireUpdateRow(b.Ref, old.Row, lock.ForUpdate); err != nil {
-						return nil, err
-					}
-					current, err = h.LatestRow(MergeRowRequest(b.Ref, candidate.UpdateCandidate))
-					latest, live = current.Version, current.Live
-					if err != nil {
-						return nil, err
-					}
-				}
-				lockMode := lock.MultiNoKeyLock
-				if strong || arm.Action == parser.MergeDeleteAction {
-					lockMode = lock.MultiUpdateLock
-				}
-				if err := h.PhysicalRowEvent(b.Ref, latest, lockMode, 0); err != nil {
-					return nil, err
-				}
-			}
-			if !live {
-				if class == parser.MergeNotMatchedBySource && arm.Action == parser.MergeDeleteAction {
-					continue
-				}
-				class = parser.MergeNotMatched
-			} else if latest.Version != old.Version {
-				old = latest
-				setFrame()
-				if class == parser.MergeMatched {
-					matched, err := MergeMatches(&evaluation, b.Merge.On)
-					if err != nil {
-						return nil, err
-					}
-					if !matched {
-						class = parser.MergeNotMatched
-						if b.Merge.HasBySource {
-							class = parser.MergeNotMatchedBySource
-							sourceAfter = b.Merge.HasByTarget
-						}
-					}
-				}
-			}
-			if !live || latest.Version != candidate.Version {
-				setFrame()
-				arm, err = SelectMergeArm(b.Merge, &evaluation, class)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		// A MATCHED candidate that loses ON may act on the missing-source target
-		// and then on its retained missing-target source. Initial BY SOURCE never
-		// enters MATCHED merely because a peer made ON true.
-		for {
-			if arm != nil && arm.Action != parser.MergeNothingAction {
-				beforeActions := len(result.Actions)
-				if err := appendMergeAction(h, b, in.Catalog, result, &evaluation, in.Schema, unique, arm, old, candidate.Deletion, accepted, &excluded); err != nil {
-					return nil, err
-				}
-				if b.Relation.HasTriggers() {
-					if err := StageMergeRows(ctx, h, result, b.Ref); err != nil {
-						return nil, err
-					}
-				}
-				if output != nil && len(result.Actions) > beforeActions {
-					actualOld := old.Values
-					var row []sqltype.Value
-					if arm.Action != parser.MergeDeleteAction {
-						row = result.Values[len(result.Values)-1]
-					}
-					if arm.Action == parser.MergeInsertAction {
-						actualOld = nil
-					}
-					if err := output.Project(b, &evaluation, arm.Action, actualOld, row, source, candidate.SourceIndex >= 0); err != nil {
-						return nil, err
-					}
-				}
-			}
-			if !sourceAfter {
-				break
-			}
-			sourceAfter = false
-			class = parser.MergeNotMatched
-			setFrame()
-			arm, err = SelectMergeArm(b.Merge, &evaluation, class)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	result.producer.evaluation = exec.Context{}
 	complete = true
 	return result, nil
 }
 
-func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
+func appendMergeAction(h Host, b analyze.Binding, result *MergeRows, pending *index.WriteBatch, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, projected []sqltype.Value, accepted map[ids.VersionID]bool, excluded *[]storage.RowVersion) error {
 	if arm.Action == parser.MergeDeleteAction {
+		if HasRowTriggers(b.Relation, stored.TriggerDelete, stored.TriggerBefore) {
+			if err := h.PhysicalRowLock(b.Ref, old, lock.ForUpdate); err != nil {
+				return err
+			}
+		}
 		before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeDelete, Old: old.Values})
 		if failure != nil {
 			return failure
@@ -360,7 +283,7 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 		if !before.Proceed {
 			return nil
 		}
-		if accepted[old.Row] {
+		if mergeAlreadyAccepted(accepted, old) {
 			return MergeCardinalityError()
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
@@ -368,45 +291,12 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 		if err := ClaimUniqueRow(evaluation.Context, h, b.Ref, old); err != nil {
 			return err
 		}
-		if err := h.PhysicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
-			return err
-		}
 		*excluded = append(*excluded, old)
-		// Retire exclusion authority in actual action order before later admission.
-		// Canonical Delete still validates the original captured provenance at stage.
-		h.EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
-		accepted[old.Row] = true
-		result.Actions = append(result.Actions, MergeActionRow{Action: arm.Action, Deletion: deletion})
+		accepted[old.Version] = true
+		result.Actions = append(result.Actions, MergeActionRow{Action: arm.Action, Deletion: deletion, Expected: old.Version})
 		return nil
 	}
-	row := make([]sqltype.Value, len(b.Relation.Columns))
-	if arm.Action == parser.MergeUpdateAction {
-		copy(row, old.Values)
-		for i, expression := range arm.Input.Update.Assignments {
-			if expression == nil {
-				continue
-			}
-			target := arm.Input.Targets[i]
-			var value sqltype.Value
-			var err error
-			if len(arm.Input.Update.ArrayTargets) != 0 && arm.Input.Update.ArrayTargets[i] != nil {
-				value, err = arm.Input.Update.ArrayTargets[i].ApplyExpression(evaluation, row[target], expression)
-			} else {
-				value, err = expression.Eval(evaluation)
-			}
-			if err != nil {
-				return err
-			}
-			row[target] = value
-		}
-	} else {
-		for i, column := range b.Relation.Columns {
-			row[i] = sqltype.Null(column.Usage.Type)
-		}
-		if err := EvaluateInsertValuesRow(read, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
-			return err
-		}
-	}
+	row := projected
 	rowContext := *evaluation
 	command := h.Command()
 	command.RLS.Proposal = command.RLS.MergeInsert
@@ -414,6 +304,26 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 		command.RLS.Proposal = command.RLS.MergeUpdate
 	}
 	if arm.Action == parser.MergeUpdateAction {
+		if HasRowTriggers(b.Relation, stored.TriggerUpdate, stored.TriggerBefore) {
+			mode, err := updatePrelockMode(h, b.Ref, arm.Input.Targets, nil)
+			if err != nil {
+				return err
+			}
+			if err := h.AcquireUpdateRow(b.Ref, old, mode); err != nil {
+				return err
+			}
+			current, err := h.LatestRow(RowRequest{Kind: RowMerge, Ref: b.Ref, Row: old.Row, Physical: old.Version, Hint: -1, GrantMode: mode})
+			if err != nil {
+				return err
+			}
+			if !current.Live || current.Version.Version != old.Version {
+				return ErrTupleRecheck
+			}
+			old = current.Version
+			if err := h.PhysicalRowLock(b.Ref, old, mode); err != nil {
+				return err
+			}
+		}
 		if b.Relation.HasTriggers() {
 			targets := UpdateTargetAttributes(h, b.Ref, b.Relation, arm.Input.Targets, nil)
 			before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
@@ -441,7 +351,7 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 	var actionMode lock.MultiMode
 	if arm.Action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
-		if accepted[old.Row] {
+		if mergeAlreadyAccepted(accepted, old) {
 			return MergeCardinalityError()
 		}
 		keyChanged, err := UniqueKeyChanged(h, b.Ref, old.Values, row)
@@ -449,9 +359,17 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 			return err
 		}
 		if keyChanged {
-			if err := h.AcquireUpdateRow(b.Ref, old.Row, lock.ForUpdate); err != nil {
+			if err := h.AcquireUpdateRow(b.Ref, old, lock.ForUpdate); err != nil {
 				return err
 			}
+			current, err := h.LatestRow(RowRequest{Kind: RowMerge, Ref: b.Ref, Row: old.Row, Physical: old.Version, Hint: -1, GrantMode: lock.ForUpdate})
+			if err != nil {
+				return err
+			}
+			if !current.Live || current.Version.Version != old.Version {
+				return ErrTupleRecheck
+			}
+			old = current.Version
 		}
 		if err := ClaimUniqueRow(evaluation.Context, h, b.Ref, old); err != nil {
 			return err
@@ -461,20 +379,17 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
 		}
-		if err := h.PhysicalRowEvent(b.Ref, old, actionMode, 0); err != nil {
-			return err
-		}
 		*excluded = append(*excluded, old)
 		predecessor = old
 	}
 	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := CheckUniqueRow(evaluation.Context, h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
+		if err := CheckUniqueRow(evaluation.Context, h, b.Ref, &candidate, *excluded, mergeUniquePrefix(result.WriteBatch, pending)); err != nil {
 			return err
 		}
 	}
 	if arm.Action == parser.MergeUpdateAction {
-		accepted[old.Row] = true
+		accepted[old.Version] = true
 	}
 	result.Actions = append(result.Actions, MergeActionRow{Action: arm.Action, Payload: len(result.Values), UpdateMode: actionMode})
 	result.Predecessors = append(result.Predecessors, predecessor)

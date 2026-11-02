@@ -62,13 +62,10 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 	defer retained.Close()
 	snapshot := reader.Transactions.Roots[ref.Address]
 	snapshotEnds := snapshot.Ends
-	var snapshotEndEntries map[ids.RowID]storage.RowEnd
-	if snapshotEnds != nil {
-		snapshotEndEntries = maps.Clone(snapshotEnds.Rows)
-	}
+	snapshotEndEntries := snapshotEnds.Clone()
 	sessionSQL(t, writer, "DELETE FROM subject WHERE id<3")
 	ends := store.Ends
-	endEntries := maps.Clone(ends.Rows)
+	endEntries := ends.Clone()
 	deletedIndex := e.Storage.IndexRoots[indexRef.Address]
 	if deletedIndex == oldIndex || len(deletedIndex.Entries) != 1 || deletedIndex.Entries[0].Row != old[2].Row || deletedIndex.Entries[0].Version != old[2].Version || deletedIndex.Entries[0].Position != 2 {
 		t.Fatal("DELETE must publish a distinct one-live-key root without changing old slots", deletedIndex.Entries)
@@ -88,11 +85,11 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 		if snapshot.Storage != store || !storage.SameVersionRoot(snapshot.Versions, old) || snapshot.Ends != snapshotEnds {
 			t.Fatal(phase, "snapshot storage/vector/end ownership changed")
 		}
-		if snapshotEnds != nil && !reflect.DeepEqual(snapshotEnds.Rows, snapshotEndEntries) {
+		if !reflect.DeepEqual(snapshotEnds, snapshotEndEntries) {
 			t.Fatal(phase, "snapshot-owned end map changed")
 		}
-		if !reflect.DeepEqual(ends.Rows, endEntries) {
-			t.Fatal(phase, "retained committed end map changed", ends.Rows, endEntries)
+		if !reflect.DeepEqual(ends, endEntries) {
+			t.Fatal(phase, "retained committed end map changed", ends, endEntries)
 		}
 		if !reflect.DeepEqual(oldIndex.Entries, oldEntries) || !reflect.DeepEqual(oldIndex.Membership, oldMembership) || !reflect.DeepEqual(oldIndex.RowEntries, oldRowEntries) {
 			t.Fatal(phase, "pre-delete three-key root changed", oldIndex.Entries, oldEntries)
@@ -114,7 +111,7 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 	defer detached.Rows.Close()
 	sessionSQL(t, reader, "COMMIT")
 	sessionSQL(t, writer, "VACUUM subject")
-	if len(store.Versions) != 1 || store.Versions[0].Row != old[2].Row || store.Versions[0].Version != old[2].Version || len(store.Ends.Rows) != 0 || store.Maintenance.Dead != 0 {
+	if len(store.Versions) != 1 || store.Versions[0].Row != old[2].Row || store.Versions[0].Version != old[2].Version || store.Ends.Len() != 0 || store.Maintenance.Dead != 0 {
 		t.Fatal("quiescent pass did not retire exact dead heads", store)
 	}
 	assertRetained("quiescent compaction")

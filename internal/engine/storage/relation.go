@@ -10,9 +10,13 @@ import (
 // per logical row, plus immutable end markers. Published vectors/end roots
 // are retained by views; generation guards either.
 type Relation struct {
-	Versions    []RowVersion
-	Ends        *DeletionRoot
-	Retained    *HeapPredecessor
+	Versions []RowVersion
+	Ends     *DeletionRoot
+	Retained *HeapPredecessor
+	// Discarded owns genuine aborted physical versions, never visible without
+	// an exact-version repair. Headers is replaced, never mutated in place.
+	Discarded   *HeapPredecessor
+	Headers     *HeapHeaderRoot
 	Generation  uint64
 	IndexSource *Relation // Origin only on detached index-build captures.
 	// Metadata only, accessed under Engine.mu. Rows/end vectors are never
@@ -46,7 +50,13 @@ type RowVersion struct {
 	Born    ids.CommitSeq
 	// Canonical insertion provenance is distinct from the commit frontier.
 	InsertFullXID uint64
-	Frozen        bool
+	DeleteFullXID uint64
+	// ForcedFrozen bypasses insertion/end visibility for this exact physical
+	// version. Ordinary maintenance Frozen does not bypass a committed end.
+	ForcedFrozen bool
+	RepairStamp  uint64
+	ForcedEnd    ids.CommitSeq
+	Frozen       bool
 	// Detached committed imports have no XID in the target identity universe.
 	ImportFrozen bool
 	// The last committed key transition survives key restoration and payload
@@ -68,22 +78,29 @@ type RowVersion struct {
 // RowEnd marks the committed end of one row version. Roots are immutable
 // after transfer to a command view or committed storage.
 type RowEnd struct {
-	Version ids.VersionID
-	End     ids.CommitSeq
-	Moved   bool // Cross-partition UPDATE; waiters must not treat it as DELETE.
+	Row        ids.RowID
+	Version    ids.VersionID
+	End        ids.CommitSeq
+	EndFullXID uint64
+	Moved      bool // Cross-partition UPDATE; waiters must not treat it as DELETE.
 }
 
-// DeletionRoot holds the committed end markers of a relation, by row.
-type DeletionRoot struct{ Rows map[ids.RowID]RowEnd }
+// DeletionRoot owns committed ends. Rows is the single-version-per-row fast
+// path; Versions owns only supplementary same-RowID physical-version ends.
+// Published roots are immutable; use the exact-version methods for all access.
+type DeletionRoot struct {
+	Rows     map[ids.RowID]RowEnd
+	Versions map[ids.VersionID]RowEnd
+}
 
 // HeapPredecessor owns an immutable version header and genuine end facts.
 // Values remain shared immutable payloads. End zero belongs to the private
 // writer carrying this root; publication stamps detached nodes before transfer.
 type HeapPredecessor struct {
-	Version RowVersion
-	End ids.CommitSeq
+	Version    RowVersion
+	End        ids.CommitSeq
 	EndFullXID uint64
-	Next *HeapPredecessor
+	Next       *HeapPredecessor
 }
 
 func RetainHeapPredecessor(row RowVersion) *HeapPredecessor {

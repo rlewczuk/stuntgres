@@ -326,6 +326,9 @@ func (h *contribHost) PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, b
 func (h *contribHost) Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
 	return contrib.Pgvisibility[AuthorizationView](h.host(), n, oid, block)
 }
+func (h *contribHost) Pgsurgery(n plan.InstalledPgsurgeryExpr, oid uint32, tids sqltype.Value) error {
+	return contrib.Pgsurgery[AuthorizationView](h.host(), n, oid, tids)
+}
 
 func (h *contribHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
 	return contrib.Pageinspect[AuthorizationView](h.host(), n, oid)

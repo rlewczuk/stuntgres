@@ -16,10 +16,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// The write stage windows of dml.Stage. Each takes the owner mutex and then
-// Engine.mu, never waits, and runs on the scope's own stage; the callers in
-// update_versions.go, transaction.go and insert_returning.go keep the work
-// around them.
+// The write stage windows of dml.Stage take Owner.Mu then Engine.Mu for
+// acceptance. Exact-key repair readmission releases both before any manager
+// work; the final key check and accepted publication share one Engine window.
 
 // Active is the statement's activity check, before any candidate
 // validation or window.
@@ -80,9 +79,10 @@ func (h *statementHost) PrepareReplacement(ref ids.ObjectRef, old []storage.RowV
 		if admission == nil || !admission.Writable {
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
-		var small [8]ids.RowID
-		if s.Engine().Locks.MissingRowGrant(s.LockTicket, ref, dml.VersionRows(small[:0], old)) >= 0 {
-			return errors.New("stuntgres: internal action replacement requires its row grant")
+		for _, row := range old {
+			if !s.Engine().Locks.Holds(s.LockTicket, s.admittedTuple(ref, row), lock.ForNoKeyUpdate|lock.ForUpdate) {
+				return errors.New("stuntgres: internal action replacement requires its row grant")
+			}
 		}
 	}
 	return nil
@@ -90,14 +90,15 @@ func (h *statementHost) PrepareReplacement(ref ids.ObjectRef, old []storage.RowV
 
 // StageReplacement is the replacement window. The physical row events it
 // queues are flushed after unlocking on success and dropped on failure.
-func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, modes []lock.MultiMode, lane dml.ReplaceLane) (stale bool, err error) {
+func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, modes []lock.MultiMode, lane dml.ReplaceLane) (result dml.ReplacementStageResult, err error) {
 	s := h.scope()
+	result.RecheckIndex = -1
 	w := &s.Stage
 	rows := batch.Values
 	conflictDistinct, appendOnly := lane == dml.ReplaceConflict, lane != dml.ReplaceMerge
 	after := false
 	defer func() {
-		if err == nil && !stale && after {
+		if err == nil && !result.IndexStale && result.RecheckIndex < 0 && after {
 			var targets []int32
 			for i := len(s.BeforeTargets) - 1; i >= 0; i-- {
 				if s.BeforeTargets[i].Relation == ref {
@@ -119,56 +120,79 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			s.multiEvents = nil
 		}
 	}()
-	s.Owner.Mu.Lock()
+	if err := s.lockTupleStage(ref, old, modes, batch.ActionMode); err != nil {
+		return result, err
+	}
 	e := s.Engine()
-	e.Mu.Lock()
 	admission := e.PrivateCatalogLocked(s.PendingCatalog()).State()
 	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
 		e.Mu.Unlock()
 		s.Owner.Mu.Unlock()
-		return true, nil
+		result.IndexStale = true
+		return result, nil
 	}
 	defer s.Owner.Mu.Unlock()
 	defer e.Mu.Unlock()
 	if !s.worked || s.Owner.State == session.TxIdle || s.Owner.State == session.TxAborted {
-		return false, errors.New("stuntgres: inactive write stage")
+		return result, errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.Catalog.Domain {
-		return false, errors.New("stuntgres: foreign catalog reference")
+		return result, errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
-		return false, ids.ErrCatalogReplaced
+		return result, ids.ErrCatalogReplaced
 	}
 	if err := s.ValidateLockedRelation(e); err != nil {
-		return false, err
+		return result, err
 	}
 	if s.ForeignActionAuth != nil || !conflictDistinct && s.mutationStorage(ref) == nil && s.PartitionRelations[ref.Address] == nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
-			return false, err
+			return result, err
 		}
 	}
 	relation, ok := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
 	if !ok || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil || len(old) != len(rows) {
-		return false, errors.New("stuntgres: invalid update stage")
+		return result, errors.New("stuntgres: invalid update stage")
+	}
+	if batch.Accepted != nil && len(batch.Accepted) != len(rows) {
+		return result, errors.New("stuntgres: invalid accepted replacement window")
 	}
 	after = s.needsAfterRow(ref, relation, stored.TriggerUpdate)
 	for i, row := range rows {
 		if old[i].Row == 0 || old[i].Version == 0 || len(row) != len(relation.Columns) {
-			return false, errors.New("stuntgres: invalid staged row")
+			return result, errors.New("stuntgres: invalid staged row")
+		}
+	}
+	for i, predecessor := range old {
+		hint := -1
+		if len(old) == 1 && batch.PredecessorHintKnown {
+			hint = batch.PredecessorHint
+		}
+		if err := s.checkTupleProposalLocked(ref, predecessor, hint); err != nil {
+			if errors.Is(err, dml.ErrTupleRecheck) {
+				result.RecheckIndex = i
+				return result, nil
+			}
+			return result, err
 		}
 	}
 	if conflictDistinct {
 		if s.InsertConflict == nil || s.InsertConflict.Update == nil {
-			return false, errors.New("stuntgres: distinct replacement without conflict update")
+			return result, errors.New("stuntgres: distinct replacement without conflict update")
 		}
 		for _, predecessor := range old {
-			if _, affected := s.InsertConflict.AffectedRows[predecessor.Row]; affected {
-				return false, dml.ConflictUpdateCardinalityError()
+			if _, affected := s.InsertConflict.AffectedSlot(predecessor); affected {
+				return result, dml.ConflictUpdateCardinalityError()
 			}
 		}
 	}
 	if uint64(len(rows)) > ^uint64(0)-e.Storage.VersionFrontier() {
-		return false, errors.New("stuntgres: version identity exhausted")
+		return result, errors.New("stuntgres: version identity exhausted")
+	}
+	if len(rows) != 0 {
+		if err := e.AssignTransactionXIDLocked(s.TxRef); err != nil {
+			return result, err
+		}
 	}
 	var versions, distinctRows []storage.RowVersion
 	if appendOnly {
@@ -179,20 +203,26 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		versions = make([]storage.RowVersion, len(rows))
 	}
 	for i, row := range rows {
-		predecessor := old[i]
+		predecessor := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address).Headers.Apply(old[i])
 		if identity := batch.Candidate(i).Exclusion; identity != nil {
 			reserved := *identity
 			reserved.KeyChangedAt, reserved.PendingKeyChange = predecessor.KeyChangedAt, predecessor.PendingKeyChange
 			reserved.IndexAdmission = admission
 			reserved.PrivateHistory = storage.RetainHeapPredecessor(predecessor)
+			if predecessor.ForcedFrozen {
+				reserved.Base = predecessor.Version
+			}
 			versions[i] = reserved
 			continue
 		}
 		base := predecessor.Base
-		if predecessor.Born != 0 {
+		if predecessor.Born != 0 || predecessor.ForcedFrozen {
 			base = predecessor.Version
 		}
 		versions[i] = storage.RowVersion{Row: predecessor.Row, Version: e.Storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission, PrivateHistory: storage.RetainHeapPredecessor(predecessor)}
+	}
+	for i := range versions {
+		versions[i].InsertFullXID = e.Visibility.FullXIDLocked(s.TxRef)
 	}
 	if batch.States != nil {
 		for i := range versions {
@@ -204,7 +234,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			predecessor := old[i]
 			event := [1]visibility.SerializableWrite{{Row: row.Row, Version: row.Version, Base: predecessor.Version, BaseBorn: predecessor.Born, Creator: e.Visibility.SerializableCreatorLocked(predecessor.Version)}}
 			if err := e.SerializableWriteLocked(s, ref, event[:]); err != nil {
-				return false, err
+				return result, err
 			}
 		}
 	}
@@ -218,21 +248,24 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			w.Rows[ref.Address] = visibility.MergePrivateRows(w.Rows[ref.Address], versions, true)
 		}
 		w.Replacing = true
+		copy(batch.Accepted, versions)
+		store := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
+		store.Headers = storage.ReplaceHeapHeaders(store.Headers, versions, e.Visibility.FullXIDLocked(s.TxRef))
 		relevant := s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog()))
 		for i, next := range versions {
 			mode := batch.ActionMode
 			if mode == 0 {
 				mode = modes[i]
 			}
-			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: old[i].Row}, old[i].Version}, Mode: mode, Successor: next.Version})
+			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{Resource: s.admittedTuple(ref, old[i]), Version: old[i].Version}, Mode: mode, Successor: next.Version})
 			if relevant {
-				s.recordForeignEffect(ref, old[i], next)
+				s.recordForeignEffect(ref, next.PrivateHistory.Version, next)
 			}
 		}
 		e.initializeTemporaryBuffersLocked(s, ref)
 		s.recordStatsTuple(ref, 0, int64(len(versions)), 0)
 	}
-	return false, nil
+	return result, nil
 }
 
 // StageInsert is the canonical insert window: SQL producers validate each
@@ -252,6 +285,10 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 			}
 		}
 	}()
+	routedGrant := true
+	if _, update := s.Statement.(*parser.Update); update && s.PartitionInsert != nil {
+		routedGrant = s.Engine().Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.RowExclusive)
+	}
 	s.Owner.Mu.Lock()
 	e := s.Engine()
 	e.Mu.Lock()
@@ -280,7 +317,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 		if store == nil || store != e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) || s.View == nil || s.View.Data().GenerationAt(ref.Address) != store {
 			return false, ids.ErrCatalogReplaced
 		}
-		if !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.RowExclusive) {
+		if !routedGrant {
 			return false, errors.New("stuntgres: routed update requires its destination grant")
 		}
 	}
@@ -296,6 +333,9 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 		if len(row) != len(relation.Columns) {
 			return false, errors.New("stuntgres: invalid staged row width")
 		}
+	}
+	if batch.Accepted != nil && len(batch.Accepted) != len(rows) {
+		return false, errors.New("stuntgres: invalid accepted insertion window")
 	}
 	if s.InsertConflict != nil && s.InsertConflict.Update == nil {
 		s.InsertConflict.Affected = len(rows)
@@ -323,6 +363,9 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if err != nil {
 		return false, err
 	}
+	for i := range versions {
+		versions[i].InsertFullXID = e.Visibility.FullXIDLocked(s.TxRef)
+	}
 	if batch.States != nil {
 		for i := range versions {
 			versions[i].IndexOutputs = batch.States[i].Indexes
@@ -344,6 +387,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	} else {
 		w.Rows[ref.Address] = append(w.Rows[ref.Address], versions...)
 	}
+	copy(batch.Accepted, versions)
 	if s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		for _, next := range versions {
 			s.recordForeignEffect(ref, storage.RowVersion{}, next)
@@ -356,7 +400,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 
 // AppendAcceptedInsert is the same catalog and index authority as StageInsert
 // for one RETURNING row, appended to amortized stage storage.
-func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.WriteCandidate) (accepted, stale bool, err error) {
+func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.WriteCandidate) (accepted, stale bool, physical storage.RowVersion, err error) {
 	s := h.scope()
 	w := &s.Stage
 	row := candidate.Values
@@ -372,32 +416,32 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if !s.worked || s.Owner.State == session.TxIdle || s.Owner.State == session.TxAborted {
-		return false, false, errors.New("stuntgres: inactive write stage")
+		return false, false, storage.RowVersion{}, errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.Catalog.Domain {
-		return false, false, errors.New("stuntgres: foreign catalog reference")
+		return false, false, storage.RowVersion{}, errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.Owner.Ref.Epoch() {
-		return false, false, ids.ErrCatalogReplaced
+		return false, false, storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	catalog := e.PrivateCatalogLocked(s.PendingCatalog())
 	if s.UniqueBinding == nil || s.UniqueBinding.Catalog != catalog.State() {
-		return false, true, nil
+		return false, true, storage.RowVersion{}, nil
 	}
 	parent, ok := catalog.Relation(ref.Address)
 	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
-		return false, false, ids.ErrCatalogReplaced
+		return false, false, storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	after = s.needsAfterRow(ref, parent, stored.TriggerInsert)
 	if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
-		return false, false, errors.New("stuntgres: relation storage is missing")
+		return false, false, storage.RowVersion{}, errors.New("stuntgres: relation storage is missing")
 	}
 	if len(row) != len(parent.Columns) {
-		return false, false, errors.New("stuntgres: invalid staged row width")
+		return false, false, storage.RowVersion{}, errors.New("stuntgres: invalid staged row width")
 	}
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
-		return false, false, err
+		return false, false, storage.RowVersion{}, err
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
@@ -406,23 +450,27 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 		b.Ref, b.Relation = ref, parent
 	}
 	if err = analyze.CheckBinding(auth, b, &parser.Insert{}); err != nil {
-		return false, false, err
+		return false, false, storage.RowVersion{}, err
+	}
+	if err = e.AssignTransactionXIDLocked(s.TxRef); err != nil {
+		return false, false, storage.RowVersion{}, err
 	}
 	var version storage.RowVersion
 	if candidate.Exclusion != nil {
 		version = *candidate.Exclusion
 	} else {
 		if e.Storage.RowFrontier() == ^uint64(0) || e.Storage.VersionFrontier() == ^uint64(0) {
-			return false, false, errors.New("stuntgres: row or version identity exhausted")
+			return false, false, storage.RowVersion{}, errors.New("stuntgres: row or version identity exhausted")
 		}
 		version = storage.RowVersion{Row: e.Storage.AllocateRowLocked(), Version: e.Storage.AllocateVersionLocked(), Values: row}
 	}
+	version.InsertFullXID = e.Visibility.FullXIDLocked(s.TxRef)
 	version.IndexAdmission = catalog.State()
 	version.IndexOutputs = candidate.Indexes
 	if e.Visibility.RelevantSerializableLocked(s.TxRef) != nil {
 		events := [1]visibility.SerializableWrite{{Row: version.Row, Version: version.Version}}
 		if err = e.SerializableWriteLocked(s, ref, events[:]); err != nil {
-			return false, false, err
+			return false, false, storage.RowVersion{}, err
 		}
 	}
 	if w.Rows == nil {
@@ -434,10 +482,10 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	}
 	e.initializeTemporaryBuffersLocked(s, ref)
 	s.recordStatsTuple(ref, 1, 0, 0)
-	return true, false, nil
+	return true, false, version, nil
 }
 
 // Delete is WriteStage.Delete on the scope's own stage.
-func (h *statementHost) Delete(c visibility.DeleteCandidate) (bool, error) {
-	return h.scope().Writes().Delete(c)
+func (h *statementHost) Delete(c visibility.DeleteCandidate, expected storage.RowVersion) (bool, error) {
+	return h.scope().Writes().Delete(c, expected)
 }

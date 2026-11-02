@@ -59,7 +59,7 @@ func (b *Binder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 				if level(n.Frame) > ownerLevel {
 					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
 				}
-			case plan.TableOIDExpr:
+			case plan.SystemAttributeExpr:
 				if n.Scope != 0 && level(n.Frame) > ownerLevel {
 					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
 				}
@@ -136,7 +136,7 @@ func (b *Binder) argumentQueryOwner(walk func(func(expr.Expr))) (uint32, int) {
 		switch n := node.(type) {
 		case plan.ColumnExpr:
 			frame = n.Frame
-		case plan.TableOIDExpr:
+		case plan.SystemAttributeExpr:
 			frame = n.Frame
 		case plan.ReturningWholeRowExpr:
 			frame = n.Frame

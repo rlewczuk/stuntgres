@@ -662,8 +662,8 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
 	}
-	if column.TableOID {
-		return v.tableOIDSQL(catalog, column)
+	if column.SystemAttribute != 0 {
+		return v.systemAttributeSQL(catalog, column)
 	}
 	if column.RuleSide != 0 {
 		if v.RewriteInquiry {

@@ -167,6 +167,7 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 		b.QuerySources = binder.Query.Sources
 	}
 	b.UsedColumns = binder.Target.Uses
+	b.SystemAttributeRead = binder.Target.SystemAttributeRead
 	b.SubqueryDemand = binder.Query.subqueryDemand
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
 	b.ExportRoots = binder.Consumer.ExportRoots
@@ -243,9 +244,10 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 	relation, ref, insertTarget := b.Target.Relation, b.Target.Ref, b.Target.InsertTarget
 	updateParameters, updateInputs := b.Params.UpdateParameters, b.Params.updateInputParameters
 	deleteTarget, deleteSources := b.Target.deleteTarget, b.Target.deleteUsingSources
-	mergeWhen, mergeInput := b.Target.mergeWhen, b.Target.mergeInput
+	mergeWhenFrame, mergeInput := b.Target.mergeWhenFrame, b.Target.mergeInput
 	targetName, targetAlias, uses := b.Target.Name, b.Target.alias, b.Target.Uses
 	returningRead := b.Target.returningReadRequired
+	systemRead := b.Target.SystemAttributeRead
 	subqueries, visibility := b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot
 	exportRoots := b.Consumer.ExportRoots
 	singleInsert := b.Clause.stringSingleInsert
@@ -255,18 +257,21 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 		b.Target.Relation, b.Target.Ref, b.Target.InsertTarget = relation, ref, insertTarget
 		b.Params.UpdateParameters, b.Params.updateInputParameters = updateParameters, updateInputs
 		b.Target.deleteTarget, b.Target.deleteUsingSources = deleteTarget, deleteSources
-		b.Target.mergeWhen, b.Target.mergeInput = mergeWhen, mergeInput
+		b.Target.mergeWhenFrame, b.Target.mergeInput = mergeWhenFrame, mergeInput
 		b.Target.Name, b.Target.alias, b.Target.Uses = targetName, targetAlias, uses
 		b.Target.returningReadRequired = returningRead
+		b.Target.SystemAttributeRead = systemRead
 		b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = subqueries, visibility
 		b.Consumer.ExportRoots = exportRoots
 		b.Clause.stringSingleInsert = singleInsert
 	}()
 	b.Target.Relation, b.Target.Ref, b.Target.InsertTarget = nil, ids.ObjectRef{}, nil
 	b.Params.UpdateParameters, b.Params.updateInputParameters = false, nil
-	b.Target.deleteTarget, b.Target.deleteUsingSources, b.Target.mergeWhen, b.Target.mergeInput = false, false, false, false
+	b.Target.deleteTarget, b.Target.deleteUsingSources, b.Target.mergeInput = false, false, false
+	b.Target.mergeWhenFrame = 0
 	b.Target.Name, b.Target.alias, b.Target.Uses = "", "", nil
 	b.Target.returningReadRequired, b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = false, false, false
+	b.Target.SystemAttributeRead = false
 	b.Consumer.ExportRoots = false
 	b.Clause.stringSingleInsert = false
 	b.Query.Frame = 0 // Installed mutation/RETURNING row frames are frame 1.

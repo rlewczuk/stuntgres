@@ -70,10 +70,21 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		})
 		enginetest.SessionSQL(t, peer, "COMMIT")
 		before := serializableSnapshotPublication(e)
+		target := enginetest.RoleTableRef(t, e, "hold_ssi")
+		backing := e.Storage.Relations[target.Address]
+		abortBacking := enginetest.CaptureHeapAbort(backing)
+		created := s.Transactions.Writes[target.Address]
+		roles := e.RoleStore.Published
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
 		serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 		after := serializableSnapshotPublication(e)
-		if result.Rows != nil || calls != 1 || !core.CursorPromoted(c) || core.CursorCount(c) != 1 || c.Source != nil || core.CursorAuthority(c) != nil || e.Catalog.State != before.catalog || e.Visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
+		enginetest.AssertHeapAbort(t, backing, abortBacking, 1, created...)
+		// The snapshot's generation includes physical slots. Assert that exact
+		// disposal above, then retain the full committed storage/index comparison.
+		targetAfter := after.storage[target.Address]
+		targetAfter.generation = before.storage[target.Address].generation
+		after.storage[target.Address] = targetAfter
+		if result.Rows != nil || calls != 1 || !core.CursorPromoted(c) || core.CursorCount(c) != 1 || c.Source != nil || core.CursorAuthority(c) != nil || e.Catalog.State != before.catalog || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
 			t.Fatal("final SSI failure retracts export or publishes private storage", result, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{{int64(10)}})

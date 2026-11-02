@@ -4,8 +4,8 @@ The engine's physical data layer: committed relation storage and row
 versions, deletion roots, logical B-tree/hash/GiST/SP-GiST/GIN/BRIN/bloom index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
-and never the engine.
+It imports only `catalog`, `expr`, `ids`, `sqltype`, SQL-independent `util`
+and the standard library, and never the engine.
 
 ## What it owns
 
@@ -29,9 +29,40 @@ and never the engine.
   two version roots by identity. `IndexIdentity` names the
   storage an index root was built from. `RowByID` finds a row by its stable
   `RowID`, trying a captured position first.
+  `PhysicalVersion(VersionID, hint)` resolves an exact genuine physical version,
+  validating a known committed-vector ordinal before its constant-work lookup.
+  Unknown or stale hints fall back across committed, retained, discarded and
+  repaired additional roots, never to a same-RowID head. Every result applies
+  the current immutable header root while sharing the original payload.
   `Generation` advances on ordinary DML publication as well as physical changes;
   it is a tuple-root revision, not an immutable heap-incarnation token. The heap
   pointer identifies the storage incarnation; rewrites install a new pointer.
+  `heap_headers.go` owns immutable exact-VersionID repair/header roots and the
+  shared logical TID bijection. `HeapXmin`/`HeapXmax` read captured physical
+  insertion/deletion facts; freezing one version never substitutes its RowID's
+  current head. `Discarded` retains genuine accepted private versions across
+  owner disposal, sharing immutable payloads. Reserved allocator identities and
+  rejected pre-insertion inputs do not create heap slots. Captures retain their
+  original header roots; fresh sources enumerate repaired additional versions
+  once by VersionID. Repair publication is deliberately outside transaction
+  undo, while later genuine DML still uses its actual admission/end provenance.
+  `HeapHeaderRoot.Versions` is the sole exact-header authority, an immutable
+  `util.PersistentMap`: `Get`, `Set` and `All` preserve captured versions.
+  Publications share unchanged trie nodes and payload backing; per-row UPDATE
+  and DELETE copy only changed search paths, not the complete growing map.
+  Commit end stamping shares the xmax publication pass. Nil roots and unchanged
+  admission paths retain their identity without allocating.
+  Sparse `HeapHeader.TupleLockVersion`/`TupleLockStamp` name repaired tuple-lock
+  lineages: zero pairs retain ordinary RowID arbitration; exact repair assigns
+  its own version and fresh stamp, and accepted successors inherit that pair
+  through `ReplaceHeapHeaders`. Re-repair splits only its exact target. Header
+  transport and retention preserve pairs; genuine slot retirement and fresh
+  imports carry no live tuple-lock anchor. RowVersion carries no anchor copy.
+  `DeletionRoot.Lookup(RowID, VersionID)` selects only the exact physical end.
+  `Rows` is its ordinary fast path; supplementary `Versions` owns other ends
+  sharing the RowID, each once. `All` enumerates every fact, `Clone` detaches both
+  maps, and `Set`/`Delete` mutate only unpublished roots. Maintenance and rewrite
+  preserve or retire individual physical ends without erasing sibling markers.
 - **Logical heap verification** (`verify_heapam.go`): `HeapVerification` borrows
   live column usages/stable attributes and immutable committed/own version/end
   roots. `VerifyHeapam` checks exact typed admission and bounded identity,
@@ -47,6 +78,12 @@ and never the engine.
   key `HashBinding`, and `IndexOutput`, an index membership/key a private
   row already produced. `CaptureRowEntries` builds the per-row hash entry
   index for exclusion indexes with runtime domain key conversion.
+  `index_identity.go` owns exact-version partial membership and stored-key lookup.
+  Existing per-row maps retain the ordinary fast path; supplemental VersionID maps
+  own genuine collisions once. All lookups require the requested exact version.
+  Fresh construction/maintenance uses `SetMember`/`SetRowEntry`; captured roots and
+  hash bucket pointers remain immutable. Incremental GIN retirement sets likewise
+  carry every actual VersionID with its RowID association, not one end per RowID.
   `IndexRoot.Construction` is an opaque immutable index-owner provenance payload.
   Storage transports preserve it; they cannot mint a new full-build recipe.
   Index roots contain only current logical membership; tuple/page statistics
@@ -311,10 +348,12 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   per-session currval/lastval memories of [`sequence`](../sequence/README.md).
   Never add live catalog undo or per-CACHE arrays for it.
 - **Maintenance provenance.** `RowVersion.InsertFullXID` is actual canonical
-  committed publisher identity, independent of Born CommitSeq. Frozen headers
-  retain it. `ImportFrozen` explicitly denotes an atomically committed detached
-  foreign import without fictional source/target XID; ordinary self replacement
-  preserves provenance. `Relation.Maintenance` holds coherent logical facts.
+  committed publisher identity, independent of Born CommitSeq. Ordinary `Frozen`
+  is a visibility flag: `HeapXmin` still exposes the original raw insertion XID.
+  Exact `ForcedFrozen` repair exposes raw xmin 2/xmax 0 while retaining publisher
+  provenance. `ImportFrozen` denotes an atomically committed detached import
+  without fictional source/target XID and exposes raw xmin 2; ordinary self
+  replacement preserves provenance. `Relation.Maintenance` holds coherent logical facts.
   Same-object storage rewrites copy cumulative maintenance from the validated
   current predecessor inside publication, not stale prepare-time facts.
   `Maintenance.RecordBirth` clamps an existing full-width bound against each
@@ -336,9 +375,20 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   BRIN compaction dispatches through the index owner's
   conservative destination-range reconstruction, never generic entry remapping.
   No-change passes retain roots; no row/version IDs are minted.
-  `InspectRetainedVacuum` applies the same conservative snapshot gate to real
-  committed heap predecessors; old captured roots remain immutable. Statistics
-  collection only borrows these roots. Index roots have no physical-item archive.
+  `MaintainHeapHistory` applies that gate to actual committed predecessors and
+  discarded versions using the captured exact-version `HeapHeaderRoot`. A repaired
+  live version survives maintenance, including a version absent from the head
+  vector. Eligible retirement records only genuine allocated redirect/dead/unused
+  slots and releases their payloads; arbitrary missing coordinates create nothing.
+  Redirect targets come only from accepted UPDATE successor links to genuine
+  surviving normal slots, never RowID equality or following an existing redirect.
+  Index cleanup determines whether an indexed retired slot remains dead.
+  `EffectiveHeapRows` shares untouched vectors; `MapHeapHeaderRows` transports
+  repaired payloads without changing immutable header authority or old captures.
+  `RewriteHeapVacuum` promotes visible repaired additional versions and preserves
+  the existing rewrite RowID/VersionID/insertion identity contract. Independent
+  control imports remint identities and clear physical history/header roots.
+  Statistics collection only borrows these roots. Index roots have no physical-item archive.
   `pgstattuple.go` owns Dirty/Vacuum classification and checked deterministic
   page/byte/percentage arithmetic, not a second statistics store.
   `pgfreespace.go` owns a separate compact live-population model. Each visible
@@ -360,10 +410,12 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   and exact flag counts without expanding pages for scalar/summary calls.
   Universal proof requires genuine committed frozen provenance, no unresolved end
   and every known protected CommitSeq; unknown snapshots clear positive flags.
-  Raw tuple-maintenance evidence independently clears all-frozen. VM layout is
-  derived from frozen headers, not from positive flags: coverage rounds the
-  highest intersected frozen block to a 32672-block VM page. Unknown catalog
-  provenance uses actual producer allocation with conservative false bits.
+  Effective tuple-maintenance evidence independently clears all-frozen; the
+  caller derives it from active ownership and genuine full-XID provenance
+  against an installed maintenance cutoff, never the SQL raw xmin value.
+  VM layout is derived from frozen headers, not from positive flags: coverage
+  rounds the highest intersected frozen block to a 32672-block VM page.
+  Unknown catalog provenance uses actual producer allocation with conservative false bits.
   FULL instead uses `RewriteVacuum` and `NewRewriteRelation`: always fresh
   incarnation/header/end containers, dense surviving placement, stable row,
   version and insertion identities, and shared immutable datum backing.
@@ -436,6 +488,19 @@ fork base is not a PostgreSQL page size.
 
 ## Testing
 
+Exact physical-header ownership, validated position hints, discarded-root sharing
+and repaired-source selection use
+`RUN='^TestPgsurgeryFreeze(Storage|PhysicalVersionHints|DiscardedRoots)$'`.
+Immutable intermediate headers, successor chains and publication allocation
+growth use `RUN='^TestPgsurgeryFreezeHeader'`; the no-op units require zero
+allocations and bytes for unchanged ordinary and rejected stale paths.
+The shared TID boundary/packing unit is `RUN='^TestLogicalTID$'`.
+
+Exact physical end collisions, immutable clone/removal and maintenance transport
+use `RUN='^TestDeletionRoot'`.
+Canonical index collision metadata and compaction ownership use
+`RUN='^TestPgsurgeryFreezeIndexVersions'`.
+
 Signed-dimension collection invariants that require real `plan` expression
 recipes live in external `enginetests/`, avoiding a storage→plan→storage test
 variant import cycle. Pure collector and snapshot-codec units remain local.
@@ -444,6 +509,8 @@ composed retention, publication and race witnesses live with core.
 Freespace layout, released identity and composed capture ownership use
 `RUN='^TestPgFreespace'`.
 Visibility layout/classification and composed owner proofs use `RUN='^TestPgvisibility'`.
+Exact-version maintenance, slot lifecycle, immutable payload transports and
+generation fences use `RUN='^TestPgsurgeryFreezeMaintenance'`.
 
 MCV collection, full marginals, typed collision chains and immutable construction
 facts use `make check RUN='^TestStatisticsMCVCollection$'`.

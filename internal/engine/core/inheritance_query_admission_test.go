@@ -26,7 +26,7 @@ import (
 func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	e := engine.New()
 	parentStage, p := queryCreateStage(t, e, "p", 1)
-	if err := e.StageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, parentStage)
@@ -35,7 +35,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
-	if err := e.StageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
@@ -106,7 +106,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	queryCreatePublish(t, e, remove)
 	replacementStage, replacement := queryCreateStage(t, e, "c", 1)
 	inherit(replacement)
-	if err = e.StageQueryTableRows(context.Background(), replacementStage, replacement, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, ids.TxRef{}); err != nil {
+	if err = e.StageQueryTableRows(context.Background(), replacementStage, replacement, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, replacementStage)

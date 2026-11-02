@@ -190,6 +190,17 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	} else {
 		ownDeletes = visibility.MergeDeletions(ownDeletes, s.Stage.Deletes)
 	}
+	if !policy.readOnly {
+		// A nested command publishes immutable own-delete facts, while the
+		// enclosing statement may keep mutating its unpublished stage. Merge
+		// already clones overlapping roots; detach only roots still borrowed
+		// directly from that mutable stage, including both collision maps.
+		for address, root := range s.Stage.Deletes {
+			if ownDeletes[address] == root {
+				ownDeletes[address] = root.Clone()
+			}
+		}
+	}
 	// Nonvolatile bodies inherit the caller's already admitted immutable
 	// frontier, not the current journal after argument evaluation. VOLATILE
 	// commands leave it empty for fresh command admission (including the

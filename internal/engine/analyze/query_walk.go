@@ -34,7 +34,7 @@ func ExpressionUsesFrame(bound expr.Expr, frame uint32) bool {
 		switch e := expr.(type) {
 		case plan.ColumnExpr:
 			found = found || e.Frame == frame
-		case plan.TableOIDExpr:
+		case plan.SystemAttributeExpr:
 			found = found || e.Scope != 0 && e.Frame == frame
 		case plan.ReturningWholeRowExpr:
 			found = found || e.Frame == frame
@@ -68,7 +68,7 @@ func FirstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 			switch e := expr.(type) {
 			case plan.ColumnExpr:
 				matched = e.Frame == frame
-			case plan.TableOIDExpr:
+			case plan.SystemAttributeExpr:
 				matched = e.Scope != 0 && e.Frame == frame
 			case plan.ReturningWholeRowExpr:
 				matched = e.Frame == frame
@@ -225,7 +225,7 @@ func QueryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 					switch n := expr.(type) {
 					case plan.ColumnExpr:
 						frame = n.Frame
-					case plan.TableOIDExpr:
+					case plan.SystemAttributeExpr:
 						frame = n.Frame
 					case plan.ReturningWholeRowExpr:
 						frame = n.Frame

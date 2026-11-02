@@ -1010,6 +1010,13 @@ reviewed decision:
   children and checked formal slots preserve evaluation order. Scalar records
   and relation sets have separate source cardinality. Calls remain VOLATILE,
   stage dependent and nonfolding; authority precedes runtime STRICT handling.
+  `Pgsurgery` binds the sealed freeze declaration through ordinary REGCLASS and
+  TID-array coercion. Named `reloid`/`tids` inputs retain lexical order with checked
+  formal slots. The VOID recipe remains volatile, stage dependent and nonfolding;
+  reconstruction owns children without borrowing execution authority.
+  Kernel and installed wrapper own separate statement discriminators, including
+  formal-slot projection; the analyzed visitor retains callable identity and
+  lexical operands without evaluating them.
   `Pageinspect` binds the installed BRIN, B-tree, FSM, GIN, hash, heap and raw
   header/checksum byte decoders through the same handle. Children remain in
   native written order with six checked formal slots; flags use two INT4 formals,
@@ -1618,6 +1625,8 @@ publication and lock-manager tickets stay in the engine.
 Encoding-name and keyword binding, protocol and cursor units use
 `RUN='^TestEncodingKeywords'`; public scenarios live in `reference/catalogs`.
 Installed visibility recipe and composed owner units use `RUN='^TestPgvisibility'`.
+Surgery binding and composed definition ownership use
+`RUN='^TestPgsurgeryFreezeProvider'`.
 
 Visibility inquiry binding/protocol and composed capture ownership use
 `RUN='^Test(VisibilityInquiry|BooleanCall)'`; public scenarios live in

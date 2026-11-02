@@ -81,6 +81,9 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 		return Outcome{}, err
 	}
 	inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
+	if _, err := captureMutationXmax(h, b, target, inputs); err != nil {
+		return Outcome{}, err
+	}
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, IdentityReads: MergeHasIdentityReads(b.Merge)}
 	state.Methods = h.AdmittedPlannerMethods()
@@ -100,6 +103,7 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	if err != nil {
 		return Outcome{}, err
 	}
+	defer rows.ReleaseProducer()
 	complete := false
 	defer func() {
 		if !complete && rows.Returning != nil {

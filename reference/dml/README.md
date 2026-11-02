@@ -15,6 +15,9 @@ Column expressions use the same explicit namespace rules as queries: target,
 source and RETURNING visibility belong to their statement clause, not to the
 number of written name components. Aliases hide base names; qualification does
 not grant read privileges or expose an INSERT producer's destination.
+MERGE system-column scenarios distinguish physical WHEN restrictions from legal
+ON/action projections, tableoid conditions, nested SELECT environments and
+same-named ordinary derived columns.
 
 ## Testing
 

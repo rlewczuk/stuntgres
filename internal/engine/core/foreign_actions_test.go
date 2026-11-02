@@ -159,7 +159,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
 	before := len(core.ScopeForeignActionsOrZero(scope).Transitions)
-	if err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
+	if _, err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
 	if len(core.ScopeForeignActionsOrZero(scope).Transitions) != before {
@@ -168,7 +168,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = core.ScopeAdmitForeignAction(scope, ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.ForeignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
+	if err = scope.ForeignKeyGrant(ref, old, lock.ForUpdate, children.Storage); err != nil {
 		t.Fatal(err)
 	}
 	if err = core.WriteStageDeleteForeignAction(&scope.Stage, ref, old); err == nil {
@@ -179,7 +179,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	scope.WriteHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
 	core.ScopeForeignActions(scope).Settling = true
-	if err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
+	if _, err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	scope.ForeignActionAuth = nil

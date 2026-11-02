@@ -46,7 +46,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 						switch n := node.(type) {
 						case plan.ColumnExpr:
 							refs = append(refs, n.Origin)
-						case plan.TableOIDExpr:
+						case plan.SystemAttributeExpr:
 							refs = append(refs, n.Owner)
 						}
 					})

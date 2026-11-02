@@ -34,7 +34,7 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 	if store.Versions[0].Born != frontier+1 || store.Versions[0].Base != 0 || store.Versions[2].Born != frontier+1 {
 		t.Fatal("replacement/insert frontier", store.Versions)
 	}
-	if store.Ends == nil || store.Ends.Rows[store.Versions[1].Row].End != frontier+1 {
+	if end, ok := store.Ends.Lookup(store.Versions[1].Row, store.Versions[1].Version); !ok || end.End != frontier+1 {
 		t.Fatal("delete frontier", store.Ends)
 	}
 	peer := enginetest.StartSession(t, e, nil)

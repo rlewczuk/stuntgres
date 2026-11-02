@@ -66,7 +66,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			}
 			s.Stage.Rows[a] = append(s.Stage.Rows[a], storage.RowVersion{Row: 2, Version: 2})
 			failedRows := s.Stage.Rows[a]
-			s.Stage.Deletes[a].Rows[8] = visibility.DeleteCandidate{Row: 8, Version: 8}
+			s.Stage.Deletes[a].Set(visibility.DeleteCandidate{Row: 8, Version: 8})
 			core.ScopeForeignActionsSlot(s).Admissions[a].Mutated = true
 			core.ScopeForeignActionsSlot(s).Admissions[a].Jobs[0].ChildKey[0] = sqltype.String(text, "inner")
 			core.ScopeForeignActionsSlot(s).Transitions[0].Checked = true
@@ -94,7 +94,8 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			if err := s.EndPLException(mark, true, errors.New("body")); err != nil {
 				t.Fatal(err)
 			}
-			if len(s.Stage.Rows[a]) != 1 || s.Stage.Rows[a][0].Version != 1 || s.Stage.Replacing || len(s.Stage.Deletes[a].Rows) != 1 || s.Stage.Deletes[a].Rows[7].Version != 7 {
+			deleted, deletedOK := s.Stage.Deletes[a].Lookup(7, 7)
+			if len(s.Stage.Rows[a]) != 1 || s.Stage.Rows[a][0].Version != 1 || s.Stage.Replacing || s.Stage.Deletes[a].Len() != 1 || !deletedOK || deleted.Version != 7 {
 				t.Fatal("stage prefix/deletion root not restored")
 			}
 			s.Stage.Rows[a] = append(s.Stage.Rows[a], storage.RowVersion{Row: 9, Version: 9})
@@ -107,7 +108,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			if len(core.ScopeIndexesSlot(s).ExistingOutputs[a]) != 1 || core.ScopeIndexesSlot(s).ConstraintModes.ByConstraint[1] || len(core.ScopeIndexesSlot(s).ConstraintModes.Events) != 1 || len(core.ScopeMultiEvents(s)) != 0 || len(core.ScopeNotificationEvents(s)) != 1 {
 				t.Fatal("index/exclusion/notification suffix leaked")
 			}
-			if s.Op.Session.Settings.Values["application_name"] != "outer" || len(s.OwnWrites[a]) != 1 || len(s.OwnDeletes[a].Rows) != 1 {
+			if s.Op.Session.Settings.Values["application_name"] != "outer" || len(s.OwnWrites[a]) != 1 || s.OwnDeletes[a].Len() != 1 {
 				t.Fatal("settings/own read roots not restored")
 			}
 			if s.TxRef != ref || s.Owner.Command != command || e.Visibility.CommitSeq() != frontier || core.ScopeEffectSerial(s) != 9 || e.Storage.RowFrontier() != rowFrontier || e.Storage.VersionFrontier() != versionFrontier {

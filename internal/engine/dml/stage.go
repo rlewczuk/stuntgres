@@ -88,13 +88,13 @@ func ApplyValidated(ctx context.Context, h Host, ref ids.ObjectRef, batch index.
 // accepted physical target distinct through its frozen scan / FROM winner
 // gate and excludes existing staged RowIDs; ReplaceConflict is for ON
 // CONFLICT DO UPDATE, which proves cardinality through its affected-row set.
-func ReplaceRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, lane ReplaceLane) error {
+func ReplaceRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, lane ReplaceLane) (int, error) {
 	rows := batch.Values
 	if err := h.PrepareReplacement(ref, old); err != nil {
-		return err
+		return -1, err
 	}
 	if len(old) != len(rows) {
-		return errors.New("stuntgres: invalid replacement shape")
+		return -1, errors.New("stuntgres: invalid replacement shape")
 	}
 	// Production callers always give an ActionMode; only the per-row
 	// fallback allocates, because modes escapes through the host.
@@ -107,7 +107,7 @@ func ReplaceRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.R
 		if mode == 0 {
 			changed, failure := UniqueKeyChanged(h, ref, predecessor.Values, rows[i])
 			if failure != nil {
-				return failure
+				return -1, failure
 			}
 			mode = lock.MultiNoKeyAction
 			if changed {
@@ -116,26 +116,32 @@ func ReplaceRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.R
 			modes[i] = mode
 		}
 		if mode != lock.MultiNoKeyAction && mode != lock.MultiUpdateAction {
-			return errors.New("stuntgres: invalid replacement action intent")
+			return -1, errors.New("stuntgres: invalid replacement action intent")
 		}
 		grant := lock.ForNoKeyUpdate
 		if mode == lock.MultiUpdateAction {
 			grant = lock.ForUpdate
 		}
-		if err := h.AcquireUpdateRow(ref, predecessor.Row, grant); err != nil {
-			return err
+		if err := h.AcquireUpdateRow(ref, predecessor, grant); err != nil {
+			return -1, err
 		}
 	}
 	for {
 		if err := ValidateIndexCandidates(h, ref, &batch); err != nil {
-			return err
+			return -1, err
 		}
-		stale, err := h.StageReplacement(ref, old, batch, modes, lane)
-		if err != nil || !stale {
-			return err
+		result, err := h.StageReplacement(ref, old, batch, modes, lane)
+		if err != nil {
+			return -1, err
+		}
+		if result.RecheckIndex >= 0 {
+			return result.RecheckIndex, ErrTupleRecheck
+		}
+		if !result.IndexStale {
+			return -1, nil
 		}
 		if err := revalidateIndexRows(ctx, h, ref, old, &batch); err != nil {
-			return err
+			return -1, err
 		}
 	}
 }

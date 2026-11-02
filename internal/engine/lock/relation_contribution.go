@@ -23,6 +23,9 @@ func relationModeSlot(mode Mode) int {
 	if mode == Share {
 		return 1
 	}
+	if mode == RowExclusive {
+		return 2
+	}
 	return 0
 }
 
@@ -34,13 +37,16 @@ func (h Hold) scopedModes() Mode {
 	if h.scoped[1] != 0 {
 		mode |= Share
 	}
+	if h.scoped[2] != 0 {
+		mode |= RowExclusive
+	}
 	return mode
 }
 
 // StartAcquireRelation uses the ordinary queue and grant publication boundary,
 // but records scoped ownership independently of idempotent transaction grants.
 func (m *Manager) StartAcquireRelation(ctx context.Context, t *Ticket, resource Resource, mode Mode, policy Policy, contribution *RelationContribution) (*Request, error) {
-	if contribution == nil || resource.Kind != OrdinaryResource || resource.Address.ClassID != ids.RelationClassID || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.completion != nil || mode != AccessShare && mode != Share {
+	if contribution == nil || resource.Kind != OrdinaryResource || resource.Address.ClassID != ids.RelationClassID || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.completion != nil || mode != AccessShare && mode != Share && mode != RowExclusive {
 		return nil, errors.New("stuntgres: invalid scoped relation request")
 	}
 	return m.startAcquire(ctx, t, resource, mode, policy, contribution)

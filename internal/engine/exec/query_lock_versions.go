@@ -2,6 +2,29 @@ package exec
 
 import "stuntgres/internal/engine/storage"
 
+// ProjectedQueryVersions borrows an accepted rowmark frontier's exact physical
+// vector. Materializing consumers may retain this immutable slice, never its
+// cursor or closed Source owner. Ordinary identity-only sources return nil.
+func ProjectedQueryVersions(source *Source, index int) []storage.RowVersion {
+	if source == nil || index == AbsentQueryIndex {
+		return nil
+	}
+	width := len(source.Occurrences)
+	if width > 0 && (index+1)*width <= len(source.Versions) && (source.VersionValid == nil || index < len(source.VersionValid) && source.VersionValid[index]) {
+		return source.Versions[index*width : (index+1)*width]
+	}
+	if source.Input != nil {
+		return ProjectedQueryVersions(source.Input, source.InputIndex(index))
+	}
+	if source.Lineage != nil {
+		if source.Lineage.Selection != nil {
+			index = source.Lineage.Selection[index]
+		}
+		return ProjectedQueryVersions(source.Lineage.Stage, index)
+	}
+	return nil
+}
+
 // A materialized candidate owns version identity alongside physical provenance.
 // Later explicit marks compare against the version this candidate actually
 // carries, not an earlier leaf capture, so an already completed local recheck

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -53,6 +54,9 @@ func projectInsertReturning(h Host, row, old []sqltype.Value, c *exec.Context) e
 	evaluation := *c
 	evaluation.Scope, evaluation.Frame = 1, 1
 	evaluation.Row, evaluation.OldRow = row, old
+	if err := exec.CaptureReturningXmax(&evaluation, returningReadsXmax(output.Binding.Returning)); err != nil {
+		return err
+	}
 	for i, expr := range output.Binding.Returning.Expressions {
 		value, err := expr.Eval(&evaluation)
 		if err != nil {
@@ -134,12 +138,15 @@ func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candi
 		if err != nil || !admitted {
 			return false, err
 		}
-		accepted, retry, err := AppendAcceptedInsert(h, ref, &proposal)
+		accepted, retry, physical, err := AppendAcceptedInsert(h, ref, &proposal)
 		if err != nil {
 			return false, err
 		}
 		if retry {
 			continue
+		}
+		if accepted {
+			evaluation.PhysicalTable, evaluation.PhysicalVersion = ref, physical
 		}
 		if accepted && command.PartitionInsert != nil && named != ref && NeedsTransition(command.InsertReturning.Binding.Relation, stored.TriggerInsert) {
 			if err := captureTransition(h, command.InsertReturning.Binding, stored.TriggerInsert, nil, row); err != nil {
@@ -154,10 +161,10 @@ func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candi
 // catalog and index authority as canonical batch staging, which performs
 // the final gate. stale reports a moved unique binding: the caller
 // revalidates and retries.
-func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate) (accepted, stale bool, err error) {
+func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate) (accepted, stale bool, physical storage.RowVersion, err error) {
 	row := candidate.Values
 	if err := h.Active(); err != nil {
-		return false, false, err
+		return false, false, storage.RowVersion{}, err
 	}
 	values := [1][]sqltype.Value{row}
 	states := [1]index.WriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion}}
@@ -166,7 +173,7 @@ func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandi
 		batch.States = states[:]
 	}
 	if err := ValidateIndexCandidates(h, ref, &batch); err != nil {
-		return false, false, err
+		return false, false, storage.RowVersion{}, err
 	}
 	*candidate = batch.Candidate(0)
 	return h.AppendAcceptedInsert(ref, *candidate)

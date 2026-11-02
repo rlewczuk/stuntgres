@@ -240,6 +240,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.registerExtension("tsm_system_rows", extension.StockSystemRows); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("pg_surgery", extension.StockPgsurgery); err != nil {
+		return nil, err
+	}
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer

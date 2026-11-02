@@ -101,11 +101,11 @@ func CheckDeferredForeignKey(h FinishHost, event index.ConstraintEvent) error {
 		})
 	}
 	private := h.PrivateRows(payload.Child.Address)
-	row, _, live := storage.RowByID(private.Staged, event.Row, -1)
+	row, _, live := storage.RowByVersion(private.Staged, event.Row, event.Version, -1)
 	if !live {
-		row, _, live = storage.RowByID(private.Own, event.Row, -1)
+		row, _, live = storage.RowByVersion(private.Own, event.Row, event.Version, -1)
 	}
-	if !live || row.Version != event.Version || index.UniqueRowDeleted(event.Row, private.OwnDeletes, private.StagedDeletes) {
+	if !live || index.UniqueRowDeleted(row, private.OwnDeletes, private.StagedDeletes) {
 		return nil
 	}
 	any, all := table.ForeignKeyNullState(job.Comparisons, row.Values)

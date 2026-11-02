@@ -206,17 +206,17 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 		t.Fatal("copied scope acquired a row")
 	}
 	var absent *core.WriteStage
-	if _, err := absent.Delete(candidate); err == nil {
+	if _, err := absent.Delete(candidate, version); err == nil {
 		t.Fatal("nil stage accepted")
 	}
-	if _, err := scope.Writes().Delete(candidate); err == nil {
+	if _, err := scope.Writes().Delete(candidate, version); err == nil {
 		t.Fatal("ungranted deletion accepted")
 	}
 	if err := core.ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	copied := *scope.Writes()
-	if _, err := copied.Delete(candidate); err == nil {
+	if _, err := copied.Delete(candidate, version); err == nil {
 		t.Fatal("copied stage accepted")
 	}
 	invalidStorage := *candidate.Storage
@@ -225,29 +225,29 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	if err := core.ScopeAcquireRow(scope, invalid); err == nil {
 		t.Fatal("copied storage acquired a row")
 	}
-	if _, err := scope.Writes().Delete(invalid); err == nil {
+	if _, err := scope.Writes().Delete(invalid, version); err == nil {
 		t.Fatal("copied storage accepted")
 	}
 	invalid = candidate
 	invalid.Version++
-	if _, err := scope.Writes().Delete(invalid); err == nil {
+	if _, err := scope.Writes().Delete(invalid, version); err == nil {
 		t.Fatal("wrong version accepted")
 	}
 	invalid = candidate
 	invalid.Ordinal = 1
-	if _, err := scope.Writes().Delete(invalid); err == nil {
+	if _, err := scope.Writes().Delete(invalid, version); err == nil {
 		t.Fatal("equal-value row substituted")
 	}
-	if ok, err := scope.Writes().Delete(candidate); !ok || err != nil {
+	if ok, err := scope.Writes().Delete(candidate, version); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
-	if _, err := scope.Writes().Delete(candidate); err == nil {
+	if _, err := scope.Writes().Delete(candidate, version); err == nil {
 		t.Fatal("duplicate stage accepted")
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := scope.Writes().Delete(candidate); err == nil {
+	if _, err := scope.Writes().Delete(candidate, version); err == nil {
 		t.Fatal("finished stage accepted")
 	}
 	enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY v", 1)
@@ -269,7 +269,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	replacement := *b.Storage
 	e.Storage.InstallRelationLocked(b.Ref.Address, &replacement)
 	e.Mu.Unlock()
-	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := scope.Writes().Delete(candidate, version); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
 	}
 	if err := core.ScopeAcquireRow(scope, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -297,15 +297,18 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			frontier := e.Visibility.CommitSeq()
 			switch failure {
 			case "wrong_version":
-				for id, candidate := range a.Transactions.Deletes[target.Address].Rows {
+				root := a.Transactions.Deletes[target.Address]
+				for id, candidate := range root.Clone().All() {
+					root.Delete(id, candidate.Version)
 					candidate.Version++
-					a.Transactions.Deletes[target.Address].Rows[id] = candidate
+					root.Set(candidate)
 				}
 			case "copied_storage":
-				for id, candidate := range a.Transactions.Deletes[target.Address].Rows {
+				root := a.Transactions.Deletes[target.Address]
+				for _, candidate := range root.Clone().All() {
 					copied := *candidate.Storage
 					candidate.Storage = &copied
-					a.Transactions.Deletes[target.Address].Rows[id] = candidate
+					root.Set(candidate)
 				}
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.

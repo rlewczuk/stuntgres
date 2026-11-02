@@ -27,7 +27,7 @@ func ExclusionShapeEntries(evaluation *exec.Context, parent *catalog.Relation, v
 		}
 		var preparation ExecutionPreparation
 		for _, row := range writes {
-			if UniqueRowDeleted(row.Row, deletes) {
+			if UniqueRowDeleted(row, deletes) {
 				continue
 			}
 			var keys []sqltype.Value
@@ -84,16 +84,19 @@ func (p *ExclusionProjection) ReplaceShape(original, parent *catalog.Relation, e
 	}
 	ends := maps.Clone(p.Ended[parent.Address()])
 	if ends == nil {
-		ends = make(map[ids.RowID]ids.VersionID)
+		ends = make(map[ids.VersionID]ids.RowID)
 	}
 	for _, row := range writes {
 		if row.Base != 0 {
-			ends[row.Row] = row.Base
+			ends[row.Base] = row.Row
 		}
 	}
 	if deletes != nil {
-		for id, candidate := range deletes.Rows {
-			ends[id] = candidate.Version
+		for id, candidate := range deletes.All() {
+			ends[candidate.Version] = id
+			if candidate.Base != 0 {
+				ends[candidate.Base] = id
+			}
 		}
 	}
 	p.Ended[parent.Address()] = ends

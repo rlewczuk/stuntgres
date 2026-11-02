@@ -7,25 +7,50 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *Context) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
+func (c *Context) EvalSystemAttribute(n plan.SystemAttributeExpr) (sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 {
-		if n.Scope != 1 || n.Frame == 0 || n.QueryOccurrence <= 0 || n.Owner.Address.ClassID != ids.RelationClassID || n.Owner.Address.ObjectID == 0 || n.Owner.Address.SubID != 0 || n.Owner.Domain() == nil {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid query tableoid coordinates")
+	name := catalog.SystemAttributeName(n.SubID)
+	_, typeID := catalog.SystemAttribute(name)
+	if name == "" || n.Usage.Type == nil || n.Usage.Type.ID() != typeID {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid system attribute identity")
+	}
+	if n.Scope == 0 && n.Frame == 0 && n.QueryOccurrence == 0 {
+		if n.SubID != -6 || c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 		}
-		for c != nil && (c.Scope != n.Scope || c.Frame != n.Frame) {
-			c = c.Outer
+		owner := n.Owner
+		if c.PhysicalTable != (ids.ObjectRef{}) {
+			owner = c.PhysicalTable
 		}
-		if c == nil {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: missing query tableoid frame")
+		return sqltype.OIDValue(n.Usage.Type, uint32(owner.Address.ObjectID))
+	}
+	if n.Scope != 1 || n.Frame == 0 || n.QueryOccurrence < 0 || n.Owner.Address.ClassID != ids.RelationClassID || n.Owner.Address.ObjectID == 0 || n.Owner.Address.SubID != 0 || n.Owner.Domain() == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid system attribute coordinates")
+	}
+	for c != nil && (c.Scope != n.Scope || c.Frame != n.Frame) {
+		c = c.Outer
+	}
+	if c == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing system attribute frame")
+	}
+	ref, version := c.PhysicalTable, c.PhysicalVersion
+	var rawXmax uint32
+	rawValid := false
+	if n.QueryOccurrence == 0 {
+		rawXmax, rawValid = c.PhysicalXmax, c.PhysicalXmaxValid
+		if n.Old {
+			rawXmax, rawValid = c.OldPhysicalXmax, c.OldPhysicalXmaxValid
 		}
+	}
+	if n.QueryOccurrence != 0 {
 		absent, err := c.queryOperandAbsent(n.QueryOccurrence - 1)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -38,22 +63,66 @@ func (c *Context) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if source == nil || index < 0 || index >= source.Count() {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid query tableoid row")
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid system attribute row")
 		}
-		ref := source.PhysicalRef(index)
-		if ref.Address.ClassID != ids.RelationClassID || ref.Address.ObjectID == 0 || ref.Domain() != n.Owner.Domain() {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: missing query tableoid physical identity")
+		ref = source.PhysicalRef(index)
+		if n.SubID != -6 {
+			version = source.VersionAt(source.RawIndex(index))
+			projected := c.QueryCurrentVersions
+			if projected == nil {
+				projected = c.QueryProjectedVersions
+			}
+			if projected != nil {
+				found := false
+				for i, occurrence := range c.QueryOccurrences {
+					if occurrence == source.Occurrence && i < len(projected) {
+						version, found = projected[i], true
+						break
+					}
+				}
+				if !found {
+					return sqltype.Value{}, fmt.Errorf("stuntgres: missing system attribute recheck version")
+				}
+			}
 		}
+	} else {
+		if n.Absent || n.Merge && mergeReturningAbsent(c, n.Side) {
+			return sqltype.Null(n.Usage.Type), nil
+		}
+		if n.Old {
+			ref, version = c.OldPhysicalTable, c.OldPhysicalVersion
+		}
+	}
+	if ref.Address.ClassID != ids.RelationClassID || ref.Address.ObjectID == 0 || ref.Domain() != n.Owner.Domain() {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing system attribute physical identity")
+	}
+	if n.SubID != -6 && version.Version == 0 {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing system attribute physical version")
+	}
+	switch n.SubID {
+	case -6:
 		return sqltype.OIDValue(n.Usage.Type, uint32(ref.Address.ObjectID))
+	case -1:
+		block, offset, err := storage.LogicalTID(version.Version)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.TIDValue(n.Usage.Type, block, offset)
+	case -2:
+		return sqltype.XIDValue(n.Usage.Type, version.HeapXmin())
+	case -4:
+		if n.QueryOccurrence != 0 {
+			rawXmax, rawValid = c.QueryRawXmax[version.Version]
+		}
+		if n.QueryOccurrence == 0 && !rawValid {
+			rawXmax, rawValid = c.PhysicalRawXmax[version.Version]
+		}
+		if rawValid {
+			return sqltype.XIDValue(n.Usage.Type, rawXmax)
+		}
+		return sqltype.XIDValue(n.Usage.Type, version.HeapXmax())
 	}
-	if c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
-	}
-	owner := n.Owner
-	if c.PhysicalTable != (ids.ObjectRef{}) {
-		owner = c.PhysicalTable
-	}
-	return sqltype.OIDValue(n.Usage.Type, uint32(owner.Address.ObjectID))
+	return sqltype.Value{}, fmt.Errorf("stuntgres: unsupported system attribute")
 }
 
 // Generation recipes own their original references, independently of an outer
@@ -117,7 +186,7 @@ func (c *Context) EvalGrouping(e plan.GroupingExpr) (sqltype.Value, error) {
 }
 
 func (row QueryPhysicalRow) Deletion() visibility.DeleteCandidate {
-	return visibility.DeleteCandidate{Ref: row.Leaf.Ref, Storage: row.Leaf.Storage, Row: row.Version.Row, Version: row.Version.Version, Base: row.Version.Base, Ordinal: row.Hint, Own: row.Version.Born == 0}
+	return visibility.DeleteCandidate{Ref: row.Leaf.Ref, Storage: row.Leaf.Storage, Row: row.Version.Row, Version: row.Version.Version, Base: row.Version.Base, Ordinal: row.Hint, Own: row.Version.Born == 0 && !row.Version.ForcedFrozen, RepairStamp: row.Version.RepairStamp}
 }
 
 func (c *Context) EvalMergeAction(e plan.MergeActionExpr) (sqltype.Value, error) {

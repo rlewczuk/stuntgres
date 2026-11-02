@@ -86,7 +86,7 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 			if err := evaluation.Context.Err(); err != nil {
 				return nil, err
 			}
-			if ended[entry.Row] == entry.Version {
+			if ended[entry.Version] == entry.Row {
 				changed = true
 				break
 			}
@@ -107,7 +107,7 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, err
 		}
-		if ended[entry.Row] != entry.Version {
+		if ended[entry.Version] != entry.Row {
 			entries = append(entries, entry)
 		}
 	}

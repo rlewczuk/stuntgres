@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 	"sync/atomic"
@@ -19,14 +18,14 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 		for _, callback := range []bool{false, true} {
 			t.Run(fmt.Sprintf("rows%d_callback%v", n, callback), func(t *testing.T) {
 				rows := make([]RowVersion, n)
-				ends := &DeletionRoot{Rows: make(map[ids.RowID]RowEnd)}
+				ends := &DeletionRoot{}
 				for i := range rows {
 					rows[i] = RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Born: 1, InsertFullXID: 3}
 					if i%2 == 0 {
-						ends.Rows[rows[i].Row] = RowEnd{Version: rows[i].Version, End: 2}
+						ends.Set(rows[i].Row, RowEnd{Version: rows[i].Version, End: 2})
 					}
 				}
-				old, oldEnds := slices.Clone(rows), maps.Clone(ends.Rows)
+				old, oldEnds := slices.Clone(rows), ends.Clone()
 				pause := util.NewExecutionPause("vacuum.inspect")
 				ctx, cancel := context.WithCancel(util.ActivateExecutionPause(util.WithExecutionPause(context.Background(), pause)))
 				done := make(chan error, 1)
@@ -99,7 +98,7 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 				case <-wait.Done():
 					t.Fatal("cancellation did not release inspection")
 				}
-				if !reflect.DeepEqual(rows, old) || !reflect.DeepEqual(ends.Rows, oldEnds) {
+				if !reflect.DeepEqual(rows, old) || !reflect.DeepEqual(ends, oldEnds) {
 					t.Fatal("inspection mutated caller roots")
 				}
 			})

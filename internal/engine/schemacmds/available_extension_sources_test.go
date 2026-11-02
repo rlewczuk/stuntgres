@@ -104,6 +104,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"pageinspect":        {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
 			"pg_freespacemap":    {"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"},
 			"pg_stat_statements": {"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"},
+			"pg_surgery":         {"pg_surgery", "1.0", nil, "extension to perform surgery on a damaged relation"},
 			"pg_visibility":      {"pg_visibility", "1.2", nil, "examine the visibility map (VM) and page-level visibility info"},
 			"pg_trgm":            {"pg_trgm", "1.6", nil, "text similarity measurement and index searching based on trigrams"},
 			"pgstattuple":        {"pgstattuple", "1.5", nil, "show tuple-level statistics"},
@@ -144,6 +145,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["pg_freespacemap"] = []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"}
 			expected["pg_stat_statements"] = []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"}
 			expected["pg_visibility"] = []any{"pg_visibility", "1.2", false, true, false, true, nil, nil, "examine the visibility map (VM) and page-level visibility info"}
+			expected["pg_surgery"] = []any{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"}
 			expected["pg_trgm"] = []any{"pg_trgm", "1.6", false, true, true, true, nil, nil, "text similarity measurement and index searching based on trigrams"}
 			expected["pgstattuple"] = []any{"pgstattuple", "1.5", false, true, false, true, nil, nil, "show tuple-level statistics"}
 			expected["seg"] = []any{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}

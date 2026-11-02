@@ -165,6 +165,9 @@ savepoint restoration, publication vetoes, old captures and retirement.
 Stored name/OID consumers, moved members, extension relocation and native
 logical Dump/Reset/Restore retain real SQL witnesses, held statements and old
 Rows; rejected/canceled Restore and independent destinations check atomicity.
+The clean native retained-statistics control captures only after explicit
+maintenance retires its aborted peer insertion; rollback itself is not a
+physical pruning operation. The retained Rows still outlive Reset unchanged.
 
 ## Testing
 
@@ -358,6 +361,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Vacuum treats own inserted-and-ended versions as DELETE_IN_PROGRESS (live),
   but a peer treats ongoing xmin as INSERT_IN_PROGRESS (dead), before xmax.
   Exact Dirty classifications remain unchanged.
+- Forced tuple freezing: `RUN='^TestReferencePgsurgeryFreeze'`. Shared scenarios
+  capture actual TIDs and transaction headers within each backend, then assert
+  exact-version repair, rollback/live-owner outcomes, strict arrays, diagnostics,
+  slot notices, live authority and installed identities. Explicit maintenance
+  creates slot-disposition witnesses; no autovacuum timing or physical allocator
+  parity is assumed. Native-control phases preserve visible SQL data and routine
+  authority without requiring physical TIDs, XIDs or discarded history to survive.
+  Relation-kind diagnostics use genuine SQL objects in the same shared body,
+  including a UNIQUE index on a partitioned parent. Descriptor-level method
+  dispatch is additionally covered by the installed runtime's native owner units.
 - Encoding conversions: `RUN='^TestReferenceConversion'`
 - LOAD: `RUN='^TestReferenceLoad'`
 - Runtime inquiries: `RUN='^TestReferenceRuntimeInfo'`

@@ -17,12 +17,18 @@ type DeleteCandidate struct {
 	Ordinal int
 	Own     bool
 	// Moved ends the source of a cross-partition UPDATE, not an ordinary DELETE.
-	Moved bool
+	Moved           bool
+	EndFullXID      uint64
+	RepairStamp     uint64
+	BaseRepairStamp uint64
 }
 
-// PrivateDeletes is a transaction's immutable private deletion overlay for one
-// relation, keyed by row.
-type PrivateDeletes struct{ Rows map[ids.RowID]DeleteCandidate }
+// PrivateDeletes owns immutable private deletion facts. Rows is the ordinary
+// one-version-per-row fast path; Versions owns supplementary physical siblings.
+type PrivateDeletes struct {
+	Rows     map[ids.RowID]DeleteCandidate
+	Versions map[ids.VersionID]DeleteCandidate
+}
 
 // LiveVersion reports whether v is visible at frontier, given committed end
 // markers and the private overlay. A private replacement and an older
@@ -35,10 +41,14 @@ func LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.Del
 // LiveVersion applies the ordinary heap's single liveness rule to real versions,
 // committed ends and private deletion/replacement overlays.
 func (HeapOperations) LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *PrivateDeletes) bool {
-	if own != nil {
-		if deleted, ok := own.Rows[v.Row]; ok && (v.Version == deleted.Version || deleted.Base != 0 && v.Version == deleted.Base) {
-			return false
-		}
+	if own.Ends(v) {
+		return false
+	}
+	if v.ForcedEnd != 0 && v.ForcedEnd <= frontier {
+		return false
+	}
+	if v.ForcedFrozen {
+		return true
 	}
 	if v.Born == 0 {
 		return true
@@ -46,10 +56,8 @@ func (HeapOperations) LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, 
 	if v.Born > frontier {
 		return false
 	}
-	if ends != nil {
-		if end, deleted := ends.Rows[v.Row]; deleted && end.Version == v.Version && end.End <= frontier {
-			return false
-		}
+	if end, deleted := ends.Lookup(v.Row, v.Version); deleted && end.End <= frontier {
+		return false
 	}
 	return true
 }

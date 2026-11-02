@@ -212,7 +212,7 @@ func validateRoutineSourceManifest(action RuleAction) error {
 			attributes = source.Relation.Attributes
 		}
 		if leaf.Ref != source.Ref || leaf.Only != source.Only || leaf.AnalysisOnly != source.AnalysisOnly ||
-			leaf.TableOIDRead != source.TableOIDRead || leaf.Mark != source.Mark ||
+			leaf.SystemAttributeRead != source.SystemAttributeRead || leaf.Mark != source.Mark ||
 			!slices.Equal(leaf.Attributes, attributes) || len(leaf.Reads) != len(source.Uses) {
 			return fmt.Errorf("stuntgres: mismatched routine source provenance")
 		}

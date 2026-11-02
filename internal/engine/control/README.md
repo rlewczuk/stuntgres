@@ -23,6 +23,11 @@ The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `Collect(ctx, source)`; nothing in `Source` is read after the unlock.
 Collection rejects an already-canceled context before catalog preflight or capture
 allocation, retaining the ordinary context error and publishing no partial capture.
+Visible-row capture enumerates canonical heads and repaired additional physical
+versions by exact VersionID, allowing independently visible siblings with one
+RowID. ACL datum preflight consumes that same visible bag. Replay serializes SQL
+values and installed authority, never discarded history, source TIDs, header
+overrides or live owner handles; independent destination storage remints identities.
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition

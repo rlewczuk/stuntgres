@@ -85,7 +85,7 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 			writes := s.Transactions.Writes[parent.Address]
 			outputs := 0
 			for _, row := range writes {
-				if index.UniqueRowDeleted(row.Row, s.Transactions.Deletes[parent.Address]) {
+				if index.UniqueRowDeleted(row, s.Transactions.Deletes[parent.Address]) {
 					continue
 				}
 				out, ok := row.IndexOutputs[ref.Address]
@@ -142,6 +142,7 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE early(n INT)", "INSERT INTO early VALUES(1),(2)", "CREATE TABLE later(n INT)"} {
 		enginetest.SessionSQL(t, s, q)
 	}
+	catalogBefore, rolesBefore, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
 	tx := enginetest.TransactionBegin(t, s)
 	enginetest.SessionSQL(t, s, "UPDATE early SET n=10 WHERE n=1")
 	enginetest.SessionSQL(t, s, "DELETE FROM early WHERE n=2")
@@ -150,6 +151,11 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 	early := enginetest.RoleTableRef(t, e, "early").Address
 	writes := s.Transactions.Writes[early]
 	deletes := s.Transactions.Deletes[early]
+	deleteCapture := deletes.Clone()
+	laterHeap := enginetest.RoleTableRef(t, e, "later").Address
+	laterStore := e.Storage.Relations[laterHeap]
+	laterBefore := enginetest.CaptureHeapAbort(laterStore)
+	var discarded []storage.RowVersion
 	j := index.JournalIndexesOrZero(prefix)
 	snapshot := prefix.Clone()
 	entries := map[ids.ObjectAddress][]storage.IndexEntry{}
@@ -162,8 +168,15 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE INDEX later_idx ON later(n)")
 		view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		later := enginetest.CatalogRef(t, e, view, "later_idx").Address
+		suffix := s.Transactions.Writes[laterHeap]
+		if len(suffix) != 2 {
+			t.Fatal("postmark fixture did not create exactly two private tuples")
+		}
+		discarded = append(discarded, suffix...)
 		enginetest.SessionSQL(t, s, "ROLLBACK TO kept")
-		if s.Transactions.Catalog != prefix || !storage.SameVersionRoot(s.Transactions.Writes[early], writes) || s.Transactions.Deletes[early] != deletes || !reflect.DeepEqual(prefix.Clone(), snapshot) {
+		enginetest.AssertJournalDiscards(t, s.Transactions.Catalog, prefix, laterHeap, laterStore, discarded...)
+		enginetest.AssertHeapAbort(t, laterStore, laterBefore, 0)
+		if !storage.SameVersionRoot(s.Transactions.Writes[early], writes) || !reflect.DeepEqual(s.Transactions.Deletes[early], deleteCapture) || !reflect.DeepEqual(deletes, deleteCapture) || !reflect.DeepEqual(prefix.Clone(), snapshot) {
 			t.Fatal("savepoint did not restore exact immutable prefix")
 		}
 		if e.PrivateCatalogLocked(prefix).Get(later) != nil || e.Storage.IndexRoots[later] != nil {
@@ -176,6 +189,7 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "INSERT INTO later VALUES(1),(1)")
+	discarded = append(discarded, s.Transactions.Writes[laterHeap]...)
 	op := enginetest.TransactionOperation(t, s)
 	_, err := e.Execute(op, enginetest.Statement(t, "CREATE UNIQUE INDEX failed_idx ON later(n)"), 0, nil)
 	op.Done()
@@ -183,11 +197,19 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 		t.Fatal("duplicate build succeeded")
 	}
 	enginetest.SessionSQL(t, s, "ROLLBACK TO kept")
-	if s.Transactions.Catalog != prefix || !reflect.DeepEqual(index.JournalIndexesOrZero(prefix), j) {
+	enginetest.AssertJournalDiscards(t, s.Transactions.Catalog, prefix, laterHeap, laterStore, discarded...)
+	if !reflect.DeepEqual(index.JournalIndexesOrZero(s.Transactions.Catalog), j) {
 		t.Fatal("failed build changed restored candidates")
 	}
 	enginetest.SessionSQL(t, s, "RELEASE kept")
+	earlyStore := e.Storage.Relations[early]
+	earlyBefore := enginetest.CaptureHeapAbort(earlyStore)
 	enginetest.TransactionEnd(t, s, tx, false)
+	enginetest.AssertHeapAbort(t, earlyStore, earlyBefore, 1, writes...)
+	enginetest.AssertHeapAbort(t, laterStore, laterBefore, 3, discarded...)
+	if e.Catalog.State != catalogBefore || e.RoleStore.Published != rolesBefore || e.Visibility.CommitSeq() != frontier || len(e.Storage.IndexRoots) != 0 {
+		t.Fatal("rollback published catalog/roles/indexes/frontier")
+	}
 	if s.Transactions.Catalog != nil || s.Transactions.Writes != nil || s.Transactions.Deletes != nil {
 		t.Fatal("end retained private journal")
 	}

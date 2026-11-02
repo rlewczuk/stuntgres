@@ -206,7 +206,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 				probe := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 					// This runs in the genuine nested UPDATE's physical CHECK
 					// phase, while its command scratch and row grants are live.
-					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []ids.RowID{rows[0].Row})
+					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []lock.Resource{{ObjectRef: baseRef, Row: rows[0].Row}})
 					if !target || missing != -1 || s.LockedRef != baseRef || s.LockedDescriptor != base || s.LockedStorage != heap || heap == nil || s.ViewWrite != nil {
 						t.Fatal("nested DML lacks its own physical authority/storage")
 					}
@@ -249,7 +249,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 				}
 				assertNoLeafWrite := func() {
 					t.Helper()
-					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []ids.RowID{rows[0].Row})
+					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []lock.Resource{{ObjectRef: baseRef, Row: rows[0].Row}})
 					if target || missing != 0 || e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: baseRef}, lock.RowExclusive) || e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: baseRef, Row: rows[0].Row}, lock.ForNoKeyUpdate|lock.ForUpdate) {
 						t.Fatal("logical interception fabricated physical-leaf write grants")
 					}
@@ -262,7 +262,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 				}
 				assertLogical()
 				if nested {
-					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []ids.RowID{rows[0].Row})
+					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []lock.Resource{{ObjectRef: baseRef, Row: rows[0].Row}})
 					staged := s.Stage.Rows[base.Address()]
 					if !sawPhysical || !target || missing != -1 || len(staged) != 1 || staged[0].Row != rows[0].Row || staged[0].Version == rows[0].Version {
 						t.Fatal("nested UPDATE did not retain genuine leaf grants/staged successor")

@@ -25,7 +25,7 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
 	target.Close()
-	if err != nil || r.Count != 2 || len(scope.Stage.Deletes[b.Ref.Address].Rows) != 2 {
+	if err != nil || r.Count != 2 || scope.Stage.Deletes[b.Ref.Address].Len() != 2 {
 		t.Fatal(r, err)
 	}
 	got := enginetest.Tuples(core.OutcomeResult(r))

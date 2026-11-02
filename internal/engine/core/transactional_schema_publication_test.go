@@ -90,10 +90,13 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 					name = d.Name()
 				}
 				peer, done := enginetest.RoleOperation(t, e, "postgres")
-				winner, w := transactionalSchemaUnitStage(t, e, peer, name, ids.TxRef{}, 19)
+				winner, w := transactionalSchemaUnitStage(t, e, peer, name, enginetest.CatalogTransaction(t, e), 19)
 				publication, err := e.ValidateCatalogStage(peer.Context(), winner)
 				if err == nil {
 					_, err = enginetest.PublishCatalog(e, publication, core.PublicationToken{Epoch: winner.Base.Epoch()})
+				}
+				if err == nil {
+					enginetest.CommitCatalogTransaction(t, winner)
 				}
 				done()
 				if err != nil {

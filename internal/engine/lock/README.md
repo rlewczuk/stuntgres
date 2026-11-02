@@ -53,6 +53,11 @@ engine.
   padding. Keep Resource within its original compact layout and below Go's
   indirect map-key threshold; ordinary immediate/reentrant grants must remain
   zero-allocation, as the existing lock/timeout tests require.
+  `TupleResource` constructs exact tuple keys. Its zero anchor/stamp pair is
+  the unchanged ordinary relation/RowID key. `RepairedTupleResource` stores
+  the actual anchor VersionID in Row and full repair stamp in High/Low, with
+  no additional resource fields or registry. Only tuple modes accept that
+  discriminator; unrelated relation/name/advisory/catalog claims are unchanged.
   Persisted role-default writers use `RoleSettingResource` in the shared role
   domain: the full database address (zero for ALL) and principal ID in `High`
   identify one exact row, with no extra resource fields or registry. Principal
@@ -101,10 +106,15 @@ engine.
 - **MultiXact history.** The manager owns database-partitioned immutable records,
   nonzero modular counters and associations with exact row versions
   (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`).
-  Arbitration uses `ObjectRef` and `RowID`; history adds `VersionID`, so a successor copies the
-  predecessor's original raw xmax ID and full member set, including ended or
-  mixed-mode members. A batch is prepared completely before any counter or
-  history change is published. Member-set reuse is a transaction-local LRU of
+  Arbitration uses the admitted tuple `Resource`; physical history adds
+  `VersionID`, so a successor with a surviving genuine original locker copies
+  the predecessor's original raw xmax ID and full member set, including ended
+  or mixed-mode members. No surviving original locker means an empty successor
+  header, not ownership inherited from an ended raw member or the new action.
+  Ending an owner retires effective contributions, not retained raw physical
+  headers. A batch is prepared completely before any counter or history change
+  is published.
+  Member-set reuse is a transaction-local LRU of
   at most 256 IDs, filled by creation and by member inquiry, never universal
   interning. Same-XID strength merges keep action versus lock kind.
   Savepoints restore status contributions separately from grant modes; grant
@@ -116,8 +126,18 @@ engine.
   mask before singleton promotion clears predecessor modes. Only those saved
   contributions can survive on its successor; matching owner pointers cannot
   resurrect an action retained solely in an immutable rolled-back raw bag.
+  Rewinding an updating contribution marks that exact raw updater revoked,
+  independently of its owner's later top-level commit. A subsequent genuine
+  physical event may replace that invalid updater while preserving prior
+  captures and immutable MultiXact history. A valid committed updater remains
+  authoritative and still rejects a second updater on the same physical tuple.
   A prior singleton FOR UPDATE followed by a non-key UPDATE remains an
   `Update` action, while a fresh non-key UPDATE is `No Key Update`.
+  A genuine own lock-only event before an action supplies inheritable raw xmax;
+  repeated action events retain that original prelock and contribution mask
+  through accepted successor assignment. An action without a preceding raw
+  lock-only header does not manufacture its own XID on an otherwise empty
+  successor. Runtime must emit actual pretrigger locks before invoking BEFORE.
 - **Inquiries.** `BlockingPids` (for `pg_blocking_pids`), `PGLocks` (the
   manager's half of `pg_locks`, as owned `Record` values) and the grant queries
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
@@ -148,8 +168,8 @@ engine.
   never tickets or queues. Capture assigns nothing, settles nothing and runs
   no callbacks. The engine releases Engine.Mu before entering this manager.
   `StartAcquireRelation` records a caller-owned `RelationContribution`, released
-  by `ReleaseRelation` after its request is terminal. Scoped AccessShare/Share
-  ownership is counted separately from idempotent ordinary transaction grants;
+  by `ReleaseRelation` after its request is terminal. Scoped AccessShare, Share
+  and RowExclusive ownership is counted separately from idempotent ordinary grants;
   their union supplies conflict and inquiry modes. Cleanup preserves ordinary
   same-mode grants acquired before or during verification and other nested
   scopes. Savepoint checkpoints never promote active scoped contributions into
@@ -187,12 +207,19 @@ Native replacement failure clears explicit-transaction savepoints and requires
 full rollback before starting a fresh transaction on the same physical owner.
 
 
-`CaptureTupleMaintenance` samples exact `(ObjectRef, RowID, VersionID)` raw xmax
-maintenance facts into caller-owned detached scratch. It does not inherit
-pgrowlocks' SELECT/private-updater filtering and never assigns XIDs, advances
-MultiXact counters, settles queues or changes contributions/history. Callers hold
-no Engine/owner mutex; the method takes Manager.mu only. Real owner/savepoint
-retirement remains the authority for clearing represented evidence.
+`CaptureTupleMaintenance` samples exact admitted-resource/VersionID raw xmax
+facts into caller-owned detached scratch (`Present`, `Xmax`, `Multi`), alongside
+effective `Active` ownership and `NewestFullXID` from actual retained member
+owners. Any unknown member provenance yields full-XID zero conservatively;
+raw XID/MultiXact IDs never supply full transaction identity. Maintenance callers
+combine these detached facts with their captured successful VACUUM cutoff.
+The same manager-private raw-header helper feeds pgrowlocks before eligibility
+filtering.
+Ended/aborted raw headers remain represented even when pgrowlocks emits no row;
+savepoint rollback removes contributions without erasing raw aborted headers.
+Capture never assigns XIDs, advances MultiXact counters, settles queues or
+changes contributions/history. Callers hold no Engine/owner mutex; the method
+takes Manager.mu only. Epoch fencing retires the corresponding physical history.
 
 ## Mutex ownership and lock order
 
@@ -301,6 +328,8 @@ through the diagnostic seam.
 Publication name/definition resource admission and object-tag ownership use
 `RUN='^TestPublicationDefinitionLockResources$'`.
 Exact visibility maintenance facts use `RUN='^TestPgvisibility'`, also with `RACE=1`.
+Tuple resource identity, raw capture and repaired lineage owner tests use
+`RUN='^TestPgsurgeryFreezeTuple(Resource|History|PretriggerInheritance|Renewal|EndedLocker|MaintenanceProvenance)$'`, also with `RACE=1`.
 
 
 ```sh

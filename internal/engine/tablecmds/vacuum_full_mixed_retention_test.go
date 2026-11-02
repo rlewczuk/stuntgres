@@ -156,7 +156,7 @@ func TestVacuumFullMixedRetention(t *testing.T) {
 				before := captureFullOwned(t, e, "full_mixed_mv")
 				sessionSQL(t, writer, "VACUUM FULL full_mixed_mv")
 				reclaimed := before.replaced(t, e)
-				if len(reclaimed.Versions) != 2 || len(reclaimed.Ends.Rows) != 0 {
+				if len(reclaimed.Versions) != 2 || reclaimed.Ends.Len() != 0 {
 					t.Fatal("quiescent mixed history did not reclaim obsolete heads")
 				}
 				a.owned.retained(t)

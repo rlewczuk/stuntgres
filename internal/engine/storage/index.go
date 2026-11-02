@@ -27,6 +27,10 @@ type IndexRoot struct {
 	Gin          *GinRoot
 	Membership   map[ids.RowID]ids.VersionID // Immutable; partial roots only.
 	RowEntries   map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
+	// Collisions retain additional genuine versions without replacing the
+	// ordinary one-version-per-row fast paths above.
+	MembershipVersions map[ids.VersionID]ids.RowID
+	RowEntryVersions   map[ids.VersionID]int
 }
 
 // IndexOutput is an already produced index membership/key, not a CHECK

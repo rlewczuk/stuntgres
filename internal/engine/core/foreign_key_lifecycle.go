@@ -2,6 +2,7 @@ package core
 
 import (
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 )
 
@@ -21,7 +22,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive) {
 			mode = lock.AccessExclusive
 		}
-		if err := s.ForeignKeyGrant(ref, 0, mode, nil); err != nil {
+		if err := s.ForeignKeyGrant(ref, storage.RowVersion{}, mode, nil); err != nil {
 			return err
 		}
 	}

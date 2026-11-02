@@ -124,7 +124,7 @@ func (c *rangeCapture) expressionOwner(s *rangeScope, env *rangeEnvironment, exp
 	switch e := expression.(type) {
 	case plan.ColumnExpr:
 		return c.outerCoordinate(s, env, e.Scope, e.Frame)
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		return c.outerCoordinate(s, env, e.Scope, e.Frame)
 	case plan.MergeActionExpr:
 		return c.outerCoordinate(s, env, e.Scope, e.Frame)

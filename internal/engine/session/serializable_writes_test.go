@@ -12,7 +12,7 @@ func TestSerializableWriteSurvives(t *testing.T) {
 	rewritten, deleted, written, other := ids.ObjectAddress{ClassID: 1259, ObjectID: 1}, ids.ObjectAddress{ClassID: 1259, ObjectID: 2}, ids.ObjectAddress{ClassID: 1259, ObjectID: 3}, ids.ObjectAddress{ClassID: 1259, ObjectID: 4}
 	owner := &TransactionOwner{
 		Catalog: &Journal{Storage: map[ids.ObjectAddress]StorageChange{rewritten: {Rewritten: true}, other: {}}},
-		Deletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{deleted: {Rows: map[ids.RowID]visibility.DeleteCandidate{7: {Version: 70}}}},
+		Deletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{deleted: {Rows: map[ids.RowID]visibility.DeleteCandidate{7: {Row: 7, Version: 70}}}},
 		Writes:  map[ids.ObjectAddress][]storage.RowVersion{written: {{Row: 8, Version: 80}, {Row: 9, Version: 90}}},
 	}
 	for _, tc := range []struct {

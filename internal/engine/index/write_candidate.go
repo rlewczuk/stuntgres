@@ -48,9 +48,17 @@ func (c *WriteCandidate) TakeExclusion() ids.VersionID {
 // optional parallel vector preserves occurrence identity (including zero-width
 // rows) without allocating index metadata on the plain-column fast path.
 type WriteBatch struct {
-	Values     [][]sqltype.Value
-	States     []WriteState
+	Values [][]sqltype.Value
+	States []WriteState
+	// Accepted borrows caller-owned output slots, parallel to Values. Stage
+	// admission fills them before AFTER triggers; nil preserves the write fast path.
+	Accepted   []storage.RowVersion
 	ActionMode lock.MultiMode // Explicit accepted physical action, never inferred from grant bits.
+	// PredecessorHint is a captured/current ordinal for a single replacement
+	// only when PredecessorHintKnown is true. The zero value means unknown.
+	// It is never authority: the owner must validate the exact VersionID.
+	PredecessorHint      int
+	PredecessorHintKnown bool
 }
 
 type WriteState struct {
@@ -60,6 +68,12 @@ type WriteState struct {
 
 func (b *WriteBatch) Append(row WriteCandidate) {
 	b.Values = append(b.Values, row.Values)
+	if len(b.Values) != 1 {
+		b.PredecessorHint, b.PredecessorHintKnown = 0, false
+	}
+	if b.Accepted != nil {
+		b.Accepted = append(b.Accepted, storage.RowVersion{})
+	}
 	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil) && b.States == nil {
 		b.States = make([]WriteState, len(b.Values)-1, cap(b.Values))
 	}
@@ -79,7 +93,13 @@ func (b WriteBatch) Candidate(i int) WriteCandidate {
 }
 
 func (b WriteBatch) Prefix(n int) WriteBatch {
+	if n != 1 || len(b.Values) != 1 {
+		b.PredecessorHint, b.PredecessorHintKnown = 0, false
+	}
 	b.Values = b.Values[:n]
+	if b.Accepted != nil {
+		b.Accepted = b.Accepted[:n]
+	}
 	if b.States != nil {
 		b.States = b.States[:n]
 	}
@@ -88,6 +108,9 @@ func (b WriteBatch) Prefix(n int) WriteBatch {
 
 func (b *WriteBatch) Set(i int, row WriteCandidate) {
 	b.Values[i] = row.Values
+	if b.Accepted != nil {
+		b.Accepted[i] = storage.RowVersion{}
+	}
 	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil) && b.States == nil {
 		b.States = make([]WriteState, len(b.Values))
 	}
@@ -97,7 +120,13 @@ func (b *WriteBatch) Set(i int, row WriteCandidate) {
 }
 
 func (b WriteBatch) Slice(first, last int) WriteBatch {
+	if first != 0 || last != 1 || len(b.Values) != 1 {
+		b.PredecessorHint, b.PredecessorHintKnown = 0, false
+	}
 	b.Values = b.Values[first:last]
+	if b.Accepted != nil {
+		b.Accepted = b.Accepted[first:last]
+	}
 	if b.States != nil {
 		b.States = b.States[first:last]
 	}

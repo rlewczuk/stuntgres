@@ -32,6 +32,7 @@ const (
 	PgFreespaceExtension
 	PgStatStatementsExtension
 	XML2Extension
+	PgsurgeryExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

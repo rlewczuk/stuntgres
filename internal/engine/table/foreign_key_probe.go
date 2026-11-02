@@ -12,7 +12,11 @@ import (
 )
 
 func (r ForeignKeyRows) CommittedLive(v storage.RowVersion) bool {
-	return r.Shadow[v.Row] == 0 && visibility.LiveVersion(v, r.Frontier, r.Ends, r.PriorDeletes) && visibility.LiveVersion(v, r.Frontier, r.Ends, r.CurrentDeletes)
+	return r.committedLive(r.Headers.Apply(v))
+}
+
+func (r ForeignKeyRows) committedLive(v storage.RowVersion) bool {
+	return r.shadow[foreignKeyHeader{v.Version, v.RepairStamp}] == 0 && visibility.LiveVersion(v, r.Frontier, r.Ends, r.PriorDeletes) && visibility.LiveVersion(v, r.Frontier, r.Ends, r.CurrentDeletes)
 }
 func PrepareForeignKeyChild(ctx context.Context, comparisons []ForeignKeyComparison, child, key []sqltype.Value, input sqltype.InputEnvironment) error {
 	for i, comparison := range comparisons {
@@ -86,12 +90,10 @@ func ForeignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparis
 }
 
 func FindForeignKeyParent(ctx context.Context, idx *catalog.Relation, comparisons []ForeignKeyComparison, rows ForeignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (storage.RowVersion, storage.IndexEntry, error) {
-	// Statement-final overlays are not committed index entries. Their shadow
-	// identities hide replaced committed rows and earlier transaction versions.
-	overlay := rows
-	overlay.Committed = nil
+	// Only actual private writes bypass the supporting committed root.
+	// Additional repaired heaps must not recreate missing index membership.
 	var matching storage.RowVersion
-	if err := overlay.Each(func(parent storage.RowVersion) (bool, error) {
+	if err := rows.EachPrivate(func(parent storage.RowVersion) (bool, error) {
 		match := true
 		var err error
 		for i, comparison := range comparisons {
@@ -121,7 +123,8 @@ func FindForeignKeyParent(ctx context.Context, idx *catalog.Relation, comparison
 		if err != nil {
 			return false, err
 		}
-		if !rows.CommittedLive(parent) {
+		parent = rows.Headers.Apply(parent)
+		if !rows.committedLive(parent) {
 			return false, nil
 		}
 		matching, locator = parent, entry

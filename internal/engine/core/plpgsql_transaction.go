@@ -156,6 +156,7 @@ func (s *StatementScope) resetPLSegment() {
 	s.Input.XMLInput = session.XMLInput{Op: s.Op}
 	s.installSQLRoutineScratch(s.rebaseRoutineScratch(s.sqlRoutineScratch()))
 	s.Stage.Rows, s.Stage.Deletes = nil, nil
+	s.Stage.DiscardedHeaps = nil
 	s.Stage.Stats = nil
 	s.Stage.Replacing = false
 	s.Catalog, s.CatalogAuthority = nil, nil
@@ -166,6 +167,7 @@ func (s *StatementScope) resetPLSegment() {
 	s.snapshotTarget, s.snapshotTargets = visibility.Root{}, nil
 	s.notificationActions, s.notificationEvents = nil, nil
 	s.multiEvents, s.alterNames = nil, nil
+	s.tupleAdmissions = nil
 	s.routinePrograms, s.checkPrograms = nil, nil
 	s.Domains.endAdmission()
 	s.partitionsSlot.DropPrograms()

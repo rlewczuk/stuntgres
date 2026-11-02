@@ -85,6 +85,9 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 		}{
 			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.xmin IS NULL THEN INSERT VALUES('1')", "xmin", false, false},
 			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.ctid IS NULL THEN INSERT VALUES('1')", "ctid", false, false},
+			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.xmax IS NULL THEN INSERT VALUES('1')", "xmax", false, false},
+			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.cmin IS NULL THEN INSERT VALUES('1')", "cmin", false, false},
+			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.cmax IS NULL THEN INSERT VALUES('1')", "cmax", false, false},
 			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND s.tableoid IS NOT NULL THEN INSERT VALUES('1')", "tableoid", false, true},
 			{"MERGE INTO t USING s ON s.xmin IS NOT NULL WHEN NOT MATCHED THEN INSERT VALUES('1')", "xmin", false, true},
 			{"MERGE INTO t USING s ON FALSE WHEN NOT MATCHED THEN INSERT VALUES(s.xmin::text)", "xmin", false, true},
@@ -99,7 +102,7 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 					run(fixture.Exec("CREATE TABLE t(i TEXT)", 0))
 					run(fixture.Exec("CREATE TABLE s(i INT)", 0))
 					run(fixture.Exec("INSERT INTO s VALUES(1)", 1))
-					if tc.positive && (b.PG || tc.system == "tableoid") {
+					if tc.positive {
 						run(fixture.Exec(tc.q, 1))
 						if strings.Contains(tc.q, "VALUES(s.xmin") {
 							// Compare to the same physical source identity, never a server's
@@ -117,9 +120,6 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 					d := fixture.Diagnostic{Code: "42P10", Message: `cannot use system column "` + tc.system + `" in MERGE WHEN condition`}
 					if tc.hidden {
 						d = fixture.Diagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "t"`, Detail: `There is an entry for table "t", but it cannot be referenced from this part of the query.`}
-					}
-					if tc.positive {
-						d = fixture.Diagnostic{Code: "42703", Message: "column s." + tc.system + " does not exist"}
 					}
 					d.Position = fixture.Position(strings.Index(tc.q, qualifier+tc.system) + 1)
 					s := fixture.ImplicitError(tc.q, d)

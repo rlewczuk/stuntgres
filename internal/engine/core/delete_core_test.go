@@ -62,7 +62,7 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7),(7)")
 			private := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 7, 7)
 			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=7", 2)
-			if firstRoot == nil || len(firstRoot.Rows) != 2 || a.Transactions.Deletes[target.Address] == firstRoot || len(a.Transactions.Deletes[target.Address].Rows) != 4 {
+			if firstRoot == nil || firstRoot.Len() != 2 || a.Transactions.Deletes[target.Address] == firstRoot || a.Transactions.Deletes[target.Address].Len() != 4 {
 				t.Fatal("prior-own deletion root was mutated/reused")
 			}
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -152,7 +152,7 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 		if store.Ends == nil {
 			continue
 		}
-		for _, end := range store.Ends.Rows {
+		for _, end := range store.Ends.All() {
 			if end.End != e.Visibility.CommitSeq() {
 				t.Fatal("mixed deletion frontier", end)
 			}

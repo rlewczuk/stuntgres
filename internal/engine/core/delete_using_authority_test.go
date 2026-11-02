@@ -34,18 +34,18 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 		{Ref: b.Ref, Storage: b.Storage, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal + 1},
 		{Ref: b.Ref, Storage: b.Storage, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal, Own: true},
 	} {
-		if deleted, err := scope.Writes().Delete(bad); err == nil || deleted {
+		if deleted, err := scope.Writes().Delete(bad, v); err == nil || deleted {
 			t.Fatal("invalid captured authority accepted", bad, deleted, err)
 		}
 	}
 	copied := *scope.Writes()
-	if deleted, err := copied.Delete(candidate); err == nil || deleted {
+	if deleted, err := copied.Delete(candidate, v); err == nil || deleted {
 		t.Fatal("copied write authority accepted")
 	}
-	if deleted, err := scope.Writes().Delete(candidate); err != nil || !deleted {
+	if deleted, err := scope.Writes().Delete(candidate, v); err != nil || !deleted {
 		t.Fatal(deleted, err)
 	}
-	deleted, err := scope.Writes().Delete(candidate)
+	deleted, err := scope.Writes().Delete(candidate, v)
 	if deleted || err == nil || err.Error() != "stuntgres: duplicate staged deletion" {
 		t.Fatal("consumer dedup weakened stage invariant", deleted, err)
 	}

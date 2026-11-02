@@ -79,7 +79,7 @@ func refreshUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 	defer done()
 	d.Populated = true
 	rows := refreshUnitRows(t, d, 3)
-	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -137,4 +137,5 @@ func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	enginetest.CommitCatalogTransaction(t, stage)
 }

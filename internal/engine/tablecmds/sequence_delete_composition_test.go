@@ -43,9 +43,11 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			case "frontier":
 				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "predecessor":
-				for id, candidate := range s.Transactions.Deletes[table.Address].Rows {
+				root := s.Transactions.Deletes[table.Address]
+				for id, candidate := range root.Clone().All() {
+					root.Delete(id, candidate.Version)
 					candidate.Version++
-					s.Transactions.Deletes[table.Address].Rows[id] = candidate
+					root.Set(candidate)
 					break
 				}
 			case "shape":
@@ -159,7 +161,7 @@ func TestSequenceDeleteCompositionSingleFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := e.Storage.Relations[table.Address]
-	if e.Visibility.CommitSeq() != frontier+1 || len(store.Versions) != 5 || store.Ends == nil || len(store.Ends.Rows) != 3 {
+	if e.Visibility.CommitSeq() != frontier+1 || len(store.Versions) != 5 || store.Ends.Len() != 3 {
 		t.Fatal("mixed publication did not install one frontier", e.Visibility.CommitSeq(), frontier, len(store.Versions), store.Ends)
 	}
 	for _, version := range store.Versions[3:] {
@@ -167,7 +169,7 @@ func TestSequenceDeleteCompositionSingleFrontier(t *testing.T) {
 			t.Fatal("append frontier", version.Born)
 		}
 	}
-	for _, end := range store.Ends.Rows {
+	for _, end := range store.Ends.All() {
 		if end.End != frontier+1 {
 			t.Fatal("deletion frontier", end.End)
 		}

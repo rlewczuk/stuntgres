@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	// Execution replaces the command's normalized predicate through its state.
 	state := dml.NewInsertConflictState(first.Insert.Conflict)
 	state.Predicate = enginetest.RuleUnitInt(sink, 30)
-	state.MarkAffected(ids.RowID(42), 0)
+	state.MarkAffected(storage.RowVersion{Row: 42, Version: 42}, 0)
 	if first.Insert.Conflict.Predicate == nil {
 		t.Fatal("conflict state does not execute the command's clause")
 	}

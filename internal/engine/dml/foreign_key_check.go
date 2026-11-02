@@ -55,13 +55,26 @@ func CheckForeignKeys(h FinishHost) (err error) {
 		}
 		childRef := view.Domain().Ref(view.Epoch(), job.Child.Address())
 		parentRef := view.Domain().Ref(view.Epoch(), f.Target)
-		parentRows, err := h.ForeignKeyRows(parentRef, f.Index)
-		if err != nil {
-			return err
-		}
-		children, err := h.ForeignKeyRows(childRef, ids.ObjectAddress{})
-		if err != nil {
-			return err
+		// Capture physical inventories only for an eligible row check.
+		// An unchanged parent key has no row/grant work, even when the
+		// owner retains unrelated deferred exclusion obligations.
+		var parentRows, children table.ForeignKeyRows
+		captured := false
+		captureRows := func() error {
+			if captured {
+				return nil
+			}
+			var err error
+			parentRows, err = h.ForeignKeyRows(parentRef, f.Index)
+			if err != nil {
+				return err
+			}
+			children, err = h.ForeignKeyRows(childRef, ids.ObjectAddress{})
+			if err != nil {
+				return err
+			}
+			captured = true
+			return nil
 		}
 		// Child checks only newly written final rows, not unaffected old rows.
 		staged := h.PrivateRows(childRef.Address)
@@ -77,12 +90,12 @@ func CheckForeignKeys(h FinishHost) (err error) {
 				continue
 			}
 			row := event.Next
-			final, _, found := storage.RowByID(staged.Staged, row.Row, -1)
-			if !found || final.Version != row.Version {
+			_, _, found := storage.RowByVersion(staged.Staged, row.Row, row.Version, -1)
+			if !found {
 				continue
 			}
 			if root := staged.StagedDeletes; root != nil {
-				if _, deleted := root.Rows[row.Row]; deleted {
+				if _, deleted := root.Lookup(row.Row, row.Version); deleted {
 					continue
 				}
 			}
@@ -96,11 +109,14 @@ func CheckForeignKeys(h FinishHost) (err error) {
 			if event.Old.Row != 0 && (all || any && !f.Full) {
 				continue
 			}
+			if err := captureRows(); err != nil {
+				return err
+			}
 			// Only an actual committed predecessor can suppress an unchanged-key
 			// check. A prior own transition in this command is not the committed
 			// base either, even when Previous still names that base.
 			if !any && row.Base != 0 && event.Old.Born != 0 {
-				previous, ok := children.Previous(row.Row)
+				previous, ok := children.Previous(row.Row, event.Old.Version)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 				}
@@ -167,6 +183,9 @@ func CheckForeignKeys(h FinishHost) (err error) {
 				enlistForeignKeyEvent(h, auth, *job, event, true)
 				continue
 			}
+			if err := captureRows(); err != nil {
+				return err
+			}
 			if err := checkForeignKeyParent(h, parentAuth, job, parentRef, &parentRows, children, event.Old, action == parser.ForeignKeyNoAction); err != nil {
 				return err
 			}
@@ -227,7 +246,7 @@ func foreignKeyParentExists(h FinishHost, ref ids.ObjectRef, job ForeignKeyJob, 
 		if !lockParent || matching.Born == 0 {
 			return true, nil
 		}
-		if err := h.GrantForeignKey(ref, matching.Row, lock.ForKeyShare, rows.Storage); err != nil {
+		if err := h.GrantForeignKey(ref, matching, lock.ForKeyShare, rows.Storage); err != nil {
 			return false, err
 		}
 		if err := h.RefreshForeignKeyRows(ref, rows); err != nil {
@@ -236,9 +255,9 @@ func foreignKeyParentExists(h FinishHost, ref ids.ObjectRef, job ForeignKeyJob, 
 		// The borrowed index entry is an exact physical-version locator. Waiting
 		// may end this version; retry the current index, never scan the relation.
 		if locator.Position >= 0 && locator.Position < len(rows.Committed) {
-			parent := rows.Committed[locator.Position]
+			parent := rows.Headers.Apply(rows.Committed[locator.Position])
 			if parent.Row == locator.Row && parent.Version == locator.Version && rows.CommittedLive(parent) {
-				if err := h.PhysicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
+				if err := h.PhysicalRowLock(ref, parent, lock.ForKeyShare); err != nil {
 					return false, err
 				}
 				return table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child, parent.Values, input)

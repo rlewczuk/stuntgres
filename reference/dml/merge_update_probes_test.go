@@ -130,11 +130,18 @@ func TestReferenceMergeUpdateSystemColumns(t *testing.T) {
 		run := fixture.MergeRun(t, p, b, prepared)
 		run(fixture.Exec("CREATE TABLE t(id INT,v INT)", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(1,10)", 1))
-		q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t.ctid IS NOT NULL THEN UPDATE SET v=20"
-		d := fixture.Diagnostic{Code: "42P10", Message: `cannot use system column "ctid" in MERGE WHEN condition`, Position: fixture.Position(strings.Index(q, "t.ctid") + 1)}
-		s := fixture.ImplicitError(q, d)
-		s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]
-		run(s)
+		for _, name := range []string{"ctid", "xmin", "cmin", "xmax", "cmax"} {
+			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t." + name + " IS NOT NULL THEN UPDATE SET v=20"
+			d := fixture.Diagnostic{Code: "42P10", Message: `cannot use system column "` + name + `" in MERGE WHEN condition`, Position: fixture.Position(strings.Index(q, "t."+name) + 1)}
+			s := fixture.ImplicitError(q, d)
+			s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]
+			run(s)
+			run(fixture.Select("SELECT * FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}}))
+		}
+		run(fixture.Exec("MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t.tableoid='t'::regclass THEN UPDATE SET v=11", 1))
+		run(fixture.Select("SELECT * FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(11)}}))
+		run(fixture.Exec("MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND (SELECT t.ctid IS NOT NULL) THEN UPDATE SET v=12", 1))
+		run(fixture.Select("SELECT * FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(12)}}))
 		run(fixture.Exec("MERGE INTO t USING (VALUES(1,TRUE)) s(id,ctid) ON t.id=s.id WHEN MATCHED AND s.ctid THEN UPDATE SET v=20", 1))
 		run(fixture.Select("SELECT * FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(20)}}))
 	})

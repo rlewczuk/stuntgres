@@ -124,7 +124,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		if err := core.ScopeAcquireRow(deleting, candidate); err != nil {
 			t.Fatal(err)
 		}
-		deleted, err := deleting.Writes().Delete(candidate)
+		deleted, err := deleting.Writes().Delete(candidate, row)
 		if err != nil || !deleted {
 			t.Fatal(deleted, err)
 		}

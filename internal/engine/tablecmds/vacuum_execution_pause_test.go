@@ -30,7 +30,7 @@ type vacuumPauseState struct {
 	store             *storage.Relation
 	rows, values      []storage.RowVersion
 	ends              *storage.DeletionRoot
-	endValues         map[ids.RowID]storage.RowEnd
+	endValues         *storage.DeletionRoot
 	predecessorRoot   *storage.HeapPredecessor
 	predecessors      []*storage.HeapPredecessor
 	predecessorValues []storage.HeapPredecessor
@@ -88,7 +88,7 @@ func vacuumPauseFixture(t *testing.T, e *core.Engine, owner *session.Session, na
 		e.Storage.RelationMetadata = make(map[ids.ObjectAddress]*storage.RelationMetadata)
 	}
 	e.Storage.RelationMetadata[ref.Address] = &storage.RelationMetadata{Imported: &storage.ImportedRelationStatistics{Mask: storage.RelationStatisticsAll, Pages: 7, Tuples: 129, AllVisible: 2, AllFrozen: 1}}
-	state := vacuumPauseState{ref: ref, store: store, rows: store.Versions, values: slices.Clone(store.Versions), ends: store.Ends, endValues: maps.Clone(store.Ends.Rows), generation: store.Generation, maintenance: store.Maintenance, metadata: e.Storage.RelationMetadata[ref.Address], catalog: e.Catalog.State, descriptor: e.Catalog.State.MustRelation(ref.Address), indexes: make(map[ids.ObjectAddress]*storage.IndexRoot), indexValues: make(map[ids.ObjectAddress]storage.IndexRoot), indexDescriptors: make(map[ids.ObjectAddress]catalog.Relation)}
+	state := vacuumPauseState{ref: ref, store: store, rows: store.Versions, values: slices.Clone(store.Versions), ends: store.Ends, endValues: store.Ends.Clone(), generation: store.Generation, maintenance: store.Maintenance, metadata: e.Storage.RelationMetadata[ref.Address], catalog: e.Catalog.State, descriptor: e.Catalog.State.MustRelation(ref.Address), indexes: make(map[ids.ObjectAddress]*storage.IndexRoot), indexValues: make(map[ids.ObjectAddress]storage.IndexRoot), indexDescriptors: make(map[ids.ObjectAddress]catalog.Relation)}
 	state.predecessorRoot = store.Retained
 	for prior := store.Retained; prior != nil; prior = prior.Next {
 		state.predecessors = append(state.predecessors, prior)
@@ -136,15 +136,15 @@ func vacuumPauseFixture(t *testing.T, e *core.Engine, owner *session.Session, na
 		state.indexDescriptors[indexRef.Address] = indexDescriptor
 	}
 	state.captured = time.Now().UTC().Truncate(time.Microsecond)
-	if len(state.rows) != 129 || len(state.endValues) != 65 || state.maintenance.VacuumCount != 0 {
-		t.Fatal("invalid independent seed", len(state.rows), len(state.endValues), state.maintenance)
+	if len(state.rows) != 129 || state.endValues.Len() != 65 || state.maintenance.VacuumCount != 0 {
+		t.Fatal("invalid independent seed", len(state.rows), state.endValues.Len(), state.maintenance)
 	}
 	return state
 }
 
 func (before vacuumPauseState) retained(t *testing.T) {
 	t.Helper()
-	if !reflect.DeepEqual(before.rows, before.values) || !reflect.DeepEqual(before.ends.Rows, before.endValues) || *before.metadata.Imported != before.imported || !reflect.DeepEqual(*before.metadata, before.metadataValue) || !reflect.DeepEqual(*before.descriptor, before.descriptorValue) {
+	if !reflect.DeepEqual(before.rows, before.values) || !reflect.DeepEqual(before.ends, before.endValues) || *before.metadata.Imported != before.imported || !reflect.DeepEqual(*before.metadata, before.metadataValue) || !reflect.DeepEqual(*before.descriptor, before.descriptorValue) {
 		t.Fatal("retained heap/deletion/metadata/catalog values mutated")
 	}
 	for i, prior := range before.predecessors {
@@ -434,7 +434,7 @@ func vacuumPauseSuccess(t *testing.T, e *core.Engine, before vacuumPauseState) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	store := e.Storage.Relations[before.ref.Address]
-	if store != before.store || storage.SameVersionRoot(store.Versions, before.rows) || store.Ends == before.ends || len(store.Versions) != 64 || len(store.Ends.Rows) != 0 || store.Generation != before.generation+1 {
+	if store != before.store || storage.SameVersionRoot(store.Versions, before.rows) || store.Ends == before.ends || len(store.Versions) != 64 || store.Ends.Len() != 0 || store.Generation != before.generation+1 {
 		t.Fatal("wrong retirement/root/generation")
 	}
 	if store.Retained != nil {

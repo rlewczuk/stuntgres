@@ -140,10 +140,10 @@ func bindMerge(out *Binding, binder *Binder, auth Authority, requiredRef ids.Obj
 		arm := &merge.Arms[i]
 		arm.Match, arm.Action = raw.Match, raw.Action
 		if raw.Condition != nil {
-			binder.Target.mergeWhen = true
+			binder.Target.mergeWhenFrame = binder.FrameID()
 			binder.Clause.AggregateClause = "WHEN"
 			arm.Condition, err = binder.BindBoolean(raw.Condition, FilterContext, "WHEN")
-			binder.Target.mergeWhen = false
+			binder.Target.mergeWhenFrame = 0
 			if err != nil {
 				return err
 			}

@@ -60,7 +60,7 @@ func AuthorizeSource(a access.View, env RelationAdmission, ref ids.ObjectRef, de
 		if err != nil {
 			return err
 		}
-		if leaf.TableOIDRead {
+		if leaf.SystemAttributeRead {
 			if err := a.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege}); err != nil {
 				return err
 			}

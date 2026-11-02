@@ -54,7 +54,7 @@ func TestTriggerTransitionFastPath(t *testing.T) {
 				t.Fatal(err)
 			}
 			for i := range 2 {
-				accepted, stale, err := dml.AppendAcceptedInsert(s.WriteHost(), ref, &index.WriteCandidate{Values: transitionRuntimeRow(t, read, int64(i+1), 5)})
+				accepted, stale, _, err := dml.AppendAcceptedInsert(s.WriteHost(), ref, &index.WriteCandidate{Values: transitionRuntimeRow(t, read, int64(i+1), 5)})
 				if err != nil || !accepted || stale {
 					t.Fatal(accepted, stale, err)
 				}

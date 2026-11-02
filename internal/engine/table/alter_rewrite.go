@@ -54,13 +54,13 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 			}
 		}
 	}
-	var replaced map[ids.RowID]bool
+	var replaced map[ids.VersionID]bool
 	for _, row := range writes {
 		if row.Base != 0 {
 			if replaced == nil {
-				replaced = make(map[ids.RowID]bool)
+				replaced = make(map[ids.VersionID]bool)
 			}
-			replaced[row.Row] = true
+			replaced[row.Base] = true
 		}
 	}
 	preparedTransforms := false
@@ -69,10 +69,11 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 	convert := func(input []storage.RowVersion, committed bool) ([]storage.RowVersion, error) {
 		result := make([]storage.RowVersion, 0, len(input))
 		for _, row := range input {
+			row = store.Headers.Apply(row)
 			if err := evaluation.Context.Err(); err != nil {
 				return nil, err
 			}
-			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, store.Ends, deletes) {
+			if committed && replaced[row.Version] || !visibility.LiveVersion(row, frontier, store.Ends, deletes) {
 				continue
 			}
 			evaluation.Row = row.Values
@@ -165,7 +166,11 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 		}
 		return result, nil
 	}
-	committed, err := convert(store.Versions, true)
+	source := store.Versions
+	if store.Headers != nil {
+		source = storage.VisibleHeapVersions(store, frontier)
+	}
+	committed, err := convert(source, true)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -173,5 +178,15 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return &storage.Relation{Versions: committed, Generation: store.Generation + 1}, own, nil, nil
+	var headers *storage.HeapHeaderRoot
+	if store.Headers != nil {
+		headers = &storage.HeapHeaderRoot{Stamp: store.Headers.Stamp}
+		for _, row := range committed {
+			if header := store.Headers.Header(row.Version); header.Repaired {
+				headers.Versions = headers.Versions.Set(row.Version, header)
+				headers.Additional = append(headers.Additional, row)
+			}
+		}
+	}
+	return &storage.Relation{Versions: committed, Headers: headers, Generation: store.Generation + 1}, own, nil, nil
 }

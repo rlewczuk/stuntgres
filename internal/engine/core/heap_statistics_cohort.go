@@ -57,6 +57,13 @@ func (e *Engine) heapStatisticsFactsLocked(s *StatementScope, owners []*session.
 	facts := make([]storage.HeapTupleFact, 0, len(store.Versions))
 	positions := make(map[ids.VersionID]int, len(store.Versions))
 	add := func(row storage.RowVersion, inserter ids.TxRef, end ids.CommitSeq, ender ids.TxRef) {
+		row = store.Headers.Apply(row)
+		if row.ForcedFrozen {
+			inserter, end = ids.TxRef{}, row.ForcedEnd
+		}
+		if row.ForcedEnd != 0 {
+			end = row.ForcedEnd
+		}
 		if slot, ok := positions[row.Version]; ok {
 			if ender != (ids.TxRef{}) {
 				facts[slot].Ender = ender
@@ -72,7 +79,7 @@ func (e *Engine) heapStatisticsFactsLocked(s *StatementScope, owners []*session.
 	for _, row := range store.Versions {
 		var end ids.CommitSeq
 		if store.Ends != nil {
-			if marker, ok := store.Ends.Rows[row.Row]; ok && marker.Version == row.Version {
+			if marker, ok := store.Ends.Lookup(row.Row, row.Version); ok {
 				end = marker.End
 			}
 		}
@@ -85,7 +92,34 @@ func (e *Engine) heapStatisticsFactsLocked(s *StatementScope, owners []*session.
 	for prior := store.Retained; prior != nil; prior = prior.Next {
 		add(prior.Version, ids.TxRef{}, prior.End, ids.TxRef{})
 	}
+	aborted := func(row storage.RowVersion) {
+		add(row, ids.TxRef{}, 0, ids.TxRef{})
+		if slot, ok := positions[row.Version]; ok && !facts[slot].Version.ForcedFrozen {
+			facts[slot].Aborted = true
+		}
+	}
+	for prior := store.Discarded; prior != nil; prior = prior.Next {
+		aborted(prior.Version)
+	}
+	if store.Headers != nil {
+		for _, row := range store.Headers.Additional {
+			add(row, ids.TxRef{}, 0, ids.TxRef{})
+		}
+	}
+	batches := func(values []session.HeapDiscard) {
+		for _, batch := range values {
+			if batch.Address == address && batch.Storage == store {
+				for prior := batch.Versions; prior != nil; prior = prior.Next {
+					aborted(prior.Version)
+				}
+			}
+		}
+	}
+	batches(s.Stage.DiscardedHeaps)
 	capture := func(ref ids.TxRef, catalog *session.Journal, rows []storage.RowVersion, deletion *visibility.PrivateDeletes) {
+		if ref.Epoch() == s.TxRef.Epoch() && ref.Domain() == s.TxRef.Domain() && catalog != nil {
+			batches(catalog.DiscardedHeaps)
+		}
 		if ref.Epoch() != s.TxRef.Epoch() || ref.Domain() != s.TxRef.Domain() || e.PrivateStorageLocked(catalog, address) != store {
 			return
 		}
@@ -100,13 +134,17 @@ func (e *Engine) heapStatisticsFactsLocked(s *StatementScope, owners []*session.
 				if prior.Version.Born == 0 {
 					inserter = ref
 				}
-				add(prior.Version, inserter, prior.End, ref)
+				ender := ref
+				if header := store.Headers.Header(prior.Version.Version); header.Repaired && prior.Version.RepairStamp != header.RepairStamp {
+					ender = ids.TxRef{}
+				}
+				add(prior.Version, inserter, prior.End, ender)
 			}
 		}
 		if deletion != nil {
-			for _, candidate := range deletion.Rows {
+			for _, candidate := range deletion.All() {
 				if candidate.Storage == store {
-					if slot, ok := positions[candidate.Version]; ok {
+					if slot, ok := positions[candidate.Version]; ok && (!facts[slot].Version.ForcedFrozen || candidate.RepairStamp == facts[slot].Version.RepairStamp) {
 						facts[slot].Ender = ref
 					}
 				}

@@ -146,7 +146,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	})
 	t.Run("failed_acceptance_has_no_event", func(t *testing.T) {
 		_, s := plExceptionUnitScope(t)
-		accepted, _, err := s.WriteHost().AppendAcceptedInsert(ids.ObjectRef{}, index.WriteCandidate{})
+		accepted, _, _, err := s.WriteHost().AppendAcceptedInsert(ids.ObjectRef{}, index.WriteCandidate{})
 		if accepted || err == nil || len(core.ScopeForeignActionsOrZero(s).Transitions) != 0 {
 			t.Fatal("failed stage admission queued an effect", accepted, err)
 		}

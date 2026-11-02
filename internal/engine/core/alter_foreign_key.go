@@ -201,7 +201,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		mode := modes[ref.Address]
-		if err := s.ForeignKeyGrant(ref, 0, mode, stores[ref.Address]); err != nil {
+		if err := s.ForeignKeyGrant(ref, storage.RowVersion{}, mode, stores[ref.Address]); err != nil {
 			return err
 		}
 	}

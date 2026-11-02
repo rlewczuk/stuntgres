@@ -31,13 +31,14 @@ type HashEntry struct {
 // HashRoot is a hash index's buckets and the storage incarnation (identity,
 // generation, prefix length and end root) they were built from.
 type HashRoot struct {
-	Buckets    map[uint64][]HashEntry
-	RowEntries map[ids.RowID]*HashEntry
-	Binding    HashBinding
-	Storage    *Relation
-	Generation uint64
-	Prefix     int
-	Ends       *DeletionRoot
+	Buckets          map[uint64][]HashEntry
+	RowEntries       map[ids.RowID]*HashEntry
+	RowEntryVersions map[ids.VersionID]*HashEntry
+	Binding          HashBinding
+	Storage          *Relation
+	Generation       uint64
+	Prefix           int
+	Ends             *DeletionRoot
 }
 
 // CaptureRowEntries indexes the entries by row for exclusion indexes with
@@ -47,13 +48,14 @@ func (r *HashRoot) CaptureRowEntries(ctx context.Context, d *catalog.IndexDefini
 		return nil
 	}
 	r.RowEntries = make(map[ids.RowID]*HashEntry)
+	r.RowEntryVersions = nil
 	for _, bucket := range r.Buckets {
 		for i := range bucket {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			entry := &bucket[i]
-			r.RowEntries[entry.Row] = entry
+			r.SetRowEntry(entry)
 		}
 	}
 	return nil

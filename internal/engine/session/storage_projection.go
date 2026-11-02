@@ -122,10 +122,10 @@ func ProjectDeletions(root *visibility.PrivateDeletes, store *storage.Relation) 
 	if root == nil {
 		return nil
 	}
-	next := &visibility.PrivateDeletes{Rows: make(map[ids.RowID]visibility.DeleteCandidate, len(root.Rows))}
-	for id, candidate := range root.Rows {
+	next := &visibility.PrivateDeletes{}
+	for _, candidate := range root.All() {
 		candidate.Storage = store
-		next.Rows[id] = candidate
+		next.Set(candidate)
 	}
 	return next
 }
@@ -193,7 +193,24 @@ func ProjectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Retained: retained, Generation: store.Generation + 1, Maintenance: store.Maintenance}
+	discarded, err := projection.Predecessors(ctx, store.Discarded)
+	if err != nil {
+		return shape, nil, nil, err
+	}
+	headers, err := storage.MapHeapHeaderRows(store.Headers, func(row storage.RowVersion) (storage.RowVersion, bool, error) {
+		mapped, err := projection.version(ctx, row)
+		return mapped, true, err
+	})
+	if err != nil {
+		return shape, nil, nil, err
+	}
+	replacement := *store
+	// Only consecutive TRUNCATE replacements share their bounded lineage.
+	// Transporting physical tuple history does not preserve that authority.
+	replacement.TruncateLineage = nil
+	replacement.Versions, replacement.Retained, replacement.Discarded, replacement.Headers = versions, retained, discarded, headers
+	replacement.Generation++
+	shape.Replacement = &replacement
 	shape.Truncated = false
 	writes, err = projection.Versions(ctx, writes)
 	if err != nil {

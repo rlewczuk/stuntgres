@@ -122,6 +122,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	derived, derivedRoot := btreeRoot(t, e, "expression")
 	stored := e.Storage.Relations[old.SQLIndex.Parent]
 	committed := indexMaintenanceCapture(e)
+	heapBefore := enginetest.CaptureHeapAbort(stored)
 	retained := transactionalIndexSnapshot(root)
 	tx := enginetest.TransactionBegin(t, s)
 	for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)", "INSERT INTO t VALUES(3,'before')", "SAVEPOINT keep"} {
@@ -131,6 +132,8 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	copy := prefix.Clone()
 	writes := s.Transactions.Writes[old.SQLIndex.Parent]
 	deletes := s.Transactions.Deletes[old.SQLIndex.Parent]
+	deleteCapture := deletes.Clone()
+	var discarded []storage.RowVersion
 	view := e.PrivateCatalogLocked(prefix)
 	prefixDescriptor := view.Get(old.Address())
 	prefixDefinition := view.MustRelation(old.Address()).SQLIndex
@@ -149,9 +152,16 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 		if prefixDescriptor.Name() != "fresh" || !reflect.DeepEqual(prefixDescriptor.(*catalog.Relation).StorageOptions.Base, prefixOptions) {
 			t.Fatal("postmark operation mutated retained prefix options/name")
 		}
+		suffix := s.Transactions.Writes[old.SQLIndex.Parent]
+		if len(suffix) != len(writes)+1 {
+			t.Fatal("postmark fixture did not create exactly one private tuple")
+		}
+		discarded = append(discarded, suffix[len(writes)])
 		enginetest.SessionSQL(t, s, "ROLLBACK TO keep")
 		restored := e.PrivateCatalogLocked(s.Transactions.Catalog)
-		if s.Transactions.Catalog != prefix || restored.Get(old.Address()) != prefixDescriptor || restored.MustRelation(old.Address()).SQLIndex != prefixDefinition || restored.Get(derived.Address()) != derived || !storage.SameVersionRoot(s.Transactions.Writes[old.SQLIndex.Parent], writes) || s.Transactions.Deletes[old.SQLIndex.Parent] != deletes {
+		enginetest.AssertJournalDiscards(t, s.Transactions.Catalog, prefix, old.SQLIndex.Parent, stored, discarded...)
+		enginetest.AssertHeapAbort(t, stored, heapBefore, 0)
+		if restored.Get(old.Address()) != prefixDescriptor || restored.MustRelation(old.Address()).SQLIndex != prefixDefinition || restored.Get(derived.Address()) != derived || !storage.SameVersionRoot(s.Transactions.Writes[old.SQLIndex.Parent], writes) || !reflect.DeepEqual(s.Transactions.Deletes[old.SQLIndex.Parent], deleteCapture) || !reflect.DeepEqual(deletes, deleteCapture) {
 			t.Fatal("savepoint did not restore exact descriptor/provider/write/deletion authority")
 		}
 		if !reflect.DeepEqual(prefix.Clone(), copy) || e.Storage.IndexRoots[old.Address()] != root || e.Storage.IndexRoots[derived.Address()] != derivedRoot || e.Storage.Relations[old.SQLIndex.Parent] != stored {
@@ -159,7 +169,11 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "RELEASE keep")
+	discarded = append(discarded, writes...)
 	enginetest.TransactionEnd(t, s, tx, false)
+	// Two savepoint suffixes and the surviving private prefix are disposed
+	// as three exact batches; no committed catalog/index/data is published.
+	enginetest.AssertHeapAbort(t, stored, heapBefore, 3, discarded...)
 	indexMaintenanceUnchanged(t, e, committed)
 	enginetest.LockEmpty(t, e)
 }

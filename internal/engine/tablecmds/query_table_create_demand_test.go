@@ -70,7 +70,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		t.Fatal("source owner retained")
 	}
 	stage, d := queryCreateStage(t, e, "copy", 1)
-	if err = e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+	if err = e.StageQueryTableRows(context.Background(), stage, d, rows, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -185,6 +185,7 @@ func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	enginetest.CommitCatalogTransaction(t, stage)
 }
 
 func queryCreateAssertAbsent(t *testing.T, e *core.Engine, d *catalog.Relation) {

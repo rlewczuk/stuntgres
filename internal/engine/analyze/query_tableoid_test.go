@@ -39,7 +39,7 @@ func tableOIDBinder(t *testing.T) (*Binder, *QueryNamespace) {
 		state.SetDescriptor(r.Address(), r)
 		ref := read.Domain().Ref(read.Epoch(), r.Address())
 		b.Query.Sources = append(b.Query.Sources, exec.Leaf{Ref: ref, Relation: r})
-		ns.Qualifiers = append(ns.Qualifiers, QueryQualifier{Name: name, Ref: ref, TableOIDOccurrence: i + 1})
+		ns.Qualifiers = append(ns.Qualifiers, QueryQualifier{Name: name, Ref: ref, SystemOccurrence: i + 1})
 	}
 	b.Query.Namespace = &ns
 	return b, &ns
@@ -49,33 +49,33 @@ func TestQueryTableOIDBinding(t *testing.T) {
 	b, ns := tableOIDBinder(t)
 	pos := parser.Position{Character: 8}
 	// Zero ordinary width still has independently bound qualified identities.
-	node, err := b.queryTableOID(ns, &ns.Qualifiers[1], nil, 1, pos)
+	node, err := b.querySystemAttribute("tableoid", ns, &ns.Qualifiers[1], nil, 1, pos)
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(plan.TableOIDExpr)
-	if n.Owner != b.Query.Sources[1].Ref || n.QueryOccurrence != 2 || n.Scope != 1 || n.Frame != 1 || !b.Query.Sources[1].TableOIDRead || len(b.Query.Sources[1].Uses) != 0 || len(ns.Frame) != 0 {
+	n := node.(plan.SystemAttributeExpr)
+	if n.Owner != b.Query.Sources[1].Ref || n.QueryOccurrence != 2 || n.Scope != 1 || n.Frame != 1 || !b.Query.Sources[1].SystemAttributeRead || len(b.Query.Sources[1].Uses) != 0 || len(ns.Frame) != 0 {
 		t.Fatal("source coordinates/ordinary width", n)
 	}
-	if _, err := b.queryTableOID(ns, nil, nil, 1, pos); err == nil || err.(*sqlstate.Error).Code != "42702" {
+	if _, err := b.querySystemAttribute("tableoid", ns, nil, nil, 1, pos); err == nil || err.(*sqlstate.Error).Code != "42702" {
 		t.Fatal("comma source ambiguity", err)
 	}
 	ns.Qualifiers[0].Columns = []QueryColumn{{Descriptor: catalog.Column{Name: "tableoid"}}}
 	ordinary := ns.Qualifiers[0].Columns[0]
-	if _, err := b.queryTableOID(ns, nil, &ordinary, 1, pos); err == nil || err.(*sqlstate.Error).Code != "42702" {
+	if _, err := b.querySystemAttribute("tableoid", ns, nil, &ordinary, 1, pos); err == nil || err.(*sqlstate.Error).Code != "42702" {
 		t.Fatal("mixed comma ambiguity", err)
 	}
 	for i := range ns.Qualifiers {
 		ns.Qualifiers[i].SystemColumnsHidden = true
 	}
-	if node, err := b.queryTableOID(ns, nil, &ordinary, 1, pos); node != nil || err != nil {
+	if node, err := b.querySystemAttribute("tableoid", ns, nil, &ordinary, 1, pos); node != nil || err != nil {
 		t.Fatal("joined ordinary output must win without implicit operand candidate", node, err)
 	}
-	if node, err := b.queryTableOID(ns, &ns.Qualifiers[1], nil, 1, pos); node == nil || err != nil {
+	if node, err := b.querySystemAttribute("tableoid", ns, &ns.Qualifiers[1], nil, 1, pos); node == nil || err != nil {
 		t.Fatal("qualified JOIN operand lost identity", err)
 	}
 	b.Consumer.CheckConsumer = true
-	if node, err := b.queryTableOID(ns, &ns.Qualifiers[1], nil, 1, pos); node != nil || err != nil {
+	if node, err := b.querySystemAttribute("tableoid", ns, &ns.Qualifiers[1], nil, 1, pos); node != nil || err != nil {
 		t.Fatal("CHECK acquired ordinary system namespace")
 	}
 	t.Run("nearest_qualifier_owns_missing_member", func(t *testing.T) {
@@ -94,15 +94,15 @@ func TestQueryTableOIDBinding(t *testing.T) {
 
 func TestQueryTableOIDFrameSemantics(t *testing.T) {
 	b, ns := tableOIDBinder(t)
-	node, err := b.queryTableOID(ns, &ns.Qualifiers[0], nil, 4, parser.Position{Character: 17})
+	node, err := b.querySystemAttribute("tableoid", ns, &ns.Qualifiers[0], nil, 4, parser.Position{Character: 17})
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(plan.TableOIDExpr)
+	n := node.(plan.SystemAttributeExpr)
 	if !n.Properties().RowDependent || n.ResultUsage().Type.ID() != sqltype.Oid || !ExpressionUsesFrame(n, 4) || ExpressionUsesFrame(n, 1) || FirstQueryBoundFrameVariable(n, 4).Character != 17 {
 		t.Fatal("tableoid treated as constant", n)
 	}
-	for _, change := range []func(*plan.TableOIDExpr){func(x *plan.TableOIDExpr) { x.Frame++ }, func(x *plan.TableOIDExpr) { x.QueryOccurrence++ }, func(x *plan.TableOIDExpr) { x.Owner = new(ids.Domain).Ref(x.Owner.Epoch, x.Owner.Address) }} {
+	for _, change := range []func(*plan.SystemAttributeExpr){func(x *plan.SystemAttributeExpr) { x.Frame++ }, func(x *plan.SystemAttributeExpr) { x.QueryOccurrence++ }, func(x *plan.SystemAttributeExpr) { x.Owner = new(ids.Domain).Ref(x.Owner.Epoch, x.Owner.Address) }} {
 		other := n
 		change(&other)
 		if b.SameGroupExpression(n, other) {
@@ -123,11 +123,11 @@ func TestQueryTableOIDFrameSemantics(t *testing.T) {
 
 func TestQueryTableOIDFunctionCorrelation(t *testing.T) {
 	b, ns := tableOIDBinder(t)
-	node, err := b.queryTableOID(ns, &ns.Qualifiers[1], nil, 1, parser.Position{Offset: 20, Character: 21})
+	node, err := b.querySystemAttribute("tableoid", ns, &ns.Qualifiers[1], nil, 1, parser.Position{Offset: 20, Character: 21})
 	if err != nil {
 		t.Fatal(err)
 	}
-	system := node.(plan.TableOIDExpr)
+	system := node.(plan.SystemAttributeExpr)
 	array, ok := b.BindingCatalog().LookupArray(system.ResultUsage().Type)
 	if !ok {
 		t.Fatal("missing OID array")
@@ -139,7 +139,7 @@ func TestQueryTableOIDFunctionCorrelation(t *testing.T) {
 	}
 	local := QueryNamespace{Qualifiers: []QueryQualifier{ns.Qualifiers[1]}}
 	ancestor := QueryNamespace{Qualifiers: []QueryQualifier{ns.Qualifiers[0]}}
-	if len(local.Frame) != 0 || !queryNamespaceHasTableOID(&local, 2) || queryNamespaceHasTableOID(&ancestor, 2) || !queryNamespaceHasTableOID(&ancestor, 1) {
+	if len(local.Frame) != 0 || !queryNamespaceHasSystemAttribute(&local, 2) || queryNamespaceHasSystemAttribute(&ancestor, 2) || !queryNamespaceHasSystemAttribute(&ancestor, 1) {
 		t.Fatal("zero-column membership used tuple width")
 	}
 	root := &plan.FunctionFromNode{Calls: []expr.Expr{call}, Frame: 1, Correlated: true, Captures: captures}

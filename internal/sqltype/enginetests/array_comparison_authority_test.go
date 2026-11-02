@@ -72,7 +72,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	oid, boolean := b.Type(sqltype.Oid), b.Type(sqltype.Bool)
 	left := plan.LiteralExpr{Info: b.Info(oid.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(oid)}
-	late := plan.TableOIDExpr{Info: b.Info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
+	late := plan.SystemAttributeExpr{SubID: -6, Info: b.Info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		}
 		seen := false
 		plan.WalkExpression(node, func(child expr.Expr) {
-			if _, ok := child.(plan.TableOIDExpr); ok {
+			if _, ok := child.(plan.SystemAttributeExpr); ok {
 				seen = true
 			}
 		})

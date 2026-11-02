@@ -296,7 +296,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if writer.Ended || writer.Committed {
 					t.Fatal("writer resolution supplied the observed wake")
 				}
-				if !reflect.DeepEqual(oldRoot.Storage.Versions[:cap(oldRoot.Storage.Versions)], before.storage[relation.Address].rows) || oldRoot.Ends != before.storage[relation.Address].ends || (oldRoot.Ends != nil && !reflect.DeepEqual(oldRoot.Ends.Rows, before.storage[relation.Address].endRows)) {
+				if !reflect.DeepEqual(oldRoot.Storage.Versions[:cap(oldRoot.Storage.Versions)], before.storage[relation.Address].rows) || oldRoot.Ends != before.storage[relation.Address].ends || !reflect.DeepEqual(oldRoot.Ends, before.storage[relation.Address].endRows) {
 					t.Fatal("replacement mutated immutable old snapshot")
 				}
 				if mode != "cancel" && (e.Catalog.State.Epoch() != oldEpoch+1 || !node.Aborted || !writer.Aborted || len(e.Visibility.Serializable.Nodes) != 0 || len(e.Visibility.Serializable.Creators) != 0) {

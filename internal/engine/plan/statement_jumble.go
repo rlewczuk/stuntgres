@@ -112,6 +112,11 @@ func (InstalledPgstattupleStatsExpr) JumbleFields(s expr.StatementFields) {
 func (InstalledPgvisibilityExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgvisibilityExpr")
 }
+func (n InstalledPgsurgeryExpr) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("plan.InstalledPgsurgeryExpr")
+	s.JumbleUint64(uint64(n.Slots[0]))
+	s.JumbleUint64(uint64(n.Slots[1]))
+}
 func (InstalledPgpArmorHeadersExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgpArmorHeadersExpr")
 }
@@ -166,12 +171,14 @@ func (ScalarArrayComparisonExpr) JumbleFields(s expr.StatementFields) {
 func (SelectedOperatorExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.SelectedOperatorExpr")
 }
-func (SeriesExpr) JumbleFields(s expr.StatementFields)       { s.JumbleText("plan.SeriesExpr") }
-func (SQLRoutineExpr) JumbleFields(s expr.StatementFields)   { s.JumbleText("plan.SQLRoutineExpr") }
-func (SubqueryExpr) JumbleFields(s expr.StatementFields)     { s.JumbleText("plan.SubqueryExpr") }
-func (SubscriptExpr) JumbleFields(s expr.StatementFields)    { s.JumbleText("plan.SubscriptExpr") }
-func (SubscriptsExpr) JumbleFields(s expr.StatementFields)   { s.JumbleText("plan.SubscriptsExpr") }
-func (TableOIDExpr) JumbleFields(s expr.StatementFields)     { s.JumbleText("plan.TableOIDExpr") }
+func (SeriesExpr) JumbleFields(s expr.StatementFields)     { s.JumbleText("plan.SeriesExpr") }
+func (SQLRoutineExpr) JumbleFields(s expr.StatementFields) { s.JumbleText("plan.SQLRoutineExpr") }
+func (SubqueryExpr) JumbleFields(s expr.StatementFields)   { s.JumbleText("plan.SubqueryExpr") }
+func (SubscriptExpr) JumbleFields(s expr.StatementFields)  { s.JumbleText("plan.SubscriptExpr") }
+func (SubscriptsExpr) JumbleFields(s expr.StatementFields) { s.JumbleText("plan.SubscriptsExpr") }
+func (SystemAttributeExpr) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("plan.SystemAttributeExpr")
+}
 func (TruthTestExpr) JumbleFields(s expr.StatementFields)    { s.JumbleText("plan.TruthTestExpr") }
 func (UnknownOutput) JumbleFields(s expr.StatementFields)    { s.JumbleText("plan.UnknownOutput") }
 func (UnnestExpr) JumbleFields(s expr.StatementFields)       { s.JumbleText("plan.UnnestExpr") }

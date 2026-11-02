@@ -101,6 +101,8 @@ func TestEventTriggerJournalBoundary(t *testing.T) {
 			if err := scope.FinishEventCommand(previous, caught); err != caught || scope.EventCommand != nil {
 				t.Fatal("nested command did not restore exact enclosing event context", err)
 			}
+			abortBacking := enginetest.CaptureHeapAbort(store)
+			created := scope.Stage.Rows[audit.Address]
 			failure := error(nil)
 			if veto {
 				failure = errors.New("terminal veto")
@@ -118,8 +120,9 @@ func TestEventTriggerJournalBoundary(t *testing.T) {
 				t.Fatal("post-Finish authority reused the detached statement journal", authErr)
 			}
 			if veto {
-				if e.Catalog.State != before || e.RoleStore.Published != rolesBefore || store.Generation != generation || len(store.Versions) != 0 || e.Visibility.CommitSeq() != frontier {
-					t.Fatal("Finish veto published catalog/roles/storage/rows/frontier")
+				enginetest.AssertHeapAbort(t, store, abortBacking, 1, created...)
+				if e.Catalog.State != before || e.RoleStore.Published != rolesBefore || len(store.Versions) != 0 || e.Visibility.CommitSeq() != frontier {
+					t.Fatal("Finish veto published catalog/roles/rows/frontier")
 				}
 			} else if e.Catalog.State == before || len(store.Versions) != 1 || e.Visibility.CommitSeq() <= frontier || e.RoleStore.Published.Root.Read(actor.Authorization.State.CurrentUser).LookupRef("et_boundary_transient").ID() == 0 {
 				t.Fatal("Finish failed to publish one atomic command")
@@ -143,25 +146,25 @@ func TestEventTriggerProjectionRoots(t *testing.T) {
 			audit := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 41001}
 			scope := core.StatementScope{
 				OwnWrites:  map[ids.ObjectAddress][]storage.RowVersion{target: {{Row: 1, Version: 1}}},
-				OwnDeletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{target: {Rows: map[ids.RowID]visibility.DeleteCandidate{1: {Version: 1}}}},
+				OwnDeletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{target: {Rows: map[ids.RowID]visibility.DeleteCandidate{1: {Row: 1, Version: 1}}}},
 			}
 			scope.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{target: {{Row: 2, Version: 2}}, audit: {{Row: 3, Version: 3}}}
-			scope.Stage.Deletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{target: {Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 2}}}}
+			scope.Stage.Deletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{target: {Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Row: 2, Version: 2}}}}
 			if drop {
 				scope.DiscardRemovedWrites(&core.CatalogStage{})
 			}
 			writes, deletes := scope.ColumnProjectionRoots(target)
-			if len(writes) != 2 || len(deletes.Rows) != 2 {
+			if len(writes) != 2 || deletes.Len() != 2 {
 				t.Fatal("projection omitted the transaction prefix or current callback suffix")
 			}
 			if !drop {
 				scope.StageProjectedColumnRoots(target, writes, deletes)
 			}
-			if !scope.ProjectedRoots || !scope.Stage.Replacing || len(scope.Stage.Rows[target]) != 2 || len(scope.Stage.Rows[audit]) != 1 || len(scope.Stage.Deletes[target].Rows) != 2 {
+			if !scope.ProjectedRoots || !scope.Stage.Replacing || len(scope.Stage.Rows[target]) != 2 || len(scope.Stage.Rows[audit]) != 1 || scope.Stage.Deletes[target].Len() != 2 {
 				t.Fatal("shape/drop discarded earlier callback effects")
 			}
 			writes[0].Version = 99
-			if len(scope.OwnWrites[target]) != 1 || scope.OwnWrites[target][0].Version != 1 || len(scope.OwnDeletes[target].Rows) != 1 {
+			if len(scope.OwnWrites[target]) != 1 || scope.OwnWrites[target][0].Version != 1 || scope.OwnDeletes[target].Len() != 1 {
 				t.Fatal("complete-root conversion mutated its retained predecessor")
 			}
 		})

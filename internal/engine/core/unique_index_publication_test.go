@@ -54,9 +54,7 @@ func uniquePublicationRows(rows []storage.RowVersion) []storage.RowVersion {
 func uniquePublicationStore(store *storage.Relation) storage.Relation {
 	copy := *store
 	copy.Versions = uniquePublicationRows(store.Versions)
-	if store.Ends != nil {
-		copy.Ends = &storage.DeletionRoot{Rows: maps.Clone(store.Ends.Rows)}
-	}
+	copy.Ends = store.Ends.Clone()
 	return copy
 }
 
@@ -196,10 +194,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	}
 	beforeStore := uniquePublicationStore(store)
 	beforeWrites := uniquePublicationRows(writes)
-	var beforeDeletes map[ids.RowID]visibility.DeleteCandidate
-	if deletion != nil {
-		beforeDeletes = maps.Clone(deletion.Rows)
-	}
+	beforeDeletes := deletion.Clone()
 	stores := index.CaptureIndexStores(f.e.Storage.Relations, f.catalog)
 	stores[f.parent.Address()] = store
 	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
@@ -211,7 +206,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	}
 	output := sqltype.OutputEnvironment{DateStyle: sqltype.DateStyle{Style: sqltype.DateGerman, Order: sqltype.DateDMY}}
 	roots, err := core.EnginePrepareIndexRoots(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, f.catalog, stores, f.roots, parents, nil, []index.RowPublication{publication}, materialize, output, &f.auth, nil, nil)
-	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.Rows, beforeDeletes) {
+	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || !reflect.DeepEqual(deletion, beforeDeletes) {
 		t.Fatal("publication inputs mutated")
 	}
 	f.unchanged(t)

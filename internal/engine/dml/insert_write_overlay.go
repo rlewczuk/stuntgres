@@ -3,6 +3,7 @@ package dml
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/storage"
 )
 
 // Slots refer to this command's append-only stage or its captured immutable
@@ -15,8 +16,22 @@ type InsertWriteKeyOverlay struct {
 	OwnReady   bool
 }
 
+type writeVersionIdentity struct {
+	Version     ids.VersionID
+	RepairStamp uint64
+}
+
+func writeIdentity(row storage.RowVersion) writeVersionIdentity {
+	return writeVersionIdentity{row.Version, row.RepairStamp}
+}
+
 type InsertWriteOverlay struct {
-	AffectedRows map[ids.RowID]int
-	OwnRowSlots  map[ids.ObjectAddress]map[ids.RowID]int
-	Overlays     map[*index.UniqueBoundKey]*InsertWriteKeyOverlay
+	AffectedVersions map[writeVersionIdentity]int
+	OwnVersionSlots  map[ids.ObjectAddress]map[writeVersionIdentity]int
+	Overlays         map[*index.UniqueBoundKey]*InsertWriteKeyOverlay
+}
+
+func (o *InsertWriteOverlay) AffectedSlot(row storage.RowVersion) (int, bool) {
+	slot, ok := o.AffectedVersions[writeIdentity(row)]
+	return slot, ok
 }

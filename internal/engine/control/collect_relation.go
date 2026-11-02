@@ -202,7 +202,11 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		if stored == nil {
 			return fmt.Errorf("stuntgres: materialized view storage is missing")
 		}
-		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.Frontier, Descriptor: r})
+		versions, ends := stored.Versions, stored.Ends
+		if stored.Headers != nil {
+			versions, ends = storage.VisibleHeapVersions(stored, c.source.Frontier), nil
+		}
+		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.Frontier, Descriptor: r})
 	}
 	if r.RelationKind == catalog.ViewRelation && r.Comment != "" {
 		sql += "COMMENT ON VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " IS " + dump.CommentLiteral(r.Comment) + ";\n"
@@ -327,6 +331,9 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 	var ends *storage.DeletionRoot
 	if stored != nil {
 		versions, ends = stored.Versions, stored.Ends
+		if stored.Headers != nil {
+			versions, ends = storage.VisibleHeapVersions(stored, c.source.Frontier), nil
+		}
 	}
 	c.Tables = append(c.Tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.Frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
 	if selected := c.source.RecipePlan[r.Address()]; selected != nil {

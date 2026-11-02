@@ -34,7 +34,7 @@ func lexicalHasIdentityReads(bound expr.Expr) bool {
 		if column, ok := node.(plan.ColumnExpr); ok && column.Virtual != nil && column.QueryOccurrence != 0 {
 			found = true
 		}
-		if tableoid, ok := node.(plan.TableOIDExpr); ok && tableoid.QueryOccurrence != 0 {
+		if tableoid, ok := node.(plan.SystemAttributeExpr); ok && tableoid.QueryOccurrence != 0 {
 			found = true
 		}
 	})
@@ -53,6 +53,11 @@ func (c *Context) BindQueryIdentity(source *Source, index int) {
 	if c.Query == nil || !c.Query.IdentityReads {
 		return
 	}
+	c.QueryRawXmax = c.Query.Source.RawXmax
+	if locks := c.Query.Source.Locks; locks != nil && locks.RawXmax != nil {
+		c.QueryRawXmax = locks.RawXmax
+	}
+	c.QueryProjectedVersions = ProjectedQueryVersions(source, index)
 	if c.queryRowSource != source {
 		c.QueryOccurrences = AppendQueryOccurrences(c.QueryOccurrences[:0], source)
 		c.queryRowSource = source

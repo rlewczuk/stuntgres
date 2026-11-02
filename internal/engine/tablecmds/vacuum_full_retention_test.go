@@ -26,9 +26,23 @@ func TestVacuumFullRetention(t *testing.T) {
 			sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			sessionSQL(t, reader, "SELECT id FROM full_history_anchor").Rows.Close()
 			original := captureFullOwned(t, e, "full_history")
-			for _, q := range []string{"BEGIN", "UPDATE full_history SET id=2", "SAVEPOINT saved_history", "UPDATE full_history SET id=99", "ROLLBACK TO saved_history", "UPDATE full_history SET id=3"} {
+			for _, q := range []string{"BEGIN", "UPDATE full_history SET id=2", "SAVEPOINT saved_history", "UPDATE full_history SET id=99"} {
 				sessionSQL(t, owner, q)
 			}
+			discardedVersion := owner.Transactions.Writes[original.ref.Address][0]
+			discardedValue, err := discardedVersion.Values[0].Integer()
+			if err != nil || discardedVersion.Born != 0 || discardedVersion.Version == original.rows[0].Version || discardedValue != 99 {
+				t.Fatal("missing genuine accepted version to discard")
+			}
+			for _, q := range []string{"ROLLBACK TO saved_history", "UPDATE full_history SET id=3"} {
+				sessionSQL(t, owner, q)
+			}
+			discarded := original.store.Discarded
+			if discarded == nil || discarded.Next != nil || discarded.Version.Version != discardedVersion.Version || &discarded.Version.Values[0] != &discardedVersion.Values[0] {
+				t.Fatal("savepoint did not retain exact discarded version/backing")
+			}
+			discardedOwned := make(map[*storage.HeapPredecessor]fullOwnedPredecessor)
+			captureFullHistory(discarded, discardedOwned)
 			writes := owner.Transactions.Writes[original.ref.Address]
 			if len(writes) != 1 || writes[0].PrivateHistory == nil || writes[0].PrivateHistory.Next == nil || writes[0].PrivateHistory.Next.Next != nil {
 				t.Fatal("missing actual private repeated UPDATE history")
@@ -77,9 +91,13 @@ func TestVacuumFullRetention(t *testing.T) {
 			if report := table.VacuumFullReport(read, before.descriptor, guarded, 1); report != `rewriting "public"."full_history" (native logical storage): 1 live rows, 2 retained dead versions, 0 dead versions removed, 0 versions frozen, 1 indexes rebuilt` {
 				t.Fatal("guarded physical history VERBOSE counts", report)
 			}
+			physical, err := storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, false, nil)
+			if err != nil || physical.Live != 1 || physical.Dead != 3 || physical.Removed != 0 || physical.Retained != before.predecessors || physical.Discarded != discarded || len(physical.Versions) != 1 {
+				t.Fatal("guarded canonical rewrite lost committed or discarded physical versions", physical, err)
+			}
 			sessionSQL(t, worker, "VACUUM (FULL,VERBOSE) full_history")
 			next := before.replaced(t, e)
-			if next.Retained != before.predecessors || len(next.Versions) != 1 || len(next.Ends.Rows) != 0 || next.Maintenance.Tuples != 3 || next.Maintenance.Live != before.maintenance.Live || next.Maintenance.Dead != before.maintenance.Dead {
+			if next.Retained != before.predecessors || next.Discarded != discarded || len(next.Versions) != 1 || next.Ends.Len() != 0 || next.Maintenance.Tuples != 4 || next.Maintenance.Live != before.maintenance.Live || next.Maintenance.Dead != before.maintenance.Dead {
 				t.Fatal("guarded FULL dropped actual history or miscounted physical versions", next.Maintenance)
 			}
 			result := sessionSQL(t, reader, "SELECT id FROM full_history")
@@ -97,14 +115,23 @@ func TestVacuumFullRetention(t *testing.T) {
 			if report := table.VacuumFullReport(read, before.descriptor, retired, 1); report != `rewriting "public"."full_history" (native logical storage): 1 live rows, 0 retained dead versions, 2 dead versions removed, 0 versions frozen, 1 indexes rebuilt` {
 				t.Fatal("retired physical history VERBOSE counts", report)
 			}
+			physical, err = storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, true, nil)
+			if err != nil || physical.Live != 1 || physical.Dead != 0 || physical.Removed != 3 || physical.Retained != nil || physical.Discarded != nil || len(physical.Versions) != 1 {
+				t.Fatal("quiescent canonical rewrite did not retire exact committed and discarded versions", physical, err)
+			}
 			sessionSQL(t, worker, "VACUUM (FULL,VERBOSE) full_history")
 			next = before.replaced(t, e)
-			if next.Retained != nil || len(next.Versions) != 1 || next.Maintenance.Tuples != 1 || next.Maintenance.Live != before.maintenance.Live || next.Maintenance.Dead != before.maintenance.Dead || next.Maintenance.Updates != before.maintenance.Updates || next.Maintenance.Modifications != before.maintenance.Modifications || next.Maintenance.VacuumCount != before.maintenance.VacuumCount {
+			if next.Retained != nil || next.Discarded != nil || len(next.Versions) != 1 || next.Maintenance.Tuples != 1 || next.Maintenance.Live != before.maintenance.Live || next.Maintenance.Dead != before.maintenance.Dead || next.Maintenance.Updates != before.maintenance.Updates || next.Maintenance.Modifications != before.maintenance.Modifications || next.Maintenance.VacuumCount != before.maintenance.VacuumCount {
 				t.Fatal("quiescent FULL did not retire exact history while preserving cumulative facts", next.Maintenance)
 			}
 			for node, owned := range privateOwned {
 				if node.Next != owned.header.Next || node.Version.PrivateHistory != owned.header.Version.PrivateHistory || !reflect.DeepEqual(*node, owned.header) || len(owned.payload) != 0 && &node.Version.Values[0] != &owned.payload[0] {
 					t.Fatal("FULL/publication mutated saved private history")
+				}
+			}
+			for node, owned := range discardedOwned {
+				if !reflect.DeepEqual(*node, owned.header) || &node.Version.Values[0] != &owned.payload[0] || node.Version.Version != discardedVersion.Version {
+					t.Fatal("FULL mutated captured discarded version/header/backing")
 				}
 			}
 			fullMixedRows(t, worker, "full_history", 3)
@@ -146,14 +173,14 @@ func TestVacuumFullRetention(t *testing.T) {
 				t.Fatal("retained snapshot lost pre-FULL visibility", rows)
 			}
 			next := before.replaced(t, e)
-			if len(next.Versions) != 2 || next.Ends == nil || len(next.Ends.Rows) != 1 {
+			if len(next.Versions) != 2 || next.Ends.Len() != 1 {
 				t.Fatal("unrelated live ticket lost protected ended head")
 			}
 			sessionSQL(t, reader, "ROLLBACK")
 			before = captureFullOwned(t, e, "full_keep")
 			sessionSQL(t, worker, "VACUUM FULL full_keep")
 			next = before.replaced(t, e)
-			if len(next.Versions) != 1 || len(next.Ends.Rows) != 0 || next.Versions[0].Row != before.rows[1].Row {
+			if len(next.Versions) != 1 || next.Ends.Len() != 0 || next.Versions[0].Row != before.rows[1].Row {
 				t.Fatal("quiescent FULL did not retire exact obsolete head")
 			}
 			lockEmpty(t, e)
@@ -197,7 +224,7 @@ func TestVacuumFullRetention(t *testing.T) {
 		sessionSQL(t, second, "ROLLBACK")
 		before = captureFullOwned(t, e, "full_repeat")
 		sessionSQL(t, owner, "VACUUM FULL full_repeat")
-		if next := before.replaced(t, e); len(next.Versions) != 2 || len(next.Ends.Rows) != 0 {
+		if next := before.replaced(t, e); len(next.Versions) != 2 || next.Ends.Len() != 0 {
 			t.Fatal("quiescent repeated FULL retained obsolete heads")
 		}
 		lockEmpty(t, e)

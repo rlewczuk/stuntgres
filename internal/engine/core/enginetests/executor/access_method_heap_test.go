@@ -3,7 +3,6 @@ package executor_test
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
 	"testing"
 
@@ -85,7 +84,7 @@ func TestAccessMethodHeapOperations(t *testing.T) {
 		7: {Row: 7, Version: 77}, 8: {Row: 8, Version: 89, Base: 88}, 9: {Row: 9, Version: 100, Base: 101},
 	}}
 	before := append([]storage.RowVersion(nil), store.Versions...)
-	beforeEnds, beforeDeletes := maps.Clone(store.Ends.Rows), maps.Clone(own.Rows)
+	beforeEnds, beforeDeletes := store.Ends.Clone(), own.Clone()
 	for i, tc := range []struct {
 		name string
 		live bool
@@ -129,7 +128,7 @@ func TestAccessMethodHeapOperations(t *testing.T) {
 	if canceled != nil || !errors.Is(err, context.Canceled) || !reflect.DeepEqual(store.Versions, before) {
 		t.Fatal("heap selection cancellation mutated retained root", err)
 	}
-	if !reflect.DeepEqual(store.Ends.Rows, beforeEnds) || !reflect.DeepEqual(own.Rows, beforeDeletes) || !reflect.DeepEqual(source.Own, beforeOwn) {
+	if !reflect.DeepEqual(store.Ends, beforeEnds) || !reflect.DeepEqual(own, beforeDeletes) || !reflect.DeepEqual(source.Own, beforeOwn) {
 		t.Fatal("heap selection mutated retained ends/private overlays")
 	}
 }

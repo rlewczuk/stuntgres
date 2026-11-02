@@ -82,17 +82,39 @@ func prepareUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysical
 // statement stage. A DELETE veto keeps OLD; an INSERT veto keeps the staged
 // deletion but produces no UPDATE count or RETURNING row. Finish alone publishes
 // effects, so any later destination failure also rolls the source deletion back.
-func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow, old storage.RowVersion, destination *catalog.Relation, values, proposal []sqltype.Value, evaluation *exec.Context) (bool, error) {
-	before, err := Before(h, physical.Leaf.Relation, BeforeRow{Relation: physical.Leaf.Ref, Event: BeforeDelete, Old: old.Values})
-	if err != nil || !before.Proceed {
-		return false, err
+func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow, old storage.RowVersion, destination *catalog.Relation, values, proposal []sqltype.Value, evaluation *exec.Context, accepted []storage.RowVersion, beforeDeleteDone *bool) (bool, error) {
+	if !*beforeDeleteDone {
+		if HasRowTriggers(physical.Leaf.Relation, stored.TriggerDelete, stored.TriggerBefore) {
+			if err := h.AcquireUpdateRow(physical.Leaf.Ref, old, lock.ForUpdate); err != nil {
+				return false, err
+			}
+			current, err := h.LatestRow(RowRequest{Kind: RowUpdate, Ref: physical.Leaf.Ref, Row: old.Row, Physical: old.Version, Hint: physical.Hint, Storage: physical.Leaf.Storage, GrantMode: lock.ForUpdate})
+			if err != nil {
+				return false, err
+			}
+			if !current.Live || current.Version.Version != old.Version {
+				return false, ErrTupleRecheck
+			}
+			old = current.Version
+			if err := h.PhysicalRowLock(physical.Leaf.Ref, old, lock.ForUpdate); err != nil {
+				return false, err
+			}
+		}
+		before, err := Before(h, physical.Leaf.Relation, BeforeRow{Relation: physical.Leaf.Ref, Event: BeforeDelete, Old: old.Values})
+		if err != nil {
+			return false, err
+		}
+		*beforeDeleteDone = true
+		if !before.Proceed {
+			return false, nil
+		}
 	}
 	if err := ClaimUniqueRow(evaluation.Context, h, physical.Leaf.Ref, old); err != nil {
 		return false, err
 	}
 	deletion := physical.Deletion()
 	deletion.Moved = true
-	deleted, err := h.Delete(deletion)
+	deleted, err := h.Delete(deletion, old)
 	if err != nil || !deleted {
 		return false, err
 	}
@@ -107,7 +129,7 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	// Destination BEFORE INSERT observes the source deletion, just as a
 	// volatile function called by the physical INSERT would.
 	ref := named.Ref.Domain().Ref(named.Ref.Epoch, destination.Address())
-	before, err = Before(h, destination, BeforeRow{Relation: ref, Event: BeforeInsert, New: values})
+	before, err := Before(h, destination, BeforeRow{Relation: ref, Event: BeforeInsert, New: values})
 	if err != nil || !before.Proceed {
 		return false, err
 	}
@@ -141,8 +163,15 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	}
 	var batch index.WriteBatch
 	batch.Append(candidate)
+	batch.Accepted = accepted
 	if err := ApplyValidated(evaluation.Context, h, ref, batch); err != nil {
 		return false, err
+	}
+	if accepted != nil {
+		if err := captureDeletedHeader(h, physical.Leaf.Ref, old, evaluation); err != nil {
+			return false, err
+		}
+		evaluation.PhysicalTable, evaluation.PhysicalVersion = ref, accepted[0]
 	}
 	if captureNext {
 		if err := captureTransition(h, named, stored.TriggerUpdate, nil, proposal); err != nil {

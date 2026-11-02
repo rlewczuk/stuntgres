@@ -113,14 +113,14 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 			if err != nil || !match {
 				return false, err
 			}
-			if err = h.GrantForeignKey(ref, child.Row, lock.ForKeyShare, children.Storage); err != nil {
+			if err = h.GrantForeignKey(ref, child, lock.ForKeyShare, children.Storage); err != nil {
 				return false, err
 			}
-			latest, live, err := h.ForeignActionRow(ref, child)
+			latest, live, err := h.ForeignActionRow(ref, child, lock.ForKeyShare)
 			if err != nil || !live {
 				return false, err
 			}
-			if err := h.PhysicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
+			if err := h.PhysicalRowLock(ref, latest, lock.ForKeyShare); err != nil {
 				return false, err
 			}
 			match, err = table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, latest.Values, event.Old.Values, input)
@@ -142,9 +142,13 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 	ownerAuth := auth.ActingAs(job.Child.Owner)
 	previous := h.SwapForeignActionAuthority(ownerAuth)
 	defer h.SwapForeignActionAuthority(previous)
-	restoreSnapshot,err:=h.BeginForeignActionSnapshot(job,event,action)
-	if err!=nil{return err}
-	if restoreSnapshot!=nil{defer restoreSnapshot()}
+	restoreSnapshot, err := h.BeginForeignActionSnapshot(job, event, action)
+	if err != nil {
+		return err
+	}
+	if restoreSnapshot != nil {
+		defer restoreSnapshot()
+	}
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
 	var plan *ForeignActionPlan
 	err = nil
@@ -185,10 +189,11 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 	if err != nil {
 		return err
 	}
-	// Retained matches take precedence by real RowID. The canonical grant and
-	// live-successor crosscheck below run before any latest-key match/staging.
+	// A retained match owns its exact version and genuine current successors.
+	// Repair resets that chain to self; unrelated physical siblings remain fresh
+	// candidates. Grants and latest-row crosschecks still precede mutation.
 	var candidates []storage.RowVersion
-	var retainedMatches map[ids.RowID]struct{}
+	var retainedMatches map[ids.VersionID]struct{}
 	if retained.Storage != nil {
 		err = retained.Each(func(child storage.RowVersion) (bool, error) {
 			match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
@@ -196,9 +201,19 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 				return false, err
 			}
 			if retainedMatches == nil {
-				retainedMatches = make(map[ids.RowID]struct{})
+				retainedMatches = make(map[ids.VersionID]struct{})
 			}
-			retainedMatches[child.Row] = struct{}{}
+			for version := child.Version; ; {
+				if _, exists := retainedMatches[version]; exists {
+					break
+				}
+				retainedMatches[version] = struct{}{}
+				next := children.Headers.Header(version).Successor
+				if next == 0 || next == version {
+					break
+				}
+				version = next
+			}
 			candidates = append(candidates, child)
 			return false, nil
 		})
@@ -207,7 +222,7 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 		}
 	}
 	err = children.Each(func(child storage.RowVersion) (bool, error) {
-		if _, exists := retainedMatches[child.Row]; exists {
+		if _, exists := retainedMatches[child.Version]; exists {
 			return false, nil
 		}
 		match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
@@ -228,121 +243,131 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 		evaluation.Input.DomainChecks = &evaluation
 	}
 	schema := view.Get(job.Child.Namespace()).Name()
+riCandidate:
 	for _, candidate := range candidates {
-		mode := lock.ForNoKeyUpdate
-		if deletion {
-			mode = lock.ForUpdate
+		var initialRow []sqltype.Value
+		if !deletion {
+			initialRow, err = foreignActionValues(plan, action, event, candidate, &evaluation)
+			if err != nil {
+				return foreignActionError(h, err, job, event, action, view)
+			}
 		}
-		if err = h.GrantForeignKey(ref, candidate.Row, mode, children.Storage); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		if err = h.RefreshForeignActionJob(job); err != nil {
-			return err
-		}
-		old, live, rowErr := h.ForeignActionRow(ref, candidate)
-		if rowErr != nil {
-			return foreignActionError(h, rowErr, job, event, action, view)
-		}
-		if !live {
-			continue
-		}
-		if old.Version != candidate.Version {
-			lockMode, err := lock.MultiLockMode(mode)
+		beforeDone, late := false, false
+	retryRI:
+		for {
+			mode := lock.ForNoKeyUpdate
+			if deletion {
+				mode = lock.ForUpdate
+			} else if HasRowTriggers(job.Child, stored.TriggerUpdate, stored.TriggerBefore) {
+				mode, err = updatePrelockMode(h, ref, plan.Targets, nil)
+				if err != nil {
+					return foreignActionError(h, err, job, event, action, view)
+				}
+			}
+			if err = h.GrantForeignKey(ref, candidate, mode, children.Storage); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
+			}
+			if err = h.RefreshForeignActionJob(job); err != nil {
+				return err
+			}
+			old, live, rowErr := h.ForeignActionRow(ref, candidate, mode)
+			if rowErr != nil {
+				return foreignActionError(h, rowErr, job, event, action, view)
+			}
+			if !live {
+				continue riCandidate
+			}
+			if old.Version != candidate.Version || !deletion && HasRowTriggers(job.Child, stored.TriggerUpdate, stored.TriggerBefore) || deletion && HasRowTriggers(job.Child, stored.TriggerDelete, stored.TriggerBefore) {
+				if err := h.PhysicalRowLock(ref, old, mode); err != nil {
+					return foreignActionError(h, err, job, event, action, view)
+				}
+			}
+			match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, old.Values, event.Old.Values, input)
 			if err != nil {
 				return err
 			}
-			if err := h.PhysicalRowEvent(ref, old, lockMode, 0); err != nil {
-				return foreignActionError(h, err, job, event, action, view)
+			if !match {
+				continue riCandidate
 			}
-		}
-		match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, old.Values, event.Old.Values, input)
-		if err != nil {
-			return err
-		}
-		if !match {
-			continue
-		}
-		if deletion {
-			before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeDelete, Old: old.Values})
-			if failure != nil {
-				return foreignActionError(h, failure, job, event, action, view)
-			}
-			if !before.Proceed {
-				continue
-			}
-			if err = h.DeleteForeignAction(ref, old); err != nil {
-				return foreignActionError(h, err, job, event, action, view)
-			}
-			continue
-		}
-		row := slices.Clone(old.Values)
-		evaluation.Row = old.Values
-		for i, slot := range plan.Targets {
-			switch action {
-			case parser.ForeignKeyCascade:
-				row[slot] = event.Next.Values[plan.ParentSlots[i]]
-				if plan.Convert[i] {
-					row[slot], err = plan.Conversions[i].Apply(evaluation.Context, row[slot], evaluation.Input, evaluation.Output)
-				}
-			case parser.ForeignKeySetNull, parser.ForeignKeySetDefault:
-				row[slot] = sqltype.Null(job.Child.Columns[slot].Usage.Type)
-				if len(plan.Defaults) != 0 && plan.Defaults[i] != nil {
-					if len(plan.DefaultOrigins) != 0 {
-						row[slot], err = analyze.EvalDefault(&evaluation, plan.Defaults[i], plan.DefaultOrigins[i])
-					} else {
-						row[slot], err = plan.Defaults[i].Eval(&evaluation)
+			if deletion {
+				if !beforeDone {
+					before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeDelete, Old: old.Values})
+					if failure != nil {
+						return foreignActionError(h, failure, job, event, action, view)
+					}
+					beforeDone = true
+					if !before.Proceed {
+						continue riCandidate
 					}
 				}
+				if err = h.DeleteForeignAction(ref, old); err != nil {
+					if errors.Is(err, ErrTupleRecheck) {
+						late = true
+						continue retryRI
+					}
+					return foreignActionError(h, err, job, event, action, view)
+				}
+				continue riCandidate
 			}
+			row := initialRow
+			if old.Version != candidate.Version || late {
+				row, err = foreignActionValues(plan, action, event, old, &evaluation)
+				if err != nil {
+					return foreignActionError(h, err, job, event, action, view)
+				}
+			}
+			if !beforeDone {
+				if job.Child.HasTriggers() {
+					targets := UpdateTargetAttributes(h, ref, job.Child, plan.Targets, nil)
+					before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
+					if failure != nil {
+						return foreignActionError(h, failure, job, event, action, view)
+					}
+					if !before.Proceed {
+						continue riCandidate
+					}
+					row = before.Row
+				}
+				beforeDone = true
+			}
+			b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
+			if err = ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
+			}
+			keyChanged, err := UniqueKeyChanged(h, ref, old.Values, row)
 			if err != nil {
 				return foreignActionError(h, err, job, event, action, view)
 			}
-		}
-		if job.Child.HasTriggers() {
-			targets := UpdateTargetAttributes(h, ref, job.Child, plan.Targets, nil)
-			before, failure := Before(h, job.Child, BeforeRow{Relation: ref, Event: BeforeUpdate, Old: old.Values, New: row, Targets: targets})
-			if failure != nil {
-				return foreignActionError(h, failure, job, event, action, view)
+			if keyChanged {
+				if err = h.GrantForeignKey(ref, old, lock.ForUpdate, children.Storage); err != nil {
+					return foreignActionError(h, err, job, event, action, view)
+				}
 			}
-			if !before.Proceed {
-				continue
-			}
-			row = before.Row
-		}
-		b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
-		if err = ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		keyChanged, err := UniqueKeyChanged(h, ref, old.Values, row)
-		if err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		if keyChanged {
-			if err = h.GrantForeignKey(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
+			if err = ClaimUniqueRow(ctx, h, ref, old); err != nil {
 				return foreignActionError(h, err, job, event, action, view)
 			}
-		}
-		if err = ClaimUniqueRow(ctx, h, ref, old); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		old.PendingKeyChange = old.PendingKeyChange || keyChanged
-		actionMode := lock.MultiNoKeyAction
-		if keyChanged {
-			actionMode = lock.MultiUpdateAction
-		}
-		if err := h.PhysicalRowEvent(ref, old, actionMode, 0); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		predecessor := [1]storage.RowVersion{old}
-		proposal := index.WriteCandidate{Values: row}
-		if err = CheckUniqueRow(ctx, h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
-		}
-		replacement := [1][]sqltype.Value{row}
-		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
-		batch.Set(0, proposal)
-		if err = ReplaceRows(ctx, h, ref, predecessor[:], batch, ReplaceMerge); err != nil {
-			return foreignActionError(h, err, job, event, action, view)
+			old.PendingKeyChange = old.PendingKeyChange || keyChanged
+			actionMode := lock.MultiNoKeyAction
+			if keyChanged {
+				actionMode = lock.MultiUpdateAction
+			}
+			predecessor := [1]storage.RowVersion{old}
+			proposal := index.WriteCandidate{Values: row}
+			if err = CheckUniqueRow(ctx, h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
+			}
+			replacement := [1][]sqltype.Value{row}
+			batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
+			batch.Set(0, proposal)
+			if _, err = ReplaceRows(ctx, h, ref, predecessor[:], batch, ReplaceMerge); err != nil {
+				if errors.Is(err, ErrTupleRecheck) {
+					DiscardExclusion(h, &proposal)
+					late = true
+					continue retryRI
+				}
+				return foreignActionError(h, err, job, event, action, view)
+			}
+			break
 		}
 	}
 	if action == parser.ForeignKeySetDefault {
@@ -389,4 +414,35 @@ func foreignActionError(h FinishHost, err error, job *ForeignKeyJob, event Forei
 	}
 	copy.Context += context
 	return &copy
+}
+
+// The generated RI UPDATE targetlist has the ordinary producer lifetime:
+// initial evaluation precedes a tuple wait; late EPQ reevaluates selected
+// defaults/conversions without replaying an already completed BEFORE chain.
+func foreignActionValues(plan *ForeignActionPlan, action parser.ForeignKeyAction, event ForeignActionTransition, old storage.RowVersion, evaluation *exec.Context) ([]sqltype.Value, error) {
+	row := slices.Clone(old.Values)
+	evaluation.Row = old.Values
+	for i, slot := range plan.Targets {
+		var err error
+		switch action {
+		case parser.ForeignKeyCascade:
+			row[slot] = event.Next.Values[plan.ParentSlots[i]]
+			if plan.Convert[i] {
+				row[slot], err = plan.Conversions[i].Apply(evaluation.Context, row[slot], evaluation.Input, evaluation.Output)
+			}
+		case parser.ForeignKeySetNull, parser.ForeignKeySetDefault:
+			row[slot] = sqltype.Null(row[slot].Type())
+			if len(plan.Defaults) != 0 && plan.Defaults[i] != nil {
+				if len(plan.DefaultOrigins) != 0 {
+					row[slot], err = analyze.EvalDefault(evaluation, plan.Defaults[i], plan.DefaultOrigins[i])
+				} else {
+					row[slot], err = plan.Defaults[i].Eval(evaluation)
+				}
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return row, nil
 }

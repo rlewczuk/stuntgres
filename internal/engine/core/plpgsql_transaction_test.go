@@ -110,14 +110,17 @@ func TestPLpgSQLTransactionRotationOwnership(t *testing.T) {
 	if current.Generation <= generation || len(current.Versions) != 1 {
 		t.Fatal("commit did not publish its stage")
 	}
-	publishedGeneration := current.Generation
 	if _, err := s.Execute(enginetest.Statement(t, "INSERT INTO tx_rotation VALUES(22)"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
+	abortBacking := enginetest.CaptureHeapAbort(current)
+	created := s.Stage.Rows[relation.Address]
 	if err := run.Host.Transaction(rollback); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Stage.Rows) != 0 || len(owner.Writes) != 0 || current.Generation != publishedGeneration || len(current.Versions) != 1 {
+	enginetest.AssertHeapAbort(t, current, abortBacking, 1, created...)
+	abortedGeneration := current.Generation
+	if len(s.Stage.Rows) != 0 || len(owner.Writes) != 0 || len(current.Versions) != 1 {
 		t.Fatal("rollback published or retained current segment")
 	}
 	for _, control := range []proc.PLInstruction{commit, rollback, commit} {
@@ -125,14 +128,14 @@ func TestPLpgSQLTransactionRotationOwnership(t *testing.T) {
 		if err := run.Host.Transaction(control); err != nil {
 			t.Fatal(err)
 		}
-		if old == s.TxRef || owner.State != session.TxImplicit || current.Generation != publishedGeneration || len(current.Versions) != 1 {
+		if old == s.TxRef || owner.State != session.TxImplicit || current.Generation != abortedGeneration || len(current.Versions) != 1 {
 			t.Fatal("empty boundary republished old stage")
 		}
 	}
 	if err := s.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if owner.State != session.TxIdle || current.Generation != publishedGeneration {
+	if owner.State != session.TxIdle || current.Generation != abortedGeneration {
 		t.Fatal("final Finish retained or republished successor")
 	}
 	if err := s.Finish(nil); err != nil {

@@ -8,27 +8,33 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// InsertOwnRow finds the transaction's own version of row id of ref through
-// the write overlay's slot index.
-func InsertOwnRow(h Host, ref ids.ObjectRef, id ids.RowID) (storage.RowVersion, bool) {
+// InsertOwnRow finds the exact private version or its genuinely admitted
+// successor through the command's immutable prior-own prefix index.
+func InsertOwnRow(h Host, ref ids.ObjectRef, target storage.RowVersion) (storage.RowVersion, bool) {
 	own := h.PrivateRows(ref.Address).Own
 	if len(own) == 0 {
 		return storage.RowVersion{}, false
 	}
 	c := h.Command().WriteOverlay()
-	if c.OwnRowSlots == nil {
-		c.OwnRowSlots = make(map[ids.ObjectAddress]map[ids.RowID]int)
+	if c.OwnVersionSlots == nil {
+		c.OwnVersionSlots = make(map[ids.ObjectAddress]map[writeVersionIdentity]int)
 	}
-	slots := c.OwnRowSlots[ref.Address]
+	slots := c.OwnVersionSlots[ref.Address]
 	if slots == nil {
-		slots = make(map[ids.RowID]int, len(own))
+		slots = make(map[writeVersionIdentity]int, len(own))
 		for slot, row := range own {
-			slots[row.Row] = slot
+			slots[writeIdentity(row)] = slot
+			if row.Base != 0 {
+				slots[writeVersionIdentity{row.Base, row.BaseHeaderStamp()}] = slot
+			}
+			for prior := row.PrivateHistory; prior != nil; prior = prior.Next {
+				slots[writeIdentity(prior.Version)] = slot
+			}
 		}
-		c.OwnRowSlots[ref.Address] = slots
+		c.OwnVersionSlots[ref.Address] = slots
 	}
-	slot, found := slots[id]
-	if !found {
+	slot, found := slots[writeIdentity(target)]
+	if !found || own[slot].Row != target.Row {
 		return storage.RowVersion{}, false
 	}
 	return own[slot], true
@@ -50,7 +56,7 @@ func addInsertWriteKey(o *InsertWriteKeyOverlay, h Host, bound *index.UniqueBoun
 	return nil
 }
 
-func probeInsertWriteOverlay(h Host, ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
+func probeInsertWriteOverlay(h Host, ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose, headers *storage.HeapHeaderRoot) (storage.RowVersion, bool, error) {
 	c := h.Command().WriteOverlay()
 	if c.Overlays == nil {
 		c.Overlays = make(map[*index.UniqueBoundKey]*InsertWriteKeyOverlay)
@@ -85,14 +91,14 @@ func probeInsertWriteOverlay(h Host, ref ids.ObjectRef, bound *index.UniqueBound
 			rows = h.PrivateRows(ref.Address).Own
 		}
 		for _, slot := range slots {
-			row := rows[slot]
+			row := headers.Apply(rows[slot])
 			if overlayIndex == 1 {
-				if _, shadowed := c.AffectedRows[row.Row]; shadowed {
+				if _, shadowed := c.AffectedSlot(row); shadowed {
 					continue
 				}
 			}
 			private := h.PrivateRows(ref.Address)
-			if index.UniqueRowExcluded(row.Row, excluded) || index.UniqueRowDeleted(row.Row, private.OwnDeletes) || index.UniqueRowDeleted(row.Row, private.StagedDeletes) {
+			if index.UniqueRowExcluded(row.Row, row.Version, excluded) || index.UniqueRowDeleted(row, private.OwnDeletes, private.StagedDeletes) {
 				continue
 			}
 			matches, err := matchesExistingUnique(h, bound, row, evaluation, key, purpose)

@@ -31,7 +31,7 @@ type sequenceDeletePublicationSnapshot struct {
 	root                    []storage.RowVersion
 	rows                    []storage.RowVersion
 	ends                    *storage.DeletionRoot
-	endValues               map[ids.RowID]storage.RowEnd
+	endValues               *storage.DeletionRoot
 	frontier                ids.CommitSeq
 	temporary, last         ids.ObjectAddress
 	memory                  map[ids.ObjectAddress]*sequence.Memory
@@ -71,12 +71,7 @@ func captureSequenceDeletePublication(e *core.Engine, s *session.Session, table 
 	for i := range p.rows {
 		p.rows[i].Values = append([]sqltype.Value(nil), p.rows[i].Values...)
 	}
-	if p.ends != nil {
-		p.endValues = make(map[ids.RowID]storage.RowEnd)
-		for id, end := range p.ends.Rows {
-			p.endValues[id] = end
-		}
-	}
+	p.endValues = p.ends.Clone()
 	return p
 }
 
@@ -101,7 +96,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *core
 	if len(p.store.Versions) != len(p.root) || &p.store.Versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.Versions, p.rows) || p.store.Ends != p.ends || e.Visibility.CommitSeq() != p.frontier {
 		t.Fatal("failed combined publication changed row/version vector, predecessor root or frontier")
 	}
-	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
+	if !reflect.DeepEqual(p.ends, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
 	if s.TemporaryNamespace != p.temporary || core.PayloadOf(s).Sequences.Last() != p.last || core.PayloadOf(s).Sequences.Len() != len(p.memory) {
@@ -117,7 +112,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *core
 func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, sequence ids.ObjectAddress, firstTemp bool) {
 	t.Helper()
 	tx := s.Transactions
-	if tx.State != session.TxActive || len(tx.Writes[table]) != 2 || tx.Deletes[table] == nil || len(tx.Deletes[table].Rows) != 3 || tx.Catalog == nil {
+	if tx.State != session.TxActive || len(tx.Writes[table]) != 2 || tx.Deletes[table].Len() != 3 || tx.Catalog == nil {
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
 	g := tx.Catalog.Generators[sequence]

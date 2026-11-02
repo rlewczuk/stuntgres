@@ -316,7 +316,7 @@ func TestGINCancellation(t *testing.T) {
 		t.Fatal("admitted typed extraction was not interrupted", emitted, err)
 	}
 	mergeContext := &spgistInterruptContext{Context: context.Background(), remaining: 8}
-	interrupted, err := storage.MergeGin(mergeContext, f.root.Gin, nil, map[ids.RowID]ids.VersionID{1: 1}, sqltype.InputEnvironment{})
+	interrupted, err := storage.MergeGin(mergeContext, f.root.Gin, nil, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
 	if interrupted != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("posting-only merge was not interrupted", interrupted, err)
 	}
@@ -334,7 +334,7 @@ func TestGINCancellation(t *testing.T) {
 	added := []storage.IndexEntry{{Row: 20, Version: 20, Position: 8, Keys: f.root.Entries[0].Keys}}
 	for _, polls := range []int{1, 10, 40} {
 		ctx := &spgistInterruptContext{Context: context.Background(), remaining: polls}
-		root, err := storage.MergeGin(ctx, f.root.Gin, added, map[ids.RowID]ids.VersionID{1: 1}, sqltype.InputEnvironment{})
+		root, err := storage.MergeGin(ctx, f.root.Gin, added, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
 		if root != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled delta became installable", polls, root, err)
 		}

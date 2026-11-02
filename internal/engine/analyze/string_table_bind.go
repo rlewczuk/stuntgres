@@ -210,10 +210,10 @@ func (b *Binder) queryCaptures(roots []expr.Expr, calls bool) []plan.FunctionCor
 		}
 		for _, arg := range arguments {
 			WalkQueryArgumentExpression(arg, func(expr expr.Expr) {
-				if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope == 1 && system.Frame == b.FrameID() && system.QueryOccurrence > 0 {
+				if system, ok := expr.(plan.SystemAttributeExpr); ok && system.Scope == 1 && system.Frame == b.FrameID() && system.QueryOccurrence > 0 {
 					name := ""
 					for _, qualifier := range b.Query.Namespace.Qualifiers {
-						if qualifier.TableOIDOccurrence == system.QueryOccurrence {
+						if qualifier.SystemOccurrence == system.QueryOccurrence {
 							name = qualifier.Name
 							break
 						}

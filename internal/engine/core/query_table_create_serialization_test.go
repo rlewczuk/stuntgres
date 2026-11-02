@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
@@ -34,7 +33,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			e := engine.New()
 			project, anonymous := queryCreateBoundSource(t, e, 1)
 			sourceStage, sourceDescriptor := queryCreateStage(t, e, "source", 1)
-			if err := e.StageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.Anonymous, ids.TxRef{}); err != nil {
+			if err := e.StageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.Anonymous, enginetest.CatalogTransaction(t, e)); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)

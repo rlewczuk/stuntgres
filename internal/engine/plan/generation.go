@@ -31,8 +31,10 @@ func GenerationImmutable(node expr.Expr) bool {
 	case SubscriptExpr:
 		var storage [13]expr.Expr
 		return args(SubscriptChildren(n, &storage))
-	case LiteralExpr, ColumnExpr, TableOIDExpr:
+	case LiteralExpr, ColumnExpr:
 		return true
+	case SystemAttributeExpr:
+		return n.SubID == -6 && n.Scope == 0 && n.Frame == 0 && n.QueryOccurrence == 0
 	case CollationExpr:
 		return one(n.Child)
 	case CoercionExpr:
@@ -139,8 +141,8 @@ func GenerationHasTableOID(node expr.Expr) bool {
 	case SubscriptExpr:
 		var storage [13]expr.Expr
 		return args(SubscriptChildren(n, &storage))
-	case TableOIDExpr:
-		return true
+	case SystemAttributeExpr:
+		return n.SubID == -6
 	case CollationExpr:
 		return one(n.Child)
 	case CoercionExpr:

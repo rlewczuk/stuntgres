@@ -51,7 +51,7 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
-		if leaf.TableOIDRead && !source.HasSystemAttributes() {
+		if leaf.SystemAttributeRead && !source.HasSystemAttributes() {
 			return fmt.Errorf("stuntgres: invalid view system attribute source")
 		}
 		for _, attribute := range leaf.Reads {
@@ -101,7 +101,7 @@ type viewSourceCoverage struct {
 
 func sameViewLeaf(a, b ViewLeaf) bool {
 	return a.Ref == b.Ref && a.Only == b.Only && a.AnalysisOnly == b.AnalysisOnly &&
-		a.TableOIDRead == b.TableOIDRead && a.Mark == b.Mark &&
+		a.SystemAttributeRead == b.SystemAttributeRead && a.Mark == b.Mark &&
 		slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Reads, b.Reads)
 }
 
@@ -389,8 +389,8 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 				if expressionError = checkUsage(expr.ResultUsage()); expressionError != nil {
 					return
 				}
-				if system, ok := expr.(plan.TableOIDExpr); ok && (system.Scope != 0 || system.Frame != 0 || system.QueryOccurrence != 0) {
-					_, expressionError = definition.tableOIDSource(catalog, analyze.ViewColumn{TableOID: true, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence})
+				if system, ok := expr.(plan.SystemAttributeExpr); ok && (system.Scope != 0 || system.Frame != 0 || system.QueryOccurrence != 0) {
+					_, expressionError = definition.systemAttributeSource(catalog, analyze.ViewColumn{SystemAttribute: system.SubID, SystemOld: system.Old, SystemAbsent: system.Absent, SystemMerge: system.Merge, SystemSide: system.Side, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence})
 					if expressionError != nil {
 						return
 					}

@@ -230,8 +230,10 @@ neither owns catalog authority.
   `SQLIndex`. Provider validation requires the genuine finite installed handler;
   method/handler predecessors and incoming consumers participate in publication
   fences. Materialized defining-authority compatibility includes the method.
-  `HasSupportedAttribute` admits live positive attributes and eligible tableoid
-  attribute -6 without widening ordinary `HasAttribute`. `CatalogView` records
+  `SystemAttribute` maps executable `ctid` (-1, TID), `xmin` (-2, XID),
+  `xmax` (-4, XID) and `tableoid` (-6, OID) to canonical subobject identities.
+  `HasSupportedAttribute` admits these on eligible relations without widening
+  ordinary `HasAttribute`, star expansion or assignability. `CatalogView` records
   canonical SQL relation kind separately from execution `VirtualView`; bootstrap
   stamps it from the existing catalog-view inventory. Supported subobjects
   retain the same domain, epoch, existence and class validation as whole refs.

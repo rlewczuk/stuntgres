@@ -26,7 +26,7 @@ func RewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
 	properties.DomainDependent = original.DomainDependent && !children.DomainDependent
 	properties.RuntimeDomainConversion = original.RuntimeDomainConversion
 	switch node.(type) {
-	case plan.ColumnExpr, plan.ReturningColumnExpr, plan.ReturningWholeRowExpr, plan.TableOIDExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr, plan.CachedOrderExpr:
+	case plan.ColumnExpr, plan.ReturningColumnExpr, plan.ReturningWholeRowExpr, plan.SystemAttributeExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr, plan.CachedOrderExpr:
 		properties.RowDependent = original.RowDependent || properties.RowDependent
 		properties.StageDependent = original.StageDependent || properties.StageDependent
 	case plan.SubqueryExpr:

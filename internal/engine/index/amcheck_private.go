@@ -9,10 +9,10 @@ import (
 // Private successor and delete links are checked against the actual captured
 // heap version authority, never an overlay ordinal or a freshly built root.
 func (c *AmcheckCapture) checkPrivateAssociations(ctx context.Context) error {
-	if len(c.Writes) == 0 && (c.Deletes == nil || len(c.Deletes.Rows) == 0) {
+	if len(c.Writes) == 0 && c.Deletes.Len() == 0 {
 		return nil
 	}
-	baseline := make(map[ids.RowID]ids.VersionID, len(c.Store.Versions))
+	baseline := make(map[ids.VersionID]ids.RowID, len(c.Store.Versions))
 	versions := make(map[ids.VersionID]ids.RowID, len(c.Writes))
 	for _, row := range c.Store.Versions {
 		if err := ctx.Err(); err != nil {
@@ -21,10 +21,10 @@ func (c *AmcheckCapture) checkPrivateAssociations(ctx context.Context) error {
 		if row.Row == 0 || row.Version == 0 {
 			return c.corrupt("item order invariant violated")
 		}
-		if _, exists := baseline[row.Row]; exists {
+		if _, exists := baseline[row.Version]; exists {
 			return c.corrupt("item order invariant violated")
 		}
-		baseline[row.Row] = row.Version
+		baseline[row.Version] = row.Row
 	}
 	for _, row := range c.Writes {
 		if err := ctx.Err(); err != nil {
@@ -36,13 +36,24 @@ func (c *AmcheckCapture) checkPrivateAssociations(ctx context.Context) error {
 		if _, exists := versions[row.Version]; exists {
 			return c.corrupt("item order invariant violated")
 		}
-		if base, exists := baseline[row.Row]; row.Base != 0 && (!exists || base != row.Base) || exists && row.Version == base {
+		if _, exists := baseline[row.Version]; exists {
 			return c.corrupt("item order invariant violated")
 		}
+		if row.Base != 0 {
+			base, _, exists := c.Store.PhysicalVersion(row.Base, -1)
+			if !exists || base.Row != row.Row {
+				return c.corrupt("item order invariant violated")
+			}
+		}
 		versions[row.Version] = row.Row
+		for prior := row.PrivateHistory; prior != nil; prior = prior.Next {
+			if prior.Version.Born == 0 {
+				versions[prior.Version.Version] = prior.Version.Row
+			}
+		}
 	}
 	if c.Deletes != nil {
-		for row, deletion := range c.Deletes.Rows {
+		for row, deletion := range c.Deletes.All() {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -53,11 +64,12 @@ func (c *AmcheckCapture) checkPrivateAssociations(ctx context.Context) error {
 			if ownExists && own != row {
 				return c.corrupt("item order invariant violated")
 			}
-			base, baseExists := baseline[row]
-			if !ownExists && (!baseExists || base != deletion.Version) {
+			target, _, targetExists := c.Store.PhysicalVersion(deletion.Version, deletion.Ordinal)
+			if !ownExists && (!targetExists || target.Row != row) {
 				return c.corrupt("item order invariant violated")
 			}
-			if deletion.Base != 0 && (!baseExists || base != deletion.Base) {
+			base, _, baseExists := c.Store.PhysicalVersion(deletion.Base, -1)
+			if deletion.Base != 0 && (!baseExists || base.Row != row) {
 				return c.corrupt("item order invariant violated")
 			}
 		}

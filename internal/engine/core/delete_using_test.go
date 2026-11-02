@@ -38,7 +38,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	out := b.Returning.Expressions[0]
 	b.Returning.Expressions[0] = enginetest.QueryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
-		if root := scope.Stage.Deletes[b.Ref.Address]; root == nil || len(root.Rows) != calls {
+		if root := scope.Stage.Deletes[b.Ref.Address]; root.Len() != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
 		}
 		return out.Eval(c)
@@ -57,7 +57,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	root := scope.Stage.Deletes[b.Ref.Address]
 	for _, v := range original {
-		candidate, ok := root.Rows[v.Row]
+		candidate, ok := root.Lookup(v.Row, v.Version)
 		if !ok || candidate.Storage != b.Storage || candidate.Ref != b.Ref || candidate.Version != v.Version {
 			t.Fatal("lost deletion authority", candidate, v)
 		}
@@ -125,7 +125,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					out := b.Returning.Expressions[0]
 					b.Returning.Expressions[0] = enginetest.QueryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
-						if len(scope.Stage.Deletes[b.Ref.Address].Rows) != calls {
+						if scope.Stage.Deletes[b.Ref.Address].Len() != calls {
 							t.Fatal("output before stage")
 						}
 						if calls == 2 {

@@ -20,7 +20,7 @@ import (
 // without Engine.mu held.
 
 // ContribRuntime is the contrib function runtime: amcheck, pageinspect,
-// pgrowlocks, pgstattuple, pg_visibility, dblink, tablefunc and generic file functions.
+// pgrowlocks, pgstattuple, pg_visibility, pg_surgery, dblink, tablefunc and generic file functions.
 type ContribRuntime interface {
 	GenericFileList(functions.GenericFileListKind, string) error
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
@@ -46,6 +46,7 @@ type ContribRuntime interface {
 	DblinkBuildSQLInsert(n plan.InstalledDblinkBuildSQLInsertExpr, values [5]sqltype.Value) (string, error)
 	DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateExpr, values [5]sqltype.Value) (string, error)
 	Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error)
+	Pgsurgery(n plan.InstalledPgsurgeryExpr, oid uint32, tids sqltype.Value) error
 	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
 	PageinspectHeap(n plan.InstalledPageinspectExpr, relation uint32) ([]sqltype.HeapStoredColumn, error)
 	PageinspectNotice(notice sqlstate.Error)

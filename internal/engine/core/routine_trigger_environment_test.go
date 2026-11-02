@@ -286,6 +286,8 @@ func routineTriggerAttributeEnvironment(t *testing.T, event bool) {
 			if e.Catalog.State != catalogBefore || retained.Configuration != configuration || backing.Generation != generation || len(backing.Versions) != 0 {
 				t.Fatal("private trigger command mutated retained catalog/configuration/storage backing")
 			}
+			abortBacking := enginetest.CaptureHeapAbort(backing)
+			created := scope.Stage.Rows[data.Address]
 			// Even successful callbacks remain private until the existing command
 			// owner finishes; vetoing it must discard the whole firing effect.
 			veto := failure
@@ -306,7 +308,8 @@ func routineTriggerAttributeEnvironment(t *testing.T, event bool) {
 			if op.LockTimeout != beforeTimeout {
 				t.Errorf("Finish changed caller lock timeout: got %s, want %s", op.LockTimeout, beforeTimeout)
 			}
-			if e.Catalog.State != catalogBefore || backing.Generation != generation || len(backing.Versions) != 0 {
+			enginetest.AssertHeapAbort(t, backing, abortBacking, uint64(len(created)), created...)
+			if e.Catalog.State != catalogBefore || len(backing.Versions) != 0 {
 				t.Fatal("veto published callback or firing command prefix")
 			}
 		})

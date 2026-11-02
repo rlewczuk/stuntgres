@@ -112,7 +112,7 @@ type ForeignKeys interface {
 	// GrantForeignKey takes ref (or its row) in mode. Waits with the caller
 	// holding nothing, releasing the replacement read across the wait; then
 	// locks once to revalidate ref and, when set, its storage.
-	GrantForeignKey(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error
+	GrantForeignKey(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode, stored *storage.Relation) error
 	// RefreshForeignActionJob refreshes job over the owner's private catalog
 	// (RefreshForeignActionJob). Locks once.
 	RefreshForeignActionJob(job *ForeignKeyJob) error
@@ -120,8 +120,9 @@ type ForeignKeys interface {
 	// internal action, writable or read-only. Locks once.
 	AdmitForeignAction(ref ids.ObjectRef, job *ForeignKeyJob, writable bool) error
 	// ForeignActionRow is the latest physical version of an admitted
-	// referencing row and whether it is live. Locks once.
-	ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error)
+	// referencing row and whether it is live. Readmits a genuine successor
+	// outside metadata locks before returning the canonical current version.
+	ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion, mode lock.Mode) (storage.RowVersion, bool, error)
 	// DeleteForeignAction stages a CASCADE deletion of a granted referencing
 	// row: the owner mutex then Engine.mu; flushes its physical row event after
 	// unlocking.
@@ -199,11 +200,20 @@ type PrivateRows struct {
 	StagedDeletes *visibility.PrivateDeletes
 }
 
-// Stage is the write stage's windows. Each takes the owner mutex and then
-// Engine.mu itself, never waits, and expects the caller to hold nothing.
-// The work around the windows (key classification, row grants, index
-// candidate validation and revalidation after a stale binding) is the
-// caller's.
+// ReplacementStageResult distinguishes index rebinding from a failed producer
+// proposal. RecheckIndex is -1 unless the entire unaccepted window needs EPQ;
+// otherwise it identifies its first changed/nonlive predecessor without an
+// allocation, mutable host mailbox or escaped physical authority.
+type ReplacementStageResult struct {
+	IndexStale   bool
+	RecheckIndex int
+}
+
+// Stage owns write acceptance. It takes Owner.Mu then Engine.Mu for publication,
+// never calls the manager under either, and expects the caller to hold nothing.
+// Replacement/deletion may readmit a changed repair key outside both mutexes
+// before retrying the final acceptance window. Key classification and index
+// validation/revalidation remain the caller's.
 type Stage interface {
 	// Active fails once the statement has finished or its operation is no
 	// longer current. It takes no engine lock.
@@ -221,18 +231,17 @@ type Stage interface {
 	// unique binding's catalog moved; nothing is staged and the caller
 	// revalidates and retries.
 	StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (stale bool, err error)
-	// StageReplacement stages the successors of old in lane. modes holds the
-	// per-row action intents when batch has no ActionMode. stale is as for
-	// StageInsert. The physical row events are flushed after unlocking on
-	// success and dropped on failure.
-	StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, modes []lock.MultiMode, lane ReplaceLane) (stale bool, err error)
+	// StageReplacement stages old's successors. A tuple recheck accepts NONE
+	// of the window and identifies the failing predecessor for the producer.
+	// IndexStale is consumed only by index/catalog revalidation.
+	StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, modes []lock.MultiMode, lane ReplaceLane) (ReplacementStageResult, error)
 	// AppendAcceptedInsert appends one validated RETURNING insert, checking
 	// the INSERT binding in the same window. stale is as for StageInsert. c
 	// is passed by value so per-row candidates stay off the heap.
-	AppendAcceptedInsert(ref ids.ObjectRef, c index.WriteCandidate) (accepted, stale bool, err error)
-	// Delete stages a granted deletion; it reports false when the row is no
-	// longer live, and flushes its physical row event after unlocking.
-	Delete(c visibility.DeleteCandidate) (bool, error)
+	AppendAcceptedInsert(ref ids.ObjectRef, c index.WriteCandidate) (accepted, stale bool, physical storage.RowVersion, err error)
+	// Delete stages an exact granted deletion, readmitting changed keys unlocked.
+	// It reports false when no longer live and flushes its event after unlocking.
+	Delete(c visibility.DeleteCandidate, expected storage.RowVersion) (bool, error)
 }
 
 // ReplaceLane is how StageReplacement stages successors.
@@ -257,16 +266,18 @@ type RowLocks interface {
 	AcquireRow(c visibility.DeleteCandidate) error
 	// AcquireUpdateRow takes row in mode. Waits like AcquireRow; then locks
 	// once to revalidate the target.
-	AcquireUpdateRow(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error
+	AcquireUpdateRow(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error
 	// AcquirePartitionLock takes a partition's relation lock in mode. Waits;
 	// then locks once to record the partition.
 	AcquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error
 	// LatestRow reads the current version of a row for r.Kind, with that
-	// kind's gate, isolation policy and errors. Locks once, never waits.
+	// kind's gate, isolation policy and errors. Capture and readmission may
+	// repeat; manager admission always runs outside owner/Engine mutexes.
 	LatestRow(r RowRequest) (LatestRow, error)
-	// PhysicalRowEvent records a physical row event for row: Engine.mu
-	// briefly for the transaction ID, then the lock manager. Never waits.
-	PhysicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode lock.MultiMode, successor ids.VersionID) error
+	// PhysicalRowLock records an actual lock-only effect on the already
+	// admitted resource. Engine.mu only assigns the transaction ID; manager
+	// publication is unlocked and never waits. Updating events belong to Stage.
+	PhysicalRowLock(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error
 }
 
 // RowKind selects a LatestRow read.
@@ -291,19 +302,24 @@ const (
 // RowRequest names one row for LatestRow. Hint is the expected position of
 // the row in its source.
 type RowRequest struct {
-	Kind    RowKind
-	Ref     ids.ObjectRef
-	Row     ids.RowID
-	Own     bool
-	Hint    int
-	Storage *storage.Relation // RowDelete: the candidate's storage
-	Parent  *catalog.Relation // RowConflictUpdate: the probed parent
+	Kind      RowKind
+	Ref       ids.ObjectRef
+	Row       ids.RowID
+	Physical  ids.VersionID // Exact captured tuple; successor links arbitrate waits.
+	GrantMode lock.Mode     // Exact successor readmission keeps the producer's row mode.
+	Own       bool
+	Hint      int
+	Storage   *storage.Relation // RowDelete: the candidate's storage
+	Parent    *catalog.Relation // RowConflictUpdate: the probed parent
 }
 
 // LatestRow is the current version of a requested row and whether it is
-// live. Parent and Schema are set for RowConflictUpdate.
+// live. Hint is its validated vector ordinal, or -1 for a historical/additional
+// tuple; every later lookup must validate its exact VersionID again.
+// Parent and Schema are set for RowConflictUpdate.
 type LatestRow struct {
 	Version storage.RowVersion
+	Hint    int
 	Live    bool
 	Parent  *catalog.Relation
 	Schema  string
@@ -311,17 +327,23 @@ type LatestRow struct {
 
 // UpdateRowRequest is the RowUpdate request of an UPDATE candidate.
 func UpdateRowRequest(ref ids.ObjectRef, c UpdateCandidate) RowRequest {
-	return RowRequest{Kind: RowUpdate, Ref: ref, Row: c.Row, Own: c.Born == 0, Hint: c.Slot}
+	request := RowRequest{Kind: RowUpdate, Ref: ref, Row: c.Row, Own: c.Born == 0 && !c.ForcedFrozen, Hint: c.Slot, GrantMode: lock.ForNoKeyUpdate}
+	request.Physical = c.Version
+	return request
 }
 
 // MergeRowRequest is the RowMerge request of a MERGE target candidate.
 func MergeRowRequest(ref ids.ObjectRef, c UpdateCandidate) RowRequest {
-	return RowRequest{Kind: RowMerge, Ref: ref, Row: c.Row, Hint: c.Slot}
+	request := RowRequest{Kind: RowMerge, Ref: ref, Row: c.Row, Hint: c.Slot, GrantMode: lock.ForNoKeyUpdate}
+	request.Physical = c.Version
+	return request
 }
 
 // DeleteRowRequest is the RowDelete request of a deletion candidate.
 func DeleteRowRequest(c visibility.DeleteCandidate) RowRequest {
-	return RowRequest{Kind: RowDelete, Ref: c.Ref, Row: c.Row, Own: c.Own, Hint: c.Ordinal, Storage: c.Storage}
+	request := RowRequest{Kind: RowDelete, Ref: c.Ref, Row: c.Row, Own: c.Own, Hint: c.Ordinal, Storage: c.Storage, GrantMode: lock.ForUpdate}
+	request.Physical = c.Version
+	return request
 }
 
 // Presentation is diagnostic and output presentation. Each method locks

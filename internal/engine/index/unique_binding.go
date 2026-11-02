@@ -58,21 +58,19 @@ func (b *UniqueBoundKey) Matches(evaluation *exec.Context, values, key []sqltype
 	return cmp == 0, err
 }
 
-func UniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
+func UniqueRowExcluded(id ids.RowID, version ids.VersionID, excluded []storage.RowVersion) bool {
 	for _, row := range excluded {
-		if row.Row == id {
+		if row.Row == id && row.Version == version {
 			return true
 		}
 	}
 	return false
 }
 
-func UniqueRowDeleted(id ids.RowID, roots ...*visibility.PrivateDeletes) bool {
+func UniqueRowDeleted(row storage.RowVersion, roots ...*visibility.PrivateDeletes) bool {
 	for _, root := range roots {
-		if root != nil {
-			if _, ok := root.Rows[id]; ok {
-				return true
-			}
+		if root.Ends(row) {
+			return true
 		}
 	}
 	return false

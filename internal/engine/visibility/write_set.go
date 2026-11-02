@@ -22,14 +22,11 @@ func MergeDeletions(previous, staged map[ids.ObjectAddress]*PrivateDeletes) map[
 			next[a] = root
 			continue
 		}
-		rows := make(map[ids.RowID]DeleteCandidate, len(old.Rows)+len(root.Rows))
-		for id, candidate := range old.Rows {
-			rows[id] = candidate
+		merged := old.Clone()
+		for _, candidate := range root.All() {
+			merged.Set(candidate)
 		}
-		for id, candidate := range root.Rows {
-			rows[id] = candidate
-		}
-		next[a] = &PrivateDeletes{Rows: rows}
+		next[a] = merged
 	}
 	return next
 }
@@ -45,28 +42,75 @@ func MergePrivateRows(old, stage []storage.RowVersion, replacing bool) []storage
 	}
 	next := make([]storage.RowVersion, len(old), len(old)+len(stage))
 	copy(next, old)
-	if len(stage) == 1 {
+	var slots map[ids.VersionID]int
+	if len(stage) > 1 {
+		slots = make(map[ids.VersionID]int, len(old)+len(stage))
 		for i, row := range old {
-			if row.Row == stage[0].Row {
-				next[i] = stage[0]
-				return next
-			}
+			slots[row.Version] = i
 		}
-		return append(next, stage[0])
-	}
-	slots := make(map[ids.RowID]int, len(old))
-	for i, row := range old {
-		slots[row.Row] = i
 	}
 	for _, row := range stage {
-		if i, ok := slots[row.Row]; ok {
-			next[i] = row
+		slot := privateReplacementSlot(next, row, slots)
+		if slot >= 0 {
+			if slots != nil {
+				delete(slots, next[slot].Version)
+			}
+			next[slot] = row
 		} else {
-			slots[row.Row] = len(next)
+			slot = len(next)
 			next = append(next, row)
+		}
+		if slots != nil {
+			slots[row.Version] = slot
 		}
 	}
 	return next
+}
+
+// Resolve the nearest actual predecessor still present in the earlier owner
+// root. RowID alone cannot distinguish independently visible repaired siblings.
+func privateReplacementSlot(rows []storage.RowVersion, next storage.RowVersion, slots map[ids.VersionID]int) int {
+	if slots != nil {
+		find := func(version ids.VersionID) int {
+			if i, ok := slots[version]; ok && rows[i].Row == next.Row {
+				return i
+			}
+			return -1
+		}
+		if i := find(next.Version); i >= 0 {
+			return i
+		}
+		for prior := next.PrivateHistory; prior != nil; prior = prior.Next {
+			if i := find(prior.Version.Version); i >= 0 {
+				return i
+			}
+		}
+		if next.Base != 0 {
+			return find(next.Base)
+		}
+		return -1
+	}
+	best, distance := -1, int(^uint(0)>>1)
+	for i, row := range rows {
+		if row.Row != next.Row {
+			continue
+		}
+		if row.Version == next.Version {
+			return i
+		}
+		at := 0
+		for prior := next.PrivateHistory; prior != nil; prior = prior.Next {
+			if prior.Version.Version == row.Version && at < distance {
+				best, distance = i, at
+				break
+			}
+			at++
+		}
+		if next.PrivateHistory == nil && next.Base != 0 && row.Version == next.Base {
+			return i
+		}
+	}
+	return best
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.

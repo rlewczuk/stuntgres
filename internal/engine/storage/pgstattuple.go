@@ -10,9 +10,10 @@ import (
 // A zero Born denotes an uncommitted insertion owned by Inserter; Ender denotes
 // a real in-progress UPDATE/DELETE, not a tuple lock. Committed ends use End.
 type HeapTupleFact struct {
-	Version RowVersion
+	Version         RowVersion
 	Inserter, Ender ids.TxRef
-	End ids.CommitSeq
+	End             ids.CommitSeq
+	Aborted         bool // A genuine discarded insertion, unless exact repair overrides it.
 	// LockMaintenance is detached exact-version raw xmax evidence. It is
 	// independent of update/delete Ender and is retired by real maintenance.
 	LockMaintenance bool
@@ -22,6 +23,15 @@ type HeapTupleFact struct {
 // Vacuum deliberately tests foreign xmin before xmax, unlike the own-xmin
 // branch. Both classifiers are independent of the caller's SELECT snapshot.
 func HeapTupleLive(f HeapTupleFact, caller ids.TxRef, approximate bool) bool {
+	if f.Aborted && !f.Version.ForcedFrozen {
+		return false
+	}
+	if f.Version.ForcedFrozen {
+		if f.Version.ForcedEnd != 0 {
+			return false
+		}
+		return approximate || f.Ender != caller || f.Ender == (ids.TxRef{})
+	}
 	if f.Version.Born == 0 {
 		if approximate {
 			return f.Inserter == caller && f.Ender == caller && f.Ender != (ids.TxRef{})
@@ -39,7 +49,7 @@ func HeapTupleLive(f HeapTupleFact, caller ids.TxRef, approximate bool) bool {
 
 type HeapStatistics struct {
 	TableLen, TupleCount, TupleLen, DeadCount, DeadLen, FreeSpace int64
-	TuplePercent, DeadPercent, FreePercent, ScannedPercent float64
+	TuplePercent, DeadPercent, FreePercent, ScannedPercent        float64
 }
 
 // HeapStatisticsLayout is the shared stateless page model. Every physical item
@@ -51,27 +61,37 @@ func HeapStatisticsLayout(ctx context.Context, live, dead, liveBytes, deadBytes 
 		return s, err
 	}
 	count, err := AddSize(live, dead)
-	if err != nil { return s, err }
+	if err != nil {
+		return s, err
+	}
 	bytes, err := AddSize(liveBytes, deadBytes)
-	if err != nil { return s, err }
+	if err != nil {
+		return s, err
+	}
 	if count > math.MaxInt64/4 {
 		_, err = AddSize(math.MaxInt64, 1)
 		return s, err
 	}
 	payload, err := AddSize(bytes, count*4)
-	if err != nil { return s, err }
-	pages := payload/8168
-	if payload%8168 != 0 { pages++ }
+	if err != nil {
+		return s, err
+	}
+	pages := payload / 8168
+	if payload%8168 != 0 {
+		pages++
+	}
 	if pages > math.MaxInt64/8192 {
 		_, err = AddSize(math.MaxInt64, 1)
 		return s, err
 	}
-	s.TableLen = pages*8192
-	s.FreeSpace = pages*8168-payload
+	s.TableLen = pages * 8192
+	s.FreeSpace = pages*8168 - payload
 	if s.TableLen != 0 {
 		percent := func(n int64) float64 {
-			v := 100*float64(n)/float64(s.TableLen)
-			if !approximate { return math.Round(v*100)/100 }
+			v := 100 * float64(n) / float64(s.TableLen)
+			if !approximate {
+				return math.Round(v*100) / 100
+			}
 			return v
 		}
 		s.TuplePercent = percent(liveBytes)
@@ -85,17 +105,27 @@ func HeapStatisticsLayout(ctx context.Context, live, dead, liveBytes, deadBytes 
 func CaptureHeapStatistics(ctx context.Context, facts []HeapTupleFact, caller ids.TxRef, approximate bool) (HeapStatistics, error) {
 	var live, dead, liveBytes, deadBytes int64
 	for _, fact := range facts {
-		if err := ctx.Err(); err != nil { return HeapStatistics{}, err }
+		if err := ctx.Err(); err != nil {
+			return HeapStatistics{}, err
+		}
 		n, err := RowAllocation(ctx, fact.Version.Values)
-		if err != nil { return HeapStatistics{}, err }
+		if err != nil {
+			return HeapStatistics{}, err
+		}
 		if HeapTupleLive(fact, caller, approximate) {
 			live, err = AddSize(live, 1)
-			if err == nil { liveBytes, err = AddSize(liveBytes, n) }
+			if err == nil {
+				liveBytes, err = AddSize(liveBytes, n)
+			}
 		} else {
 			dead, err = AddSize(dead, 1)
-			if err == nil { deadBytes, err = AddSize(deadBytes, n) }
+			if err == nil {
+				deadBytes, err = AddSize(deadBytes, n)
+			}
 		}
-		if err != nil { return HeapStatistics{}, err }
+		if err != nil {
+			return HeapStatistics{}, err
+		}
 	}
 	return HeapStatisticsLayout(ctx, live, dead, liveBytes, deadBytes, approximate)
 }

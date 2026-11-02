@@ -444,6 +444,7 @@ func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	enginetest.CommitCatalogTransaction(t, stage)
 }
 
 func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {

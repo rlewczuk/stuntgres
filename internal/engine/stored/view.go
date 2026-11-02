@@ -51,13 +51,13 @@ type View struct {
 // Stored leaves contain identities and frozen layout, never live storage or
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type ViewLeaf struct {
-	Ref          ids.ObjectRef
-	Only         bool
-	Attributes   []int32
-	Reads        []int32
-	AnalysisOnly bool
-	TableOIDRead bool
-	Mark         plan.RowMark
+	Ref                 ids.ObjectRef
+	Only                bool
+	Attributes          []int32
+	Reads               []int32
+	AnalysisOnly        bool
+	SystemAttributeRead bool
+	Mark                plan.RowMark
 }
 
 // fromRoot pairs retained FROM syntax with its checked source graph. Mutation

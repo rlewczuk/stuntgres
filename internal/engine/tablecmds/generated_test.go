@@ -112,7 +112,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
-	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	leaf := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	volatile := functions.Random{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if plan.GenerationImmutable(volatile) {
 		t.Fatal("volatile accepted")
@@ -141,7 +141,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	owner := e.Catalog.Domain.Ref(view.Epoch(), parent.Address())
-	original := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: owner}
+	original := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: owner}
 	child := *parent
 	child.ObjectAddress.ObjectID++
 	mapper := analyze.LikeInput{Source: parent}
@@ -156,13 +156,15 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	if !analyze.SameGroupExpression(left, right) || analyze.SameGroupExpression(original, left) || original.Owner != owner {
 		t.Fatal("mapped recipe equality lost exact row owner or mutated the source")
 	}
-	mapped := left.(plan.TableOIDExpr)
-	for _, change := range []func(*plan.TableOIDExpr){
-		func(n *plan.TableOIDExpr) { n.Owner = engine.New().Catalog.Domain.Ref(n.Owner.Epoch, n.Owner.Address) },
-		func(n *plan.TableOIDExpr) { n.Owner.Epoch++ },
-		func(n *plan.TableOIDExpr) { n.Owner.Address.ObjectID++ },
-		func(n *plan.TableOIDExpr) { n.Owner.Address.SubID++ },
-		func(n *plan.TableOIDExpr) { n.Usage = parent.Columns[0].Usage },
+	mapped := left.(plan.SystemAttributeExpr)
+	for _, change := range []func(*plan.SystemAttributeExpr){
+		func(n *plan.SystemAttributeExpr) {
+			n.Owner = engine.New().Catalog.Domain.Ref(n.Owner.Epoch, n.Owner.Address)
+		},
+		func(n *plan.SystemAttributeExpr) { n.Owner.Epoch++ },
+		func(n *plan.SystemAttributeExpr) { n.Owner.Address.ObjectID++ },
+		func(n *plan.SystemAttributeExpr) { n.Owner.Address.SubID++ },
+		func(n *plan.SystemAttributeExpr) { n.Usage = parent.Columns[0].Usage },
 	} {
 		different := mapped
 		change(&different)
@@ -227,7 +229,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.ObjectAddress.ObjectID = 26000
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	leaf := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
@@ -271,7 +273,7 @@ func TestGeneratedRemapCheckCapture(t *testing.T) {
 	d.ObjectAddress.ObjectID = 26000
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	leaf := plan.SystemAttributeExpr{SubID: -6, Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	literal := func(value bool) expr.Expr {
 		return plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, value)}

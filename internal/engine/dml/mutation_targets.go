@@ -14,8 +14,28 @@ func MutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec
 }
 
 type MutationRowIdentity struct {
-	Ref ids.ObjectRef
-	Row ids.RowID
+	Ref     ids.ObjectRef
+	Row     ids.RowID
+	Version ids.VersionID
+}
+
+func MutationPositionMatches(positioned MutationRowIdentity, physical exec.QueryPhysicalRow, source *exec.Source) bool {
+	if positioned.Ref != physical.Leaf.Ref || positioned.Row != physical.Version.Row {
+		return false
+	}
+	headers := source.Headers
+	if physical.Segment != nil {
+		headers = physical.Segment.Prefix.Headers
+	}
+	version := positioned.Version
+	for version != physical.Version.Version {
+		next := headers.Header(version).Successor
+		if next <= version {
+			return false
+		}
+		version = next
+	}
+	return true
 }
 
 func ScatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
@@ -52,12 +72,4 @@ func BeforeMutationUpdate(h Host, b analyze.Binding, physical exec.QueryPhysical
 		result.Row = named
 	}
 	return result, nil
-}
-
-// VersionRows appends the logical row identities of versions to buf.
-func VersionRows(buf []ids.RowID, versions []storage.RowVersion) []ids.RowID {
-	for _, version := range versions {
-		buf = append(buf, version.Row)
-	}
-	return buf
 }

@@ -15,7 +15,7 @@ func scopedRelationGrant(t *testing.T, m *Manager, owner *Ticket, resource Resou
 }
 
 func TestRelationContributionOwnership(t *testing.T) {
-	for _, mode := range []Mode{AccessShare, Share} {
+	for _, mode := range []Mode{AccessShare, Share, RowExclusive} {
 		for _, ordinary := range []string{"none", "before", "during"} {
 			t.Run(deadlockMode(mode)+"/"+ordinary, func(t *testing.T) {
 				f := newLockFixture(t)
@@ -64,7 +64,7 @@ func TestRelationContributionOwnership(t *testing.T) {
 }
 
 func TestRelationContributionCheckpoint(t *testing.T) {
-	for _, mode := range []Mode{AccessShare, Share} {
+	for _, mode := range []Mode{AccessShare, Share, RowExclusive} {
 		t.Run(deadlockMode(mode), func(t *testing.T) {
 			f := newLockFixture(t)
 			owner, peer := f.tx(), f.tx()

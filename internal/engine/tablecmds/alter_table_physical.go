@@ -170,16 +170,12 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	}
 	if physicalRows && !rewrite {
 		e.Mu.Lock()
-		rows, reownErr := stored.ReownVersions(e.StageRead(stage).State(), replacement.Versions)
+		owned, reownErr := stored.ReownRelation(e.StageRead(stage).State(), replacement)
 		e.Mu.Unlock()
 		if reownErr != nil {
 			return core.Result{}, reownErr
 		}
-		if len(rows) != 0 && &rows[0] != &replacement.Versions[0] {
-			owned := *replacement
-			owned.Versions = rows
-			replacement = &owned
-		}
+		replacement = owned
 		e.Mu.Lock()
 		projectedWrites, err = stored.ReownVersions(e.StageRead(stage).State(), projectedWrites)
 		e.Mu.Unlock()

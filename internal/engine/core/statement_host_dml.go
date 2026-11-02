@@ -89,7 +89,7 @@ func (h *statementHost) AcquireRow(c visibility.DeleteCandidate) error {
 	return h.scope().acquireRow(c)
 }
 
-func (h *statementHost) AcquireUpdateRow(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
+func (h *statementHost) AcquireUpdateRow(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error {
 	return h.scope().acquireUpdateRowMode(ref, row, mode)
 }
 
@@ -97,8 +97,8 @@ func (h *statementHost) AcquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) 
 	return h.scope().AcquirePartitionLock(ref, mode)
 }
 
-func (h *statementHost) PhysicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode lock.MultiMode, successor ids.VersionID) error {
-	return h.scope().physicalRowEvent(ref, row, mode, successor)
+func (h *statementHost) PhysicalRowLock(ref ids.ObjectRef, row storage.RowVersion, mode lock.Mode) error {
+	return h.scope().physicalRowLock(ref, row, mode)
 }
 
 // RowDetail is rowConstraintDetail for a constraint and rowDiagnosticDetail

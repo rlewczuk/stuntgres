@@ -21,6 +21,9 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 	if source.RlsDenied {
 		return source, ctx.Err()
 	}
+	if len(source.Repaired) != 0 {
+		return selectRepairedQuerySource(ctx, source, frontier, ends, own, heap)
+	}
 	replacements, single := 0, 0
 	for i, row := range source.Own {
 		if row.Base != 0 {
@@ -28,11 +31,12 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 			single = i
 		}
 	}
-	if ends == nil && own == nil && replacements == 0 && !source.NeedsBirthFilter {
+	if ends == nil && own == nil && replacements == 0 && !source.NeedsBirthFilter && source.Headers == nil {
 		return source, nil
 	}
 	total := len(source.Committed) + len(source.Own)
 	var heads map[ids.VersionID]int
+	selected := 0
 	singleSubstituted := false
 	if replacements > 1 {
 		heads = make(map[ids.VersionID]int, replacements)
@@ -42,33 +46,38 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 			}
 		}
 	}
-	include := func(raw, ordinal int) error {
+	include := func(raw int, eligible bool) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		live := heap.LiveVersion(source.VersionAt(raw), frontier, ends, own)
-		if source.Visible == nil && (!live || raw != ordinal) {
-			source.Visible = make([]int, ordinal, total)
-			for j := range ordinal {
+		row := source.VersionAt(raw)
+		live := eligible && heap.LiveVersion(row, frontier, ends, own)
+		if source.Visible == nil && (!live || raw != selected) {
+			source.Visible = make([]int, selected, total)
+			for j := range selected {
 				source.Visible[j] = j
 			}
 		}
 		if live && source.Visible != nil {
 			source.Visible = append(source.Visible, raw)
 		}
+		if live {
+			selected++
+		}
 		return nil
 	}
 	for i, row := range source.Committed {
 		raw := i
-		if replacements == 1 && row.Row == source.Own[single].Row && row.Version == source.Own[single].Base {
+		row = source.VersionAt(i)
+		if replacements == 1 && row.Row == source.Own[single].Row && row.Version == source.Own[single].Base && source.Own[single].BaseHeaderStamp() == row.RepairStamp {
 			raw = len(source.Committed) + single
 			singleSubstituted = true
 		}
-		if head, ok := heads[row.Version]; ok && source.VersionAt(head).Row == row.Row {
+		if head, ok := heads[row.Version]; ok && source.VersionAt(head).Row == row.Row && source.VersionAt(head).BaseHeaderStamp() == row.RepairStamp {
 			raw = head
 			delete(heads, row.Version)
 		}
-		if err := include(raw, i); err != nil {
+		if err := include(raw, true); err != nil {
 			source.Close()
 			return nil, err
 		}
@@ -78,7 +87,7 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 			continue
 		}
 		raw := len(source.Committed) + i
-		if err := include(raw, raw); err != nil {
+		if err := include(raw, true); err != nil {
 			source.Close()
 			return nil, err
 		}
@@ -86,9 +95,62 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 	return source, nil
 }
 
+// Repaired families can have several live versions of one logical RowID.
+// Suppress only the exact predecessor headers actually admitted by this owner,
+// including intermediate private history, and never substitute a RowID head.
+func selectRepairedQuerySource(ctx context.Context, source *Source, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes, heap visibility.HeapOperations) (*Source, error) {
+	type headerIdentity struct {
+		version ids.VersionID
+		stamp   uint64
+	}
+	var ended map[headerIdentity]bool
+	if len(source.Own) != 0 {
+		ended = make(map[headerIdentity]bool, len(source.Own))
+		for _, row := range source.Own {
+			if row.Base != 0 {
+				ended[headerIdentity{row.Base, row.BaseHeaderStamp()}] = true
+			}
+			for prior := row.PrivateHistory; prior != nil; prior = prior.Next {
+				ended[headerIdentity{prior.Version.Version, prior.Version.RepairStamp}] = true
+			}
+		}
+	}
+	seen := make(map[ids.VersionID]bool, len(source.Repaired))
+	total := len(source.Committed) + len(source.Own) + len(source.Repaired)
+	selected := 0
+	for raw := 0; raw < total; raw++ {
+		if err := ctx.Err(); err != nil {
+			source.Close()
+			return nil, err
+		}
+		row := source.VersionAt(raw)
+		eligible := raw < len(source.Committed)+len(source.Own) || row.ForcedFrozen
+		live := eligible && !ended[headerIdentity{row.Version, row.RepairStamp}] && heap.LiveVersion(row, frontier, ends, own)
+		if live && row.ForcedFrozen {
+			if seen[row.Version] {
+				live = false
+			} else {
+				seen[row.Version] = true
+			}
+		}
+		if source.Visible == nil && (!live || raw != selected) {
+			source.Visible = make([]int, selected, total)
+			for j := range selected {
+				source.Visible[j] = j
+			}
+		}
+		if live {
+			if source.Visible != nil {
+				source.Visible = append(source.Visible, raw)
+			}
+			selected++
+		}
+	}
+	return source, nil
+}
+
 func PartialMaskContains(root *storage.IndexRoot, row storage.RowVersion) bool {
-	version, ok := root.Membership[row.Row]
-	return ok && version == row.Version
+	return root.IsMember(row.Row, row.Version)
 }
 
 type InheritanceQuerySegment struct {
@@ -348,17 +410,17 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
 type Leaf struct {
-	Ref              ids.ObjectRef
-	Relation         *catalog.Relation
-	Storage          *storage.Relation
-	Only             bool
-	Principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
-	FrozenAttributes []int32                    // Execution-owned stored-view subquery layout.
-	Uses             []int
-	TableOIDRead     bool // Requires whole-table SELECT; Uses stays dense ordinary indices.
-	Mark             plan.RowMark
-	Query            *parser.Select
-	Table            *parser.TableReference
+	Ref                 ids.ObjectRef
+	Relation            *catalog.Relation
+	Storage             *storage.Relation
+	Only                bool
+	Principal           authorization.PrincipalRef // Relation authority, not expression/session identity.
+	FrozenAttributes    []int32                    // Execution-owned stored-view subquery layout.
+	Uses                []int
+	SystemAttributeRead bool // Requires whole-table SELECT; Uses stays dense ordinary indices.
+	Mark                plan.RowMark
+	Query               *parser.Select
+	Table               *parser.TableReference
 	// DELETE's immediate USING occurrences require reference-kind validation,
 	// not SELECT FOR UPDATE authority or source tuple locks.
 	DeleteReference  bool

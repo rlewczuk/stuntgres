@@ -82,6 +82,7 @@ func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	enginetest.CommitCatalogTransaction(t, stage)
 }
 
 func TestQueryTableCreateInitialPublication(t *testing.T) {
@@ -101,8 +102,14 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 					rows[i][0], _ = sqltype.Integer(d.Columns[0].Usage.Type, 7)
 				}
 			}
-			if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+			if err := e.StageQueryTableRows(context.Background(), stage, d, rows, enginetest.CatalogTransaction(t, e)); err != nil {
 				t.Fatal(err)
+			}
+			e.Mu.Lock()
+			sourceXID := e.Visibility.FullXIDLocked(stage.InitialTx)
+			e.Mu.Unlock()
+			if tc.count != 0 && sourceXID == 0 {
+				t.Fatal("created rows lack an admitted source owner")
 			}
 			queryCreateAssertAbsent(t, e, d)
 			queryCreateAssertTypes(t, e, registry)
@@ -130,7 +137,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(storage.Generation)
 			}
 			for i, row := range storage.Versions {
-				if row.Row != ids.RowID(i+1) || row.Version != ids.VersionID(i+1) || row.Born != wantFrontier || len(row.Values) != tc.width {
+				if row.Row != ids.RowID(i+1) || row.Version != ids.VersionID(i+1) || row.Born != wantFrontier || row.InsertFullXID != sourceXID || len(row.Values) != tc.width {
 					t.Fatal(row)
 				}
 				if tc.width != 0 && !sqltype.SameDatum(row.Values[0], rows[i][0]) {
@@ -141,12 +148,13 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.Visibility.CommitSeq() != wantFrontier {
 				t.Fatal("replayed publication", err)
 			}
+			enginetest.CommitCatalogTransaction(t, stage)
 		})
 	}
 }
 
 func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
-	for _, phase := range []string{"row_identity", "version_identity", "frontier", "cancel", "name", "epoch", "provider", "authorization", "role_revision", "source_definition", "invalid_width", "invalid_type"} {
+	for _, phase := range []string{"source_owner", "row_identity", "version_identity", "frontier", "cancel", "name", "epoch", "provider", "authorization", "role_revision", "source_definition", "invalid_width", "invalid_type"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
 			registry := queryCreateTypes(e)
@@ -161,7 +169,19 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				e.Storage.SetFrontierLocked(e.Storage.RowFrontier(), math.MaxUint64)
 			}
 			beforeRow, beforeVersion := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
-			err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{})
+			var source ids.TxRef
+			if phase != "source_owner" {
+				source = enginetest.CatalogTransaction(t, e)
+			}
+			err := e.StageQueryTableRows(context.Background(), stage, d, rows, source)
+			if phase == "source_owner" {
+				if !errors.Is(err, ids.ErrCatalogReplaced) || e.Storage.RowFrontier() != beforeRow || e.Storage.VersionFrontier() != beforeVersion {
+					t.Fatal("unadmitted source allocated fixture rows", err)
+				}
+				queryCreateAssertAbsent(t, e, d)
+				queryCreateAssertTypes(t, e, registry)
+				return
+			}
 			if phase == "row_identity" || phase == "version_identity" {
 				want := "stuntgres: row identity exhausted"
 				if phase == "version_identity" {
@@ -322,7 +342,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	e := engine.New()
 	stage, d := queryCreateStage(t, e, "copy", 1)
 	value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
-	if err := e.StageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -337,6 +357,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	if e.Storage.RowFrontier() != 1 || e.Storage.VersionFrontier() != 1 || e.Visibility.CommitSeq() != 1 || len(e.Storage.Relations[d.Address()].Versions) != 1 || !sqltype.SameDatum(e.Storage.Relations[d.Address()].Versions[0].Values[0], value) {
 		t.Fatal("refresh replayed or lost data")
 	}
+	enginetest.CommitCatalogTransaction(t, stage)
 }
 
 func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
@@ -345,7 +366,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	queryCreatePublish(t, e, ordinaryStage)
 	value, _ := sqltype.Integer(ordinary.Columns[0].Usage.Type, 7)
 	discarded, d := queryCreateStage(t, e, "discarded", 1)
-	if err := e.StageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	reserved := core.StageInitialTables(discarded)[d.Address()].Versions[0]
@@ -379,7 +400,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	}
 	before := e.Visibility.CommitSeq()
 	nextStage, next := queryCreateStage(t, e, "next_copy", 1)
-	if err = e.StageQueryTableRows(context.Background(), nextStage, next, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
+	if err = e.StageQueryTableRows(context.Background(), nextStage, next, [][]sqltype.Value{{value}}, enginetest.CatalogTransaction(t, e)); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)

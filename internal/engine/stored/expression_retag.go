@@ -533,6 +533,22 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InstalledPgsurgeryExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgsurgeryProviderOf(proc) != extension.StockPgsurgery {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pg_surgery function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgsurgery(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		for i, arg := range n.Args {
 			n.Args[i] = child(arg)
@@ -990,7 +1006,7 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		changed = changed || replaced
 		n.Info = info
 		rebound = n
-	case plan.TableOIDExpr:
+	case plan.SystemAttributeExpr:
 		n.Info = info
 		rebound = n
 	case plan.SubqueryExpr:

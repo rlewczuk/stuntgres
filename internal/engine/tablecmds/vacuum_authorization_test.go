@@ -105,7 +105,7 @@ func vacuumGrantTimeRecheck(t *testing.T) {
 	sessionSQL(t, holder, "ROLLBACK")
 	lockAwait(t, done, nil)
 	joined = true
-	if store.Maintenance.VacuumCount != 0 || len(store.Versions) != 2 || len(store.Ends.Rows) != 1 {
+	if store.Maintenance.VacuumCount != 0 || len(store.Versions) != 2 || store.Ends.Len() != 1 {
 		t.Fatal("grant-time revoke admitted stale maintenance")
 	}
 	lockEmpty(t, e)

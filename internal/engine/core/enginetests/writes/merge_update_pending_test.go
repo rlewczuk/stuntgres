@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -20,7 +22,7 @@ import (
 )
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
-// A live request on the original RowID establishes the exact interleaving.
+// A live request on the captured physical version establishes the interleaving.
 func mergeUpdatePendingExecute(t *testing.T, s *session.Session, q string) <-chan deleteOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -43,6 +45,18 @@ func mergeUpdatePendingExecute(t *testing.T, s *session.Session, q string) <-cha
 		case <-finished:
 		case <-time.After(5 * time.Second):
 			t.Error("MERGE worker failed to retire")
+			// Session teardown must not race the worker's Execute/Finish or
+			// leave its operation holding the statement owner admission.
+			<-finished
+		}
+		select {
+		case out := <-done:
+			if out.result.Rows != nil {
+				if err := out.result.Rows.Close(); err != nil {
+					t.Error(err)
+				}
+			}
+		default:
 		}
 	})
 	return done
@@ -67,6 +81,43 @@ func mergeUpdatePendingOutcome(t *testing.T, done <-chan deleteOutcome, count in
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("MERGE did not finish")
+	}
+}
+
+// The expected resource comes from the actual captured version and canonical
+// header, not a guessed original RowID or a ticket manufactured by the test.
+// Require the real conflicting holder and live worker request in one manager
+// snapshot; early completion is a failure, never evidence of a vanished waiter.
+func mergeUpdatePendingRowLock(t *testing.T, e *core.Engine, ref ids.ObjectRef, expected storage.RowVersion, worker *session.Session, blocker *lock.Ticket, mode lock.Mode, done <-chan deleteOutcome) {
+	t.Helper()
+	e.Mu.Lock()
+	resource, err := exec.TupleResource(ref, expected, e.Storage.Relations[ref.Address].Headers)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		select {
+		case out := <-done:
+			if out.result.Rows != nil {
+				_ = out.result.Rows.Close()
+			}
+			t.Fatalf("MERGE completed before required row wait: version=%d resource=%+v mode=%v result=%+v error=%v", expected.Version, resource, mode, out.result, out.err)
+		default:
+		}
+		state := e.Locks.Inspect()
+		if entry := state.Resources[resource]; entry != nil && state.Valid(blocker) && lock.Conflicts(mode, entry.Holders[blocker].Mode) {
+			for _, request := range entry.Pending {
+				if !request.Terminal && state.Valid(request.Ticket) && request.Ticket.Ref().Session() == worker.SessionToken && request.Resource == resource && request.Mode == mode {
+					return
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("missing exact live MERGE row request: version=%d resource=%+v mode=%v state=%+v", expected.Version, resource, mode, state.Resources[resource])
+		}
+		runtime.Gosched()
 	}
 }
 
@@ -317,21 +368,27 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
-			row := e.Storage.Relations[ref.Address].Versions[0].Row
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			a := enginetest.TransactionBegin(t, holder)
 			r := enginetest.SessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			r.Rows.Close()
 			b := enginetest.TransactionBegin(t, writer)
 			enginetest.SessionSQL(t, writer, "UPDATE t SET v=20")
+			writer.Transactions.Mu.Lock()
+			current := writer.Transactions.Writes[ref.Address][0]
+			writer.Transactions.Mu.Unlock()
+			if current.Row != original.Row || current.Version == original.Version {
+				t.Fatal("writer did not create the expected exact successor", original, current)
+			}
 			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
 			if targetOnly {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			done := mergeUpdatePendingExecute(t, worker, q)
-			enginetest.RowLockPending(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRowLock(t, e, ref, original, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate, done)
 			enginetest.TransactionEnd(t, writer, b, true)
 			if tc.strong {
-				enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
+				mergeUpdatePendingRowLock(t, e, ref, current, worker, holder.Transactions.Ticket, lock.ForUpdate, done)
 				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 20)
 				enginetest.TransactionEnd(t, holder, a, false)
 			}

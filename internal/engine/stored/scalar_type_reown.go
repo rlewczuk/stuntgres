@@ -199,16 +199,36 @@ func reownScalarRows(next *catalog.State, relations map[ids.ObjectAddress]*stora
 		if err != nil {
 			return err
 		}
-		if versions != nil || retained != relation.Retained {
+		discarded, err := storage.MapHeapPredecessors(relation.Discarded, header)
+		if err != nil {
+			return err
+		}
+		headers, err := storage.MapHeapHeaderRows(relation.Headers, header)
+		if err != nil {
+			return err
+		}
+		if versions != nil || retained != relation.Retained || discarded != relation.Discarded || headers != relation.Headers {
 			copy := *relation
 			if versions != nil {
 				copy.Versions = versions
 			}
 			copy.Retained = retained
+			copy.Discarded, copy.Headers = discarded, headers
 			relations[address] = &copy
 		}
 	}
 	return nil
+}
+
+// ReownRelation transports every canonical heap payload to next's type
+// generations, preserving exact roots when their datums are unchanged.
+func ReownRelation(next *catalog.State, relation *storage.Relation) (*storage.Relation, error) {
+	address := ids.ObjectAddress{}
+	stores := map[ids.ObjectAddress]*storage.Relation{address: relation}
+	if err := reownScalarRows(next, stores, nil); err != nil {
+		return nil, err
+	}
+	return stores[address], nil
 }
 
 // ReownVersions points private writes and retained owner snapshots at the

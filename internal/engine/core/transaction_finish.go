@@ -51,6 +51,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 		s.ForeignActionAuth = nil
 		s.CatalogAuthority = nil
 		s.Stage.Rows, s.Stage.Deletes, s.Stage.Stats = nil, nil, nil
+		s.Stage.DiscardedHeaps = nil
 		s.OwnWrites, s.OwnDeletes = nil, nil
 		s.notificationActions, s.notificationEvents = nil, nil
 		s.currentSnapshot = nil
@@ -204,6 +205,11 @@ func (s *StatementScope) Finish(err error) (result error) {
 		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, true)
 	}
 	if err != nil {
+		if !published {
+			e.Mu.Lock()
+			t.Catalog = e.discardWritesLocked(s.TxRef, s.PendingCatalog(), s.Stage.Rows, t.Writes, t.Catalog, s.Stage.DiscardedHeaps)
+			e.Mu.Unlock()
+		}
 		s.AbortStatsPopulation()
 		t.Stats.Take(&s.Stage.Stats)
 	}
@@ -242,6 +248,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 	s.notificationActions = nil
 	s.notificationEvents = nil
 	s.multiEvents = nil
+	s.tupleAdmissions = nil
 	s.OwnDeletes = nil
 	s.OwnWrites = nil
 	s.largeObjectOpening = catalog.Read{}
@@ -320,6 +327,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog)
 	t.Session.Settings.FinishTransaction(false)
 	e.Mu.Lock()
+	e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, nil, nil, nil)
 	e.abortSnapshotsLocked(t.Ref)
 	e.Visibility.EndTransactionLocked(t.Ref, false)
 	e.IndexWaits.EndOwnerLocked(t.Ref)
@@ -389,6 +397,10 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 					copy(writes[a][len(t.Writes[a]):], rows)
 				}
 			}
+			if s.ProjectedRoots {
+				catalog = e.deferProjectedDiscardsLocked(t, catalog, writes)
+			}
+			catalog = e.settleHeapDiscardsLocked(t.Ref, s.Stage.DiscardedHeaps, catalog, writes)
 			t.Writes = writes
 			t.Deletes = deletes
 			t.Catalog = catalog
@@ -402,6 +414,7 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			// The owner now owns this exact frontier. Terminal callers can
 			// stage another suffix without transferring or publishing it twice.
 			s.Stage.Rows, s.Stage.Deletes = nil, nil
+			s.Stage.DiscardedHeaps = nil
 			s.Stage.Replacing, s.ProjectedRoots = false, false
 			s.OwnWrites, s.OwnDeletes = t.Writes, t.Deletes
 			s.notificationActions, s.notificationEvents = nil, nil

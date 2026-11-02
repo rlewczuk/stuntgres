@@ -279,7 +279,7 @@ func rangeReviewQueryOwners(query *plan.Query) []rangeReviewQuery {
 					switch e := expression.(type) {
 					case plan.ColumnExpr:
 						owner.coordinates = append(owner.coordinates, rangeReviewCoordinate{e.Scope, e.Frame, false})
-					case plan.TableOIDExpr:
+					case plan.SystemAttributeExpr:
 						owner.coordinates = append(owner.coordinates, rangeReviewCoordinate{e.Scope, e.Frame, true})
 					case plan.SubqueryExpr:
 						if e.QueryPlan != nil && !slices.Contains(children, e.QueryPlan) {

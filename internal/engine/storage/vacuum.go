@@ -13,17 +13,22 @@ type VacuumCandidate struct {
 	Versions                    []RowVersion
 	Ends                        *DeletionRoot
 	Retained                    *HeapPredecessor
+	Discarded                   *HeapPredecessor
+	Headers                     *HeapHeaderRoot
 	Positions                   []int
 	Live, Dead, Removed, Frozen int64
 	Horizon                     uint64
 }
 
 func vacuumEnded(row RowVersion, ends *DeletionRoot, frontier ids.CommitSeq) bool {
+	if row.ForcedFrozen {
+		return row.ForcedEnd != 0 && row.ForcedEnd <= frontier
+	}
 	if row.Born == 0 || row.Born > frontier || ends == nil {
 		return false
 	}
-	end, ok := ends.Rows[row.Row]
-	return ok && end.Version == row.Version && end.End != 0 && end.End <= frontier
+	end, ok := ends.Lookup(row.Row, row.Version)
+	return ok && end.End != 0 && end.End <= frontier
 }
 func vacuumFreeze(row RowVersion, frontier ids.CommitSeq, cutoff uint64) bool {
 	return row.Born != 0 && row.Born <= frontier && !row.Frozen && row.InsertFullXID >= 3 && row.InsertFullXID < cutoff
@@ -42,7 +47,7 @@ func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, f
 		} else {
 			if dead {
 				c.Dead++
-			} else if row.Born != 0 && row.Born <= frontier {
+			} else if row.ForcedFrozen || row.Born != 0 && row.Born <= frontier {
 				c.Live++
 			}
 			if vacuumFreeze(row, frontier, cutoff) {
@@ -74,10 +79,7 @@ func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoo
 	if c.Removed > 0 {
 		c.Positions = make([]int, len(rows))
 		if ends != nil {
-			c.Ends = &DeletionRoot{Rows: make(map[ids.RowID]RowEnd, len(ends.Rows))}
-			for id, end := range ends.Rows {
-				c.Ends.Rows[id] = end
-			}
+			c.Ends = ends.Clone()
 		}
 	}
 	for i, row := range rows {
@@ -86,7 +88,7 @@ func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoo
 		}
 		if c.Removed > 0 && vacuumEnded(row, ends, frontier) {
 			c.Positions[i] = -1
-			delete(c.Ends.Rows, row.Row)
+			c.Ends.Delete(row.Row, row.Version)
 		} else {
 			if c.Positions != nil {
 				c.Positions[i] = len(c.Versions)
@@ -200,6 +202,7 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 		h.Storage, h.Generation, h.Prefix, h.Ends = store, generation, prefix, c.Ends
 		if root.Hash.RowEntries != nil {
 			h.RowEntries = make(map[ids.RowID]*HashEntry, len(root.Hash.RowEntries))
+			h.RowEntryVersions = nil
 		}
 		for key, bucket := range root.Hash.Buckets {
 			entries := make([]HashEntry, 0, len(bucket))
@@ -221,7 +224,7 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 				h.Buckets[key] = entries
 				if h.RowEntries != nil {
 					for i := range entries {
-						h.RowEntries[entries[i].Row] = &entries[i]
+						h.SetRowEntry(&entries[i])
 					}
 				}
 			}
@@ -231,16 +234,16 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 	if root.Membership != nil {
 		next.Membership = make(map[ids.RowID]ids.VersionID, len(root.Membership))
 		for _, row := range c.Versions {
-			if root.Membership[row.Row] == row.Version {
-				next.Membership[row.Row] = row.Version
+			if root.IsMember(row.Row, row.Version) {
+				next.SetMember(row.Row, row.Version)
 			}
 		}
 	}
 	if root.RowEntries != nil {
 		next.RowEntries = make(map[ids.RowID]int, len(root.RowEntries))
 		for i, entry := range next.Entries {
-			if _, ok := root.RowEntries[entry.Row]; ok {
-				next.RowEntries[entry.Row] = i
+			if _, ok := root.RowEntry(entry.Row, entry.Version); ok {
+				next.SetRowEntry(i)
 			}
 		}
 	}
