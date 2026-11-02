@@ -83,6 +83,7 @@ seams, binders and storage paths; do not build parallel implementations.
 
 - Do NOT write any change notes to any file, commit log is good enough.
 - `README.md` is consumer-facing only: what the project is, usage, server, building.
+  Never add notes about individual statements, functions or system views to it.
 - A package `README.md` states the current contract: responsibility, layering,
   ownership, invariants, lock order and entry points. Its `## Testing` covers
   package-specific helpers, rules and one reusable selector per test family, never

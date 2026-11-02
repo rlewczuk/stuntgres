@@ -1,706 +1,263 @@
 # stuntgres
 
-stuntgres is an embedded, process-local PostgreSQL-compatible `database/sql`
-driver for Go unit tests and reusable test fixtures. Code under test talks to it
-like a PostgreSQL pool, but no database server or container is started. Production
-code depends only on the Go standard library. Requires **Go 1.26 or later**.
+stuntgres is a PostgreSQL-compatible database that runs inside your Go test
+process. It is a `database/sql` driver: code under test uses it like a PostgreSQL
+connection pool, but no database server, container or network is involved.
 
-The goal is full PostgreSQL 18 compatibility; the
-[PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) is the
-reference for SQL syntax and behavior, and any observable difference is a bug.
-Databases live in memory: there is no WAL, crash durability or replication.
-Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapshots
-for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
-executable serves the same engine over the PostgreSQL wire protocol.
+It is meant for Go developers who test code that talks to PostgreSQL and want
+those tests to be fast, isolated and free of external setup. Databases are cheap
+to create, so each test can have its own, and fixtures can be built once and
+restored for every test.
 
-`ALTER TABLESPACE name RENAME TO new_name` and `ALTER TABLESPACE name OWNER TO
-role` update the real shared builtin descriptors transactionally, preserving
-their fixed OIDs (1663/1664). Ownership, ACLs, live-name lookups and attached
-database views follow committed changes; rollback and retained rows preserve
-their earlier image. `DROP TABLESPACE [IF EXISTS] name` supports missing-object
-errors/notices and owner checks, but both native builtins remain pinned even
-after rename or owner transfer. DROP is forbidden in a transaction block.
-Native ordinary tablespace registration, physical placement, relocation and
-deletion are unavailable: physical CREATE returns `0A000`, not a fake catalog
-row. Real PostgreSQL ordinary dependency/nonempty DROP checks have separate
-reference coverage, not an equivalent native implementation. See the
-[tablespace dialect and limits](docs/DIALECT.md#tablespaces) and
-[native fixture replay](docs/FIXTURES.md).
+- **Compatibility.** The goal is full PostgreSQL 18 compatibility. The
+  [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html)
+  describes the SQL that stuntgres accepts; any observable difference is a bug.
+- **In memory.** Databases live in memory. There is no WAL, crash durability or
+  replication; physical storage details (files, pages, sizes) are simulated.
+- **Small footprint.** The library depends only on the Go standard library and
+  requires Go 1.26 or later.
+- **Optional server.** The `cmd/stuntgres` executable serves the same engine over
+  the PostgreSQL wire protocol for `psql` and other clients.
 
-`information_schema.applicable_roles` supports ordinary direct and prepared
-role-membership inquiry with `grantee`, `role_name` and `is_grantable`. Results
-follow current-role inherited visibility, preserve actual ADMIN options and
-include the current database owner's implicit `pg_database_owner` membership.
-Held statements refresh membership, role names and ownership at execution.
+## Installation
 
-`pg_export_snapshot() → text` shares a transaction's real committed snapshot
-with a peer using `SET TRANSACTION SNAPSHOT 'identifier'`. Import before the
-first query in a REPEATABLE READ or SERIALIZABLE transaction. Tokens expire at
-exporter transaction end; an already imported cut survives that end and never
-contains the exporter's private writes. READ COMMITTED can export successive
-cuts; stable isolation exports distinct identifiers for the same cut. Active
-savepoints forbid export/import, and exporting prevents PREPARE TRANSACTION
-(the failed PREPARE rolls back the whole transaction). This is immutable
-in-memory retention, not native Dump serialization or filesystem transport.
-Native Reset/successful Restore fences the replaced runtime's old tokens;
-failed or canceled Restore leaves them intact. See
-[`reference/locking_transactions`](reference/locking_transactions/README.md)
-for independently expected PostgreSQL 18.6 reference scenarios.
+The module path is `stuntgres`. Until it is published under a public path,
+clone the repository next to your project and point your module at it:
 
+```sh
+git clone https://github.com/rlewczuk/stuntgres.git ../stuntgres
+go mod edit -require=stuntgres@v0.0.0 -replace=stuntgres=../stuntgres
+```
 
-Relation-location functions use their PostgreSQL 18 typed signatures:
-`pg_relation_filenode(regclass) → oid`,
-`pg_relation_filepath(regclass) → text`, and
-`pg_filenode_relation(oid,oid) → regclass`. Strict NULLs, missing numeric relation
-OIDs and storage-less relations (including views and partition roots) yield
-typed NULLs. The embedded engine has no PostgreSQL data directory: forward
-inquiries for tables, indexes, sequences, materialized views and stored catalogs
-raise `0A000`, rather than inventing files or treating a logical OID as a filenode.
-Reverse lookup returns NULL because no physical mappings exist; tablespace zero
-cannot manufacture one. Native Dump/Restore preserves logical metadata only.
-Stock PostgreSQL instead returns actual filenodes and relative first-main-fork
-paths; filenodes can change independently of relation OIDs. Temporary relations
-have forward mappings on PostgreSQL but reverse lookup is NULL; native temporary
-forward inquiries have the same explicit unsupported boundary as other stored
-relations. No extra relation SELECT or server-file privilege is required.
-
-`CREATE EXTENSION pgstattuple` installs `pgstatindex(text/regclass)`,
-`pgstathashindex(regclass)`, `pgstattuple(text/regclass)`,
-`pgstattuple_approx(regclass)` and `pg_relpages(text/regclass)`. Heap tuple
-counts inspect real retained versions, including open and prepared transactions,
-rather than the caller's SELECT snapshot. Routine EXECUTE grants (initially the
-scan role), not table SELECT, authorize calls. Native fixture snapshots preserve
-the installed routines and stored expressions while importing only committed live
-rows into fresh heaps. Physical heap/index/hash sizes and pages are deterministic
-simulations, not PostgreSQL page storage. `pgstattuple` index metrics count
-currently represented logical items: committed deletions leave no physical
-archive, and this model reports zero dead index tuples.
-
-`CREATE EXTENSION pg_visibility` installs the block and relation forms of
-`pg_visibility_map` and `pg_visibility`, plus `pg_visibility_map_summary`.
-Their typed records report deterministic native heap-page visibility, not
-PostgreSQL byte-page parity. Positive flags require genuine frozen tuple facts
-safe for actual protected snapshots; open/prepared writers and represented tuple
-locks remain conservative. Calls use routine EXECUTE (initially
-`pg_stat_scan_tables`), without an additional table SELECT requirement. Returned
-records own their values across later writes and native catalog controls.
-
-
-Storage and native Go text remain UTF8/Unicode. The optional server supports
-bidirectional `client_encoding` through actual registered PostgreSQL conversion
-defaults, plus SQL_ASCII. Native byte-stream COPY uses the same encoding
-boundary, with a separate explicit `ENCODING` file option; native SQL strings
-and typed parameters are not reinterpreted. See [COPY](docs/DRIVER.md#copy).
-
-SQL and PL/pgSQL procedures use standalone `CALL`, including named, default and
-variadic arguments and declared OUT/INOUT result columns. Calls share the
-executing statement's atomic effects and cancellation. Native fixture controls
-preserve routine declarations and data; see [routine execution](docs/DRIVER.md).
-
-Type inquiries use the same direct, prepared and stored expression paths:
-`pg_typeof(NULL::integer)` returns the REGTYPE identity `integer`,
-`format_type(1700,327686)` returns `numeric(5,2)`, and `pg_basetype` follows
-nested domains without replacing nominal `pg_typeof` identity. Native fixture
-controls preserve the underlying type graph and stored expressions.
-
-Nullable callable identity lookups use `to_regproc(text) → regproc`,
-`to_regprocedure(text) → regprocedure`, `to_regoper(text) → regoper` and
-`to_regoperator(text) → regoperator`. Signature-qualified forms match exact
-operand types without coercion or executing the target. Missing identities and
-ambiguous name-only lookups return typed NULL; the corresponding casts still
-raise ambiguity errors. Producer-saved input failures become NULL, while hard
-type syntax/modifier, qualification and privilege errors propagate. Held calls,
-stored defaults and nested views resolve TEXT against current catalog/search-path
-authority. Native Dump/Restore preserves stored calls and alias data without a
-separate builtin serializer.
-
-`information_schema.domain_udt_usage` reports actual domains and their immediate
-base types through six nullable `sql_identifier` columns over NAME. Unused and
-builtin domains participate; nested domains retain their immediate parent, and
-enum, composite and array bases retain their own identities. Enabled ownership
-of the immediate base controls visibility, including inherited ownership and
-SET ROLE; domain ownership and type/domain USAGE grants alone do not qualify.
-This view does not traverse column or routine usages. Held queries refresh
-catalog and role authority; already returned rows survive later changes and
-native Reset/Restore. Reset removes user-domain rows but retains the source;
-Dump/Restore replays the logical type graph rather than dumping the builtin view.
-
-`pg_rewrite` exposes rule identities, enable modes, qualifications and ordered
-action trees for installed views, materialized views and ordinary rules.
-These metadata reads retain their captured definitions across replacement,
-drop and native fixture controls. Tree values are opaque native structural
-metadata; use the `pg_get_*def` functions for SQL presentation.
-Qualification inquiries render retained subqueries and distinguish their local
-columns from outer OLD/NEW. Query metadata preserves selected aggregate/window
-declarations and their real dependencies, including checked modifying-CTE owners;
-changing the search path alone never rebinds an installed definition.
-Partial-assignment metadata includes the actual destination chain and selected
-lower/upper bound expressions, including target-only subqueries, conflict UPDATE
-and supported modifying-CTE MERGE UPDATE. This does not add a rule engine or
-enable the existing unsupported MERGE partial-INSERT form.
-
-Input diagnostics use `pg_input_is_valid(text, text) → boolean`
-and `pg_input_error_info(value text, type_name text) → record(message text,
-detail text, hint text, sql_error_code text)`. Only error-info supports the named
-inputs `value` and `type_name`; the boolean inputs are unnamed. The target is a SQL type
-declaration, including qualified names, arrays and typmods such as
-`numeric(7,4)`, not a numeric REGTYPE shortcut. Both calls are strict: either
-NULL argument yields SQL NULL. Successful error-info is instead a non-NULL
-record with four NULL fields (`(,,,)` as text). Only producer-supported soft
-input errors become false or diagnostics; unknown types, invalid declarations,
-unsupported hard input routines and exceptions inside domain CHECK expressions
-remain ordinary statement errors. Missing detail/hint are NULL; SQLSTATE is
-the original five-character code. Direct, prepared and stored calls share the
-typed input path; stateless builtins need no separate native dump state.
-
-Session inquiries use ordinary typed SQL: `current_query()` returns the complete
-submitted SQL, including comments, batches and prepared placeholders.
-`pg_backend_pid()` identifies the embedded physical session, not an OS process.
-`pg_postmaster_start_time()` and `pg_conf_load_time()` report cluster startup and
-the actual initial settings load as timestamp-with-time-zone values. Session
-identity and these cluster event clocks survive native Reset and Restore.
-
-Server signals use typed BOOL signatures: `pg_reload_conf()`,
-`pg_rotate_logfile()` and `pg_log_backend_memory_contexts(integer)`. Their ordinary
-EXECUTE ACLs initially exclude PUBLIC and remain mutable, including on held
-prepared calls. Authorized unknown cluster session IDs return false with
-WARNING `01000`; strict NULL returns BOOL NULL. Authorized physical reload,
-rotation and live-backend memory logging fail explicitly with `0A000`: there is
-no postmaster/configuration-file or logging-collector lifecycle. No logs, files,
-successful signals or configuration-load timestamp changes are fabricated.
-Routine ACL edits, not signal requests, survive native Dump/Restore.
-
-`pg_ident_file_mappings` inspects actual current identity mapping files when a
-native Driver explicitly attaches an absolute path with `ConfigureIdentFile`
-before its first connector. Rules, include provenance and English parse errors
-are materialized per authorized query, with independent owner-only view/routine
-ACLs and explicit grants. Unattached sources are empty; explicitly missing
-attached files fail with `58P01`. This trusted filesystem capability includes
-arbitrary PostgreSQL includes (not a directory sandbox), does not change the
-simulated `SHOW ident_file` label and never authenticates or matches identities.
-See [native configuration](docs/DRIVER.md#native-identity-file-inspection).
-
-Foreign-table inquiry through `information_schema.foreign_tables` returns each
-accessible table's database, schema, name and actual server association through
-ordinary direct and prepared queries. Table or column privileges govern
-visibility independently of server USAGE. Native fixture controls preserve the
-logical foreign definitions and associations; metadata reads do not contact
-remote servers or invoke foreign handlers.
-
-The raw `pg_catalog.pg_foreign_table` catalog is PUBLIC-readable independently
-of those information-schema visibility rules and of foreign-table privileges or
-server USAGE. Its three columns expose the actual relation OID, server OID and
-ordered table-only `name=value` options; absent options are SQL NULL. Direct and
-held prepared reads refresh committed metadata. Native Dump/Reset/Restore
-preserves logical definitions and destination identity links while already
-opened native rows retain their metadata and values. Catalog SELECT permissions
-still apply, including column grants and predicates selecting no rows; none of
-these metadata operations execute a foreign scan or contact a remote server.
-
-Offline `CREATE SUBSCRIPTION ... WITH (connect=false)` registers its main
-replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
-Registration follows the subscription's transactional lifetime; it does not
-start workers, contact a publisher or track replay progress.
-
-`pg_catalog.pg_shseclabel` is the shared security-label inventory: relation3592,
-rowtype4066, nonnullable `(objoid oid, classoid oid, provider text, label text)`.
-It is exactly empty because PostgreSQL's native C security-label provider
-ABI/loading and SELinux/MAC integration are unavailable. Ordinary PUBLIC SELECT
-and current prepared-statement ACL checks apply even to empty scans.
-`SECURITY LABEL [FOR provider] ON ROLE|DATABASE|TABLESPACE|SUBSCRIPTION name
-IS 'label'|NULL` accepts identifier or string providers and fails with PostgreSQL
-22023 absent-provider diagnostics before target lookup; it never stores labels.
-Object identity is `(classoid,objoid)`, extended by provider for uniqueness.
-Unlike database-local `pg_seclabel`, this shared relation has no `objsubid`.
-Neither that adjacent catalog nor the `pg_seclabels` view is added.
-
-`pg_catalog.pg_shdepend` exposes shared-object dependencies across this Driver's
-registered databases: owners, current object and column ACLs, default and initial
-ACLs, policy targets and membership grantors. Queries retain their captured rows;
-held statements refresh on execution. The inventory is derived from logical
-catalog authority, not physical cluster files or external database connections.
-
-`CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
-`connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
-anonymous record columns: key, parent, integer depth, optional text branch,
-and (for ordered calls) final integer serial. Relation/key/parent/order arguments
-are raw SQL fragments; quote mixed-case identifiers inside those strings.
-Nested SQL follows read-only SPI execution: utility commands such as `SET`,
-`CREATE TABLE` and `TRUNCATE` are rejected, while multiple read-only SELECTs
-remain valid and the last SELECT supplies children. Unsupported transaction
-commands and frontend COPY terminate the nested list without child rows.
-Ordered calls sort siblings and assign global depth-first serials; use an outer
-`ORDER BY serial` when the result order matters. NULL arguments return no rows;
-positive depth limits include that depth, while zero/negative limits are unlimited.
-Cycle detection is textual: separators inside keys can produce PostgreSQL's
-documented false positives. Native fixture controls preserve installed identities
-and caller-owned view definitions. This is bounded tablefunc coverage, not an
-implementation of crosstab or every upstream tablefunc member.
-
-Client connection defaults use one typed settings registry, including
-`SET XML OPTION DOCUMENT/CONTENT`. Presentation, UTF8/C locale boundaries,
-search paths, row security, transaction characteristics and timeouts retain
-their real native behavior. Storage/GIN/TOAST, FTS configuration selection,
-library/path/preload strings and other absent mechanisms are
-explicit **setting-only simulations**, not physical effects. The effective
-`session_replication_role` controls user and foreign-key trigger firing through
-their stored enable modes. `check_function_bodies=off` never admits invalid routines. Postmaster settings
-still refuse live mutation; SET grants and restricted reads are independent.
-See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
-
-XML values use native document/content validation, XMLPARSE and XMLSERIALIZE,
-with session `xmloption` controlling casts and parameter input. Binary values in
-XML element content, attributes and forests honor `xmlbinary`'s base64 or hex
-encoding. XML results scan as strings; use character serialization when original
-declaration spelling is needed instead of transport-normalized typed XML output.
-
-Install `xml2` to use `xml_valid(text)`, `xpath_string(text,text)`,
-`xpath_number(text,text)` and `xpath_bool(text,text)`. For example,
-`SELECT xpath_number('<r><a>12</a></r>','a')` returns REAL `12`, with the root
-element as the relative XPath context. `xml_valid` follows the current
-`xmloption`; the XPath scalars read declaration-aware document bytes independently.
-Their prepared calls and stored consumers retain installed identity and live
-access checks through native Dump/Reset/Restore.
-
-All 20 [preset options](internal/engine/settings/README.md#preset-options) are
-universally readable and immutable (`55P02` on individual SET/RESET, even for
-superusers). Physical presets are explicit setting-only simulations: they do
-not allocate WAL, disk blocks, checksums, shared memory, semaphores or huge pages.
-Native identity remains truthfully **PostgreSQL 18.0 compatible; embedded
-stuntgres**, independently of the pinned PostgreSQL 18.6 comparison fixture.
-
-Aggregate declarations support `COMBINEFUNC`, paired `SERIALFUNC`/`DESERIALFUNC`,
-`PARALLEL`, and `SORTOP`. Eligible top-level physical-table aggregate queries
-combine independent partial states; builtin `string_agg` transports real opaque
-state through its binary codec. Unsupported query shapes and UNSAFE/RESTRICTED
-declarations remain serial, as do owned domain-state initializers with SQL CHECK
-callbacks. `SORTOP` declares min/max-like semantics, not
-transition-input ordering. SQL cannot manufacture or expose `internal` states.
-Existing final and moving aggregate support remains independent. See the
-[aggregate contracts](reference/aggregates/README.md#testing) for selected proof.
-
-`pg_catalog.pg_amproc` exposes six typed support-membership columns, including
-symbolic `regproc` identities and exact operator-family/type associations. Owners
-publish implemented comparator/hash routines, genuine internal BRIN minmax
-operations, SQL/provider-backed DDL members and installed `cube_cmp`. Copied
-sort/equal-image/options/physical callback metadata remains internal, not an
-advertised implementation. Catalog reads do not imply PostgreSQL physical
-storage or callback ABI support; see the
-[operator-family contract](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
-
-`pg_catalog.pg_opfamily` exposes the five OID/OID/NAME/OID/OID identity
-columns from immutable family owners. Method-qualified identity distinguishes
-B-tree and hash families with the same name; `pg_opclass`, `pg_amop` and
-`pg_amproc` retain their actual family/type/member relationships. Index creation
-and removal do not manufacture builtin families. Family metadata is not an
-advertisement of unsupported algorithms or callbacks. Preparation of catalog
-mutations succeeds, but execution rechecks current authority: reader writes
-fail with `42501` (`permission denied for table pg_opfamily`), and native owner
-writes fail with `0A000` (`catalog source mutation is unsupported`), including
-empty predicates. See the [catalog proof selectors](reference/catalog_objects/README.md#testing).
-
-`EXPLAIN` publishes TEXT lines or one typed XML/JSON/YAML document. Authorized
-`LOAD 'pg_overexplain'` enables the Boolean DEBUG option on that physical
-connection, without installing an extension. DEBUG exposes actual embedded bound
-node identifiers and target lists; these internal fields are nonportable.
-Activation survives transaction rollback and DISCARD ALL, but is not transported
-by Dump/Restore. Use a pinned `*sql.Conn` for LOAD and subsequent EXPLAIN calls.
-
-For embedded password-strength enforcement, call `d.RegisterPasswordCheck()`
-before constructing a connector. It enables stock byte-length, username and
-character-variety checks on CREATE/ALTER ROLE passwords, with the privileged
-`passwordcheck.min_password_length` setting. This default-off Driver capability
-replaces preload activation, not password semantics; it is not a CREATE EXTENSION
-package and is not serialized by Dump. See the [Driver contract](docs/DRIVER.md#password-strength-startup-registration).
-
-Standalone `ANALYZE`/`ANALYSE` collects actual statement-visible table values
-and refreshes metadata consumed by logical `EXPLAIN`, without changing query
-results. It supports selected columns, inheritance/partition populations,
-materialized snapshots, own temporary tables, `VERBOSE` and `SKIP_LOCKED`.
-Prepare/Describe does not collect. Maintenance privilege denial warns and skips;
-namespace access errors remain errors. Column distributions are transactional
-(including savepoints and prepared transactions); committed relation row
-estimates are maintenance facts and survive rollback. Earlier standalone targets
-remain refreshed if a later target has a bad column; all relation names resolve
-before work starts.
-All retained column facts use one metadata root in the existing storage owner,
-for heap and partition relations alike. Partition parents never acquire physical
-heap storage. New private-object metadata stays private until creation commits.
-
-Native collection scans all visible logical rows with fixed target 100.
-Population, NULL counts, supported typed distinct counts and retained MCV counts
-are exact at capture, not PostgreSQL physical sample claims. Top-100 MCV selection
-and at most 101 residual histogram endpoints are deterministic bounded summaries;
-residual/range selectivity and multicolumn independence are approximations.
-Unavailable equality/ordering omits the corresponding statistic. Distributions
-stay stale after DML and unselected columns retain their facts; empty refresh
-retains old column distributions but refreshes row estimates to zero.
-`BUFFER_USAGE_LIMIT` is validated but its physical buffer-strategy control is
-inapplicable in this in-memory engine. No pages, WAL, sampling workers or
-autovacuum are implied. `pg_class` exposes maintenance and imported relation
-estimates; `pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
-read shared cumulative statistics. Logical Dump/Restore transports checked
-extended and single-column statistics alongside data.
-
-`pg_restore_relation_stats(VARIADIC kwargs "any")` restores exact logical
-`pg_class` estimates: `relpages`, `relallvisible` and `relallfrozen` require
-`integer`, and `reltuples` requires `real` (use explicit casts). Required
-`schemaname` and `relname` selectors are text name/value pairs. Invalid optional
-fields warn and are skipped independently, returning false while valid fields
-are retained; successful restoration returns true. `pg_clear_relation_stats`
-returns nonnull VOID and writes newly-created defaults `(0,-1,0,0)`, without
-clearing attribute statistics. Both routines require MAINTAIN or database
-ownership; indexes use their parent table's authority. Imports are transactional,
-including savepoints and prepared transactions, and never manufacture heap rows
-or change physical counters. Logical Dump/Restore persists masked exact values
-by symbolic identity, atomically replacing persistent state while retaining
-destination TEMP state. Later ANALYZE/VACUUM may replace imported estimates.
-TRUNCATE's new-file branch and ordinary heap rewrites reset estimates in
-operation order, so later restore/clear survives commit. In-place TRUNCATE on a
-heap created or assigned a new file in the same subtransaction preserves its
-statistics while emptying rows. Nested savepoints retain that distinction.
-Argument names
-match ASCII case-insensitively under the C/UTF8 contract; Unicode lookalikes
-are unknown names, not aliases for required selectors or `version`.
-
-Cumulative table statistics honor `track_counts` at collection without disabling
-DML, ANALYZE metadata or VACUUM work. Already collected facts remain visible.
-Tuple attempts remain private until transaction or aborted-subtransaction reporting;
-PREPARE transfers unresolved accounting without publishing it on preparing exit.
-Completed ANALYZE/VACUUM reports update the same shared statistics immediately,
-even inside an open transaction; they do not flush pending tuple events or
-invalidate retained reader snapshots. ANALYZE reconciles its sampled estimates
-with current unresolved work; full reports reset shared modifications, while
-column-list reports retain them. VACUUM resets shared inserts-since-vacuum,
-leaving pending inserts to contribute when they later publish. Monitoring reports
-survive existing-object rollback; aborted private creations retire their own
-qualified statistics identity.
-Reportable session-local batches publish only at outside-transaction idle, normally
-at most once per second. Throttled pending gets a one-shot ten-second idle retry;
-busy/transaction blocks defer it until ready. Physical exit joins the retry and
-force-drains after cleanup. `stats_fetch_consistency` selects current
-published reads (`none`), per-object transaction caching (`cache`, the default),
-or one lazy transaction-wide capture (`snapshot`). In snapshot mode
-`pg_stat_get_snapshot_timestamp()` is NULL until the first cumulative read and
-then remains stable. `pg_stat_clear_snapshot()` discards only the reader's cache;
-it neither resets counters nor flushes another connection. Transaction completion
-and effective consistency-setting changes discard retained reader state.
-
-The fifteen-column read-only `pg_stat_progress_vacuum` view reports real admitted
-VACUUM workers, actual phases and completed logical work. Authorized counters
-are numeric (including zero); restricted observers retain only worker/database
-identity. Rows end with their target, including cancellation and failure.
-See [VACUUM progress](docs/DRIVER.md#vacuum-progress) for estimate formulas,
-phase-local reset rules, visibility and lifetime.
-
-`CLUSTER table USING index`, remembered `CLUSTER table`, and bare `CLUSTER`
-simulate clustering with real eligible catalog preferences, MAINTAIN checks,
-heap-lock cancellation and ordinary transaction/savepoint atomicity. Unchanged
-recipes preserve heap and index storage; compatible changed SQL routine recipes
-use only necessary targeted index rebuilding for correct queries and later DML.
-Unpopulated materialized views skip without changing preference or population.
-No physical layout or unordered SELECT ordering is promised. The twelve-column
-`pg_stat_progress_cluster` view remains typed and empty: no physical worker,
-phase or counter is fabricated.
-
-The six-column read-only `pg_stat_progress_basebackup` view is genuinely empty:
-there are no physical base-backup workers, and native logical Dump never
-fabricates a progress row, even during blocked output. Ordinary SQL
-`BASE_BACKUP` is unsupported. See [physical base-backup progress](docs/DRIVER.md#physical-base-backup-progress)
-for the exact schema, read-only diagnostics and upstream visibility/NULL rules.
-
-The sixteen-column read-only `pg_stat_progress_create_index` view reports actual
-admitted index work: existing CREATE INDEX variants, supported CONCURRENTLY
-writer/snapshot waits, partition builds and ordinary REINDEX. Rows disappear
-after success, failure or cancellation; an ordinary initial table-lock wait
-does not fabricate a row. Current observer privileges determine whether the
-thirteen work-detail columns are visible or NULL. Authorized unknown totals are
-zero. Only block counters approximate physical work, using completed logical
-128-row-version scan units; native scans/sorts do not pretend to load physical
-B-tree pages. See the [index-progress design](docs/design/PG18-VIEW-PG-STAT-PROGRESS-CREATE-INDEX.md)
-for phase-local counters, lifetime and deterministic public smoke.
-
-`CREATE STATISTICS` supports single expressions and multivariate combinations
-of columns and expressions. Expressions are bound once to the target relation;
-stable and volatile functions are permitted, without evaluating them at CREATE.
-`ndistinct`, `dependencies` and `mcv` are declaration kinds; expression facts are
-automatic. `DROP STATISTICS` supports conditional and dependency modes.
-Definitions appear in `pg_statistic_ext`, including genuine `stxexprs` trees;
-`pg_get_expr` resolves renamed inputs from their retained attribute identities.
-`pg_get_statisticsobjdef(oid)` reconstructs each statistics declaration from its
-current schema, name, kinds, stable columns and original bound expressions.
-Relation visibility and identifier quoting follow the executing session; a
-missing statistics identity returns SQL NULL. Renaming inputs changes the
-reconstructed definition without evaluating its expressions.
-`ALTER STATISTICS` renames, moves schemas and transfers ownership with ordinary
-owner, schema CREATE and SET ROLE authorization. These metadata changes preserve
-the object identity, bound expressions and existing collected values.
-Creation does not collect payloads. `ANALYZE` computes joint ndistinct,
-functional dependencies and multivariate MCV from actual NULL-inclusive rows,
-including signed expression dimensions. MCV frequencies use full-population
-joint counts and products of marginal frequencies before target truncation.
-SQL NULL markers are separate from dictionary values. Per-expression
-NULL/distinct/MCV/histogram summaries remain genuine `pg_statistic[]` values in
-`pg_statistic_ext_data.stxdexpr`, with array subscripting and row-field access.
-`ALTER STATISTICS [IF EXISTS] name SET STATISTICS {integer|DEFAULT}` controls
-each object's target: zero retains its old payload without rebuilding, and
-DEFAULT uses the command's `default_statistics_target`. Positive targets bound
-MCV entries without renormalizing frequencies; native ties follow first captured
-occurrence deterministically. Native counts cover the full visible population;
-PostgreSQL can sample larger populations. Counts are technical
-statistics and never approximate substantive SELECT results.
-Native versioned comments preserve stale values, target-zero values, absence,
-and local/inherited flavors without reanalysis. PostgreSQL safely ignores these
-comments when replaying the same definition/target SQL; PostgreSQL18 dumps do
-not preserve collected extended statistics. Native replay preserves stale joint
-and expression summaries, not a recomputation from restored rows. Typed dictionary
-constructors remint destination domain, enum-member and array-element identities;
-source-OID-bearing physical bytes never grant destination authority. DATA catalog
-SELECT privileges protect distributions independently of table ownership.
-Statistics types continue rejecting non-NULL SQL input; catalog-owned typed
-output supplies no input authority. These facts do not add a planner consumer.
-
-
-## Using stuntgres in unit tests
-
-Each `stuntgres.NewDriver()` owns independent in-memory clusters.
-`OpenConnector(name)` opens a cluster's default database by an exact opaque key
-(not a connection URL); identical keys on the same Driver share data, even after
-pools close. SQL `CREATE DATABASE` creates additional databases in that cluster.
-Use `OpenDatabaseConnector(key, database)` to select one by name. Importing the
-package also registers the driver for `sql.Open("stuntgres", key)`. Create a fresh
-Driver per fixture when tests must be isolated. See the [driver guide](docs/DRIVER.md)
-for selection, pooling, sessions, transactions, value mapping, errors and Go APIs.
-
-### Minimal example: one unit test
-
-In a checkout of this module, save the following as `example_test.go` and run
-`make check RUN='^TestPersonName$'`. In a consuming project, add
-stuntgres to your module dependencies and run the test with `go test`.
+## A first test
 
 ```go
-package stuntgres_test
+package people_test
 
 import (
-    "context"
-    "database/sql"
-    "testing"
+	"database/sql"
+	"testing"
 
-    "stuntgres"
+	"stuntgres"
 )
 
 func TestPersonName(t *testing.T) {
-    ctx := context.Background()
-    connector, err := stuntgres.NewDriver().OpenConnector(t.Name())
-    if err != nil {
-        t.Fatal(err)
-    }
-    db := sql.OpenDB(connector)
-    t.Cleanup(func() { db.Close() })
+	connector, err := stuntgres.NewDriver().OpenConnector("people")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(connector)
+	t.Cleanup(func() { db.Close() })
 
-    if _, err := db.ExecContext(ctx,
-        "CREATE TABLE people (id INTEGER NOT NULL, name TEXT NOT NULL)"); err != nil {
-        t.Fatal(err)
-    }
-    if _, err := db.ExecContext(ctx,
-        "INSERT INTO people (id, name) VALUES ($1, $2)", 1, "Ada"); err != nil {
-        t.Fatal(err)
-    }
+	ctx := t.Context()
+	if _, err := db.ExecContext(ctx,
+		"CREATE TABLE people (id integer PRIMARY KEY, name text NOT NULL)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx,
+		"INSERT INTO people (id, name) VALUES ($1, $2)", 1, "Ada"); err != nil {
+		t.Fatal(err)
+	}
 
-    var name string
-    if err := db.QueryRowContext(ctx,
-        "SELECT name FROM people WHERE id = $1", 1).Scan(&name); err != nil {
-        t.Fatal(err)
-    }
-    if name != "Ada" {
-        t.Fatalf("name = %q, want Ada", name)
-    }
+	var name string
+	if err := db.QueryRowContext(ctx,
+		"SELECT name FROM people WHERE id = $1", 1).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Ada" {
+		t.Fatalf("name = %q, want Ada", name)
+	}
 }
 ```
 
-The test uses ordinary `database/sql` execution, PostgreSQL-style `$1` parameters,
-and `Scan`. Pass `db` to the code under test just as you would a PostgreSQL pool.
-A fresh `Driver` gives this test its own database ownership; cleanup closes the
-pool without affecting other tests.
+Run it with `go test`. What happens:
 
-Importing stuntgres also registers the driver for `sql.Open("stuntgres", name)`.
-The name is an exact opaque string, not a connection URL: identical names share
-data within the same Driver, even after pools close. Prefer a fresh `NewDriver`
-per fixture when tests must be isolated. See [driver lifecycle](docs/DRIVER.md)
-for connection pooling and lifetime details.
+- `stuntgres.NewDriver()` creates a driver that owns its own in-memory databases.
+  Nothing is shared with other drivers, so a fresh driver per test means a fresh,
+  isolated database.
+- `OpenConnector("people")` opens the database named by the key `"people"`. The
+  key is an opaque name, not a connection URL; the same key on the same driver
+  reaches the same data.
+- `sql.OpenDB` turns the connector into an ordinary `*sql.DB`. From here on it is
+  plain `database/sql` with PostgreSQL SQL and `$1`-style parameters, so you can
+  pass `db` to the code under test exactly as you would a real PostgreSQL pool.
+- `t.Cleanup` closes the pool when the test ends, whether it passed or failed.
 
-### Reusable fixture: two unit tests
+Importing the package also registers the driver for `sql.Open("stuntgres", key)`,
+which uses one shared default driver.
 
-Use a helper to create an isolated database, apply the schema, seed data, and
-register cleanup. Save this example in a separate `fixture_example_test.go` file;
-run it with `make check RUN='^TestPeopleFixture'` in this checkout,
-or `go test` in a consuming project.
+## A reusable fixture
+
+Most test suites share a schema and seed data. Build it once, save it with
+`stuntgres.Dump`, and give each test its own copy with `stuntgres.Restore`:
 
 ```go
-package stuntgres_test
+package people_test
 
 import (
-    "context"
-    "database/sql"
-    "testing"
+	"bytes"
+	"context"
+	"database/sql"
+	"sync"
+	"testing"
 
-    "stuntgres"
+	"stuntgres"
 )
 
-func newPeopleFixture(t *testing.T) *sql.DB {
-    t.Helper()
-    connector, err := stuntgres.NewDriver().OpenConnector(t.Name())
-    if err != nil {
-        t.Fatal(err)
-    }
-    db := sql.OpenDB(connector)
-    t.Cleanup(func() { db.Close() })
+const peopleSchema = `
+CREATE TABLE people (id integer PRIMARY KEY, name text NOT NULL);
+INSERT INTO people (id, name) VALUES (1, 'Ada'), (2, 'Grace');
+`
 
-    ctx := context.Background()
-    for _, query := range []string{
-        "CREATE TABLE people (id INTEGER NOT NULL, name TEXT NOT NULL)",
-        "INSERT INTO people (id, name) VALUES (1, 'Ada'), (2, 'Grace')",
-    } {
-        if _, err := db.ExecContext(ctx, query); err != nil {
-            t.Fatal(err)
-        }
-    }
-    return db
+// peopleSeed is the fixture: the schema and seed rows, built once and
+// saved as a native snapshot.
+var peopleSeed = sync.OnceValues(func() ([]byte, error) {
+	connector, err := stuntgres.NewDriver().OpenConnector("seed")
+	if err != nil {
+		return nil, err
+	}
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, peopleSchema); err != nil {
+		return nil, err
+	}
+	var seed bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &seed); err != nil {
+		return nil, err
+	}
+	return seed.Bytes(), nil
+})
+
+// newPeopleDB gives each test its own database restored from the fixture.
+func newPeopleDB(t *testing.T) *sql.DB {
+	t.Helper()
+	seed, err := peopleSeed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	connector, err := stuntgres.NewDriver().OpenConnector("people")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(connector)
+	t.Cleanup(func() { db.Close() })
+
+	if err := stuntgres.Restore(t.Context(), db, bytes.NewReader(seed)); err != nil {
+		t.Fatal(err)
+	}
+	return db
 }
 
-func TestPeopleFixtureLookup(t *testing.T) {
-    t.Parallel()
-    db := newPeopleFixture(t)
+func TestPeopleLookup(t *testing.T) {
+	t.Parallel()
+	db := newPeopleDB(t)
 
-    var name string
-    if err := db.QueryRowContext(context.Background(),
-        "SELECT name FROM people WHERE id = $1", 2).Scan(&name); err != nil {
-        t.Fatal(err)
-    }
-    if name != "Grace" {
-        t.Fatalf("name = %q, want Grace", name)
-    }
+	var name string
+	if err := db.QueryRowContext(t.Context(),
+		"SELECT name FROM people WHERE id = $1", 2).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Grace" {
+		t.Fatalf("name = %q, want Grace", name)
+	}
 }
 
-func TestPeopleFixtureDelete(t *testing.T) {
-    t.Parallel()
-    db := newPeopleFixture(t)
-    ctx := context.Background()
+func TestPeopleDelete(t *testing.T) {
+	t.Parallel()
+	db := newPeopleDB(t)
+	ctx := t.Context()
 
-    result, err := db.ExecContext(ctx, "DELETE FROM people WHERE id = $1", 1)
-    if err != nil {
-        t.Fatal(err)
-    }
-    affected, err := result.RowsAffected()
-    if err != nil {
-        t.Fatal(err)
-    }
-    if affected != 1 {
-        t.Fatalf("deleted %d rows, want 1", affected)
-    }
-
-    var name string
-    err = db.QueryRowContext(ctx, "SELECT name FROM people WHERE id = $1", 1).Scan(&name)
-    if err != sql.ErrNoRows {
-        t.Fatalf("lookup after delete: %v, want sql.ErrNoRows", err)
-    }
-    if err := db.QueryRowContext(ctx,
-        "SELECT name FROM people WHERE id = $1", 2).Scan(&name); err != nil {
-        t.Fatal(err)
-    }
-    if name != "Grace" {
-        t.Fatalf("surviving name = %q, want Grace", name)
-    }
+	if _, err := db.ExecContext(ctx, "DELETE FROM people WHERE id = $1", 1); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM people").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
 }
 ```
 
-Each helper invocation owns a fresh Driver and seeded database, so the tests can
-run in parallel without sharing mutations. `t.Helper` attributes setup failures
-to the calling test; `t.Cleanup` closes the pool even when an assertion fails.
-For larger fixtures, [native Reset, Dump and Restore](docs/FIXTURES.md) can clear
-or replace database contents. Those controls require a native stuntgres pool.
-Routine rename, schema and owner behavior is documented by its
-[owning contract](internal/engine/routine/README.md#routine-alter-contract) and
-[shared PostgreSQL proof](reference/query_core/README.md#routine-alter-proof).
+How it fits together:
+
+- `peopleSeed` runs the schema script once per test binary (`sync.OnceValues`)
+  and keeps the result of `Dump`: a logical snapshot of the database's schema and
+  rows. However large the schema grows, it is executed only once.
+- `newPeopleDB` creates a new driver for every test and loads the snapshot with
+  `Restore`. Both tests open the key `"people"`, but on different drivers, so they
+  get separate databases.
+- Because nothing is shared, the tests can call `t.Parallel()`: the delete in
+  `TestPeopleDelete` is invisible to `TestPeopleLookup`.
+- `t.Helper()` reports setup failures at the calling test's line.
+
+`stuntgres.Reset` empties a database in place when you want to reuse one pool.
+Dump, Restore and Reset work only on native stuntgres pools; see
+[native fixture controls](docs/FIXTURES.md) for their rules.
+
+## Further reading
+
+- [Driver API](docs/DRIVER.md): opening databases, pooling and sessions,
+  transactions, value mapping, errors, notices, COPY, settings and other Go APIs.
+- [Native fixture controls](docs/FIXTURES.md): Reset, Dump and Restore.
+- [SQL dialect boundaries](docs/DIALECT.md): where an embedded engine has to
+  differ from a PostgreSQL server.
+- [cmd/stuntgres](cmd/stuntgres/README.md): the wire-protocol server.
 
 ## Running the server
 
-`cmd/stuntgres` exposes the engine to `psql`, lib/pq and other PostgreSQL clients
-(protocol 3.0–3.2, simple and extended queries, COPY). Build it, create an account
-with explicit database grants, and serve:
+`cmd/stuntgres` serves the engine to `psql`, lib/pq and other PostgreSQL
+clients. Build it, create an account with access to the databases it may use,
+and start serving:
 
 ```sh
 go build -o stuntgres ./cmd/stuntgres
-./stuntgres passwd -u ./users --databases app,other alice
+./stuntgres passwd -u ./users --databases app alice
 ./stuntgres serve -u ./users -l 127.0.0.1:5434 -d ./dumps -L ./logs
 psql "host=127.0.0.1 port=5434 dbname=app user=alice sslmode=disable"
 ```
 
-Run it in the background, trigger a dump, stop it, and restore the newest dumps on
-the next start with `-r`:
+**Passwords are sent in cleartext and TLS is not available**, so use the server
+only on loopback (the default) or a protected network. `./stuntgres --help` lists
+all commands and options; [cmd/stuntgres](cmd/stuntgres/README.md#operation)
+covers background mode, dumps, logs, configuration files and the query log.
+
+## Development
+
+Building and testing need Go 1.26 or later and `make`. Tests marked
+`REFERENCE=1` also need Docker, which runs a pinned PostgreSQL 18 server.
 
 ```sh
-./stuntgres start -u ./users -l 5434 -d ./dumps -L ./logs -p ./server.pid
-./stuntgres dump -p ./server.pid
-./stuntgres stop -p ./server.pid
-./stuntgres start -u ./users -l 5434 -d ./dumps -L ./logs -p ./server.pid -r
+make build                         # compile production packages
+make check RUN='^TestName$'        # run selected tests (RUN is required)
+make check REFERENCE=1 RUN='...'   # the same tests against real PostgreSQL 18
+make quickcheck                    # full suite without Docker
+make generate                      # regenerate the parser and Unicode tables
 ```
 
-**Passwords are sent in cleartext and TLS is not available.** The server listens on
-loopback by default; use it only on loopback or an independently protected network.
-Every option can also come from a `STUNTGRES_<OPTION>` environment variable
-(for example `STUNTGRES_USERFILE`) or a `--config` YAML/TOML/JSON file keyed by
-long option names. `./stuntgres --help` lists all options; see [cmd/stuntgres](cmd/stuntgres/README.md#operation)
-for accounts, dumps and logs. Add `-q` (with `-L`) to record every query, its
-parameters and the exact responses in `query.log`. Add
-`--reference DB=postgres://user@host/db` as well to send database DB's
-commands to a real PostgreSQL server too and log its responses with their
-differences beside stuntgres's.
+Most tests are *reference tests*: one test body runs against stuntgres and against
+real PostgreSQL 18, and both must give the same results. New features and bug
+fixes start with such a test whose expectations come from PostgreSQL; then the
+engine is changed until the test passes natively.
 
-A sample `stuntgres.yaml` that compares database `app` with a local
-PostgreSQL (other databases in the userfile run on stuntgres alone):
+Where to start:
 
-```yaml
-listen: 127.0.0.1:5434
-userfile: ./users
-logdir: ./logs
-querylog: true                  # dual-backend mode requires the query log
-reference:
-  - app=postgres://app_user:app_password@127.0.0.1:5432/app_reference?sslmode=disable
-reference-timeout: 30s
-```
+- [AGENTS.md](AGENTS.md): package map and development rules.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): workflow, make targets, generated code.
+- [docs/TESTING.md](docs/TESTING.md): how to write and place tests.
+- Each package's `README.md`: its responsibility and contract.
+- [CHANGES.md](CHANGES.md): change history.
 
-```sh
-./stuntgres serve --config ./stuntgres.yaml
-```
+## Support
 
-The URL password may be omitted; it is then read from `PGPASSFILE` (or
-`~/.pgpass`), for example `127.0.0.1:5432:app_reference:app_user:app_password`.
-Prefer that for `start`, which passes the URL to the daemon on its command line.
-
-## Building from source and contributing
-
-From the repository root, with Go 1.26 or later:
-
-```sh
-make build                       # compile production packages
-make check RUN='^TestPersonName$' # run selected tests (RUN is required)
-make quickcheck                  # full Docker-free verification
-```
-
-`make check REFERENCE=1 RUN='...'` runs the same selected reference tests against a
-real, pinned PostgreSQL 18 container (requires Docker).
-
-Contributions follow a test-first workflow: write a failing dual-mode reference test
-whose expectations are taken from real PostgreSQL 18, then make it pass natively.
-Edit `internal/parser/grammar.y` (never the generated parser) and run `make generate`.
-Production dependencies are limited to the standard library. Start with
-[AGENTS.md](AGENTS.md) for the package map and rules,
-[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the workflow and make targets, and
-[docs/TESTING.md](docs/TESTING.md) for writing tests. Feature history is in
-[CHANGES.md](CHANGES.md).
-
-Report bugs and feature requests through this repository's issue tracker. Include a
-minimal reproducer, Go and stuntgres versions, the SQL and parameters, and the
-expected and actual results. For compatibility reports, include the behavior
-observed on PostgreSQL 18 and any SQLSTATE.
+- **Bugs and feature requests:** open an issue at
+  <https://github.com/rlewczuk/stuntgres/issues>. Please include a minimal
+  reproducer (SQL and parameters, or a Go test), the expected and actual results,
+  and your Go and stuntgres versions. For compatibility bugs, add what PostgreSQL 18
+  returns, including any SQLSTATE.
+- **Questions and discussion:** _to be decided._
+- **Security issues:** _to be decided; please do not report them in public issues._
+- **License:** _to be decided._
