@@ -264,7 +264,7 @@ func HashQueryFilter(root plan.Node) *plan.FilterNode {
 		case *plan.EvaluationNode:
 			child = node.Child
 		case *plan.FilterNode:
-			if _, ok := node.Child.(*plan.SourceNode); ok {
+			if source, ok := node.Child.(*plan.SourceNode); ok && source.Sample == nil {
 				return node
 			}
 			return nil

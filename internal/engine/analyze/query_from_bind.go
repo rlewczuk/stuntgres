@@ -388,10 +388,16 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			for i := len(b.cte.bindings) - 1; i >= 0; i-- {
 				binding := b.cte.bindings[i]
 				if binding.name == n.Name.Parts[0].Text {
+					if n.Sample != nil {
+						return nil, QueryNamespace{}, sampleRelationError(n.Name)
+					}
 					return b.bindCTEScan(n, binding)
 				}
 			}
 			if named, ok := b.Host.LookupNamedRelation(n.Name.Parts[0].Text); ok {
+				if n.Sample != nil {
+					return nil, QueryNamespace{}, sampleRelationError(n.Name)
+				}
 				columns := make([]QueryColumn, len(named.Schema))
 				for i, column := range named.Schema {
 					columns[i] = QueryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1}
@@ -407,6 +413,9 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			return nil, QueryNamespace{}, FutureCTEError(err, b.Query.lockAdmission.FutureCTE[n])
 		}
 		relation, _ := b.authorityRelation(b.Query.Auth, ref.Address)
+		if n.Sample != nil && relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.MaterializedViewRelation && relation.RelationKind != catalog.PartitionedRelation {
+			return nil, QueryNamespace{}, sampleRelationError(n.Name)
+		}
 		if relation.RelationKind == catalog.CompositeRelation {
 			return nil, QueryNamespace{}, typedef.CompositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
@@ -424,6 +433,10 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			}
 		}
 		leaf := len(b.Query.Sources)
+		sample, err := b.bindTableSample(n.Sample, leaf)
+		if err != nil {
+			return nil, QueryNamespace{}, err
+		}
 		b.Query.Sources = append(b.Query.Sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.Host.AuthorizationStorage(b.Query.Auth, ref.Address), Mark: b.Query.lockAdmission.TableMark(n), Table: n, Query: b.Query.lockAdmission.TableQueries[n].Query, DeleteReference: b.Target.deleteUsingSources && len(b.Query.Scopes) == 0})
 		columns := make([]QueryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
@@ -435,7 +448,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			q.TableOIDOccurrence = leaf + 1
 		}
 		b.Query.Hidden = append(b.Query.Hidden, q)
-		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{q}, Frame: relation.Columns}, nil
+		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name(), Sample: sample}, QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{q}, Frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {
@@ -877,6 +890,10 @@ func (b *Binder) queryQualifierNeedsLateral(q QueryQualifier) bool {
 // join's consumed local captures never escape into its enclosing join.
 func functionFromCaptures(root plan.Node) []plan.FunctionCorrelation {
 	switch n := root.(type) {
+	case *plan.SourceNode:
+		if n.Sample != nil {
+			return n.Sample.Captures
+		}
 	case *plan.FunctionFromNode:
 		return n.Captures
 	case *plan.JoinNode:
@@ -910,6 +927,28 @@ func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, fra
 		}
 	}
 	switch n := root.(type) {
+	case *plan.SourceNode:
+		if n.Sample == nil {
+			return root, nil
+		}
+		count, _, err := host.MapBoundQueryExpression(view, n.Sample.Count, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+			column, ok := node.(plan.ColumnExpr)
+			if !ok || column.Frame != frame {
+				return node, false, nil
+			}
+			if column.Slot < prefix {
+				return nil, false, fmt.Errorf("stuntgres: invalid rebased sample argument slot")
+			}
+			column.Slot -= prefix
+			return column, true, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		copy, sample := *n, *n.Sample
+		sample.Count, sample.Captures = count, rebased
+		copy.Sample = &sample
+		return &copy, nil
 	case *plan.JoinNode:
 		left, err := RebaseFunctionCorrelation(host, view, n.Left, frame, prefix)
 		if err != nil {

@@ -114,11 +114,22 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 	}
 	switch r := raw.(type) {
 	case parser.XMLConstructExpr:
-		r.Args=args(r.Args)
-		if r.Version!=nil {r.Version=child(r.Version)}
-		named:=append([]parser.XMLNamedOperand(nil),r.Named...)
-		for i:=range named {named[i].Expr=child(named[i].Expr);if named[i].Name!=nil{name:=*named[i].Name;named[i].Name=&name}}
-		if changed {r.Named=named;return r,true}
+		r.Args = args(r.Args)
+		if r.Version != nil {
+			r.Version = child(r.Version)
+		}
+		named := append([]parser.XMLNamedOperand(nil), r.Named...)
+		for i := range named {
+			named[i].Expr = child(named[i].Expr)
+			if named[i].Name != nil {
+				name := *named[i].Name
+				named[i].Name = &name
+			}
+		}
+		if changed {
+			r.Named = named
+			return r, true
+		}
 	case parser.XMLDocumentPredicateExpr:
 		r.Child = child(r.Child)
 		if changed {
@@ -457,14 +468,30 @@ func (b *Binder) normalizeInListValues(raw *parser.ValuesQuery) *parser.ValuesQu
 
 func (b *Binder) normalizeInListFrom(raw parser.FromItem) parser.FromItem {
 	switch r := raw.(type) {
+	case *parser.TableReference:
+		if r.Sample != nil {
+			arguments, changed := b.normalizeInListArguments(r.Sample.Arguments)
+			seed, seedChanged := b.NormalizeInListExpression(r.Sample.Repeatable)
+			if changed || seedChanged {
+				next, sample := *r, *r.Sample
+				sample.Arguments, sample.Repeatable = arguments, seed
+				next.Sample = &sample
+				return &next
+			}
+		}
 	case *parser.XMLTable:
 		children := r.Expressions()
 		changed := false
 		for i, child := range children {
 			next, ok := b.NormalizeInListExpression(child)
-			if ok { children[i] = next; changed = true }
+			if ok {
+				children[i] = next
+				changed = true
+			}
 		}
-		if changed { return r.WithExpressions(children) }
+		if changed {
+			return r.WithExpressions(children)
+		}
 	case *parser.JSONTable:
 		children := r.Expressions()
 		changed := false

@@ -141,7 +141,17 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 		}
 	case *WorktableScanNode:
 		return node, nil
-	case *SourceNode, *NamedRelationScanNode, *SingletonNode:
+	case *SourceNode:
+		if n.Sample != nil {
+			count := expression(n.Sample.Count)
+			if changed && err == nil {
+				copy, sample := *n, *n.Sample
+				sample.Count = count
+				copy.Sample = &sample
+				out = &copy
+			}
+		}
+	case *NamedRelationScanNode, *SingletonNode:
 		return node, nil
 	case *ProjectNode:
 		input, expressions := child(n.Child), args(n.Expressions)
@@ -521,6 +531,10 @@ func QueryExpressions(node Node, visit func(expr.Expr)) {
 		}
 	}
 	switch n := node.(type) {
+	case *SourceNode:
+		if n.Sample != nil {
+			visit(n.Sample.Count)
+		}
 	case *FunctionFromNode:
 		for _, call := range n.Calls {
 			visit(call)

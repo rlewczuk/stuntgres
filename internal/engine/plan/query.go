@@ -21,7 +21,7 @@ type Query struct {
 	RegclassOutput bool
 	// Local expression demand only; inherited view demand uses the current catalog.
 	VisibilitySnapshot bool
-	ExportRoots bool
+	ExportRoots        bool
 }
 
 type QuerySchema []catalog.Column
@@ -37,6 +37,16 @@ type SourceNode struct {
 	PresenceSlot  int
 	RangeName     string
 	ColumnAliases []string
+	Sample        *TableSample
+}
+
+// TableSample is immutable selected handler authority and a bound bigint count.
+// Selection, cursors and randomness belong exclusively to an execution Stage.
+type TableSample struct {
+	Handler   ids.ObjectRef
+	Procedure *catalog.Procedure
+	Count     expr.Expr
+	Captures  []FunctionCorrelation
 }
 
 type SingletonNode struct{ QuerySchema }

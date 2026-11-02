@@ -917,6 +917,9 @@ host methods.
   before qualification; hidden own-TEMP sources use `pg_temp`, while foreign
   or zero-owner requests retain physical namespaces, including quote-all.
   Naming neither allocates a TEMP namespace nor changes executable replay.
+  Sampled sources retain separate handler and count occurrence captures. Handler
+  rendering follows authenticated current identity across rename/relocation;
+  TABLESAMPLE follows the final relation alias, never an unsampled replay or LIMIT.
 - **Rule and policy dumps.** `RuleDumpGroups`/`RuleActionSQL`,
   `PolicyDumpGroups` and `RowSecurityDumpGroups`.
 - **Rule display.** `RuleDefinitionSQL` reconstructs current event, attribute
@@ -1015,6 +1018,8 @@ host methods.
   definition origins without retaining executable trees or using unrelated
   relation revisions as stored-definition tokens. Frozen `DefinitionRevision`
   identifies a defining expansion separately from mutable presentation metadata.
+  Source remaps preserve sampling handler references/declarations and rewrite
+  bound counts and correlation metadata without retaining selection state.
 - **The remap protocol.** `ReownExpressions` (`expression_reown.go`) remaps and
   retags every stored expression of a catalog state after a renumbering
   (Restore, extension owner import, DROP OWNED, TEMP preservation) or after type
@@ -1089,6 +1094,10 @@ host methods.
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
   implementation; only the write route collects execution predicates.
   Metadata shape inspection neither allocates that vector nor evaluates it.
+  A sampled source rejects automatic writes and automatic updatability with the
+  same TABLESAMPLE reason, regardless of count. This shared shape restriction
+  does not bypass the earlier explicit INSTEAD OF rule/trigger write routes or
+  erase explicit rule capability bits.
   `ReadExportRootDemand` follows retained typed queries, current routine
   dependencies, nested views and possible SELECT/ALL USING policy presentations
   before canonical source-principal admission. Its active-path guard bounds

@@ -799,6 +799,12 @@ func (j *StatementJumble) utilitySyntaxFields(node any, anchor *int) bool {
 		j.text("TableReference")
 		j.utilitySyntax(&n.Name, anchor)
 		j.flag(n.Only)
+		j.flag(n.Sample != nil)
+		if n.Sample != nil {
+			j.utilitySyntax(&n.Sample.Method, anchor)
+			utilitySlice(j, n.Sample.Arguments, anchor)
+			j.utilitySyntax(n.Sample.Repeatable, anchor)
+		}
 	case parser.TableReference:
 		return j.utilitySyntaxFields(&n, anchor)
 	case *parser.FunctionFrom:

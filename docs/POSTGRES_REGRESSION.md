@@ -31,6 +31,38 @@ docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
 
+## Held SYSTEM_ROWS plans retain a dropped handler identity
+
+On 2026-11-02, the pinned PostgreSQL 18.6 UTF8/C oracle reported SQLSTATE
+`XX000`, `cache lookup failed for function OID`, when the same public
+`database/sql` prepared statement was executed after dropping
+`tsm_system_rows`. The OID named the genuinely installed handler captured before
+the drop, not a fixed allocator value.
+
+`TestReferenceSystemRowsIdentity` reproduces the complete lifecycle: install;
+create and read sampled views; relocate and rename the genuine handler and
+restore its original name/schema; prepare and execute
+`SELECT count(*) AS n FROM sr TABLESAMPLE system_rows($1)` with argument3;
+drop the extension CASCADE; execute the same held statement again. PostgreSQL
+reports the stale-handler cache error instead of resolving the now-missing
+sampling method. No behavior of another release is claimed.
+
+The same oracle observation after recreating the extension established that
+fresh direct/prepared queries succeed, but the original held statement still
+fails at query stage with `XX000` and the same dropped handler OID. Both
+severities are `ERROR`; detail, hint, position, internal position/query, context
+and all object fields are empty, both after drop and after recreation.
+
+The scenario bounds this PostgreSQL exception to that original held statement
+after the actual drop and recreation, constructing the complete diagnostic
+from the captured handler OID. Native retains `42704`,
+`tablesample method system_rows does not exist`, position42 after the drop,
+then must reacquire the genuine replacement and return count3 after recreation.
+Fresh direct/prepared queries independently return count3 on both backends.
+
+When a fixed oracle is pinned, remove these bounded held-statement exceptions
+rather than introducing stale handler identities into native execution.
+
 ## Unicode escape error cursors can split valid UTF8 input
 
 On 2026-10-30 the pinned PostgreSQL 18.6 oracle above (`server_version_num`

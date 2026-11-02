@@ -105,6 +105,15 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node, declarations
 		return false
 	}
 	changed := false
+	if source, ok := node.(*plan.SourceNode); ok && source.Sample != nil {
+		captured := source.Sample.Procedure
+		current, _ := view.Procedure(source.Sample.Handler.Address)
+		if declarationsOnly {
+			changed = !exec.SameRoutineDeclaration(current, captured)
+		} else {
+			changed = current != captured
+		}
+	}
 	plan.QueryExpressions(node, func(expression expr.Expr) {
 		plan.WalkExpression(expression, func(expression expr.Expr) {
 			captured, err := exec.ExpressionRoutineDescriptor(expression)

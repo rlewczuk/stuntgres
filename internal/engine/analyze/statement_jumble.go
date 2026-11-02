@@ -94,6 +94,10 @@ func (j *StatementJumble) query(node plan.Node) {
 	case *plan.SourceNode:
 		j.text("*plan.SourceNode")
 		j.text(n.RangeName)
+		j.flag(n.Sample != nil)
+		if n.Sample != nil {
+			j.number(uint64(n.Sample.Handler.Address.ObjectID))
+		}
 	case *plan.ProjectNode:
 		j.text("*plan.ProjectNode")
 		if len(j.frames) == 0 || j.frames[len(j.frames)-1] != n.Frame {

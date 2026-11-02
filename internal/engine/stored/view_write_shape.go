@@ -82,6 +82,9 @@ func viewWriteShape(d *catalog.Relation, collectPredicates bool) (*plan.ProjectN
 			if _, ordinary := from.(*parser.TableReference); !ordinary {
 				return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 			}
+			if n.Sample != nil {
+				return nil, nil, nil, "Views containing TABLESAMPLE are not automatically updatable."
+			}
 			return p, n, predicates, ""
 		default:
 			if hasTargetSet {

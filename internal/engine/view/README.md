@@ -92,6 +92,9 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   root's `exec` preparation forwarders.
   Symbolic named-relation leaves pass through unchanged: preflight neither opens
   invocation rows nor replaces their immutable schema/name recipe.
+  Sampling counts retain their demanded source-startup coercion/check frontier.
+  Source transplants rewrite count expressions and free correlation occurrences
+  while preserving the selected immutable handler capability.
   Retained CTE definition edges are not separately admitted as invocations:
   referenced CTEs admit their actual preflighted roots, including arm elimination.
   Named-window key expressions still demand current-invoker EXECUTE even when

@@ -16,6 +16,36 @@ descriptors and settings. Typed empty sources, genuine backend-local libraries,
 collector absence, exact format validation, live routine ACLs and portable ACL
 reconstruction use public fixture/control APIs only.
 
+The `system_rows_*_test.go` family fixes installed-handler identity, bigint
+assignment coercion, exact visible cardinality, post-sample predicates, complete
+diagnostics and metadata, prepared reuse, cancellation and symbolic native
+controls. Sub-population samples assert membership and uniqueness, never the
+selected identities or order; full-population samples assert the exact bag.
+Inheritance and partitioning assert separate physical-source caps and ONLY
+behavior, alongside admitted materialized views and exact source-kind errors.
+The PostgreSQL18.6 original-held-handler cache defect is narrowly recorded in
+`docs/POSTGRES_REGRESSION.md`; native definitions reacquire current authority.
+The per-outer-row count witness uses existing scalar correlated-query syntax,
+not adjacent explicit derived-table `LATERAL` support. Name reuse is shared:
+a callable SQL `system_rows(integer)` is not a sampling handler, while the
+qualified genuine provider remains usable. The internal-signature/wrong-result
+`42809` SQL phase is PostgreSQL-only because arbitrary internal/C ABI routine
+declarations are external mechanisms; `TestSystemRowsHandlerResultBinding`
+independently reaches the native SELECT binder with the real typed catalog
+descriptor and requires the same complete diagnostic. View-output metadata is
+nullable under the existing view contract; sampled base/empty/retained-row
+metadata keeps the base column's `NOT NULL` guarantee.
+`TestReferenceSystemRowsViewWrites` fixes automatic INSERT/UPDATE/DELETE
+rejection (including a zero-row sample), complete reason/hints, unchanged base
+data and updatability metadata. Explicit INSTEAD OF rule/trigger routes remain
+usable. Controls repeat the automatic-write boundary after symbolic replay,
+including an independently remapped destination.
+The SQL `pg_relation_is_updatable` observation is PostgreSQL-only: that builtin
+is not a supported native caller. Common information-schema view/column metadata
+remains exact in both modes, complemented by native capability-owner tests.
+This is a caller-support boundary, not a physical/external mechanism exception
+or a claim that the builtin is implemented.
+
 ## pgstattuple: pgstatindex ownership
 
 `pgstatindex_*_test.go` owns the public acceptance for the installed
@@ -152,6 +182,14 @@ RoleRead owner tests for exact storage, clearing, omission, rejected publication
 and control retention, without adding a password-inspection API. PostgreSQL
 preload/C ABI/process lifetime and optional CrackLib custom builds remain external.
 
+SYSTEM_ROWS sampling scenarios use `RUN='^TestReferenceSystemRows'` in both
+modes. Backend subtests `/postgres` and `/memory` allow oracle-first selection
+without filtering the shared scenario. Sampled subsets assert independently
+specified count, membership and uniqueness, never cross-backend sampled IDs or
+heap traversal order. Stored consumers, complete diagnostics, source-frontier
+predicate witnesses and cancellation share the public fixture; native controls
+remain explicit native-only phases. PostgreSQL heap blocks and C ABI loading are
+external mechanisms, not replacements for exact SQL sampling behavior.
 
 Installed statistics scenarios use `RUN='^TestReferencePgstat(index|hashindex)'`.
 Visibility inquiry scenarios use `RUN='^TestReferencePgvisibility'`. Their

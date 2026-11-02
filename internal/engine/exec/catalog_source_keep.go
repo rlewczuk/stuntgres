@@ -59,7 +59,7 @@ func CatalogSourceKeep(ctx context.Context, parameters []sqltype.Value, input sq
 			}
 		}
 	}, func(expr.Expr) {}, true)
-	if scans != 1 || filter == nil || scan.Ref != ref {
+	if scans != 1 || filter == nil || scan.Ref != ref || scan.Sample != nil {
 		return nil
 	}
 	conjunct := firstConjunct(filter.Predicate)

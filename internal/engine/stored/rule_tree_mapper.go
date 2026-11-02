@@ -298,9 +298,22 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				mapped = &copy
 			}
 		case *plan.SourceNode:
-			if offset != 0 {
-				copy := *node
-				copy.Occurrence += offset
+			copy := *node
+			copy.Occurrence += offset
+			if node.Sample != nil {
+				sample := *node.Sample
+				if len(sample.Captures) != 0 {
+					sample.Captures = slices.Clone(sample.Captures)
+					for i := range sample.Captures {
+						sample.Captures[i].Frame = frame(sample.Captures[i].Frame)
+						if sample.Captures[i].QueryOccurrence != 0 {
+							sample.Captures[i].QueryOccurrence += offset
+						}
+					}
+				}
+				copy.Sample = &sample
+			}
+			if offset != 0 || node.Sample != nil {
 				mapped = &copy
 			}
 		case *plan.ProjectNode:

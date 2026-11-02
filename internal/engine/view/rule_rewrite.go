@@ -207,6 +207,28 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 				if source, ok := node.(*plan.SourceNode); ok {
 					copy := *source
 					copy.Occurrence++
+					if source.Sample != nil {
+						sample := *source.Sample
+						var err error
+						sample.Count, _, err = mapper(sample.Count)
+						if err != nil {
+							return nil, err
+						}
+						var captures []plan.FunctionCorrelation
+						for i, capture := range sample.Captures {
+							if capture.QueryOccurrence == 0 {
+								continue
+							}
+							if captures == nil {
+								captures = append([]plan.FunctionCorrelation(nil), sample.Captures...)
+							}
+							captures[i].QueryOccurrence++
+						}
+						if captures != nil {
+							sample.Captures = captures
+						}
+						copy.Sample = &sample
+					}
 					return &copy, nil
 				}
 				return node, nil

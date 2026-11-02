@@ -157,14 +157,15 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		}
 		return mapped, nil
 	}
-	return plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+	mapExpression := func(n expr.Expr) (expr.Expr, bool, error) {
 		next, translated, err := stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err
 		}
 		lowered, changed, err := rewrite(next)
 		return lowered, translated || changed, err
-	}, func(node plan.Node) (plan.Node, error) {
+	}
+	return plan.RewriteQueryExpressions(root, mapExpression, func(node plan.Node) (plan.Node, error) {
 		switch n := node.(type) {
 		case *plan.FunctionFromNode:
 			captures, err := mapCaptures(n.Captures)
@@ -200,6 +201,18 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		copy := *source
 		copy.Occurrence = slot
 		copy.Ref = b.QuerySources[slot].Ref
+		if source.Sample != nil {
+			sample := *source.Sample
+			sample.Count, _, err = mapExpression(sample.Count)
+			if err != nil {
+				return nil, err
+			}
+			sample.Captures, err = mapCaptures(sample.Captures)
+			if err != nil {
+				return nil, err
+			}
+			copy.Sample = &sample
+		}
 		return &copy, nil
 	})
 }

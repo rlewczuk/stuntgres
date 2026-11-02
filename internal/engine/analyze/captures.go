@@ -170,6 +170,8 @@ const (
 	ViewWindowLiteral
 	ViewDistinctOnLiteral
 	ViewFunctionLiteral
+	ViewSampleLiteral
+	ViewSampleHandler
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind

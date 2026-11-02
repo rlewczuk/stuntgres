@@ -4,7 +4,7 @@ The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
-sslinfo, unaccent, uuid-ossp, xml2 and seeded plpgsql),
+sslinfo, tsm_system_rows, unaccent, uuid-ossp, xml2 and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -89,6 +89,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   enters the shared routine environment. Native C loading, SPI ABI/shared-library
   files and PostgreSQL backend processes are external mechanisms, not alternate
   execution paths for this embedded stock body.
+  Tsm_system_rows installs exactly the released strict volatile
+  `system_rows(internal) RETURNS tsm_handler` C declaration. Its authenticated
+  capability selects the logical visible-row sampler independently of handler
+  rename, relocation or current membership. Names and return shape alone grant
+  no authority. The internal ABI is neither invoked as a scalar nor represented
+  by a C pointer; native replay reinstalls the ordinary sealed provider recipe.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
@@ -890,6 +896,9 @@ wrapper `extensionAuthorityFence`. Core keeps the closed-registry check of
 and view recipe methods.
 
 ## Testing
+
+Sampling provider units use `RUN='^TestSystemRows'` over genuine installations,
+cross-catalog authority, declaration forgeries and authentic rename/relocation.
 
 `TestRegisterAddsOnlyValidImplementations` pins `Register` (nil registry
 allocated; duplicate, nil, versionless or badly named registrations rejected

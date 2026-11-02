@@ -40,6 +40,15 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		return nil
 	}
+	sampleExpressions := func(sample *TableSample) error {
+		if sample == nil {
+			return nil
+		}
+		if err := expressions(sample.Arguments); err != nil {
+			return err
+		}
+		return expression(sample.Repeatable)
+	}
 	bounds := func(b *QueryBounds) error {
 		if b == nil {
 			return nil
@@ -230,7 +239,9 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		switch n := item.(type) {
 		case *XMLTable:
 			for _, child := range n.Expressions() {
-				if err := expression(child); err != nil { return err }
+				if err := expression(child); err != nil {
+					return err
+				}
 			}
 		case *JSONTable:
 			for _, child := range n.Expressions() {
@@ -253,9 +264,11 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 							classify[0](n, true, "")
 						}
 						if resolved != nil {
-							return resolved(n, visible[i], context)
+							if err := resolved(n, visible[i], context); err != nil {
+								return err
+							}
 						}
-						return nil
+						return sampleExpressions(n.Sample)
 					}
 				}
 				pendingName := ""
@@ -272,8 +285,11 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				classify[0](n, false, "")
 			}
 			if visitTable != nil {
-				return visitTable(n, s)
+				if err := visitTable(n, s); err != nil {
+					return err
+				}
 			}
+			return sampleExpressions(n.Sample)
 		case *DerivedQuery:
 			return query(n.Query)
 		case *ValuesQuery:

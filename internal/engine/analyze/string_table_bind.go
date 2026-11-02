@@ -198,9 +198,17 @@ func (b *Binder) stringFromContext() bool {
 }
 
 func (b *Binder) functionCaptures(calls []expr.Expr) []plan.FunctionCorrelation {
+	return b.queryCaptures(calls, true)
+}
+
+func (b *Binder) queryCaptures(roots []expr.Expr, calls bool) []plan.FunctionCorrelation {
 	var captures []plan.FunctionCorrelation
-	for _, call := range calls {
-		for _, arg := range call.(expr.Composite).Children() {
+	for _, root := range roots {
+		arguments := []expr.Expr{root}
+		if calls {
+			arguments = root.(expr.Composite).Children()
+		}
+		for _, arg := range arguments {
 			WalkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope == 1 && system.Frame == b.FrameID() && system.QueryOccurrence > 0 {
 					name := ""

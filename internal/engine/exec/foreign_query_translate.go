@@ -44,7 +44,12 @@ func (t *foreignTranslator) translate(root plan.Node) (foreignTranslation, bool,
 	var child plan.Node
 	switch n := root.(type) {
 	case *plan.SourceNode:
-		if t.input.Occurrence == nil { return out, false, nil }
+		if n.Sample != nil {
+			return out, false, nil
+		}
+		if t.input.Occurrence == nil {
+			return out, false, nil
+		}
 		occurrence := t.input.Occurrence(n.Occurrence)
 		f := occurrence.Source
 		if !occurrence.Eligible || occurrence.Owner == nil || f == nil || len(f.Columns) != out.width {

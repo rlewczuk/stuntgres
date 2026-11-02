@@ -157,6 +157,13 @@ func (v *View) LiteralRoots() (map[analyze.ViewLiteralPath]bool, error) {
 func (v *viewLiteralValidator) validate(catalog catalog.Read) error {
 	count, columnCount, starCount, compositeCount, routineCount := 0, 0, 0, 0, 0
 	err := v.walkLiteralRoots(func(raw parser.Expr, path analyze.ViewLiteralPath, ordinal *int) error {
+		if path.Clause == analyze.ViewSampleHandler {
+			if _, err := v.sampleProcedure(catalog, path); err != nil {
+				return err
+			}
+			routineCount++
+			return nil
+		}
 		return v.validateLiteralTree(catalog, raw, path, ordinal, &count, &columnCount, &compositeCount, &routineCount)
 	}, func(path analyze.ViewLiteralPath) error {
 		starCount++
@@ -293,6 +300,23 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 		var from func(parser.FromItem, plan.Node) error
 		from = func(item parser.FromItem, node plan.Node) error {
 			switch raw := item.(type) {
+			case *parser.TableReference:
+				source, ok := analyze.ViewFromRoot(node).(*plan.SourceNode)
+				if raw.Sample == nil {
+					if ok && source.Sample != nil {
+						return fmt.Errorf("stuntgres: missing frozen sampling syntax")
+					}
+					return nil
+				}
+				if !ok || source.Sample == nil || len(raw.Sample.Arguments) != 1 || raw.Sample.Repeatable != nil {
+					return fmt.Errorf("stuntgres: invalid frozen sampling source")
+				}
+				if err := validate(raw.Sample.Arguments[0], analyze.ViewSampleLiteral, source.Occurrence); err != nil {
+					return err
+				}
+				path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewSampleHandler, Target: source.Occurrence}
+				ordinal := 0
+				return visit(parser.FunctionExpr{Name: raw.Sample.Method}, path, &ordinal)
 			case *parser.XMLTable:
 				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok || len(function.Calls) != 1 {

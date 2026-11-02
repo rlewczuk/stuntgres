@@ -168,6 +168,49 @@ func TestViewWriteMapping(t *testing.T) {
 	}
 }
 
+func TestViewWriteSampleShape(t *testing.T) {
+	f := viewWriteMechanics(t)
+	bigint, _ := f.e.CatalogRead().LookupType(sqltype.Int8)
+	for _, count := range []int64{0, 3} {
+		value, err := sqltype.Integer(bigint, count)
+		if err != nil {
+			t.Fatal(err)
+		}
+		project := *stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
+		source := *project.Child.(*plan.SourceNode)
+		source.Sample = &plan.TableSample{Count: plan.LiteralExpr{Info: expr.Info{Usage: bigint.Usage()}, Value: value}}
+		project.Child = &source
+		for _, shape := range []struct {
+			name, reason string
+			change       func(*parser.Select, *plan.ProjectNode)
+		}{
+			{"sample", "Views containing TABLESAMPLE are not automatically updatable.", func(*parser.Select, *plan.ProjectNode) {}},
+			{"alias", "Views containing TABLESAMPLE are not automatically updatable.", func(q *parser.Select, _ *plan.ProjectNode) { q.From = &parser.AliasReference{Input: q.From} }},
+			{"distinct", "Views containing DISTINCT are not automatically updatable.", func(q *parser.Select, _ *plan.ProjectNode) { q.Distinct = &parser.DistinctClause{} }},
+			{"set_function", "Views that return set-returning functions are not automatically updatable.", func(_ *parser.Select, p *plan.ProjectNode) { p.HasTargetSet = true }},
+			{"derived", "Views that do not select from a single table or view are not automatically updatable.", func(q *parser.Select, _ *plan.ProjectNode) {
+				q.From = &parser.AliasReference{Input: &parser.DerivedQuery{}}
+			}},
+		} {
+			syntax, candidate := *stored.ViewOf(f.view).Syntax(), project
+			shape.change(&syntax, &candidate)
+			relation := *f.view
+			relation.View = stored.ViewOf(f.view).With(func(parts *stored.ViewParts) {
+				parts.Syntax = &syntax
+				parts.Query = &plan.Query{Root: &candidate}
+			})
+			p, s, predicates, reason := stored.ViewWriteShape(&relation)
+			mp, ms, metadataReason := stored.ViewUpdatabilityShape(&relation)
+			if reason != shape.reason || metadataReason != reason || p != nil || s != nil || mp != nil || ms != nil || predicates != nil {
+				t.Fatal("sample write/metadata admission or reason precedence", count, shape.name, reason, metadataReason)
+			}
+		}
+	}
+	if stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode).Child.(*plan.SourceNode).Sample != nil {
+		t.Fatal("sample classification mutated the ordinary source")
+	}
+}
+
 func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)

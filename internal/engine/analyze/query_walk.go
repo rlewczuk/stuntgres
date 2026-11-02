@@ -159,7 +159,7 @@ func RecursiveParentSlot(node plan.Node, d *plan.CTEDefinition, offset int) (*pl
 func CTEVolatile(root plan.Node) bool {
 	volatile := false
 	plan.VisitCTEQuery(root, func(n plan.Node) {
-		if source, ok := n.(*plan.SourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
+		if source, ok := n.(*plan.SourceNode); ok && (source.Sample != nil || source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048) {
 			volatile = true
 		}
 		for _, mark := range RootRowMarks(n) {
@@ -205,6 +205,9 @@ func QueryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 	walk = func(node plan.Node, ignoredProject *plan.ProjectNode) {
 		if node == nil {
 			return
+		}
+		if source, ok := node.(*plan.SourceNode); ok && source.Sample != nil {
+			properties.Volatility = expr.Volatile
 		}
 		if node != ignoredProject && !QueryIgnoresOwnExpressions(node) {
 			plan.QueryExpressions(node, func(bound expr.Expr) {

@@ -15,6 +15,23 @@ their local context is installed for evaluation and cleared on every exit.
 Full-text vector conversion forwards the effective evaluator context explicitly,
 never recovers an older operation context from the host.
 
+Table sampling opens the ordinary visible source, including row security, before
+WHERE. SYSTEM_ROWS evaluates its assignment-bigint count once per demanded
+invocation and retains private reservoirs of visible occurrence indices.
+Inherited and partitioned inputs receive a separate cap for each physical
+source; ONLY retains just the named physical data, including an empty
+partitioned parent. Zero yields an empty selection; finite visible populations
+bound allocation even for max-bigint requests, and all-row samples borrow the
+existing stage mapping and physical-layout identities.
+Candidate, branch/catalog prefilter, direct-cursor and parallel-split shortcuts
+cannot cross this sampling barrier. Constant WHERE rejection may avoid startup;
+an ordinarily demanded empty source still checks NULL and negative counts.
+Unchanged rescans reuse selection; changed correlated inputs reopen/rebuild it.
+Close/error/cancellation release the child, selection and evaluator through the
+existing statement pin owner without changing accepted plans or returned rows.
+Physical PostgreSQL heap blocks and their clustering distribution are external
+storage mechanisms; no block layout or portable selected-row order is invented.
+
 The pg_stat_statements bridge authenticates the installed typed carrier and
 borrows the live statement runtime for owned record rows. It owns no parallel
 accumulator or cached privileges. Planning metrics describe every real accepted
@@ -984,6 +1001,9 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Sampling selection, visibility/layout preservation and lifecycle units use
+`RUN='^TestSystemRows'`, including composed statement-owner coverage in core.
 
 Runtime observation units use
 `RUN='^(TestExplainAnalyzeInstrumentation|TestExplainAnalyzeProjectionTimingOwnership|TestExplainAnalyzeForeignPlanIdentity)$'`

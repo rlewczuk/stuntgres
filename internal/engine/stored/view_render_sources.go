@@ -549,6 +549,19 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	defer func() {
 		if failure == nil {
 			result.namespace = namespaceIndex
+			if raw := sampleSyntax(item); raw != nil {
+				source, ok := result.root.(*plan.SourceNode)
+				if !ok {
+					failure = fmt.Errorf("stuntgres: missing rendered sampling source")
+					return
+				}
+				suffix, err := v.sampleSQL(ctx, catalogView, source, raw)
+				if err != nil {
+					failure = err
+					return
+				}
+				result.text += suffix
+			}
 		}
 	}()
 	v.namespace++
@@ -704,6 +717,17 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		from, err := v.renderFromSQL(ctx, catalogView, n.Input)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		if raw := sampleSyntax(n.Input); raw != nil {
+			source, ok := from.root.(*plan.SourceNode)
+			if !ok {
+				return viewRenderFrom{}, fmt.Errorf("stuntgres: missing aliased sampling source")
+			}
+			suffix, err := v.sampleSQL(ctx, catalogView, source, raw)
+			if err != nil {
+				return viewRenderFrom{}, err
+			}
+			from.text = strings.TrimSuffix(from.text, suffix)
 		}
 		if v.logicalSourceNames() && !(v.RewriteInquiry && v.simple) {
 			// The underlying occurrence already has its final name/columns.

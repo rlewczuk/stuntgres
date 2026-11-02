@@ -76,6 +76,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	kind, volatility, strict := catalog.FunctionRoutine, expr.Immutable, true
 	count := 0
 	switch p.Implementation {
+	case StockSystemRows:
+		count = 1
+		name, sqlName, signature, result, volatility = "tsm_system_rows_handler", "system_rows", "2281", 3310, expr.Volatile
+		if ext.Provider != "tsm_system_rows" || ext.Version != "1.0" || slot != 0 || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.AccessMethod != catalog.NoAccessMethod || p.BrinSupport != 0 || p.PLHandler != catalog.NoPLHandler || p.Language != (ids.ObjectAddress{}) || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/tsm_system_rows", HasBinary: true}) {
+			return invalid()
+		}
 	case StockPgStatStatements:
 		count = 2
 		if ext.Version != "1.12" || slot >= count {

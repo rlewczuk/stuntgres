@@ -129,7 +129,12 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		return n, nil
 	case *plan.JoinNode:
 		return preflightJoin(c, n)
-	case *plan.SourceNode, *plan.SingletonNode, *plan.NamedRelationScanNode:
+	case *plan.SourceNode:
+		// Sampling count coercion/value checks belong to demanded source
+		// startup, like runtime query bounds. Keep constant WHERE rejection's
+		// existing ability to avoid this frontier.
+		return n, nil
+	case *plan.SingletonNode, *plan.NamedRelationScanNode:
 		return n, nil
 	case *plan.ValuesNode:
 		var rows [][]expr.Expr

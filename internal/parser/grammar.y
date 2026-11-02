@@ -22,6 +22,7 @@ package parser
  alterConfiguration *AlterConfiguration
  extensionMember ExtensionMemberTarget
  statements []Statement
+ tableSample *TableSample
  routineStandardBody routineStandardBody
  rule *CreateRule
  trigger *CreateTrigger
@@ -382,6 +383,7 @@ package parser
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> EXECUTE DEALLOCATE DISCARD
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
+%token <tok> TABLESAMPLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> SEARCH BREADTH DEPTH FIRST
 %token <tok> REASSIGN
@@ -460,7 +462,7 @@ package parser
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
-%nonassoc KW_T FREEZE VERBOSE CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
+%nonassoc KW_T TABLESAMPLE FREEZE VERBOSE CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
 %nonassoc '='
 %left COLLATE
 %left TYPECAST
@@ -865,6 +867,8 @@ package parser
 %type <row> array_members array_member_list
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base update_from delete_using
+%type <tableSample> table_sample
+%type <expr> sample_repeatable
 %type <functionTable> function_table function_table_base
 %type <call> function_table_call rows_function_call rows_function_base
 %type <functionTables> function_table_calls
@@ -3346,7 +3350,7 @@ conditional_args: target_or { $$=[]Expr{$1} } | conditional_args ',' target_or {
 generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY row_fields {} | GENERATION_PARTITION BY row_fields ORDER BY order_keys {} ;
 /* Type/function keywords are legal ordinary callees, not identifier names in
  * table/column positions. Their presence does not select an executable provider. */
-ordinary_call_keyword: KW_T | CONCURRENTLY | CROSS | INNER | JOIN | NATURAL
+ordinary_call_keyword: KW_T | TABLESAMPLE | CONCURRENTLY | CROSS | INNER | JOIN | NATURAL
  | FULL | OUTER | IS | LIKE | ILIKE | AUTHORIZATION | ISNULL | NOTNULL ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 }
  | ordinary_call_keyword '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
@@ -3625,6 +3629,9 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
     $$=$2
    } ;
 from_atom: from_base { $$=$1 }
+ | from_base table_sample {if !attachTableSample($1,$2) {sqllex.(*lexer).syntax(lexeme{text:"tablesample",pos:$2.Method.Parts[0].Pos});return 1};$$=$1}
+ | from_base AS from_alias alias_columns table_sample {item:=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4};if !attachTableSample(item,$5) {sqllex.(*lexer).syntax($2);return 1};$$=item}
+ | from_base from_alias alias_columns table_sample {item:=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3};if !attachTableSample(item,$4) {sqllex.(*lexer).syntax($2);return 1};$$=item}
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
  | from_base AS from_alias '(' using_columns type column_collation function_column_definition_tail ')' {
@@ -3653,6 +3660,8 @@ from_atom: from_base { $$=$1 }
        sqllex.(*lexer).syntax(lexeme{text:$5.Name,pos:$5.Pos});return 1
     }
    } ;
+table_sample: TABLESAMPLE relation_name '(' count_values ')' sample_repeatable {$$=&TableSample{Method:$2,Arguments:$4,Repeatable:$6}} ;
+sample_repeatable: /* empty */ {$$=nil} | REPEATABLE '(' target_or ')' {$$=$3} ;
 function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
@@ -4061,6 +4070,7 @@ name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | ENFORCED
+ | TABLESAMPLE
  | PL_SLICE
  | EXPLAIN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT | FDW_OPTIONS
@@ -4147,6 +4157,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | LATERAL { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+ | TABLESAMPLE { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | COLLATION { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | FREEZE {if !$1.keyword.label(){sqllex.(*lexer).syntax($1);return 1};$$=$1}
@@ -4164,6 +4175,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | SIMILAR
+ | TABLESAMPLE
  | FREEZE | VERBOSE | ANALYZE
  | FOREIGN | REFERENCES | INITIALLY
  | LATERAL

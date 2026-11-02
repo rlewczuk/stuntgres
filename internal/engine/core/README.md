@@ -2730,6 +2730,10 @@ routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
 
+Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and
+cancellation, statement pins, independent prepared protocol resources and retained
+immutable graph/fold/schema backing through Close and Reset.
+
 Genuine pgcrypto activation, dormant/closed evaluation boundaries and retained
 fold ownership components use `RUN='^TestPgcryptoPolicy'`.
 

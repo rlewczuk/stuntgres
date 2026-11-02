@@ -3,11 +3,33 @@ package parser
 // FromItem preserves join operand and whole-result alias boundaries.
 type FromItem interface{ fromItem() }
 type TableReference struct {
-	Name ObjectName
-	Only bool // Otherwise scan the named relation and its descendants.
+	Name   ObjectName
+	Only   bool // Otherwise scan the named relation and its descendants.
+	Sample *TableSample
 }
 
 func (*TableReference) fromItem() {}
+
+// TableSample retains the method and expressions at their original positions.
+type TableSample struct {
+	Method     ObjectName
+	Arguments  []Expr
+	Repeatable Expr
+}
+
+func attachTableSample(item FromItem, sample *TableSample) bool {
+	switch n := item.(type) {
+	case *TableReference:
+		if n.Sample != nil {
+			return false
+		}
+		n.Sample = sample
+		return true
+	case *AliasReference:
+		return attachTableSample(n.Input, sample)
+	}
+	return false
+}
 
 // FunctionFrom is the selected regexp table-function source. Calls in a ROWS
 // FROM group run in lockstep; distinct FROM items retain ordinary join behavior.

@@ -522,7 +522,7 @@ var keywords = [...]keyword{
 	{"system_user", Reserved, true, SYSTEM_USER},
 	{"table", Reserved, true, TABLE},
 	{"tables", Unreserved, true, PUBLICATION_TABLES},
-	{"tablesample", TypeFunctionName, true, 0},
+	{"tablesample", TypeFunctionName, true, TABLESAMPLE},
 	{"tablespace", Unreserved, true, TABLESPACE},
 	{"target", Unreserved, true, TARGET},
 	{"temp", Unreserved, true, TEMP},

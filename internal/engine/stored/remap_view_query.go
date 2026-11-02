@@ -227,7 +227,17 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 	case *plan.RowLockNode:
 		next = &plan.RowLockNode{QuerySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
 	case *plan.SourceNode:
-		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases}
+		copy := *n
+		copy.QuerySchema, copy.Ref = schema, ref(n.Ref)
+		if n.Sample != nil {
+			sample := *n.Sample
+			sample.Handler, sample.Count = ref(sample.Handler), expression(sample.Count)
+			if err == nil {
+				sample.Procedure, err = m.procedure(sample.Procedure)
+			}
+			copy.Sample = &sample
+		}
+		next = &copy
 	case *plan.NamedRelationScanNode:
 		copy := *n
 		copy.QuerySchema = schema

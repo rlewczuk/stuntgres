@@ -276,7 +276,23 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if err != nil {
 			return "", err
 		}
-		return name + " AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Occurrence)), nil
+		name += " AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Occurrence))
+		if n.Sample != nil {
+			procedure, ok := view.Procedure(n.Sample.Handler.Address)
+			if !ok {
+				return "", ids.ErrCatalogReplaced
+			}
+			namespace, ok := view.Namespace(procedure.Namespace())
+			if !ok {
+				return "", ids.ErrCatalogReplaced
+			}
+			count, err := ruleExpressionSQL(ctx, view, n.Sample.Count, action, root)
+			if err != nil {
+				return "", err
+			}
+			name += " TABLESAMPLE " + action.policy.identifier(namespace.Name()) + "." + action.policy.identifier(procedure.Name()) + "(" + count + ")"
+		}
+		return name, nil
 	case *plan.JoinNode:
 		left, err := ruleFromSQL(ctx, view, n.Left, action)
 		if err != nil {

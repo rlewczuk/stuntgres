@@ -114,7 +114,7 @@ func parallelQueryGraph(root plan.Node, source *Source) (*plan.ProjectNode, *pla
 		node = filter.Child
 	}
 	leaf, ok := node.(*plan.SourceNode)
-	if !ok || leaf.Ref != source.Ref || leaf.Occurrence != source.Occurrence {
+	if !ok || leaf.Sample != nil || leaf.Ref != source.Ref || leaf.Occurrence != source.Occurrence {
 		return nil, nil, false
 	}
 	return project, ordered, true

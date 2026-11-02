@@ -133,3 +133,28 @@ func TestViewCapabilitiesRuleEvents(t *testing.T) {
 		t.Fatalf("combined rules: %d, %v", got, err)
 	}
 }
+
+func TestViewCapabilitiesSampledSource(t *testing.T) {
+	state := catalog.NewState(1)
+	read := catalog.NewRead(&catalog.Owner{Domain: new(ids.Domain)}, state)
+	relation := capabilityRelation(90101, catalog.ViewRelation)
+	relation.View = stored.NewView(stored.ViewParts{
+		Syntax: &parser.Select{From: &parser.TableReference{}},
+		Query:  &plan.Query{Root: &plan.ProjectNode{Child: &plan.SourceNode{Sample: &plan.TableSample{}}}},
+	})
+	state.SetDescriptor(relation.Address(), relation)
+	for _, subset := range [][]int32{nil, {}} {
+		if got, err := Capabilities(context.Background(), read, relation, subset, capabilityBuiltin); err != nil || got != 0 {
+			t.Fatal("sample acquired automatic capability", subset, got, err)
+		}
+	}
+	relation.Rules = stored.RulesPayload([]stored.Rule{
+		stored.NewRule(stored.RuleParts{Event: "UPDATE", Mode: catalog.RuleOrigin, Instead: true}),
+		stored.NewRule(stored.RuleParts{Event: "DELETE", Mode: catalog.RuleOrigin, Instead: true}),
+	})
+	for _, subset := range [][]int32{nil, {}} {
+		if got, err := Capabilities(context.Background(), read, relation, subset, capabilityBuiltin); err != nil || got != 20 {
+			t.Fatal("sample restriction erased explicit rule capabilities", subset, got, err)
+		}
+	}
+}

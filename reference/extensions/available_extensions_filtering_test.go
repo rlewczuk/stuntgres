@@ -79,6 +79,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='dblink' AND version='1.2'", true, [][]any{{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_freespacemap'", false, [][]any{{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_freespacemap' AND version='1.3'", true, [][]any{{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tsm_system_rows'", false, [][]any{{"tsm_system_rows", "1.0", nil, "TABLESAMPLE method which accepts number of rows as a limit"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tsm_system_rows' AND version='1.0'", true, [][]any{{"tsm_system_rows", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts number of rows as a limit"}}, pg))
 			if !pg {
 				// Native availability is its embedded registry, including the genuine
 				// installed bootstrap plpgsql extension.
@@ -145,6 +147,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"})
 				wantAvailable = append(wantAvailable, []any{"xml2", "1.2", nil, "XPath querying and XSLT"})
 				wantVersions = append(wantVersions, []any{"xml2", "1.2", false, true, false, false, nil, nil, "XPath querying and XSLT"})
+				wantAvailable = append(wantAvailable, []any{"tsm_system_rows", "1.0", nil, "TABLESAMPLE method which accepts number of rows as a limit"})
+				wantVersions = append(wantVersions, []any{"tsm_system_rows", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts number of rows as a limit"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

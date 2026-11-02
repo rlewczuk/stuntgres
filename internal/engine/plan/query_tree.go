@@ -36,6 +36,9 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 		}
 		appendTreeAddress(out, "relation", n.Ref.Address)
 		fmt.Fprintf(out, " occurrence %d", n.Occurrence)
+		if n.Sample != nil {
+			appendTreeAddress(out, "sample_handler", n.Sample.Handler.Address)
+		}
 	case *ProjectNode:
 		if n == nil {
 			return fmt.Errorf("stuntgres: nil structural query node %T", root)

@@ -23,6 +23,11 @@ Function-source lowering retains explicit ROWS FROM provenance even for a single
 regexp member. Both function-source carriers keep the written calls and their
 per-member column definitions; raw utility identity consumes that syntax without
 changing analyzed execution or canonical stored-query presentation.
+TABLESAMPLE belongs to the physical table reference, inside an optional
+alias-before-sampling wrapper. Its qualified method, ordered arguments and
+optional REPEATABLE expression retain original positions and participate in the
+shared source/expression/parameter traversal. Method capability, argument types
+and REPEATABLE support are analysis decisions, not keyword/name dispatch.
 
 COMMENT retains a distinct ordinary VIEW target alongside the other shipped
 comment kinds. Its qualified name and string/NULL metadata use the shared
@@ -589,6 +594,9 @@ retains an expression and ordered USING list, not a second SQL parser; diagnosti
 text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
+
+Sampling AST, alias placement, source positions and expression walks use
+`RUN='^TestSystemRows'`.
 
 Concrete structural serialization (ordered nodes, fields/literals, omitted source
 positions and cancellation) uses `make check RUN='^TestParserStructuralOutput$'`.

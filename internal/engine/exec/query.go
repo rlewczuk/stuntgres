@@ -710,45 +710,10 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		source := &Source{Singleton: true, Authority: state.Source.Authority, Host: state.Source.Host, Locks: state.Source.Locks}
 		return Stage{Source: source, Columns: n.Schema()}, nil
 	case *plan.SourceNode:
-		source := state.Source
-		if source != nil && source.Sources != nil {
-			if n.Occurrence < 0 || n.Occurrence >= len(source.Sources) {
-				return Stage{}, fmt.Errorf("stuntgres: invalid query occurrence")
-			}
-			source = source.Sources[n.Occurrence]
+		if n.Sample != nil {
+			return openSampleStage(ctx, state, n)
 		}
-		if source == nil || source.Ref != n.Ref && (source.StoredRef == (ids.ObjectRef{}) || source.StoredRef != n.Ref) {
-			return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
-		}
-		EstablishSourcePresence(source, n.PresenceSlot)
-		if source.Foreign != nil {
-			return OpenForeignStage(ctx, state, source, n)
-		}
-		for _, segment := range source.Inheritance {
-			if segment.Prefix.Foreign != nil {
-				return openForeignHierarchy(ctx, state, source, n)
-			}
-		}
-		if source.PGSequences != nil {
-			return openPGSequencesStage(state, source, n.Schema()), nil
-		}
-		if source.Final != nil || source.Input != nil || source.NestedRoot != nil {
-			return openSourceStage(ctx, state, source, n.Schema(), n)
-		}
-		if source.Anonymous == nil {
-			if source.View == nil {
-				return Stage{}, fmt.Errorf("stuntgres: missing query source")
-			}
-			data := source.View.Data()
-			if source.Ref.Domain() != data.Catalog.Owner().Domain || source.Ref.Epoch != data.Catalog.Epoch() {
-				return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
-			}
-		}
-		child := Stage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
-		if source.RLS != nil {
-			return openRowSecurityStage(ctx, state, child), nil
-		}
-		return child, nil
+		return openRelationSource(ctx, state, n)
 	case *plan.FilterNode:
 		evaluation := state.Evaluation(ctx)
 		defer func() { evaluation.Context = nil }()
@@ -802,7 +767,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		}
 		var candidates *candidateSelection
 		keyed := false
-		if !branches.selection.Applied {
+		if !branches.selection.Applied && !sampledSource(n.Child) {
 			candidates, err = hashFilterCandidates(ctx, state, n, child.Source)
 			if err != nil {
 				child.Close()
@@ -1448,4 +1413,46 @@ func querySourceRetains(source, target *Source) bool {
 		}
 	}
 	return false
+}
+
+func openRelationSource(ctx context.Context, state *State, n *plan.SourceNode) (Stage, error) {
+	source := state.Source
+	if source != nil && source.Sources != nil {
+		if n.Occurrence < 0 || n.Occurrence >= len(source.Sources) {
+			return Stage{}, fmt.Errorf("stuntgres: invalid query occurrence")
+		}
+		source = source.Sources[n.Occurrence]
+	}
+	if source == nil || source.Ref != n.Ref && (source.StoredRef == (ids.ObjectRef{}) || source.StoredRef != n.Ref) {
+		return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
+	}
+	EstablishSourcePresence(source, n.PresenceSlot)
+	if source.Foreign != nil {
+		return OpenForeignStage(ctx, state, source, n)
+	}
+	for _, segment := range source.Inheritance {
+		if segment.Prefix.Foreign != nil {
+			return openForeignHierarchy(ctx, state, source, n)
+		}
+	}
+	if source.PGSequences != nil {
+		return openPGSequencesStage(state, source, n.Schema()), nil
+	}
+	if source.Final != nil || source.Input != nil || source.NestedRoot != nil {
+		return openSourceStage(ctx, state, source, n.Schema(), n)
+	}
+	if source.Anonymous == nil {
+		if source.View == nil {
+			return Stage{}, fmt.Errorf("stuntgres: missing query source")
+		}
+		data := source.View.Data()
+		if source.Ref.Domain() != data.Catalog.Owner().Domain || source.Ref.Epoch != data.Catalog.Epoch() {
+			return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
+		}
+	}
+	child := Stage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
+	if source.RLS != nil {
+		return openRowSecurityStage(ctx, state, child), nil
+	}
+	return child, nil
 }

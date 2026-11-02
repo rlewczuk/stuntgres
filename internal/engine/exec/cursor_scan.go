@@ -20,6 +20,9 @@ func CursorSimpleScan(node plan.Node, inputs *Source) *Source {
 	case *plan.DerivedNode:
 		return CursorSimpleScan(n.Query.Root, inputs)
 	case *plan.SourceNode:
+		if n.Sample != nil {
+			return nil
+		}
 		source := QuerySourceAt(inputs, n.Occurrence)
 		for source.Input != nil {
 			source = source.Input

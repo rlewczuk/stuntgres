@@ -46,6 +46,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   retain immutable accepted range names and final column aliases for presentation.
   Structural copies and stored remaps share that immutable label backing;
   labels never change schemas, expression slots, provenance or execution authority.
+  A source's optional sampling descriptor retains the authenticated handler
+  reference/declaration, bound bigint count and free correlation captures.
+  Expression walks, structural identity, copy-on-write rewrites and stored
+  remapping include that count and handler identity. It contains no execution
+  selection, cursor, RNG or source pin.
   `JoinNode.Comma` retains written FROM-list versus explicit join structure for
   statement fingerprinting. Rebuild/remap preserve it; it supplies no execution
   policy or semantic-equality/EXPLAIN/deparse distinction.
@@ -427,6 +432,9 @@ remap, retag, conditional planning, join legality, aggregate binding, defaults,
 without aliases.
 
 ## Testing
+
+Sampling structural identity, immutable rewrites, stored capture and replay units
+use `RUN='^TestSystemRows'`.
 
 Logical EXPLAIN arithmetic and closed-node units use `RUN='^TestExplain'`.
 Expectations are independently authored over actual logical nodes; estimates
