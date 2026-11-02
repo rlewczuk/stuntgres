@@ -549,6 +549,23 @@ type Producer func(Input) ([][]sqltype.Value, error)
   are not substitutes. Names and source-owned NAME/domain generations come
   from the paired immutable catalog/role capture. Cancellation or malformed
   authority discards every row, while successful empty captures stay typed.
+- `column_udt_usage` projects seven nullable `sql_identifier` columns from live
+  positive attributes of ordinary, view, foreign and partitioned relations,
+  including catalog/provider and temporary relations. A declaration resolves
+  exactly one domain hop through the shared column type facts; builtin,
+  composite and array identities remain actual types. Only enabled ownership of
+  that resolved type admits a row, independently of represented relation,
+  schema and type ACLs. Source SELECT remains separately checked and initially
+  PUBLIC. Source16260 reuses canonical row13314/array13313. Identifier values,
+  names, database and role visibility belong to the same captured statement
+  roots, even after a live source ACL revision. Actual declaration changes
+  update population; routines and default/generated expressions add no invented
+  dependency rows. Cancellation or malformed authority publishes no prefix.
+  Same-lifetime held executions recapture current definitions; returned rows
+  and metadata survive catalog replacement, which retains the ordinary held
+  signature lifetime fence. Dump/Restore replays declarations and owners, never
+  provider rows or the builtin definition. Structured released display uses
+  normal path, quoting, routine-shadow and owner-disclosure rules.
 - `information_schema_catalog_name` projects one nullable `sql_identifier`
   column, `catalog_name`, and exactly one non-NULL captured database scalar,
   including an internal empty string. Source16251 reuses canonical row13251
@@ -1500,7 +1517,7 @@ Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
-including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`, `information_schema.information_schema_catalog_name`,
+including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`, `information_schema.column_udt_usage`, `information_schema.information_schema_catalog_name`,
 `information_schema.user_defined_types`, `information_schema.attributes`, `information_schema.tables`,
 `information_schema.usage_privileges`, `pg_catalog.pg_policies` and
 `pg_catalog.pg_rules`, with classification and per-output capability facts.

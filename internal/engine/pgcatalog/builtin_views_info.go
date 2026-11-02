@@ -10,6 +10,30 @@ var infoBuiltinViews = [...]builtinView{
 	{oid: InfoInformationSchemaCatalogNameOID, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("catalog_name"), viewText(";"),
 	}},
+	// information_schema.column_udt_usage — REL_18_6 information_schema.sql.
+	{oid: InfoColumnUdtUsageOID, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_catalog"), viewText(",\n"),
+		viewText("    (COALESCE("), viewIdentifier("nbt"), viewText("."), viewIdentifier("nspname"), viewText(", "), viewIdentifier("nt"), viewText("."), viewIdentifier("nspname"), viewText("))::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_schema"), viewText(",\n"),
+		viewText("    (COALESCE("), viewIdentifier("bt"), viewText("."), viewIdentifier("typname"), viewText(", "), viewIdentifier("t"), viewText("."), viewIdentifier("typname"), viewText("))::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nc"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("c"), viewText("."), viewIdentifier("relname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_name"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("a"), viewText("."), viewIdentifier("attname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("column_name"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_attribute"), viewText(" "), viewIdentifier("a"), viewText(",\n"),
+		viewText("    "), viewClass("pg_class"), viewText(" "), viewIdentifier("c"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nc"), viewText(",\n"),
+		viewText("    (("), viewClass("pg_type"), viewText(" "), viewIdentifier("t"), viewText("\n"),
+		viewText("     JOIN "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nt"), viewText(" ON (("), viewIdentifier("t"), viewText("."), viewIdentifier("typnamespace"), viewText(" = "), viewIdentifier("nt"), viewText("."), viewIdentifier("oid"), viewText(")))\n"),
+		viewText("     LEFT JOIN ("), viewClass("pg_type"), viewText(" "), viewIdentifier("bt"), viewText("\n"),
+		viewText("     JOIN "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nbt"), viewText(" ON (("), viewIdentifier("bt"), viewText("."), viewIdentifier("typnamespace"), viewText(" = "), viewIdentifier("nbt"), viewText("."), viewIdentifier("oid"), viewText("))) ON ((("),
+		viewIdentifier("t"), viewText("."), viewIdentifier("typtype"), viewText(" = 'd'::"), viewType("\"char\""), viewText(") AND ("), viewIdentifier("t"), viewText("."), viewIdentifier("typbasetype"), viewText(" = "), viewIdentifier("bt"), viewText("."), viewIdentifier("oid"), viewText("))))\n"),
+		viewText("  WHERE (("), viewIdentifier("a"), viewText("."), viewIdentifier("attrelid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"),
+		viewText(") AND ("), viewIdentifier("a"), viewText("."), viewIdentifier("atttypid"), viewText(" = "), viewIdentifier("t"), viewText("."), viewIdentifier("oid"),
+		viewText(") AND ("), viewIdentifier("nc"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("relnamespace"),
+		viewText(") AND ("), viewIdentifier("a"), viewText("."), viewIdentifier("attnum"), viewText(" > 0) AND (NOT "), viewIdentifier("a"), viewText("."), viewIdentifier("attisdropped"),
+		viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = ANY (ARRAY['r'::"), viewType("\"char\""), viewText(", 'v'::"), viewType("\"char\""), viewText(", 'f'::"), viewType("\"char\""), viewText(", 'p'::"), viewType("\"char\""), viewText("])) AND "),
+		viewRoutine("pg_has_role", "26,25"), viewText("(COALESCE("), viewIdentifier("bt"), viewText("."), viewIdentifier("typowner"), viewText(", "), viewIdentifier("t"), viewText("."), viewIdentifier("typowner"), viewText("), 'USAGE'::"), viewType("text"), viewText("));"),
+	}},
 	// information_schema.domain_udt_usage — REL_18_6 information_schema.sql.
 	{oid: InfoDomainUdtUsageOID, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_catalog"), viewText(",\n"),

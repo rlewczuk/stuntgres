@@ -3,6 +3,21 @@ package reference_test
 // Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinPathDefinitions = map[string]string{
+	"information_schema.column_udt_usage": ` SELECT (current_database())::sql_identifier AS udt_catalog,
+    (COALESCE(nbt.nspname, nt.nspname))::sql_identifier AS udt_schema,
+    (COALESCE(bt.typname, t.typname))::sql_identifier AS udt_name,
+    (current_database())::sql_identifier AS table_catalog,
+    (nc.nspname)::sql_identifier AS table_schema,
+    (c.relname)::sql_identifier AS table_name,
+    (a.attname)::sql_identifier AS column_name
+   FROM pg_attribute a,
+    pg_class c,
+    pg_namespace nc,
+    ((pg_type t
+     JOIN pg_namespace nt ON ((t.typnamespace = nt.oid)))
+     LEFT JOIN (pg_type bt
+     JOIN pg_namespace nbt ON ((bt.typnamespace = nbt.oid))) ON (((t.typtype = 'd'::"char") AND (t.typbasetype = bt.oid))))
+  WHERE ((a.attrelid = c.oid) AND (a.atttypid = t.oid) AND (nc.oid = c.relnamespace) AND (a.attnum > 0) AND (NOT a.attisdropped) AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'f'::"char", 'p'::"char"])) AND pg_has_role(COALESCE(bt.typowner, t.typowner), 'USAGE'::text));`,
 	"information_schema.column_privileges": cpPathDefinition,
 	"information_schema.attributes": ` SELECT (current_database())::sql_identifier AS udt_catalog,
     (nc.nspname)::sql_identifier AS udt_schema,

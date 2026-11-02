@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `view_column_usage`, `view_routine_usage`, `triggers`, `routines`, `parameters`, `element_types`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
+`columns`, `column_column_usage`, `column_domain_usage`, `column_udt_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`, `attributes`,
 `domain_constraints`, `domain_udt_usage`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
@@ -21,6 +21,16 @@ row expectations across direct, fresh-prepared and held consumers. The nullable
 `sql_identifier` domain has NAME driver metadata; raw/scan metadata distinguishes
 the native driver from pq. Ordinary readers see the same single row, while
 revoked source SELECT fails even under a false predicate and recovers on grant.
+
+Column UDT inquiry uses exact complete declaration bags, seven nullable
+identifier domains and NAME transport metadata. Its `cu*` helpers share the
+existing fixture's direct, fresh-prepared, held and recorded-control seams.
+Population resolves one domain hop and filters on enabled resolved-type
+ownership, not relation/schema/type privileges or expression dependencies.
+Actual DDL, transactional frontiers and role changes refresh held executions;
+retained rows/types survive native replacement, with fresh held consumers in
+the restored lifetime. The complete provider and six display inventories
+include the source and its resolved-owner routine-shadow predicate.
 
 View-column inquiry asserts all seven nullable identifier domains and raw NAME
 metadata, exact direct dependency bags and duplicate collapse by attribute.
@@ -158,6 +168,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Composite attribute inquiry: `RUN='^TestReferenceInfoAttributes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
+- Column UDT usage: `RUN='^TestReferenceInfoColumnUdtUsage'`
 - Domain/base usage: `RUN='^TestReferenceInfoDomainUdtUsage'`
 - Catalog-name inquiry: `RUN='^TestReferenceInfoInformationSchemaCatalogName'`
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
