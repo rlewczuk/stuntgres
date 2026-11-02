@@ -49,6 +49,18 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 	frame := pgTrgmSelect(b, q, []string{"similarity", "matches"}, []string{"FLOAT4", "BOOL"}, [][]any{{float64(0.25), false}}, "a", "aa")
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+	distanceFrame := pgTrgmDistanceFrame(b)
+	distanceStmt, err := c.PrepareContext(p.Ctx, distanceFrame.Query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer distanceStmt.Close()
+	distanceHeld := fixture.HeldStatement{Executor: c, Statement: distanceStmt, SQL: distanceFrame.Query}
+	checkDistances := func() {
+		t.Helper()
+		fixture.RunStep(t, p.Ctx, distanceHeld, b.Recorder, distanceFrame)
+	}
+	checkDistances()
 	// Capture real recorded Rows before controls. Later SQL must not replace
 	// their old metadata, row generation, immutable arrays or close evidence.
 	ctx := context.WithValue(p.Ctx, fixture.RecorderKey{}, b.Recorder)
@@ -66,6 +78,8 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	}
 	run(fixture.Select("SELECT count(*) FROM pg_extension WHERE extname='pg_trgm'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 	run(extensionMissing("SELECT similarity('cat','cat')", "similarity", "unknown, unknown"))
+	run(extensionMissing("SELECT similarity_dist('cat','cat')", "similarity_dist", "unknown, unknown"))
+	run(fixture.Select("SELECT count(*) FROM pg_proc WHERE proname IN ('similarity_dist','word_similarity_dist_op','word_similarity_dist_commutator_op','strict_word_similarity_dist_op','strict_word_similarity_dist_commutator_op')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 	pgTrgmLoaded(run, true)
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump)); err != nil {
 		t.Fatal(err)
@@ -86,6 +100,7 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 		t.Fatal("retained recorded rows/closure", captured, closed, closeErr)
 	}
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+	checkDistances()
 	run(check)
 	run(fixture.Prepared(check))
 	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
@@ -93,6 +108,7 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	}
 	// Physical settings are neither serialized by Dump nor reset by catalog controls.
 	run(fixture.Exec("SET pg_trgm.similarity_threshold='0.2'", 0))
+	checkDistances()
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
@@ -105,31 +121,37 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	changed := frame
 	changed.Rows = [][]any{{float64(0.25), true}}
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, changed)
+	checkDistances()
 	run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 	run(check)
 	extensionControlsFailures(t, p, c, b.Recorder, "pg_trgm", dump, check)
+	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+	checkDistances()
 	failure := errors.New("pg_trgm genuine reader failure")
 	if err := stuntgres.Restore(p.Ctx, p.Native, fixture.CatalogControlFailingReader{Err: failure}); !errors.Is(err, failure) {
 		t.Fatal("reader failure", err)
 	}
+	run(check)
+	checkDistances()
 	cancelled, cancel := context.WithCancel(p.Ctx)
 	cancel()
 	if err := stuntgres.Restore(cancelled, p.Native, strings.NewReader(dump)); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled restore", err)
 	}
+	run(check)
+	checkDistances()
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump+"\nSELECT pg_trgm_later_invalid();")); err == nil {
 		t.Fatal("later-invalid replay accepted")
 	}
 	run(check)
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+	checkDistances()
 	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 		t.Fatal("failed restore mutated target")
 	}
 	pgTrgmIndependentDestination(t, p, b, dump, check, namedOwner)
 	// Re-evaluate restored generated/default/CHECK/view recipes, not snapshots.
-	run(fixture.Exec("UPDATE trgm_source SET v='cat' WHERE id=2", 1))
-	run(fixture.Exec("INSERT INTO trgm_source(id,v) VALUES(4,'cat')", 1))
-	run(fixture.Select("SELECT id,score,ordinary,word_score,strict_score,trigrams FROM trgm_source WHERE id>=2 ORDER BY id", []string{"id", "score", "ordinary", "word_score", "strict_score", "trigrams"}, []string{"INT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "_TEXT"}, [][]any{{int64(2), float64(0.25), float64(1), float64(1), float64(1), pgTrgmArray("  c", " ca", "at ", "cat")}, {int64(3), float64(0.25), nil, nil, nil, nil}, {int64(4), float64(0.25), float64(1), float64(1), float64(1), pgTrgmArray("  c", " ca", "at ", "cat")}}))
+	pgTrgmStoredWrites(b, run, check)
 }
 
 func pgTrgmIndependentDestination(t *testing.T, p *fixture.Pair, b fixture.Backend, dump string, check fixture.Step, namedOwner bool) {
@@ -156,7 +178,8 @@ func pgTrgmIndependentDestination(t *testing.T, p *fixture.Pair, b fixture.Backe
 	}
 	run(check)
 	run(fixture.Prepared(check))
-	run(fixture.Select("SELECT a,w,s FROM trgm_literals", []string{"a", "w", "s"}, []string{"_TEXT", "FLOAT4", "FLOAT4"}, [][]any{{pgTrgmArray("  c", " ca", "at ", "cat"), float64(0.5), float64(0.25)}}))
+	distances := pgTrgmDistanceValues(targetBackend)
+	run(fixture.Select("SELECT a,w,s,d,r FROM trgm_literals", []string{"a", "w", "s", "d", "r"}, []string{"_TEXT", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"}, [][]any{{pgTrgmArray("  c", " ca", "at ", "cat"), float64(0.5), float64(0.25), distances[1], distances[4]}}))
 	run(pgTrgmScalar(targetBackend, "SELECT trgm_moved.original_trigrams('cat')", "original_trigrams", "_TEXT", pgTrgmArray("  c", " ca", "at ", "cat")))
 	pgTrgmSettingValue(run, pgTrgmSettings[0].name, "0.3")
 	if fixture.ExtensionDump(t, p.Ctx, raw) != dump {
@@ -172,6 +195,9 @@ func pgTrgmIndependentDestination(t *testing.T, p *fixture.Pair, b fixture.Backe
 	if fixture.ExtensionDump(t, p.Ctx, raw) != before {
 		t.Fatal("collision replaced destination")
 	}
+	// Destination DML follows unchanged symbolic-redump/collision invariants
+	// and uses this independent driver's recorded executor throughout.
+	pgTrgmStoredWrites(targetBackend, run, check)
 	missingConnector, err := stuntgres.NewDriver().OpenConnector("pgtrgm_missing_owner")
 	if err != nil {
 		t.Fatal(err)

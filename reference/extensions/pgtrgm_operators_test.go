@@ -212,6 +212,64 @@ func TestReferencePgTrgmOperators(t *testing.T) {
 							run(pgTrgmScalar(b, "SELECT "+op.routine+"($1,$2)", op.routine, "FLOAT4", want, direction.left, direction.right))
 						}
 					}
+					t.Run("DistanceExtents", func(t *testing.T) {
+						run := pgTrgmRun(t, p, b, c)
+						for _, tc := range []struct {
+							name, left, right      string
+							ordinary, word, strict [2]int
+						}{
+							{"StrictEnd", "word", strings.Repeat("words ", 32), [2]int{4, 7}, [2]int{4, 5}, [2]int{4, 7}},
+							{"StrictStart", "ord", strings.Repeat("word ", 32), [2]int{2, 7}, [2]int{1, 2}, [2]int{2, 7}},
+							{"Multiword", "two words", "x two words y", [2]int{10, 14}, [2]int{1, 1}, [2]int{1, 1}},
+							{"LaterBetter", "word", "two words word", [2]int{5, 11}, [2]int{1, 1}, [2]int{1, 1}},
+						} {
+							t.Run(tc.name, func(t *testing.T) {
+								run := pgTrgmRun(t, p, b, c)
+								// Repetition never weights the distinct sets. The
+								// later exact word adds one key to two words' ten;
+								// strict extents cannot cut either edge of a word.
+								ratio := tc.ordinary
+								if op.kernel == 1 {
+									ratio = tc.word
+								} else if op.kernel == 2 {
+									ratio = tc.strict
+								}
+								want := pgTrgmFloat(b.PG, 1-float32(ratio[0])/float32(ratio[1]))
+								left, right := tc.left, tc.right
+								if op.reverse {
+									left, right = right, left
+								}
+								for _, threshold := range []string{"0", "1"} {
+									for _, setting := range pgTrgmSettings {
+										run(fixture.Exec("SET "+setting.name+"="+threshold, 0))
+									}
+									s := pgTrgmScalar(b, q, "result", "FLOAT4", want, left, right)
+									run(s)
+									run(fixture.Prepared(s))
+									fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+									backing := pgTrgmScalar(b, "SELECT "+op.routine+"($1,$2) AS result", "result", "FLOAT4", want, left, right)
+									run(backing)
+									run(fixture.Prepared(backing))
+									// Independently expect the same scalar for the
+									// opposite operator and its named commutator.
+									commutatorSQL := "SELECT $2::text " + op.commutator + " $1::text AS result"
+									commutator := pgTrgmScalar(b, commutatorSQL, "result", "FLOAT4", want, left, right)
+									run(commutator)
+									run(fixture.Prepared(commutator))
+									for _, reverse := range pgTrgmOperators {
+										if reverse.token == op.commutator {
+											named := pgTrgmScalar(b, "SELECT "+reverse.routine+"($2::text,$1::text) AS result", "result", "FLOAT4", want, left, right)
+											run(named)
+											run(fixture.Prepared(named))
+										}
+									}
+								}
+							})
+						}
+						for _, setting := range pgTrgmSettings {
+							run(fixture.Exec("RESET "+setting.name, 0))
+						}
+					})
 				}
 			})
 		}

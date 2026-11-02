@@ -56,6 +56,38 @@ func pgTrgmFloat(pg bool, v float32) float64 {
 	return f
 }
 
+// Independent distinct-set counts for the same written inputs word,two words:
+// ordinary4/11, forward word4/5, reverse word2/5, strict4/7, reverse strict4/11.
+// Subtract only after rounding the score to float4.
+func pgTrgmDistanceValues(b fixture.Backend) []any {
+	values := make([]any, 0, 5)
+	for _, ratio := range [][2]int{{4, 11}, {4, 5}, {2, 5}, {4, 7}, {4, 11}} {
+		score := float32(ratio[0]) / float32(ratio[1])
+		values = append(values, pgTrgmFloat(b.PG, 1-score))
+	}
+	return values
+}
+
+func pgTrgmDistanceFrame(b fixture.Backend) fixture.Step {
+	var parts, names, types []string
+	var values []any
+	distances := pgTrgmDistanceValues(b)
+	i := 0
+	for _, op := range pgTrgmOperators {
+		if op.result != "FLOAT4" {
+			continue
+		}
+		parts = append(parts,
+			"$1::text OPERATOR(trgm_addon."+op.token+") $2::text AS distance_"+strconv.Itoa(i),
+			"trgm_addon."+op.routine+"($1,$2) AS backing_"+strconv.Itoa(i))
+		names = append(names, "distance_"+strconv.Itoa(i), "backing_"+strconv.Itoa(i))
+		types = append(types, "FLOAT4", "FLOAT4")
+		values = append(values, distances[i], distances[i])
+		i++
+	}
+	return pgTrgmSelect(b, "SELECT "+strings.Join(parts, ","), names, types, [][]any{values}, "word", "two words")
+}
+
 func pgTrgmSelect(b fixture.Backend, q string, names, types []string, values [][]any, args ...any) fixture.Step {
 	s := fixture.Select(q, names, types, values, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {

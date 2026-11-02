@@ -12,6 +12,16 @@ func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
 	pgTrgmCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, notices *[]fixture.Diagnostic) {
 		check := pgTrgmStored(t, p, b, c)
 		run := pgTrgmRun(t, p, b, c)
+		distanceFrame := pgTrgmDistanceFrame(b)
+		distanceStmt, err := c.PrepareContext(p.Ctx, distanceFrame.Query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer distanceStmt.Close()
+		distanceHeld := fixture.HeldStatement{Executor: c, Statement: distanceStmt, SQL: distanceFrame.Query}
+		run(distanceFrame)
+		run(fixture.Prepared(distanceFrame))
+		fixture.RunStep(t, p.Ctx, distanceHeld, b.Recorder, distanceFrame)
 		q := "SELECT trgm_addon.show_trgm($1)"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -53,6 +63,7 @@ func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
 				values = append(values, value)
 			}
 			run(pgTrgmSelect(b, "SELECT "+strings.Join(parts, ","), names, types, [][]any{values}))
+			fixture.RunStep(t, p.Ctx, distanceHeld, b.Recorder, distanceFrame)
 		}
 		for _, setting := range pgTrgmSettings {
 			run(fixture.Exec("RESET "+setting.name, 0))
@@ -113,14 +124,16 @@ func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
 		run(fixture.Exec("RESET pg_trgm.word_similarity_threshold", 0))
 		run(fixture.Exec("RESET pg_trgm.strict_word_similarity_threshold", 0))
 		// Directional representative: arbitrary and strict extents differ.
+		distances := pgTrgmDistanceValues(b)
 		run(pgTrgmSelect(b,
-			"SELECT 'word' OPERATOR(trgm_addon.<<->) 'two words' AS forward,'word' OPERATOR(trgm_addon.<->>) 'two words' AS reverse",
-			[]string{"forward", "reverse"}, []string{"FLOAT4", "FLOAT4"},
-			[][]any{{pgTrgmFloat(b.PG, 1-float32(4)/float32(5)), pgTrgmFloat(b.PG, 1-float32(2)/float32(5))}},
+			"SELECT 'word' OPERATOR(trgm_addon.<<->) 'two words' AS forward,'word' OPERATOR(trgm_addon.<->>) 'two words' AS reverse,'word' OPERATOR(trgm_addon.<<<->) 'two words' AS strict_forward,'word' OPERATOR(trgm_addon.<->>>) 'two words' AS strict_reverse",
+			[]string{"forward", "reverse", "strict_forward", "strict_reverse"}, []string{"FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"},
+			[][]any{{distances[1], distances[2], distances[3], distances[4]}},
 		))
 		if !b.PG {
 			pgTrgmControls(t, p, b, c, check, false)
 		}
+		fixture.RunStep(t, p.Ctx, distanceHeld, b.Recorder, distanceFrame)
 		pgTrgmNotices(t, notices)
 	})
 }
