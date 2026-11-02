@@ -51,6 +51,7 @@ func (s *State) replaceDescriptor(a ids.ObjectAddress, old, d Descriptor) {
 	s.updateForeignActionOwners(old, d)
 	s.updateExtensionMembers(a, old, d)
 	s.updateTemporaryNamespaces(old, d)
+	s.updateShared(a, d)
 	s.raiseOIDCeiling(a, d)
 }
 
@@ -69,6 +70,7 @@ func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	s.updateForeignActionOwners(old, nil)
 	s.updateExtensionMembers(a, old, nil)
 	s.updateTemporaryNamespaces(old, nil)
+	s.updateShared(a, nil)
 	s.dropDescriptor(a)
 }
 
@@ -97,6 +99,7 @@ func (s *State) ResetDescriptors() {
 	s.foreignActionOwners = foreignActionIndex{}
 	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
+	s.shared = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
 	s.oidCeiling = 0
 }
 
@@ -122,6 +125,7 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.foreignActionOwners = foreignActionIndex{}
 	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
+	s.shared = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
 	s.oidCeiling = 0
 	return previous.All()
 }

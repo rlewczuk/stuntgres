@@ -194,6 +194,7 @@ type State struct {
 	foreignActionOwners foreignActionIndex
 	extensionMembers      util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress] // See extension_member_index.go.
 	temporaryNamespaces   util.PersistentMap[ids.ObjectAddress, *Namespace]
+	shared                util.PersistentMap[ids.ObjectAddress, Descriptor] // See shared_projection.go.
 	oidCeiling            ids.OID                                           // See oid_ceiling.go.
 	unseeded              util.PersistentMap[ids.ObjectAddress, Descriptor] // See unseeded_index.go.
 	unseededAll           bool                                              // Every entry is unseeded.
@@ -313,6 +314,7 @@ func CloneState(s *State) *State {
 	n.foreignActionOwners = s.foreignActionOwners
 	n.extensionMembers = s.extensionMembers
 	n.temporaryNamespaces = s.temporaryNamespaces
+	n.shared = s.shared
 	n.oidCeiling = s.oidCeiling
 	n.unseeded, n.unseededAll, n.seedCeiling = s.unseeded, s.unseededAll, s.seedCeiling
 	if len(s.dumpPriorities) != 0 {

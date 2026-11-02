@@ -32,6 +32,27 @@ func (s *Store) RetainDatabasesLocked(next *State) {
 	}
 }
 
+// sharedClass reports whether a addresses a cluster object projected into each
+// database's own domain.
+func sharedClass(a ids.ObjectAddress) bool {
+	return a.ClassID == ids.DatabaseClassID || a.ClassID == ids.SubscriptionClassID || a.ClassID == ids.ReplicationOriginClassID || a.ClassID == ids.ParameterClassID
+}
+
+// A state keeps the entries of the shared classes in one more persistent map,
+// so publication compares them without visiting every descriptor.
+// SetDescriptor, RemoveDescriptor and Candidate.State keep it equal to the
+// matching descriptor entries; copies share it like the descriptor map.
+func (s *State) updateShared(a ids.ObjectAddress, d Descriptor) {
+	if !sharedClass(a) {
+		return
+	}
+	if d == nil {
+		s.shared = s.shared.Delete(a)
+	} else if current, found := s.shared.Get(a); !found || current != d {
+		s.shared = s.shared.Set(a, d)
+	}
+}
+
 // SharedProjection contains prepared roots, one per affected store.
 // A nil projection installs nothing.
 type SharedProjection map[*Store]*State
@@ -44,29 +65,24 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 	if next.descriptors == s.State.descriptors && next.ParameterIncarnation() == s.State.ParameterIncarnation() {
 		return nil
 	}
-	shared := func(address ids.ObjectAddress) bool {
-		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ReplicationOriginClassID || address.ClassID == ids.ParameterClassID
-	}
-	// A pure direct traversal avoids heap-owned range-over-function adapters
-	// on the common local-only publication path, including race builds.
-	if next.ParameterIncarnation() == s.State.ParameterIncarnation() &&
-		next.descriptors.Every(func(address ids.ObjectAddress, descriptor Descriptor) bool {
-			return !shared(address) || s.State.Get(address) == descriptor
-		}) &&
-		s.State.descriptors.Every(func(address ids.ObjectAddress, _ Descriptor) bool {
-			return !shared(address) || next.Get(address) != nil
+	// The shared maps hold only database, subscription, origin and parameter
+	// entries, so a local-only publication visits none of the others.
+	if next.ParameterIncarnation() == s.State.ParameterIncarnation() && next.shared.Len() == s.State.shared.Len() &&
+		next.shared.Every(func(address ids.ObjectAddress, descriptor Descriptor) bool {
+			current, _ := s.State.shared.Get(address)
+			return current == descriptor
 		}) {
 		return nil
 	}
 	var changed []Descriptor
 	var removed []Descriptor
-	for address, descriptor := range next.descriptors.All() {
-		if shared(address) && s.State.Get(address) != descriptor {
+	for address, descriptor := range next.shared.All() {
+		if current, _ := s.State.shared.Get(address); current != descriptor {
 			changed = append(changed, descriptor)
 		}
 	}
-	for address, descriptor := range s.State.descriptors.All() {
-		if shared(address) && next.Get(address) == nil {
+	for address, descriptor := range s.State.shared.All() {
+		if _, found := next.shared.Get(address); !found {
 			removed = append(removed, descriptor)
 		}
 	}

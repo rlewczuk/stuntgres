@@ -226,6 +226,7 @@ func (c *Candidate) State() *State {
 	next.foreignActionOwners = base.foreignActionOwners
 	next.extensionMembers = base.extensionMembers
 	next.temporaryNamespaces = base.temporaryNamespaces
+	next.shared = base.shared
 	next.oidCeiling = base.oidCeiling
 	next.unseeded, next.unseededAll, next.seedCeiling = us.Persistent(), base.unseededAll, base.seedCeiling
 	for a := range c.removals {
@@ -238,6 +239,7 @@ func (c *Candidate) State() *State {
 		next.updateForeignActionOwners(c.Base.Get(a), nil)
 		next.updateExtensionMembers(a, c.Base.Get(a), nil)
 		next.updateTemporaryNamespaces(c.Base.Get(a), nil)
+		next.updateShared(a, nil)
 	}
 	for a, d := range c.descriptors {
 		next.updateDefaultClasses(c.Base.Get(a), d)
@@ -249,6 +251,7 @@ func (c *Candidate) State() *State {
 		next.updateForeignActionOwners(c.Base.Get(a), d)
 		next.updateExtensionMembers(a, c.Base.Get(a), d)
 		next.updateTemporaryNamespaces(c.Base.Get(a), d)
+		next.updateShared(a, d)
 		next.raiseOIDCeiling(a, d)
 	}
 	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {

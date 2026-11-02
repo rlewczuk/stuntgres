@@ -367,7 +367,8 @@ neither owns catalog authority.
   database, subscription and parameter descriptor pointers. Publication prepares
   all affected roots, including name deletion, from each peer's current root
   before installing any under the cluster mutex. An unchanged projection allocates
-  nothing. Reads retain their matching catalog/role roots, never consult live
+  nothing; each state indexes its shared-class entries (`State.shared`), so
+  publication compares those instead of every descriptor. Reads retain their matching catalog/role roots, never consult live
   authority to format historical results. Final database registration inherits
   current shared authority, not an older template's ACLs.
   Subscription names retain their database discriminator; parameter names are
