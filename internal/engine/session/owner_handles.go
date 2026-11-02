@@ -9,9 +9,12 @@ func TxOwnerOf(ref ids.TxRef) *TransactionOwner {
 	return owner
 }
 
-// TokenAttached reports whether token is public, or private and names the
-// maintenance session that owns it. Lock registration requires it.
+// TokenAttached reports whether token names public or private live authority.
+// Detached catalog ownership can never register a lock/transaction owner.
 func TokenAttached(token ids.SessionToken) bool {
+	if token.IsDetached() {
+		return false
+	}
 	private := PrivateSessionOf(token)
 	if token.ID() == 0 {
 		return private != nil && private.SessionToken == token

@@ -509,6 +509,10 @@ does not infer a stock provider from a name or retained discriminator. The
 caller supplies its existing owner with the candidate state (`WithState`).
 Captured keys, source rows and index expressions remain immutable; this changes
 authority retention, not predicate/expression evaluation during transport.
+Whole-storage deletion and detached template TEMP metadata share the same
+method-specific empty-root constructor. It rebinds providers to a real private
+empty store without evaluating SQL keys; remint retains normal descriptor,
+provider and unique-root validation rather than importing source TEMP entries.
 
 ## What stays in the engine
 

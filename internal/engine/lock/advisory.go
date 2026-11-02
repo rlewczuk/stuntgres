@@ -11,7 +11,7 @@ import (
 func (m *Manager) RegisterSession(token ids.SessionToken) (*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.domains[token.Domain()] == nil || token.ID() == 0 && token.Private() == nil {
+	if m.domains[token.Domain()] == nil || token.IsDetached() || token.ID() == 0 && token.Private() == nil {
 		return nil, errors.New("stuntgres: invalid advisory session")
 	}
 	if m.sessions[token] != nil {

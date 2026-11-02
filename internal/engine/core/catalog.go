@@ -1027,6 +1027,10 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, source *Engine, replacement
 // Restore retains its genuine source-owned private operation through owner-cell
 // validation. Ordinary replacement callers use ReplaceCatalog without an op.
 func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation) (ChangeSet, error) {
+	return e.replaceCatalogContents(ctx, source, replacement, restoreOp, false)
+}
+
+func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool) (ChangeSet, error) {
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
@@ -1061,7 +1065,11 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		originPredecessor = *source.importOriginProgressPredecessor
 	}
 	var err error
-	replacement, err = control.PersistentReplacementCatalog(replacement)
+	if template {
+		replacement, err = control.DatabaseTemplateCatalog(replacement, true)
+	} else {
+		replacement, err = control.PersistentReplacementCatalog(replacement)
+	}
 	if err != nil {
 		return ChangeSet{}, err
 	}
@@ -1070,6 +1078,13 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	}
 	if err := catalog.NormalizeReplacementSubclassHistory(ctx, replacement); err != nil {
 		return ChangeSet{}, err
+	}
+	physical := replacement
+	if template {
+		physical, err = control.DatabaseTemplateCatalog(replacement, false)
+		if err != nil {
+			return ChangeSet{}, err
+		}
 	}
 	targetRoles := e.Roles()
 	if err := catalog.ValidateDefinitionOIDs(replacement); err != nil {
@@ -1088,9 +1103,9 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 		}
 	}
 	var next *catalog.State
-	relationAddresses := make([]ids.ObjectAddress, 0, replacement.DescriptorCount())
+	relationAddresses := make([]ids.ObjectAddress, 0, physical.DescriptorCount())
 	hasHierarchy := false
-	for a, d := range replacement.Descriptors() {
+	for a, d := range physical.Descriptors() {
 		if relation, ok := d.(*catalog.Relation); ok && catalog.HierarchyRelation(relation) {
 			hasHierarchy = true
 		}
@@ -1127,7 +1142,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 			relations[a] = &storage.Relation{Versions: versions}
 		}
 		var err error
-		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.Storage.IndexRoots, frontier)
+		indexes, err = owner.captureIndexSnapshot(ctx, physical, source, owner.Storage.IndexRoots, frontier)
 		return err
 	}
 	if replacement.Owner() == &e.Catalog.Owner {
@@ -1210,19 +1225,19 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	}
 	err = copyRows(source)
 	if err == nil {
-		sequences, err = sequence.CopyGenerators(replacement, source.Storage.Sequences)
+		sequences, err = sequence.CopyGenerators(physical, source.Storage.Sequences)
 	}
 	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, replacement)
 	sourceForeign := source.Foreign
 	originProgress := source.captureReplacementOriginProgressLocked(replacement)
-	extendedStatistics, captureErr := storage.CaptureExtendedStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement))
+	extendedStatistics, captureErr := storage.CaptureExtendedStatisticsSnapshots(ctx, physical, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, physical))
 	var attributeStatistics []storage.AttributeStatisticsSnapshot
 	if captureErr == nil {
-		attributeStatistics, captureErr = storage.CaptureAttributeStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement))
+		attributeStatistics, captureErr = storage.CaptureAttributeStatisticsSnapshots(ctx, physical, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, physical))
 	}
 	var relationStatistics []storage.RelationStatisticsSnapshot
 	if captureErr == nil {
-		relationStatistics, captureErr = storage.CaptureRelationStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata)
+		relationStatistics, captureErr = storage.CaptureRelationStatisticsSnapshots(ctx, physical, source.Storage.RelationMetadata)
 	}
 	source.Mu.Unlock()
 	if err != nil {
@@ -1254,6 +1269,11 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	next, procedure, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.ImportTargets)
 	if err != nil {
 		return ChangeSet{}, err
+	}
+	if template {
+		if err := e.prepareDatabaseTemplateMetadataLocked(ctx, next, relations, sequences); err != nil {
+			return ChangeSet{}, err
+		}
 	}
 	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, procedure, &oids); err != nil {
 		return ChangeSet{}, err

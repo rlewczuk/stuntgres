@@ -242,7 +242,7 @@ func (m *Manager) Register(ref ids.TxRef) (*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.domains[ref.Domain()]
-	if state == nil || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().Domain() != ref.Domain() || ref.Session().ID() == 0 && ref.Session().Private() == nil {
+	if state == nil || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().IsDetached() || ref.Session().Domain() != ref.Domain() || ref.Session().ID() == 0 && ref.Session().Private() == nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
 	if ref.Epoch() < state.epoch {

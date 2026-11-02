@@ -80,6 +80,22 @@ func TestSessionTokenPrivateIdentity(t *testing.T) {
 	}
 }
 
+func TestSessionTokenDetachedIdentity(t *testing.T) {
+	d := new(ids.Domain)
+	a, b := d.DetachedSession(7), d.DetachedSession(7)
+	if !a.IsDetached() || a.ID() != 7 || a.Domain() != d || a.Private() != nil {
+		t.Fatal("detached metadata identity lost its display/domain", a)
+	}
+	if a == b || a == d.Session(7) || a == new(ids.Domain).DetachedSession(7) {
+		t.Fatal("numeric identity attached detached metadata to another owner")
+	}
+	copy := a
+	values := map[ids.SessionToken]int{a: 1, b: 2, d.Session(7): 3}
+	if copy != a || len(values) != 3 || values[copy] != 1 {
+		t.Fatal("detached identity is not pointer-qualified and comparable")
+	}
+}
+
 func TestTxRefIdentity(t *testing.T) {
 	d := new(ids.Domain)
 	a, b := &owner{name: "a"}, &owner{name: "b"}

@@ -40,7 +40,7 @@ func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner au
 	target.Catalog.PublishLocked(catalog.CloneState(seed.Catalog.State))
 	previous := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
 	target.Catalog.State.UnbindName(catalog.DescriptorNameKey(previous))
-	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3, AllowConnections: options.AllowConnections, ConnectionLimit: options.ConnectionLimit}
+	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3, IsTemplate: options.IsTemplate, AllowConnections: options.AllowConnections, ConnectionLimit: options.ConnectionLimit}
 	target.Catalog.State.SetDescriptor(database.Address(), database)
 	target.Catalog.State.BindName(catalog.DescriptorNameKey(database), database.Address())
 	return target

@@ -32,7 +32,7 @@ func TestCheckCreateDatabaseOrder(t *testing.T) {
 	}{
 		{"valid", "fresh", valid, registered("template1"), ""},
 		{"missing template", "fresh", withTemplate("absent"), registered(), "3D000"},
-		{"other template", "fresh", withTemplate("postgres"), registered("postgres"), "0A000"},
+		{"other template", "fresh", withTemplate("postgres"), registered("postgres"), ""},
 		{"template0 before encoding", "fresh", func() CreateDatabaseOptions { o := withTemplate("template0"); o.Encoding = 0; return o }(), registered(), "0A000"},
 		{"encoding before duplicate", "taken", func() CreateDatabaseOptions { o := valid; o.Encoding = 0; return o }(), registered("taken"), "22023"},
 		{"locale before duplicate", "taken", func() CreateDatabaseOptions { o := valid; o.CType = "en_US"; return o }(), registered("taken"), "0A000"},
@@ -70,5 +70,23 @@ func TestParseCreateDatabaseAdmissionPolicy(t *testing.T) {
 				t.Fatal("normalization lost admission policy", options, err)
 			}
 		})
+	}
+}
+
+func TestParseCreateDatabaseTemplateOptions(t *testing.T) {
+	for _,value:=range []string{"true","on","yes","1"} {
+		options,err:=ParseCreateDatabaseOptions([]parser.DatabaseOption{{Name:"is_template",Value:value},{Name:"strategy",Value:"FiLe_CoPy"},{Name:"template",Value:"actual_source"}})
+		if err!=nil||!options.IsTemplate||options.Capability!=""||options.Template!="actual_source" {t.Fatal(options,err)}
+	}
+	options,err:=ParseCreateDatabaseOptions(nil)
+	if err!=nil||options.IsTemplate||options.Template!="template1" {t.Fatal(options,err)}
+	for _,tc:=range []struct{options []parser.DatabaseOption;code string}{
+		{[]parser.DatabaseOption{{Name:"is_template",Value:"bad"}},"22023"},
+		{[]parser.DatabaseOption{{Name:"strategy",Value:"bad"}},"22023"},
+		{[]parser.DatabaseOption{{Name:"strategy",Value:"bad"},{Name:"strategy",Value:"wal_log"}},"42601"},
+	} {
+		_,err:=ParseCreateDatabaseOptions(tc.options)
+		var d *sqlstate.Error
+		if !errors.As(err,&d)||d.Code!=tc.code {t.Fatal(err)}
 	}
 }

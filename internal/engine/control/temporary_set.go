@@ -19,7 +19,7 @@ import (
 func TemporarySet(current catalog.Read, next *catalog.State) (map[ids.ObjectAddress]catalog.Descriptor, error) {
 	temporary := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for a, d := range current.State().Descriptors() {
-		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) && !ns.Temporary.IsDetached() {
 			temporary[a] = d
 		}
 	}

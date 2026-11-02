@@ -114,6 +114,13 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			continue
 		}
 		root := roots[address]
+		if namespace, ok := next.Namespace(parent.Namespace()); ok && namespace.Temporary.IsDetached() {
+			root, err = emptyIndexRoot(ctx, view, parent, idx, relations[parent.Address()])
+			if err != nil {
+				return nil, 0, 0, err
+			}
+			roots[address] = root
+		}
 		if root == nil {
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}

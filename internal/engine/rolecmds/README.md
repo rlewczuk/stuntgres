@@ -84,9 +84,10 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   Subscription peers' committed fields survive REASSIGN without a stale candidate,
   command retry or suppressed publication conflict. Ordinary publication acquires
   the shared definition-dependency, role, retirement and global-name admissions.
-- `ExecuteCreateDatabase` builds the target from the private `template1`
-  seed that `Engine.Factory` constructs once per cluster, rechecks the owner
-  and registers the target in one publication.
+- `ExecuteCreateDatabase` admits the exact registered template source, privately
+  copies its committed catalog/storage, rechecks source and owner authority and
+  registers the completed target in one publication. An unregistered `template1`
+  alone uses the cluster's lazy private builtin seed.
 
 `RoleHost{core.DDLHost}` (`role_host.go`) implements `role.Host` and
 `role.StageHost`; only these executors build it. The decisions made outside a
@@ -94,19 +95,41 @@ stage get a host with no stage.
 
 ## Database creation
 
-The create executor accepts OWNER, default/`template1` TEMPLATE, default/UTF8
-ENCODING (including numeric 6), C/POSIX locale options, ALLOW_CONNECTIONS and
-CONNECTION LIMIT. Normalized allow/limit policy is installed in both the private
-runtime and final shared descriptor, with true/−1 defaults. CREATEDB is the effective
-role's direct attribute (or superuser), with SET ROLE authority required for the
-new owner. Prepare is syntax-only; execution checks read-only/transaction
-admission and publishes one complete target or nothing. Option recognition
-preserves parser-decoded case. Value validation precedes owner and actor checks;
-invalid locale providers return 42P17 before capability checks. Diagnostics
-interpolate decoded names without string-literal escaping. Arbitrary template
-sources (including `template0`), non-C/POSIX locales, provider and physical
-strategy mechanisms return explicit 0A000 rather than succeeding without their
-effects. This CREATE path does not implement ALTER DATABASE policy mutation.
+The create executor accepts OWNER, registered TEMPLATE, default/UTF8 ENCODING
+(including numeric 6), C/POSIX locale options, IS_TEMPLATE, ALLOW_CONNECTIONS,
+CONNECTION LIMIT and validated WAL_LOG/FILE_COPY strategies. Either strategy
+copies the complete logical contents; physical WAL, checkpoint and filesystem
+effects belong outside the logical runtime. Template0 bootstrap, other locale
+providers and physical placement are not supplied by this path.
+
+CREATEDB is the effective role's direct attribute (or superuser), with SET ROLE
+authority required for the new owner. Copying a non-template additionally requires
+the executor's inherited source ownership, independently of the requested owner
+and CONNECT grants. Source allow-connections policy does not restrict copying.
+Physical reservations and detached prepared transactions make the source busy;
+only the actual executing physical source owner is excluded. Compatible copies
+share a source lease, blocking new physical admissions until the last release.
+Source replacement read protection precedes shared Mu then AdmissionMu; no
+metadata lock crosses preparation or waits.
+
+Copied objects retain local SQL OIDs, dependencies, owners and ACLs in a fresh
+catalog/storage authority. Transaction-private state and live source TEMP
+attachment/contents are excluded. TEMP catalog metadata is imported through the
+same graph remapper with opaque destination-detached ownership and private empty
+backing; it does not initialize a destination session's TEMP namespace.
+Qualified access to this orphan TEMP metadata is not a physical-file parity
+promise: PostgreSQL can report `58P01` for a missing copied TEMP relation file,
+whereas the logical runtime rejects other-session TEMP access with `0A000`.
+Both retain the shared nonattachment and source/target isolation guarantees;
+the embedded runtime does not fabricate PostgreSQL filenames or file errors.
+Mutable rows, indexes and sequence generators are independent. Target database
+ACL/configuration is not imported; template/allow/limit defaults are false/true/−1.
+Registered template1 additions win over the private fallback seed. Prepare is
+syntax-only; execution validates values, owner, source permission, options and
+duplicate name before busy admission. Final operation, source and owner fences
+precede indivisible registration. Failure/cancellation publishes nothing and
+unconditionally releases source exclusion. This path does not mutate database
+policy through ALTER DATABASE.
 
 ## Testing
 

@@ -29,6 +29,7 @@ type DatabaseAdmission struct {
 	principal authorization.PrincipalRef
 	roles     authorization.Read
 	record    *access.RoleRecord
+	owner     *session.Session // Exact physical owner, once bound during construction.
 	state     uint8 // 0 reserved, 1 consumed, 2 released
 }
 
@@ -44,54 +45,71 @@ func databaseAdmissionError(code, message string) error {
 }
 
 func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.PrincipalRef, selector DatabaseSelector) (*DatabaseAdmission, error) {
+	for {
+		a, wait, err := e.admitDatabase(ctx, principal, selector)
+		if wait == nil {
+			return a, err
+		}
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (e *Engine) admitDatabase(ctx context.Context, principal authorization.PrincipalRef, selector DatabaseSelector) (*DatabaseAdmission, <-chan struct{}, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	cluster := e.Cluster
 	if cluster == nil || e.Mu != &cluster.Mu || e.RoleStore != &cluster.Roles {
-		return nil, errors.New("stuntgres: unregistered database admission")
+		return nil, nil, errors.New("stuntgres: unregistered database admission")
 	}
 	descriptor, err := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).Descriptor(principal)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !descriptor.Login {
-		return nil, role.LoginError(descriptor.Name)
+		return nil, nil, role.LoginError(descriptor.Name)
 	}
 	target := cluster.DefaultTarget
 	if selector.Explicit {
 		target = cluster.Targets[selector.Name]
 	}
 	if target == nil {
-		return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, selector.Name))
+		return nil, nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, selector.Name))
 	}
 	if target.Cluster != cluster || target.Mu != e.Mu || cluster.Targets[target.DatabaseName] != target || target.RoleStore != e.RoleStore {
-		return nil, errors.New("stuntgres: foreign database admission target")
+		return nil, nil, errors.New("stuntgres: foreign database admission target")
 	}
 	if target.DatabaseNameError != nil {
-		return nil, target.DatabaseNameError
+		return nil, nil, target.DatabaseNameError
 	}
 	view := target.Catalog.Current()
 	roles := target.RoleStore.PublishedRead(&target.Catalog.Owner, view)
 	database := view.MustDatabase(target.Catalog.DatabaseAddress())
 	if database.Name() != target.DatabaseName || database.ConnectionLimit < -1 {
-		return nil, errors.New("stuntgres: invalid database admission descriptor")
+		return nil, nil, errors.New("stuntgres: invalid database admission descriptor")
 	}
 	if !database.AllowConnections {
-		return nil, databaseAdmissionError("55000", fmt.Sprintf(`database "%s" is not currently accepting connections`, database.Name()))
+		return nil, nil, databaseAdmissionError("55000", fmt.Sprintf(`database "%s" is not currently accepting connections`, database.Name()))
 	}
 	if err := access.CheckDatabaseConnect(ctx, view, roles, principal); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cluster.AdmissionMu.Lock()
 	defer cluster.AdmissionMu.Unlock()
+	if readers := cluster.templateCopies[target]; readers != nil {
+		return nil, readers.done, nil
+	}
 	if !descriptor.Superuser && database.ConnectionLimit >= 0 && cluster.admissions[target] >= int(database.ConnectionLimit) {
-		return nil, databaseAdmissionError("53300", fmt.Sprintf(`too many connections for database "%s"`, database.Name()))
+		return nil, nil, databaseAdmissionError("53300", fmt.Sprintf(`too many connections for database "%s"`, database.Name()))
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	a := &DatabaseAdmission{cluster: cluster, target: target, database: database.Address(), principal: principal, roles: roles, record: target.RoleStore.Published}
 	a.self = a
@@ -99,7 +117,7 @@ func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.Prin
 		cluster.admissions = make(map[*Engine]int)
 	}
 	cluster.admissions[target]++
-	return a, nil
+	return a, nil, nil
 }
 
 func (a *DatabaseAdmission) claim(e *Engine) error {
@@ -129,6 +147,7 @@ func (a *DatabaseAdmission) release(consumed bool) {
 		return
 	}
 	a.state = 2
+	a.owner = nil
 	a.cluster.admissions[a.target]--
 	if a.cluster.admissions[a.target] == 0 {
 		delete(a.cluster.admissions, a.target)

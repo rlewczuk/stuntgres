@@ -12,6 +12,8 @@ engine.
 - **Tickets.** One `Ticket` per registered transaction (`Register`) and one
   persistent ticket per session for session-level advisory locks
   (`RegisterSession`). A ticket journals every resource it holds or waits on.
+  Detached catalog session tokens are never eligible for either ticket kind,
+  even when their domain and displayed ID match a registered physical session.
   Its transaction ID, phase and completion state are atomic mirrors that the
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).

@@ -329,10 +329,15 @@ neither owns catalog authority.
   descriptor with `ValidateRevision`, which hands its predecessor to providers
   that implement `RevisionValidator` (extension headers skip their surviving
   declarations on a membership-only revision).
-  `Database` owns real allow-connections and connection-limit policy alongside
-  identity/owner/ACL. Initial and CREATE defaults are explicit true/−1. Authority
-  compatibility permits freezing-horizon drift but rejects admission-policy drift;
-  replacement retains destination policy rather than importing it from snapshots.
+  `Namespace.Temporary` can identify a live local session or opaque detached
+  catalog ownership copied from a template. Both require this catalog's domain,
+  a nonzero display ID and no private-session owner; detached ownership never
+  equals a live session, including one with the same numeric ID. Metadata TEMP
+  classification does not grant an executor its own namespace attachment.
+  `Database` owns real template, allow-connections and connection-limit policy
+  alongside identity/owner/ACL, with explicit false/true/−1 CREATE defaults.
+  Authority compatibility permits freezing-horizon drift but rejects template or
+  admission-policy drift; replacement retains destination policy.
 - **Store** (`store.go`). `Store` is one engine's catalog state: it embeds the
   `Owner` and holds the published `State` and the OID, revision and enum member
   frontiers. `NewStore` gives it a fresh domain. `Current` reads the published

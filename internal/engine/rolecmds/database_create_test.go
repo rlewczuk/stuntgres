@@ -34,7 +34,7 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := target.ReplaceCatalogInOperation(context.Background(), seed, seed.CatalogRead(), nil); err != nil {
+	if _, err := target.ReplaceDatabaseTemplate(context.Background(), seed, seed.CatalogRead()); err != nil {
 		t.Fatal("clone retained template:", err)
 	}
 	return target
@@ -528,7 +528,7 @@ func TestDatabaseCreateAdmissionPolicy(t *testing.T) {
 		if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := target.ReplaceCatalogInOperation(t.Context(), seed, seed.CatalogRead(), nil); err != nil {
+		if _, err := target.ReplaceDatabaseTemplate(t.Context(), seed, seed.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := databaseCreateUnitPublish(e, t.Context(), name, target); err != nil {

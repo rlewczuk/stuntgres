@@ -72,6 +72,11 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 	s, payload := &allocation.session, &allocation.payload
 	s.Payload = payload
 	payload.admission = admission
+	if admission != nil {
+		admission.cluster.AdmissionMu.Lock()
+		admission.owner = s
+		admission.cluster.AdmissionMu.Unlock()
+	}
 	owned = false
 	if private {
 		s.SessionToken = e.Catalog.Domain.PrivateSession(s)

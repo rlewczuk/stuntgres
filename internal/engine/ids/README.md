@@ -36,6 +36,11 @@ any engine subpackage may import it.
   Equality compares the domain pointer, the numeric fields and the owner
   handles' pointer identity. Values from different domains never compare
   equal.
+- **Detached metadata ownership.** `Domain.DetachedSession` mints a non-live token
+  with a display ID and fresh opaque marker. Clone-local remapping reuses that
+  token across one namespace/toast group. It never equals a normal session at
+  the same domain/ID or a separately minted detached group. It carries no source
+  session owner and cannot register transaction/lock or operation authority.
 - **Sealed owner handles.** `TxRef` attaches its engine-side transaction
   owner, and a private maintenance `SessionToken` names its session, as
   `TxOwner` and `SessionOwner` interface values. Only types that embed

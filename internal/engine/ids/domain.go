@@ -20,6 +20,13 @@ func (d *Domain) Session(id SessionID) SessionToken {
 	return SessionToken{domain: d, id: id}
 }
 
+// DetachedSession mints non-live metadata ownership, not a registered session.
+// A clone reuses this token for one owner's namespace/toast group. Distinct
+// calls retain distinct identity even when their displayed IDs are equal.
+func (d *Domain) DetachedSession(id SessionID) SessionToken {
+	return SessionToken{domain: d, id: id, detached: new(detachedSession)}
+}
+
 // PrivateSession mints the token of a private maintenance session. It has no
 // public ID; the owner's pointer identity distinguishes it. Pass a non-nil
 // owner: a typed nil pointer would not compare equal to the zero token.

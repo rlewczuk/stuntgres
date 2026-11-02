@@ -123,6 +123,13 @@ The canonical comparison baseline follows the same principal/object remappers,
 without requiring missing baseline targets to be live. Current-only mutations
 and complete metadata replacement never rewrite that baseline.
 Previously retained catalog roots and rendered rows remain immutable.
+`DatabaseTemplateCatalog` shares replacement projection, pruning and immutable
+source handling, but retains copied TEMP metadata in its contents view. Its
+TEMP-excluding base/physical view prevents source session authority or backing
+from entering destination-live retention. Core imports the full descriptor graph,
+remints ownership to detached destination tokens and supplies private empty TEMP
+backing. Detached descriptors cannot pin live-destination retention or dependency
+vetoes. `PersistentReplacementCatalog` keeps its ordinary portability rules.
 
 
 Extension-owned composite types are reconstructed by their installation.

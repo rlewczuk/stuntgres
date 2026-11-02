@@ -262,7 +262,7 @@ func (op *Operation) Done() {
 // in domain. A session's token carries its engine's domain, so session code
 // passes its own token's domain.
 func ValidateOperation(domain *ids.Domain, op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain || op.Session.SessionToken.IsDetached() {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.Session
@@ -287,7 +287,7 @@ func ValidateOperation(domain *ids.Domain, op *Operation) error {
 // commit canceled after admission must retain its existing failed-end/discard
 // disposition.
 func TransactionAuthority(domain *ids.Domain, op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain || op.Session.SessionToken.IsDetached() {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	op.Session.Mu.Lock()
@@ -299,7 +299,7 @@ func TransactionAuthority(domain *ids.Domain, op *Operation) error {
 // the context check publication needs. Caller holds Session.Mu; row and
 // catalog publication additionally hold Engine.mu.
 func PublicationOperationLocked(domain *ids.Domain, op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain || op.Session.SessionToken.IsDetached() {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	if err := transactionAuthorityLocked(op); err != nil {

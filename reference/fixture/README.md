@@ -63,6 +63,11 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
 - The oracle's rebuilt `public` has no PUBLIC USAGE grant; tests that need
   non-owner access to it grant USAGE explicitly (or use `WithPublicSchemaOwner`).
 - Prepared-transaction scenarios clean their own GIDs before schema teardown.
+- Register `DatabaseReferenceCleanup` before the scenario and after role cleanup;
+  append each owned database name before attempting its CREATE. Selected pools
+  close before database teardown, then roles retire. Oracle admin cleanup reads
+  each tracked database's template policy and clears a true flag before DROP,
+  including databases that disallow connections. Cleanup errors remain failures.
 
 ### Text-search data resources
 

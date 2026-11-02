@@ -113,8 +113,9 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `ReownDomainTypes` rebuilds custom range families after their subtype, invoking
   the engine's range-ordering rebinder for destination class/support identities.
   Generated companions are reconstructed with their range, not independently.
-  `CheckTemporaryTypedReplacementLocked` rejects a replacement while a TEMP typed
-  table of the published state has a persistent OF type.
+  `CheckTemporaryTypedReplacementLocked` rejects a replacement while a live TEMP
+  typed table has a persistent OF type. Detached template metadata is not a live
+  attachment and cannot veto persistent replacement.
 - **Dump statements** (`*_dump.go`): `CollationDumpStatements`,
   `ConversionDumpStatements`, `MixedDumpStatements` (domains, enums, ranges and
   composites in captured graph order) and the domain CHECK statements. They are

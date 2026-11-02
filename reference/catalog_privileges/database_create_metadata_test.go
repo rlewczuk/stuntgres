@@ -82,16 +82,16 @@ func TestReferenceDatabaseCreateOptions(t *testing.T) {
 		d.Position = fixture.Position(len([]rune(query)) + 1)
 		c.run(fixture.ErrorDiagnostic(query, d))
 		c.absent("dc_suffix")
-		for i, option := range []string{"TEMPLATE template0", "LOCALE_PROVIDER libc", "STRATEGY WAL_LOG"} {
+		c.create("dc_strategy", "STRATEGY WAL_LOG", false)
+		for i, option := range []string{"TEMPLATE template0", "LOCALE_PROVIDER libc"} {
 			name := fmt.Sprintf("dc_boundary_%d", i)
 			c.remember(name)
 			if c.backend.PG {
 				c.create(name, option, false)
 			} else {
 				messages := []string{
-					"CREATE DATABASE with TEMPLATE other than template1 is not supported",
+					"CREATE DATABASE with TEMPLATE template0 is not supported",
 					"CREATE DATABASE with LOCALE_PROVIDER is not supported",
-					"CREATE DATABASE with STRATEGY is not supported",
 				}
 				c.error("CREATE DATABASE "+name+" "+option, "0A000", messages[i])
 				c.absent(name)

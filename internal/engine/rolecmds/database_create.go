@@ -13,17 +13,24 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func databaseCreateOwnerLocked(e *core.Engine, scope *core.StatementScope, name string) (authorization.PrincipalRef, error) {
-	auth, err := e.AuthorizationLocked(scope.Op)
-	if err != nil {
-		return authorization.PrincipalRef{}, err
-	}
-	return ddl.CreateDatabaseOwner(auth.Roles, auth.State.CurrentUser, name)
+type databaseCreateAdmission struct {
+	owner, executor authorization.PrincipalRef
+	source          *core.Engine
+	database        *catalog.Database
+	epoch           ids.CatalogEpoch
 }
 
-// ExecuteCreateDatabase runs CREATE DATABASE: it builds the target from the
-// private template1 seed that Engine.Factory constructs once per cluster and
-// registers it in one publication.
+func databaseCreateOwnerLocked(e *core.Engine, scope *core.StatementScope, name string) (authorization.PrincipalRef, authorization.PrincipalRef, error) {
+	auth, err := e.AuthorizationLocked(scope.Op)
+	if err != nil {
+		return authorization.PrincipalRef{}, authorization.PrincipalRef{}, err
+	}
+	owner, err := ddl.CreateDatabaseOwner(auth.Roles, auth.State.CurrentUser, name)
+	return owner, auth.State.CurrentUser, err
+}
+
+// ExecuteCreateDatabase privately copies an admitted committed source and
+// registers the completed target in one publication.
 func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement *parser.CreateDatabaseStmt, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -34,7 +41,15 @@ func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
-	owner, err := databaseCreateOwnerLocked(e, scope, options.Owner)
+	owner, executor, err := databaseCreateOwnerLocked(e, scope, options.Owner)
+	source := e.Cluster.Targets[options.Template]
+	var sourceDatabase *catalog.Database
+	var sourceEpoch ids.CatalogEpoch
+	if err == nil && source != nil {
+		sourceDatabase = source.Catalog.State.MustDatabase(source.Catalog.DatabaseAddress())
+		sourceEpoch = source.Catalog.State.Epoch()
+		err = databaseTemplatePermissionLocked(e, scope, sourceDatabase)
+	}
 	if err == nil {
 		err = ddl.CheckCreateDatabase(statement.Name, options, func(name string) bool { return e.Cluster.Targets[name] != nil })
 	}
@@ -51,44 +66,80 @@ func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement
 	if err := scope.RoleStillPresent(owner); err != nil {
 		return core.Result{}, err
 	}
-	return createDatabaseTarget(e, ctx, scope, statement.Name, options, owner)
+	if source != nil {
+		// A current-source statement already owns this read reservation. Taking
+		// it recursively could deadlock behind a waiting replacement writer.
+		if source != e || !scope.ReplacementRead {
+			source.ReplacementMu.RLock()
+			defer source.ReplacementMu.RUnlock()
+		}
+		e.Mu.Lock()
+		err = databaseTemplateCurrentLocked(e, scope, source, sourceDatabase, sourceEpoch)
+		if err == nil {
+			err = ddl.CheckCreateDatabase(statement.Name, options, func(name string) bool { return e.Cluster.Targets[name] != nil })
+		}
+		var lease *core.DatabaseTemplateLease
+		if err == nil {
+			lease, err = source.AcquireDatabaseTemplateLocked(scope.Op.Session)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			return core.Result{}, err
+		}
+		defer lease.Release()
+	}
+	admitted := databaseCreateAdmission{owner: owner, executor: executor, source: source, database: sourceDatabase, epoch: sourceEpoch}
+	return createDatabaseTarget(e, ctx, scope, statement.Name, options, admitted)
 }
 
 // createDatabaseTarget constructs storage privately. Only the final no-failure
 // installation below can expose a name, descriptor, target or allocator advance.
-func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.StatementScope, name string, options ddl.CreateDatabaseOptions, owner authorization.PrincipalRef) (core.Result, error) {
-	e.Cluster.SeedOnce.Do(func() {
-		candidate, err := e.Factory(nil, "template1", e.Visibility.TracksCommitTimestamps())
-		if err == nil {
-			err = candidate.InstallForeignDefinitions(e.Foreign.Definitions())
+func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.StatementScope, name string, options ddl.CreateDatabaseOptions, admitted databaseCreateAdmission) (core.Result, error) {
+	owner, source := admitted.owner, admitted.source
+	if source == nil {
+		e.Cluster.SeedOnce.Do(func() {
+			candidate, err := e.Factory(nil, "template1", e.Visibility.TracksCommitTimestamps())
+			if err == nil {
+				err = candidate.InstallForeignDefinitions(e.Foreign.Definitions())
+			}
+			if err == nil {
+				err = candidate.InstallHostDefinitions(e.Catalog.HostRuntimes)
+			}
+			if candidate != nil {
+				candidate.TextSearchFiles = e.TextSearchFiles
+				candidate.IdentFile = e.IdentFile
+			}
+			e.Cluster.Seed, e.Cluster.SeedError = candidate, err
+		})
+		if e.Cluster.SeedError != nil {
+			return core.Result{}, e.Cluster.SeedError
 		}
-		if err == nil {
-			err = candidate.InstallHostDefinitions(e.Catalog.HostRuntimes)
-		}
-		if candidate != nil {
-			candidate.TextSearchFiles = e.TextSearchFiles
-			candidate.IdentFile = e.IdentFile
-		}
-		e.Cluster.Seed, e.Cluster.SeedError = candidate, err
-	})
-	if e.Cluster.SeedError != nil {
-		return core.Result{}, e.Cluster.SeedError
+		source = e.Cluster.Seed
 	}
-	seed := e.Cluster.Seed
+	seed := source
+	e.Mu.Lock()
 	target := newDatabaseRuntime(e, seed, name, owner, options)
+	e.Mu.Unlock()
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		return core.Result{}, err
 	}
-	if _, err := target.ReplaceCatalogInOperation(ctx, seed, seed.CatalogRead(), nil); err != nil {
+	if _, err := target.ReplaceDatabaseTemplate(ctx, seed, seed.CatalogRead()); err != nil {
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	currentOwner, err := databaseCreateOwnerLocked(e, scope, options.Owner)
+	currentOwner, executor, err := databaseCreateOwnerLocked(e, scope, options.Owner)
 	if err != nil {
 		return core.Result{}, err
 	}
-	if currentOwner != owner {
+	if currentOwner != owner || executor != admitted.executor {
+		return core.Result{}, catalog.Conflict{}
+	}
+	if admitted.database != nil {
+		if err := databaseTemplateCurrentLocked(e, scope, source, admitted.database, admitted.epoch); err != nil {
+			return core.Result{}, err
+		}
+	} else if e.Cluster.Targets[options.Template] != nil {
 		return core.Result{}, catalog.Conflict{}
 	}
 	scope.Op.Session.Mu.Lock()
@@ -122,7 +173,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	}
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
 	policy := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
-	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit}
+	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, IsTemplate: policy.IsTemplate, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit}
 	targets := make(map[string]*core.Engine, len(e.Cluster.Targets)+1)
 	roots := make(catalog.SharedProjection, len(e.Cluster.Targets)+1)
 	for key, runtime := range e.Cluster.Targets {
@@ -150,4 +201,33 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	e.Cluster.Targets = targets
 	e.Cluster.NextOID = oid + 1
 	return core.Result{CommandTag: "CREATE DATABASE"}, nil
+}
+
+func databaseTemplatePermissionLocked(e *core.Engine, scope *core.StatementScope, database *catalog.Database) error {
+	auth, err := e.AuthorizationLocked(scope.Op)
+	if err != nil {
+		return err
+	}
+	if database.IsTemplate {
+		return nil
+	}
+	allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, database.Owner)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return core.SQLError("42501", fmt.Sprintf("permission denied to copy database \"%s\"", database.Name()))
+	}
+	return nil
+}
+
+func databaseTemplateCurrentLocked(e *core.Engine, scope *core.StatementScope, source *core.Engine, observed *catalog.Database, epoch ids.CatalogEpoch) error {
+	if e.Cluster.Targets[observed.Name()] != source || source.Cluster != e.Cluster || source.Catalog.State.Epoch() != epoch {
+		return catalog.Conflict{}
+	}
+	current := source.Catalog.State.MustDatabase(source.Catalog.DatabaseAddress())
+	if !catalog.DatabaseAuthorityCompatible(current, observed) {
+		return catalog.Conflict{}
+	}
+	return databaseTemplatePermissionLocked(e, scope, current)
 }

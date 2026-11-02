@@ -76,11 +76,20 @@ func TestReferenceDatabaseCreateTemplates(t *testing.T) {
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='dc_application_sentinel'", []string{"relname"}, []string{"NAME"}, nil))
 			run(fixture.Exec("CREATE TABLE dc_independent(v integer)", 0))
 			run(fixture.Exec("INSERT INTO dc_independent VALUES (11)", 1))
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 		a, _, ar := c.pool("dc_template_a", "")
 		b, _, br := c.pool("dc_template_b", "")
 		fixture.RunStep(t, c.p.Ctx, a, ar, fixture.Exec("UPDATE dc_independent SET v=22", 1))
 		fixture.RunStep(t, c.p.Ctx, b, br, fixture.Select("SELECT v FROM dc_independent", []string{"v"}, []string{"INT4"}, [][]any{{int64(11)}}))
 		c.run(fixture.Select("SELECT v FROM dc_application_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		if err := a.Close(); err != nil {
+			t.Fatal(err)
+		}
+		c.create("dc_named_template", "TEMPLATE dc_template_a", true)
+		named, _, nr := c.pool("dc_named_template", "")
+		fixture.RunStep(t, c.p.Ctx, named, nr, fixture.Select("SELECT v FROM dc_independent", []string{"v"}, []string{"INT4"}, [][]any{{int64(22)}}))
 	})
 }

@@ -16,6 +16,7 @@ type Database struct {
 	Owner            authorization.PrincipalRef
 	ACL              authorization.ACLValue
 	FrozenXID        uint64
+	IsTemplate       bool
 	AllowConnections bool
 	ConnectionLimit  int32
 }
@@ -43,6 +44,7 @@ func DatabaseAuthorityCompatible(current, observed Descriptor) bool {
 		a.ObjectRevision == b.ObjectRevision &&
 		a.ObjectName == b.ObjectName &&
 		a.Owner == b.Owner &&
+		a.IsTemplate == b.IsTemplate &&
 		a.AllowConnections == b.AllowConnections &&
 		a.ConnectionLimit == b.ConnectionLimit &&
 		authorization.EqualACL(a.ACL, b.ACL)

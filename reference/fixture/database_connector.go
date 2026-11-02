@@ -16,6 +16,8 @@ import (
 // DatabaseReferenceCleanup must be registered before the scenario and after role
 // cleanup. Names may be appended later, before attempting each CREATE. Pool and
 // schema cleanup therefore precedes DROP DATABASE, which precedes DROP ROLE.
+// Oracle cleanup clears a tracked database's template flag before dropping it;
+// it never changes the native engine's database policy.
 func DatabaseReferenceCleanup(t *testing.T, names *[]string) {
 	t.Helper()
 	t.Cleanup(func() {
@@ -25,6 +27,17 @@ func DatabaseReferenceCleanup(t *testing.T, names *[]string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		for i := len(*names) - 1; i >= 0; i-- {
+			name := (*names)[i]
+			var template bool
+			err := Admin.QueryRowContext(ctx, "SELECT datistemplate FROM pg_catalog.pg_database WHERE datname=$1", name).Scan(&template)
+			if err != nil && err != sql.ErrNoRows {
+				t.Errorf("database cleanup %q template policy: %v", name, err)
+			}
+			if err == nil && template {
+				if _, err := Admin.ExecContext(ctx, "ALTER DATABASE "+pq.QuoteIdentifier(name)+" IS_TEMPLATE false"); err != nil {
+					t.Errorf("database cleanup %q template reset: %v", name, err)
+				}
+			}
 			if _, err := Admin.ExecContext(ctx, "DROP DATABASE IF EXISTS "+pq.QuoteIdentifier((*names)[i])); err != nil {
 				t.Errorf("database cleanup %q: %v", (*names)[i], err)
 			}

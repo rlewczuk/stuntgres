@@ -10,7 +10,7 @@ import (
 const TemporaryTypedReplacementError = "stuntgres: catalog replacement with live temporary typed tables of persistent types is unsupported"
 
 // CheckTemporaryTypedReplacementLocked rejects a catalog replacement while a
-// TEMP typed table of the published state has a persistent OF type: a
+// live TEMP typed table of the published state has a persistent OF type: a
 // replacement cannot retarget the attachment by name or OID. The caller holds
 // Engine.mu, at the preallocation and final TEMP-retention admission points.
 func CheckTemporaryTypedReplacementLocked(state *catalog.State) error {
@@ -20,7 +20,7 @@ func CheckTemporaryTypedReplacementLocked(state *catalog.State) error {
 			continue
 		}
 		namespace := state.MustNamespace(table.Namespace())
-		if namespace.Temporary == (ids.SessionToken{}) {
+		if namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary.IsDetached() {
 			continue
 		}
 		source, ok := state.Type(table.OfType)

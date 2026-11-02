@@ -184,9 +184,12 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   `CreateDatabaseOwner(roles, current, name)` resolves the owner over the
   captured `authorization.Read` and checks CREATEDB or SUPERUSER and the SET
   ROLE rule. `CheckCreateDatabase(name, options, exists)` runs the admission
-  checks in PostgreSQL's order: template, encoding, LC_COLLATE/LC_CTYPE, the
-  unsupported capability, then the duplicate name. `exists` answers whether a
-  database name is registered. Both run under `Engine.Mu` and take no lock.
+  checks in PostgreSQL's order: registered/default template, encoding,
+  LC_COLLATE/LC_CTYPE, unsupported capability, then duplicate name. Boolean
+  template/connection policy and case-insensitive logical copy strategies are
+  normalized before authority checks. `exists` reads the shared registry.
+  Source ownership and physical occupancy belong to the runtime executor.
+  Both decision helpers run under `Engine.Mu` and take no lock.
 
 ## Lock rule
 

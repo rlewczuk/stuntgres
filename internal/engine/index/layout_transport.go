@@ -288,37 +288,9 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 			JournalOf(changes.Indexes).Forget(index.Address())
 			continue
 		}
-		var root *storage.IndexRoot
-		if index.SQLIndex.Method == catalog.HashMethod {
-			binding, err := BindHashIndex(view, parent, index.SQLIndex)
-			if err != nil {
-				return err
-			}
-			root = &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
-		} else if index.SQLIndex.Method == catalog.BrinMethod {
-			bindings, err := BindBrinIndex(view, parent, index.SQLIndex)
-			if err != nil {
-				return err
-			}
-			width, _ := BrinOptions(index)
-			root = &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
-		} else if index.SQLIndex.Method == catalog.BloomMethod {
-			var err error
-			root, err = bloomRoot(ctx, view, parent, index, nil, store, store.Generation, 0, store.Ends, nil)
-			if err != nil {
-				return err
-			}
-		} else if index.SQLIndex.Method == catalog.GinMethod {
-			var err error
-			root, err = ginRoot(ctx, view, parent, index.SQLIndex, nil, newConstruction(index.SQLIndex), sqltype.InputEnvironment{})
-			if err != nil {
-				return err
-			}
-		} else {
-			if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
-				return err
-			}
-			root = NewLogicalIndexRoot(index.SQLIndex, nil)
+		root, err := emptyIndexRoot(ctx, view, parent, index, store)
+		if err != nil {
+			return err
 		}
 		RetainIndexBuild(changes, index, store, root)
 		if record != nil {
@@ -326,4 +298,37 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 		}
 	}
 	return ctx.Err()
+}
+
+// emptyIndexRoot rebinds an empty private incarnation without evaluating SQL
+// keys. Whole-storage deletion and detached template metadata share this path;
+// method/provider declarations are still bound and validated normally.
+func emptyIndexRoot(ctx context.Context, view catalog.Read, parent, index *catalog.Relation, store *storage.Relation) (*storage.IndexRoot, error) {
+	if store == nil || len(store.Versions) != 0 {
+		return nil, ids.ErrCatalogReplaced
+	}
+	switch index.SQLIndex.Method {
+	case catalog.HashMethod:
+		binding, err := BindHashIndex(view, parent, index.SQLIndex)
+		if err != nil {
+			return nil, err
+		}
+		return &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}, nil
+	case catalog.BrinMethod:
+		bindings, err := BindBrinIndex(view, parent, index.SQLIndex)
+		if err != nil {
+			return nil, err
+		}
+		width, _ := BrinOptions(index)
+		return &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}, nil
+	case catalog.BloomMethod:
+		return bloomRoot(ctx, view, parent, index, nil, store, store.Generation, 0, store.Ends, nil)
+	case catalog.GinMethod:
+		return ginRoot(ctx, view, parent, index.SQLIndex, nil, newConstruction(index.SQLIndex), sqltype.InputEnvironment{})
+	default:
+		if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
+			return nil, err
+		}
+		return NewLogicalIndexRoot(index.SQLIndex, nil), nil
+	}
 }

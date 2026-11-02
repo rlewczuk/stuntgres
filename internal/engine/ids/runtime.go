@@ -2,18 +2,22 @@ package ids
 
 type SessionID uint64
 
-// SessionToken names a session within one engine domain. A registered
-// session has a nonzero ID and no private owner; a private maintenance
-// session has ID zero and is named by its owner's pointer identity.
+// SessionToken names registered or private session authority, or detached
+// catalog metadata. A detached token has a display ID but fresh opaque identity;
+// it never equals a registered session, even at the same domain and numeric ID.
 type SessionToken struct {
 	domain  *Domain
 	id      SessionID
 	private SessionOwner
+	detached *detachedSession
 }
 
 func (t SessionToken) Domain() *Domain       { return t.domain }
 func (t SessionToken) ID() SessionID         { return t.id }
 func (t SessionToken) Private() SessionOwner { return t.private }
+func (t SessionToken) IsDetached() bool      { return t.detached != nil }
+
+type detachedSession struct{ identity byte }
 
 type TxID uint64
 type CommandID uint64

@@ -75,7 +75,9 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   payload) with `Acquire`, `RequestEnd`, `WaitEnd`, `Reuse`, `Detach` and
   `Check`; `ValidateOperation` and `TransactionAuthority` check liveness, domain
   and membership, and `PublicationOperationLocked` adds the context check
-  under `Session.Mu` for publication. `Operation` carries contexts, command budgets, lock timeouts,
+  under `Session.Mu` for publication. Detached catalog ownership is rejected by
+  these gates and by `TokenAttached`, independently of matching numeric IDs.
+  `Operation` carries contexts, command budgets, lock timeouts,
   notices, the copy-input context, the statement lease and the replay and
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,

@@ -19,6 +19,7 @@ type CreateDatabaseOptions struct {
 	Encoding         int
 	Collate, CType   string
 	Capability       string
+	IsTemplate       bool
 	AllowConnections bool
 	ConnectionLimit  int32
 }
@@ -90,9 +91,12 @@ func ParseCreateDatabaseOptions(options []parser.DatabaseOption) (CreateDatabase
 			default:
 				return result, databaseOptionError(option, "22023", fmt.Sprintf("%s requires a Boolean value", name))
 			}
+			value := strings.ToLower(option.Value)
+			enabled := value == "true" || value == "on" || value == "yes" || value == "1"
 			if name == "allow_connections" {
-				value := strings.ToLower(option.Value)
-				result.AllowConnections = value == "true" || value == "on" || value == "yes" || value == "1"
+				result.AllowConnections = enabled
+			} else {
+				result.IsTemplate = enabled
 			}
 		}
 	}
@@ -106,7 +110,12 @@ func ParseCreateDatabaseOptions(options []parser.DatabaseOption) (CreateDatabase
 		}
 		result.ConnectionLimit = int32(limit)
 	}
-	for _, name := range []string{"locale_provider", "strategy", "tablespace", "is_template", "icu_locale", "icu_rules", "builtin_locale", "collation_version", "oid"} {
+	if option, ok := seen["strategy"]; ok && !option.Default {
+		if !strings.EqualFold(option.Value, "wal_log") && !strings.EqualFold(option.Value, "file_copy") {
+			return result, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf("invalid create database strategy \"%s\"", option.Value), Hint: "Valid strategies are \"wal_log\" and \"file_copy\"."}
+		}
+	}
+	for _, name := range []string{"locale_provider", "tablespace", "icu_locale", "icu_rules", "builtin_locale", "collation_version", "oid"} {
 		if _, ok := seen[name]; ok {
 			result.Capability = strings.ToUpper(name)
 			break
@@ -156,12 +165,12 @@ func CheckCreateDatabase(name string, options CreateDatabaseOptions, exists func
 	switch options.Template {
 	case "template1":
 	case "template0":
-		return sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
+		return sqlError("0A000", "CREATE DATABASE with TEMPLATE template0 is not supported")
 	default:
 		if !exists(options.Template) {
 			return sqlError("3D000", fmt.Sprintf(`template database "%s" does not exist`, options.Template))
 		}
-		return sqlError("0A000", "CREATE DATABASE with TEMPLATE other than template1 is not supported")
+		// Registered sources are copied by the runtime after authorization.
 	}
 	if options.Encoding != 6 {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf("new encoding (%s) is incompatible with the encoding of the template database (UTF8)", sqltype.EncodingName(options.Encoding)), Hint: "Use the same encoding as in the template database, or use template0 as template."}

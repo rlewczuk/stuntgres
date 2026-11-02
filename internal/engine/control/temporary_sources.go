@@ -27,7 +27,7 @@ func CheckTemporaryRelationSourcesLocked(current *catalog.State) error {
 			continue
 		}
 		namespace := current.MustNamespace(table.Namespace())
-		if namespace.Temporary == (ids.SessionToken{}) {
+		if namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary.IsDetached() {
 			continue
 		}
 		for _, edge := range table.Inheritance.Parents {
@@ -54,7 +54,7 @@ func CheckTemporaryRuleSourcesLocked(current catalog.Read) error {
 			continue
 		}
 		ns, ok := current.State().Namespace(d.Namespace())
-		if !ok || ns.Temporary == (ids.SessionToken{}) {
+		if !ok || ns.Temporary == (ids.SessionToken{}) || ns.Temporary.IsDetached() {
 			continue
 		}
 		for _, rule := range stored.RulesOf(d) {

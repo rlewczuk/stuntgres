@@ -17,13 +17,25 @@ import (
 // Keep the supplied published view immutable and use this private candidate for
 // provider validation and generator/storage capture as well as installation.
 func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
+	return replacementCatalog(view, false, true)
+}
+
+// DatabaseTemplateCatalog uses the replacement projection for a database copy.
+// Contents retain TEMP catalog metadata; the destination's initial base does
+// not, so imported source descriptors cannot masquerade as retained live TEMP.
+// Session ownership and backing are reminted by the shared replacement owner.
+func DatabaseTemplateCatalog(view catalog.Read, retainTemporary bool) (catalog.Read, error) {
+	return replacementCatalog(view, retainTemporary, false)
+}
+
+func replacementCatalog(view catalog.Read, retainTemporary, rejectTemporaryExtension bool) (catalog.Read, error) {
 	for _, descriptor := range view.Descriptors() {
 		if extension, ok := descriptor.(*catalog.Extension); ok {
 			namespace, ok := view.Namespace(extension.TargetNamespace)
 			if !ok {
 				return catalog.Read{}, fmt.Errorf("stuntgres: extension namespace is missing")
 			}
-			if namespace.Temporary != (ids.SessionToken{}) {
+			if rejectTemporaryExtension && namespace.Temporary != (ids.SessionToken{}) {
 				return catalog.Read{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
 			}
 		}
@@ -46,7 +58,7 @@ func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 		if namespace := catalog.OperatorFamilyNamespace(view, d); namespace != (ids.ObjectAddress{}) {
 			parent, hasParent = view.Namespace(namespace)
 		}
-		if sharedPeer || isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
+		if sharedPeer || !retainTemporary && (isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{})) {
 			operators.Replace(d, nil)
 			procedures.Replace(d, nil)
 			next.RemoveDescriptor(a)
@@ -54,7 +66,7 @@ func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	}
 	for key, a := range view.Names() {
 		parent, hasParent := view.Namespace(key.Namespace)
-		if view.Get(a) != nil && next.Get(a) == nil || hasParent && parent.Temporary != (ids.SessionToken{}) {
+		if view.Get(a) != nil && next.Get(a) == nil || !retainTemporary && hasParent && parent.Temporary != (ids.SessionToken{}) {
 			next.UnbindName(key)
 		}
 	}

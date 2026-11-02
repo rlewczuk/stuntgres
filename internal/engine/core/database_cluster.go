@@ -37,6 +37,7 @@ type DatabaseCluster struct {
 	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
 	AdmissionMu sync.Mutex
 	admissions  map[*Engine]int
+	templateCopies map[*Engine]*databaseTemplateReaders
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
 	// Active commands across every target, guarded by the shared engine mutex.

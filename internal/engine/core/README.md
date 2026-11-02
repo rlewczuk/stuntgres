@@ -1431,6 +1431,15 @@ that token once. Caller `Release` abandons only an unsubmitted token; after
 submission, early failure or terminal Unregister owns release. Private maintenance
 and `StartRestoreSession` replay use real cleanup without a public database slot.
 Role limits remain a separate cluster-wide final-publication check.
+Template copies use pointer-qualified `DatabaseTemplateLease` readers under
+AdmissionMu. Acquisition holds shared Mu first, counts every reserved/consumed
+physical owner and detached prepared transaction, and excludes only the exact
+consumed executor Session pointer. Last-reader release closes the source's
+notification generation. `AdmitDatabase` waits on that generation or cancellation
+with neither lock held and reserves nothing until readmission. Cleanup/release
+takes AdmissionMu only. Source replacement read protection is acquired outside
+Mu/AdmissionMu and retained through copying/publication; a current-source statement
+reuses its existing reservation rather than recursively entering behind a writer.
 
 Persisted defaults share the immutable role publication and its existing
 transaction journal. Scope keys use principal references and cluster database
@@ -1460,23 +1469,36 @@ Rejected persisted startup roles warn and retain login identity; callbacks run
 outside locks. Private Restore bypasses persisted startup defaults, while
 destination defaults survive replacement.
 
-Creation clones/remints a lazily retained immutable real UTF8/C builtin seed,
-not the application's changing default database. Mutable rows, indexes and
-sequence generators are independent. Copied system owners remain bootstrap
-`postgres`; `public` remains `pg_database_owner`, with PUBLIC USAGE and implicit
-CREATE for the new database owner. New database ACL is NULL/default rather than
-copied from the attachment. The seed is private, not a selectable mutable
-`template1` or a fabricated registry row.
+Creation copies the actual registered source's committed persistent catalog,
+rows, indexes, sequences and dependencies into fresh local authority, preserving
+SQL-local object OIDs and shared principals. Registered template1 supplies default
+contents; only an unregistered template1 uses the lazy private UTF8/C builtin
+seed. Mutable storage backing is independent, while immutable typed payloads may
+share their established portable backing. Object owners/ACLs survive, including
+destination-relative `pg_database_owner`; database ACL/configuration does not copy.
+Source authorization, exact runtime identity and replacement epoch are checked
+again before atomic registration; compatible copies may publish shared roots.
+`ReplaceDatabaseTemplate` admits only a fresh private destination and shares the
+ordinary replacement helper's graph validation/remap/install. Its initial base
+excludes source TEMP objects, preventing the live-destination retention overlay
+from adopting source authority. The import retains TEMP catalog metadata, while
+row/index/sequence/statistics source capture excludes physical TEMP contents.
+Copied namespaces/toast groups receive destination-qualified opaque detached
+session tokens; empty private stores, initial generators and method-bound empty
+index roots belong to the destination. Same numeric live or previously detached
+owners remain distinct on re-clone. Detached metadata is not retained as a live
+destination consumer during Reset/Restore; ordinary live TEMP retains its exact
+ownership, backing and dependency protections.
 
 The CREATE DATABASE executor and its option rules are in
 [`rolecmds`](../rolecmds/README.md#database-creation).
 
 `pg_database` captures every registered target in this cluster, never other DSNs.
 Each row has its own stable identity, owner/ACL and runtime freezing horizon.
-Encoding 6, provider `c`, C/C locales and `datistemplate=false` are represented
-immutable defaults. `datallowconn` and `datconnlimit` project real CREATE policy
-(defaults true/−1), retained across replacement. Physical placement and multixact
-horizons, ICU locale/rules and collation versions remain typed NULL.
+Encoding 6, provider `c` and C/C locales are immutable semantic defaults.
+`datistemplate`, `datallowconn` and `datconnlimit` project the real CREATE policy
+(defaults false/true/−1), retained across replacement. Physical placement and
+multixact horizons, ICU locale/rules and collation versions remain typed NULL.
 Fresh/held executions capture current registry authority; returned Rows keep
 their original inventory and types. Named database grants and owner changes
 resolve registered noncurrent targets through that same authority; table access
