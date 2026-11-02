@@ -223,3 +223,24 @@ func TestLargeObjectTruncate(t *testing.T) {
 	}
 	if err := (Value{}).Validate(); err != nil { t.Fatal("zero value rejected", err) }
 }
+
+func TestLargeObjectSize(t *testing.T) {
+	var empty Value
+	if empty.Size() != 0 { t.Fatal("zero EOF", empty.Size()) }
+	first, err := empty.Write(0, "abc")
+	if err != nil { t.Fatal(err) }
+	if first.Size() != 3 || empty.Size() != 0 { t.Fatal("write EOF mutated old value") }
+	sparse, err := first.Write(4294967296, "foo")
+	if err != nil { t.Fatal(err) }
+	if sparse.Size() != 4294967299 || first.Size() != 3 || len(sparse.pages) != 2 || &sparse.pages[0][0] != &first.pages[0][0] { t.Fatal("sparse EOF copied lower pages or allocated holes") }
+	for _, length := range []int64{0, 2047, 2048, 2049, 2147483647, 2147483648, MaximumSize} {
+		next, err := sparse.Truncate(length)
+		if err != nil || next.Size() != length { t.Fatal("truncate EOF", length, next.Size(), err) }
+		if sparse.Size() != 4294967299 || len(sparse.pages) != 2 || string(sparse.pages[2097152]) != "foo" || string(first.pages[0]) != "abc" { t.Fatal("old sparse value mutated") }
+		if length >= 2048 && &next.pages[0][0] != &sparse.pages[0][0] { t.Fatal("size/truncate copied untouched page") }
+	}
+	// Size borrows no chunks and allocates nothing, even for a sparse ceiling.
+	if allocations := testing.AllocsPerRun(100, func() {
+		if sparse.Size() != 4294967299 { panic("unstable EOF") }
+	}); allocations != 0 { t.Fatal("Size allocated", allocations) }
+}

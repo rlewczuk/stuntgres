@@ -19,6 +19,9 @@ type Value struct {
 	pages map[int64][]byte
 }
 
+// Size returns the logical EOF without traversing or copying sparse pages.
+func (v Value) Size() int64 { return v.size }
+
 func failure(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }

@@ -427,7 +427,9 @@
 953	lo_close	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	23	23	\N	\N	\N	false	\N	be_lo_close	\N	false	\N
 954	loread	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	17	23 23	\N	\N	\N	false	\N	be_loread	\N	false	\N
 955	lowrite	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	23	23 17	\N	\N	\N	false	\N	be_lowrite	\N	false	\N
+956	lo_lseek	11	12	1	0	0	0	f	false	false	true	false	v	u	3	0	23	23 23 23	\N	\N	\N	false	\N	be_lo_lseek	\N	false	\N
 957	lo_creat	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	26	23	\N	\N	\N	false	\N	be_lo_creat	\N	false	\N
+958	lo_tell	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	23	23	\N	\N	\N	false	\N	be_lo_tell	\N	false	\N
 959	on_pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	600 628	\N	\N	\N	false	\N	on_pl	\N	false	\N
 960	on_sl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	601 628	\N	\N	\N	false	\N	on_sl	\N	false	\N
 961	close_pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	600	600 628	\N	\N	\N	false	\N	close_pl	\N	false	\N

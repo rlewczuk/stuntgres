@@ -127,6 +127,42 @@ func (s *StatementScope) largeObjectDescriptorLocked(e *Engine, r functions.Larg
 	d, err := table.lookup(r.Descriptor)
 	if err != nil { return out, err }
 	if r.Name == "lo_close" { *d = largeObjectDescriptor{}; return out, nil }
+	// Cursor-only operations precede live-content resolution: a peer unlink
+	// does not invalidate tell/SET/CUR. Only END needs the mode-selected EOF.
+	switch r.Name {
+	case "lo_lseek", "lo_lseek64", "lo_tell", "lo_tell64":
+		position := d.offset
+		if r.Name == "lo_lseek" || r.Name == "lo_lseek64" {
+			switch r.Whence {
+			case 0:
+				position = r.Offset
+			case 1:
+				position += r.Offset
+			case 2:
+				content := d.content
+				if d.writable {
+					a := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: d.oid}
+					object, _ := e.PrivateCatalogLocked(s.PendingCatalog()).Get(a).(*catalog.LargeObject)
+					// The released current-view page scan sees no pages after
+					// peer unlink. Frozen READ descriptors keep their backing.
+					content = largeobject.Value{}
+					if object != nil { content = object.Content }
+				}
+				position = content.Size() + r.Offset
+			default:
+				return out, SQLError("22023", fmt.Sprintf("invalid whence setting: %d", r.Whence))
+			}
+			if err := largeobject.Seek(position); err != nil { return out, err }
+			d.offset = position
+		}
+		// The int32 wrapper checks its result after inv_seek moves the cursor.
+		// Savepoint recovery therefore retains that movement on overflow.
+		if (r.Name == "lo_lseek" || r.Name == "lo_tell") && position > math.MaxInt32 {
+			return out, SQLError("22003", fmt.Sprintf("%s result out of range for large-object descriptor %d", r.Name, r.Descriptor))
+		}
+		out.Position = position
+		return out, nil
+	}
 	if (r.Name == "lowrite" || truncate) && !d.writable { return out, SQLError("55000", fmt.Sprintf("large object descriptor %d was not opened for writing", r.Descriptor)) }
 	content := d.content
 	var object *catalog.LargeObject

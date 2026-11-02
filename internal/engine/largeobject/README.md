@@ -9,6 +9,10 @@ publication authority.
 `Value` owns a signed 64-bit EOF and private 2048-byte pages (`PageSize`).
 Missing pages and short page tails below EOF denote zero bytes.
 
+- `Size` returns the signed logical EOF in O(1), without traversing chunks,
+  copying page data or allocating. `Seek` validates the inclusive cursor range
+  without modifying EOF or creating a terminal page.
+
 - `Write` copies the page index and only the touched pages, preserves
   unmodified prefixes and suffixes, and shares immutable untouched pages.
   Empty writes validate the seek without allocating or extending EOF.
@@ -56,8 +60,8 @@ host and `control` seams.
 
 ## Testing
 
-Package units cover sparse reads, writes and truncation, endpoint/page
-immutability, size bounds, validation and bounded replay shapes; engine units
+Package units cover sparse reads, writes, truncation and O(1) logical size,
+endpoint/page immutability, size bounds, validation and bounded replay shapes; engine units
 cover descriptor authority, cursor/journal ownership and principal remapping.
 
 ```sh
@@ -66,5 +70,5 @@ make check RUN='^TestLargeObject'
 
 Public byte/descriptor SQL scenarios are in
 [reference/object_grants](../../../reference/object_grants/README.md#testing);
-truncate and its native replay scenarios are owned by
+seek/tell, truncate and their native control scenarios are owned by
 [reference/large_objects](../../../reference/large_objects/README.md#testing).

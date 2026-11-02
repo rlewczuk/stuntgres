@@ -2481,7 +2481,7 @@ Admission serializes table and cursor access; catalog resolution and COW journal
 updates then hold `Engine.Mu`, with the existing Engine → Settings → Session
 authorization order. Slots reuse the lowest free signed INT4 index. READ-only
 entries share immutable opening bytes; WRITE entries resolve current committed
-bytes plus the owner's journal on each access. Query admission captures a
+bytes plus the owner's journal when content is needed. Query admission captures a
 descriptor-only opening frontier before argument effects. Stable isolation
 composes its separately retained committed LO base with query-visible own LO
 changes. Nonvolatile SQL bodies inherit that exact immutable caller frontier,
@@ -2493,7 +2493,14 @@ changing convenience-function visibility.
 Object ACL admission occurs only at open; subsequent operations retain mode,
 not actor or role graphs. Truncation validates readonly mode, descriptor, write
 mode and length in that order, journals an immutable replacement/revision and
-never changes the int64 cursor. Savepoints retain opening ordinals, never
+never changes the int64 cursor. Seek/tell validate the descriptor before any
+whence/target checks, with no additional write-mode, readonly or object-ACL
+admission. Tell and SET/CUR require no live-content lookup; END uses O(1) frozen
+READ size or current private WRITE size (zero after peer unlink). Valid seek
+targets include the sparse ceiling and never extend EOF or allocate pages.
+Invalid whence/targets preserve the cursor; int32 seek-result overflow is checked
+after movement and remains observable after savepoint recovery. Tell overflow
+does not move the cursor. Savepoints retain opening ordinals, never
 cursor/table copies: rollback restores catalog bytes and closes younger
 openings without rewinding cursors or undoing explicit close. Successful local
 unlink closes matching handles. Canonical transaction/error disposal releases

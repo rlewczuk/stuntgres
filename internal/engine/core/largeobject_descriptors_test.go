@@ -244,3 +244,109 @@ func TestLargeObjectDescriptorTruncate(t *testing.T) {
 	scope.TxRef = e.Catalog.Domain.Tx(ids.SessionToken{}, 1, 1, nil, 0)
 	if _, err := call("lo_truncate64", write, 1); !errors.Is(err, ids.ErrCatalogReplaced) || scope.Catalog != nil || table.slots[write].offset != 1<<33 { t.Fatal("foreign owner changed descriptor", err) }
 }
+
+func TestLargeObjectSeekDescriptorState(t *testing.T) {
+	a := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: 42}
+	old := &catalog.LargeObject{ObjectAddress: a, ObjectRevision: 1, Content: descriptorTestValue(t, "abcdef")}
+	e := &Engine{Mu: new(sync.Mutex), Catalog: catalog.NewStore(catalog.Owner{}, 16384, 2)}
+	e.Catalog.State = catalog.NewState(1)
+	e.Catalog.State.SetDescriptor(a, old)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	owner := &session.TransactionOwner{Catalog: session.NewJournal()}
+	backend := &session.Session{Transactions: owner}
+	scope := &StatementScope{Op: &session.Operation{Session: backend}, Owner: owner}
+	table := &ownerExtensionOf(owner).largeObjects
+	read, err := table.open(largeObjectDescriptor{oid: 42, content: old.Content})
+	if err != nil { t.Fatal(err) }
+	write, err := table.open(largeObjectDescriptor{oid: 42, writable: true})
+	if err != nil { t.Fatal(err) }
+	journal, revision, page := owner.Catalog, e.Catalog.NextRevision(), descriptorTestPage(old.Content)
+	call := func(name string, fd int32, offset int64, whence int32) (functions.LargeObjectResult, error) {
+		return scope.largeObjectDescriptorLocked(e, functions.LargeObjectRequest{Name: name, Descriptor: fd, Offset: offset, Whence: whence})
+	}
+	assertUnpublished := func() {
+		t.Helper()
+		if scope.Catalog != nil || owner.Catalog != journal || len(journal.Descriptors) != 0 || e.Catalog.NextRevision() != revision || descriptorTestPage(old.Content) != page || old.Content.Size() != 6 { t.Fatal("cursor operation published or changed content") }
+	}
+	position := func(name string, fd int32, offset int64, whence int32, want int64) {
+		t.Helper()
+		out, err := call(name, fd, offset, whence)
+		if err != nil || out.Position != want || table.slots[fd].offset != want || out.Integer != 0 { t.Fatal("position", name, out, want, err) }
+		assertUnpublished()
+	}
+	failure := func(name string, fd int32, offset int64, whence int32, code, message string, want int64) {
+		t.Helper()
+		out, err := call(name, fd, offset, whence)
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != code || d.Message != message || out != (functions.LargeObjectResult{}) { t.Fatal("seek diagnostic", name, out, err) }
+		if fd >= 0 && table.slots[fd].offset != want { t.Fatal("failure cursor", table.slots[fd].offset, want) }
+		assertUnpublished()
+	}
+	for _, fd := range []int32{read, write} {
+		owner.ReadOnly = true
+		position("lo_tell", fd, 0, 0, 0)
+		position("lo_lseek", fd, 2, 0, 2)
+		position("lo_lseek64", fd, 1, 1, 3)
+		position("lo_lseek64", fd, -1, 2, 5)
+		position("lo_tell64", fd, 0, 0, 5)
+		owner.ReadOnly = false
+		position("lo_lseek64", fd, 3, 0, 3)
+		failure("lo_lseek64", fd, -1, 3, "22023", "invalid whence setting: 3", 3)
+		failure("lo_lseek64", fd, -4, 1, "22023", "invalid large object seek target: -1", 3)
+		failure("lo_lseek64", fd, -7, 2, "22023", "invalid large object seek target: -1", 3)
+		failure("lo_lseek64", fd, largeobject.MaximumSize+1, 0, "22023", "invalid large object seek target: 4398046509057", 3)
+		position("lo_lseek64", fd, 1, 0, 1)
+		failure("lo_lseek64", fd, math.MaxInt64, 1, "22023", "invalid large object seek target: -9223372036854775808", 1)
+		failure("lo_lseek64", fd, math.MaxInt64, 2, "22023", "invalid large object seek target: -9223372036854775803", 1)
+		position("lo_lseek", fd, math.MaxInt32, 0, math.MaxInt32)
+		message := "lo_lseek result out of range for large-object descriptor 0"
+		tellMessage := "lo_tell result out of range for large-object descriptor 0"
+		if fd == write {
+			message = "lo_lseek result out of range for large-object descriptor 1"
+			tellMessage = "lo_tell result out of range for large-object descriptor 1"
+		}
+		mark := table.ordinal
+		child, err := table.open(largeObjectDescriptor{oid: 42, content: old.Content})
+		if err != nil { t.Fatal(err) }
+		failure("lo_lseek", fd, 1, 1, "22003", message, int64(math.MaxInt32)+1)
+		table.rollback(mark)
+		if _, err := table.lookup(child); err == nil || descriptorTestPage(table.slots[child].content) != nil { t.Fatal("savepoint retained child backing", err) }
+		position("lo_tell64", fd, 0, 0, int64(math.MaxInt32)+1)
+		failure("lo_tell", fd, 0, 0, "22003", tellMessage, int64(math.MaxInt32)+1)
+		position("lo_lseek", fd, -1, 1, math.MaxInt32)
+		position("lo_lseek64", fd, largeobject.MaximumSize, 0, largeobject.MaximumSize)
+	}
+	failure("lo_lseek64", -1, -1, -1, "42704", "invalid large-object descriptor: -1", 0)
+	// END selects current private bytes for WRITE and immutable opening bytes
+	// for READ, without cloning either descriptor or sparse page backing.
+	peer := *old
+	peer.Content = descriptorTestValue(t, "abcdefgh")
+	e.Catalog.State = catalog.CloneState(e.Catalog.State)
+	e.Catalog.State.SetDescriptor(a, &peer)
+	position("lo_lseek64", read, 0, 2, 6)
+	position("lo_lseek64", write, 0, 2, 8)
+	own := peer
+	own.Content = descriptorTestValue(t, "abc")
+	e.CatalogChangeLocked(journal, a, &own)
+	out, err := call("lo_lseek64", write, 0, 2)
+	if err != nil || out.Position != 3 || scope.Catalog != nil || journal.Descriptors[a] != &own || e.Catalog.NextRevision() != revision { t.Fatal("END ignored or published own journal", out, err) }
+	out, err = call("lo_lseek64", read, 0, 2)
+	if err != nil || out.Position != 6 || descriptorTestPage(table.slots[read].content) != page { t.Fatal("END changed frozen backing", out, err) }
+	delete(journal.Descriptors, a)
+	e.Catalog.State = catalog.CloneState(e.Catalog.State)
+	e.Catalog.State.RemoveDescriptor(a)
+	// No live object remains. SET/CUR/tell still use the actual owner table;
+	// only END resolves content, selecting empty current versus frozen bytes.
+	for _, fd := range []int32{read, write} {
+		position("lo_lseek64", fd, 2, 0, 2)
+		position("lo_lseek", fd, 1, 1, 3)
+		position("lo_tell", fd, 0, 0, 3)
+		position("lo_tell64", fd, 0, 0, 3)
+	}
+	position("lo_lseek64", read, 0, 2, 6)
+	position("lo_lseek64", write, 0, 2, 0)
+	// The owner identity fence precedes lookup and leaves the retained table.
+	scope.TxRef = e.Catalog.Domain.Tx(ids.SessionToken{}, 1, 1, nil, 0)
+	if _, err := call("lo_tell64", read, 0, 0); !errors.Is(err, ids.ErrCatalogReplaced) || table.slots[read].offset != 6 { t.Fatal("foreign owner changed cursor", err) }
+}

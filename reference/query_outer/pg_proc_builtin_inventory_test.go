@@ -201,6 +201,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Statistics definition introspection adds the one-OID TEXT declaration3415.
 	// The two truncate declarations add strict VOLATILE/parallel-unsafe
 	// INT4 results and their released signed descriptor/length formals.
+	// Seek/tell add four strict VOLATILE/parallel-unsafe declarations with
+	// signed INT4 descriptor/whence and width-selected offsets/results.
 	// Nullable registry lookups add released one-TEXT scalar declarations
 	// OIDs4093/4195, callable identities3476/3479/3492/3494 and relation/type
 	// identities3495/4086/3493/6317, with strict/STABLE/parallel-safe metadata
@@ -212,8 +214,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
 	// The selected network GIN family adds genuine macaddr8_cmp OID4119.
 	// Pending-list cleanup adds the genuine regclass->bigint declaration3789.
-	if len(facts) != 2209 {
-		t.Fatalf("released represented overloads: got %d, want 2209", len(facts))
+	if len(facts) != 2213 {
+		t.Fatalf("released represented overloads: got %d, want 2213", len(facts))
 	}
 	return facts
 }

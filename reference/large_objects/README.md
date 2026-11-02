@@ -1,10 +1,11 @@
 # reference/large_objects
 
-Public dual-mode coverage for `lo_truncate` and `lo_truncate64`: bytes and
-cursor position, sparse physical endpoints, exact diagnostics and strict demand,
-transaction visibility and ACL-at-open, prepared-definition lifetimes, native
-controls and cancellation. Existing large-object byte, descriptor and privilege
-families remain in [reference/object_grants](../object_grants/README.md#testing).
+Public dual-mode coverage for descriptor seek/tell and truncation: 32/64-bit
+positions, mode-selected EOF, zero-filled sparse gaps and physical endpoints,
+exact diagnostics and strict demand, transaction visibility and ACL-at-open,
+prepared-definition lifetimes, native controls and cancellation. Existing
+large-object byte, descriptor and privilege families remain in
+[reference/object_grants](../object_grants/README.md#testing).
 
 ## Ownership and orchestration
 
@@ -16,6 +17,9 @@ capture uses `RunStep` observations after asserting INT4 metadata and the expect
 lowest-free slot. Object setup projects OIDs to BIGINT, avoiding a second general
 backend codec adapter. Roles and cluster cleanup are registered only for cases
 that need them; every case owns its fixed large-object identities.
+Seek/tell reuses this orchestration and its held-statement/descriptor adapters;
+cursor-sensitive calls are separate statements, with independent positions and
+bounded sparse reads rather than assumed projection order or whole-object reads.
 
 Statements, rows and peers close before returning connections or cleaning roles.
 Cleanup rolls back and resets session authority before unlinking owned identities.
@@ -34,11 +38,13 @@ workers.
 
 ## Testing
 
-Use the truncate-family selector in both modes:
+Use each family selector in both modes:
 
 ```sh
 make check RUN='^TestReferenceLargeObjectTruncate'
 make check RUN='^TestReferenceLargeObjectTruncate' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectSeek'
+make check RUN='^TestReferenceLargeObjectSeek' REFERENCE=1
 ```
 
 Follow the shared placement, oracle, lifecycle and diagnostic rules in

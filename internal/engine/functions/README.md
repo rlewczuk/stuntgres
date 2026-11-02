@@ -34,10 +34,13 @@ never a source catalog, execution handle or mutable name-based capability.
 
 
 `LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
-and descriptor functions. Descriptor IDs/modes use signed INT4 formals, while
-only object identities use OID; `loread` returns BYTEA and descriptor open/close/
-write/truncate return INT4. `lo_truncate` takes an INT4 length; `lo_truncate64`
-takes INT8. Shared strict planning replaces a planning-known NULL call
+and descriptor functions. Descriptor IDs, modes and seek whence use signed INT4
+formals, while only object identities use OID; `loread` returns BYTEA and
+descriptor open/close/write/truncate return INT4. `lo_truncate` takes an INT4
+length; `lo_truncate64` takes INT8. `lo_lseek` takes an INT4 offset and returns
+INT4, as does `lo_tell`; `lo_lseek64` takes an INT8 offset and returns INT8,
+as does `lo_tell64`. Positions use the signed 64-bit runtime carrier without
+narrowing through an OID or INT4. Shared strict planning replaces a planning-known NULL call
 with typed NULL after required child planning; runtime-only siblings are erased,
 but demanded child arithmetic errors remain. A reached runtime call evaluates
 written arguments once before typed NULL handling, preserving sibling errors

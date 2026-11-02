@@ -18,11 +18,13 @@ type LargeObjectRequest struct {
 	Data     string
 	Descriptor int32
 	Mode int32
+	Whence int32
 }
 type LargeObjectResult struct {
 	OID  ids.OID
 	Data string
 	Integer int32
+	Position int64
 }
 type LargeObjectRuntime interface {
 	LargeObject(LargeObjectRequest) (LargeObjectResult, error)
@@ -56,6 +58,17 @@ func bindLargeObject(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	case "lo_truncate64":
 		count, result = 2, sqltype.Int4
 		formal[0], formal[1] = sqltype.Int4, sqltype.Int8
+	case "lo_lseek", "lo_lseek64":
+		count, result = 3, sqltype.Int4
+		formal[0], formal[1], formal[2] = sqltype.Int4, sqltype.Int4, sqltype.Int4
+		if name == "lo_lseek64" {
+			formal[1], result = sqltype.Int8, sqltype.Int8
+		}
+	case "lo_tell", "lo_tell64":
+		formal[0], result = sqltype.Int4, sqltype.Int4
+		if name == "lo_tell64" {
+			result = sqltype.Int8
+		}
 	case "lo_creat":
 		formal[0] = sqltype.Int4
 	case "lo_from_bytea":
@@ -121,7 +134,7 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	r := LargeObjectRequest{Name: x.Name, Length: -1}
-	if x.Name == "lo_close" || x.Name == "loread" || x.Name == "lowrite" || x.Name == "lo_truncate" || x.Name == "lo_truncate64" {
+	if x.Name == "lo_close" || x.Name == "loread" || x.Name == "lowrite" || x.Name == "lo_truncate" || x.Name == "lo_truncate64" || x.Name == "lo_lseek" || x.Name == "lo_lseek64" || x.Name == "lo_tell" || x.Name == "lo_tell64" {
 		fd, err := values[0].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -145,12 +158,19 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 			r.Length = n
 		}
 	}
-	if x.Name == "lo_put" || x.Name == "lo_get" && len(x.Args) == 3 {
+	if x.Name == "lo_put" || x.Name == "lo_get" && len(x.Args) == 3 || x.Name == "lo_lseek" || x.Name == "lo_lseek64" {
 		var err error
 		r.Offset, err = values[1].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+	}
+	if x.Name == "lo_lseek" || x.Name == "lo_lseek64" {
+		whence, err := values[2].Integer()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		r.Whence = int32(whence)
 	}
 	if x.Name == "lo_get" && len(x.Args) == 3 {
 		var err error
@@ -188,6 +208,8 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Integer(x.Usage.Type, 1)
 	case "lo_open", "lo_close", "lowrite", "lo_truncate", "lo_truncate64":
 		return sqltype.Integer(x.Usage.Type, int64(out.Integer))
+	case "lo_lseek", "lo_lseek64", "lo_tell", "lo_tell64":
+		return sqltype.Integer(x.Usage.Type, out.Position)
 	default:
 		return sqltype.OIDValue(x.Usage.Type, uint32(out.OID))
 	}
