@@ -167,9 +167,10 @@ func pgcryptoFreshConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixtu
 }
 
 type pgcryptoHeldCall struct {
-	statement *sql.Stmt
-	step      fixture.Step
-	rawUUID   bool
+	statement  *sql.Stmt
+	step       fixture.Step
+	rawUUID    bool
+	pgpEncrypt bool
 }
 
 func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoHeldCall {
@@ -188,6 +189,8 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 		fixture.Select("SELECT pgcrypto_part.decrypt_iv($1::bytea,$2::bytea,$3::bytea,$4)", []string{"decrypt_iv"}, []string{"BYTEA"}, [][]any{{"foo"}}, aesBytes(t, "2c24cb7da91d6d5699801268b0f5adad"), []byte("0123456"), []byte("abcd"), "aes"),
 		fixture.Select("SELECT octet_length(pgcrypto_part.gen_random_bytes($1)) AS size", []string{"size"}, []string{"INT4"}, [][]any{{int64(32)}}, 32),
 		fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(false)}}),
+		pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text)", "Secret message.", pgpVector(t), "foobar"),
+		pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text,$3::text)", "Secret message.", pgpVector(t), "foobar", ""),
 	}
 	var held []pgcryptoHeldCall
 	for _, step := range calls {
@@ -205,6 +208,20 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 	}
 	t.Cleanup(func() { statement.Close() })
 	held = append(held, pgcryptoHeldCall{statement: statement, step: fixture.Step{Query: q}, rawUUID: true})
+	for _, withOptions := range []bool{false, true} {
+		q := "SELECT pgcrypto_part.pgp_sym_encrypt($1::text,$2::text)"
+		args := []any{"held packet", "foobar"}
+		if withOptions {
+			q = "SELECT pgcrypto_part.pgp_sym_encrypt($1::text,$2::text,$3::text)"
+			args = append(args, "s2k-count=1024")
+		}
+		stmt, err := c.PrepareContext(p.Ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stmt.Close() })
+		held = append(held, pgcryptoHeldCall{statement: stmt, step: fixture.Step{Query: q, Args: args}, pgpEncrypt: true})
+	}
 	return held
 }
 
@@ -212,6 +229,18 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 // directly, rather than adding a cast outside the existing closed-source seam.
 func pgcryptoRunHeldCall(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, call pgcryptoHeldCall) {
 	t.Helper()
+	if call.pgpEncrypt {
+		rows, err := call.statement.QueryContext(p.Ctx, call.step.Args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		if len(call.step.Args) == 3 {
+			count = 1024
+		}
+		pgpCipherRows(t, rows, "held packet", "foobar", count)
+		return
+	}
 	if call.rawUUID {
 		rows, err := call.statement.QueryContext(p.Ctx)
 		if err != nil {

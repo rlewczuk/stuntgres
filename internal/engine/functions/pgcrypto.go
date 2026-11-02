@@ -68,13 +68,30 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	var checkBuiltin func() error
 	if e.Plan.Name() == "crypt" || e.Plan.Name() == "gen_salt" {
-		if runtime, ok := c.(interface { CheckPgcryptoBuiltinCrypto() error }); ok {
+		if runtime, ok := c.(interface{ CheckPgcryptoBuiltinCrypto() error }); ok {
 			checkBuiltin = runtime.CheckPgcryptoBuiltinCrypto
 		} else {
 			checkBuiltin = missingPgcryptoBuiltinPolicy
 		}
 	}
 	switch e.Plan.Name() {
+	case "pgp_sym_encrypt":
+		call, null, err := e.Plan.PreparePGP(ctx, values[:len(e.Args)]...)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if null {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+		source, ok := c.(interface{ FunctionPgcryptoEntropy([]byte) error })
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("missing pgcrypto entropy context")
+		}
+		packet, err := sqltype.PgcryptoPGPEncrypt(ctx, call, source.FunctionPgcryptoEntropy)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.Binary(e.Usage.Type, packet)
 	case "gen_random_bytes":
 		if err := ctx.Err(); err != nil {
 			return sqltype.Value{}, err

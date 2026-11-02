@@ -679,6 +679,24 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   while requiring CRC agreement. `PgcryptoArmorHeaderRegion` separately validates
   all header lines and returns borrowed immutable bounds, including footer-
   terminated headers without a blank separator; it never validates body/CRC.
+  Text symmetric PGP calls use checked old/new/partial packet framing, AES128
+  CFB without resynchronization, iterated salted SHA1 and full MDC authentication.
+  Outer framing rejects old indeterminate lengths; authenticated inner framing
+  accepts context-sized literals and concatenates complete literal sequences.
+  Each declared old/new definite or partial chunk is bounded at 16 MiB, including
+  continuations; aggregate packet sizes and context bodies have no such cap.
+  Literal payloads compact within the one authenticated scratch buffer before
+  one immutable text result is allocated. Any structurally valid non-`t`/`u`
+  format reports `Not text data` only after the full sequence has validated;
+  later malformed structure or bad MDC instead reports generic corruption.
+  `PreparePGP` validates strict typed operands/options before execution entropy;
+  `PgcryptoPGPInvocation` is borrowed only for that call, never a retained plan.
+  Effective S2K cipher selection controls SKESK framing/key derivation even with
+  no separate session key. Packet algorithms remain authoritative on decrypt.
+  Keys, derivation and owned plaintext scratch are cleared on every exit;
+  only authenticated complete text or immutable ciphertext is published.
+  The compression dispatch is reached only after authentication. Recognized
+  unavailable profiles fail explicitly rather than silently changing options.
 - `PgcryptoPlan.Evaluate` and `PrepareSalt` take an explicit invocation-local
   built-in-password policy check. Typed validation and strict NULL precede it;
   password salt/count validation and entropy follow it. Kernels retain neither

@@ -7,6 +7,17 @@
   sealed origin and effective captures survive authorized presentation changes
   and native logical replay into destination-owned generations.
 
+- Add installed text `pgp_sym_encrypt`/`pgp_sym_decrypt` overloads with checked
+  OpenPGP framing, AES128 CFB, iterated salted SHA1 and complete MDC
+  authentication before plaintext or inner diagnostics. Preserve provider slots,
+  stored packet data and SQL consumers through native logical controls; keep
+  entropy and cleared cryptographic scratch invocation-local. Independently
+  decode emitted packets in the shared PostgreSQL 18.6 reference scenarios.
+  Accept authenticated old-context and successive literal packets, enforce the
+  release's 16 MiB limit per declared chunk without capping valid aggregates,
+  and defer every nontext literal-format diagnostic until the full authenticated
+  structure validates, preserving generic corruption and no partial text on failure.
+
 - Extend the intarray 1.5 provider with genuine intbig_gkey support identity,
   rejecting released I/O and typed NULL/empty/NULL-only shared arrays. Seal both
   type roles and all four I/O declarations through atomic installation, ownership

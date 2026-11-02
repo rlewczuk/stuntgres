@@ -36,6 +36,10 @@ var PgcryptoMembers = [...]PgcryptoMember{
 	{"armor", "17,1009,1009", 25, expr.Immutable, true},
 	{"dearmor", "25", 17, expr.Immutable, true},
 	{"pgp_armor_headers", "25", 2249, expr.Immutable, true},
+	{"pgp_sym_encrypt", "25,25", 17, expr.Volatile, true},
+	{"pgp_sym_encrypt", "25,25,25", 17, expr.Volatile, true},
+	{"pgp_sym_decrypt", "17,25", 25, expr.Immutable, true},
+	{"pgp_sym_decrypt", "17,25,25", 25, expr.Immutable, true},
 }
 
 // PgcryptoLookup returns the manifest member with the exact name and signature.

@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var pgcryptoNames = [...]string{"digest", "hmac", "crypt", "gen_salt", "encrypt", "decrypt", "encrypt_iv", "decrypt_iv", "gen_random_bytes", "gen_random_uuid", "fips_mode", "armor", "dearmor"}
+var pgcryptoNames = [...]string{"digest", "hmac", "crypt", "gen_salt", "encrypt", "decrypt", "encrypt_iv", "decrypt_iv", "gen_random_bytes", "gen_random_uuid", "fips_mode", "armor", "dearmor", "pgp_sym_encrypt", "pgp_sym_decrypt"}
 
 // bindPgcrypto binds installed pgcrypto calls through the ordinary call envelope.
 // Decorations are diagnosed only after selecting an installed scalar signature.

@@ -14,6 +14,36 @@ PostgreSQL server preload, C ABI/hook chaining, process/loader resources and
 optional CrackLib builds remain external mechanisms; native startup registration
 replaces only activation. See the [Driver contract](DRIVER.md#password-strength-startup-registration).
 
+## pgcrypto OpenPGP
+
+The installed text symmetric wrappers implement AES128 for the effective data
+and S2K ciphers, uncompressed data, iterated salted SHA1, direct derived keys and
+integrity-protected CFB packets. Explicit S2K counts round upward to the RFC byte
+count; default salt, count and prefix material comes from execution entropy.
+An explicit S2K cipher affects the packet header and key derivation even without
+a separately encrypted session key. Options never silently substitute an
+unavailable effective encryption profile. Decryption follows packet algorithms,
+not otherwise valid encryption preferences supplied as options.
+
+The checked packet reader accepts definite old headers and new definite/partial
+framing, with a 16 MiB bound on each declared chunk rather than its aggregate.
+After authenticating the complete prefix and MDC, inner framing also accepts
+old context lengths and concatenates validated literal payloads. Any non-`t`/`u`
+literal format reports `Not text data` only after complete structural validation;
+malformed structure or bad MDC reports generic corruption without publishing
+text. Compression diagnostics likewise follow authentication. Invocation-owned key,
+derivation and plaintext scratch is cleared on exit. Immutable caller-owned
+password strings cannot promise secure erasure. Ordinary user-authored SQL
+literals/defaults remain ordinary SQL in native logical snapshots.
+
+OpenSSL provider ABI/loading and recovery of historical provider-failure
+ciphertext, native keyrings, shell programs, networking and physical durability
+are external mechanisms, not successful embedded substitutes. The bounded
+symmetric path uses standard-library crypto and no shell crypto. Native controls
+preserve extension relationships, stored ciphertext and SQL consumers, never
+live cipher/provider/session handles. UTF8 text transport rejects embedded NUL
+before option parsing; BYTEA packet bytes remain opaque.
+
 ## Tablespaces
 
 Supported logical lifecycle syntax:

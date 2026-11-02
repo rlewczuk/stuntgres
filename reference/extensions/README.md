@@ -383,7 +383,18 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   the complete native bootstrap inventory of 18 dictionaries (simple and 17
   Snowball providers, including Swedish), then 19 with unaccent installed.
 - Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
-- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`, `RUN='^TestReferencePgcryptoPolicy'`
+- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`, `RUN='^TestReferencePgcryptoPolicy'`, `RUN='^TestReferencePgcryptoPGP'`
+  PGP scenarios anchor an independent RFC/stdlib decoder with upstream ciphertext,
+  then authenticate actual SQL output without comparing random packet bytes.
+  Authenticated framing cases distinguish outer rejection from inner context
+  lengths and verify atomic multi-literal concatenation. Chunk cases supply
+  complete bodies at and above the release's per-chunk 16 MiB bound, including
+  continuations and valid larger partial aggregates. The independent authenticity
+  decoder deliberately retains RFC-valid overlimit chunks, so a release-framing
+  rejection cannot be confused with damaged crypto. Literal-format cases check
+  every non-`t`/`u` classification and structural/MDC diagnostic precedence.
+  Large direct/prepared witnesses each own a fresh scenario and compare complete
+  TEXT quietly; failures retain complete diagnostics and forbid any returned row.
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`

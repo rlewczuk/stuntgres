@@ -10,7 +10,7 @@ import (
 )
 
 // REL_18_6 pgcrypto--1.3.sql and pgcrypto--1.3--1.4.sql, in member order.
-var pgcryptoSources = [...]string{"pg_digest", "pg_digest", "pg_hmac", "pg_hmac", "pg_crypt", "pg_gen_salt", "pg_gen_salt_rounds", "pg_encrypt", "pg_decrypt", "pg_encrypt_iv", "pg_decrypt_iv", "pg_random_bytes", "pg_random_uuid", "pg_check_fipsmode", "pg_armor", "pg_armor", "pg_dearmor", "pgp_armor_headers"}
+var pgcryptoSources = [...]string{"pg_digest", "pg_digest", "pg_hmac", "pg_hmac", "pg_crypt", "pg_gen_salt", "pg_gen_salt_rounds", "pg_encrypt", "pg_decrypt", "pg_encrypt_iv", "pg_decrypt_iv", "pg_random_bytes", "pg_random_uuid", "pg_check_fipsmode", "pg_armor", "pg_armor", "pg_dearmor", "pgp_armor_headers", "pgp_sym_encrypt_text", "pgp_sym_encrypt_text", "pgp_sym_decrypt_text", "pgp_sym_decrypt_text"}
 
 var pgcryptoArmorOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25}, "", "key", "value")
 
@@ -55,12 +55,18 @@ func (p *PgcryptoProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/pgcrypto", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			context := ""
-			if i == 0 { context = PgcryptoDigestContext }
-			if i == 4 { context = PgcryptoCryptContext }
+			if i == 0 {
+				context = PgcryptoDigestContext
+			}
+			if i == 4 {
+				context = PgcryptoCryptContext
+			}
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name()), Context: context}
 		}
 		if i == 0 {
-			if err := stage.InitializePgcrypto(PgcryptoDigestContext); err != nil { return err }
+			if err := stage.InitializePgcrypto(PgcryptoDigestContext); err != nil {
+				return err
+			}
 		}
 		if err := stage.Create(proc); err != nil {
 			return err

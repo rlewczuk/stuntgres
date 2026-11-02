@@ -136,9 +136,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and historical initial privileges, never fabricated installed relation origins.
   The manifest also identifies only fresh script products for native replay
   cleanup; current source view state remains the ordinary view codec's concern.
-  Pgcrypto preserves its fourteen incumbent slots and appends exactly four armor
-  declarations. Both armor overloads have C symbol `pg_armor`, dearmor has
-  `pg_dearmor`, and binding/replay use their independently authenticated SQL names.
+  Pgcrypto preserves its eighteen incumbent slots and appends the four strict,
+  parallel-safe text PGP declarations: volatile encryption and immutable
+  decryption, each with two and three arguments. Armor slots14–17 retain their
+  original identities. Both armor overloads have C symbol `pg_armor`, dearmor
+  has `pg_dearmor`; PGP uses `pgp_sym_encrypt_text` / `pgp_sym_decrypt_text`.
+  Binding and replay use independently authenticated SQL declaration names.
   `pgp_armor_headers` owns the sole pgcrypto OUT capability: one unnamed TEXT
   input, `key`/`value` TEXT outputs, RECORD result, STRICT/IMMUTABLE/PARALLEL SAFE,
   set cardinality and rows1000. Only that sealed slot may carry its exact immutable
@@ -159,7 +162,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Initial CREATE copies the control comment into the immutable extension header;
   skipped CREATE and UPDATE never reapply that default. Header copies preserve
   current comment text across placement, membership and ownership changes.
-  Stock pgcrypto preserves its fourteen installed declarations and provider
+  Stock pgcrypto preserves its twenty-two installed declarations and provider
   identities. Its first actual C-member validation initializes only the
   installer's physical setting attachment; Prepare, catalog presence, early
   errors and skipped CREATE do not. Initialization survives later SQL rollback

@@ -43,7 +43,9 @@ func (c *pgcryptoProviderEvaluation) InitializePgcrypto(captured *catalog.Proced
 		return extension.InvalidProviderDescriptor()
 	}
 	current, err := exec.ValidateStoredRoutineDescriptor(c.view, captured)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return extension.StockPgcrypto.ValidateProcedure(c.view, current)
 }
 
@@ -71,7 +73,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.4" || len(ext.Members) != 18 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.4" || len(ext.Members) != 22 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ids.ObjectAddress]bool{}
@@ -90,6 +92,8 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		{"gen_random_bytes", "23", 17, expr.Volatile, true}, {"gen_random_uuid", "", 2950, expr.Volatile, false}, {"fips_mode", "", 16, expr.Volatile, true},
 		{"armor", "17", 25, expr.Immutable, true}, {"armor", "17,1009,1009", 25, expr.Immutable, true},
 		{"dearmor", "25", 17, expr.Immutable, true}, {"pgp_armor_headers", "25", 2249, expr.Immutable, true},
+		{"pgp_sym_encrypt", "25,25", 17, expr.Volatile, true}, {"pgp_sym_encrypt", "25,25,25", 17, expr.Volatile, true},
+		{"pgp_sym_decrypt", "17,25", 25, expr.Immutable, true}, {"pgp_sym_decrypt", "17,25,25", 25, expr.Immutable, true},
 	}
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
@@ -115,7 +119,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 18 {
+	if count != 22 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*catalog.Procedure){

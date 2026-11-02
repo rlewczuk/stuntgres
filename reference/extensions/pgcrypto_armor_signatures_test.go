@@ -90,8 +90,8 @@ func TestReferencePgcryptoArmorSignatures(t *testing.T) {
 			owner = "stuntgres"
 		}
 		installed := pgcryptoRandomInventory(t, p, c, pg, owner)
-		// The shared inventory now covers all eighteen declarations. Partition
-		// the fourteen incumbent signatures explicitly, not by query order.
+		// Partition the eighteen non-armor declarations explicitly, not by
+		// catalog query order; the shared inventory contains twenty-two.
 		incumbents := []string{
 			"pgcrypto_part.digest(text,text)", "pgcrypto_part.digest(bytea,text)",
 			"pgcrypto_part.hmac(text,text,text)", "pgcrypto_part.hmac(bytea,bytea,text)",
@@ -99,6 +99,8 @@ func TestReferencePgcryptoArmorSignatures(t *testing.T) {
 			"pgcrypto_part.encrypt(bytea,bytea,text)", "pgcrypto_part.decrypt(bytea,bytea,text)",
 			"pgcrypto_part.encrypt_iv(bytea,bytea,bytea,text)", "pgcrypto_part.decrypt_iv(bytea,bytea,bytea,text)",
 			"pgcrypto_part.gen_random_bytes(integer)", "pgcrypto_part.gen_random_uuid()", "pgcrypto_part.fips_mode()",
+			"pgcrypto_part.pgp_sym_encrypt(text,text)", "pgcrypto_part.pgp_sym_encrypt(text,text,text)",
+			"pgcrypto_part.pgp_sym_decrypt(bytea,text)", "pgcrypto_part.pgp_sym_decrypt(bytea,text,text)",
 		}
 		priorIDs := map[int64]string{}
 		for _, signature := range incumbents {
@@ -110,7 +112,7 @@ func TestReferencePgcryptoArmorSignatures(t *testing.T) {
 		}
 		added := pgcryptoArmorInventory(t, p, c, r, "pgcrypto_part")
 		if len(installed) != len(incumbents)+len(added) {
-			t.Fatal("installed inventory is not fourteen incumbent plus four armor declarations", installed)
+			t.Fatal("installed inventory is not eighteen non-armor plus four armor declarations", installed)
 		}
 		for signature, id := range added {
 			if installed[signature] != id {
@@ -120,7 +122,7 @@ func TestReferencePgcryptoArmorSignatures(t *testing.T) {
 				t.Fatal("new declaration reused old identity", signature, prior)
 			}
 		}
-		run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pgcrypto_part' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers')", []string{"count"}, []string{"INT8"}, [][]any{{int64(18)}}))
+		run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pgcrypto_part' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt')", []string{"count"}, []string{"INT8"}, [][]any{{int64(22)}}))
 		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test")))
 		run(fixture.Exec("SET search_path TO pgcrypto_part,public", 0))
 		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
