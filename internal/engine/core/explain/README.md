@@ -1,9 +1,8 @@
 # internal/engine/core/explain
 
 EXPLAIN rendering: the presentation trees of one command, their logical
-estimates, statistics, pruning and foreign-provider details, and the TEXT
-and JSON `QUERY PLAN` output. It is a leaf below core (ENGINE-SPLIT §3,
-L14.5).
+estimates, statistics, pruning and foreign-provider details, and TEXT/XML/JSON/YAML
+`QUERY PLAN` output. It is a leaf below core (ENGINE-SPLIT §3, L14.5).
 
 ## Layering
 
@@ -21,17 +20,18 @@ L14.5).
 
 ## Contract
 
-- `ValidateOptions` and `DescribeFormat` read a parsed `EXPLAIN`'s options
-  into `Options`; `Error` builds their SQLSTATE errors.
+- `ValidateOptions(statement, overexplainLoaded)` validates ordered execution
+  options against current physical-session recognition. `DescribeFormat` reads
+  FORMAT alone for the result descriptor; `Error` builds located diagnostics.
 - `NewRenderer(host, auth, options)` starts one command's presentation.
   `Command(statement, Bound)` renders a bound command (and its rule rewrites,
   CTE producers and subplans) into `Tree`s; `Render` returns TEXT lines and
-  `Output` publishes TEXT or JSON rows of the `QUERY PLAN` schema.
+  `Output` publishes rows through the selected TEXT/XML/JSON descriptor codec.
   `ForeignFence` re-checks the captured catalog state and roles.
 - EXPLAIN ANALYZE: core sets `Observation`, reads `CommandTree` (its `Actual`
   measurements are filled by the executor), and calls `MarkRuleRewrite` for
-  rule actions. `PresentedNodes` is read only by core's test accessor
-  `ExplainObservationForTest` (a recorded T6 exception).
+  rule actions. `PresentedNodes` supports core's actual-owner presentation tests
+  and `ExplainObservationForTest` (the existing recorded T6 test seam).
 - `SetForeignParameters` supplies the typed parameter frame and its provider
   export for foreign planning.
 
@@ -85,7 +85,7 @@ matching execution's presence-only demand without changing nil/full requests
 for modification targets or ANALYZE.
 Bound graphs and expression presentation remain
 activation-local; prepared descriptions retain only ordinary immutable
-dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT or JSON schema.
+dependency/parameter captures and the wrapper's single `QUERY PLAN` descriptor.
 Their fold owner is inert: ordinary EXPLAIN never grants child fold-publication
 rights, including during Describe or protocol Parse/Bind, and retains no accepted
 generation. The ordinary renderer describes actual logical stages and rewritten
@@ -95,24 +95,55 @@ may obtain genuine remote estimates during planning. Before publishing owned out
 it fences catalog, context and current authority again, including after unlocked
 typed comparisons.
 
-TEXT line rows and the single typed JSON document row publish through one output
-owner. JSON uses the catalog JSON input codec, never a TEXT datum retag or an
-adapter-specific conversion. FORMAT descriptor selection does not validate
-execution-only options early; ordered option validation still follows child
-analysis. Both encodings share the invocation's selected presentation trees and
-late actual foreign-composite substitution. JSON node types, raw identifiers and
-typed properties are captured at construction, never parsed from display strings.
-Lists retain expression boundaries, nested VALUES/grouping sets and ordered
-MERGE arms; provider properties are ordered Name/Value records with duplicates
-preserved, never structural object keys. Auxiliary roots remain ordered document
-entries. Logical estimates use Plan Rows/Logical Cost plus an Estimate Model;
-genuine provider estimates remain under Provider Estimates. Unknown quantities
-are omitted. VERBOSE adds output/qualification; COSTS gates estimates, not actual
-measurements. TEXT does not allocate JSON property maps.
+TEXT line rows and one non-NULL XML/JSON/YAML document row publish through one
+output owner. Database types are TEXT/XML/JSON/TEXT respectively. XML and JSON
+use their catalog input codecs, never retagged TEXT data or adapter conversion.
+FORMAT description does not validate execution-only options early; ordered
+option errors still follow child analysis. `Options.Structured()` selects one
+detached typed map/list projection shared by all structured formats and late
+actual foreign-composite substitution. Properties are captured at construction,
+never parsed from labels or TEXT. Lists preserve expression boundaries, nested
+VALUES/grouping sets, MERGE arms and ordered duplicate provider Name/Value records.
+Provider labels are data, never structural keys or XML names.
+XML uses the PostgreSQL EXPLAIN namespace, Query/Plan/Plans containers, hyphenated
+fixed property labels and Item list elements (Plan inside Plans). Its scalar
+content is lexical, with no invented SQL xsi typing; empty maps/lists and nil
+scalars use empty elements. YAML uses YAML-compatible JSON flow collections
+directly from the same typed projection: all keys/strings are double quoted,
+numbers/Booleans remain typed, empty maps/lists are `{}`/`[]`, and nil is `null`.
+No JSON parse/round trip or second plan representation is involved.
+Auxiliary roots remain ordered document entries. Logical estimates use Plan Rows,
+Logical Cost and Estimate Model; genuine provider estimates remain under Provider
+Estimates. Unknown quantities are omitted. VERBOSE gates ordinary output and
+qualification; COSTS gates estimates, not actual measurements. Default/DEBUG FALSE
+TEXT allocates neither structured property maps nor debug identity maps.
+
+DEBUG recognition belongs to the physical owner's authorized `pg_overexplain`
+activation, including DEBUG FALSE. Describe never snapshots it: an already-held
+definition sees a later LOAD at Execute. Ordered Boolean parsing is shared with
+ordinary options; an invalid earlier duplicate is not rescued by a later value.
+Debug projection itself grants no execution or expression-evaluation rights.
+`Embedded Debug` contains only real bound-node information: positive statement-local
+Node ID (first final-presentation encounter, shared for the same actual node),
+owned Frame/Occurrence fields, checked Relation OID, ordered Project/Sort Target
+List SQL and Sort Targets records (Target Identity, Output Ordinal, Slot, Cache,
+Output and Expression). Valid zero fields and zero-width target lists survive.
+Capture uses the active lexical frames and existing stored deparser; numbering
+does not mutate the graph. Synthetic wrappers have no fabricated node identity.
+Synthetic DML candidate-frame adapters (target/VALUES/Singleton/join/filter)
+likewise receive no node IDs. `Embedded Command Debug` instead captures the
+actual checked command Relation OID and its ordered bound Returning Target List
+SQL, explicitly `[]` when there are no RETURNING expressions.
+The command group has no Node ID; genuine bound source/subquery children retain
+their ordinary Embedded Debug identities. The existing target-versus-source
+deparser frames serve both ordinary RETURNING details and this debug projection.
+IDs, frames, target SQL and all embedded debug fields are nonportable internal
+presentation, not PostgreSQL planner structures or stable identities across rebind.
+Only detached scalar/container output survives renderer/operation teardown.
 Named conflict constraints retain the raw syntax name already resolved by the
 binder to a relation-local constraint identity, rather than a descriptor lookup.
 Requested domain defaults retain their bound default origin and effective
-assignment expression in JSON without evaluating or deparsing the recipe again.
+assignment expression in structured output without evaluating or deparsing the recipe again.
 
 Actual fields identify emitted output and real invocation loops separately from
 logical estimates. Measured node elapsed milliseconds include child work and
@@ -122,7 +153,7 @@ finalized groups. Original HAVING/sort/projection identities retain the actual
 copied leader-wrapper work. Optional planning/execution summaries exclude plan
 transfer and outer transaction publication. Results complete with the non-counted
 EXPLAIN command tag; child affected rows are not the wrapper affected count.
-JSON Actual Rows and Actual Total Time are averages over Actual Loops; zero-loop
+Structured Actual Rows and Actual Total Time are averages over Actual Loops; zero-loop
 nodes have numeric zero rows/loops and no elapsed field. Actual Total Time is the
 active inclusive/summed-worker elapsed measurement described above, not physical
 startup or wall critical-path time. TIMING gates node elapsed, SUMMARY gates the
@@ -164,7 +195,7 @@ input-query labels. OLD/NEW presentation does not replace source ownership.
 ## Testing
 
 - Pure presentation units are internal tests here
-  (`RUN='^TestExplainJSONPresentation$'`).
+  (`RUN='^TestExplain(JSON|Structured)Presentation$'`).
 - Engine-level EXPLAIN tests stay in core until their census owners move
   them (`RUN='^Test(Explain|Planner|FDWExplain)'` over `./internal/engine/core`);
   public scenarios are `RUN='^TestReference(Explain|PlannerCosts)'`.

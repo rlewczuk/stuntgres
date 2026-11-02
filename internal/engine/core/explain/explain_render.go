@@ -3,6 +3,7 @@ package explain
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
@@ -21,6 +22,8 @@ type Tree struct {
 	label           string
 	nodeType        string
 	properties      map[string]any
+	debug           map[string]any // Requested detached fields; never contains graph pointers.
+	commandDebug    map[string]any // Actual bound command fields, never synthetic node IDs.
 	details         []string
 	children        []*Tree
 	estimate        plan.ExplainEstimate
@@ -162,7 +165,7 @@ func (r *Renderer) query(query *plan.Query) (*Tree, error) {
 	return r.node(query.Root)
 }
 
-func (r *Renderer) node(root plan.Node) (*Tree, error) {
+func (r *Renderer) node(root plan.Node, synthetic ...plan.Node) (*Tree, error) {
 	if err := r.host.Context().Err(); err != nil {
 		return nil, err
 	}
@@ -198,6 +201,9 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 	}
 	if r.Observation == nil {
 		if tree, selected, err := r.foreignQuery(root); selected || err != nil {
+			if err == nil && tree != nil && r.options.Debug && !slices.Contains(synthetic, root) {
+				err = r.captureDebug(tree, root)
+			}
 			return tree, err
 		}
 	}
@@ -209,7 +215,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		r.frames[project.Frame] = project.Child
 	}
 	if plan.ExplainInactive(root) {
-		return r.node(left)
+		return r.node(left, synthetic...)
 	}
 	tree := &Tree{}
 	tree.node = root
@@ -240,7 +246,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		if join, ok := root.(*plan.JoinNode); ok && join.CorrelatedRight && child == right {
 			r.foreign.invocation = true
 		}
-		childTree, err := r.node(child)
+		childTree, err := r.node(child, synthetic...)
 		r.foreign = foreign
 		if err != nil {
 			return nil, err
@@ -501,7 +507,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 				direction = "BREADTH FIRST"
 			}
 			tree.details = append(tree.details, "SEARCH: "+direction+" BY "+explainIdentifiers(n.Search.Syntax.Keys)+" SET "+catalog.Identifier(n.Search.Syntax.Sequence.Text))
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				keys := make([]string, len(n.Search.Syntax.Keys))
 				for i, key := range n.Search.Syntax.Keys {
 					keys[i] = key.Text
@@ -522,7 +528,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 				return nil, err
 			}
 			tree.details = append(tree.details, "CYCLE: "+explainIdentifiers(n.Cycle.Syntax.Keys)+" SET "+catalog.Identifier(n.Cycle.Syntax.Mark.Text)+" TO "+mark+" DEFAULT "+fallback+" USING "+catalog.Identifier(n.Cycle.Syntax.Path.Text))
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				keys := make([]string, len(n.Cycle.Syntax.Keys))
 				for i, key := range n.Cycle.Syntax.Keys {
 					keys[i] = key.Text
@@ -562,7 +568,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 				target = catalog.Identifier(source.RangeName)
 			}
 			tree.details = append(tree.details, mode+" OF "+target+" "+wait)
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				rawTarget := ""
 				if source := r.occurrences[i]; source != nil {
 					rawTarget = source.RangeName
@@ -673,6 +679,11 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 			r.property(tree, "CPU Cost", r.scanDecision.Cost())
 		}
 	}
+	if r.options.Debug && !slices.Contains(synthetic, root) {
+		if err := r.captureDebug(tree, root); err != nil {
+			return nil, err
+		}
+	}
 	tree.estimate = estimate
 	for _, child := range tree.children {
 		tree.unknownEstimate = tree.unknownEstimate || child.unknownEstimate
@@ -723,6 +734,7 @@ func (r *Renderer) lines(tree *Tree, depth int, lines *[]string) {
 	for _, detail := range tree.details {
 		*lines = append(*lines, indent+"  "+detail)
 	}
+	r.debugLines(tree, indent+"  ", lines)
 	for _, child := range tree.children {
 		r.lines(child, depth+1, lines)
 	}

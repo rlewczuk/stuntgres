@@ -10,9 +10,9 @@ import (
 
 const LoadUnsupported = "LOAD native libraries are unsupported in embedded mode"
 
-// Load checks execution authority and lexical filename restrictions only. It
-// never inspects the filesystem, loads process code, or stages catalog changes.
-func Load(ctx context.Context, view access.View, s *parser.Load) error {
+// checkLoad checks current execution authority and lexical restrictions before
+// either bounded built-in activation or the arbitrary-library refusal.
+func checkLoad(ctx context.Context, view access.View, s *parser.Load) error {
 	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return err
@@ -32,6 +32,19 @@ func Load(ctx context.Context, view access.View, s *parser.Load) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// Load admits only the built-in module after ordinary authorization. All other
+// native libraries retain the arbitrary-loader boundary without filesystem access.
+func Load(ctx context.Context, view access.View, s *parser.Load) error {
+	if err := checkLoad(ctx, view, s); err != nil {
+		return err
+	}
+	switch s.Filename {
+	case "pg_overexplain", "pg_overexplain.so", "$libdir/pg_overexplain", "$libdir/pg_overexplain.so":
+		return nil
 	}
 	return sqlError("0A000", LoadUnsupported)
 }

@@ -163,13 +163,16 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   lookup or ownership. Omitted and empty-string providers differ; decoded names
   are not Go-escaped in diagnostics. PostgreSQL's native C provider ABI/loading
   and SELinux/MAC integration are unavailable. No provider/store is fabricated.
-- **LOAD**: `Load(ctx, view, s)` checks the current actor's SUPERUSER
-  attribute, then PostgreSQL's plugin prefix/suffix restriction and
-  slash-containing filename macro validation; once valid it returns 0A000
-  (`LoadUnsupported`). It never expands paths, inspects files, stages objects
-  or allocates catalog identities. `schemacmds.ExecuteLoad` owns the
-  argument count, the mutex and fresh authority capture; Prepare performs none
-  of these execution checks.
+- **LOAD**: `Load(ctx, view, s)` first checks the current actor's SUPERUSER
+  attribute, plugin prefix/suffix restriction, slash-containing macro and context.
+  It then admits only `pg_overexplain`, `pg_overexplain.so`,
+  `$libdir/pg_overexplain` and `$libdir/pg_overexplain.so`; other native libraries
+  retain 0A000 (`LoadUnsupported`). It never expands paths, inspects files,
+  stages objects or allocates catalog identities. `schemacmds.ExecuteLoad` owns
+  argument count, Engine.Mu, fresh authority capture and actual physical-session
+  activation. Security precedes repeated activation; Prepare performs none of
+  these execution checks. The built-in capability is not an installed extension,
+  arbitrary ABI loading, or an entry in the physical native-module inventory.
 - **CHECKPOINT**: `Checkpoint(ctx, view, s)` checks current inherited
   `pg_checkpoint` authority, then returns `CheckpointUnsupported` without
   performing physical work. `schemacmds.ExecuteCheckpoint` captures fresh

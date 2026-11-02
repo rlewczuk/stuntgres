@@ -3,9 +3,7 @@ package reference_test
 import (
 	"database/sql"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 
@@ -39,8 +37,8 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 		name, prefix, message, token, typ string
 		analyze                           bool
 	}{
-		{"xml", "EXPLAIN (FORMAT XML)", "EXPLAIN format XML is not supported", "FORMAT", "XML", false},
-		{"yaml", "EXPLAIN (FORMAT YAML)", "EXPLAIN format YAML is not supported", "FORMAT", "TEXT", false},
+		{"xml", "EXPLAIN (FORMAT XML)", "", "", "XML", false},
+		{"yaml", "EXPLAIN (FORMAT YAML)", "", "", "TEXT", false},
 		{"settings", "EXPLAIN (SETTINGS)", "EXPLAIN option SETTINGS is not supported", "SETTINGS", "TEXT", false},
 		{"buffers", "EXPLAIN (BUFFERS)", "EXPLAIN option BUFFERS is not supported", "BUFFERS", "TEXT", false},
 		{"memory", "EXPLAIN (MEMORY)", "EXPLAIN option MEMORY is not supported", "MEMORY", "TEXT", false},
@@ -68,71 +66,56 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 							}
 							defer tx.Rollback()
 							q := "/*é*/ " + c.prefix + " UPDATE explain_cap SET id=2 RETURNING id"
-							if !b.PG {
+							if !b.PG && c.name != "xml" && c.name != "yaml" {
 								want := fixture.ControlsReferenceDiagnostic("0A000", c.message)
 								want.Position = fixture.Position(len([]rune(q[:strings.Index(q, c.token)])) + 1)
 								s := fixture.ErrorDiagnostic(q, want)
 								s.Prepared, s.SelectRows, s.ErrorStage = prepared, true, "execute"
-								if prepared && (c.name == "xml" || c.name == "yaml") {
-									s.ErrorStage = "prepare"
-								}
 								fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
 							} else {
 								var text string
-								consume := func() {
-									var rows = mustExplainCapabilityRows(t, p, tx, q, prepared)
-									defer rows.Close()
-									cols, err := rows.Columns()
-									if err != nil || len(cols) != 1 || cols[0] != "QUERY PLAN" {
-										t.Fatalf("columns: %v, %v", cols, err)
-									}
-									types, err := rows.ColumnTypes()
-									if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != c.typ {
-										t.Fatalf("want %s column: %v, %v", c.typ, types, err)
-									}
-									for rows.Next() {
-										var line string
-										if err := rows.Scan(&line); err != nil {
+								if c.name == "xml" || c.name == "yaml" {
+									format := strings.ToUpper(c.name)
+									result := overexplainRows(t, mustExplainCapabilityRows(t, p, tx, q, prepared), format)
+									overexplainDebug(t, b, result, format, false)
+									explainJSONFind(t, result.document, "Relation Name", "explain_cap")
+									text = result.text
+								} else {
+									consume := func() {
+										var rows = mustExplainCapabilityRows(t, p, tx, q, prepared)
+										defer rows.Close()
+										cols, err := rows.Columns()
+										if err != nil || len(cols) != 1 || cols[0] != "QUERY PLAN" {
+											t.Fatalf("columns: %v, %v", cols, err)
+										}
+										types, err := rows.ColumnTypes()
+										if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != c.typ {
+											t.Fatalf("want %s column: %v, %v", c.typ, types, err)
+										}
+										for rows.Next() {
+											var line string
+											if err := rows.Scan(&line); err != nil {
+												t.Fatal(err)
+											}
+											text += line + "\n"
+										}
+										if err := rows.Err(); err != nil {
 											t.Fatal(err)
 										}
-										text += line + "\n"
 									}
-									if err := rows.Err(); err != nil {
-										t.Fatal(err)
+									consume()
+									if strings.TrimSpace(text) == "" {
+										t.Fatal("empty capability plan")
 									}
-								}
-								consume()
-								if strings.TrimSpace(text) == "" {
-									t.Fatal("empty capability plan")
-								}
-								switch c.name {
-								case "json-buffers", "json-wal":
-									var plans []struct{ Plan map[string]any }
-									if err := json.Unmarshal([]byte(text), &plans); err != nil || len(plans) != 1 || plans[0].Plan["Node Type"] == nil {
-										t.Fatalf("invalid JSON plan: %s, %v", text, err)
-									}
-								case "xml":
-									d := xml.NewDecoder(strings.NewReader(text))
-									found := false
-									for {
-										tok, err := d.Token()
-										if err == io.EOF {
-											break
+									switch c.name {
+									case "json-buffers", "json-wal":
+										var plans []struct{ Plan map[string]any }
+										if err := json.Unmarshal([]byte(text), &plans); err != nil || len(plans) != 1 || plans[0].Plan["Node Type"] == nil {
+											t.Fatalf("invalid JSON plan: %s, %v", text, err)
 										}
-										if err != nil {
-											t.Fatal(err)
-										}
-										if start, ok := tok.(xml.StartElement); ok && start.Name.Local == "Plan" {
-											found = true
-										}
+									default:
+										explainContains(t, []string{text}, "explain_cap", "rows=")
 									}
-									if !found {
-										t.Fatalf("XML lacks Plan: %s", text)
-									}
-								case "yaml":
-									explainContains(t, []string{text}, "Plan:", "Node Type:", "explain_cap")
-								default:
-									explainContains(t, []string{text}, "explain_cap", "rows=")
 								}
 								wantID := int64(1)
 								if c.analyze {

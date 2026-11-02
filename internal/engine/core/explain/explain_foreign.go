@@ -23,7 +23,7 @@ func (r *Renderer) foreignProperties(tree *Tree, properties []catalog.ForeignExp
 			return fmt.Errorf("stuntgres: invalid foreign EXPLAIN property")
 		}
 		tree.details = append(tree.details, property.Name+": "+property.Value)
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			r.repeated(tree, "Provider Properties", map[string]any{"Name": property.Name, "Value": property.Value})
 		}
 	}
@@ -99,7 +99,7 @@ func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *cata
 	}
 	if r.options.Costs {
 		tree.details = append(tree.details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f rows=%.0f width=%.0f", execution.Path.StartupCost, execution.Path.TotalCost, execution.Size.Rows, execution.Size.Width))
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			r.property(tree, "Provider Estimates", map[string]float64{"Startup Cost": execution.Path.StartupCost, "Total Cost": execution.Path.TotalCost, "Plan Rows": execution.Size.Rows, "Plan Width": execution.Size.Width})
 		}
 	}

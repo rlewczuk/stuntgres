@@ -277,6 +277,13 @@ fail with `42501` (`permission denied for table pg_opfamily`), and native owner
 writes fail with `0A000` (`catalog source mutation is unsupported`), including
 empty predicates. See the [catalog proof selectors](reference/catalog_objects/README.md#testing).
 
+`EXPLAIN` publishes TEXT lines or one typed XML/JSON/YAML document. Authorized
+`LOAD 'pg_overexplain'` enables the Boolean DEBUG option on that physical
+connection, without installing an extension. DEBUG exposes actual embedded bound
+node identifiers and target lists; these internal fields are nonportable.
+Activation survives transaction rollback and DISCARD ALL, but is not transported
+by Dump/Restore. Use a pinned `*sql.Conn` for LOAD and subsequent EXPLAIN calls.
+
 Standalone `ANALYZE`/`ANALYSE` collects actual statement-visible table values
 and refreshes metadata consumed by logical `EXPLAIN`, without changing query
 results. It supports selected columns, inheritance/partition populations,

@@ -1,9 +1,14 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
+	"io"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
@@ -13,7 +18,7 @@ import (
 )
 
 func explainProtocolBoundary(t *testing.T, e *core.Engine, s *session.Session, wrapper *explainBoundaryWrapper) {
-	explainProtocolFormatBoundary(t, e, s, wrapper, false)
+	explainProtocolFormatBoundary(t, e, s, wrapper, "")
 }
 
 func TestExplainJSONProtocol(t *testing.T) {
@@ -21,11 +26,14 @@ func TestExplainJSONProtocol(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TABLE explain_boundary_foreign(id integer)")
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE explain_boundary_s")
-	explainProtocolFormatBoundary(t, e, s, &explainBoundaryWrapper{}, true)
+	explainPreparedActivation(t, e, s)
+	for _, format := range []string{"json", "xml", "yaml", "text"} {
+		explainProtocolFormatBoundary(t, e, s, &explainBoundaryWrapper{}, format)
+	}
 	explainJSONPreparedOwnership(t, e, s)
 }
 
-func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Session, wrapper *explainBoundaryWrapper, structured bool) {
+func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Session, wrapper *explainBoundaryWrapper, format string) {
 	t.Helper()
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
@@ -33,8 +41,14 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 		enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn)
 	}
 	prefix, typ := "EXPLAIN ", sqltype.Text
-	if structured {
-		prefix, typ = "EXPLAIN (FORMAT JSON) ", sqltype.JSON
+	structured := format != "" && format != "text"
+	if format != "" {
+		prefix = "EXPLAIN (FORMAT " + format + ", DEBUG) "
+	}
+	if format == "json" {
+		typ = sqltype.JSON
+	} else if format == "xml" {
+		typ = sqltype.XML
 	}
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("explain_definition", prefix+"SELECT abs(-7::integer),nextval('explain_boundary_s'),id FROM explain_boundary_foreign WHERE id=$1", nil)
@@ -68,13 +82,10 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 				t.Fatal("child row reached protocol output", fields)
 			}
 			if structured {
-				var document []map[string]any
-				if fields[0].Null || json.Unmarshal(fields[0].Bytes, &document) != nil || len(document) != 1 {
-					t.Fatal("protocol did not publish one nonnull JSON document", fields)
+				if fields[0].Null {
+					t.Fatal("SQL NULL structured plan")
 				}
-				if _, ok := document[0]["Plan"].(map[string]any); !ok {
-					t.Fatal(document)
-				}
+				explainProtocolDocument(t, format, fields[0].Bytes)
 			}
 			rows++
 			return nil
@@ -85,7 +96,7 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 		return err
 	})
 	if structured && rows != 1 {
-		t.Fatal("JSON plan row cardinality", rows)
+		t.Fatal("structured plan row cardinality", rows)
 	}
 	if wrapper.entered || binding.Resource.Root != nil || owner.Live() || owner.Current().Generation != 0 || len(owner.Current().Entries) != 0 {
 		t.Fatal("Execute published/opened/retained child execution state")
@@ -102,4 +113,42 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 		t.Fatal(err)
 	}
 	enginetest.SessionSQL(t, s, "ROLLBACK")
+}
+
+func explainProtocolDocument(t *testing.T, format string, data []byte) {
+	t.Helper()
+	if format == "xml" {
+		var root struct {
+			XMLName xml.Name
+			Queries []struct {
+				Plan struct {
+					NodeType string `xml:"Node-Type"`
+				} `xml:"Plan"`
+			} `xml:"Query"`
+		}
+		d := xml.NewDecoder(bytes.NewReader(data))
+		if err := d.Decode(&root); err != nil {
+			t.Fatal(err)
+		}
+		if root.XMLName.Local != "explain" || root.XMLName.Space != "http://www.postgresql.org/2009/explain" || len(root.Queries) != 1 || root.Queries[0].Plan.NodeType == "" {
+			t.Fatal("protocol did not publish structural XML", string(data))
+		}
+		if _, err := d.Token(); err != io.EOF {
+			t.Fatal("XML decoder did not reach EOF", err)
+		}
+		return
+	}
+	var document []map[string]any
+	var err error
+	if format == "json" {
+		err = json.Unmarshal(data, &document)
+	} else {
+		err = yaml.Unmarshal(data, &document)
+	}
+	if err != nil || len(document) != 1 {
+		t.Fatal("protocol did not publish one typed document", string(data), err)
+	}
+	if _, ok := document[0]["Plan"].(map[string]any); !ok {
+		t.Fatal("missing structural Plan", document)
+	}
 }

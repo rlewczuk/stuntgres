@@ -21,7 +21,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	if owner := scope.explain; owner != nil {
 		previous := scope.invocationContext
 		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.Timing)
-		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.Verbose, Costs: owner.options.Costs}, owner.options.Format == "json")
+		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.Verbose, Costs: owner.options.Costs}, owner.options.Structured())
 		defer func() { scope.invocationContext = previous }()
 		evaluationContext := execution.evaluation.Context
 		previousEvaluationContext := evaluationContext
@@ -80,7 +80,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	ctx := scope.executionContext()
 	var err error
 	b, auth := view.PhysicalBinding(execution.binding), execution.auth
-	scope.installExportDemandFor(&b,stmt)
+	scope.installExportDemandFor(&b, stmt)
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Call:
 		// RC enters here after target admission without snapshotPhase. Pin

@@ -2,7 +2,6 @@ package explain
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"time"
@@ -14,7 +13,7 @@ import (
 
 // Properties are detached at construction, never recovered from display text.
 func (r *Renderer) property(tree *Tree, name string, value any) {
-	if r.options.Format != "json" {
+	if !r.options.Structured() {
 		return
 	}
 	if tree.properties == nil {
@@ -24,7 +23,7 @@ func (r *Renderer) property(tree *Tree, name string, value any) {
 }
 
 func (r *Renderer) repeated(tree *Tree, name string, value any) {
-	if r.options.Format != "json" {
+	if !r.options.Structured() {
 		return
 	}
 	if tree.properties == nil {
@@ -47,7 +46,7 @@ func (r *Renderer) relationProperties(tree *Tree, relation *catalog.Relation, al
 	}
 }
 
-// Both encodings apply actual provider selection to the same frozen tree.
+// All formats apply actual provider selection to the same frozen tree.
 func (r *Renderer) effective(tree *Tree) *Tree {
 	if r.Observation == nil || tree.node == nil && tree.Actual == nil {
 		return tree
@@ -58,7 +57,7 @@ func (r *Renderer) effective(tree *Tree) *Tree {
 	}
 	presentation := *tree
 	presentation.details = append(append([]string(nil), tree.details...), foreign.Details...)
-	if r.options.Format == "json" {
+	if r.options.Structured() {
 		presentation.properties = maps.Clone(tree.properties)
 	}
 	if foreign.Composite {
@@ -67,7 +66,7 @@ func (r *Renderer) effective(tree *Tree) *Tree {
 		presentation.unknownEstimate = true
 		presentation.properties = nil
 	}
-	if r.options.Format == "json" {
+	if r.options.Structured() {
 		if foreign.Operation != "" {
 			r.property(&presentation, "Foreign Operation", foreign.Operation)
 		}
@@ -84,13 +83,19 @@ func (r *Renderer) effective(tree *Tree) *Tree {
 	return &presentation
 }
 
-func (r *Renderer) jsonNode(tree *Tree) map[string]any {
+func (r *Renderer) structuredNode(tree *Tree) map[string]any {
 	tree = r.effective(tree)
 	object := maps.Clone(tree.properties)
 	if object == nil {
 		object = make(map[string]any)
 	}
 	object["Node Type"] = tree.nodeType
+	if tree.debug != nil {
+		object["Embedded Debug"] = tree.debug
+	}
+	if tree.commandDebug != nil {
+		object["Embedded Command Debug"] = tree.commandDebug
+	}
 	if r.options.Costs && !tree.unknownEstimate {
 		object["Plan Rows"], object["Logical Cost"] = tree.estimate.RoundedRows(), tree.estimate.Cost
 		object["Estimate Model"] = "logical heuristics; not execution measurements"
@@ -114,7 +119,7 @@ func (r *Renderer) jsonNode(tree *Tree) map[string]any {
 	if len(tree.children) != 0 {
 		children := make([]map[string]any, len(tree.children))
 		for i, child := range tree.children {
-			children[i] = r.jsonNode(child)
+			children[i] = r.structuredNode(child)
 		}
 		object["Plans"] = children
 	}
@@ -123,14 +128,14 @@ func (r *Renderer) jsonNode(tree *Tree) map[string]any {
 
 type Summaries struct{ Planning, Execution *time.Duration }
 
-// JSON enters the ordinary descriptor codec and result publication path.
+// Structured documents enter the ordinary descriptor codec and publication path.
 // Output publishes the presentation as QUERY PLAN rows of schema.
 func Output(ctx context.Context, schema []catalog.Column, options Options, renderers []*Renderer, lines []string, summaries Summaries) ([][]sqltype.Value, error) {
-	if options.Format == "json" {
+	if options.Structured() {
 		document := make([]map[string]any, 0)
 		for _, renderer := range renderers {
 			for _, tree := range renderer.trees {
-				document = append(document, map[string]any{"Plan": renderer.jsonNode(tree)})
+				document = append(document, map[string]any{"Plan": renderer.structuredNode(tree)})
 			}
 		}
 		if len(document) == 0 {
@@ -145,7 +150,7 @@ func Output(ctx context.Context, schema []catalog.Column, options Options, rende
 		if summaries.Execution != nil {
 			document[0]["Execution Time"] = float64(*summaries.Execution) / 1e6
 		}
-		encoded, err := json.Marshal(document)
+		encoded, err := encodeStructured(options.Format, document)
 		if err != nil {
 			return nil, err
 		}

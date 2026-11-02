@@ -33,7 +33,7 @@ func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relatio
 			physicals = append(physicals, physical)
 		}
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			identity := &Tree{}
 			r.relationProperties(identity, physical, physical.Name())
 			identities = append(identities, identity.properties)

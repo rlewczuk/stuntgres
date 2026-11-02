@@ -17,15 +17,9 @@ type ForeignObservation struct {
 	Composite  bool
 	Details    []string
 	Operation  string
-	Sources    []ForeignObservedSource
+	Sources    []map[string]any
 	Estimates  map[string]float64
 	Properties []catalog.ForeignExplainProperty
-}
-
-type ForeignObservedSource struct {
-	Occurrence int    `json:"Occurrence"`
-	Schema     string `json:"Schema"`
-	Relation   string `json:"Relation Name"`
 }
 
 func (o *Observation) Foreign(node plan.Node) (ForeignObservation, bool) {
@@ -37,6 +31,9 @@ func (o *Observation) Foreign(node plan.Node) (ForeignObservation, bool) {
 	value, ok := o.foreign[node]
 	value.Details = slices.Clone(value.Details)
 	value.Sources = slices.Clone(value.Sources)
+	for i, source := range value.Sources {
+		value.Sources[i] = maps.Clone(source)
+	}
 	value.Properties = slices.Clone(value.Properties)
 	value.Estimates = maps.Clone(value.Estimates)
 	return value, ok
@@ -49,7 +46,7 @@ func (o *Observation) recordForeign(node plan.Node, value ForeignObservation, pr
 		}
 		value.Details = append(value.Details, property.Name+": "+property.Value)
 	}
-	if o.foreignJSON {
+	if o.foreignStructured {
 		value.Properties = slices.Clone(properties)
 	}
 	o.mu.Lock()
@@ -63,7 +60,7 @@ func (o *Observation) recordForeign(node plan.Node, value ForeignObservation, pr
 
 // Configured before stage startup; TEXT needs no structured presentation copies.
 func (o *Observation) SetForeignOptions(options catalog.ForeignExplainOptions, structured bool) {
-	o.foreignOptions, o.foreignJSON = options, structured
+	o.foreignOptions, o.foreignStructured = options, structured
 }
 
 func observeForeignScan(ctx context.Context, o *Observation, node plan.Node, source *ForeignQuerySource, request catalog.ForeignRequest, execution *ForeignExecution) error {
@@ -73,7 +70,7 @@ func observeForeignScan(ctx context.Context, o *Observation, node plan.Node, sou
 	value := ForeignObservation{}
 	if o.foreignOptions.Costs {
 		value.Details = append(value.Details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f rows=%.0f width=%.0f", execution.Path.StartupCost, execution.Path.TotalCost, execution.Size.Rows, execution.Size.Width))
-		if o.foreignJSON {
+		if o.foreignStructured {
 			value.Estimates = map[string]float64{"Startup Cost": execution.Path.StartupCost, "Total Cost": execution.Path.TotalCost, "Plan Rows": execution.Size.Rows, "Plan Width": execution.Size.Width}
 		}
 	}
@@ -95,18 +92,18 @@ func observeForeignQuery(ctx context.Context, o *Observation, node plan.Node, se
 		return nil
 	}
 	value := ForeignObservation{Composite: true, Details: []string{"Foreign operation: " + selected.Request.Stage.Kind}}
-	if o.foreignJSON {
+	if o.foreignStructured {
 		value.Operation = selected.Request.Stage.Kind
 	}
 	for _, source := range selected.Request.Sources {
 		value.Details = append(value.Details, fmt.Sprintf("Foreign source %d: %s.%s", source.Occurrence+1, catalog.Identifier(source.Request.Schema), catalog.Identifier(source.Request.Table)))
-		if o.foreignJSON {
-			value.Sources = append(value.Sources, ForeignObservedSource{Occurrence: source.Occurrence + 1, Schema: source.Request.Schema, Relation: source.Request.Table})
+		if o.foreignStructured {
+			value.Sources = append(value.Sources, map[string]any{"Occurrence": source.Occurrence + 1, "Schema": source.Request.Schema, "Relation Name": source.Request.Table})
 		}
 	}
 	if o.foreignOptions.Costs {
 		value.Details = append(value.Details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f", selected.Path.StartupCost, selected.Path.TotalCost))
-		if o.foreignJSON {
+		if o.foreignStructured {
 			value.Estimates = map[string]float64{"Startup Cost": selected.Path.StartupCost, "Total Cost": selected.Path.TotalCost}
 		}
 	}

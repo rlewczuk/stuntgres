@@ -3,7 +3,7 @@
 Window functions and frames (ranking, lead/lag, ntile, value functions,
 ROWS/RANGE/GROUPS and EXCLUDE), ORDER BY, LIMIT/OFFSET/FETCH including WITH
 TIES, DISTINCT and DISTINCT ON, query-level aggregates including
-`COUNT(expr)`, and EXPLAIN TEXT/JSON plans, options, nonexecution, actual execution and admission.
+`COUNT(expr)`, and EXPLAIN TEXT/XML/JSON/YAML plans, options, nonexecution, actual execution and admission.
 Related families: set operations in
 [query_core](../query_core/README.md#testing); grouping sets and
 hypothetical-set aggregates in [aggregates](../aggregates/README.md#testing);
@@ -21,11 +21,16 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - EXPLAIN helpers in `explain_text_test.go` validate owned, one-line-per-row
   `QUERY PLAN`/TEXT results. Assert native logical stages/details and independently
   valid PostgreSQL plans, never bytewise plan parity or fixed PostgreSQL costs.
-  JSON helpers independently require one typed JSON document row and structural
-  node/list/numeric fields. Native logical trees and PostgreSQL physical trees
-  have separate expectations; neither backend supplies the other's goldens.
-  Capability tests assert exact native diagnostics separately from PostgreSQL's
-  supported formats. ANALYZE cases assert emitted rows/loops, real effects,
+  Structured helpers require one non-NULL typed document row, nested node/list
+  boundaries and numeric/Boolean/string fields. XML is fully decoded with its
+  namespace; YAML flow collections use the existing test-only YAML parser.
+  Native logical trees and PostgreSQL physical trees have independent expectations;
+  neither backend supplies the other's goldens. `overexplain_helpers_test.go`
+  provides isolated pinned physical owners, metadata and full diagnostics for
+  session-local LOAD/DEBUG. Native Embedded Debug and PostgreSQL planner debug
+  fields are explicitly nonportable, asserted separately rather than normalized
+  into parity. Capability tests preserve exact remaining native diagnostics.
+  ANALYZE cases assert emitted rows/loops, real effects,
   caller rollback, runtime failures and current prepared parameters independently;
   execution measurements and logical estimates are separate expectations.
   `TestReferenceExplainAnalyzeParallelAggregate` independently checks grouped,
@@ -119,6 +124,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DISTINCT ON: `RUN='^TestReferenceQueryDistinctOn'`
 - Aggregates and `COUNT(expr)`: `RUN='^TestReference(QueryAggregate|CountExpression)'`
 - EXPLAIN: `RUN='^TestReferenceExplain'`
+- LOAD/DEBUG and structured formats: `RUN='^TestReferenceOverexplain'`
 - Standalone ANALYZE: `RUN='^TestReferenceAnalyze'`
 - ANALYZE feature smoke: `RUN='^TestReferenceAnalyzeSmoke$'`
 - ANALYZE diagnostics and permissions:

@@ -113,8 +113,8 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 	r.property(tree, "Foreign Operation", selected.Request.Stage.Kind)
 	for _, source := range selected.Request.Sources {
 		tree.details = append(tree.details, fmt.Sprintf("Foreign source %d: %s.%s", source.Occurrence+1, catalog.Identifier(source.Request.Schema), catalog.Identifier(source.Request.Table)))
-		if r.options.Format == "json" {
-			r.repeated(tree, "Foreign Sources", exec.ForeignObservedSource{Occurrence: source.Occurrence + 1, Schema: source.Request.Schema, Relation: source.Request.Table})
+		if r.options.Structured() {
+			r.repeated(tree, "Foreign Sources", map[string]any{"Occurrence": source.Occurrence + 1, "Schema": source.Request.Schema, "Relation Name": source.Request.Table})
 		}
 	}
 	if err := r.foreignProperties(tree, properties); err != nil {
@@ -122,7 +122,7 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 	}
 	if r.options.Costs {
 		tree.details = append(tree.details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f", selected.Path.StartupCost, selected.Path.TotalCost))
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			r.property(tree, "Provider Estimates", map[string]float64{"Startup Cost": selected.Path.StartupCost, "Total Cost": selected.Path.TotalCost})
 		}
 	}

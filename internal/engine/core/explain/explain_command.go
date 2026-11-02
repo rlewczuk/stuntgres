@@ -96,8 +96,11 @@ func (r *Renderer) Command(statement parser.Statement, bound Bound) ([]string, e
 		}
 		trees[0].estimate = total
 	}
+	if r.options.Debug {
+		numberDebug(trees)
+	}
 	r.trees = trees
-	if r.Observation != nil || r.options.Format == "json" {
+	if r.Observation != nil || r.options.Structured() {
 		return nil, nil
 	}
 	return r.Render(), nil
@@ -126,9 +129,8 @@ func (r *Renderer) MarkRuleRewrite() {
 	r.property(r.trees[0], "Rule Rewrite Command", true)
 }
 
-// PresentedNodes lists the plan nodes of the presentation trees in
-// presentation order. It is read-only; core's ExplainObservationForTest
-// accessor is its only caller (a recorded T6 exception, item 212).
+// PresentedNodes lists borrowed plan identities in presentation order for core's
+// actual-owner tests and ExplainObservationForTest (the recorded T6 seam).
 func (r *Renderer) PresentedNodes() []plan.Node {
 	var nodes []plan.Node
 	var visit func(*Tree)
@@ -247,6 +249,10 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 		r.policyCommand, r.targetOnly = catalog.PolicyDelete, syntax.Only
 	}
 	var source plan.Node
+	// These adapters describe DML candidate frames; they are not bound nodes.
+	// Keep their identities out of DEBUG without a graph registry/allocation.
+	var adapters [3]plan.Node // target, candidate join, predicate; INSERT needs only its literal adapter.
+	synthetic := adapters[:0]
 	var predicate expr.Expr
 	label := ""
 	switch syntax := statement.(type) {
@@ -262,17 +268,26 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 		} else {
 			source = &plan.SingletonNode{}
 		}
+		if r.options.Debug && binding.Query == nil {
+			synthetic = append(synthetic, source)
+		}
 		if syntax.DefaultValues {
 			label += " DEFAULT VALUES"
 		}
 	case *parser.Update:
 		label, source, predicate = "Update", target, binding.Predicate
+		if r.options.Debug {
+			synthetic = append(synthetic, target)
+		}
 		if syntax.Alias.Text != "" {
 			target.RangeName = syntax.Alias.Text
 		}
 		if binding.Update != nil {
 			predicate = binding.Update.Predicate
 			source = explainCandidateJoin(target, binding.Update.From, nil, parser.JoinInner)
+			if r.options.Debug && source != target {
+				synthetic = append(synthetic, source)
+			}
 		}
 	case *parser.Delete:
 		label, predicate = "Delete", binding.Predicate
@@ -280,6 +295,12 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 			target.RangeName = syntax.Alias.Text
 		}
 		source = explainCandidateJoin(target, binding.Delete.Using, nil, parser.JoinInner)
+		if r.options.Debug {
+			synthetic = append(synthetic, target)
+			if source != target {
+				synthetic = append(synthetic, source)
+			}
+		}
 	case *parser.Merge:
 		label = "Merge"
 		if syntax.Alias.Text != "" {
@@ -297,11 +318,17 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 			kind = parser.JoinRight
 		}
 		source = explainCandidateJoin(target, binding.Merge.Source, binding.Merge.On, kind)
+		if r.options.Debug {
+			synthetic = append(synthetic, target, source)
+		}
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid EXPLAIN mutation binding")
 	}
 	if predicate != nil {
 		source = &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Schema()), Child: source, Predicate: predicate}
+		if r.options.Debug {
+			synthetic = append(synthetic, source)
+		}
 	}
 	r.register(source)
 	// Mutation expressions use the same target-plus-FROM candidate frame as
@@ -342,13 +369,16 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 			child.estimate, err = plan.EstimateExplainNode(&plan.FilterNode{Predicate: child.restriction}, []plan.ExplainEstimate{child.estimate}, 0)
 		}
 	} else {
-		child, err = r.node(source)
+		child, err = r.node(source, synthetic...)
 	}
 	if err != nil {
 		return nil, err
 	}
 	tree := &Tree{label: label + " on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), children: []*Tree{child}, estimate: plan.ExplainMutationEstimate(child.estimate, binding.Returning != nil)}
 	tree.properties = modificationTree.properties
+	if r.options.Debug {
+		tree.commandDebug = map[string]any{"Relation OID": uint32(binding.Ref.Address.ObjectID), "Returning Target List": []string{}}
+	}
 	switch syntax := statement.(type) {
 	case *parser.Insert:
 		tree.nodeType = "Insert"
@@ -366,7 +396,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 	tree.details = append(tree.details, modificationTree.details...)
 	if original != binding.Relation {
 		tree.details = append(tree.details, "Writable View: "+r.objectName(original.Namespace(), original.Name()))
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			writable := &Tree{}
 			r.relationProperties(writable, original, original.Name())
 			r.property(tree, "Writable View", writable.properties)
@@ -385,7 +415,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 		var rawTargets []string
 		for _, index := range binding.Targets {
 			targets = append(targets, catalog.Identifier(binding.Relation.Columns[index].Name))
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				rawTargets = append(rawTargets, binding.Relation.Columns[index].Name)
 			}
 		}
@@ -405,7 +435,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 			name = catalog.Identifier(binding.Relation.Columns[i].Name)
 		}
 		tree.details = append(tree.details, "DEFAULT "+name+": "+text)
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			column := fmt.Sprintf("column %d", i+1)
 			if i < len(binding.Relation.Columns) {
 				column = binding.Relation.Columns[i].Name
@@ -476,7 +506,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 				match = "NOT MATCHED BY SOURCE"
 			}
 			armTree := tree
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				armTree = &Tree{}
 			}
 			r.property(armTree, "Match", match)
@@ -520,7 +550,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 					tree.details = append(tree.details, armTree.details[before:]...)
 				}
 			}
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				columns := make([]string, len(arm.Input.Targets))
 				for i, target := range arm.Input.Targets {
 					columns[i] = binding.Relation.Columns[target].Name
@@ -555,6 +585,9 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 		}
 		tree.details = append(tree.details, "RETURNING: "+strings.Join(parts, ", "))
 		r.property(tree, "Returning", parts)
+		if r.options.Debug {
+			tree.commandDebug["Returning Target List"] = parts
+		}
 	}
 	return tree, nil
 }
@@ -601,7 +634,7 @@ func (r *Renderer) assignments(tree *Tree, source plan.Node, relation *catalog.R
 			}
 			// Domain defaults are already bound assignment recipes, not nil
 			// DEFAULT requests. Preserve their origin without deparsing twice.
-			if r.options.Format == "json" && i < len(update.DefaultOrigins) && update.DefaultOrigins[i].Requested {
+			if r.options.Structured() && i < len(update.DefaultOrigins) && update.DefaultOrigins[i].Requested {
 				r.repeated(tree, "Defaults", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": text})
 			}
 		} else {
@@ -615,13 +648,13 @@ func (r *Renderer) assignments(tree *Tree, source plan.Node, relation *catalog.R
 					return err
 				}
 				tree.details = append(tree.details, "DEFAULT "+name+": "+defaultSQL)
-				if r.options.Format == "json" {
+				if r.options.Structured() {
 					r.repeated(tree, "Defaults", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": defaultSQL})
 				}
 			}
 		}
 		tree.details = append(tree.details, "Assignment: "+name+" = "+text)
-		if r.options.Format == "json" {
+		if r.options.Structured() {
 			r.repeated(tree, "Assignments", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": text})
 		}
 	}

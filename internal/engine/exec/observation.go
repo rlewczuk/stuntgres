@@ -14,12 +14,12 @@ import (
 // Each opened stage writes only its own record. The registry lock is used at
 // stage creation and after joined completion, never in the row loop.
 type Observation struct {
-	mu             sync.Mutex
-	timing         bool
-	records        map[plan.Node][]*stageObservation
-	foreignOptions catalog.ForeignExplainOptions
-	foreignJSON    bool
-	foreign        map[plan.Node]ForeignObservation
+	mu                sync.Mutex
+	timing            bool
+	records           map[plan.Node][]*stageObservation
+	foreignOptions    catalog.ForeignExplainOptions
+	foreignStructured bool
+	foreign           map[plan.Node]ForeignObservation
 }
 
 type Actual struct {

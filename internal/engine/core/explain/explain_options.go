@@ -10,9 +10,12 @@ import (
 )
 
 type Options struct {
-	Costs, Verbose, Analyze, Timing, Summary bool
-	Format                                   string
+	Costs, Verbose, Analyze, Timing, Summary, Debug bool
+	Format                                          string
 }
+
+// Structured selects detached typed properties, rather than TEXT detail lines.
+func (o Options) Structured() bool { return o.Format != "" && o.Format != "text" }
 
 func Error(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: explainPosition(pos)}
@@ -104,11 +107,11 @@ const (
 
 var explainBooleanNames = [explainBooleanCount]string{"analyze", "verbose", "costs", "settings", "generic_plan", "buffers", "wal", "timing", "summary", "memory"}
 
-func ValidateOptions(statement *parser.Explain) (Options, error) {
+func ValidateOptions(statement *parser.Explain, overexplainLoaded bool) (Options, error) {
 	options := Options{Costs: true, Format: "text"}
 	booleans := [explainBooleanCount]bool{explainCosts: true}
 	var positions [explainBooleanCount]parser.Position
-	var formatPosition, serializePosition parser.Position
+	var serializePosition parser.Position
 	var specified [explainBooleanCount]bool
 	format, serialize := "text", "none"
 	for _, option := range statement.Options {
@@ -130,6 +133,15 @@ func ValidateOptions(statement *parser.Explain) (Options, error) {
 			continue
 		}
 		switch name {
+		case "debug":
+			if !overexplainLoaded {
+				return options, Error("42601", `unrecognized EXPLAIN option "debug"`, option.Pos)
+			}
+			value, err := explainBoolean(option)
+			if err != nil {
+				return options, err
+			}
+			options.Debug = value
 		case "format", "serialize":
 			value := "text"
 			if option.Value != nil || name == "format" {
@@ -148,7 +160,7 @@ func ValidateOptions(statement *parser.Explain) (Options, error) {
 				return options, Error("22023", fmt.Sprintf("unrecognized value for EXPLAIN option %q: %q", name, value), option.Pos)
 			}
 			if name == "format" {
-				format, formatPosition = lower, option.Pos
+				format = lower
 			} else {
 				serialize, serializePosition = lower, option.Pos
 			}
@@ -175,9 +187,6 @@ func ValidateOptions(statement *parser.Explain) (Options, error) {
 	}
 	if serialize != "none" {
 		return options, Error("0A000", "EXPLAIN option SERIALIZE is not supported", serializePosition)
-	}
-	if format != "text" && format != "json" {
-		return options, Error("0A000", "EXPLAIN format "+strings.ToUpper(format)+" is not supported", formatPosition)
 	}
 	options.Costs, options.Verbose = booleans[explainCosts], booleans[explainVerbose]
 	options.Format = format

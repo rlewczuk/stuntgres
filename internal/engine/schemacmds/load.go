@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// ExecuteLoad runs LOAD; ddl.Load decides under Engine.Mu.
+// ExecuteLoad authorizes before every activation, including repeated aliases.
 func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -20,5 +20,8 @@ func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count
 	if err != nil {
 		return core.Result{}, err
 	}
-	return core.Result{}, ddl.Load(op.Context(), auth.View, stmt)
+	if err := ddl.Load(op.Context(), auth.View, stmt); err != nil {
+		return core.Result{}, err
+	}
+	return core.Result{}, op.EffectiveSettings().LoadOverexplain(op.Context())
 }

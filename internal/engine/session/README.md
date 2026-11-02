@@ -232,6 +232,17 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   `PrepareSavepointRestore` canonicalizes an independent rollback candidate
   before final preflight, including masked action tails; retained marks are
   unchanged and final installation remains allocation- and callback-free.
+  `overexplain.go` owns a separate physical atomic recognition bit, activated only
+  after fresh LOAD authorization. Detached invocation/checkpoint images forward
+  the original owner rather than snapshotting the bit. It has no setting,
+  placeholder, registry overlay or journal action: rollback, savepoint restoration,
+  DISCARD ALL and native catalog replacement cannot unload it. Dump does not
+  transport it; a destination retains only its own live session activation.
+  Activation takes Engine.Mu then the physical settings mutex, never a detached
+  image's mutex, and checks context/terminal state before publication. Actual
+  physical EndSession clears recognition after operation/resource drainage;
+  returned pool leases do not end this lifetime, and retained detached images
+  cannot reactivate a terminated original owner.
   `pgtrgm_settings.go` owns the bounded physical library overlay: loading admits
   three immutable FLOAT definitions and reserves `pg_trgm` without changing the
   shared registry or recalling startup providers. `ActivatePgTrgmLocked` requires

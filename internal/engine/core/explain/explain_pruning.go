@@ -78,7 +78,7 @@ func (r *Renderer) sourcePruning(tree *Tree, source *plan.SourceNode, relation *
 		var identities []map[string]any
 		for i, physical := range excluded {
 			names[i] = r.objectName(physical.Namespace(), physical.Name())
-			if r.options.Format == "json" {
+			if r.options.Structured() {
 				identity := &Tree{}
 				r.relationProperties(identity, physical, physical.Name())
 				identities = append(identities, identity.properties)

@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -83,37 +84,44 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 		t.Fatal("ordinary Describe lost its unevaluated fold-publication owner")
 	}
 	e.RetirePreparedDescription(&ordinary)
-	for _, query := range []string{
-		"EXPLAIN SELECT id FROM explain_boundary_foreign WHERE id=1 ORDER BY id",
-		"EXPLAIN SELECT abs(-7::integer), nextval('explain_boundary_s') FROM explain_boundary_foreign",
-		"EXPLAIN INSERT INTO explain_boundary_d DEFAULT VALUES RETURNING id",
-		"EXPLAIN WITH w AS (INSERT INTO explain_boundary_d VALUES(99) RETURNING id) SELECT * FROM w",
-		"EXPLAIN SELECT id FROM explain_boundary_d FOR UPDATE",
-	} {
-		planned := wrapper.planned
-		ast, description := enginetest.PreparedDescription(t, e, s, query)
-		if description.Folds == nil || description.FoldPlanning != nil || description.Folds.Live() {
-			t.Fatal("Describe admitted child execution folds", query)
-		}
-		if wrapper.planned != planned {
-			t.Fatal("Describe planned foreign execution")
-		}
-		owner, generation := description.Folds, description.Folds.Current().Generation
-		analysis := description.Analysis
-		for range 2 {
-			result, err := enginetest.PreparedExecute(e, s, ast, &description)
-			if err != nil {
-				t.Fatal(query, err)
+	if err := s.Settings.LoadOverexplain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, prefix := range []string{"", "(FORMAT TEXT, DEBUG) ", "(FORMAT XML, DEBUG) ", "(FORMAT JSON, DEBUG) ", "(FORMAT YAML, DEBUG) "} {
+		for _, query := range []string{
+			"EXPLAIN SELECT id FROM explain_boundary_foreign WHERE id=1 ORDER BY id",
+			"EXPLAIN SELECT abs(-7::integer), nextval('explain_boundary_s') FROM explain_boundary_foreign",
+			"EXPLAIN INSERT INTO explain_boundary_d DEFAULT VALUES RETURNING id",
+			"EXPLAIN WITH w AS (INSERT INTO explain_boundary_d VALUES(99) RETURNING id) SELECT * FROM w",
+			"EXPLAIN SELECT id FROM explain_boundary_d FOR UPDATE",
+		} {
+			query = strings.Replace(query, "EXPLAIN ", "EXPLAIN "+prefix, 1)
+			planned := wrapper.planned
+			ast, description := enginetest.PreparedDescription(t, e, s, query)
+			if description.Folds == nil || description.FoldPlanning != nil || description.Folds.Live() {
+				t.Fatal("Describe admitted child execution folds", query)
 			}
-			if result.Rows == nil || result.Count != 0 || result.CommandTag != "EXPLAIN" {
-				t.Fatal("EXPLAIN used child result/count", query, result.Count)
+			if wrapper.planned != planned {
+				t.Fatal("Describe planned foreign execution")
 			}
-			result.Rows.Close()
-			if description.Folds != owner || description.Analysis != analysis || owner.Current().Generation != generation || owner.Live() || len(owner.Current().Entries) != 0 || description.FoldPlanning != nil {
-				t.Fatal("EXPLAIN published/retained a child execution fold group", query)
-			}
-			if wrapper.entered {
-				t.Fatal("EXPLAIN entered foreign execution rather than planning", query)
+			owner, generation := description.Folds, description.Folds.Current().Generation
+			analysis := description.Analysis
+			explainRejectFoldPublication(t, e, s, ast, &description)
+			for range 2 {
+				result, err := enginetest.PreparedExecute(e, s, ast, &description)
+				if err != nil {
+					t.Fatal(query, err)
+				}
+				if result.Rows == nil || result.Count != 0 || result.CommandTag != "EXPLAIN" {
+					t.Fatal("EXPLAIN used child result/count", query, result.Count)
+				}
+				result.Rows.Close()
+				if description.Folds != owner || description.Analysis != analysis || owner.Current().Generation != generation || owner.Live() || len(owner.Current().Entries) != 0 || description.FoldPlanning != nil {
+					t.Fatal("EXPLAIN published/retained a child execution fold group", query)
+				}
+				if wrapper.entered {
+					t.Fatal("EXPLAIN entered foreign execution rather than planning", query)
+				}
 			}
 		}
 	}
@@ -148,6 +156,8 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 
 func TestExplainPresentation(t *testing.T) {
 	explainAliasOwnership(t)
+	explainDebugOwnership(t)
+	explainDebugCommandOwnership(t)
 	// The real bound graph proves stage/occurrence ownership independently of
 	// rendered strings; the public reference suite owns SQL-only presentation.
 	e := engine.New()

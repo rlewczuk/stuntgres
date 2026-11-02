@@ -23,7 +23,7 @@ func TestExplainJSONPresentation(t *testing.T) {
 	if err := r.foreignProperties(tree, []catalog.ForeignExplainProperty{{Name: "Node Type", Value: "not structural"}, {Name: "same", Value: "first"}, {Name: "same", Value: "second"}}); err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := json.Marshal(r.jsonNode(tree))
+	encoded, err := json.Marshal(r.structuredNode(tree))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,15 +40,15 @@ func TestExplainJSONPresentation(t *testing.T) {
 		t.Fatalf("got %s; want %s", encoded, expected)
 	}
 	before := string(encoded)
-	if _, err := json.Marshal(r.jsonNode(tree)); err != nil {
+	if _, err := json.Marshal(r.structuredNode(tree)); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := json.Marshal(r.jsonNode(tree))
+	after, _ := json.Marshal(r.structuredNode(tree))
 	if string(after) != before {
 		t.Fatal("render mutates frozen properties")
 	}
 	r.options.Costs = true
-	costed := r.jsonNode(tree)
+	costed := r.structuredNode(tree)
 	if costed["Plan Rows"] != float64(3) || costed["Logical Cost"] != float64(7) || costed["Estimate Model"] == nil {
 		t.Fatal(costed)
 	}
@@ -58,13 +58,13 @@ func TestExplainJSONPresentation(t *testing.T) {
 		}
 	}
 	tree.unknownEstimate = true
-	if _, exists := r.jsonNode(tree)["Plan Rows"]; exists {
+	if _, exists := r.structuredNode(tree)["Plan Rows"]; exists {
 		t.Fatal("unknown estimate exposed")
 	}
 	_, r.Observation = exec.Observe(context.Background(), true)
 	r.options.Timing = true
 	tree.Actual = &exec.Actual{Rows: 6, Loops: 2, Elapsed: 8 * time.Millisecond}
-	observed := r.jsonNode(tree)
+	observed := r.structuredNode(tree)
 	if observed["Actual Rows"] != float64(3) || observed["Actual Loops"] != int64(2) || observed["Actual Total Time"] != float64(4) {
 		t.Fatal(observed)
 	}
@@ -72,7 +72,7 @@ func TestExplainJSONPresentation(t *testing.T) {
 		t.Fatal("fabricated startup")
 	}
 	tree.Actual = &exec.Actual{}
-	zero := r.jsonNode(tree)
+	zero := r.structuredNode(tree)
 	if zero["Actual Rows"] != float64(0) || zero["Actual Loops"] != int64(0) {
 		t.Fatal(zero)
 	}
@@ -81,7 +81,7 @@ func TestExplainJSONPresentation(t *testing.T) {
 	}
 	r.options.Timing = false
 	tree.Actual = &exec.Actual{Rows: 1, Loops: 1, Elapsed: time.Millisecond}
-	if _, exists := r.jsonNode(tree)["Actual Total Time"]; exists {
+	if _, exists := r.structuredNode(tree)["Actual Total Time"]; exists {
 		t.Fatal("timing false ignored")
 	}
 	text := &Renderer{options: Options{Format: "text"}}
@@ -89,6 +89,6 @@ func TestExplainJSONPresentation(t *testing.T) {
 	text.property(plain, "Output", []string{"x"})
 	text.repeated(plain, "Values", []string{"y"})
 	if plain.properties != nil {
-		t.Fatal("TEXT allocated JSON properties")
+		t.Fatal("TEXT allocated structured properties")
 	}
 }

@@ -45,6 +45,8 @@ func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
 	id := sqltype.Text
 	if format == "json" {
 		id = sqltype.JSON
+	} else if format == "xml" {
+		id = sqltype.XML
 	}
 	typ, _ := e.Catalog.Current().LookupType(id)
 	return []catalog.Column{{Name: "QUERY PLAN", Usage: typ.Usage()}}
@@ -73,10 +75,6 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 	if err != nil {
 		return Description{}, err
 	}
-	if format == "xml" || format == "yaml" {
-		_, err := explain.ValidateOptions(statement)
-		return Description{}, err
-	}
 	description.Results = e.explainSchemaLocked(format)
 	return description, nil
 }
@@ -90,7 +88,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 	if admission := scope.explainAdmission; admission != nil {
 		options, optionErr = admission.options, admission.err
 	} else {
-		options, optionErr = explain.ValidateOptions(statement)
+		options, optionErr = explain.ValidateOptions(statement, scope.Op.EffectiveSettings().OverexplainLoaded())
 	}
 	if optionErr == nil && options.Analyze {
 		return e.executeExplainAnalyze(scope, statement, count, importFrame, options)

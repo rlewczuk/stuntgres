@@ -103,13 +103,13 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 		execution = time.Since(owner.executing)
 	}
 	var lines []string
-	if options.Format != "json" {
+	if !options.Structured() {
 		for _, renderer := range owner.renderers {
 			lines = append(lines, renderer.Render()...)
 		}
 	}
 	var summaries explain.Summaries
-	if options.Summary && (options.Format != "json" || !owner.executing.IsZero()) {
+	if options.Summary && (!options.Structured() || !owner.executing.IsZero()) {
 		summaries.Planning, summaries.Execution = &owner.planning, &execution
 	}
 	e.Mu.Lock()

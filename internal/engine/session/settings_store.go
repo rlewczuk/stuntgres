@@ -25,6 +25,8 @@ type SettingsStore struct {
 	isnLoaded           atomic.Bool
 	isnOwner            *SettingsStore
 	isnPromoted         bool
+	overexplainLoaded   atomic.Bool
+	overexplainOwner    *SettingsStore
 	Ended               bool
 	ProviderDefaults    map[string]bool          // Captured present responses, even when equal to boot.
 	DefaultSources      map[string]DefaultSource // Captured non-registry reset provenance.
@@ -43,16 +45,16 @@ type SettingsStore struct {
 	clientEncodingOwner  *SettingsStore
 	// Library recognition is physical and sticky; detached logical images
 	// reconcile their values under their own mutex before use.
-	pgTrgmLoaded    atomic.Bool
-	pgTrgmOwner     *SettingsStore
-	pgTrgmParent    *SettingsStore // Serial invocation ancestry, not retained by expressions.
-	pgTrgmPromoted  bool
-	pgcrypto             pgcryptoModule
-	pgcryptoOwner        *SettingsStore
-	pgcryptoPromoted     bool
-	pgcryptoSetter       authorization.PrincipalRef
-	pgcryptoAssignment   uint64
-	TempTablespaces      *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
+	pgTrgmLoaded       atomic.Bool
+	pgTrgmOwner        *SettingsStore
+	pgTrgmParent       *SettingsStore // Serial invocation ancestry, not retained by expressions.
+	pgTrgmPromoted     bool
+	pgcrypto           pgcryptoModule
+	pgcryptoOwner      *SettingsStore
+	pgcryptoPromoted   bool
+	pgcryptoSetter     authorization.PrincipalRef
+	pgcryptoAssignment uint64
+	TempTablespaces    *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -167,7 +169,9 @@ func (s *SettingsStore) RestoreIdentityLocked(target authorization.RoleState) {
 func (s *SettingsStore) override(name string) settingOverride {
 	text, present := s.Values[name]
 	v := settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
-	if name == settings.PgcryptoBuiltinCrypto { v.Setter, v.Assignment = s.pgcryptoSetter, s.pgcryptoAssignment }
+	if name == settings.PgcryptoBuiltinCrypto {
+		v.Setter, v.Assignment = s.pgcryptoSetter, s.pgcryptoAssignment
+	}
 	if name == "temp_tablespaces" {
 		v.TempTablespaces = s.TempTablespaces
 	}
@@ -196,7 +200,9 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 	}
 	if name == settings.PgcryptoBuiltinCrypto {
 		s.pgcryptoSetter, s.pgcryptoAssignment = v.Setter, v.Assignment
-		if !v.Present { s.pgcryptoSetter, s.pgcryptoAssignment = authorization.PrincipalRef{}, 0 }
+		if !v.Present {
+			s.pgcryptoSetter, s.pgcryptoAssignment = authorization.PrincipalRef{}, 0
+		}
 	}
 	if name == "session_replication_role" {
 		s.RuleRoleChanged(beforeRole)
@@ -390,6 +396,8 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.pgTrgmOwner = nil
 	s.pgTrgmParent = nil
 	s.pgTrgmPromoted = false
+	s.overexplainLoaded.Store(false)
+	s.overexplainOwner = nil
 	s.Placeholders = nil
 	s.ProviderDefaults = nil
 	s.DefaultSources = nil

@@ -3,6 +3,7 @@ package enginetests
 import (
 	"context"
 	"database/sql/driver"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -89,12 +90,12 @@ func TestExplainAnalyzeForeignPlanIdentity(t *testing.T) {
 	if foreign.Operation != "join" || len(foreign.Sources) != 2 || len(foreign.Properties) != 1 || foreign.Properties[0].Name != "Selected" || foreign.Estimates["Total Cost"] == 0 {
 		t.Fatal("lost construction-time foreign semantics", foreign)
 	}
-	originalSource, originalProperty, originalCost := foreign.Sources[0], foreign.Properties[0], foreign.Estimates["Total Cost"]
-	foreign.Sources[0].Relation = "changed"
+	originalSource, originalProperty, originalCost := maps.Clone(foreign.Sources[0]), foreign.Properties[0], foreign.Estimates["Total Cost"]
+	foreign.Sources[0]["Relation Name"] = "changed"
 	foreign.Properties[0].Value = "changed"
 	foreign.Estimates["Total Cost"] = -1
 	detached, _ := observation.Foreign(node)
-	if detached.Sources[0] != originalSource || detached.Properties[0] != originalProperty || detached.Estimates["Total Cost"] != originalCost {
+	if !maps.Equal(detached.Sources[0], originalSource) || detached.Properties[0] != originalProperty || detached.Estimates["Total Cost"] != originalCost {
 		t.Fatal("borrowed structured observation backing", detached)
 	}
 	if actual := observation.Actual(node.Left); actual.Loops != 0 {
