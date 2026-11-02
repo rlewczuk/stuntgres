@@ -152,6 +152,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Independent-driver and PostgreSQL Dump replay provision referenced global
   roles separately before executing unchanged emitted SQL; role definitions
   are not database Dump contents, while ownership and schema ACLs remain checked.
+  Integer/float/boolean scalar classes use `RUN='^TestReferenceBtreeGINScalar'`
+  for independent released catalogs/dependencies, exact boundary and special
+  values, direct/fresh/held descriptions, diagnostics and actual Dump replay.
+  Owning `TestBtreeGINScalar` proofs independently check sorted typed keys,
+  exact row/version/slot candidate postings (not scan parity), immutable
+  publication/presentation backing and destination-owned replacement authority.
   Native controls distinguish successful builtin-signature/datum held rebinding
   from the ordinary lifetime fence of a captured enum literal and the exact
   `0A000` concrete-enum parameter/result fences. Fresh enum-literal preparation

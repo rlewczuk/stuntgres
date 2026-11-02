@@ -4,10 +4,12 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,7 +17,28 @@ func TestBtreeGINNetworkBinding(t *testing.T) {
 	e, idx, root := networkEngine(t, false)
 	view := e.CatalogRead()
 	foreign, foreignIndex, _ := networkEngine(t, false)
-	for col, tc := range networkPrivateCases {
+	ginFamilyBindingProof(t, e, idx, root, foreign, foreignIndex, networkPrivateCases)
+	proc := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4119})
+	if proc.Builtin == nil || proc.Builtin.Providers != functions.IndexSupportRoutineProvider {
+		t.Fatal("4119 lacks its genuine builtin execution provider", proc.Builtin)
+	}
+	enginetest.Run(t, e, "CREATE INDEX network_cidr_inet ON network_private USING gin(cidr inet_ops)")
+	enginetest.Run(t, e, "CREATE TABLE network_int4(v integer)")
+	enginetest.Run(t, e, "CREATE INDEX network_int4_i ON network_int4 USING gin(v oid_ops)")
+	cidr, _ := view.LookupType(sqltype.Cidr)
+	if _, err := sqltype.BindGinTokens(cidr.Usage(), idx.SQLIndex.Keys[0].Class); err != nil {
+		t.Fatal("inet_ops rejected concrete CIDR", err)
+	}
+	inet, _ := view.LookupType(sqltype.Inet)
+	if _, err := sqltype.BindGinTokens(inet.Usage(), idx.SQLIndex.Keys[1].Class); err == nil {
+		t.Fatal("cidr_ops admitted INET")
+	}
+}
+
+func ginFamilyBindingProof(t *testing.T, e *core.Engine, idx *catalog.Relation, root *storage.IndexRoot, foreign *core.Engine, foreignIndex *catalog.Relation, cases []networkPrivateCase) {
+	t.Helper()
+	view := e.CatalogRead()
+	for col, tc := range cases {
 		class := idx.SQLIndex.Keys[col].Class
 		metadata, ok := view.IndexClass(ids.OID(class.OID()))
 		if !ok {
@@ -74,6 +97,16 @@ func TestBtreeGINNetworkBinding(t *testing.T) {
 			changed.ObjectRevision = proc.Revision() + 1
 			state.SetDescriptor(changed.Address(), &changed)
 			reject(state, "stale routine")
+			state = catalog.CloneState(view.State())
+			wrongSignature := *proc
+			wrongSignature.Signature = "23"
+			state.SetDescriptor(wrongSignature.Address(), &wrongSignature)
+			reject(state, "same-revision wrong formal signature")
+			state = catalog.CloneState(view.State())
+			wrongResult := *proc
+			wrongResult.Result = 25
+			state.SetDescriptor(wrongResult.Address(), &wrongResult)
+			reject(state, "same-revision wrong result signature")
 			state = catalog.CloneState(view.State())
 			wrong := *member
 			wrong.Function = 333
@@ -150,23 +183,7 @@ func TestBtreeGINNetworkBinding(t *testing.T) {
 			t.Fatal("reverse foreign authority authorized")
 		}
 	}
-	proc := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4119})
-	if proc.Builtin == nil || proc.Builtin.Providers != functions.IndexSupportRoutineProvider {
-		t.Fatal("4119 lacks its genuine builtin execution provider", proc.Builtin)
-	}
 	if len(root.Entries) != 0 || len(root.Gin.Columns) != 6 {
 		t.Fatal("empty root lost bindings")
-	}
-	// Existing lawful directional input admission, without widening either type.
-	enginetest.Run(t, e, "CREATE INDEX network_cidr_inet ON network_private USING gin(cidr inet_ops)")
-	enginetest.Run(t, e, "CREATE TABLE network_int4(v integer)")
-	enginetest.Run(t, e, "CREATE INDEX network_int4_i ON network_int4 USING gin(v oid_ops)")
-	cidr, _ := view.LookupType(sqltype.Cidr)
-	if _, err := sqltype.BindGinTokens(cidr.Usage(), idx.SQLIndex.Keys[0].Class); err != nil {
-		t.Fatal("inet_ops rejected concrete CIDR", err)
-	}
-	inet, _ := view.LookupType(sqltype.Inet)
-	if _, err := sqltype.BindGinTokens(inet.Usage(), idx.SQLIndex.Keys[1].Class); err == nil {
-		t.Fatal("cidr_ops admitted INET")
 	}
 }

@@ -80,6 +80,24 @@ var btreeGinRoutines = [...]struct {
 	{"gin_extract_value_oid", "26,2281", 2281},
 	{"gin_extract_query_oid", "26,2281,21,2281,2281", 2281},
 	{"gin_compare_prefix_oid", "26,26,21,2281", 23},
+	{"gin_extract_value_int2", "21,2281", 2281},
+	{"gin_extract_query_int2", "21,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_int2", "21,21,21,2281", 23},
+	{"gin_extract_value_int4", "23,2281", 2281},
+	{"gin_extract_query_int4", "23,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_int4", "23,23,21,2281", 23},
+	{"gin_extract_value_int8", "20,2281", 2281},
+	{"gin_extract_query_int8", "20,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_int8", "20,20,21,2281", 23},
+	{"gin_extract_value_float4", "700,2281", 2281},
+	{"gin_extract_query_float4", "700,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_float4", "700,700,21,2281", 23},
+	{"gin_extract_value_float8", "701,2281", 2281},
+	{"gin_extract_query_float8", "701,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_float8", "701,701,21,2281", 23},
+	{"gin_extract_value_bool", "16,2281", 2281},
+	{"gin_extract_query_bool", "16,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_bool", "16,16,21,2281", 23},
 }
 
 // BtreeGinRoutineName is a discovery hint only. Executable selection still
@@ -111,6 +129,12 @@ var btreeGinClasses = [...]btreeGinClass{
 	{"macaddr8_ops", 774, 774, 4119, [5]ids.OID{3364, 3365, 3362, 3367, 3366}, true},
 	{"uuid_ops", 2950, 2950, 2960, [5]ids.OID{2974, 2976, 2972, 2977, 2975}, true},
 	{"oid_ops", 26, 26, 356, [5]ids.OID{609, 611, 607, 612, 610}, true},
+	{"int2_ops", 21, 21, 350, [5]ids.OID{95, 522, 94, 524, 520}, true},
+	{"int4_ops", 23, 23, 351, [5]ids.OID{97, 523, 96, 525, 521}, true},
+	{"int8_ops", 20, 20, 842, [5]ids.OID{412, 414, 410, 415, 413}, true},
+	{"float4_ops", 700, 700, 354, [5]ids.OID{622, 624, 620, 625, 623}, true},
+	{"float8_ops", 701, 701, 355, [5]ids.OID{672, 673, 670, 675, 674}, true},
+	{"bool_ops", 16, 16, 1693, [5]ids.OID{58, 1694, 91, 1695, 59}, true},
 }
 
 // Zero InternalOwner means AUTO dependency on the actual family. Preserve the

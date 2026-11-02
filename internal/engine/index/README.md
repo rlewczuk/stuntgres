@@ -75,6 +75,12 @@ builds a binder.
   Network/UUID/OID scalar classes use the same dictionary and probe paths, with
   whole concrete source datums, selected unsigned OID semantics and separately
   authenticated CIDR support/search associations.
+  Integer, float and boolean installed classes retain exact concrete datums:
+  int8 keys never pass through float64, float4 keys retain binary32 rounding,
+  signed zeros share an equality key, and NaNs compare equal above infinity.
+  Duplicate SQL rows retain separate postings, including zero/NaN peers.
+  Only strategies1–5 are scalar GIN probes; SQL not-equal remains ordinary
+  predicate evaluation and does not authorize a GiST/distance member.
   Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
   Scalar equality shares the exact list; range probes binary-bound ordinary keys
   and use storage's typed cursor-heap union of only the selected lists, never

@@ -58,8 +58,14 @@ func TestReferenceBtreeGINNetworkClasses(t *testing.T) {
 // CIDR's slot1 association is 650/650 but network_cmp's formals are 869/869.
 func networkGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, schema string, presentation ...map[string]string) {
 	t.Helper()
+	ginInstalledGraph(t, p, b, conn, schema, networkCases, "(869,650,829,774,2950,26)", presentation...)
+}
+
+// The case table is independently specified by each family, never the provider.
+func ginInstalledGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, schema string, cases []networkCase, inputs string, presentation ...map[string]string) {
+	t.Helper()
 	run := func(s fixture.Step) { classRoutes(t, p, b, conn, s) }
-	for _, tc := range networkCases {
+	for _, tc := range cases {
 		name, familyName := tc.typ+"_ops", tc.typ+"_ops"
 		if len(presentation) > 0 {
 			if n := presentation[0]["class:"+tc.typ]; n != "" {
@@ -111,7 +117,7 @@ func networkGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Co
 		run(fixture.Select("SELECT a.amprocnum,d.deptype,CASE WHEN d.refclassid='pg_opclass'::regclass THEN 'class' ELSE 'family' END AS owner_kind,CASE WHEN d.refclassid='pg_opclass'::regclass THEN d.refobjid=c.oid ELSE d.refobjid=c.opcfamily END AS owner_link FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=a.oid AND d.classid='pg_amproc'::regclass WHERE d.refclassid IN('pg_opclass'::regclass,'pg_opfamily'::regclass) AND c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcname=$2 ORDER BY a.amprocnum", []string{"amprocnum", "deptype", "owner_kind", "owner_link"}, []string{"INT2", "CHAR", "TEXT", "BOOL"}, supportDependencies, schema, name))
 	}
 	var names []string
-	for _, tc := range networkCases {
+	for _, tc := range cases {
 		for _, prefix := range []string{"gin_extract_value_", "gin_extract_query_", "gin_compare_prefix_"} {
 			names = append(names, prefix+tc.typ)
 		}
@@ -122,7 +128,7 @@ func networkGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Co
 	for _, name := range names {
 		helpers = append(helpers, []any{name, "c", "$libdir/btree_gin", true, "i", true, "u", true})
 	}
-	run(fixture.Select("SELECT DISTINCT p.proname,l.lanname,p.probin,p.prosrc=p.proname::text AS source_link,p.provolatile,p.proisstrict,p.proparallel,p.pronamespace=$1::regnamespace AS schema_link FROM pg_opclass c JOIN pg_amproc a ON a.amprocfamily=c.opcfamily JOIN pg_proc p ON p.oid=a.amproc JOIN pg_language l ON l.oid=p.prolang WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN(869,650,829,774,2950,26) AND a.amprocnum<>1 ORDER BY p.proname", []string{"proname", "lanname", "probin", "source_link", "provolatile", "proisstrict", "proparallel", "schema_link"}, []string{"NAME", "NAME", "TEXT", "BOOL", "CHAR", "BOOL", "CHAR", "BOOL"}, helpers, schema))
-	run(amCount("SELECT count(DISTINCT a.amproc::oid) FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN(869,650,829,774,2950,26,1560,1562,3500,790) AND a.amprocnum=4", 1, schema))
-	run(amCount("SELECT count(DISTINCT p.oid) FROM pg_proc p JOIN pg_amproc a ON a.amproc=p.oid JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=p.oid AND d.classid='pg_proc'::regclass WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN(869,650,829,774,2950,26) AND d.refclassid='pg_extension'::regclass AND d.refobjid=(SELECT oid FROM pg_extension WHERE extname='btree_gin') AND d.deptype='e'", 19, schema))
+	run(fixture.Select("SELECT DISTINCT p.proname,l.lanname,p.probin,p.prosrc=p.proname::text AS source_link,p.provolatile,p.proisstrict,p.proparallel,p.pronamespace=$1::regnamespace AS schema_link FROM pg_opclass c JOIN pg_amproc a ON a.amprocfamily=c.opcfamily JOIN pg_proc p ON p.oid=a.amproc JOIN pg_language l ON l.oid=p.prolang WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN"+inputs+" AND a.amprocnum<>1 ORDER BY p.proname", []string{"proname", "lanname", "probin", "source_link", "provolatile", "proisstrict", "proparallel", "schema_link"}, []string{"NAME", "NAME", "TEXT", "BOOL", "CHAR", "BOOL", "CHAR", "BOOL"}, helpers, schema))
+	run(amCount("SELECT count(DISTINCT a.amproc::oid) FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND (c.opcintype IN"+inputs+" OR c.opcintype IN(1560,1562,3500,790)) AND a.amprocnum=4", 1, schema))
+	run(amCount("SELECT count(DISTINCT p.oid) FROM pg_proc p JOIN pg_amproc a ON a.amproc=p.oid JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=p.oid AND d.classid='pg_proc'::regclass WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN"+inputs+" AND d.refclassid='pg_extension'::regclass AND d.refobjid=(SELECT oid FROM pg_extension WHERE extname='btree_gin') AND d.deptype='e'", int64(3*len(cases)+1), schema))
 }

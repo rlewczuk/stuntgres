@@ -135,8 +135,10 @@ func networkProbeProof(t *testing.T, column storage.GinColumn, boundary, absent 
 			t.Fatal("empty dictionary", got, err)
 		}
 	}
-	if got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, query.Type(), absent), 3, sqltype.InputEnvironment{}); err != nil || len(got) != 0 {
-		t.Fatal("missing equality", got, err)
+	if absent != "" {
+		if got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, query.Type(), absent), 3, sqltype.InputEnvironment{}); err != nil || len(got) != 0 {
+			t.Fatal("missing equality", got, err)
+		}
 	}
 	for _, strategy := range []int{0, 6, 15} {
 		for _, value := range []sqltype.Value{query, sqltype.Null(query.Type())} {

@@ -48,20 +48,25 @@ func networkPrivateInsert(id int, boundary bool) string {
 // every assertion inspects bindings, generations or physical posting ownership.
 func networkEngine(t *testing.T, populated bool) (*core.Engine, *catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
+	return ginFamilyEngine(t, "network_private", networkPrivateCases, populated)
+}
+
+func ginFamilyEngine(t *testing.T, table string, cases []networkPrivateCase, populated bool) (*core.Engine, *catalog.Relation, *storage.IndexRoot) {
+	t.Helper()
 	e := engine.New()
 	columns := []string{"id integer"}
 	var keys []string
-	for _, tc := range networkPrivateCases {
+	for _, tc := range cases {
 		columns = append(columns, tc.typ+" "+tc.typ)
 		keys = append(keys, tc.typ+" "+tc.typ+"_ops")
 	}
-	for _, q := range []string{"CREATE EXTENSION btree_gin VERSION '1.3'", "CREATE TABLE network_private(" + strings.Join(columns, ",") + ")", "CREATE INDEX network_private_i ON network_private USING gin(" + strings.Join(keys, ",") + ")"} {
+	for _, q := range []string{"CREATE EXTENSION btree_gin VERSION '1.3'", "CREATE TABLE " + table + "(" + strings.Join(columns, ",") + ")", "CREATE INDEX " + table + "_i ON " + table + " USING gin(" + strings.Join(keys, ",") + ")"} {
 		enginetest.Run(t, e, q)
 	}
 	if populated {
 		for row := range 5 {
 			values := []string{fmt.Sprint(row + 1)}
-			for _, tc := range networkPrivateCases {
+			for _, tc := range cases {
 				text := tc.lower
 				if row == 1 || row == 2 {
 					text = tc.boundary
@@ -75,10 +80,10 @@ func networkEngine(t *testing.T, populated bool) (*core.Engine, *catalog.Relatio
 				}
 				values = append(values, value)
 			}
-			enginetest.Run(t, e, "INSERT INTO network_private VALUES("+strings.Join(values, ",")+")")
+			enginetest.Run(t, e, "INSERT INTO "+table+" VALUES("+strings.Join(values, ",")+")")
 		}
 	}
-	idx, root := ginInstalledRoot(t, e, "network_private_i")
+	idx, root := ginInstalledRoot(t, e, table+"_i")
 	return e, idx, root
 }
 func networkPhysical(t *testing.T) (*core.Engine, *catalog.Relation, *catalog.Relation, *storage.Relation, *storage.IndexRoot) {

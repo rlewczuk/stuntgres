@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"io"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -78,7 +77,7 @@ func networkCheckRetained(t *testing.T, retained []networkRetained) {
 		if err := saved.rows.Err(); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(got, saved.step.Rows) {
+		if _, equal := fixture.CompareRows(got, saved.step.Rows, false); !equal {
 			t.Fatalf("retained values=%#v want %#v", got, saved.step.Rows)
 		}
 		if err := saved.rows.Close(); err != nil {
