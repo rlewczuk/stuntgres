@@ -21,6 +21,12 @@ import (
 // DROP returns roots whose dependents the engine stages.
 // A nil, nil, nil result means there is nothing to publish.
 func StageTable(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error) {
+	return StageTableUsing(h, auth, s, input, nil)
+}
+
+// StageTableUsing keeps SQL/MED admission and validator schedules common while
+// allowing the hierarchy owner to construct a partition in this same stage.
+func StageTableUsing(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment, create func(*parser.CreateTable, ids.ObjectAddress) error) ([]Validation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
 		return stageTableDrop(h, auth, s)
 	}
@@ -50,7 +56,13 @@ func StageTable(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.
 	if err = CheckTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = table.StageCreateTable(h, auth, TableSyntax(s.Table), ns.Address, view.State.CurrentUser, input, nil, catalog.ForeignRelation); err != nil {
+	syntax := TableSyntax(s.Table)
+	if create != nil {
+		err = create(syntax, ns.Address)
+	} else {
+		err = table.StageCreateTable(h, auth, syntax, ns.Address, view.State.CurrentUser, input, nil, catalog.ForeignRelation)
+	}
+	if err != nil {
 		return nil, nil, err
 	}
 	d, ok := h.Stage().Get(h.Stage().LookupName(key)).(*catalog.Relation)
@@ -96,6 +108,9 @@ func stageTableDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL) ([]Validat
 			if s.IfExists && table.RenameMissing(err) {
 				ddl.Notice(h, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
+			}
+			if table.RenameMissing(err) {
+				return nil, nil, sqlError("42704", fmt.Sprintf(`foreign table "%s" does not exist`, catalog.ObjectNameText(name)))
 			}
 			return nil, nil, err
 		}

@@ -1,19 +1,11 @@
 package schemacmds
 
 import (
-	"fmt"
-	"maps"
-	"slices"
-
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL) (core.Result, error) {
@@ -49,6 +41,54 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 			return tablecmds.AlterSchemaLocked(e, scope, scope.Op, auth, inner, 0)
 		}
 	}
+	var ordinary []parser.AlterTableAction
+	var remaining []parser.ForeignTableAction
+	var addedColumns map[string]bool
+	for _, action := range s.TableActions {
+		if action.Ordinary == nil {
+			remaining = append(remaining, action)
+			continue
+		}
+		a := action.Ordinary
+		ordinary = append(ordinary, *a)
+		if a.Action == parser.AddColumn {
+			_, existed := old.Index[a.Column.Text]
+			skipped := a.IfNotExists && (existed || addedColumns[a.Column.Text])
+			if addedColumns == nil {
+				addedColumns = make(map[string]bool)
+			}
+			addedColumns[a.Column.Text] = true
+			if !skipped && len(action.ColumnOptions) != 0 {
+				remaining = append(remaining, parser.ForeignTableAction{Column: a.Column, Options: action.ColumnOptions})
+			}
+		}
+	}
+	if len(ordinary) != 0 {
+		command := &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Actions: ordinary, Pos: s.Pos}
+		result, err := tablecmds.AlterTableLocked(e, scope, scope.Op, auth, command, 0, nil)
+		if err != nil || len(remaining) == 0 {
+			return result, err
+		}
+		tail := *s
+		tail.TableActions = remaining
+		return executeForeignTableAlter(e, scope, &tail)
+	}
+	for i, action := range s.TableActions {
+		if action.Default == nil {
+			continue
+		}
+		command := *action.Default
+		command.Name = s.Name
+		result, err := tablecmds.AlterDefaultLocked(e, scope, scope.Op, auth, &command, 0)
+		if err != nil || len(s.TableActions) == 1 {
+			return result, err
+		}
+		tail := *s
+		tail.TableActions = make([]parser.ForeignTableAction, 0, len(s.TableActions)-1)
+		tail.TableActions = append(tail.TableActions, s.TableActions[:i]...)
+		tail.TableActions = append(tail.TableActions, s.TableActions[i+1:]...)
+		return executeForeignTableAlter(e, scope, &tail)
+	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	h.CatalogStage = stage
@@ -59,163 +99,21 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 		return core.Result{}, err
 	}
 	next := fdw.AlterCandidate(old)
-	var jobs []fdw.Validation
-	var pendingChecks []table.AlterTypeCheck
-	var typeActions []parser.AlterTableAction
-	if len(old.Constraints.Check) != 0 {
-		for _, action := range s.TableActions {
-			if action.Ordinary != nil && action.Ordinary.Action == parser.AlterColumnType {
-				typeActions = append(typeActions, *action.Ordinary)
-			}
+	jobs := make([]fdw.Validation, 0, len(s.TableActions))
+	for _, action := range s.TableActions {
+		if err := scope.Op.Context().Err(); err != nil {
+			return core.Result{}, err
 		}
-	}
-	for pass := range 11 {
-		for _, action := range s.TableActions {
-			phase := 9
-			if action.Ordinary != nil {
-				if ordinary := table.AlterActionPhase(action.Ordinary.Action); ordinary >= 0 {
-					phase = ordinary
-				}
-			}
-			if phase != pass {
-				continue
-			}
-			if err := scope.Op.Context().Err(); err != nil {
-				return core.Result{}, err
-			}
-			if action.Options != nil {
-				e.Mu.Lock()
-				job, er := fdw.AlterOptions(h, &next, wrapper, action)
-				e.Mu.Unlock()
-				if er != nil {
-					return core.Result{}, er
-				}
-				jobs = append(jobs, job)
-				continue
-			}
-			if action.Default != nil {
-				a := action.Default
-				slot, er := fdw.AlterColumn(&next, a.Column.Text)
-				if er != nil {
-					return core.Result{}, er
-				}
-				next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
-				attribute := next.Attributes[slot]
-				if a.Action == parser.DropDefault {
-					delete(next.ColumnMeta.Defaults, attribute)
-				} else {
-					e.Mu.Lock()
-					definition, er := tablecmds.CookAlterDefaultLocked(e, scope, scope.Op, auth, &next, slot, a.Expression)
-					e.Mu.Unlock()
-					if er != nil {
-						return core.Result{}, er
-					}
-					if next.ColumnMeta.Defaults == nil {
-						next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
-					}
-					next.ColumnMeta.Defaults[attribute] = definition
-				}
-				continue
-			}
-			if action.Ordinary == nil {
-				return core.Result{}, fmt.Errorf("stuntgres: empty foreign table action")
-			}
-			a := *action.Ordinary
-			var candidate *catalog.Relation
-			switch a.Action {
-			case parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
-				candidate, err = table.ColumnStatisticsCandidate(&next, a)
-				if err == nil && a.Action == parser.SetColumnStatistics && a.StatisticsTarget > 10000 {
-					scope.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "lowering statistics target to 10000"})
-				}
-			case parser.SetStorage, parser.SetCompression:
-				err = table.AlterTableActionKind(&next, a.Action)
-				if err == nil {
-					e.Mu.Lock()
-					candidate, _, err = table.ColumnStorageCandidate(stage.StageRead(), auth, &next, a)
-					e.Mu.Unlock()
-				}
-			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
-				candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, &next, a, table.NotNullDirect)
-			case parser.AddCheck:
-				candidate = &next
-				candidate.Constraints.Check = slices.Clone(next.Constraints.Check)
-				e.Mu.Lock()
-				err = table.BindChecks(tablecmds.AlterHost{h, scope}, auth, candidate, []*parser.CheckConstraint{a.Check}, scope.Input, true, nil)
-				e.Mu.Unlock()
-			case parser.DropColumn:
-				candidate, err = tablecmds.DropColumnCandidate(scope, stage, &next, ref, a, nil)
-			case parser.AddColumn:
-				if err = fdw.CheckAddedColumn(a.Definition); err != nil {
-					return core.Result{}, err
-				}
-				var added table.AddedColumn
-				candidate, added, err = tablecmds.AddColumnCandidate(e, scope, scope.Op, auth, &next, a, nil)
-				if err == nil && added.Column != nil {
-					if added.Declaration.NotNull {
-						candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, table.NotNullDirect)
-					}
-					if err == nil {
-						var checks []*parser.CheckConstraint
-						for _, constraint := range a.Definition.Constraints {
-							if constraint.Check != nil {
-								checks = append(checks, constraint.Check)
-							}
-						}
-						if len(checks) != 0 {
-							candidate.Constraints.Check = slices.Clone(candidate.Constraints.Check)
-							e.Mu.Lock()
-							err = table.BindChecks(tablecmds.AlterHost{h, scope}, auth, candidate, checks, scope.Input, true, nil)
-							e.Mu.Unlock()
-						}
-					}
-					if err == nil {
-						e.Mu.Lock()
-						job, er := fdw.AddedColumnOptions(h, candidate, wrapper, a.Column.Text, action.ColumnOptions)
-						e.Mu.Unlock()
-						if er != nil {
-							return core.Result{}, er
-						}
-						jobs = append(jobs, job)
-					}
-				}
-			case parser.AlterColumnType:
-				e.Mu.Lock()
-				prepared, prepareErr := tablecmds.PrepareAlterTypeLocked(e, scope, scope.Op, auth, old, ref, a, nil)
-				e.Mu.Unlock()
-				if prepareErr != nil {
-					return core.Result{}, prepareErr
-				}
-				candidate, _, err = tablecmds.AlterTypeCandidate(e, scope, scope.Op, auth, stage, old, &next, ref, a, prepared)
-			case parser.SetExpression, parser.DropExpression:
-				candidate, _, err = tablecmds.GenerationCandidate(e, scope, scope.Op, auth, &next, a)
-			default:
-				return core.Result{}, fdw.UnsupportedAlter()
-			}
-			if err != nil {
-				return core.Result{}, err
-			}
-			next = *candidate
-		}
-		if pass == 0 {
-			pendingChecks, err = table.CaptureAlterTypeChecks(scope.Op, auth.Catalog, old, &next, typeActions)
-		}
-		if err == nil && pass == 1 {
-			var rebound *catalog.Relation
-			rebound, _, err = tablecmds.RebindAlterTypeChecks(e, scope, scope.Op, auth, ref, &next, pendingChecks)
-			if err == nil {
-				next = *rebound
-			}
-		}
+		e.Mu.Lock()
+		job, err := fdw.AlterOptions(h, &next, wrapper, action)
+		e.Mu.Unlock()
 		if err != nil {
 			return core.Result{}, err
 		}
+		jobs = append(jobs, job)
 	}
 	e.Mu.Lock()
 	next.ObjectRevision, err = e.Catalog.RevisionLocked()
-	if err == nil {
-		err = table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
-	}
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

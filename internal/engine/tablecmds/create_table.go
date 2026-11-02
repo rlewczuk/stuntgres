@@ -72,7 +72,7 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	stage.AuthorizeLocked(auth, op.Session)
 	var partition *PendingPartitionDefinition
 	if s.PartitionBy != nil || s.PartitionOf != nil {
-		partition, err = schemaPartitionTableLocked(e, scope, auth, stage, s, ns.Address)
+		partition, err = SchemaPartitionTableLocked(e, scope, auth, stage, s, ns.Address)
 	} else {
 		err = SchemaTableLocked(e, op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
 	}
@@ -80,7 +80,7 @@ func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	if err != nil {
 		return core.Result{}, err
 	}
-	if err = partition.finish(scope); err != nil {
+	if err = partition.Finish(scope); err != nil {
 		return core.Result{}, err
 	}
 	// Only the source helper's newly acquired reservation is incidental.

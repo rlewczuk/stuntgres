@@ -120,7 +120,7 @@ func QueryTableRefs(a access.View, env RelationAdmission, invoker authorization.
 				}
 			}
 		}
-		if relation.RelationKind == catalog.TableRelation && !only {
+		if (relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.ForeignRelation) && !only {
 			return table.InheritanceQueryClosure(read, relation, token, func(physical *catalog.Relation) error {
 				child := ref
 				child.Address = physical.Address()

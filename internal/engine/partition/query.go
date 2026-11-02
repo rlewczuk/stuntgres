@@ -12,7 +12,7 @@ import (
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func CaptureQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation) (*exec.Source, error) {
+func CaptureQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation, capture ...func(exec.Leaf) (*exec.Source, error)) (*exec.Source, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
 	if captured, ok := catalogView.Relation(ref.Address); ok {
@@ -25,15 +25,21 @@ func CaptureQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids
 	source := &exec.Source{Ref: ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
 	err := PhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
+		physical := exec.Leaf{Ref: childRef, Relation: leaf, Storage: view.Data().GenerationAt(leaf.Address())}
 		layout, err := catalog.InheritanceQueryLayout(parent, leaf)
 		if err != nil {
 			return err
 		}
-		child, err := exec.CapturePrefix(view, childRef)
+		var child *exec.Source
+		if leaf.RelationKind == catalog.ForeignRelation && len(capture) != 0 {
+			child, err = capture[0](physical)
+		} else {
+			child, err = exec.CapturePrefix(view, childRef)
+		}
 		if err != nil {
 			return err
 		}
-		segment := exec.InheritanceQuerySegment{Leaf: exec.Leaf{Ref: childRef, Relation: leaf}, Prefix: child, Layout: layout}
+		segment := exec.InheritanceQuerySegment{Leaf: physical, Prefix: child, Layout: layout}
 		if layout != nil {
 			segment.Scratch = make([]sqltype.Value, len(layout))
 		}

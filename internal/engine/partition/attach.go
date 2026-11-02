@@ -36,7 +36,7 @@ func AttachKindError(d *catalog.Relation) error {
 }
 
 func AttachEligibility(view catalog.Read, parent, child *catalog.Relation) error {
-	if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation {
+	if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation && child.RelationKind != catalog.ForeignRelation {
 		return AttachKindError(child)
 	}
 	for ancestor := parent; ancestor != nil; {
@@ -211,6 +211,9 @@ func AttachFrontier(ctx context.Context, input sqltype.InputEnvironment, catalog
 	var scans []AttachScan
 	var walk func(catalog.Read, *catalog.Relation) error
 	walk = func(view catalog.Read, d *catalog.Relation) error {
+		if d.RelationKind == catalog.ForeignRelation {
+			return nil
+		}
 		proven, err := ConstraintProven(ctx, input, view, parent, d, bound, exclude)
 		if err != nil {
 			return err
@@ -366,6 +369,12 @@ func AttachDescriptors(parent, child *catalog.Relation, bound *catalog.Partition
 func StageIndexChildren(h index.Host, auth ddl.Authority, parent *catalog.Relation, child ids.ObjectAddress, attach bool) error {
 	for _, idx := range index.PartitionIndexDeclarationOrder(h.StageBase(), parent) {
 		current := h.StageRead().MustRelation(child)
+		if current.RelationKind == catalog.ForeignRelation {
+			if idx.SQLIndex.Unique {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create foreign partition of partitioned table "%s"`, parent.Name()), Detail: fmt.Sprintf(`Table "%s" contains indexes that are unique.`, parent.Name())}
+			}
+			continue
+		}
 		if _, err := index.StagePartitionIndexChild(h, auth, parent, idx, current, !attach); err != nil {
 			return err
 		}

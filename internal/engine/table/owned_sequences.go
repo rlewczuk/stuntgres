@@ -62,16 +62,16 @@ func RemoveColumnSequences(provider DropDependencyReader, targets []ids.ObjectAd
 }
 
 // OwnedExpressionDependencies removes the sequences that targets own, after
-// the expression dependencies of each sequence. Inheritance tables the drop
-// already removed count as targets too.
+// the expression dependencies of each sequence. Foreign tables and inheritance
+// tables the drop already removed count as targets too.
 func OwnedExpressionDependencies(provider DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) error {
 	var closure []ids.ObjectAddress
 	extended := false
-	// Include removed hierarchy owners, not unrelated removals staged by an
-	// earlier pass. Ordinary column projection retains its existing ordering.
+	// Include removed foreign and hierarchy owners, not unrelated removals staged
+	// by an earlier pass. Ordinary column projection retains its existing ordering.
 	for address, descriptor := range provider.RemovalDescriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.BaseRead(), relation) {
+		if !ok || relation.RelationKind != catalog.ForeignRelation && (relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.BaseRead(), relation)) {
 			continue
 		}
 		present := false

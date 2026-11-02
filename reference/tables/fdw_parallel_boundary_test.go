@@ -14,20 +14,12 @@ func fdwParallelHierarchy(t *testing.T, b fixture.Backend, r *fdwParallelReader,
 		"CREATE FOREIGN TABLE fdw_parallel_foreign_child() INHERITS(fdw_parallel_parent) SERVER fdw_live OPTIONS(schema_name 'fdw_source',table_name 'data')",
 		"CREATE TABLE fdw_parallel_local_child() INHERITS(fdw_data)",
 	} {
-		if b.PG {
-			run(fixture.Exec(q, 0))
-		} else {
-			run(fixture.ErrorDiagnostic(q, fdwDiagnostic("0A000", "foreign table hierarchies are unsupported in embedded mode")))
-		}
+		run(fixture.Exec(q, 0))
 	}
-	if b.PG {
-		run(fixture.Exec("INSERT INTO fdw_parallel_local_child VALUES(7,2,'child')", 1))
-		run(fdwParallelIDs("SELECT id FROM ONLY fdw_parallel_local_child", 7))
-		run(fixture.Exec("DROP FOREIGN TABLE fdw_parallel_foreign_child", 0))
-	} else {
-		run(fixture.Select("SELECT relname FROM pg_class WHERE relname IN ('fdw_parallel_foreign_child','fdw_parallel_local_child')", []string{"relname"}, []string{"NAME"}, nil))
-		if r.parallelCounts() != before {
-			t.Fatal("unsupported hierarchy entered coordinator")
-		}
+	run(fixture.Exec("INSERT INTO fdw_parallel_local_child VALUES(7,2,'child')", 1))
+	run(fdwParallelIDs("SELECT id FROM ONLY fdw_parallel_local_child", 7))
+	run(fixture.Exec("DROP FOREIGN TABLE fdw_parallel_foreign_child", 0))
+	if !b.PG && r.parallelCounts() != before {
+		t.Fatal("hierarchy metadata or local-only scan entered coordinator", before, r.parallelCounts())
 	}
 }

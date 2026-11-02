@@ -27,7 +27,7 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
 		return invalid()
 	}
-	if d.Membership != nil && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
+	if d.Membership != nil && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ForeignRelation {
 		return invalid()
 	}
 	if p := d.Partition; p != nil {

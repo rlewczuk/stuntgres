@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
@@ -19,6 +20,16 @@ import (
 func Deparse(c *exec.Context, in table.DeparseInputs, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	if err := c.Context.Err(); err != nil {
 		return sqltype.Value{}, err
+	}
+	if signature == functions.DeparseExpr || signature == functions.DeparseExprPretty {
+		tree, err := values[0].Tree()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if bound, keys, ok := pgcatalog.PartitionBoundParts(tree); ok {
+			return deparseBound(c, in, values[1], result, bound, keys)
+		}
+		return table.Deparse(c, in, signature, values, result)
 	}
 	if result == nil || result.ID() != sqltype.Text || (signature != functions.DeparsePartitionKey && signature != functions.DeparsePartitionConstraint) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid partition deparse signature")

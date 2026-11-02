@@ -36,6 +36,11 @@ activate through the statement runtime only after capture locks are released.
 activates its sampling evaluator, not CREATE STATISTICS cooking. Generated, index,
 predicate and partition-bound binders remain dormant, including nested binding.
 Explicit row-generation context and evaluator context must agree.
+`PendingPartitionDefinition.Finish` is the shared ordinary/foreign partition
+constructor continuation. It activates the operation's current context after
+private capture releases `Engine.Mu`, and supplies that context to bound demand
+and its evaluator. Reset/replacement still fences the captured stage and parent
+identity before publication.
 
 ALTER expression snapshot demand includes already typed candidate indexes before
 DEFAULT preflight, even when the parent's first-index history bit is normalized

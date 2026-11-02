@@ -2757,7 +2757,7 @@ foreign_action: NO name {if $2.keyword==nil||$2.text!="action"{sqllex.(*lexer).s
  | SET NULL foreign_set_columns {$$=foreignActionClause{action:ForeignKeySetNull,columns:$3}}
  | SET DEFAULT foreign_set_columns {$$=foreignActionClause{action:ForeignKeySetDefault,columns:$3}} ;
 foreign_key: FOREIGN name '(' foreign_columns ')' foreign_definition {if $2.keyword==nil||$2.text!="key"{sqllex.(*lexer).syntax($2);return 1};$$=$6;$$.Columns=$4;$$.Pos=$1.pos}
- | CONSTRAINT name FOREIGN name '(' foreign_columns ')' foreign_definition {if $4.keyword==nil||$4.text!="key"{sqllex.(*lexer).syntax($4);return 1};$$=$8;$$.Name=Identifier{Text:$2.text,Pos:$2.pos};$$.Columns=$6;$$.Pos=$3.pos} ;
+ | CONSTRAINT name FOREIGN name '(' foreign_columns ')' foreign_definition {if $4.keyword==nil||$4.text!="key"{sqllex.(*lexer).syntax($4);return 1};$$=$8;$$.Name=Identifier{Text:$2.text,Pos:$2.pos};$$.Columns=$6;$$.Pos=$3.pos;$$.NamedDeclarationPos=$1.pos} ;
 using_index_constraint: UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Index:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos,KindPos:$1.pos}}
  | CONSTRAINT name UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Index:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos,KindPos:$3.pos}}
  | primary_head USING INDEX name {$$=&UsingIndexConstraint{Index:Identifier{Text:$4.text,Pos:$4.pos},Primary:true,Pos:$1.pos,KindPos:$1.pos}}
@@ -2766,7 +2766,7 @@ using_index_constraint: UNIQUE USING INDEX name {$$=&UsingIndexConstraint{Index:
  | using_index_constraint NOT_DEFERRABLE_LA DEFERRABLE {if !usingIndexProperty(sqllex.(*lexer),$1,$2,true,false){return 1};$$=$1}
  | using_index_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};if !usingIndexProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 exclusion_head: EXCLUDE {$$=&ExclusionConstraint{Pos:$1.pos,Index:CreateIndex{Pos:$1.pos}}}
- | CONSTRAINT name EXCLUDE {$$=&ExclusionConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,Index:CreateIndex{Pos:$3.pos}}} ;
+ | CONSTRAINT name EXCLUDE {$$=&ExclusionConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos,NamedDeclarationPos:$1.pos,Index:CreateIndex{Pos:$3.pos}}} ;
 exclusion_definition: exclusion_head index_method '(' exclusion_elements ')' index_include {
  $1.Index.Method=$2.text;$1.Index.Include=$6
  for _,item:=range $4 {$1.Index.Keys=append($1.Index.Keys,item.Key);$1.Operators=append($1.Operators,item.Operator)}
@@ -2834,9 +2834,9 @@ alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
  | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
 ordinary_alter_action: alter_selected_action {$$=$1}
- | alter_column_add {if $1.ColumnOptions!=nil {sqllex.(*lexer).syntax($1.columnOptionsToken);return 1};$$=$1.Ordinary} ;
-alter_column_add: ADD optional_column column {c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
- | ADD optional_column IF NOT EXISTS column {c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
+ | alter_column_add {if $1.ColumnOptions!=nil {sqllex.(*lexer).syntax($1.columnOptionsToken);return 1};sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos:$1.Ordinary.Pos},$1.Ordinary.Definition);$$=$1.Ordinary} ;
+alter_column_add: ADD optional_column column {c:=$3;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
+ | ADD optional_column IF NOT EXISTS column {c:=$6;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
  | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
  | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
@@ -3047,7 +3047,7 @@ column_constraint: NULL { $$=&ColumnConstraint{Pos:$1.pos} }
  | column_unique { $$=&ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | column_primary {$$=&ColumnConstraint{Unique:$1,Pos:$1.Pos}}
  | foreign_body {$$=&ColumnConstraint{ForeignKey:$1,Pos:$1.Pos}}
- | CONSTRAINT name foreign_body {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$$=&ColumnConstraint{ForeignKey:$3,Pos:$3.Pos}}
+ | CONSTRAINT name foreign_body {$3.Name=Identifier{Text:$2.text,Pos:$2.pos};$3.NamedDeclarationPos=$1.pos;$$=&ColumnConstraint{ForeignKey:$3,Pos:$3.Pos,NamedDeclarationPos:$1.pos}}
  | identity_definition { $$=&ColumnConstraint{Identity:$1,Pos:$1.Pos} }
  | CONSTRAINT name identity_definition { $$=&ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | generation_definition { $$=&ColumnConstraint{Generation:$1,Pos:$1.Pos} }
@@ -4526,6 +4526,10 @@ foreign_table_head: CREATE FOREIGN TABLE relation_name '(' foreign_optional_elem
  $$=&ForeignDDL{Action:"create",Kind:"table",Name:$4,Table:&CreateTable{Name:$4,Elements:$6.elements,Parents:$8,Pos:$1.pos,Persistence:"logged"},ColumnOptions:$6.options,Server:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos}
 } | CREATE FOREIGN TABLE IF NOT EXISTS relation_name '(' foreign_optional_elements ')' table_parents FDW_SERVER name {
  $$=&ForeignDDL{Action:"create",Kind:"table",Name:$7,Table:&CreateTable{Name:$7,Elements:$9.elements,Parents:$11,Pos:$1.pos,Persistence:"logged",IfNotExists:true},ColumnOptions:$9.options,Server:Identifier{Text:$13.text,Pos:$13.pos},IfNotExists:true,Pos:$1.pos}
+} | CREATE FOREIGN TABLE relation_name PARTITION OF relation_name partition_options partition_bound FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"table",Name:$4,Table:&CreateTable{Name:$4,Elements:$8,PartitionOf:&PartitionParent{Name:$7,Bound:*$9,Pos:$5.pos},Pos:$1.pos,Persistence:"logged"},Server:Identifier{Text:$11.text,Pos:$11.pos},Pos:$1.pos}
+} | CREATE FOREIGN TABLE IF NOT EXISTS relation_name PARTITION OF relation_name partition_options partition_bound FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"table",Name:$7,Table:&CreateTable{Name:$7,Elements:$11,PartitionOf:&PartitionParent{Name:$10,Bound:*$12,Pos:$8.pos},Pos:$1.pos,Persistence:"logged",IfNotExists:true},Server:Identifier{Text:$14.text,Pos:$14.pos},IfNotExists:true,Pos:$1.pos}
 } ;
 foreign_optional_elements: /* empty */ {$$=foreignElements{}} | foreign_elements {$$=$1} ;
 foreign_elements: foreign_element {$$=$1} | foreign_elements ',' foreign_element {$$=appendForeignElements($1,$3)} ;
@@ -4535,7 +4539,8 @@ foreign_element: name type foreign_options column_collation nullability {$$=fore
  | create_not_null {$$=foreignElements{elements:[]TableElement{{NotNull:$1,Pos:$1.Pos}}}}
  | unique_constraint {$$=foreignElements{elements:[]TableElement{{Unique:$1,Pos:$1.Pos}}}}
  | primary_constraint {$$=foreignElements{elements:[]TableElement{{Unique:$1,Pos:$1.Pos}}}}
- | foreign_key {$$=foreignElements{elements:[]TableElement{{ForeignKey:$1,Pos:$1.Pos}}}} ;
+ | foreign_key {$$=foreignElements{elements:[]TableElement{{ForeignKey:$1,Pos:$1.Pos}}}}
+ | exclusion_constraint {$$=foreignElements{elements:[]TableElement{{Exclusion:$1,Pos:$1.Pos}}}} ;
 foreign_alter_wrapper_head: ALTER FOREIGN data_word wrapper_word name {
  $$=&ForeignDDL{Action:"alter",Kind:"wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos}
 } ;

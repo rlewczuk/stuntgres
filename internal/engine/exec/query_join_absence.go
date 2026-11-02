@@ -11,6 +11,14 @@ func absentLockedSource(source *Source, locks *LockContext) bool {
 	if source.Lineage != nil {
 		return source.Lineage.CurrentIndex == AbsentQueryIndex
 	}
+	if source.Inheritance != nil && source.Occurrences != nil {
+		for _, occurrence := range source.Occurrences {
+			if !locks.Leaves[occurrence].Absent {
+				return false
+			}
+		}
+		return true
+	}
 	if source.Singleton || source.Materialized {
 		return false
 	}

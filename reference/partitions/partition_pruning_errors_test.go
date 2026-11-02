@@ -75,13 +75,7 @@ func TestReferencePartitionPruningErrors(t *testing.T) {
 		s := fixture.ImplicitError("SELECT k FROM pp_empty WHERE k=$1::pp_positive", fixture.Diagnostic{Code: "23514", Message: `value for domain pp_positive violates check constraint "pp_positive_check"`, Context: "unnamed portal parameter $1 = '...'", Schema: "public", DataType: "pp_positive", Constraint: "pp_positive_check"}, -1)
 		s.SelectRows = true
 		run(s)
-		// PostgreSQL supports physical partition row locks; the native engine's
-		// existing explicit boundary is retained, not falsely compared to PG.
-		if !b.PG {
-			s := fixture.ImplicitError("SELECT k FROM pp_range WHERE k=99 FOR UPDATE", fixture.Diagnostic{Code: "0A000", Message: "row locking partition hierarchies is unsupported"})
-			s.SelectRows = true
-			run(s)
-		}
+		referencePruningKeys(run, b.PG, "SELECT k FROM pp_range WHERE k=99 FOR UPDATE")
 	}, func(t *testing.T) {
 		fixture.RoleReferenceCleanup(t, []string{"pp_reader"})
 		fixture.SchemaReferenceCleanup(t, "pp_private")

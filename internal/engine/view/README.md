@@ -200,7 +200,8 @@ imports `view`.
   walks the view definitions reachable from a statement's targets and leaves and
   returns a `SourceClosure` (strongest row mode per relation, relations still to
   acquire, temporary views to revalidate); `QueryLocks` validates the read graph
-  and row-lock legality and returns a `QueryLockDemand`; `CurrentQuerySource`
+  and row-lock legality and returns a `QueryLockDemand`, including executable
+  identity reads through stored views independently of rowmarks; `CurrentQuerySource`
   revalidates an admitted leaf's exact identity. They read the statement's
   private `catalog.Read`; the root acquires the locks.
   `SameStableReadLineage` (`retained_lineage.go`) routes a newly SQL-admitted
@@ -230,6 +231,8 @@ imports `view`.
   stage that the root's `DropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents.
+  Inheritance dependency labels use the dependent descriptor's diagnostic kind,
+  including foreign children; the ordinary parent edge and closure are unchanged.
   Template closure follows namespace and both nonzero callback identities as
   NORMAL edges, including staged replacements; dictionary-to-template edges
   retain the same NORMAL provenance. Extension automatic membership does not

@@ -111,24 +111,3 @@ func AlterOptions(h Host, next *catalog.Relation, wrapper *catalog.ForeignObject
 func CheckAddedColumn(definition *parser.Column) error {
 	return CheckTableDeclaration(&parser.CreateTable{Elements: []parser.TableElement{{Column: definition}}})
 }
-
-// AddedColumnOptions sets the OPTIONS of the column ADD COLUMN added to
-// candidate and returns their validator job.
-func AddedColumnOptions(h Host, candidate *catalog.Relation, wrapper *catalog.ForeignObject, column string, raw []parser.ForeignOption) (Validation, error) {
-	options, err := TransformOptions(nil, raw)
-	if err != nil {
-		return Validation{}, err
-	}
-	attribute := candidate.Attributes[candidate.Index[column]]
-	candidate.Foreign.Columns[attribute] = options
-	if len(options) == 0 {
-		return Validation{}, nil
-	}
-	return stageValidatorJob(h, wrapper, catalog.ForeignAttribute, options)
-}
-
-// UnsupportedAlter rejects an ALTER FOREIGN TABLE action that needs local
-// storage or write support.
-func UnsupportedAlter() error {
-	return sqlError("0A000", "foreign table action requires unsupported local storage or write support")
-}

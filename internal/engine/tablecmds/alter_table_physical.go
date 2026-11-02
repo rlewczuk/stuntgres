@@ -61,6 +61,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	}
 	defer e.DiscardCatalogStage(stage)
 	core.CarryAlterLayouts(stage, layouts, work.ref.Address)
+	if work.old.RelationKind == catalog.ForeignRelation {
+		// Foreign assumptions and descriptor changes never validate or rewrite
+		// remote rows, and must not synthesize a local physical relation.
+		return core.Result{}, validateAlterPhysical(e, scope, phase, work)
+	}
 	op := scope.Op
 	ref, old, next := work.ref, work.old, phase.View.MustRelation(work.ref.Address)
 	store, storageOwner, shape := work.store, work.storageOwner, work.shape
@@ -105,9 +110,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	shape.MergeFills(fills, next)
 	replacement := store
 	projectedWrites, projectedDeletes := scope.ColumnProjectionRoots(ref.Address)
-	rowExpressions:=len(versions)!=0||len(projectedWrites)!=0
-	expressionWork:=rowExpressions&&(len(transformations)!=0||len(storedReplacements)!=0||len(additions)!=0||len(typeChecks)!=0||len(addedChecks)!=0||len(validatedChecks)!=0)
-	if err:=prepareAlterExpressionSnapshot(scope,e.StageRead(stage),next,additions,transformations,storedReplacements,addedIndexes,rowExpressions,expressionWork,typeChecks,addedChecks,validatedChecks);err!=nil{return core.Result{},err}
+	rowExpressions := len(versions) != 0 || len(projectedWrites) != 0
+	expressionWork := rowExpressions && (len(transformations) != 0 || len(storedReplacements) != 0 || len(additions) != 0 || len(typeChecks) != 0 || len(addedChecks) != 0 || len(validatedChecks) != 0)
+	if err := prepareAlterExpressionSnapshot(scope, e.StageRead(stage), next, additions, transformations, storedReplacements, addedIndexes, rowExpressions, expressionWork, typeChecks, addedChecks, validatedChecks); err != nil {
+		return core.Result{}, err
+	}
 	if work.validityOnly {
 		if scanValidator, scan := table.PlanAlterScan(old, next, schema, false, physicalRows, nil, nil, validatedChecks, validatedAttributes, nil, nil); scan {
 			if scanValidator.Checks != nil {

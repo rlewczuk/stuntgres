@@ -54,6 +54,10 @@ ordinary assignments to an unreserved `security` variable.
 - Parser state and options are per call. The AST keeps source positions
   (`Position{Offset, Character}`: byte offset and character index) and
   parameter indices.
+- Foreign declarations reuse positioned constraint and partition nodes. Named
+  FOREIGN KEY and EXCLUDE clauses retain their CONSTRAINT position separately
+  from the ordinary clause keyword position. Foreign ADD COLUMN reaches semantic
+  declaration admission rather than ordinary-table capability deferrals.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
   Ordinary UNLOGGED table declarations remain distinct from query-derived

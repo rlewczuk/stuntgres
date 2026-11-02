@@ -49,7 +49,7 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 		return nil
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid table inheritance graph") }
-	if d.RelationKind != catalog.TableRelation || len(graph.Parents) == 0 && !graph.HasRetired() || len(graph.Columns) != len(d.Columns) {
+	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.ForeignRelation || len(graph.Parents) == 0 && !graph.HasRetired() || len(graph.Columns) != len(d.Columns) {
 		return invalid()
 	}
 	childNS, ok := v.Namespace(d.Namespace())
@@ -65,7 +65,7 @@ func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 		}
 		previousSeqno = edge.Seqno
 		parent, ok := v.Relation(address)
-		if !ok || parent.Address() != address || parent.RelationKind != catalog.TableRelation || address.SubID != 0 || seen[address] || address == d.Address() {
+		if !ok || parent.Address() != address || parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.ForeignRelation || address.SubID != 0 || seen[address] || address == d.Address() {
 			return invalid()
 		}
 		seen[address] = true

@@ -9,10 +9,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/parser"
 )
 
 // DumpOptions preserves provider option order and SQL literal bytes, including
@@ -171,12 +174,18 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 		return dump.Statement{}, fmt.Errorf("stuntgres: invalid foreign attributes")
 	}
 	qualified := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name())
+	partitionChild := r.Membership != nil && !partition.DumpNeedsAttach(view, r)
 	var b strings.Builder
 	b.WriteString("CREATE FOREIGN TABLE " + qualified + " (")
+	emitted := 0
 	for i, column := range r.Columns {
-		if i > 0 {
+		if r.Inheritance != nil && !r.Inheritance.Columns[r.Attributes[i]].Local {
+			continue
+		}
+		if emitted > 0 {
 			b.WriteString(", ")
 		}
+		emitted++
 		attribute := r.Attributes[i]
 		spelling, err := regobj.ColumnDeclaration(view, column)
 		if err != nil {
@@ -205,6 +214,19 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 			}
 			b.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.SQL())
 		}
+		if identity, ok := r.ColumnMeta.Identities[attribute]; ok {
+			seq := view.MustRelation(identity.Sequence)
+			mode := "ALWAYS"
+			if identity.Mode == parser.IdentityByDefault {
+				mode = "BY DEFAULT"
+			}
+			name := catalog.QuoteIdentifier(view.Get(seq.Namespace()).Name()) + "." + catalog.QuoteIdentifier(seq.Name())
+			b.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + name)
+			if !sequence.IdentityDumpDivergent(*seq.Sequence, column.Usage.Type.ID()) {
+				b.WriteString(" " + sequence.NumericSQL(*seq.Sequence))
+			}
+			b.WriteString(")")
+		}
 		if !column.Nullable {
 			for _, constraint := range r.Constraints.NotNull {
 				if constraint.Attribute == attribute && !constraint.NotValid {
@@ -214,25 +236,66 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 			}
 		}
 	}
-	for i, check := range table.OrderedChecks(r) {
-		if check.NotValid {
-			return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize unvalidated foreign CHECK")
+	for _, check := range table.OrderedChecks(r) {
+		if check.NotValid || r.Inheritance != nil && !r.Inheritance.Checks[check.Name].Local {
+			continue
 		}
 		text, err := (stored.ScalarRenderer{Owner: r, CheckReplayPrecision: true}).SQL(ctx, view, check.Expression)
 		if err != nil {
 			return dump.Statement{}, err
 		}
-		if len(r.Columns) != 0 || i != 0 {
+		if emitted != 0 {
 			b.WriteString(", ")
 		}
+		emitted++
 		b.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")")
 		if check.NoInherit {
 			b.WriteString(" NO INHERIT")
 		}
 	}
-	b.WriteString(") SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n")
+	b.WriteString(")")
+	if r.Inheritance != nil && len(r.Inheritance.Parents) != 0 {
+		b.WriteString(" INHERITS (")
+		for i, edge := range r.Inheritance.Parents {
+			if i != 0 {
+				b.WriteString(", ")
+			}
+			parent := view.MustRelation(edge.Relation)
+			b.WriteString(catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()))
+		}
+		b.WriteString(")")
+	}
+	b.WriteString(" SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n")
 	definition := b.String()
+	if partitionChild {
+		text, err := partition.ChildSQL(ctx, view, r, qualified, deferred)
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		definition = strings.Replace(text, "CREATE TABLE ", "CREATE FOREIGN TABLE ", 1)
+		definition = strings.TrimSuffix(strings.TrimSpace(definition), ";") + " SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n"
+	}
 	b.Reset()
+	for i, column := range r.Columns {
+		attribute := r.Attributes[i]
+		if (partitionChild || r.Inheritance != nil && !r.Inheritance.Columns[attribute].Local) && len(r.Foreign.Columns[attribute]) != 0 {
+			b.WriteString("ALTER FOREIGN TABLE " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column.Name) + DumpOptions(r.Foreign.Columns[attribute]) + ";\n")
+		}
+	}
+	for _, check := range table.OrderedChecks(r) {
+		if !check.NotValid {
+			continue
+		}
+		text, err := (stored.ScalarRenderer{Owner: r, CheckReplayPrecision: true}).SQL(ctx, view, check.Expression)
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		b.WriteString("ALTER FOREIGN TABLE " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")")
+		if check.NoInherit {
+			b.WriteString(" NO INHERIT")
+		}
+		b.WriteString(" NOT VALID;\n")
+	}
 	if r.Comment != "" {
 		b.WriteString("COMMENT ON FOREIGN TABLE " + qualified + " IS " + dump.CommentLiteral(r.Comment) + ";\n")
 	}

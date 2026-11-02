@@ -89,7 +89,7 @@ func changedQueryLockSource(source *Source, locks *LockContext) bool {
 	if source.Singleton {
 		return false
 	}
-	if source.Materialized {
+	if source.Materialized || source.Occurrences != nil {
 		for _, occurrence := range source.Occurrences {
 			if locks.Leaves[occurrence].Changed {
 				return true

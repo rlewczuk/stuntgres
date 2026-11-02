@@ -44,35 +44,25 @@ func TestReferenceInheritanceKeyBoundaries(t *testing.T) {
 
 func TestReferenceInheritanceForeignBoundary(t *testing.T) {
 	inheritanceScenario(t, func(s *inheritanceCase) {
-		if !s.b.PG {
-			s.exec("CREATE FOREIGN DATA WRAPPER inheritance_fdw", 0)
-			defer func() {
-				if _, err := s.c.ExecContext(s.p.Ctx, "DROP FOREIGN DATA WRAPPER inheritance_fdw CASCADE"); err != nil {
-					s.t.Error(err)
-				}
-			}()
-			s.exec("CREATE SERVER inheritance_server FOREIGN DATA WRAPPER inheritance_fdw", 0)
-			s.exec("CREATE FOREIGN TABLE p(a INT DEFAULT 7 NOT NULL,CONSTRAINT ck CHECK(a>0)) SERVER inheritance_server", 0)
-			s.values("SELECT relkind FROM pg_class WHERE relname='p'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"f"}})
-			s.fail("CREATE TABLE c() INHERITS(p)", fixture.Diagnostic{Code: "0A000", Message: "foreign table hierarchies are unsupported in embedded mode"})
-			s.absent("c")
-			return
-		}
-		s.exec("CREATE EXTENSION file_fdw", 0)
+		// Only metadata is needed from the foreign parent: both backends use
+		// the same handlerless wrapper and exercise storage in the local child.
+		s.exec("CREATE FOREIGN DATA WRAPPER inheritance_fdw", 0)
 		defer func() {
-			if _, err := s.c.ExecContext(s.p.Ctx, "DROP SERVER IF EXISTS inheritance_server CASCADE; DROP EXTENSION file_fdw CASCADE"); err != nil {
+			if _, err := s.c.ExecContext(s.p.Ctx, "DROP FOREIGN DATA WRAPPER inheritance_fdw CASCADE"); err != nil {
 				s.t.Error(err)
 			}
 		}()
-		s.exec("CREATE SERVER inheritance_server FOREIGN DATA WRAPPER file_fdw", 0)
-		// Real FDW metadata, no external file access or foreign scan is exercised.
-		s.exec("CREATE FOREIGN TABLE p(a INT DEFAULT 7 NOT NULL,CONSTRAINT ck CHECK(a>0)) SERVER inheritance_server OPTIONS(filename '/dev/null',format 'csv')", 0)
+		s.exec("CREATE SERVER inheritance_server FOREIGN DATA WRAPPER inheritance_fdw", 0)
+		s.exec("CREATE FOREIGN TABLE p(a INT DEFAULT 7 NOT NULL,CONSTRAINT ck CHECK(a>0)) SERVER inheritance_server", 0)
+		s.values("SELECT relkind FROM pg_class WHERE relname='p'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"f"}})
 		s.exec("CREATE TABLE c() INHERITS(p)", 0)
 		s.exec("INSERT INTO c DEFAULT VALUES", 1)
 		s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}})
 		s.constraints("c", [][]any{{"ck", "c"}, {"p_a_not_null", "n"}})
 		s.edges("c", "p")
 		s.fail("INSERT INTO c VALUES(-1)", inheritanceCheckDiagnostic("c", "ck", "-1"))
+		s.fail("INSERT INTO c VALUES(NULL)", inheritanceNullDiagnostic("c", "a", "null"))
+		s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}})
 	})
 }
 

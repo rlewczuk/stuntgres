@@ -614,7 +614,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if d.Inheritance != nil {
 					for _, parent := range d.Inheritance.Parents {
 						if parent.Relation == target {
-							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 							direct[len(direct)-1].Normal = true
 							break
 						}

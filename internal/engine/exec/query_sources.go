@@ -101,6 +101,10 @@ type InheritanceQuerySegment struct {
 func (s *Source) selectInheritancePrefixes(ctx context.Context) error {
 	total := 0
 	for i, segment := range s.Inheritance {
+		if segment.Prefix.Foreign != nil {
+			s.InheritanceEnds[i] = total
+			continue
+		}
 		data := segment.Prefix.View.Data()
 		heap, err := visibility.ResolveRelationHeapAccess(data.Catalog, segment.Prefix.Ref)
 		if err != nil {
@@ -169,6 +173,9 @@ func (row QueryPhysicalRow) Values(version storage.RowVersion) []sqltype.Value {
 }
 
 func (s *Source) PhysicalRef(index int) ids.ObjectRef {
+	if s.PhysicalRefs != nil {
+		return s.PhysicalRefs[index]
+	}
 	if s.Inheritance != nil {
 		segment, _ := s.inheritanceSegment(index)
 		return segment.Leaf.Ref

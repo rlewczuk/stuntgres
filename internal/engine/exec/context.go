@@ -270,9 +270,29 @@ func (c *Context) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		local.PhysicalTable = source.PhysicalRef(index)
-		if source.View != nil && e.Origin.Address.SubID != 0 {
-			var current []sqltype.Value
+		logical := QuerySourceAt(row.Query.Source, e.QueryOccurrence-1)
+		for logical.Input != nil {
+			logical = logical.Input
+		}
+		var mapped []sqltype.Value
+		if logical.Inheritance != nil && logical.Occurrences != nil {
+			// The bound window already carries this candidate's effective
+			// logical tuple. Only EPQ substitutes a physical replacement.
+			mapped = local.Row
 			if row.QueryCurrentRows != nil {
+				current := row.QueryCurrentRows[source.Occurrence]
+				for i, occurrence := range logical.Occurrences {
+					if occurrence == source.Occurrence {
+						mapped = logical.Inheritance[i].MapValues(current)
+						break
+					}
+				}
+			}
+			source = logical
+		}
+		if source.View != nil && e.Origin.Address.SubID != 0 {
+			current := mapped
+			if row.QueryCurrentRows != nil && mapped == nil {
 				if source.Occurrence < 0 || source.Occurrence >= len(row.QueryCurrentRows) || row.QueryCurrentRows[source.Occurrence] == nil {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual recheck occurrence")
 				}

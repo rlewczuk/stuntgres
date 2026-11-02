@@ -78,12 +78,16 @@ func RejectForeignKeys(s *parser.CreateTable) error {
 // storage, captures their data and finishes the definition once the CREATE
 // window closes. foreignTargets are the FOREIGN KEY parents analysis
 // resolved. It runs with Engine.mu held and never waits.
-func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace ids.ObjectAddress, parent *catalog.Relation, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) (*Definition, error) {
+func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace ids.ObjectAddress, parent *catalog.Relation, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef, childKind ...catalog.RelationKind) (*Definition, error) {
 	if parent != nil && parent.Partition == nil {
 		return nil, sqlError("42P17", fmt.Sprintf(`"%s" is not partitioned`, parent.Name()))
 	}
+	kind := catalog.TableRelation
+	if len(childKind) != 0 {
+		kind = childKind[0]
+	}
 	if parent != nil {
-		if _, err := stageChild(h, auth, parent, s, namespace, owner, input); err != nil {
+		if _, err := stageChild(h, auth, parent, s, namespace, owner, input, kind); err != nil {
 			return nil, err
 		}
 	} else if err := table.StageCreateTable(h, auth, s, namespace, owner, input, foreignTargets, catalog.PartitionedRelation); err != nil {
@@ -93,7 +97,11 @@ func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace id
 	address, _ := h.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	child := h.Stage().Get(address).(*catalog.Relation)
 	if parent != nil {
-		ddl.RecordCommand(h.Stage(), "CREATE TABLE", child.Address())
+		tag := "CREATE TABLE"
+		if kind == catalog.ForeignRelation {
+			tag = "CREATE FOREIGN TABLE"
+		}
+		ddl.RecordCommand(h.Stage(), tag, child.Address())
 	}
 	part, err := BindKeys(h, h.Recapture(auth, h.StageRead()), child, s.PartitionBy, input)
 	if err != nil {
@@ -124,6 +132,10 @@ func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace id
 		if !d.Bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 			defaultRelation := view.Catalog.MustRelation(parent.Partition.DefaultChild)
 			err = PhysicalDescendants(view.Catalog, defaultRelation, func(leaf *catalog.Relation) error {
+				if leaf.RelationKind == catalog.ForeignRelation {
+					h.AddDomainBase(leaf)
+					return nil
+				}
 				d.DefaultLeaves = append(d.DefaultLeaves, view.Ref(leaf.Address()))
 				h.AddDomainBase(leaf)
 				return nil
@@ -148,7 +160,7 @@ func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace id
 // cooked definitions carry admitted catalog identities. Re-parsing their
 // qualified names would add schema/cast/function privileges PostgreSQL does
 // not demand and could resolve a different provider by name.
-func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *parser.CreateTable, namespace ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment) (*catalog.Relation, error) {
+func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *parser.CreateTable, namespace ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, kind catalog.RelationKind) (*catalog.Relation, error) {
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
 	available, err := h.DisplaceAssociatedArray(namespace, name)
 	if err != nil {
@@ -178,8 +190,11 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 		return nil, err
 	}
 	d.Persistence = syntax.Persistence
-	d.TableMethod = parent.TableMethod
-	if d.TableMethod == 0 && syntax.PartitionBy == nil {
+	d.RelationKind = kind
+	if kind != catalog.ForeignRelation {
+		d.TableMethod = parent.TableMethod
+	}
+	if kind != catalog.ForeignRelation && d.TableMethod == 0 && syntax.PartitionBy == nil {
 		d.TableMethod, err = table.ResolveTableMethod(view.Catalog, h.DefaultTableAccessMethod())
 		if err != nil {
 			return nil, err

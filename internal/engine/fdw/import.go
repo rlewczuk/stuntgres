@@ -14,12 +14,21 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func MappingFor(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
+// FindMapping selects the current user's mapping before PUBLIC from the
+// captured authorization catalog; absence is valid optional IMPORT metadata.
+func FindMapping(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, bool) {
 	for _, role := range []authorization.PrincipalRef{view.State.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
 		if d, ok := view.Catalog.Foreign(view.Catalog.NameAddress(key)); ok {
-			return d, nil
+			return d, true
 		}
+	}
+	return nil, false
+}
+
+func MappingFor(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
+	if mapping, ok := FindMapping(view, server); ok {
+		return mapping, nil
 	}
 	role, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
@@ -67,10 +76,10 @@ func ImportedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
 
 // PlanImport decides IMPORT FOREIGN SCHEMA up to the importer
 // callback: the server and its USAGE, the local schema and CREATE on it, the
-// wrapper's handler and its importer capability, the user mapping, the
-// options and the request. It records the server, wrapper, mapping, handler
-// procedure and local schema among the stage's observed dependencies. The
-// engine runs the importer after releasing Engine.mu and replacementMu.
+// wrapper's handler and its importer capability, optional user mapping metadata,
+// options and the request. The provider decides whether a mapping is required.
+// The stage observes the server, wrapper, selected mapping, handler and schema.
+// The engine runs the importer after releasing Engine.mu and replacementMu.
 func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted settings.RestrictedRelationKinds) (SchemaImporter, ImportRequest, error) {
 	view := h.AccessView(auth)
 	server, err := Find(view.Catalog, ids.ForeignServerClassID, s.Server.Text)
@@ -99,10 +108,7 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted set
 	if !ok {
 		return nil, ImportRequest{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.Name()))
 	}
-	mapping, err := MappingFor(view, server)
-	if err != nil {
-		return nil, ImportRequest{}, err
-	}
+	mapping, mappingPresent := FindMapping(view, server)
 	// IMPORT options belong to the provider, not stored catalog metadata.
 	// Preserve ordered occurrences (including duplicates) for its semantics.
 	options := make([]catalog.ForeignOption, len(s.Options))
@@ -113,11 +119,15 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted set
 	if err != nil {
 		return nil, ImportRequest{}, err
 	}
-	request := ImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.Name(), Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingOptions: slices.Clone(mapping.Options), Options: options, Except: s.ImportExcept}
+	request := ImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.Name(), Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingPresent: mappingPresent, Options: options, Except: s.ImportExcept}
+	if mappingPresent {
+		request.MappingOptions = slices.Clone(mapping.Options)
+		h.AddDomainBase(mapping)
+	}
 	for _, table := range s.ImportFilter {
 		request.Tables = append(request.Tables, table.Text)
 	}
-	for _, base := range []catalog.Descriptor{server, wrapper, mapping, view.Catalog.Get(wrapper.Handler), view.Catalog.Get(ns.Address)} {
+	for _, base := range []catalog.Descriptor{server, wrapper, view.Catalog.Get(wrapper.Handler), view.Catalog.Get(ns.Address)} {
 		h.AddDomainBase(base)
 	}
 	return importer, request, nil

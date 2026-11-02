@@ -216,7 +216,7 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.Relation(tableAddress)
-			if !ok || table.RelationKind != catalog.TableRelation && table.RelationKind != catalog.PartitionedRelation || !table.HasAttribute(owned.SubID) || table.Owner != r.Owner || table.Namespace() != r.Namespace() {
+			if !ok || table.RelationKind != catalog.TableRelation && table.RelationKind != catalog.PartitionedRelation && table.RelationKind != catalog.ForeignRelation || !table.HasAttribute(owned.SubID) || table.Owner != r.Owner || table.Namespace() != r.Namespace() {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
 			if r.Sequence.Identity {

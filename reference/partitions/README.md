@@ -3,7 +3,7 @@
 Declarative partitioning: RANGE/LIST/HASH definitions, DML routing,
 ATTACH/DETACH, pruning (including constraint exclusion over inheritance trees),
 partitioned UNIQUE/PRIMARY KEY and exclusion constraints, inherited partition
-CHECK/NOT NULL constraints, and hierarchy column rename. Related families: table
+CHECK/NOT NULL constraints, hierarchy column rename, and partition-source row locking. Related families: table
 core, constraints, foreign keys and foreign tables in [reference/tables](../tables/README.md); inheritance,
 typed tables and LIKE in [reference/inheritance](../inheritance/README.md);
 partitioned indexes in `reference/indexes`; ALTER TABLE actions in
@@ -27,6 +27,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   Exclusion-concurrency timeout probes use the same separate-borrower lifecycle;
   their direct route stays direct and their prepared route holds the INSERT before
   the blocker and timer. The unarmed peer retains the complete recovery checks.
+- Partition row-lock queries retain typed populated and fully pruned results in
+  both modes. Actual local/foreign leaf contention and transaction-end release
+  use the shared hierarchy scenarios in `reference/tables`.
 - Query results do not prove that pruned branches or ATTACH validation scans
   were skipped. Engine units assert that natively; on PostgreSQL, ATTACH scan
   elision is read from `pg_stat_user_tables.seq_scan` on the same session after

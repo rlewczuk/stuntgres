@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
@@ -19,6 +20,7 @@ import (
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
@@ -43,6 +45,18 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
+	if old.RelationKind == catalog.ForeignRelation {
+		for _, action := range s.Actions {
+			if err := fdw.CheckConstraint(action.Unique, action.ForeignKey, action.Exclusion); err != nil {
+				return fail(err)
+			}
+			if action.Action == parser.AddColumn {
+				if err := fdw.CheckAddedColumn(action.Definition); err != nil {
+					return fail(err)
+				}
+			}
+		}
+	}
 	recordParent := false
 	if scope.Inheritance.Alter == nil {
 		defer func() {
@@ -870,16 +884,27 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			break
 		}
 	}
-	snapshotWrites,_:=scope.ColumnProjectionRoots(ref.Address)
-	rowExpressions:=physicalRows&&store!=nil&&(len(store.Versions)!=0||len(snapshotWrites)!=0)
-	defaultPreflight:=false
-	for _,added:=range additions{defaultPreflight=defaultPreflight||added.Expression!=nil}
-	if err:=prepareAlterExpressionSnapshot(scope,e.StageRead(stage),next,additions,transformations,storedReplacements,addedIndexes,rowExpressions,defaultPreflight,typeChecks,addedChecks,validatedChecks);err!=nil{return core.Result{},err}
-	fills, perRowAdd, err := table.PlanAddedColumns(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
-	if err != nil {
+	snapshotWrites, _ := scope.ColumnProjectionRoots(ref.Address)
+	rowExpressions := physicalRows && store != nil && (len(store.Versions) != 0 || len(snapshotWrites) != 0)
+	defaultPreflight := false
+	for _, added := range additions {
+		defaultPreflight = defaultPreflight || added.Expression != nil
+	}
+	if err := prepareAlterExpressionSnapshot(scope, e.StageRead(stage), next, additions, transformations, storedReplacements, addedIndexes, rowExpressions, defaultPreflight, typeChecks, addedChecks, validatedChecks); err != nil {
 		return core.Result{}, err
 	}
+	var fills map[int32]sqltype.Value
+	var perRowAdd bool
+	if old.RelationKind != catalog.ForeignRelation {
+		fills, perRowAdd, err = table.PlanAddedColumns(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
+		if err != nil {
+			return core.Result{}, err
+		}
+	}
 	rewrite, rowRewrite := table.AlterRewrites(transformations, storedReplacements, changedValues, perRowAdd, fills)
+	if old.RelationKind == catalog.ForeignRelation {
+		rewrite, rowRewrite = false, false
+	}
 	if rowRewrite {
 		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return core.Result{}, err

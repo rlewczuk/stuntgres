@@ -30,10 +30,6 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.Mu.Unlock()
 		return nil, err
 	}
-	if catalog.HierarchyRelation(d) && mark.Mode != 0 {
-		e.Mu.Unlock()
-		return nil, SQLError("0A000", "row locking partition hierarchies is unsupported")
-	}
 	switch d.RelationKind {
 	case catalog.ForeignRelation:
 		source, err := e.captureForeignSourceLocked(scope, ref, d, invoker, outputUses, mark)

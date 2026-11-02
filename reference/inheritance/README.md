@@ -30,6 +30,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   files and `pg_statistic_ext*_test.go`); shared catalog helpers remain in
   `reference/fixture`. Direct, fresh-prepared, held, native-control and actual
   PostgreSQL dump-replay routes use the same original assertions.
+- Foreign-parent inheritance uses the same handlerless wrapper on both backends;
+  metadata-only parent setup feeds real local-child default, CHECK, NOT NULL and
+  dependency-edge assertions without foreign scans or external files.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

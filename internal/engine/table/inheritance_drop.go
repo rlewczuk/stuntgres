@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// InheritanceDropClosure is every ordinary table of view in the inheritance
+// InheritanceDropClosure is every table or foreign table of view in inheritance
 // trees below roots, roots included, ordered by OID: the tables a DROP of an
 // inheritance participant locks. Column, missing and non-table roots
 // contribute nothing.
@@ -21,7 +21,7 @@ func InheritanceDropClosure(view catalog.Read, roots []ids.ObjectAddress) []ids.
 		}
 		seen[address] = true
 		table, ok := view.Relation(address)
-		if !ok || table.RelationKind != catalog.TableRelation || address.SubID != 0 {
+		if !ok || table.RelationKind != catalog.TableRelation && table.RelationKind != catalog.ForeignRelation || address.SubID != 0 {
 			return
 		}
 		tables = append(tables, address)

@@ -29,6 +29,12 @@ Table declarations retain logged/unlogged identity, including typed and partitio
 children. Identity sequence completion states its own persistence explicitly in
 both directions, preserving independent table/sequence choices on replay.
 Partition constraint replay keeps one declaration/membership/name/data graph.
+Foreign tables contribute declaration and hierarchy-completion events, never
+physical row events. Foreign partition membership uses the same compact
+PARTITION OF or separate CREATE/ATTACH decision as local members; parent
+completion waits for the actual foreign member completion. Identity-sequence
+references resolve to the reciprocal local or foreign owner declaration, and
+the ordinary sequence-completion section restores generator state afterward.
 The existing bootstrap-owned scratch phases also create detached fresh exclusion
 providers through ordinary temporary-parent DDL. Scratch columns share the normal
 column-type/collation renderer; captured table defaults, identities, ownership and

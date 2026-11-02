@@ -37,7 +37,7 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 	if err := scope.ConstraintPendingPreflight(auth.Catalog, old.Address(), "ALTER TABLE"); err != nil {
 		return fail(err)
 	}
-	if catalog.HierarchyRelation(old) && !core.PartitionDefaultReplayAllowed(e, op, auth, s) {
+	if catalog.HierarchyRelation(old) && old.RelationKind != catalog.ForeignRelation && !core.PartitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(core.SQLError("0A000", "altering partition hierarchies is unsupported"))
 	}
 	slot, err := table.AlterDefaultColumn(old, s)
@@ -77,7 +77,7 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		return fail(err)
 	}
 	original := auth.StorageLocked(ref.Address)
-	if original == nil && old.Partition == nil {
+	if original == nil && old.Partition == nil && old.RelationKind != catalog.ForeignRelation {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}
 	var length int

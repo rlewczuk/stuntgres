@@ -287,7 +287,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			// Discovery and explanation already exported this initial frame.
 			// Only Begin reuses it; ReScan must export under current demand.
 			parameters = catalog.ForeignScanParameters{
-				Values: CopyForeignCells(f.Query.request.Parameters.Values),
+				Values:      CopyForeignCells(f.Query.request.Parameters.Values),
 				Correlation: CopyForeignCells(f.Query.request.Parameters.Correlation),
 			}
 		} else {
@@ -563,6 +563,11 @@ func FinishForeignSources(ctx context.Context, source *Source) error {
 			if err := FinishForeignSources(ctx, child); failure == nil {
 				failure = err
 			}
+		}
+	}
+	for _, segment := range source.Inheritance {
+		if err := FinishForeignSources(ctx, segment.Prefix); failure == nil {
+			failure = err
 		}
 	}
 	for _, child := range []*Source{source.NestedInputs, source.Input} {

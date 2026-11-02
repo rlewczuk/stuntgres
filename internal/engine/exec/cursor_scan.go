@@ -52,10 +52,13 @@ func CursorOccurrenceVersion(source *Source, index, occurrence int, locks *LockC
 		return storage.RowVersion{}
 	}
 	if source.Input != nil {
-		return CursorOccurrenceVersion(source.Input, index, occurrence, locks)
+		return CursorOccurrenceVersion(source.Input, source.InputIndex(index), occurrence, locks)
 	}
 	if source.Lineage != nil {
-		return CursorOccurrenceVersion(source.Lineage.Stage, source.Lineage.Selection[index], occurrence, locks)
+		if source.Lineage.Selection != nil {
+			index = source.Lineage.Selection[index]
+		}
+		return CursorOccurrenceVersion(source.Lineage.Stage, index, occurrence, locks)
 	}
 	if source.Materialized {
 		for j, id := range source.Occurrences {
@@ -68,7 +71,7 @@ func CursorOccurrenceVersion(source *Source, index, occurrence int, locks *LockC
 			}
 			leaf := locks.Leaves[id].Source
 			if leaf.Anonymous != nil {
-				return storage.RowVersion{}
+				return storage.RowVersion{Values: leaf.Row(visible)}
 			}
 			return leaf.VersionAt(leaf.RawIndex(visible))
 		}

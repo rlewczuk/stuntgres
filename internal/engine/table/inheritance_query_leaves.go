@@ -41,7 +41,7 @@ func InheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 			}
 			return nil
 		}
-		if d.RelationKind != catalog.TableRelation || leaf.Only {
+		if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.ForeignRelation || leaf.Only {
 			return visit(leaf)
 		}
 		return InheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
@@ -68,7 +68,7 @@ func InheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 func InheritancePendingGrants(view catalog.Read, roots []exec.Leaf, token ids.SessionToken, grants map[ids.ObjectRef]lock.Mode) ([]exec.Leaf, map[ids.ObjectRef]lock.Mode, error) {
 	var pending []exec.Leaf
 	err := InheritanceQueryLeaves(view, roots, token, func(leaf exec.Leaf) error {
-		if leaf.Relation.RelationKind != catalog.TableRelation {
+		if leaf.Relation.RelationKind != catalog.TableRelation && leaf.Relation.RelationKind != catalog.ForeignRelation {
 			return nil
 		}
 		mode := lock.AccessShare
@@ -78,7 +78,7 @@ func InheritancePendingGrants(view catalog.Read, roots []exec.Leaf, token ids.Se
 		// Named query roots already have exact-identity grants. Leave the
 		// ordinary single-table path allocation- and reacquisition-free.
 		for _, root := range roots {
-			if root.Ref == leaf.Ref && root.Relation != nil && root.Relation.RelationKind == catalog.TableRelation && (root.Mark.Mode != 0 || mode == lock.AccessShare) {
+			if root.Ref == leaf.Ref && root.Relation != nil && (root.Relation.RelationKind == catalog.TableRelation || root.Relation.RelationKind == catalog.ForeignRelation) && (root.Mark.Mode != 0 || mode == lock.AccessShare) {
 				return nil
 			}
 		}

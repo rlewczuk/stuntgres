@@ -265,6 +265,23 @@ The composed foreign ownership witnesses pair selected opaque tokens, current
 typed parameter frames and modification targets with actual Begin/Exec requests
 through capture, detached rendering and Finish. Provider property failure or
 cancellation prevents startup/publication; a begun source still closes once.
+Ordinary foreign query capture forwards the bound occurrence's dense `Uses`
+ordinals without changing its manifest. A nil query-use slice denotes presence
+only and becomes a nonnil empty scan-use slice; it must not become the foreign
+request API's nil/full-tuple demand. `ONLY` uses that same ordinary path.
+Mixed inheritance/partition adapters instead consume complete physical child
+tuples before applying captured parent layouts. Capture expands their existing
+lock manifest into the actual local/foreign prefixes before execution, retaining
+physical storage authority and forwarding marks by the genuine foreign source
+pointer. Unmarked executable identity reads, including stored-view expressions,
+initialize that same manifest in identity-only mode before capture; they acquire
+no tuple locks. Each logical row carries one active member and absent siblings through
+locking, recheck, virtual/tableoid and cursor consumers. Full-tuple hierarchy
+demand stays separate from ordinary/ONLY projection demand; both retain the real
+scan owner, callback layout validation and unlocked producer lifecycle.
+Foreign partition attachment fences the exact declaration without requiring a
+nonexistent local heap; local candidate and validation stores keep their ordinary
+storage fences.
 Internal UPDATE/DELETE identity scans keep their own selected token and exact
 request frame, but their EXPLAIN properties belong to the modification rather
 than a separate observed base scan. The executing ownership fixture returns

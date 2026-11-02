@@ -10,8 +10,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func CaptureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
+func CaptureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken, capture ...func(exec.Leaf) (*exec.Source, error)) (*exec.Source, error) {
 	if leaf.Only || !catalog.InheritanceHasChildren(catalogView, leaf.Ref.Address) {
+		if leaf.Relation.RelationKind == catalog.ForeignRelation && len(capture) != 0 {
+			return capture[0](leaf)
+		}
 		return exec.CapturePrefix(view, leaf.Ref)
 	}
 	pin := view.Retain()
@@ -27,7 +30,12 @@ func CaptureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 		if err != nil {
 			return err
 		}
-		prefix, err := exec.CapturePrefix(view, child.Ref)
+		var prefix *exec.Source
+		if physical.RelationKind == catalog.ForeignRelation && len(capture) != 0 {
+			prefix, err = capture[0](child)
+		} else {
+			prefix, err = exec.CapturePrefix(view, child.Ref)
+		}
 		if err != nil {
 			return err
 		}

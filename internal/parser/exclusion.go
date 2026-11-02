@@ -3,14 +3,15 @@ package parser
 // ExclusionConstraint keeps original index syntax and operator source positions.
 // Deferrability is definition state, not the transaction's READ DEFERRABLE mode.
 type ExclusionConstraint struct {
-	Name              Identifier
-	Index             CreateIndex
-	Operators         []ObjectName
-	Deferrable        bool
-	InitiallyDeferred bool
-	DeferrabilitySet  bool
-	InitiallySet      bool
-	Pos               Position
+	Name                Identifier
+	Index               CreateIndex
+	Operators           []ObjectName
+	Deferrable          bool
+	InitiallyDeferred   bool
+	DeferrabilitySet    bool
+	InitiallySet        bool
+	Pos                 Position
+	NamedDeclarationPos Position
 }
 
 type ExclusionElement struct {

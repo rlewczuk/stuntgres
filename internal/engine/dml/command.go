@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
@@ -66,8 +67,9 @@ type Insert struct {
 
 // Partition holds shared DML partition routing and INSERT's per-leaf groups.
 type Partition struct {
-	PartitionInsert    *partition.InsertState
-	PartitionRelations map[ids.ObjectAddress]*catalog.Relation
+	PartitionInsert      *partition.InsertState
+	PartitionRelations   map[ids.ObjectAddress]*catalog.Relation
+	ForeignModifications map[ids.ObjectAddress]*fdw.Modification
 }
 
 // TargetRefs is the admitted physical manifest; virtual descriptors have no heap.

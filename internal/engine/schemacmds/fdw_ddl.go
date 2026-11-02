@@ -34,10 +34,25 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	jobs, roots, err := stageForeignLocked(e, scope, auth, stage, s)
+	var pending *tablecmds.PendingPartitionDefinition
+	var jobs []fdw.Validation
+	var roots []ids.ObjectAddress
+	if s.Action == "create" && s.Kind == "table" && s.Table.PartitionOf != nil {
+		host := tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+		jobs, roots, err = fdw.StageTableUsing(host, auth, s, scope.Input, func(syntax *parser.CreateTable, namespace ids.ObjectAddress) error {
+			var createErr error
+			pending, createErr = tablecmds.SchemaPartitionTableLocked(e, scope, auth, stage, syntax, namespace, catalog.ForeignRelation)
+			return createErr
+		})
+	} else {
+		jobs, roots, err = stageForeignLocked(e, scope, auth, stage, s)
+	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
+		return core.Result{}, err
+	}
+	if err := pending.Finish(scope); err != nil {
 		return core.Result{}, err
 	}
 	if len(roots) != 0 {
@@ -45,6 +60,9 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 			stage.MarkDrop(address, catalog.DropProvenance{Original: true})
 		}
 		if err := scope.StageExpressionDependents(stage, roots, s.Mode, nil); err != nil {
+			return core.Result{}, err
+		}
+		if err := scope.StageOwnedSequences(stage, roots, s.Mode, nil); err != nil {
 			return core.Result{}, err
 		}
 	}

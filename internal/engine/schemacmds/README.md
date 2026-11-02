@@ -139,8 +139,15 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   stage into the ordinary statement-private overlay, and retains initial
   discovery dependencies until final validation. Only enclosing Finish commits
   metadata and validator effects; `executeForeignTableAlter` routes OWNER,
-  RENAME and SET SCHEMA to the shared relation executors and runs the phased
-  action loop with its lock windows. `ExecuteForeignGrant` clones the
+  RENAME and SET SCHEMA to the shared relation executors. Ordinary descriptor
+  actions use tablecmds' hierarchy/identity stage with no foreign heap phase;
+  option-bearing actions retain ordered unlocked validator jobs.
+  Foreign PARTITION OF uses the shared pending partition definition and completes
+  bounds/parent dependencies before entering the same CREATE validator phases.
+  DROP uses the shared expression closure followed by owned-sequence retirement,
+  including foreign owners reached through server, wrapper or hierarchy CASCADE;
+  identity sequences and their dependents retire in the same private publication.
+  `ExecuteForeignGrant` clones the
   journal's catalog changes, emits the grant warnings and installs each
   change.
 

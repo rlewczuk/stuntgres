@@ -24,7 +24,7 @@ func ParseOwnedBy(raw parser.ObjectName) (table parser.ObjectName, column string
 // CheckOwnedBy validates the OWNED BY table of sequence d, read after the
 // table's lock grant, and returns the owning column's address.
 func CheckOwnedBy(table, d *catalog.Relation, column string) (ids.ObjectAddress, error) {
-	if table.RelationKind != catalog.TableRelation && table.RelationKind != catalog.PartitionedRelation {
+	if table.RelationKind != catalog.TableRelation && table.RelationKind != catalog.PartitionedRelation && table.RelationKind != catalog.ForeignRelation {
 		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, table.Name()))
 	}
 	if table.Owner != d.Owner {

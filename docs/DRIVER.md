@@ -1800,7 +1800,15 @@ registered provider.
   synchronous protocol; async admission does not also start parallel partitions.
   Expression subqueries and repeatedly opened correlated inputs use ordinary
   reusable scans; safe enclosing producers and top-level cursors remain eligible.
-- **Import.** `ForeignSchemaImporter` implements `IMPORT FOREIGN SCHEMA`.
+- **Import.** `ForeignSchemaImporter` implements genuine source discovery for
+  `IMPORT FOREIGN SCHEMA`, returning owned `ForeignTableDefinition` values.
+  `ForeignImportRequest.MappingPresent` distinguishes no user mapping from a
+  selected zero-option mapping; `MappingOptions` is an owned copy selected for
+  the current user before PUBLIC. The importer decides whether it requires a
+  mapping and must reject absence before mapping-dependent I/O. This does not
+  relax scan/write mapping admission. Import `Options` retain order and duplicates
+  for provider policy. Prepare performs no discovery; execution constructs selected
+  definitions sequentially in one private statement, publishing none on failure.
 - **Contract.** Callbacks run outside engine locks, may run concurrently, and must
   use the context of each call. Never return `driver.ErrBadConn` or `driver.ErrSkip`
   (they are converted to ordinary errors). Native Dump includes user-mapping

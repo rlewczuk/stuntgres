@@ -60,6 +60,9 @@ func collectForeignRelationDump(ctx context.Context, c *dumpCollection, a ids.Ob
 		predecessors = append(predecessors, server)
 	}
 	c.addForeignDeclaration(a.ObjectID, statement, dump.DeclarationEvents(predecessors))
+	// The declaration installs the complete logical relation. Hierarchy
+	// completion waits for it, not a nonexistent foreign row-storage phase.
+	c.Graph[dump.Event{OID: a.ObjectID, Phase: dump.TableCompletion}] = []dump.Event{{OID: a.ObjectID}}
 	return nil
 }
 

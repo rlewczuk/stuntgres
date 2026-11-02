@@ -17,6 +17,10 @@ driver import it.
 The shared table creation pass receives the final foreign relation kind, so it
 does not select a physical table access method or consume the table-AM default.
 The foreign owner completes its existing kind/server payload before validation.
+Direct and imported declarations share the ordinary logical column, expression,
+identity and hierarchy stages under one relation/rowtype identity. Foreign
+descriptors do not create local heap storage or turn declared CHECK/NOT NULL
+assumptions into remote validation scans.
 
 ## What it owns
 
@@ -74,7 +78,7 @@ The foreign owner completes its existing kind/server payload before validation.
   `ids.IsForeignCatalogClass`, and the command tag and grant-kind test are
   `session.ForeignDDLTag` and `session.ForeignGrantKind`),
   mapping and ownership authority over an `access.View` (`MappedRole`,
-  `MappingAuthority`, `MappingDiagnostic`, `MappingFor`; the owner change rule
+  `MappingAuthority`, `MappingDiagnostic`, `FindMapping`, `MappingFor`; the owner change rule
   is `access.ForeignOwnershipEligibility`, shared with REASSIGN OWNED),
   validator jobs (`Validation`, `ValidatorJob`, `RunValidations`) retain the
   captured procedure and owned ordered options. Registered native validators
@@ -98,6 +102,9 @@ The foreign owner completes its existing kind/server payload before validation.
   `ImportError`), foreign-table syntax checks (`CheckTableDeclaration`,
   `TableSyntax`, `AlterAdmission`) and scan requests (`ScanRequest`,
   `RequiredAttributes`).
+  Constraint admission distinguishes primary, unique, foreign-key and exclusion
+  declarations with their retained source positions; identity, LIKE logical
+  fields and hierarchy metadata use the shared table stages.
   `AnalyzeRequest` shares scan request construction but deliberately omits mapping
   resolution/options during optional capability negotiation. Supported acquisition
   then receives `ScanRequest` under the foreign table owner, exact role before
@@ -123,15 +130,25 @@ The foreign owner completes its existing kind/server payload before validation.
     TABLE (IF EXISTS notices, kind and owner checks, removal); wrong-kind ordinary
     table targets include the corrective DROP TABLE hint. IMPORT stages each
     table through it too.
+    `StageTableUsing` admits the same declaration/options path with the shared
+    partition constructor supplied by schemacmds; bounds finish before validators.
   - ALTER FOREIGN TABLE's decisions are `AlterTarget` (resolution, IF EXISTS
     notice, kind, admission reference and owner), `AlterBases` (server and
     wrapper as observed dependencies), `AlterCandidate` (the working copy),
-    `AlterColumn`, `AlterOptions`, `CheckAddedColumn`, `AddedColumnOptions`
-    and `UnsupportedAlter`.
+    `AlterColumn`, `AlterOptions` and `CheckAddedColumn`. Ordinary actions and
+    defaults run through shared tablecmds stages; option jobs follow on the latest
+    private predecessor, under the same enclosing statement publication.
   - `PlanImport` decides IMPORT FOREIGN SCHEMA up to the importer callback and
-    records the server, wrapper, mapping, handler and local schema as observed
-    dependencies; `ImportSelected` applies LIMIT TO/EXCEPT and
-    `ImportedTable` builds each table's CREATE FOREIGN TABLE.
+    records the server, wrapper, handler and local schema as observed dependencies.
+    `ImportRequest.MappingPresent` distinguishes an absent mapping from a
+    selected zero-option mapping; `FindMapping` selects exact user before PUBLIC
+    from captured authorization. Only a selected mapping is an observed descriptor.
+    Importers own mapping requirements and must reject absence before any
+    mapping-dependent I/O; strict access requests retain `MappingFor` and its
+    missing-mapping diagnostic. Request options own their backing; import options
+    preserve ordered duplicate occurrences for provider policy.
+    `ImportSelected` applies LIMIT TO/EXCEPT and `ImportedTable` builds each
+    table's CREATE FOREIGN TABLE through the same logical declaration stages.
     The caller uses the same private construction schedule for direct CREATE
     and each imported definition, completing it before processing the next.
     Later validators see completed earlier definitions and column options.
@@ -152,6 +169,12 @@ The foreign owner completes its existing kind/server payload before validation.
   `DumpProcedure` and `DumpOptions` render immutable captured declarations,
   actual qualified capability identities and ordered options; `control` owns
   graph ordering and output.
+  Foreign inheritance and partition declarations retain parent graph edges;
+  partition members share the compact PARTITION OF versus separate CREATE/ATTACH
+  decision, installing column options exactly once for the chosen constructor.
+  Owned identity sequences use ordinary sequence declaration/state completion.
+  Foreign CHECK validity and column options replay as descriptor changes without
+  scanning or serializing source rows.
   - Foreign tables never use storage/row collection. Declaration references
     distinguish the actual procedure descriptor: `DumpProcedure` validates only
     native prerequisites, which require compatible destination registrations,

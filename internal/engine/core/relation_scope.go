@@ -62,9 +62,13 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 			return err
 		}
 	}
+	foreignDeclaration := false
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
+		foreignDeclaration = foreign.Kind == "table"
 		if foreign.Kind == "table" && foreign.Action == "alter" {
 			stmt = fdw.AlterAdmission(foreign)
+		} else if foreign.Kind == "table" && foreign.Action == "create" {
+			stmt = foreign.Table
 		} else {
 			return nil
 		}
@@ -146,11 +150,13 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 				return err
 			}
 		}
-		if err := s.acquireForeignKeyCreation(creation); err != nil {
-			return err
+		if !foreignDeclaration {
+			if err := s.acquireForeignKeyCreation(creation); err != nil {
+				return err
+			}
 		}
 	}
-	if alteration, ok := stmt.(*parser.AlterTable); ok && execute {
+	if alteration, ok := stmt.(*parser.AlterTable); ok && execute && !foreignDeclaration {
 		if err := s.acquireAlterForeignKeys(alteration); err != nil {
 			return err
 		}

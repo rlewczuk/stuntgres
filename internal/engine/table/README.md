@@ -38,6 +38,12 @@ call live here.
   The same stage serves permanent and TEMP creation in explicit transactions;
   transaction admission and shared catalog/storage publication belong to the
   engine, not `CheckCreateShape`.
+  The final relation kind is installed before shared identity/inheritance staging.
+  Foreign consumers share the logical binders and owned sequences, but never
+  select a local table access method or run heap backfill/constraint scans.
+  Relation validation accepts those foreign owned-sequence endpoints with the
+  same stable-attribute, owner, namespace and bidirectional identity checks as
+  ordinary tables.
   Ordinary descriptors retain logged/unlogged identity before owned sequence
   creation. `persistence.go` normalizes namespace-owned TEMP and prepares ALTER
   intentions against original FK facts. Persistence actions are root-only;
@@ -257,6 +263,9 @@ call live here.
   Whole-provider callers retain their genuine separate
   `OwnedExpressionDependencies` phase and intermediate index-layout lineage;
   already captured column batches never initiate that phase again.
+  That phase includes foreign owners already removed by server, wrapper or
+  hierarchy cascades, retaining their owned sequence's dependent closure and
+  identity tombstone without touching unrelated sequences.
 - **Prepared DROP log** (`drop_preparation.go`, `drop_preparation_view.go`):
   `DropPreparation` records, in order, the `DropEffect`s of a drop prepared
   before the statement's stage exists (ALTER TABLE DROP COLUMN, DROP IDENTITY
@@ -420,6 +429,10 @@ or take `Engine.Mu`.
 actions that preserve child attribute/fact identities, storage, rows, defaults
 and generated recipes. The root owns endpoint grants, admission and the single
 ALTER stage.
+Foreign tables participate in the same origin graph and endpoint grants.
+Query-prefix capture accepts the engine's foreign-source capture operation for
+foreign leaves; the executor opens their genuine handlers outside engine locks.
+Only local leaves enter the storage visibility union.
 
 - Parent candidates read the stage's complete catalog view. Capture observes
   every lexical endpoint, including absence, without emitting later errors; each

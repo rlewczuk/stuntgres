@@ -51,10 +51,7 @@ func describeInheritance(host Host, auth Authority, syntax *parser.CreateTable, 
 		if source.Membership != nil {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.Name()))
 		}
-		if source.RelationKind == catalog.ForeignRelation {
-			return nil, nil, nil, sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
-		}
-		if source.RelationKind != catalog.TableRelation {
+		if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ForeignRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.Name()))
 		}
 		if err := host.CheckPrivilege(auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {

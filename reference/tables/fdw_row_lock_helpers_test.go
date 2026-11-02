@@ -27,9 +27,21 @@ func fdwRowLockConfiguredScenario(t *testing.T, late bool, configure func(*fdwSQ
 		fdwSourceExec(t, p, b, reader, run, "CREATE TABLE fdw_source.data(rid integer PRIMARY KEY,generation integer NOT NULL,revision integer NOT NULL,id integer,label text,flag boolean)", 0)
 		fdwSourceExec(t, p, b, reader, run, "INSERT INTO fdw_source.data VALUES(1,101,1,1,'one',true),(2,102,1,2,'two',false)", 2)
 		fdwInstallLive(b, run)
-		source := reader.source
-		if b.PG {
-			source = b.DB
+		source := b.DB
+		if !b.PG {
+			// Observe the genuine independent source through the same native
+			// recorder middleware as the frontend. Provider I/O keeps its
+			// separately owned, unwrapped source pool.
+			connector, err := reader.driver.OpenConnector(reader.dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			source = fdwRecordedPool(t, connector)
+			t.Cleanup(func() {
+				if err := source.Close(); err != nil {
+					t.Error(err)
+				}
+			})
 		}
 		body(t, p, b, c, source, reader.rowLocker, run)
 	}, func(reader *fdwSQLReader) {

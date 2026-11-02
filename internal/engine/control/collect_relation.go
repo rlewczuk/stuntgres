@@ -362,7 +362,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation, replay *tabl
 		return tableDumpEdges{}, err
 	}
 	for _, check := range r.Constraints.Check {
-		if check.NotValid || replay != nil && replay.DeferredChecks[check.Name] || c.source.RecipePlan[r.Address()] != nil && c.source.RecipePlan[r.Address()].DeferredChecks[check.Name] {
+		if check.NotValid && r.Foreign == nil || replay != nil && replay.DeferredChecks[check.Name] || c.source.RecipePlan[r.Address()] != nil && c.source.RecipePlan[r.Address()].DeferredChecks[check.Name] {
 			continue
 		}
 		add := func(address ids.ObjectAddress) error {

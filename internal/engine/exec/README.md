@@ -130,13 +130,32 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Derived/frozen sources share that same slot, and held-source Host detachment
   or reattachment does not resample settings or change the captured policy.
   Query identity demand retains source-occurrence lineage for virtual recipes
-  and ordinary `tableoid` alike. A tableoid leaf follows its lexical frame and
-  actual physical source reference; outer absence is typed NULL, not inferred
+  and ordinary `tableoid` alike, independently of rowmark demand. An unmarked
+  identity-only capture still supplies physical prefixes to materialized adapters.
+  Expression identity demand propagates explicitly through stored/derived query
+  states and their joins/SRF expansion even when inner expressions do not read
+  identity. Locator-only cursor manifests do not demand ineligible join caches;
+  effective-version and recheck caches require actual rowmarks. Each expanded
+  SRF row retains the child's resolved occurrence vector and selected provenance
+  when demanded; materialized cells alone are not physical authority.
+  A tableoid leaf follows its lexical frame and actual physical source reference;
+  outer absence is typed NULL, not inferred
   from ordinary tuple values. Generated-owner recipes retain their separate
   zero-coordinate mode. Neither path fabricates a stored datum or row counter.
   Dependent function sources reuse the same lineage on each invocation. An
   explicit identity-prefix marker carries zero-column ancestors without inventing
   a tuple slot, and nested joins merge it with their local-left source identities.
+  Mixed hierarchy capture expands the existing lock manifest into actual
+  physical prefixes, with no aggregate grant target. Its lazy indexed adapter
+  copies parent-layout cells alongside the emitting child's actual visible
+  index, absent sibling provenance and physical versions. Alternative members
+  resolve one logical operand for recheck, virtual recipes, tableoid and cursor
+  identity; mapped rechecks own their frame and apply logical RLS once.
+  Rewind clears aggregate output cells, references, provenance and version caches
+  together, retaining the immutable manifest and visibility pins. Foreign
+  anonymous rows, captured identities and immutable request generations remain
+  append-only under their existing scan owner; closing a borrowed stage is not
+  transaction end.
 - **Openers and producers** (`query*.go`, `window*_query.go`,
   `aggregate_query.go`): `OpenNode` dispatches every plan node; `Finalize` and
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
@@ -985,6 +1004,8 @@ Async protocol, cleanup, filtered-frontier and cursor-boundary units use
 `reference/tables` (`RUN='^TestReferenceFDWAsync'`).
 Typed foreign query contract, layout, request-copy and resource units use
 `RUN='^TestFDWQuery'`, including composed prepared-owner coverage in core.
+Mixed hierarchy lineage, alternative-member recheck and rewind ownership use
+`RUN='^TestForeignHierarchy'`, also with `RACE=1`.
 Query source identity units use `RUN='^TestQueryTableOID'`; virtual recipe
 consumers additionally use `RUN='^TestGeneratedVirtual'`. Catalog key index units
 here and candidate admission units in `internal/engine/core` use

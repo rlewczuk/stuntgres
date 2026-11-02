@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
@@ -86,6 +87,9 @@ func validatePhysicalInsertRow(h Host, b analyze.Binding, named *analyze.Binding
 	}
 	if err := rls.CheckProposal(proposal, evaluation); err != nil {
 		return err
+	}
+	if b.Relation.RelationKind == catalog.ForeignRelation {
+		return nil
 	}
 	violation, err := table.PhysicalRowViolation(b.Relation, row, evaluation)
 	if err != nil || violation == nil {

@@ -24,6 +24,9 @@ type ImportRequest struct {
 	WrapperOptions, ServerOptions, MappingOptions, Options []catalog.ForeignOption
 	Tables                                                 []string
 	Except                                                 bool
+	// MappingPresent distinguishes absence from a selected zero-option mapping.
+	// Importers own mapping policy and must check it before mapping-dependent I/O.
+	MappingPresent bool
 }
 type ColumnDefinition struct {
 	Name, Type string

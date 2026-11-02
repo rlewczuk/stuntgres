@@ -20,8 +20,10 @@ func AppendQueryVersions(dst []storage.RowVersion, source *Source, index int, lo
 		return AppendQueryVersions(dst, source.Input, source.InputIndex(index), locks)
 	}
 	if source.Lineage != nil {
-		physical := source.Lineage.Selection[index]
-		return AppendQueryVersions(dst, source.Lineage.Stage, physical, locks)
+		if source.Lineage.Selection != nil {
+			index = source.Lineage.Selection[index]
+		}
+		return AppendQueryVersions(dst, source.Lineage.Stage, index, locks)
 	}
 	if source.Singleton {
 		return dst

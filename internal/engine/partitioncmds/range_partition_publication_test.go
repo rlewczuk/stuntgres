@@ -110,7 +110,9 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 	session := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, session, "CREATE TABLE root(k INT) PARTITION BY RANGE(k)")
 	var resetErr error
-	ctx := &rangePartitionPhaseContext{Context: context.Background(), target: "(*PendingPartitionDefinition).finish", effect: func() { resetErr = engine.Reset(context.Background(), e) }}
+	// Ordinary and foreign partition creation share the exported continuation;
+	// reset at its real bound-demand checkpoint, after private DDL capture.
+	ctx := &rangePartitionPhaseContext{Context: context.Background(), target: "(*PendingPartitionDefinition).Finish", effect: func() { resetErr = engine.Reset(context.Background(), e) }}
 	op, err := session.Acquire(ctx.Context)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +121,7 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 	op.Ctx = ctx
 	_, err = e.Execute(op, enginetest.Statement(t, "CREATE TABLE leaf PARTITION OF root FOR VALUES FROM(0) TO(10)"), 0, nil)
 	op.Done()
-	if !ctx.entered.Load() || resetErr != nil || err == nil {
+	if !ctx.entered.Load() || resetErr != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("control callback failed to invalidate private DDL publication", ctx.entered.Load(), resetErr, err)
 	}
 	e.Mu.Lock()

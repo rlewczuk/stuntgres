@@ -650,23 +650,24 @@ type UniqueConstraint struct {
 // ForeignKeyConstraint retains one declaration for column and table syntax.
 // Column REFERENCES receives its local column when the CREATE binder walks it.
 type ForeignKeyConstraint struct {
-	Name              Identifier
-	Columns           []Identifier
-	Target            ObjectName
-	Referenced        []Identifier
-	Full              bool
-	NotValid          bool
-	NotEnforced       bool
-	EnforcementSet    bool
-	EnforcementPos    Position
-	Deferrable        bool
-	InitiallyDeferred bool
-	deferrabilitySet  bool
-	initiallySet      bool
-	Pos               Position
-	UpdateAction      ForeignKeyAction
-	DeleteAction      ForeignKeyAction
-	DeleteColumns     []Identifier
+	Name                Identifier
+	Columns             []Identifier
+	Target              ObjectName
+	Referenced          []Identifier
+	Full                bool
+	NotValid            bool
+	NotEnforced         bool
+	EnforcementSet      bool
+	EnforcementPos      Position
+	Deferrable          bool
+	InitiallyDeferred   bool
+	deferrabilitySet    bool
+	initiallySet        bool
+	Pos                 Position
+	NamedDeclarationPos Position
+	UpdateAction        ForeignKeyAction
+	DeleteAction        ForeignKeyAction
+	DeleteColumns       []Identifier
 }
 
 // The zero value is the SQL default, independently for each event direction.

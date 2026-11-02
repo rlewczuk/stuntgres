@@ -37,6 +37,11 @@ func partitionAttachCapture(e *core.Engine, scope *core.StatementScope, stage *c
 			return ids.ErrCatalogReplaced
 		}
 		stage.DomainBases = append(stage.DomainBases, d)
+		// Foreign candidates have declaration authority, not a local heap.
+		// Keep their exact descriptor fence even when no validation scan runs.
+		if d.RelationKind == catalog.ForeignRelation {
+			return nil
+		}
 		storage := e.PrivateStorageLocked(scope.PendingCatalog(), d.Address())
 		if storage == nil {
 			return ids.ErrCatalogReplaced

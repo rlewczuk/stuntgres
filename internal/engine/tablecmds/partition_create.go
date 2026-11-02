@@ -21,7 +21,7 @@ type PendingPartitionDefinition struct {
 	view  *visibility.View
 }
 
-func schemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*PendingPartitionDefinition, error) {
+func SchemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress, kind ...catalog.RelationKind) (*PendingPartitionDefinition, error) {
 	op := scope.Op
 	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func schemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
+	definition, err := partition.StageCreate(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets, kind...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func schemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth
 	return pending, nil
 }
 
-func (p *PendingPartitionDefinition) finish(scope *core.StatementScope) error {
+func (p *PendingPartitionDefinition) Finish(scope *core.StatementScope) error {
 	if p == nil {
 		return nil
 	}

@@ -356,11 +356,14 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	return out, nil
 }
 
-// A locking read records the row versions behind each joined row; an identity
-// read also records their provenance.
+// Rowmarks retain effective versions and recheck pairs. Expression identity
+// demand additionally retains provenance, including inherited nested demand.
+// A cursor's locator-only manifest does not make a join simply updatable.
 func queryLocking(state *State) bool { return state.Locking || state.Source.Locks.RowMarked() }
 
-func retainsQueryIdentity(state *State) bool { return queryLocking(state) || state.IdentityReads }
+func retainsQueryIdentity(state *State) bool {
+	return queryLocking(state) || state.IdentityReads
+}
 
 // Only top-level conjunctive equality keys spanning the two inputs initialize
 // a join strategy. Comparisons inside branches remain ordinary scalar demand.

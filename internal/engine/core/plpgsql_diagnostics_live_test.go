@@ -25,18 +25,21 @@ import (
 // The callbacks observe the executing owners, not fabricated diagnostics output.
 type diagnosticsLiveProvider struct {
 	fdwUnitScanWrapper
-	scan    *diagnosticsLiveScan
-	tx      *plExceptionFaultTx
-	observe func(string)
+	scan                *diagnosticsLiveScan
+	tx                  *plExceptionFaultTx
+	observe             func(string)
+	planning, beginning catalog.ForeignRequest
 }
 
-func (*diagnosticsLiveProvider) GetForeignPaths(context.Context, catalog.ForeignRequest, catalog.ForeignRelSize) ([]catalog.ForeignPath, error) {
+func (p *diagnosticsLiveProvider) GetForeignPaths(_ context.Context, request catalog.ForeignRequest, _ catalog.ForeignRelSize) ([]catalog.ForeignPath, error) {
+	p.planning = exec.CopyForeignRequest(request)
 	return []catalog.ForeignPath{{}}, nil
 }
 func (p *diagnosticsLiveProvider) BeginForeignTransaction(context.Context, catalog.ForeignRequest) (catalog.ForeignTransaction, error) {
 	return p.tx, nil
 }
-func (p *diagnosticsLiveProvider) BeginForeignScan(context.Context, catalog.ForeignRequest, catalog.ForeignPlan) (catalog.ForeignScan, error) {
+func (p *diagnosticsLiveProvider) BeginForeignScan(_ context.Context, request catalog.ForeignRequest, _ catalog.ForeignPlan) (catalog.ForeignScan, error) {
+	p.beginning = exec.CopyForeignRequest(request)
 	p.observe("begin")
 	return p.scan, nil
 }
@@ -62,7 +65,10 @@ func (s *diagnosticsLiveScan) IterateForeignScan(ctx context.Context) (catalog.F
 }
 
 func TestPLpgSQLDiagnosticsLiveStackOwnership(t *testing.T) {
-	for _, site := range []struct{ name, result, body, action string; minSites int }{
+	for _, site := range []struct {
+		name, result, body, action string
+		minSites                   int
+	}{
 		{"initializer", "integer", "DECLARE x integer := (SELECT 7 FROM diagnostics_live_target); BEGIN RETURN x; END", "during statement block local variable initialization", 3},
 		{"static_capture", "integer", "DECLARE x integer; BEGIN SELECT 7 INTO x FROM diagnostics_live_target; RETURN x; END", "at SQL statement", 2},
 		{"static_perform", "integer", "BEGIN PERFORM 7 FROM diagnostics_live_target; RETURN 7; END", "at PERFORM", 2},
@@ -73,251 +79,256 @@ func TestPLpgSQLDiagnosticsLiveStackOwnership(t *testing.T) {
 		{"dynamic_return_query_command", "SETOF integer", "BEGIN RETURN QUERY EXECUTE (SELECT 'SELECT 7'::text FROM diagnostics_live_target); END", "at RETURN QUERY", 3},
 		{"dynamic_return_query_using", "SETOF integer", "BEGIN RETURN QUERY EXECUTE 'SELECT $1::integer' USING (SELECT 7 FROM diagnostics_live_target); END", "at RETURN QUERY", 3},
 	} {
-	for _, outcome := range []string{"success", "sql_error", "ordinary_error", "cancel", "close_fault", "primary_close_fault"} {
-		t.Run(site.name+"/"+outcome, func(t *testing.T) {
-			e := engine.New()
-			primary := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero", Detail: "diagnostics producer primary"}
-			ordinary := errors.New("diagnostics ordinary producer failure")
-			secondary := errors.New("diagnostics producer End failure")
-			scan := &diagnosticsLiveScan{}
-			provider := &diagnosticsLiveProvider{scan: scan, tx: &plExceptionFaultTx{}}
-			wrapper, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "diagnostics_live_handler"}, Wrapper: provider})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{wrapper}, nil,
-				func(_ context.Context, v driver.Value, u sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
-					if v == nil {
-						return sqltype.Null(u.Type), nil
-					}
-					return sqltype.Integer(u.Type, v.(int64))
-				},
-				func(_ context.Context, v sqltype.Value, _ sqltype.OutputEnvironment) (driver.Value, error) {
-					if v.IsNull() {
-						return nil, nil
-					}
-					return v.Integer()
-				},
-			); err != nil {
-				t.Fatal(err)
-			}
-			owner := enginetest.StartSession(t, e, nil)
-			for _, query := range []string{
-				"CREATE FOREIGN DATA WRAPPER diagnostics_live HANDLER diagnostics_live_handler",
-				"CREATE SERVER diagnostics_live_server FOREIGN DATA WRAPPER diagnostics_live",
-				"CREATE USER MAPPING FOR CURRENT_USER SERVER diagnostics_live_server",
-				"CREATE FOREIGN TABLE diagnostics_live_target(v integer) SERVER diagnostics_live_server",
-				"CREATE FUNCTION pg_catalog.diagnostics_live_leaf() RETURNS "+site.result+" LANGUAGE plpgsql AS $$"+site.body+"$$",
-				`CREATE FUNCTION pg_catalog.diagnostics_live_sql() RETURNS integer LANGUAGE sql VOLATILE AS 'SELECT 1; SELECT pg_catalog.diagnostics_live_leaf()'`,
-				`CREATE FUNCTION pg_catalog.diagnostics_live_outer() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN pg_catalog.diagnostics_live_sql(); END$$`,
-				`CREATE FUNCTION pg_catalog.diagnostics_reentry(n integer) RETURNS integer LANGUAGE plpgsql AS $$DECLARE x integer; c bigint; o oid; stack text; BEGIN PERFORM 1 UNION ALL SELECT 2 UNION ALL SELECT 3; IF n>0 THEN x:=pg_catalog.diagnostics_reentry(n-1); END IF; GET DIAGNOSTICS c=ROW_COUNT,o=PG_ROUTINE_OID,stack=PG_CONTEXT; PERFORM 1 FROM diagnostics_live_target; RETURN c; END$$`,
-			} {
-				enginetest.SessionSQL(t, owner, query)
-			}
-			enginetest.TransactionBegin(t, owner)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			op, err := owner.Acquire(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer op.Done()
-			s, err := e.StartStatement(op)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer s.Finish(context.Canceled)
-			// Install genuine enclosing admission, retained snapshot and authority.
-			ast := enginetest.Statement(t, "SELECT 1")
-			description, err := s.Describe(ast)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.Expected = &description
-			result, err := s.Execute(ast, 0, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			row := make([]sqltype.Value, len(result.Rows.Schema()))
-			for {
-				ok, err := result.Rows.Next(op.Context(), row)
+		for _, outcome := range []string{"success", "sql_error", "ordinary_error", "cancel", "close_fault", "primary_close_fault"} {
+			t.Run(site.name+"/"+outcome, func(t *testing.T) {
+				e := engine.New()
+				primary := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero", Detail: "diagnostics producer primary"}
+				ordinary := errors.New("diagnostics ordinary producer failure")
+				secondary := errors.New("diagnostics producer End failure")
+				scan := &diagnosticsLiveScan{}
+				provider := &diagnosticsLiveProvider{scan: scan, tx: &plExceptionFaultTx{}}
+				wrapper, err := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "public", Name: "diagnostics_live_handler"}, Wrapper: provider})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !ok {
-					break
+				if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{wrapper}, nil,
+					func(_ context.Context, v driver.Value, u sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
+						if v == nil {
+							return sqltype.Null(u.Type), nil
+						}
+						return sqltype.Integer(u.Type, v.(int64))
+					},
+					func(_ context.Context, v sqltype.Value, _ sqltype.OutputEnvironment) (driver.Value, error) {
+						if v.IsNull() {
+							return nil, nil
+						}
+						return v.Integer()
+					},
+				); err != nil {
+					t.Fatal(err)
 				}
-			}
-			if err := result.Rows.Close(); err != nil {
-				t.Fatal(err)
-			}
-			read := e.CatalogRead()
-			var outer, leaf *catalog.Procedure
-			for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_live_outer") {
-				outer = candidate
-			}
-			for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_live_leaf") {
-				leaf = candidate
-			}
-			if outer == nil || leaf == nil || outer.RoutineOID() == 0 || leaf.RoutineOID() == 0 || outer.RoutineOID() == leaf.RoutineOID() {
-				t.Fatal("missing distinct real declaration identities")
-			}
-			baselineSite := &parser.Select{}
-			restoreEnclosing := core.ScopeDiagnosticsEnclosing(s, outer.SQL, baselineSite)
-			defer restoreEnclosing()
-			outerLexical := &proc.PLFrame{}
-			core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), outerLexical)
-			outerOwner := &exec.ForeignScanOwner{}
-			core.SetForeignTableScopeOwner(core.ScopeForeignTables(s), outerOwner)
-			authority := core.ScopeAuthority(s)
-			if authority == nil || authority.Host == nil {
-				t.Fatal("no admitted authority")
-			}
-			s.Completed = true
-			core.SetScopeEffectCommand(s, 93)
-			beforeLive, beforeSites := core.ScopeDiagnosticsLive(s), core.ScopeDiagnosticsExpressionSites(s)
-			beforeDemand, beforeIdentity, beforeExpected := core.ScopeSQLRoutine(s), s.Identity, s.Expected
-			beforeDepth, beforeSessionCompleted := core.ScopeActiveSQLRoutineDepth(s), core.ScopeSessionCompleted(s)
-			var events []string
-			var retainedText string
-			var activeFrame *proc.PLFrame
-			var queryNode any
-			unlocked := plExceptionUnlocked(t, e, s)
-			observe := func(event string) {
-				unlocked()
-				events = append(events, event)
-				live := core.ScopeDiagnosticsLive(s)
-				executing := site.name == "dynamic_execute" || site.name == "dynamic_return_query" || site.name == "static_capture" || site.name == "static_perform"
-				command := "SELECT 7 FROM diagnostics_live_target"
-				if site.name == "static_capture" {
-					command = "SELECT 7        FROM diagnostics_live_target"
+				owner := enginetest.StartSession(t, e, nil)
+				for _, query := range []string{
+					"CREATE FOREIGN DATA WRAPPER diagnostics_live HANDLER diagnostics_live_handler",
+					"CREATE SERVER diagnostics_live_server FOREIGN DATA WRAPPER diagnostics_live",
+					"CREATE USER MAPPING FOR CURRENT_USER SERVER diagnostics_live_server",
+					"CREATE FOREIGN TABLE diagnostics_live_target(v integer) SERVER diagnostics_live_server",
+					"CREATE FUNCTION pg_catalog.diagnostics_live_leaf() RETURNS " + site.result + " LANGUAGE plpgsql AS $$" + site.body + "$$",
+					`CREATE FUNCTION pg_catalog.diagnostics_live_sql() RETURNS integer LANGUAGE sql VOLATILE AS 'SELECT 1; SELECT pg_catalog.diagnostics_live_leaf()'`,
+					`CREATE FUNCTION pg_catalog.diagnostics_live_outer() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN pg_catalog.diagnostics_live_sql(); END$$`,
+					`CREATE FUNCTION pg_catalog.diagnostics_reentry(n integer) RETURNS integer LANGUAGE plpgsql AS $$DECLARE x integer; c bigint; o oid; stack text; BEGIN PERFORM 1 UNION ALL SELECT 2 UNION ALL SELECT 3; IF n>0 THEN x:=pg_catalog.diagnostics_reentry(n-1); END IF; GET DIAGNOSTICS c=ROW_COUNT,o=PG_ROUTINE_OID,stack=PG_CONTEXT; PERFORM 1 FROM diagnostics_live_target; RETURN c; END$$`,
+				} {
+					enginetest.SessionSQL(t, owner, query)
 				}
-				if executing {
-					if len(live) != 5 || live[0].Query != command || live[0].Frame != nil || live[0].Parent != live[1].Node {
-						t.Errorf("computed SQL lost borrowed query owner at %s: %#v", event, live)
+				enginetest.TransactionBegin(t, owner)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				op, err := owner.Acquire(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
+				s, err := e.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer s.Finish(context.Canceled)
+				// Install genuine enclosing admission, retained snapshot and authority.
+				ast := enginetest.Statement(t, "SELECT 1")
+				description, err := s.Describe(ast)
+				if err != nil {
+					t.Fatal(err)
+				}
+				s.Expected = &description
+				result, err := s.Execute(ast, 0, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				row := make([]sqltype.Value, len(result.Rows.Schema()))
+				for {
+					ok, err := result.Rows.Next(op.Context(), row)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !ok {
+						break
+					}
+				}
+				if err := result.Rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				read := e.CatalogRead()
+				var outer, leaf *catalog.Procedure
+				for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_live_outer") {
+					outer = candidate
+				}
+				for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_live_leaf") {
+					leaf = candidate
+				}
+				if outer == nil || leaf == nil || outer.RoutineOID() == 0 || leaf.RoutineOID() == 0 || outer.RoutineOID() == leaf.RoutineOID() {
+					t.Fatal("missing distinct real declaration identities")
+				}
+				baselineSite := &parser.Select{}
+				restoreEnclosing := core.ScopeDiagnosticsEnclosing(s, outer.SQL, baselineSite)
+				defer restoreEnclosing()
+				outerLexical := &proc.PLFrame{}
+				core.SetRoutineDemandLexical(core.ScopeSQLRoutineRef(s), outerLexical)
+				outerOwner := &exec.ForeignScanOwner{}
+				core.SetForeignTableScopeOwner(core.ScopeForeignTables(s), outerOwner)
+				authority := core.ScopeAuthority(s)
+				if authority == nil || authority.Host == nil {
+					t.Fatal("no admitted authority")
+				}
+				s.Completed = true
+				core.SetScopeEffectCommand(s, 93)
+				beforeLive, beforeSites := core.ScopeDiagnosticsLive(s), core.ScopeDiagnosticsExpressionSites(s)
+				beforeDemand, beforeIdentity, beforeExpected := core.ScopeSQLRoutine(s), s.Identity, s.Expected
+				beforeDepth, beforeSessionCompleted := core.ScopeActiveSQLRoutineDepth(s), core.ScopeSessionCompleted(s)
+				var events []string
+				var retainedText string
+				var activeFrame *proc.PLFrame
+				var queryNode any
+				unlocked := plExceptionUnlocked(t, e, s)
+				observe := func(event string) {
+					unlocked()
+					events = append(events, event)
+					live := core.ScopeDiagnosticsLive(s)
+					executing := site.name == "dynamic_execute" || site.name == "dynamic_return_query" || site.name == "static_capture" || site.name == "static_perform"
+					command := "SELECT 7 FROM diagnostics_live_target"
+					if site.name == "static_capture" {
+						command = "SELECT 7        FROM diagnostics_live_target"
+					}
+					if executing {
+						if len(live) != 5 || live[0].Query != command || live[0].Frame != nil || live[0].Parent != live[1].Node {
+							t.Errorf("computed SQL lost borrowed query owner at %s: %#v", event, live)
+							return
+						}
+						if queryNode == nil {
+							queryNode = live[0].Node
+						}
+						if live[0].Node != queryNode {
+							t.Error("query owner changed during execution/cleanup", event)
+						}
+						live = live[1:]
+					}
+					for _, entry := range live {
+						if entry.Query != "" {
+							t.Error("query owner escaped actual computed SQL execution", event)
+						}
+					}
+					if len(live) != 4 || live[0].Definition != leaf.SQL || live[0].Frame == nil || live[1].SQLName != "diagnostics_live_sql" || live[1].Statement != 2 || live[2].Definition != outer.SQL || live[2].Frame == nil || live[3].Node != beforeLive[0].Node {
+						t.Errorf("actual PL/expression/SQL invocation lost live ancestors at %s: %#v", event, live)
 						return
 					}
-					if queryNode == nil {
-						queryNode = live[0].Node
+					if activeFrame == nil {
+						activeFrame = live[0].Frame
 					}
-					if live[0].Node != queryNode {
-						t.Error("query owner changed during execution/cleanup", event)
+					if live[0].Frame != activeFrame || live[0].Frame == live[2].Frame || live[0].Origin.Action != site.action || live[2].Origin.Action != "at RETURN" {
+						t.Error("wrong live frame/action owners", event, live)
 					}
-					live = live[1:]
-				}
-				for _, entry := range live {
-					if entry.Query != "" {
-						t.Error("query owner escaped actual computed SQL execution", event)
+					sites := core.ScopeDiagnosticsExpressionSites(s)
+					if len(sites) < site.minSites || sites[len(sites)-1] != baselineSite {
+						t.Error("expression activation lost enclosing operation-private sites", event, len(sites))
+					}
+					text := core.ScopeDiagnosticsContext(s)
+					if !strings.Contains(text, `SQL function "diagnostics_live_sql" statement 2`) || strings.Count(text, "PL/pgSQL function ") != 2 || !strings.Contains(text, "at RETURN") {
+						t.Error("live context omitted actual suspended owner", event, text)
+					}
+					if executing && !strings.HasPrefix(text, "SQL statement \""+command+"\"\n") {
+						t.Error("live query renderer lost exact command spelling", event, text)
+					}
+					if retainedText == "" {
+						retainedText = text
+					}
+					lexical := activeFrame
+					if site.name == "dynamic_execute" || site.name == "dynamic_return_query" {
+						// Computed SQL uses only closed USING parameters, never
+						// the suspended PL frame's lexical variable bindings.
+						lexical = nil
+					}
+					if core.ScopeAuthority(s) == authority || core.ScopeAuthority(s) == nil || core.ForeignTableScopeOwner(core.ScopeForeignTablesOrZero(s)) == outerOwner || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != lexical {
+						t.Error("callback escaped lexical/authority/resource activation", event)
 					}
 				}
-				if len(live) != 4 || live[0].Definition != leaf.SQL || live[0].Frame == nil || live[1].SQLName != "diagnostics_live_sql" || live[1].Statement != 2 || live[2].Definition != outer.SQL || live[2].Frame == nil || live[3].Node != beforeLive[0].Node {
-					t.Errorf("actual PL/expression/SQL invocation lost live ancestors at %s: %#v", event, live)
-					return
+				provider.observe, scan.observe = observe, observe
+				provider.tx.check = unlocked
+				switch outcome {
+				case "sql_error", "primary_close_fault":
+					scan.primary = primary
+				case "ordinary_error":
+					scan.primary = ordinary
+				case "cancel":
+					scan.cancel = cancel
 				}
-				if activeFrame == nil {
-					activeFrame = live[0].Frame
+				scan.onEnd = func(ctx context.Context) error {
+					observe("end")
+					if ctx.Err() != nil {
+						t.Error("producer cleanup inherited cancellation")
+					}
+					if outcome == "close_fault" || outcome == "primary_close_fault" {
+						return secondary
+					}
+					return nil
 				}
-				if live[0].Frame != activeFrame || live[0].Frame == live[2].Frame || live[0].Origin.Action != site.action || live[2].Origin.Action != "at RETURN" {
-					t.Error("wrong live frame/action owners", event, live)
+				input := proc.NewFrame(nil)
+				defer input.Close()
+				value, callErr := core.ScopeInvokePLRoutine(s, outer, input, read, sqltype.CollationRef{})
+				for _, request := range []catalog.ForeignRequest{provider.planning, provider.beginning} {
+					if len(request.Columns) != 1 || request.Columns[0].Name != "v" || request.RequiredAttributes == nil || len(request.RequiredAttributes) != 0 {
+						t.Fatal("presence-only planning/startup widened or lost declared metadata", request)
+					}
 				}
-				sites := core.ScopeDiagnosticsExpressionSites(s)
-				if len(sites) < site.minSites || sites[len(sites)-1] != baselineSite {
-					t.Error("expression activation lost enclosing operation-private sites", event, len(sites))
+				switch outcome {
+				case "success":
+					if callErr != nil {
+						t.Fatal(callErr)
+					}
+					if n, err := value.Integer(); err != nil || n != 7 {
+						t.Fatal("real result", n, err)
+					}
+				case "sql_error":
+					if !errors.Is(callErr, primary) {
+						t.Fatal("lost primary SQL identity", callErr)
+					}
+				case "ordinary_error":
+					if !errors.Is(callErr, ordinary) {
+						t.Fatal("lost ordinary cause", callErr)
+					}
+				case "cancel":
+					if !errors.Is(callErr, context.Canceled) {
+						t.Fatal("lost actual cancellation", callErr)
+					}
+				case "close_fault", "primary_close_fault":
+					var fatal *proc.PLExceptionCleanupError
+					if !errors.As(callErr, &fatal) || !errors.Is(fatal.Cleanup, secondary) || !errors.Is(callErr, secondary) || outcome == "primary_close_fault" && (!errors.Is(callErr, primary) || !errors.Is(fatal.Primary, primary)) {
+						t.Fatal("lost fatal producer cleanup/primary identity", callErr)
+					}
 				}
-				text := core.ScopeDiagnosticsContext(s)
-				if !strings.Contains(text, `SQL function "diagnostics_live_sql" statement 2`) || strings.Count(text, "PL/pgSQL function ") != 2 || !strings.Contains(text, "at RETURN") {
-					t.Error("live context omitted actual suspended owner", event, text)
+				if scan.ends != 1 || scan.rescans != 0 || scan.cleanupCanceled || len(events) < 3 || events[0] != "begin" || events[len(events)-1] != "end" {
+					t.Fatal("producer not closed exactly once", events, scan.ends)
 				}
-				if executing && !strings.HasPrefix(text, "SQL statement \""+command+"\"\n") {
-					t.Error("live query renderer lost exact command spelling", event, text)
+				if !reflect.DeepEqual(core.ScopeDiagnosticsLive(s), beforeLive) || !reflect.DeepEqual(core.ScopeDiagnosticsExpressionSites(s), beforeSites) || !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), beforeDemand) || core.ScopeAuthority(s) != authority || authority.Host == nil || core.ForeignTableScopeOwner(core.ScopeForeignTablesOrZero(s)) != outerOwner || s.Expected != beforeExpected || s.Identity != beforeIdentity || !s.Completed || core.ScopeSessionCompleted(s) != beforeSessionCompleted || core.ScopeActiveSQLRoutineDepth(s) != beforeDepth || core.ScopeEffectCommand(s) != 93 {
+					t.Fatal("invocation failed exact outer live/scratch/depth/identity restoration")
 				}
-				if retainedText == "" {
-					retainedText = text
+				diagnosticsLiveIdentity(t, core.ScopeDiagnosticsLive(s), beforeLive, core.ScopeDiagnosticsExpressionSites(s), beforeSites)
+				if retainedText == "" || !strings.Contains(retainedText, "at RETURN") || activeFrame == nil || activeFrame.Values != nil || activeFrame.HandledError() != nil || activeFrame.RowCount() != 0 {
+					t.Fatal("owned text/frame cleanup after live pop")
 				}
-				lexical := activeFrame
-				if site.name == "dynamic_execute" || site.name == "dynamic_return_query" {
-					// Computed SQL uses only closed USING parameters, never
-					// the suspended PL frame's lexical variable bindings.
-					lexical = nil
+				if outer.SQL.PL.ValidateDefinition(outer.SQL) != nil || leaf.SQL.PL.ValidateDefinition(leaf.SQL) != nil {
+					t.Fatal("invocation mutated definitions")
 				}
-				if core.ScopeAuthority(s) == authority || core.ScopeAuthority(s) == nil || core.ForeignTableScopeOwner(core.ScopeForeignTablesOrZero(s)) == outerOwner || core.RoutineDemandLexical(core.ScopeSQLRoutineRef(s)) != lexical {
-					t.Error("callback escaped lexical/authority/resource activation", event)
+				if outcome == "success" && site.name == "initializer" {
+					var recursive *catalog.Procedure
+					for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_reentry") {
+						recursive = candidate
+					}
+					if recursive == nil {
+						t.Fatal("missing recursive declaration")
+					}
+					diagnosticsExpressionReentry(t, s, read, recursive, provider, scan, beforeLive, beforeSites)
 				}
-			}
-			provider.observe, scan.observe = observe, observe
-			provider.tx.check = unlocked
-			switch outcome {
-			case "sql_error", "primary_close_fault":
-				scan.primary = primary
-			case "ordinary_error":
-				scan.primary = ordinary
-			case "cancel":
-				scan.cancel = cancel
-			}
-			scan.onEnd = func(ctx context.Context) error {
-				observe("end")
-				if ctx.Err() != nil {
-					t.Error("producer cleanup inherited cancellation")
-				}
-				if outcome == "close_fault" || outcome == "primary_close_fault" {
-					return secondary
-				}
-				return nil
-			}
-			input := proc.NewFrame(nil)
-			defer input.Close()
-			value, callErr := core.ScopeInvokePLRoutine(s, outer, input, read, sqltype.CollationRef{})
-			switch outcome {
-			case "success":
-				if callErr != nil {
-					t.Fatal(callErr)
-				}
-				if n, err := value.Integer(); err != nil || n != 7 {
-					t.Fatal("real result", n, err)
-				}
-			case "sql_error":
-				if !errors.Is(callErr, primary) {
-					t.Fatal("lost primary SQL identity", callErr)
-				}
-			case "ordinary_error":
-				if !errors.Is(callErr, ordinary) {
-					t.Fatal("lost ordinary cause", callErr)
-				}
-			case "cancel":
-				if !errors.Is(callErr, context.Canceled) {
-					t.Fatal("lost actual cancellation", callErr)
-				}
-			case "close_fault", "primary_close_fault":
-				var fatal *proc.PLExceptionCleanupError
-				if !errors.As(callErr, &fatal) || !errors.Is(fatal.Cleanup, secondary) || !errors.Is(callErr, secondary) || outcome == "primary_close_fault" && (!errors.Is(callErr, primary) || !errors.Is(fatal.Primary, primary)) {
-					t.Fatal("lost fatal producer cleanup/primary identity", callErr)
-				}
-			}
-			if scan.ends != 1 || scan.rescans != 0 || scan.cleanupCanceled || len(events) < 3 || events[0] != "begin" || events[len(events)-1] != "end" {
-				t.Fatal("producer not closed exactly once", events, scan.ends)
-			}
-			if !reflect.DeepEqual(core.ScopeDiagnosticsLive(s), beforeLive) || !reflect.DeepEqual(core.ScopeDiagnosticsExpressionSites(s), beforeSites) || !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), beforeDemand) || core.ScopeAuthority(s) != authority || authority.Host == nil || core.ForeignTableScopeOwner(core.ScopeForeignTablesOrZero(s)) != outerOwner || s.Expected != beforeExpected || s.Identity != beforeIdentity || !s.Completed || core.ScopeSessionCompleted(s) != beforeSessionCompleted || core.ScopeActiveSQLRoutineDepth(s) != beforeDepth || core.ScopeEffectCommand(s) != 93 {
-				t.Fatal("invocation failed exact outer live/scratch/depth/identity restoration")
-			}
-			diagnosticsLiveIdentity(t, core.ScopeDiagnosticsLive(s), beforeLive, core.ScopeDiagnosticsExpressionSites(s), beforeSites)
-			if retainedText == "" || !strings.Contains(retainedText, "at RETURN") || activeFrame == nil || activeFrame.Values != nil || activeFrame.HandledError() != nil || activeFrame.RowCount() != 0 {
-				t.Fatal("owned text/frame cleanup after live pop")
-			}
-			if outer.SQL.PL.ValidateDefinition(outer.SQL) != nil || leaf.SQL.PL.ValidateDefinition(leaf.SQL) != nil {
-				t.Fatal("invocation mutated definitions")
-			}
-			if outcome == "success" && site.name == "initializer" {
-				var recursive *catalog.Procedure
-				for candidate := range catalog.DefinitionProceduresNamedAt(read, nil, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "diagnostics_reentry") {
-					recursive = candidate
-				}
-				if recursive == nil {
-					t.Fatal("missing recursive declaration")
-				}
-				diagnosticsExpressionReentry(t, s, read, recursive, provider, scan, beforeLive, beforeSites)
-			}
-		})
-	}
+			})
+		}
 	}
 }
 
@@ -563,6 +574,11 @@ func TestPLpgSQLDiagnosticsCursorCleanupOwnership(t *testing.T) {
 			input := proc.NewFrame(nil)
 			defer input.Close()
 			_, callErr := core.ScopeInvokePLRoutine(s, routine, input, read, sqltype.CollationRef{})
+			for _, request := range []catalog.ForeignRequest{provider.planning, provider.beginning} {
+				if len(request.Columns) != 1 || request.RequiredAttributes == nil || len(request.RequiredAttributes) != 0 {
+					t.Fatal("cursor planning/startup lost presence-only source demand", request)
+				}
+			}
 			var fatal *proc.PLExceptionCleanupError
 			if !errors.As(callErr, &fatal) || !errors.Is(callErr, secondary) || !errors.Is(fatal.Cleanup, secondary) || withPrimary && (!errors.Is(callErr, primary) || !errors.Is(fatal.Primary, primary)) {
 				t.Fatal("lost cursor cleanup/primary identity", callErr)

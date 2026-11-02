@@ -33,8 +33,10 @@ func ValidateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 // AlterDefaultColumn is the slot of the column whose DEFAULT s changes, after
 // the relation-kind, system, generated and identity column guards.
 func AlterDefaultColumn(old *catalog.Relation, s *parser.AlterTableDefault) (int, error) {
-	if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
-		return 0, err
+	if old.RelationKind != catalog.ForeignRelation {
+		if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
+			return 0, err
+		}
 	}
 	if catalog.IsSystemColumn(s.Column.Text) {
 		return 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text))

@@ -16,8 +16,8 @@ import (
 // filtering. The admitted top-level StatementScope.querySources stays unchanged.
 type LockContext struct {
 	Leaves []QueryLockLeaf
-	// DECLARE-only physical manifests retain transparent lineage without
-	// requesting the effective-version/provenance caches needed by rowmarks.
+	// Identity-only physical manifests retain transparent lineage for cursors,
+	// tableoid and virtual reads without rowmark version caches or tuple locks.
 	// Ordinary initialized contexts remain semantic (the zero value).
 	IdentityOnly bool
 }
@@ -32,6 +32,30 @@ type QueryLockLeaf struct {
 	Mark    plan.RowMark
 	Changed bool
 	Absent  bool
+}
+
+// Mixed hierarchy members are alternatives for one logical source. Register
+// their actual captures before lazy opening, never an additional aggregate
+// target. Local-only hierarchies keep their existing physical locator path.
+func CaptureQueryLockLeaves(locks *LockContext, leaf Leaf, source *Source, mark plan.RowMark) {
+	mixed := false
+	for _, segment := range source.Inheritance {
+		mixed = mixed || segment.Prefix.Foreign != nil
+	}
+	if mixed {
+		source.Occurrences = make([]int, len(source.Inheritance))
+		for i := range source.Inheritance {
+			segment := &source.Inheritance[i]
+			prefix := segment.Prefix
+			prefix.Authority, prefix.Host, prefix.Locks = source.Authority, source.Host, locks
+			prefix.Occurrence = len(locks.Leaves)
+			source.Occurrences[i] = prefix.Occurrence
+			locks.Leaves = append(locks.Leaves, QueryLockLeaf{Leaf: segment.Leaf, Source: prefix, Mark: mark})
+		}
+		return
+	}
+	source.Occurrence = len(locks.Leaves)
+	locks.Leaves = append(locks.Leaves, QueryLockLeaf{Leaf: leaf, Source: source, Mark: mark})
 }
 
 type QueryLockLineage struct {
@@ -107,6 +131,9 @@ func queryLockSourceWidth(source *Source) int {
 	if source.Lineage != nil {
 		return QueryLockRecheckWidth(source.Lineage.Root, source.Lineage.Inputs)
 	}
+	if source.Inheritance != nil && source.Occurrences != nil {
+		return source.FlatWidth
+	}
 	return 0
 }
 
@@ -151,7 +178,31 @@ func RecheckLockedSource(source *Source, rows [][]sqltype.Value, evaluation *Con
 		child.BindQueryIdentity(lineage.Stage, frozenIndex)
 		return RecheckLockedQuery(lineage.Root, lineage.Inputs, rows, &child, scratch, offset, frozen)
 	}
-	row := rows[source.Occurrence]
+	occurrence := source.Occurrence
+	if source.Inheritance != nil && source.Occurrences != nil {
+		var index int
+		var err error
+		occurrence, index, err = source.queryMember(evaluation.QueryOccurrences, evaluation.QueryProvenance)
+		if err != nil {
+			return nil, false, err
+		}
+		if index == AbsentQueryIndex {
+			return nil, true, nil
+		}
+	}
+	row := rows[occurrence]
+	if source.Inheritance != nil && source.Occurrences != nil && row != nil {
+		for i, member := range source.Occurrences {
+			if member == occurrence {
+				mapped := source.Inheritance[i].MapValues(row)
+				frame := scratch[*offset : *offset+source.FlatWidth]
+				*offset += len(frame)
+				copy(frame, mapped)
+				row = frame
+				break
+			}
+		}
+	}
 	if source.RLS != nil && row != nil {
 		pass, _, err := EvaluateRowSecurity(source.RLS, evaluation, row)
 		if err != nil || !pass {
@@ -536,7 +587,7 @@ func queryOccurrenceWidth(source *Source) int {
 	if source.Singleton {
 		return 0
 	}
-	if source.Materialized {
+	if source.Materialized || source.Occurrences != nil {
 		return len(source.Occurrences)
 	}
 	return 1
@@ -552,7 +603,7 @@ func AppendQueryOccurrences(dst []int, source *Source) []int {
 	if source.Singleton {
 		return dst
 	}
-	if source.Materialized {
+	if source.Materialized || source.Occurrences != nil {
 		return append(dst, source.Occurrences...)
 	}
 	return append(dst, source.Occurrence)

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -137,8 +138,10 @@ func checkInsertUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, candid
 	group := command.partitionInsertionGroup(ref)
 	command.UniqueBinding = group.Unique
 	candidate.Values = command.PartitionStoredRow(candidate.Values)
-	if err := CheckUniqueRow(ctx, h, group.Ref, candidate, nil, group.Rows); err != nil {
-		return err
+	if command.PartitionInsert.Destination.RelationKind != catalog.ForeignRelation {
+		if err := CheckUniqueRow(ctx, h, group.Ref, candidate, nil, group.Rows); err != nil {
+			return err
+		}
 	}
 	group.Unique = command.UniqueBinding
 	group.Rows.Append(*candidate)
@@ -155,6 +158,30 @@ func ApplyInsertValidated(ctx context.Context, h Host, ref ids.ObjectRef, rows i
 	}
 	count := 0
 	for _, group := range command.PartitionInsert.Order {
+		if command.PartitionInsert.Catalog.MustRelation(group.Ref.Address).RelationKind == catalog.ForeignRelation {
+			modification, err := partitionForeignModification(ctx, h, group.Ref)
+			if err != nil {
+				return 0, err
+			}
+			var accept func([]sqltype.Value) error
+			if command.PartitionInsert.AfterInsert || NeedsTransition(command.PartitionInsert.Target, stored.TriggerInsert) {
+				accept = func(actual []sqltype.Value) error {
+					if command.PartitionInsert.AfterInsert {
+						if err := h.AfterRow(BeforeRow{Relation: group.Ref, Event: BeforeInsert, New: actual}); err != nil {
+							return err
+						}
+					}
+					rows := [1][]sqltype.Value{actual}
+					return capturePartitionInsert(h, ref, group.Ref, rows[:])
+				}
+			}
+			inserted, err := modification.InsertRows(ctx, h, group.Rows.Values, command.PartitionInsert.AfterInsert, accept)
+			if err != nil {
+				return 0, err
+			}
+			count += int(inserted)
+			continue
+		}
 		command.UniqueBinding = group.Unique
 		if err := ApplyValidated(ctx, h, group.Ref, group.Rows); err != nil {
 			return 0, err
@@ -193,4 +220,30 @@ func capturePartitionInsert(h Host, named, physical ids.ObjectRef, rows [][]sqlt
 		}
 	}
 	return nil
+}
+
+// Each routed leaf plans and begins its existing modification protocol once.
+// The statement's foreign runtime owns settlement, cancellation and rollback.
+func partitionForeignModification(ctx context.Context, h Host, ref ids.ObjectRef) (*fdw.Modification, error) {
+	command := h.Command()
+	if existing := command.ForeignModifications[ref.Address]; existing != nil {
+		return existing, nil
+	}
+	source, err := h.CaptureForeignPartition(ref)
+	if err != nil {
+		return nil, err
+	}
+	h.ReleaseReplacementRead()
+	modification, err := fdw.PlanModification(ctx, source, catalog.ForeignInsert, command.CopyFrom != nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := modification.Begin(ctx, h); err != nil {
+		return nil, err
+	}
+	if command.ForeignModifications == nil {
+		command.ForeignModifications = make(map[ids.ObjectAddress]*fdw.Modification)
+	}
+	command.ForeignModifications[ref.Address] = modification
+	return modification, nil
 }

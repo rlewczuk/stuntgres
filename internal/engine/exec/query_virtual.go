@@ -77,16 +77,8 @@ func (c *Context) queryOperandAbsent(local int) (bool, error) {
 	for source.Input != nil {
 		source = source.Input
 	}
-	physical := source.Occurrence
-	if physical < 0 {
-		return false, fmt.Errorf("stuntgres: invalid virtual query occurrence")
-	}
-	for i, occurrence := range c.QueryOccurrences {
-		if occurrence == physical {
-			return c.QueryProvenance[i] == AbsentQueryIndex, nil
-		}
-	}
-	return false, fmt.Errorf("stuntgres: missing virtual query occurrence")
+	_, index, err := source.queryMember(c.QueryOccurrences, c.QueryProvenance)
+	return index == AbsentQueryIndex, err
 }
 
 func (c *Context) queryOperandSource(local int) (*Source, int, error) {
@@ -101,16 +93,41 @@ func (c *Context) queryOperandSource(local int) (*Source, int, error) {
 	for source.Input != nil {
 		source = source.Input
 	}
-	physical := source.Occurrence
-	for i, occurrence := range c.QueryOccurrences {
-		if occurrence != physical {
+	physical, index, err := source.queryMember(c.QueryOccurrences, c.QueryProvenance)
+	if err != nil {
+		return nil, 0, err
+	}
+	if index != AbsentQueryIndex && bundle.Locks != nil && physical >= 0 && physical < len(bundle.Locks.Leaves) {
+		source = bundle.Locks.Leaves[physical].Source
+	}
+	return source, index, nil
+}
+
+// A logical hierarchy source has alternative physical members. Absence is the
+// absence of every member, not the first sibling or the visible tuple's cells.
+func (source *Source) queryMember(occurrences, provenance []int) (int, int, error) {
+	found, physical := false, source.Occurrence
+	for i, occurrence := range occurrences {
+		member := occurrence == source.Occurrence
+		if source.Occurrences != nil {
+			member = false
+			for _, candidate := range source.Occurrences {
+				if occurrence == candidate {
+					member = true
+					break
+				}
+			}
+		}
+		if !member {
 			continue
 		}
-		index := c.QueryProvenance[i]
-		if index != AbsentQueryIndex && bundle.Locks != nil && occurrence >= 0 && occurrence < len(bundle.Locks.Leaves) {
-			source = bundle.Locks.Leaves[occurrence].Source
+		found, physical = true, occurrence
+		if provenance[i] != AbsentQueryIndex {
+			return occurrence, provenance[i], nil
 		}
-		return source, index, nil
 	}
-	return nil, 0, fmt.Errorf("stuntgres: missing virtual query occurrence")
+	if found {
+		return physical, AbsentQueryIndex, nil
+	}
+	return 0, 0, fmt.Errorf("stuntgres: missing virtual query occurrence")
 }

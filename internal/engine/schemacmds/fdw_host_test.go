@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -66,6 +67,9 @@ func TestFDWStageTable(t *testing.T) {
 	if !ok || d.RelationKind != catalog.ForeignRelation || d.Foreign == nil || d.Foreign.Server != server || len(d.Foreign.Columns) != 0 {
 		t.Fatal("staged foreign relation", d)
 	}
+	if d.TableMethod != 0 || e.Storage.Relations[d.Address()] != nil {
+		t.Fatal("foreign declaration acquired local storage authority")
+	}
 	seen = nil
 	for _, scheduled := range jobs {
 		job := scheduled
@@ -105,6 +109,60 @@ func TestFDWStageTable(t *testing.T) {
 	if !slices.Equal(seen, []catalog.ForeignObjectKind{catalog.ForeignTable}) {
 		t.Fatal("optionless-column validation", seen)
 	}
+	stage, _, _, err = stageTable("CREATE FOREIGN TABLE host_identity(id integer GENERATED ALWAYS AS IDENTITY) SERVER host_server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	identityKey := key
+	identityKey.Name = "host_identity"
+	identityTable := stage.Get(stage.LookupName(identityKey)).(*catalog.Relation)
+	identity, exists := identityTable.ColumnMeta.Identities[identityTable.Attributes[0]]
+	if !exists {
+		t.Fatal("foreign identity was not staged")
+	}
+	sequence := stage.Get(identity.Sequence).(*catalog.Relation)
+	owned := identityTable.Address()
+	owned.SubID = identityTable.Attributes[0]
+	if sequence.Sequence == nil || sequence.Sequence.Owned != owned || !sequence.Sequence.Identity || identityTable.TableMethod != 0 || e.Storage.Relations[identityTable.Address()] != nil {
+		t.Fatal("foreign identity lost its ordinary owned sequence or gained heap storage")
+	}
+	read := stage.StageRead()
+	if err := core.RelationProvider.Validate(read, sequence); err != nil {
+		t.Fatal("foreign identity sequence failed ordinary descriptor validation", err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*catalog.Relation)
+	}{
+		{"wrong_kind", func(r *catalog.Relation) { r.RelationKind = catalog.ViewRelation }},
+		{"wrong_owner", func(r *catalog.Relation) { r.Owner = e.RoleStore.Domain.Principal(9999) }},
+		{"wrong_schema", func(r *catalog.Relation) { r.ObjectNamespace.ObjectID = ids.PGCatalogNamespaceOID }},
+		{"missing_attribute", func(r *catalog.Relation) { r.Attributes = nil }},
+		{"missing_identity", func(r *catalog.Relation) { r.ColumnMeta.Identities = nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := catalog.CloneState(read.State())
+			changed := *identityTable
+			tc.change(&changed)
+			state.SetDescriptor(changed.Address(), &changed)
+			if err := core.RelationProvider.Validate(read.WithState(state), sequence); err == nil {
+				t.Fatal("invalid ownership graph accepted")
+			}
+			if read.MustRelation(identityTable.Address()) != identityTable {
+				t.Fatal("validation retargeted the private predecessor")
+			}
+		})
+	}
+	stage, _, _, err = stageTable("CREATE FOREIGN TABLE host_child() INHERITS(host_old) SERVER host_server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	childKey := key
+	childKey.Name = "host_child"
+	child := stage.Get(stage.LookupName(childKey)).(*catalog.Relation)
+	if child.Foreign == nil || child.Foreign.Server != server || len(child.Columns) != 1 || child.Inheritance == nil || len(child.Inheritance.Parents) != 1 || child.Inheritance.Columns[child.Attributes[0]].Local || child.TableMethod != 0 || e.Storage.Relations[child.Address()] != nil {
+		t.Fatal("foreign inheritance did not retain server/origin authority without local storage")
+	}
 
 	old := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: key.Namespace, Name: "host_old"})
 	stage, jobs, roots, err = stageTable("DROP FOREIGN TABLE host_old")
@@ -113,5 +171,75 @@ func TestFDWStageTable(t *testing.T) {
 	}
 	if e.Catalog.State != before {
 		t.Fatal("staging published")
+	}
+}
+
+func TestFDWStageTableOwnedSequences(t *testing.T) {
+	for _, tc := range []struct {
+		name, drop          string
+		dependent, restrict bool
+	}{
+		{name: "table", drop: "DROP FOREIGN TABLE host_identity"},
+		{name: "table_restrict", drop: "DROP FOREIGN TABLE host_identity", dependent: true, restrict: true},
+		{name: "table_cascade", drop: "DROP FOREIGN TABLE host_identity CASCADE", dependent: true},
+		{name: "server_cascade", drop: "DROP SERVER host_server CASCADE", dependent: true},
+		{name: "wrapper_cascade", drop: "DROP FOREIGN DATA WRAPPER host_fdw CASCADE", dependent: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := engine.New()
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE FOREIGN DATA WRAPPER host_fdw")
+			enginetest.SessionSQL(t, s, "CREATE SERVER host_server FOREIGN DATA WRAPPER host_fdw")
+			enginetest.SessionSQL(t, s, "CREATE FOREIGN TABLE host_identity(id integer GENERATED ALWAYS AS IDENTITY) SERVER host_server")
+			enginetest.SessionSQL(t, s, "CREATE SEQUENCE host_unrelated")
+			if tc.dependent {
+				enginetest.SessionSQL(t, s, "CREATE VIEW host_sequence_user AS SELECT nextval('host_identity_id_seq')")
+			}
+			op, auth := conversionUnitAuth(t, e)
+			base := auth.Catalog
+			ns := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+			named := func(name string) ids.ObjectAddress {
+				return base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name})
+			}
+			owner := base.MustRelation(named("host_identity"))
+			sequence := owner.ColumnMeta.Identities[owner.Attributes[0]].Sequence
+			stage := e.BeginCatalogStage(base)
+			defer e.DiscardCatalogStage(stage)
+			syntax := enginetest.Statement(t, tc.drop).(*parser.ForeignDDL)
+			e.Mu.Lock()
+			stage.AuthorizeLocked(auth, op.Session)
+			host := tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+			jobs, roots, err := fdw.StageDDL(host, auth, syntax, sqltype.InputEnvironment{})
+			e.Mu.Unlock()
+			if err != nil || len(jobs) != 0 {
+				t.Fatal("drop staging", err, len(jobs))
+			}
+			for _, root := range roots {
+				stage.MarkDrop(root, catalog.DropProvenance{Original: true})
+			}
+			err = core.StageExpressionDependencies(t.Context(), stage, roots, syntax.Mode, nil, nil, nil, ids.ObjectAddress{})
+			if err == nil {
+				err = table.OwnedExpressionDependencies(core.StageDropProvider(t.Context(), stage, nil, nil, nil), roots, syntax.Mode)
+			}
+			if tc.restrict {
+				enginetest.State(t, err, "2BP01")
+				if stage.Removed(sequence) || stage.Removed(named("host_sequence_user")) {
+					t.Fatal("RESTRICT admitted owned sequence or its consumer")
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !stage.Removed(owner.Address()) || !stage.Removed(sequence) || stage.Get(sequence) != nil {
+					t.Fatal("foreign retirement left its owned identity sequence")
+				}
+				if tc.dependent && !stage.Removed(named("host_sequence_user")) {
+					t.Fatal("CASCADE left an owned sequence consumer")
+				}
+			}
+			if stage.Removed(named("host_unrelated")) || e.Catalog.State != base.State() || base.MustRelation(sequence).Sequence.Owned.ObjectID != owner.Address().ObjectID {
+				t.Fatal("private retirement changed unrelated or committed state")
+			}
+		})
 	}
 }

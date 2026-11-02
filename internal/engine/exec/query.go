@@ -46,6 +46,7 @@ type Source struct {
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
 	StoredRef        ids.ObjectRef
+	PhysicalRefs     []ids.ObjectRef // Materialized mixed-hierarchy row identities.
 	Committed, Own   []storage.RowVersion
 	PartialMask      *storage.IndexRoot
 	Singleton        bool
@@ -250,6 +251,7 @@ func (s *Source) Close() {
 		segment.Prefix.Close()
 	}
 	s.Inheritance, s.InheritanceEnds = nil, nil
+	s.PhysicalRefs = nil
 	s.Flat = nil
 	s.WindowValues, s.WindowIndices = nil, nil
 	s.PresenceSlots, s.PresenceConstant, s.presenceFlat = nil, nil, nil
@@ -721,6 +723,11 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		EstablishSourcePresence(source, n.PresenceSlot)
 		if source.Foreign != nil {
 			return OpenForeignStage(ctx, state, source, n)
+		}
+		for _, segment := range source.Inheritance {
+			if segment.Prefix.Foreign != nil {
+				return openForeignHierarchy(ctx, state, source, n)
+			}
 		}
 		if source.PGSequences != nil {
 			return openPGSequencesStage(state, source, n.Schema()), nil

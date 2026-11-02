@@ -75,6 +75,28 @@ func DumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read, graph d
 		}
 		return dump.Event{OID: table.Address().ObjectID}
 	}
+	// Foreign members participate in the same membership/completion graph,
+	// without physical row or validation events. Their complete logical
+	// definition is installed by CREATE FOREIGN TABLE and its following SQL.
+	for _, declaration := range declarations {
+		d, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: declaration.OID})
+		if !ok || d.RelationKind != catalog.ForeignRelation || d.Membership == nil {
+			continue
+		}
+		event := membership(d)
+		if event.Phase == dump.TableAttachment {
+			graph[event] = []dump.Event{declaration, {OID: d.Membership.Parent.ObjectID}}
+			graph[dump.Event{OID: declaration.OID, Phase: dump.TableCompletion}] = []dump.Event{event}
+		}
+		if d.Membership.DefaultBound {
+			parent := view.MustRelation(d.Membership.Parent)
+			for _, child := range parent.Partition.Children {
+				if child != d.Address() {
+					graph.Add(event, membership(view.MustRelation(child)))
+				}
+			}
+		}
+	}
 	for _, t := range tables {
 		d := t.Descriptor
 		event := membership(d)

@@ -98,6 +98,30 @@ func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candi
 		ref = group.Ref
 		proposal.Values = command.PartitionStoredRow(row)
 		defer func() { group.Unique = command.UniqueBinding }()
+		if command.PartitionInsert.Destination.RelationKind == catalog.ForeignRelation {
+			modification, err := partitionForeignModification(ctx, h, ref)
+			if err != nil {
+				return false, err
+			}
+			values := [1][]sqltype.Value{proposal.Values}
+			count, err := modification.InsertRows(ctx, h, values[:], true, func(actual []sqltype.Value) error {
+				if segment := command.PartitionInsert.Layouts[ref.Address]; segment != nil {
+					for physicalSlot, namedSlot := range segment.Layout {
+						row[namedSlot] = actual[physicalSlot]
+					}
+				} else {
+					copy(row, actual)
+				}
+				if err := h.AfterRow(BeforeRow{Relation: ref, Event: BeforeInsert, New: actual}); err != nil {
+					return err
+				}
+				if named != ref && NeedsTransition(command.InsertReturning.Binding.Relation, stored.TriggerInsert) {
+					return captureTransition(h, command.InsertReturning.Binding, stored.TriggerInsert, nil, row)
+				}
+				return nil
+			})
+			return count != 0, err
+		}
 	}
 	for {
 		admitted := true

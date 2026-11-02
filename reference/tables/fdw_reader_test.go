@@ -447,6 +447,9 @@ func (s *fdwSQLScan) EndForeignScan(ctx context.Context) error {
 }
 
 func (r *fdwSQLReader) ImportForeignSchema(ctx context.Context, request stuntgres.ForeignImportRequest) ([]stuntgres.ForeignTableDefinition, error) {
+	if !request.MappingPresent {
+		return nil, &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, request.Role, request.Server)}
+	}
 	if err := r.call(ctx, "ImportForeignSchema"); err != nil {
 		return nil, err
 	}

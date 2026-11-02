@@ -171,6 +171,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	if err != nil {
 		return err
 	}
+	d.RelationKind = kind
 	materializeCreateColumnStorage(d, b)
 	d.Persistence = s.Persistence
 	if kind == catalog.TableRelation {

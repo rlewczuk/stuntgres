@@ -94,6 +94,10 @@ it. It never builds a binder.
   argument-aware captured visibility and typed OID literal presentation, without
   granting that predicate executable support. Rendering runs unlocked and retains
   no cache.
+  `pg_get_expr(relpartbound, ...)` consumes pgcatalog's captured membership and
+  key roots through `PartitionBoundParts`, sharing the typed bound-literal
+  emitters with declaration replay. It never substitutes a newer membership or
+  reopens the parent; non-bound expression carriers delegate to `table.Deparse`.
 
 ## Host and lock contract
 
@@ -150,7 +154,7 @@ not change when membership pruning is disabled.
 ## What stays in the engine
 
 Orchestration and everything that holds `Engine`, `StatementScope` or
-`CatalogStage`: `schemaPartitionTableLocked` and `PendingPartitionDefinition`
+`CatalogStage`: `SchemaPartitionTableLocked` and `PendingPartitionDefinition`
 (checks in diagnostic order; both in `tablecmds`), ATTACH and DETACH PARTITION
 and the Restore replays ([`partitioncmds`](../partitioncmds/README.md)), and,
 in core, lock admission (`partition_locks.go`), authorization and Restore trust
@@ -163,9 +167,11 @@ adapter; `partition_info_runtime.go` holds the
 ## Invariants
 
 - **Storage ownership.** Virtual roots and intermediates own descriptors only;
-  physical leaves own storage. One write stage routes and validates all
-  destinations, so a late failure publishes no earlier leaf rows. Scans capture
-  all descendant prefixes at one frontier.
+  local leaves own storage. Foreign leaves retain genuine handler captures, never
+  local row stores. One write stage routes destinations through their existing
+  local or foreign write protocol. Scans retain admitted physical prefixes and
+  open foreign handlers only on demand, outside engine locks. Foreign membership
+  and CHECK declarations never trigger a remote validation scan.
 - **UPDATE movement.** The executor evaluates source generation before routing
   and validates the actual destination rather than the departing source's local
   constraints. Direct physical targets never route to siblings. Both effects use
@@ -208,6 +214,10 @@ adapter; `partition_info_runtime.go` holds the
   never iterates maps into output. Originally local adopted providers are declared
   before adoption; fresh providers use their actual creator. CHECK inheritance,
   constraint names, scratch names and final rename barriers retain one scheduler.
+  Foreign members use that same membership and completion graph without physical
+  row/validation events. Noncompact foreign members replay as CREATE FOREIGN
+  TABLE plus the ordinary ATTACH; parent completion waits for their actual
+  declaration/membership completion.
   Detached fresh-local exclusions use the existing scratch phases:
   temporary-parent cloning and DETACH preserve false provenance. Equivalent
   seeds share an ownership lifetime; actual source-index-anchored events allow

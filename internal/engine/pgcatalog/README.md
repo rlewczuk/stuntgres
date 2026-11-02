@@ -21,6 +21,11 @@ They retain all-formal order separately from input/default slots, including OUT,
 INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
 cannot replace these descriptor-owned facts.
 
+`pg_class.relpartbound` captures immutable membership and parent-key roots.
+`PartitionBoundParts` exposes those borrowed roots only for its genuine bound
+carrier so the partition inquiry owner can render SQL without parsing structural
+output or consulting a newer parent descriptor.
+
 `element_types` projects actual array declarations into 28 nullable source-owned
 domain cells. Nominal `TypeFacts.Element` and variable length determine admission;
 declaration domains are not flattened. Relation/composite attributes retain actual

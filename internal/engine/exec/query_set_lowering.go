@@ -308,7 +308,10 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 			return Stage{}, err
 		}
 	}
-	source := &Source{FlatWidth: width, Materialized: true, Authority: child.Source.Authority, Host: child.Source.Host, Occurrences: child.Source.Occurrences}
+	source := &Source{FlatWidth: width, Materialized: true, Authority: child.Source.Authority, Host: child.Source.Host}
+	if retainsQueryIdentity(state) {
+		source.Occurrences = AppendQueryOccurrences(nil, child.Source)
+	}
 	out := Stage{Source: source, Columns: n.Schema(), Selection: []int{}, Pending: child.Pending, CacheWidth: child.CacheWidth}
 	var invocation FunctionSetInvocation
 	input := -1
@@ -374,7 +377,7 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 			}
 			if len(source.Occurrences) != 0 {
 				source.Provenance = AppendQueryProvenance(source.Provenance, child.Source, child.Index(input))
-				if state.Source.Locks != nil {
+				if queryLocking(state) && state.Source.Locks != nil {
 					source.Versions = AppendQueryVersions(source.Versions, child.Source, child.Index(input), state.Source.Locks)
 				}
 			}

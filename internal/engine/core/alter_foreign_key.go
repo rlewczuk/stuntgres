@@ -42,6 +42,10 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return err
 	}
 	child := auth.Catalog.MustRelation(childRef.Address)
+	if child.RelationKind == catalog.ForeignRelation {
+		e.Mu.Unlock()
+		return nil // Foreign declaration admission has no local FK/validation scan.
+	}
 	if err = auth.Check(access.Requirement{Object: childRef, OwnerOnly: true}); err == nil {
 		label := "VALIDATE CONSTRAINT"
 		if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AddForeignKey }) {

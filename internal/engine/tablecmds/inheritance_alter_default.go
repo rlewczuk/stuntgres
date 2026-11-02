@@ -61,6 +61,13 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		}
 		store := e.PrivateStorageLocked(scope.PendingCatalog(), old.Address())
 		if store == nil {
+			if old.RelationKind == catalog.ForeignRelation {
+				e.Mu.Unlock()
+				if err := stage.Replace(next); err != nil {
+					return core.Result{}, err
+				}
+				continue
+			}
 			e.Mu.Unlock()
 			return core.Result{}, ids.ErrCatalogReplaced
 		}

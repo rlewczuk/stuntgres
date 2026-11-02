@@ -48,6 +48,36 @@ func TestReferenceFDWProjectionTypes(t *testing.T) {
 	})
 }
 
+func TestReferenceFDWSourceDemand(t *testing.T) {
+	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
+		fdwLive(t, p, b, reader, run)
+		// The unused fields are deliberately not readable from this genuine
+		// source: label contains text, and no remote column named missing exists.
+		// Presence and id demand must not acquire either field.
+		run(fixture.Exec("CREATE FOREIGN TABLE fdw_demand(id integer,unreadable integer OPTIONS(column_name 'label'),missing integer) SERVER fdw_live OPTIONS(schema_name 'fdw_source',table_name 'data')", 0))
+		for _, step := range []fixture.Step{
+			fixture.Select("SELECT count(*) FROM fdw_demand", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}),
+			fixture.Select("SELECT 7 AS v FROM fdw_demand", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}, {int64(7)}}),
+			fixture.Select("SELECT id FROM fdw_demand ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}),
+			fixture.Select("SELECT 7 AS v FROM ONLY fdw_demand WHERE id=2", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}),
+		} {
+			run(step)
+			run(fixture.Prepared(step))
+		}
+		q := "SELECT id FROM fdw_demand WHERE id=$1"
+		stmt, err := c.PrepareContext(p.Ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+		for _, id := range []int64{1, 3} {
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"id"}, []string{"INT4"}, [][]any{{id}}, id))
+		}
+		fdwWriteSourceRows(t, p, b, reader, fixture.Select("SELECT id,label,flag FROM fdw_source.data ORDER BY id", []string{"id", "label", "flag"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(1), "one", true}, {int64(2), nil, false}, {int64(3), "three", nil}}))
+	})
+}
+
 func TestReferenceFDWLocalRechecks(t *testing.T) {
 	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, reader *fdwSQLReader, run func(fixture.Step)) {
 		fdwLive(t, p, b, reader, run)

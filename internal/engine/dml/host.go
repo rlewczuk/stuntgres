@@ -34,6 +34,9 @@ type Host interface {
 	// CopyInputContext projects the actual selected COPY child for detached decoding.
 	// It reuses the current projection; never call under engine/session locks.
 	CopyInputContext() context.Context
+	// CaptureForeignPartition captures the already routed and locked foreign
+	// destination. It takes Engine.mu, never waits or invokes a provider.
+	CaptureForeignPartition(ids.ObjectRef) (*exec.ForeignQuerySource, error)
 	Statement
 	Stage
 	RowLocks

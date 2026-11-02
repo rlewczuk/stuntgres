@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Both membership and key slices belong to immutable descriptor roots. Capture
@@ -15,6 +16,13 @@ import (
 type partitionBoundTree struct {
 	membership *catalog.PartitionMembership
 	keys       []catalog.PartitionKeyEntry
+}
+
+// PartitionBoundParts recognizes pg_class.relpartbound's captured tree. The
+// returned descriptor roots are borrowed immutable data, not live catalog reads.
+func PartitionBoundParts(tree sqltype.StructuralTree) (*catalog.PartitionMembership, []catalog.PartitionKeyEntry, bool) {
+	bound, ok := tree.(partitionBoundTree)
+	return bound.membership, bound.keys, ok
 }
 
 func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error) {

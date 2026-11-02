@@ -36,6 +36,9 @@ func RelationshipChildKind(child *catalog.Relation, action parser.AlterTableActi
 	if action == parser.InheritTable && child.Partition != nil {
 		return sqlError("42809", "cannot change inheritance of partitioned table")
 	}
+	if child.RelationKind == catalog.ForeignRelation {
+		return nil
+	}
 	label := "INHERIT"
 	if action == parser.NoInheritTable {
 		label = "NO INHERIT"
@@ -71,8 +74,10 @@ func AttachInheritance(ctx context.Context, view catalog.Read, child, parent *ca
 	if parent.Membership != nil {
 		return nil, sqlError("42809", "cannot inherit from a partition")
 	}
-	if err := analyze.TableKindError(parent, "INHERIT"); err != nil {
-		return nil, err
+	if parent.RelationKind != catalog.ForeignRelation {
+		if err := analyze.TableKindError(parent, "INHERIT"); err != nil {
+			return nil, err
+		}
 	}
 	pns, cok := view.Namespace(parent.Namespace())
 	cns, pok := view.Namespace(child.Namespace())

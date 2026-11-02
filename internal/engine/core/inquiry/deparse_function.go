@@ -17,7 +17,7 @@ func DeparseInquiry(h CatalogHost, c *exec.Context, signature functions.DeparseS
 	switch signature {
 	case functions.DeparseFunction, functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments, functions.DeparseFunctionResult:
 		return deparseRoutine(h, c, signature, values[0], result)
-	case functions.DeparsePartitionConstraint, functions.DeparsePartitionKey:
+	case functions.DeparsePartitionConstraint, functions.DeparsePartitionKey, functions.DeparseExpr, functions.DeparseExprPretty:
 		return partition.Deparse(c, h.DeparseInputs(), signature, values, result)
 	}
 	return table.Deparse(c, h.DeparseInputs(), signature, values, result)

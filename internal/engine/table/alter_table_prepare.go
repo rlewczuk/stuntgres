@@ -103,6 +103,17 @@ func PrepareAlterTableActions(h AlterHost, auth ddl.Authority, original *catalog
 
 // AlterTableActionKind rejects action on a relation kind it does not apply to.
 func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableActionKind) error {
+	if original.RelationKind == catalog.ForeignRelation {
+		switch action {
+		case parser.AddColumn, parser.DropColumn, parser.AlterColumnType,
+			parser.SetNotNull, parser.DropNotNull, parser.AddNotNull,
+			parser.AddCheck, parser.DropConstraint, parser.ValidateConstraint,
+			parser.AddIdentity, parser.DropIdentity, parser.SetIdentity,
+			parser.SetExpression, parser.DropExpression,
+			parser.InheritTable, parser.NoInheritTable:
+			return nil
+		}
+	}
 	label := "ALTER COLUMN ... SET NOT NULL"
 	switch action {
 	case parser.ClusterOn, parser.SetWithoutCluster, parser.SetWithoutOIDs:

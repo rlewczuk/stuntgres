@@ -26,6 +26,12 @@ func TestFDWParser(t *testing.T) {
 		"ALTER USER MAPPING FOR SESSION_USER SERVER s OPTIONS(SET a '2')",
 		"DROP USER MAPPING IF EXISTS FOR CURRENT_ROLE SERVER s",
 		"CREATE FOREIGN TABLE IF NOT EXISTS public.f(id integer OPTIONS(remote 'key') NOT NULL,label text CHECK(label<>'bad')) SERVER s OPTIONS(remote 'data')",
+		"CREATE FOREIGN TABLE f() INHERITS(p) SERVER s",
+		"CREATE FOREIGN TABLE f PARTITION OF p FOR VALUES FROM(0) TO(10) SERVER s",
+		"CREATE FOREIGN TABLE IF NOT EXISTS f PARTITION OF p DEFAULT SERVER s",
+		"CREATE FOREIGN TABLE f(id integer,CONSTRAINT named EXCLUDE USING btree(id WITH =)) SERVER s",
+		"ALTER FOREIGN TABLE f ADD COLUMN key integer CONSTRAINT named PRIMARY KEY",
+		"ALTER FOREIGN TABLE f ADD COLUMN key integer CONSTRAINT named REFERENCES p(id)",
 		"ALTER FOREIGN TABLE f OPTIONS(SET a '2'),ALTER COLUMN id OPTIONS(DROP absent)",
 		"ALTER FOREIGN TABLE f ADD COLUMN note text,ALTER COLUMN id SET NOT NULL",
 		"ALTER FOREIGN TABLE f ADD COLUMN note text OPTIONS(column_name 'remote') NOT NULL",
@@ -154,5 +160,47 @@ func TestFDWParser(t *testing.T) {
 		if _, err := Parse(q); err != nil {
 			t.Fatalf("existing/contextual form %s: %v", q, err)
 		}
+	}
+}
+
+func TestFDWParserForeignTableDeclaration(t *testing.T) {
+	for _, q := range []string{
+		`CREATE FOREIGN TABLE "é"(id integer CONSTRAINT fk REFERENCES p(id)) SERVER s`,
+		`CREATE FOREIGN TABLE "é"(id integer,CONSTRAINT fk FOREIGN KEY(id) REFERENCES p(id)) SERVER s`,
+		`CREATE FOREIGN TABLE "é"(id integer,CONSTRAINT ex EXCLUDE USING btree(id WITH =)) SERVER s`,
+	} {
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		table := statements[0].(*ForeignDDL).Table
+		var declaration Position
+		for _, element := range table.Elements {
+			if element.ForeignKey != nil {
+				declaration = element.ForeignKey.NamedDeclarationPos
+			}
+			if element.Exclusion != nil {
+				declaration = element.Exclusion.NamedDeclarationPos
+			}
+			if element.Column != nil {
+				for _, constraint := range element.Column.Constraints {
+					if constraint.ForeignKey != nil {
+						declaration = constraint.ForeignKey.NamedDeclarationPos
+					}
+				}
+			}
+		}
+		if want := len([]rune(q[:strings.Index(q, "CONSTRAINT")])) + 1; declaration.Character != want {
+			t.Fatalf("declaration=%+v want character %d", declaration, want)
+		}
+	}
+	q := `CREATE FOREIGN TABLE "é" PARTITION OF parent FOR VALUES FROM(0) TO(10) SERVER remote`
+	statements, err := Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := statements[0].(*ForeignDDL)
+	if f.Table.PartitionOf == nil || f.Table.PartitionOf.Name.Parts[0].Text != "parent" || f.Table.PartitionOf.Bound.Strategy != PartitionRange || f.Server.Text != "remote" {
+		t.Fatalf("lost partition declaration: %+v", f)
 	}
 }

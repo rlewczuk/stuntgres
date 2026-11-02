@@ -62,10 +62,6 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 	}
 	message := ""
 	switch s := statement.(type) {
-	case *parser.Select:
-		if s.Locking != nil {
-			message = "row locking partition hierarchies is unsupported"
-		}
 	case *parser.LockTable:
 		message = "locking partition hierarchies is unsupported"
 	case *parser.CreateIndex:

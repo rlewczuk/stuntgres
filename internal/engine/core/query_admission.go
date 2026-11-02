@@ -303,7 +303,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 	needsView := len(scope.rlsDataRefs) != 0
 	if !needsView {
 		for _, leaf := range leaves {
-			if leaf.Relation.RelationKind == catalog.PartitionedRelation {
+			if leaf.Relation.RelationKind == catalog.PartitionedRelation || leaf.Relation.RelationKind == catalog.ForeignRelation && !leaf.Only && catalog.InheritanceHasChildren(scope.Inquiry.CommentCatalog, leaf.Ref.Address) {
 				needsView = true
 				break
 			}
@@ -335,6 +335,13 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		mark := exec.EffectiveQueryRowMark(leaf.Relation, exec.MergeQueryRowMark(inherited, leaf.Mark))
 		var source *exec.Source
 		program := prepared.occurrences[i].program
+		captureForeign := func(child exec.Leaf) (*exec.Source, error) {
+			captured, captureErr := e.captureForeignSourceLocked(scope, child.Ref, child.Relation, invoker, nil, mark)
+			if captured != nil {
+				borrowQueryAuthority(captured, scope)
+			}
+			return captured, captureErr
+		}
 		denied := program.Denied()
 		if denied {
 			source, err = view.CaptureDeniedQuerySource(catalogView, leaf.Ref)
@@ -350,10 +357,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 					source, err = exec.CapturePrefix(catalogView, leaf.Ref)
 				}
 			case catalog.PartitionedRelation:
-				if mark.Mode != 0 {
-					source = nil
-					err = SQLError("0A000", "row locking partition hierarchies is unsupported")
-				} else if leaf.Only {
+				if leaf.Only {
 					// Empty virtual prefixes retain the same visibility authority
 					// as ordinary hierarchy sources, without opening descendants.
 					pin := catalogView.Retain()
@@ -363,10 +367,20 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.Inquiry.CommentCatalog, scope.PartitionRelations, scope.PendingDetachSnapshot()), catalogView, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.Inquiry.CommentCatalog, scope.PartitionRelations, scope.PendingDetachSnapshot()), catalogView, leaf.Ref, leaf.Relation, captureForeign)
+				}
+			case catalog.ForeignRelation:
+				if leaf.Only || !catalog.InheritanceHasChildren(scope.Inquiry.CommentCatalog, leaf.Ref.Address) {
+					uses := leaf.Uses
+					if uses == nil {
+						uses = []int{}
+					}
+					source, err = e.captureForeignSourceLocked(scope, leaf.Ref, leaf.Relation, invoker, uses, mark)
+				} else {
+					source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.Inquiry.CommentCatalog), catalogView, leaf, scope.Op.Session.SessionToken, captureForeign)
 				}
 			case catalog.TableRelation:
-				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.Inquiry.CommentCatalog), catalogView, leaf, scope.Op.Session.SessionToken)
+				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.Inquiry.CommentCatalog), catalogView, leaf, scope.Op.Session.SessionToken, captureForeign)
 				if err == nil && program == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
@@ -430,8 +444,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		source.Occurrence = i
 		source.Locks = locks
 		if locks != nil && source.Lineage == nil {
-			source.Occurrence = len(locks.Leaves)
-			locks.Leaves = append(locks.Leaves, exec.QueryLockLeaf{Leaf: leaf, Source: source, Mark: mark})
+			exec.CaptureQueryLockLeaves(locks, leaf, source, mark)
 		}
 		if i == 0 {
 			first = source

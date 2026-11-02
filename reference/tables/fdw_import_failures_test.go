@@ -33,11 +33,23 @@ func TestReferenceFDWImportPermissions(t *testing.T) {
 			run(s)
 			run(fixture.Exec("RESET ROLE", 0))
 		}
+		if !b.PG && r.snapshot() != beforeDenied {
+			t.Fatal("permission preflight invoked provider")
+		}
 		run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA fdw_import TO fdw_reader", 0))
 		run(fixture.Exec("SET ROLE fdw_reader", 0))
-		run(fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(import_a,import_b) FROM SERVER fdw_live INTO fdw_import", fdwDiagnostic("42704", `user mapping not found for user "fdw_reader", server "fdw_live"`)))
-		if !b.PG && r.snapshot() != beforeDenied {
-			t.Fatal("permission/mapping preflight invoked provider")
+		for _, prepared := range []bool{false, true} {
+			before := r.snapshot()
+			s := fixture.ErrorDiagnostic("IMPORT FOREIGN SCHEMA fdw_source LIMIT TO(import_a,import_b) FROM SERVER fdw_live INTO fdw_import", fdwDiagnostic("42704", `user mapping not found for user "fdw_reader", server "fdw_live"`))
+			s.Prepared, s.ErrorStage = prepared, "execute"
+			run(s)
+			if !b.PG {
+				after := r.snapshot()
+				if after.openPools != 0 || after.openRows != 0 || after.openCursors != 0 || after.calls != before.calls || after.begins != before.begins || after.queries != before.queries || after.iterations != before.iterations {
+					t.Fatalf("reader rejected missing mapping after source hook/acquisition: before=%+v after=%+v", before, after)
+				}
+			}
+			fdwImportBag(run)
 		}
 		run(fixture.Exec("RESET ROLE", 0))
 		options := "user 'postgres'"

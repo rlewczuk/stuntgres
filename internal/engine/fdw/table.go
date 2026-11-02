@@ -5,27 +5,52 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 func CheckTableDeclaration(s *parser.CreateTable) error {
-	if len(s.Parents) != 0 || s.PartitionOf != nil || s.PartitionBy != nil {
-		return sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
-	}
 	for _, element := range s.Elements {
-		if element.Unique != nil || element.ForeignKey != nil || element.Exclusion != nil {
-			return sqlError("0A000", "unique, primary key, exclusion and foreign key constraints are unsupported on foreign tables")
+		if err := CheckConstraint(element.Unique, element.ForeignKey, element.Exclusion); err != nil {
+			return err
 		}
 		if element.Column != nil {
 			for _, constraint := range element.Column.Constraints {
-				if constraint.Unique != nil || constraint.ForeignKey != nil || constraint.Identity != nil {
-					return sqlError("0A000", "unique, primary key, foreign key and identity constraints are unsupported on foreign tables")
+				if err := CheckConstraint(constraint.Unique, constraint.ForeignKey, nil); err != nil {
+					return err
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// CheckConstraint preserves the declaration token separately from ordinary
+// constraint binder positions.
+func CheckConstraint(unique *parser.UniqueConstraint, foreign *parser.ForeignKeyConstraint, exclusion *parser.ExclusionConstraint) error {
+	var kind string
+	var pos parser.Position
+	switch {
+	case unique != nil:
+		kind, pos = "unique", unique.Pos
+		if unique.Primary {
+			kind = "primary key"
+		}
+	case foreign != nil:
+		kind, pos = "foreign key", foreign.Pos
+		if foreign.NamedDeclarationPos.Character != 0 {
+			pos = foreign.NamedDeclarationPos
+		}
+	case exclusion != nil:
+		kind, pos = "exclusion", exclusion.Pos
+		if exclusion.NamedDeclarationPos.Character != 0 {
+			pos = exclusion.NamedDeclarationPos
+		}
+	default:
+		return nil
+	}
+	return expr.ErrorAt("0A000", kind+" constraints are not supported on foreign tables", pos)
 }
 
 // PostgreSQL accepts these LIKE options for foreign destinations but does not
@@ -58,7 +83,13 @@ func AlterAdmission(s *parser.ForeignDDL) parser.Statement {
 	if s.Inner != nil {
 		return s.Inner
 	}
-	return &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Pos: s.Pos}
+	actions := make([]parser.AlterTableAction, 0, len(s.TableActions))
+	for _, action := range s.TableActions {
+		if action.Ordinary != nil {
+			actions = append(actions, *action.Ordinary)
+		}
+	}
+	return &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Actions: actions, Pos: s.Pos}
 }
 
 func ImportError(err error, name string) error {

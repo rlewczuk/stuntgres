@@ -54,7 +54,7 @@ func sourceHasPhysicalFrontier(source *Source, consuming bool) bool {
 	if source.Inherited.Mode != 0 {
 		return true
 	}
-	if source.Materialized {
+	if source.Materialized || source.Occurrences != nil {
 		for _, occurrence := range source.Occurrences {
 			if source.Locks.Leaves[occurrence].Mark.Mode != 0 {
 				return true

@@ -65,11 +65,12 @@ func FirstQueryRowMode(read catalog.Read, root plan.Node, leaves []exec.Leaf) (l
 
 // QueryLockDemand is what QueryLocks found. Marked reports that root, a
 // stored view under the leaves or an inherited mark locks rows, so the
-// statement needs a query lock context. Visibility reports that a stored view
-// query reads a visibility snapshot.
+// statement needs a query lock context. IdentityReads retains the same physical
+// manifest without marks for tableoid and virtual expressions, including those
+// inside stored views. Visibility reports a stored view's snapshot demand.
 type QueryLockDemand struct {
-	Marked, Visibility bool
-	ExportRoots bool
+	Marked, IdentityReads, Visibility bool
+	ExportRoots                       bool
 }
 
 // QueryLocks validates the stored view read graph under the query leaves and
@@ -84,6 +85,9 @@ type QueryLockDemand struct {
 func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLockDemand, error) {
 	var demand QueryLockDemand
 	demand.Marked = analyze.QueryRootRowMode(root) != 0
+	if root != nil {
+		demand.IdentityReads = exec.QueryHasIdentityReads(root)
+	}
 	visibility, err := stored.ValidateViewReadGraph(read, leaves, 0)
 	if err != nil {
 		return QueryLockDemand{}, err
@@ -92,6 +96,7 @@ func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLoc
 	var visit func(*catalog.Relation, plan.RowMark, bool) error
 	visit = func(d *catalog.Relation, inherited plan.RowMark, referenceMarked bool) error {
 		if d.RelationKind == catalog.ViewRelation {
+			demand.IdentityReads = demand.IdentityReads || exec.QueryHasIdentityReads(stored.ViewOf(d).Query().Root)
 			if analyze.QueryHasSetOutput(stored.ViewOf(d).Query().Root) {
 				referenceMarked = false
 			}
