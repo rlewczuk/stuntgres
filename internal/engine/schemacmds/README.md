@@ -219,6 +219,12 @@ complete target set, including automatic aliases, and rejects incoming
 dependencies with `catalog.Conflict` before mutation; DROP keeps its
 multi-target 2BP01 text and cascade notice.
 
+Only a pgcrypto CREATE that still needs physical initialization takes Owner.Mu
+before Engine.Mu during staging. Its genuine first C validation promotes owned
+active setting/savepoint images; both mutexes are released before provider
+validation/publication. Unrelated providers and already initialized sessions
+retain the ordinary locking path.
+
 Identity ALTER remints citext/EAN13 values through a transient exact
 source-descriptor-to-current-descriptor map, never an OID-only permission.
 Generation reownership restores the prior import map before returning and leaves
@@ -257,6 +263,9 @@ SSLInfo provider, expression-protocol and stored-identity units use
 `RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
 sealed authority, scalar source cardinality and destination remapping without
 internal public-SQL scenarios.
+Pgcrypto provider/remap/volatility components explicitly supply a test-only
+installed-catalog initializer and on policy for isolated kernel evaluation.
+They do not acquire SQL session authority or grant missing live hosts a fallback.
 
 Trigger lifecycle identity, clone, source-fence, dependency and remap units
 construct metadata with the same trigger fixture. Lo provider units stage

@@ -26,33 +26,20 @@ func pgTrgmDefinition(name string) (settings.Definition, bool) {
 	return settings.Definition{}, false
 }
 
-// EffectiveDefinitionLocked reads recognized ISN metadata, the immutable
-// registry, then the pg_trgm overlay. Placeholders are not real definitions.
-func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, name string) (settings.Definition, bool) {
-	name = settings.FoldName(name)
-	s.reconcilePgTrgmLocked()
-	if name == "isn.weak" && s.IsnLoaded() {
-		return IsnDefinition(), true
-	}
-	if d, ok := registry.Definitions()[name]; ok {
-		return d, true
-	}
-	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
-		return pgTrgmDefinition(name)
-	}
-	return settings.Definition{}, false
-}
-
 // EffectiveSettingNamesLocked borrows registry order until a library loads;
 // afterwards it materializes the same ordered union as VisitDefinitionsLocked.
 func (s *SettingsStore) EffectiveSettingNamesLocked(registry settings.Registry) []string {
 	s.reconcilePgTrgmLocked()
 	isnLoaded, pgTrgmLoaded := s.IsnLoaded(), s.pgTrgmAuthority().pgTrgmLoaded.Load()
-	if !isnLoaded && !pgTrgmLoaded {
+	pgcryptoLoaded := s.pgcryptoAuthority().loaded.Load()
+	if !isnLoaded && !pgTrgmLoaded && !pgcryptoLoaded {
 		return registry.Order()
 	}
 	capacity := len(registry.Order())
 	if isnLoaded {
+		capacity++
+	}
+	if pgcryptoLoaded {
 		capacity++
 	}
 	if pgTrgmLoaded {

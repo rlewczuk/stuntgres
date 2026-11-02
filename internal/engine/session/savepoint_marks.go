@@ -53,6 +53,10 @@ type SettingsMark struct {
 	pgTrgmPromoted     bool
 	pgTrgmDefaults     map[string]string // Immutable bounded pre-load reset capture.
 	pgTrgmPlaceholders map[string]bool
+	pgcryptoSetter     authorization.PrincipalRef
+	pgcryptoAssignment uint64
+	pgcryptoOwner      *SettingsStore
+	pgcryptoPromoted   bool
 }
 
 func (m SettingsMark) Clone() SettingsMark {
@@ -65,8 +69,13 @@ func (m SettingsMark) Clone() SettingsMark {
 		m.Values, m.Typed, m.Actions = candidate.Values, candidate.Typed, candidate.Actions
 		m.pgTrgmPromoted = true
 	} else {
-		m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
+		m = m.cloneRaw()
 	}
+	return m.promotePgcrypto(nil, nil)
+}
+
+func (m SettingsMark) cloneRaw() SettingsMark {
+	m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
 	return m
 }
 
@@ -74,6 +83,8 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	m := SettingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction, NestLevel: s.NestLevel}
+	m.pgcryptoSetter, m.pgcryptoOwner, m.pgcryptoPromoted = s.pgcryptoSetter, s.pgcryptoPhysicalOwner(), s.pgcryptoPromoted
+	m.pgcryptoAssignment = s.pgcryptoAssignment
 	m.TempTablespaces = s.TempTablespaces
 	m.pgTrgmOwner, m.pgTrgmPromoted = s.pgTrgmAuthority(), s.pgTrgmPromoted
 	if !s.pgTrgmPromoted {
@@ -112,6 +123,8 @@ func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity 
 	beforeRole := s.TypedValue("session_replication_role").Text
 	beforeStats := s.Value("stats_fetch_consistency")
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
+	s.pgcryptoSetter, s.pgcryptoPromoted = candidate.pgcryptoSetter, candidate.pgcryptoPromoted
+	s.pgcryptoAssignment = candidate.pgcryptoAssignment
 	s.restoreTempTablespaces(candidate.TempTablespaces)
 	s.RoleAction = candidate.RoleAction
 	s.NestLevel = candidate.NestLevel

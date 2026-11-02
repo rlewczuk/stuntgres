@@ -23,6 +23,7 @@ type pgcryptoEntropyUnitContext struct {
 }
 
 func (c *pgcryptoEntropyUnitContext) FunctionContext() context.Context { return c.Context }
+func (c *pgcryptoEntropyUnitContext) CheckPgcryptoBuiltinCrypto() error { return nil }
 func (c *pgcryptoEntropyUnitContext) FunctionPgcryptoEntropy(dst []byte) error {
 	c.calls++
 	c.sizes = append(c.sizes, len(dst))

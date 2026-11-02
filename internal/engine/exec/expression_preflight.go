@@ -261,6 +261,16 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			}
 			e.Pgcrypto = next
 		}
+		p := e.Properties()
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(e) && !planningExecutionBarrier(c, e) {
+			// Prune a strict constant NULL before authentic routine initialization.
+			// Other literal calls use the ordinary accepted fold owner, retaining
+			// values rather than a call under its old session policy.
+			pruned, null, err := preflightStrictParameterNull(c, e, decisiveDefaults)
+			if err != nil || null { return pruned, null, err }
+			value, err := FoldPlanningExpression(c, e)
+			return preflightValue(c, e.Info, value, err)
+		}
 		return e, args != nil, nil
 	case plan.AssignmentValueExpr:
 		base, baseChanged, err := PreflightCoercionsWithPolicy(c, e.Base, decisiveDefaults)
@@ -386,7 +396,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			e.Elements = elements
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(c, e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -427,7 +437,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return folded, did, err
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(c, e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -448,7 +458,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
-		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(e) {
+		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(c, e) {
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -486,7 +496,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if err != nil {
 			return nil, false, err
 		}
-		if decisiveDefaults && ConditionalConstantInputs(next) {
+		if decisiveDefaults && ConditionalConstantInputs(next) && !planningExecutionBarrier(c, next) {
 			value, err := FoldPlanningExpression(c, next)
 			return preflightValue(c, next.Info, value, err)
 		}
@@ -534,7 +544,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
-		if e.Usage.Type.ID() == sqltype.Inet && OperatorExecutionConstant(e, c) {
+		if e.Usage.Type.ID() == sqltype.Inet && OperatorExecutionConstant(e, c) && !planningExecutionBarrier(c, e) {
 			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}
@@ -586,7 +596,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if e.Right != nil {
 			rightID = e.Right.ResultUsage().Type.ID()
 		}
-		if (leftID == sqltype.Inet || rightID == sqltype.Inet || leftID == sqltype.PgLSN || rightID == sqltype.PgLSN) && OperatorExecutionConstant(e, c) {
+		if (leftID == sqltype.Inet || rightID == sqltype.Inet || leftID == sqltype.PgLSN || rightID == sqltype.PgLSN) && OperatorExecutionConstant(e, c) && !planningExecutionBarrier(c, e) {
 			if folded, changed, err := preflightStrictParameterNull(c, e, decisiveDefaults); err != nil || changed {
 				return folded, changed, err
 			}
@@ -597,7 +607,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			// Dependence belongs to the original analyzed recipe: an imported
 			// cast may now be a literal without making its parameter static.
 			p := expression.Properties()
-			if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(e) {
+			if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(e) && !planningExecutionBarrier(c, e) {
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}

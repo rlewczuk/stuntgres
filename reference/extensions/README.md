@@ -181,6 +181,11 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
   `pgcryptoCase`, `uuidOsspCase`).
+  `pgcryptoPolicyCase` uses a new notice-enabled physical connection for every
+  unloaded case, and revokes parameter grants before disposable-role cleanup.
+  Policy assertions retain full script diagnostics and distinguish accepted
+  immutable values from actual new password calls; native controls remain
+  explicit phases of those same public scenarios.
 - Integer dictionary scenarios use `RUN='^TestReferenceDictInt'` in both modes.
   `dict_int_fixture_test.go` owns isolated public SQL scenarios and reuses the
   shared lexeme metadata/raw-carrier assertions. Independently specified byte,
@@ -313,7 +318,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   the complete native bootstrap inventory of 18 dictionaries (simple and 17
   Snowball providers, including Swedish), then 19 with unaccent installed.
 - Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
-- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`
+- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`, `RUN='^TestReferencePgcryptoPolicy'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`

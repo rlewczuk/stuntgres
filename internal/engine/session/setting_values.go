@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,69 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// EffectiveDefinitionLocked resolves active ISN and pgcrypto metadata before the
+// frozen registry, then the pg_trgm overlay. Placeholders are not definitions.
+func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, name string) (settings.Definition, bool) {
+	s.syncPgcryptoLocked(nil)
+	s.reconcilePgTrgmLocked()
+	key := settings.FoldName(name)
+	if key == "isn.weak" && s.IsnLoaded() {
+		return IsnDefinition(), true
+	}
+	if key == settings.PgcryptoBuiltinCrypto {
+		m := s.pgcryptoAuthority()
+		if m.loaded.Load() { return m.definition, true }
+	}
+	if d, ok := registry.Definitions()[key]; ok {
+		return d, true
+	}
+	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
+		return pgTrgmDefinition(key)
+	}
+	return settings.Definition{}, false
+}
+
+// VisitDefinitionsLocked merges the bounded active module names with borrowed
+// registry order. Equal names resolve once through the same effective projection.
+func (s *SettingsStore) VisitDefinitionsLocked(registry settings.Registry, visit func(settings.Definition) error) error {
+	s.syncPgcryptoLocked(nil)
+	s.reconcilePgTrgmLocked()
+	var overlay [5]string
+	names := overlay[:0]
+	if s.IsnLoaded() {
+		names = append(names, IsnDefinition().Name)
+	}
+	if s.pgcryptoAuthority().loaded.Load() {
+		names = append(names, settings.PgcryptoBuiltinCrypto)
+	}
+	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
+		for _, d := range settings.PgTrgmDefinitions() {
+			names = append(names, d.Name)
+		}
+	}
+	slices.Sort(names)
+	order := registry.Order()
+	for i, j := 0, 0; i < len(order) || j < len(names); {
+		var name string
+		if j == len(names) || i < len(order) && order[i] < names[j] {
+			name = order[i]
+			i++
+		} else if i == len(order) || names[j] < order[i] {
+			name = names[j]
+			j++
+		} else {
+			name = order[i]
+			i++
+			j++
+		}
+		d, _ := s.EffectiveDefinitionLocked(registry, name)
+		if err := visit(d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // LookupDefinition resolves name against registry and the store's
 // placeholders. With create, a valid custom name that is not yet known gets
 // a placeholder string definition.
@@ -18,6 +82,9 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 	key := settings.FoldName(name)
 	if d, ok := s.EffectiveDefinitionLocked(registry, key); ok {
 		return d, nil
+	}
+	if create && s.pgcryptoAuthority().loaded.Load() && strings.HasPrefix(key, "pgcrypto.") {
+		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pgcrypto" is a reserved prefix.`}
 	}
 	if !s.Placeholders[key] {
 		if !create || !strings.Contains(name, ".") {
@@ -36,14 +103,13 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 // SettingFlagsLocked reads only existing recognition under the store mutex.
 // Registry and identity metadata take precedence over custom placeholders.
 func (s *SettingsStore) SettingFlagsLocked(registry settings.Registry, name string) (settings.Flags, bool) {
-	s.reconcilePgTrgmLocked()
-	if settings.FoldName(name) == "isn.weak" && s.IsnLoaded() {
-		return 0, true
-	}
-	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
-		if _, ok := pgTrgmDefinition(settings.FoldName(name)); ok {
-			return 0, true
+	if d, ok := s.EffectiveDefinitionLocked(registry, name); ok {
+		if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
+			if _, active := pgTrgmDefinition(settings.FoldName(name)); active {
+				return 0, true
+			}
 		}
+		return d.Flags, true
 	}
 	if flags, ok := registry.LookupFlags(name); ok {
 		return flags, true

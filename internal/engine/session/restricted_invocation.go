@@ -35,6 +35,7 @@ func (op *Operation) Setting(name string) (string, bool) {
 	store := op.EffectiveSettings()
 	store.Mu.Lock()
 	defer store.Mu.Unlock()
+	store.syncPgcryptoLocked(nil)
 	_, hasDefault := store.Defaults[name]
 	_, hasValue := store.Values[name]
 	if !hasDefault && !hasValue && !store.Placeholders[name] {

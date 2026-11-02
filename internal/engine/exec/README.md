@@ -364,6 +364,15 @@ typmods; naming is captured only on failure and is never retained in result tupl
   `FoldAttempt` and changed planning uses COW. The prepared runtime validates
   the complete operation's environment, current authority and cancellation
   before `Accept` seals it. Stale, foreign or retired attempts cannot publish.
+  Standalone immutable installed crypto calls enter this same fold path after
+  child coercion and strict constant-NULL pruning; their original installed
+  wrapper supplies authentic callable/input provenance. Parameters, row inputs
+  and volatile salt generation remain runtime calls, not cached policy decisions.
+  Dormant declaration cooking has no live host, so the shared context-aware
+  execution barrier retains installed crypto transitively beneath composites,
+  arrays, casts and operators. Type/NULL/dead-branch planning still runs; genuine
+  unlocked runtime planning initializes and gates the surviving call. This
+  readiness rule never permits direct evaluation without required authority.
   Root-only invalidation preserves exact stored origins for their own lifetime
   validation; all-origin invalidation retires them too. Repeated invalidation
   cannot resurrect retired syntax or needlessly advance the generation.
@@ -538,6 +547,17 @@ scope holds an untyped nil host (`LiveHost` never returns a typed nil). Optional
 host capabilities such as `PgcryptoNotice` are resolved through `LiveHost` per
 delivery; the engine appends owned notice records and never calls user handlers
 under engine locks.
+`InitializePgcrypto` and `CheckPgcryptoBuiltinCrypto` likewise resolve the current
+host, never a prepared owner. Authentic surviving installed calls initialize
+their physical provider after routine admission; strict constant-NULL and
+decisively pruned branches do not. This also covers zero-row executor setup.
+Actual installed evaluation initializes before demanded children; the password
+kernel's separate live gate remains after typed STRICT handling. Readmission
+does not replay bodies or invalidate accepted immutable values on SET.
+Closed evaluation rejects both pgcrypto initialization and policy capabilities
+before touching an incidental live host, including already-loaded/on sessions.
+Installed crypto is not a closed-worker expression; aggregate SQL support bodies
+enter their own gated live lexical evaluation rather than inherit that capture.
 
 `NestedSQL` (`nested_sql.go`) is the SPI analogue for functions that run SQL
 text inside the calling statement (ts_rewrite, ts_stat, crosstab, connectby).

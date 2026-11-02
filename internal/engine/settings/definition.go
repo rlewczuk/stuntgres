@@ -160,6 +160,9 @@ func CustomName(name string) bool {
 // Validate returns an owned definition without publishing partial state.
 func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
+	if d.Name == PgcryptoBuiltinCrypto {
+		return d, registrationError("setting name is reserved for pgcrypto")
+	}
 	d.Category = "Customized Options"
 	d.ExtraDescription = ""
 	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil || d.FixedDefault || d.Flags != 0 {

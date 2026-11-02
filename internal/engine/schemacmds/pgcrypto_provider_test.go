@@ -27,14 +27,38 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// These provider components have no SQL session. They explicitly select on,
+// while initialization still authenticates the real installed unit catalog.
+type pgcryptoProviderEvaluation struct {
+	*exec.Context
+	view catalog.Read
+}
+
+func pgcryptoProviderUnitContext(view catalog.Read) *pgcryptoProviderEvaluation {
+	return &pgcryptoProviderEvaluation{Context: &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, view: view}
+}
+
+func (c *pgcryptoProviderEvaluation) InitializePgcrypto(captured *catalog.Procedure, ref ids.ObjectRef) error {
+	if captured == nil || c.view.Owner() == nil || ref.Address != captured.Address() || ref.Domain() != c.view.Owner().Domain || ref.Epoch != c.view.Epoch() || captured.Implementation != extension.StockPgcrypto {
+		return extension.InvalidProviderDescriptor()
+	}
+	current, err := exec.ValidateStoredRoutineDescriptor(c.view, captured)
+	if err != nil { return err }
+	return extension.StockPgcrypto.ValidateProcedure(c.view, current)
+}
+
+func (*pgcryptoProviderEvaluation) CheckPgcryptoBuiltinCrypto() error { return nil }
+
 func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)
+	op.Session.Transactions.Mu.Lock()
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
 	e.Mu.Unlock()
+	op.Session.Transactions.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +194,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if n.Ref.Address != ext.Members[2] || exec.PlannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
-	value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	value, err := n.Eval(pgcryptoProviderUnitContext(e.CatalogRead()))
 	bytes, _ := value.Binary()
 	if err != nil || hex.EncodeToString([]byte(bytes)) != "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843" {
 		t.Fatal(bytes, err)

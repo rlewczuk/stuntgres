@@ -15,6 +15,16 @@ type InvocationMark struct {
 func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 	source.Mu.Lock()
 	defer source.Mu.Unlock()
+	source.syncPgcryptoLocked(nil)
+	image := cloneInvocationSettingsLocked(source)
+	image.pgTrgmParent = source
+	return image
+}
+
+// Caller holds source.Mu. Activation uses this before publishing loaded, so
+// cloning a retained exception image cannot silently consume its diagnostics.
+// Preserve its ancestry; only a new active invocation adds source as a parent.
+func cloneInvocationSettingsLocked(source *SettingsStore) *SettingsStore {
 	image := &SettingsStore{
 		Session: source.Session, Invocation: true,
 		temporaryBufferOwner: source.temporaryBufferAuthority(),
@@ -22,8 +32,12 @@ func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 		isnOwner:             source.isnAuthority(),
 		isnPromoted:          source.isnPromoted,
 		pgTrgmOwner:          source.pgTrgmAuthority(),
-		pgTrgmParent:         source,
+		pgTrgmParent:         source.pgTrgmParent,
 		pgTrgmPromoted:       source.pgTrgmPromoted,
+		pgcryptoOwner: source.pgcryptoPhysicalOwner(),
+		pgcryptoPromoted: source.pgcryptoPromoted,
+		pgcryptoSetter: source.pgcryptoSetter,
+		pgcryptoAssignment: source.pgcryptoAssignment,
 		TempTablespaces:      cloneTempTablespaceAssignment(source.TempTablespaces, source.Value("temp_tablespaces")),
 		statsOwner:           source.statsAuthority(),
 		RoleAction:           source.RoleAction, NestLevel: source.NestLevel,

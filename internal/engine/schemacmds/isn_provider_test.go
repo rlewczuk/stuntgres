@@ -27,9 +27,12 @@ func isnUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, sch
 	if schema != "" {
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
+	initializingPgcrypto := name == "pgcrypto" && !op.Session.Settings.PgcryptoInitialized()
+	if initializingPgcrypto { op.Session.Transactions.Mu.Lock() }
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
+	if initializingPgcrypto { op.Session.Transactions.Mu.Unlock() }
 	if err != nil {
 		t.Fatal(err)
 	}

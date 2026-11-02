@@ -114,6 +114,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Initial CREATE copies the control comment into the immutable extension header;
   skipped CREATE and UPDATE never reapply that default. Header copies preserve
   current comment text across placement, membership and ownership changes.
+  Stock pgcrypto preserves its fourteen installed declarations and provider
+  identities. Its first actual C-member validation initializes only the
+  installer's physical setting attachment; Prepare, catalog presence, early
+  errors and skipped CREATE do not. Initialization survives later SQL rollback
+  or member conflicts. The provider owns exact declaration script Context for
+  initialization warnings and the corresponding duplicate-member diagnostics.
+  This bounded initializer is not native library loading: generic LOAD keeps
+  its external native-ABI/file boundary and is not a successful special case.
   The pgrowlocks, pageinspect and amcheck manifest builders also own immutable fixed OUT
   type IDs and complete formal names, including their input names. Their
   comparable installed declaration carries the shared immutable payload through

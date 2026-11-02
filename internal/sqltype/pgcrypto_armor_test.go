@@ -50,7 +50,7 @@ func TestPgcryptoArmorKernelVectors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := p.Evaluate(context.Background(), nil, data)
+		got, err := p.Evaluate(context.Background(), nil, nil, data)
 		text, _ := got.Text()
 		if err != nil || text != tc.frame {
 			t.Fatalf("armor(%q)=%q: %v", tc.data, text, err)
@@ -70,7 +70,7 @@ func TestPgcryptoArmorKernelVectors(t *testing.T) {
 			data[i] = byte(i)
 		}
 		value, _ := Binary(types[Bytea], string(data))
-		got, err := p.Evaluate(context.Background(), nil, value)
+		got, err := p.Evaluate(context.Background(), nil, nil, value)
 		text, _ := got.Text()
 		if err != nil {
 			t.Fatal(err)
@@ -149,7 +149,7 @@ func TestPgcryptoArmorArrayRecipe(t *testing.T) {
 	}
 	keys, vals := array("[0:0]={foo}"), array("[7:7]={bar}")
 	backing := keys.array
-	got, err := p.Evaluate(context.Background(), nil, binary, keys, vals)
+	got, err := p.Evaluate(context.Background(), nil, nil, binary, keys, vals)
 	text, _ := got.Text()
 	if err != nil || text != "-----BEGIN PGP MESSAGE-----\nfoo: bar\n\nem9va2E=\n=D5cR\n-----END PGP MESSAGE-----\n" || keys.array != backing {
 		t.Fatal(text, err)
@@ -166,13 +166,13 @@ func TestPgcryptoArmorArrayRecipe(t *testing.T) {
 		{"{\"k\n\"}", "{v}", "22023", "header key must not contain newlines"},
 		{"{k,badé}", "{NULL,v}", "22004", "null value not allowed for header value"},
 	} {
-		_, err := p.Evaluate(context.Background(), nil, binary, array(tc.keys), array(tc.values))
+		_, err := p.Evaluate(context.Background(), nil, nil, binary, array(tc.keys), array(tc.values))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
 			t.Fatal(tc, err)
 		}
 	}
-	got, err = p.Evaluate(context.Background(), nil, binary, Null(types[1009]), array("{{bad}}"))
+	got, err = p.Evaluate(context.Background(), nil, nil, binary, Null(types[1009]), array("{{bad}}"))
 	if err != nil || !got.IsNull() || got.Type() != types[Text] {
 		t.Fatal(got, err)
 	}

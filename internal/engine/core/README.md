@@ -2066,6 +2066,18 @@ built before provider registration and publication; providers borrow a pointer
 to it, and descriptor validation and grant-name canonicalization use the same
 registry. Notice levels, physical-session values, the settings journal and
 timeout publication belong to [`session`](../session/README.md).
+The stock pgcrypto enum is a private physical-session attachment, not a global
+registry insertion. CREATE member validation and authenticated surviving
+installed-call initialization enter `InitializePgcryptoLocked`; current
+placeholder setter authority, typed history and owned warnings are published
+through the session owner. The live statement host checks password policy using
+the effective store and actual Go FIPS mode. Catalog replacement neither imports
+physical module state nor resets the destination's effective policy. Persisted
+and routine validators use the same active-definition rule as metadata and SET.
+Initialization preserves the original node/ref/lifetime manifest, resolves a
+compatible captured declaration through ordinary routine validation, and checks
+the provider against that canonical current descriptor. Compatible owner/ACL/
+remap revisions do not turn a historical recipe pointer into current authority.
 
 `current_setting(text[,boolean])` and `set_config(text,text,boolean)` use
 canonical typed setting expressions, shared fixed-formal binding and live
@@ -2515,6 +2527,9 @@ Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
+
+Genuine pgcrypto activation, dormant/closed evaluation boundaries and retained
+fold ownership components use `RUN='^TestPgcryptoPolicy'`.
 
 Engine tests whose code is mostly in a lower package or a `*cmds` family live
 in test-only `core/enginetests/<area>` packages (`functions`, `types`,

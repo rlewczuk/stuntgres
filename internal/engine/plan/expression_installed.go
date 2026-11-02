@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -59,6 +60,14 @@ type InstalledCryptoExpr struct {
 	Ref       ids.ObjectRef
 }
 
+// Eval initializes only this authenticated installed provider occurrence. A
+// pruned literal-NULL/CASE node never reaches this runtime path.
+func (e InstalledCryptoExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
+	runtime, ok := ctx.(interface { InitializePgcrypto(*catalog.Procedure, ids.ObjectRef) error })
+	if !ok { return sqltype.Value{}, fmt.Errorf("stuntgres: missing pgcrypto initialization context") }
+	if err := runtime.InitializePgcrypto(e.Procedure, e.Ref); err != nil { return sqltype.Value{}, err }
+	return e.Pgcrypto.Eval(ctx)
+}
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
 // return the bare functions node.
 func (e InstalledCryptoExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {

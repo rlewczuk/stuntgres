@@ -33,7 +33,7 @@ func foldRandomNullInputs(c *Context, node expr.Expr) (next expr.Expr, changed, 
 		return node, false, false, nil
 	}
 	for _, arg := range call.Args {
-		if randomNullInputComputation(arg) && planningExecutionBarrier(arg) {
+		if randomNullInputComputation(arg) && planningExecutionBarrier(c, arg) {
 			return node, false, true, nil
 		}
 		if !randomNullInputComputation(arg) {

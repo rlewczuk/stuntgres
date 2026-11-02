@@ -495,7 +495,7 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && ConditionalConstantInputs(expression) {
+	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && ConditionalConstantInputs(expression) && !planningExecutionBarrier(c, expression) {
 		value, err := FoldPlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err

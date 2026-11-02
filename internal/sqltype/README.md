@@ -645,6 +645,10 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   while requiring CRC agreement. `PgcryptoArmorHeaderRegion` separately validates
   all header lines and returns borrowed immutable bounds, including footer-
   terminated headers without a blank separator; it never validates body/CRC.
+- `PgcryptoPlan.Evaluate` and `PrepareSalt` take an explicit invocation-local
+  built-in-password policy check. Typed validation and strict NULL precede it;
+  password salt/count validation and entropy follow it. Kernels retain neither
+  the callback nor a session; isolated kernel callers pass nil explicitly.
 - Arithmetic binds POINT/BOX/PATH/CIRCLE with POINT through the ordinary
   overload resolver. Coordinate complex arithmetic checks each FLOAT8 intermediate;
   circle scaling shares the released checked norm with geometry distances.

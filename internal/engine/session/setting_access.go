@@ -39,6 +39,8 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and unlisted builtins remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
+	case settings.PgcryptoBuiltinCrypto:
+		return true
 	case "track_activities", "track_counts", "track_functions", "track_io_timing", "track_wal_io_timing":
 		return true
 	case "commit_delay", "wal_compression", "wal_init_zero", "wal_recycle":

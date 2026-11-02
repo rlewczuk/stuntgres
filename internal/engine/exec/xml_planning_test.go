@@ -44,7 +44,7 @@ func TestXMLPlanningExecutionBarrier(t *testing.T) {
 		if !ok {
 			t.Fatal("execution recipe was folded", next)
 		}
-		if !planningExecutionBarrier(call) {
+		if !planningExecutionBarrier(c, call) {
 			t.Fatal("lost real execution-demand descendant")
 		}
 	}
@@ -77,7 +77,7 @@ func TestPlanningExecutionBarrierScope(t *testing.T) {
 	// transitive diagnostic demand on enclosing preflight computations.
 	document := plan.LiteralExpr{}
 	table := functions.JSONTable{Args: []expr.Expr{document}}
-	if table.PlanningFold() != expr.FoldNever || planningExecutionBarrier(table) {
+	if table.PlanningFold() != expr.FoldNever || planningExecutionBarrier(nil, table) {
 		t.Fatal("relational FoldNever became a transitive execution barrier")
 	}
 	for _, provider := range []expr.Expr{
@@ -85,7 +85,7 @@ func TestPlanningExecutionBarrierScope(t *testing.T) {
 		functions.XMLSerialize{Child: document},
 	} {
 		wrapped := plan.CoercionExpr{Child: provider}
-		if !planningExecutionBarrier(wrapped) {
+		if !planningExecutionBarrier(nil, wrapped) {
 			t.Fatal("XML diagnostic demand did not reach its enclosing coercion")
 		}
 	}

@@ -47,7 +47,12 @@ type SettingsStore struct {
 	pgTrgmOwner     *SettingsStore
 	pgTrgmParent    *SettingsStore // Serial invocation ancestry, not retained by expressions.
 	pgTrgmPromoted  bool
-	TempTablespaces *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
+	pgcrypto             pgcryptoModule
+	pgcryptoOwner        *SettingsStore
+	pgcryptoPromoted     bool
+	pgcryptoSetter       authorization.PrincipalRef
+	pgcryptoAssignment   uint64
+	TempTablespaces      *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -65,6 +70,7 @@ func (s *Session) Setting(name string) (string, bool) {
 	if store.Ended {
 		return "", false
 	}
+	store.syncPgcryptoLocked(nil)
 	_, hasDefault := store.Defaults[name]
 	_, hasValue := store.Values[name]
 	if name == "isn.weak" && store.IsnLoaded() {
@@ -81,6 +87,8 @@ type settingOverride struct {
 	Text            string
 	Typed           settings.Value
 	TempTablespaces *TempTablespaceAssignment
+	Setter          authorization.PrincipalRef
+	Assignment      uint64
 }
 type settingAction struct {
 	original  settingOverride
@@ -159,6 +167,7 @@ func (s *SettingsStore) RestoreIdentityLocked(target authorization.RoleState) {
 func (s *SettingsStore) override(name string) settingOverride {
 	text, present := s.Values[name]
 	v := settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
+	if name == settings.PgcryptoBuiltinCrypto { v.Setter, v.Assignment = s.pgcryptoSetter, s.pgcryptoAssignment }
 	if name == "temp_tablespaces" {
 		v.TempTablespaces = s.TempTablespaces
 	}
@@ -184,6 +193,10 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 	} else {
 		delete(s.Values, name)
 		delete(s.Typed, name)
+	}
+	if name == settings.PgcryptoBuiltinCrypto {
+		s.pgcryptoSetter, s.pgcryptoAssignment = v.Setter, v.Assignment
+		if !v.Present { s.pgcryptoSetter, s.pgcryptoAssignment = authorization.PrincipalRef{}, 0 }
 	}
 	if name == "session_replication_role" {
 		s.RuleRoleChanged(beforeRole)
@@ -381,6 +394,17 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.ProviderDefaults = nil
 	s.DefaultSources = nil
 	s.Actions = nil
+	s.pgcryptoSetter = authorization.PrincipalRef{}
+	s.pgcryptoAssignment = 0
+	s.pgcrypto.mu.Lock()
+	s.pgcrypto.setters, s.pgcrypto.permissions = nil, nil
+	s.pgcrypto.registeredPrefix = nil
+	s.pgcrypto.definition = settings.Definition{}
+	s.pgcrypto.assignment = 0
+	s.pgcrypto.loaded.Store(false)
+	s.pgcrypto.mu.Unlock()
+	s.pgcryptoOwner = nil
+	s.pgcryptoPromoted = false
 	s.RoleAction = roleSettingAction{}
 	s.NestLevel = 0
 	s.isnLoaded.Store(false)
@@ -392,6 +416,7 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	return nil
 }
 func (s *SettingsStore) Value(name string) string {
+	s.syncPgcryptoLocked(nil)
 	// No startup API can activate archive_mode in this fixed native profile.
 	// Keep the stored command empty so provider and reset metadata stay exact.
 	if name == "archive_command" {
@@ -430,6 +455,7 @@ func (s *SettingsStore) Value(name string) string {
 	return s.Defaults[name]
 }
 func (s *SettingsStore) TypedValue(name string) settings.Value {
+	s.syncPgcryptoLocked(nil)
 	if name == "isn.weak" && s.IsnLoaded() && !s.isnPromoted {
 		return settings.Value{Boolean: s.Value(name) == "on"}
 	}

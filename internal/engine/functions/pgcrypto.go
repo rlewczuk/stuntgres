@@ -66,6 +66,14 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	var checkBuiltin func() error
+	if e.Plan.Name() == "crypt" || e.Plan.Name() == "gen_salt" {
+		if runtime, ok := c.(interface { CheckPgcryptoBuiltinCrypto() error }); ok {
+			checkBuiltin = runtime.CheckPgcryptoBuiltinCrypto
+		} else {
+			checkBuiltin = missingPgcryptoBuiltinPolicy
+		}
+	}
 	switch e.Plan.Name() {
 	case "gen_random_bytes":
 		if err := ctx.Err(); err != nil {
@@ -123,7 +131,7 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
-		parameters, null, err := e.Plan.PrepareSalt(values[:len(e.Args)]...)
+		parameters, null, err := e.Plan.PrepareSalt(checkBuiltin, values[:len(e.Args)]...)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -150,7 +158,11 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 	if sink, ok := any(c).(interface{ FunctionPgcryptoNotice(sqlstate.Error) }); ok {
 		notice = sink.FunctionPgcryptoNotice
 	}
-	return e.Plan.Evaluate(ctx, notice, values[:len(e.Args)]...)
+	return e.Plan.Evaluate(ctx, notice, checkBuiltin, values[:len(e.Args)]...)
+}
+
+func missingPgcryptoBuiltinPolicy() error {
+	return fmt.Errorf("stuntgres: missing pgcrypto policy context")
 }
 
 func NewPgcrypto(info expr.Info, name string, args []expr.Expr) (Pgcrypto, error) {

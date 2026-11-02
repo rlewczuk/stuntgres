@@ -1391,7 +1391,21 @@ publication and lock-manager tickets stay in the engine.
   TEXT-typed literal's datum identity.
 - **pgcrypto**: `sqltype.PgcryptoSignature` is the fixed-size formal recipe shared
   by overload selection, coercion, typed evaluation and stored validation.
-  `PgcryptoPlan` retains no password, salt, entropy, key, IV, payload or headers.
+  `PgcryptoPlan` retains no password, salt, entropy, key, IV, payload, headers,
+  settings owner or granted authority. Evaluation demands typed children first;
+  strict NULL then bypasses body policy, salt validation and entropy. An actual
+  crypt/gen_salt body borrows `CheckPgcryptoBuiltinCrypto` from its current runtime
+  before salt/name/count validation or effects. Both salt overloads and all six
+  password algorithms share that gate; digest/HMAC/ciphers/random/UUID/mode
+  inquiries do not.
+  The physical enum defaults to on; off denies password bodies, and fips denies
+  exactly when Go `crypto/fips140.Enabled()` is true. Existing `fips_mode()`
+  reports that actual mode, not policy text or validation/certification of the
+  custom legacy kernels. The exact PostgreSQL-compatible FIPS error mentions
+  OpenSSL; this is diagnostic compatibility wording, not a native OpenSSL
+  runtime. Policy on does not override stronger provider-only restrictions.
+  crypt remains immutable: accepted earlier folds and stored values are not
+  fresh body calls. No policy or provider mode is frozen in a recipe or dump.
   Armor uses BYTEA and, for its three-input overload, two ordinary TEXT[] formals;
   no final-argument-as-algorithm convention applies to those calls.
   Installed calls use the shared FILTER/count/label envelope and diagnose scalar
@@ -1404,6 +1418,7 @@ publication and lock-manager tickets stay in the engine.
   validity; dearmor authenticates the checksum. Installed wrappers retain current
   declaration/EXECUTE admission even for a NULL set input; shared scalar strict-NULL
   simplification remains distinct from reaching a routine.
+  Armor, dearmor and armor-header extraction do not use the password-policy gate.
 - **TEXT pattern comparisons** (`text_pattern.go`): `TextPatternComparison`
   owns strict lt/le/ge/gt scalar providers and their symbolic operator entry.
   Rebuild, stored validation and replay retain genuine TEXT-to-BOOL routine

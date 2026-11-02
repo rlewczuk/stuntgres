@@ -75,6 +75,9 @@ func (h *extensionHost) ActivatePgTrgm() error {
 	return err
 }
 
+func (h *extensionHost) InitializePgcrypto(scriptContext string) error {
+	return h.Engine.InitializePgcryptoLocked(h.Op, scriptContext)
+}
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
 	path, _, err := core.ExplicitPath(h.Auth)
 	return path, err

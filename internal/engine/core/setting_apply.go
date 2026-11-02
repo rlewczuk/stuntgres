@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
@@ -120,12 +121,23 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 			return "", err
 		}
 	}
+	var setter authorization.PrincipalRef
+	if d.Name == settings.PgcryptoBuiltinCrypto {
+		auth, authErr := e.AuthorizationLocked(op)
+		if scope := ActiveScopeOfLease(op.Lease); scope != nil {
+			auth, authErr = scope.RoutineAuthorizationLocked()
+		}
+		if authErr != nil { return "", authErr }
+		setter = auth.State.CurrentUser
+	}
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
+	if err := owner.PgcryptoAssignmentHeadroomLocked(d.Name, value != nil); err != nil { return "", err }
 	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, action)
 	if err == nil {
+		owner.CapturePgcryptoSetterLocked(d.Name, setter, value != nil)
 		if d.Name == "temp_tablespaces" {
 			owner.AcceptTempTablespacesLocked(tempAssignment)
 		}

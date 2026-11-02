@@ -682,6 +682,20 @@ func (c *Context) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *Context) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
+func (c *Context) InitializePgcrypto(procedure *catalog.Procedure, ref ids.ObjectRef) error {
+	if c != nil && c.ClosedEvaluation != nil { return fmt.Errorf("stuntgres: pgcrypto initialization is unavailable in closed evaluation") }
+	host, ok := c.LiveHost().(interface { InitializePgcrypto(*catalog.Procedure, ids.ObjectRef) error })
+	if !ok { return fmt.Errorf("stuntgres: missing pgcrypto initialization authority") }
+	return host.InitializePgcrypto(procedure, ref)
+}
+
+func (c *Context) CheckPgcryptoBuiltinCrypto() error {
+	if c != nil && c.ClosedEvaluation != nil { return fmt.Errorf("stuntgres: pgcrypto policy is unavailable in closed evaluation") }
+	host, ok := c.LiveHost().(interface { CheckPgcryptoBuiltinCrypto() error })
+	if !ok { return fmt.Errorf("stuntgres: missing pgcrypto policy authority") }
+	return host.CheckPgcryptoBuiltinCrypto()
+}
+
 // FunctionPgcryptoNotice borrows only the currently executing statement host.
 func (c *Context) FunctionPgcryptoNotice(notice sqlstate.Error) {
 	if host, ok := c.LiveHost().(interface{ PgcryptoNotice(sqlstate.Error) }); ok {

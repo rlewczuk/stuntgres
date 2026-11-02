@@ -144,7 +144,7 @@ func cryptoHash(name string) (func() hash.Hash, int) {
 	return nil, 0
 }
 
-func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error), values ...Value) (Value, error) {
+func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error), checkBuiltin func() error, values ...Value) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -171,6 +171,9 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 	}
 	count := p.count
 	if p.name == "crypt" {
+		if checkBuiltin != nil {
+			if err := checkBuiltin(); err != nil { return Value{}, err }
+		}
 		password, err := values[0].Text()
 		if err != nil {
 			return Value{}, err

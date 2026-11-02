@@ -240,16 +240,20 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   nonfallible publication, returning warnings for emission outside those locks.
   Active detached ancestors are serial invocation-owned and promoted together.
   Invalid historical assignments retain the prior typed value; unknown prefix
-  placeholders are removed permanently. `EffectiveDefinitionLocked` resolves
-  recognized ISN metadata before the registry, then loaded pg_trgm definitions.
-  `VisitDefinitionsLocked` and `EffectiveSettingNamesLocked` enumerate that
-  same effective union in order without duplicates or placeholder definitions.
+  placeholders are removed permanently. In `setting_values.go`, the single
+  `EffectiveDefinitionLocked` resolves active ISN and pgcrypto metadata before
+  the immutable registry, then loaded pg_trgm definitions. The single
+  `VisitDefinitionsLocked` merges a bounded five-name overlay with registry
+  order; `EffectiveSettingNamesLocked` materializes that same union, including
+  crypto-only activation, without duplicates or placeholder definitions.
   `PgTrgmThresholdLocked` reads typed numbers and never activates the library.
-  Marks retain their original immutable reset image and journal tails.
-  `SettingsMark.Clone` and `InvocationMark.PrepareRestore` reconcile independent
-  typed candidates against sticky physical recognition before final restoration;
-  they neither mutate retained sources nor repeat load warnings. Transaction,
-  exception, routine and catalog restoration cannot unload the physical overlay;
+  Marks retain their original immutable reset image and journal tails. Raw
+  checkpoint copies preserve invocation ancestry; only a new active invocation
+  adds its source as a parent. `SettingsMark.Clone` and
+  `InvocationMark.PrepareRestore` reconcile independent typed candidates against
+  sticky physical recognition before final restoration, without mutating retained
+  sources or repeating load warnings. Transaction, exception, routine and catalog
+  restoration cannot unload the physical overlay;
   only physical session retirement releases it.
   Command admission captures `plan.PlannerMethods` under the effective store's
   mutex. Disabled bits make detached zero values preserve enabled algorithms;
@@ -292,6 +296,36 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   Eligible selected privileged builtins, including all four performance-statistics
   flags, use effective superuser/parameter SET authority; custom Privileged
   definitions stay deny-only. Restricted reads are independent of SET grants.
+  `pgcrypto_module.go` owns the bounded physical pgcrypto attachment. Before
+  initialization its custom setting is ordinary hidden text; initialization
+  promotes the exact enum recipe, converts current/reset and journal originals
+  with original setter authority, and reserves/removes unknown `pgcrypto.*` placeholders.
+  Promotion replays SAVE/SET/LOCAL journals bottom-up through the existing action
+  rules (masked SET before LOCAL); a failed replay leaves the preceding value
+  and action intact. A physical assignment ordinal identifies copied replay
+  nodes, not equal values: identical invalid assignments at distinct action
+  levels still produce their own warnings.
+  Active owner savepoint/exception images supply assignments coalesced out of
+  the live flat journal. Activation promotes owned copies oldest-first before
+  the current image, leaving retained backing and ordinary nesting/commit rules
+  unchanged. Entry holds Owner.Mu → Engine.Mu → Settings.Mu → Session.Mu;
+  reserved-prefix removal notices follow all enum replay diagnostics.
+  Reserved-prefix cleanup removes placeholder values and saved actions, never
+  genuine explicitly registered sibling definitions; the attachment keeps only
+  immutable sibling names, not a second registry.
+  The common effective projection supplies lookup, flags, SHOW ALL, pg_settings
+  and declaration/persisted validators without copying or mutating the shared
+  registry. ISN, pgcrypto and pg_trgm module files own their distinct physical
+  lifetimes and promotion, not separate definition registries.
+  Detached invocation images share only physical module lifetime. Original
+  setters and typed values remain in their own action images; retained marks
+  are converted while cloning, before the allocation-free restore window.
+  Transaction/exception rollback, catalog Reset/Restore and borrower return do
+  not unload the attachment; physical EndSession releases it. Internal replay
+  authority is captured once at initialization, never a retained operation or
+  live ACL view. Promotion returns owned warnings for ordinary filtered delivery
+  outside publication locks; only the actual CREATE validation scope supplies
+  its script Context. The exact parameter accepts ordinary live SET grants.
   Explicit true statistics assignments check effective typed peers after admission
   and before Touch/install. Cached RESET/DEFAULT/NULL, RESET ALL and transaction
   restoration bypass those hooks, including when captured defaults conflict with
@@ -631,6 +665,10 @@ wrappers, the root fence types and the fence check order, and the root slot
 types.
 
 ## Testing
+
+Physical pgcrypto activation, combined ISN/pgcrypto/pg_trgm projection and precise
+typed resets, journals, ancestry and detached/retained ownership use
+`RUN='^TestPgcryptoModule'` in `enginetests`.
 
 TEMP selector, immutable-assignment ownership and lifecycle units use
 `RUN='^TestTempTablespaces'` from the external `enginetests` package.

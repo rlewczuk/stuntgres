@@ -18,9 +18,12 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	initializingPgcrypto := s.Name.Text == "pgcrypto" && !scope.Op.Session.Settings.PgcryptoInitialized()
+	if initializingPgcrypto { scope.Owner.Mu.Lock() }
 	e.Mu.Lock()
 	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
+	if initializingPgcrypto { scope.Owner.Mu.Unlock() }
 	if err != nil || stage == nil {
 		return core.Result{}, err
 	}

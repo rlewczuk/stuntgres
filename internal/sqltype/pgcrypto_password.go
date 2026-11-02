@@ -44,7 +44,7 @@ func (p PgcryptoSaltParameters) EntropySize() int {
 }
 
 // PrepareSalt validates signed SQL counts before conversion or entropy access.
-func (p PgcryptoPlan) PrepareSalt(values ...Value) (PgcryptoSaltParameters, bool, error) {
+func (p PgcryptoPlan) PrepareSalt(checkBuiltin func() error, values ...Value) (PgcryptoSaltParameters, bool, error) {
 	var parameters PgcryptoSaltParameters
 	if p.name != "gen_salt" {
 		return parameters, false, fmt.Errorf("invalid salt plan")
@@ -52,6 +52,9 @@ func (p PgcryptoPlan) PrepareSalt(values ...Value) (PgcryptoSaltParameters, bool
 	null, err := p.validateValues(values)
 	if err != nil || null {
 		return parameters, null, err
+	}
+	if checkBuiltin != nil {
+		if err := checkBuiltin(); err != nil { return parameters, false, err }
 	}
 	name, err := values[0].Text()
 	if err != nil {

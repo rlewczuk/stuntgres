@@ -97,7 +97,7 @@ func TestPgcryptoRawVectors(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := plan.Evaluate(context.Background(), nil, values...)
+				got, err := plan.Evaluate(context.Background(), nil, nil, values...)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -167,7 +167,7 @@ func TestPgcryptoCancellation(t *testing.T) {
 		}
 		for _, after := range []int{1, 3, 5} {
 			ctx := &cryptoCancelContext{Context: context.Background(), after: after}
-			got, err := plan.Evaluate(ctx, nil, values...)
+			got, err := plan.Evaluate(ctx, nil, nil, values...)
 			if !errors.Is(err, context.Canceled) || got.Type() != nil {
 				t.Fatal(name, after, got, err)
 			}

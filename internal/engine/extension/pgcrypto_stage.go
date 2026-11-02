@@ -24,6 +24,17 @@ func pgcryptoDeclaration(slot int) catalog.InstalledRoutineDeclaration {
 	return catalog.InstalledRoutineDeclaration{}
 }
 
+const PgcryptoDigestContext = `SQL statement "CREATE FUNCTION digest(text, text)
+RETURNS bytea
+AS '$libdir/pgcrypto', 'pg_digest'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE"
+extension script file "pgcrypto--1.3.sql", near line 6`
+const PgcryptoCryptContext = `SQL statement "CREATE FUNCTION crypt(text, text)
+RETURNS text
+AS '$libdir/pgcrypto', 'pg_crypt'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE"
+extension script file "pgcrypto--1.3.sql", near line 26`
+
 // Stage installs the pgcrypto functions into stage, owned by owner, allocating
 // identities in member order.
 func (p *PgcryptoProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
@@ -43,7 +54,13 @@ func (p *PgcryptoProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		proc.Installed = pgcryptoDeclaration(i)
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/pgcrypto", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
+			context := ""
+			if i == 0 { context = PgcryptoDigestContext }
+			if i == 4 { context = PgcryptoCryptContext }
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name()), Context: context}
+		}
+		if i == 0 {
+			if err := stage.InitializePgcrypto(PgcryptoDigestContext); err != nil { return err }
 		}
 		if err := stage.Create(proc); err != nil {
 			return err

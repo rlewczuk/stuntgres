@@ -53,7 +53,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 		p := node.Properties()
 		independent := !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion
 		generic := c.PreserveParameterDemand && p.ParameterDependent
-		eligible := independent && !generic && call.Properties().Volatility == expr.Immutable && !planningExecutionBarrier(call)
+		eligible := independent && !generic && call.Properties().Volatility == expr.Immutable && !planningExecutionBarrier(c, call)
 		routed := call.WithWrapperRoute(eligible)
 		// A route-only replacement must survive callers' copy-on-change maps.
 		changed = changed || routed.Wrapper != call.Wrapper
@@ -125,7 +125,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 // domain into its value.
 func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
-	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(node) {
+	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && !planningExecutionBarrier(c, node) {
 		value, err := FoldPlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}

@@ -48,14 +48,14 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		parameters, null, err := plan.PrepareSalt(String(text, v.name), count)
+		parameters, null, err := plan.PrepareSalt(nil, String(text, v.name), count)
 		if err != nil || null || parameters.rounds != v.want || parameters.EntropySize() != v.size {
 			t.Fatal(v, parameters, null, err)
 		}
 	}
 	for _, name := range []string{"des", "xdes", "md5", "bf", "sha256crypt", "sha512crypt"} {
 		omitted, text, _ := pgcryptoSaltUnitPlan(t, false)
-		parameters, null, err := omitted.PrepareSalt(String(text, name))
+		parameters, null, err := omitted.PrepareSalt(nil, String(text, name))
 		if err != nil || null || parameters.rounds == 0 {
 			t.Fatal(name, parameters, null, err)
 		}
@@ -73,7 +73,7 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 	} {
 		for _, raw := range v.counts {
 			count, _ := Integer(integer, raw)
-			parameters, null, err := plan.PrepareSalt(String(text, v.name), count)
+			parameters, null, err := plan.PrepareSalt(nil, String(text, v.name), count)
 			var diagnostic *sqlstate.Error
 			if null || parameters != (PgcryptoSaltParameters{}) || !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Message != "gen_salt: Incorrect number of rounds" {
 				t.Fatal(v.name, raw, parameters, null, err)
@@ -82,7 +82,7 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 	}
 	for _, name := range []string{" des", "md5 ", "unknown", " sha256crypt", "sha512crypt "} {
 		count, _ := Integer(integer, 1)
-		_, _, err := plan.PrepareSalt(String(text, name), count)
+		_, _, err := plan.PrepareSalt(nil, String(text, name), count)
 		var diagnostic *sqlstate.Error
 		code, message := "22023", "gen_salt: Unknown salt algorithm"
 		if !errors.As(err, &diagnostic) || diagnostic.Code != code || diagnostic.Message != message {
@@ -90,7 +90,7 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 		}
 	}
 	invalid, _ := Integer(integer, -1)
-	parameters, null, err := plan.PrepareSalt(Null(text), invalid)
+	parameters, null, err := plan.PrepareSalt(nil, Null(text), invalid)
 	if err != nil || !null || parameters != (PgcryptoSaltParameters{}) {
 		t.Fatal(parameters, null, err)
 	}

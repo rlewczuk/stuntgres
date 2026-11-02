@@ -122,7 +122,7 @@ func TestPgcryptoSHACancellation(t *testing.T) {
 				{"p", "999999999", 2000},
 			} {
 				ctx := &pgcryptoSHACancelContext{Context: context.Background(), after: v.after, failure: failure}
-				got, err := plan.Evaluate(ctx, nil, String(text, v.password), String(text, "$"+id+"$rounds="+v.rounds+"$salt"))
+				got, err := plan.Evaluate(ctx, nil, nil, String(text, v.password), String(text, "$"+id+"$rounds="+v.rounds+"$salt"))
 				if got.Type() != nil || !errors.Is(err, failure) || ctx.calls != v.after {
 					t.Fatal(id, v.after, got, err, ctx.calls)
 				}
@@ -141,11 +141,11 @@ func TestPgcryptoSHAIsolation(t *testing.T) {
 	for range 2 {
 		for _, id := range []string{"5", "6"} {
 			var notices []sqlstate.Error
-			_, err := plan.Evaluate(context.Background(), func(n sqlstate.Error) { notices = append(notices, n) }, String(text, "p"), String(text, "$"+id+"$rounds=10$!"))
+			_, err := plan.Evaluate(context.Background(), func(n sqlstate.Error) { notices = append(notices, n) }, nil, String(text, "p"), String(text, "$"+id+"$rounds=10$!"))
 			if err == nil || len(notices) != 1 {
 				t.Fatal(err, notices)
 			}
-			got, err := plan.Evaluate(context.Background(), func(n sqlstate.Error) { t.Errorf("stale notice: %+v", n) }, Null(text), String(text, "$"+id+"$rounds=10$!"))
+			got, err := plan.Evaluate(context.Background(), func(n sqlstate.Error) { t.Errorf("stale notice: %+v", n) }, nil, Null(text), String(text, "$"+id+"$rounds=10$!"))
 			if err != nil || !got.IsNull() || got.Type() != text || plan != before {
 				t.Fatal(got, err, plan)
 			}
@@ -161,7 +161,7 @@ func TestPgcryptoSHAIsolation(t *testing.T) {
 				setting, want = "$6$saltstring", "$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1"
 			}
 			notices := 0
-			value, err := plan.Evaluate(context.Background(), func(sqlstate.Error) { notices++ }, String(text, "Hello world!"), String(text, setting))
+			value, err := plan.Evaluate(context.Background(), func(sqlstate.Error) { notices++ }, nil, String(text, "Hello world!"), String(text, setting))
 			if err != nil {
 				results <- err
 				return

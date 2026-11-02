@@ -99,6 +99,12 @@ import this package directly.
   The six cumulative-collector settings (`stats_fetch_consistency` and the five
   tracking switches) are explicitly classified as zero-bit definitions: their
   flags inquiry returns a non-NULL empty array, independently of SET privilege.
+- **Private pgcrypto recipe** (`pgcrypto.go`): `PgcryptoDefinition` creates one
+  owned immutable enum/default recipe for a physical module attachment. It is
+  absent from the frozen registry and ordinary startup-provider enumeration;
+  public registration cannot replace its reserved exact name. Session activation,
+  placeholder replay, metadata visibility and values belong to `session`, not
+  to a mutable global registry. Returned enum storage belongs to that recipe.
 
 ## Invariants
 

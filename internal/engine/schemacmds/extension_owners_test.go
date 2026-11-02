@@ -290,7 +290,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if err := stored.ValidateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := actual.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		value, err := actual.Eval(pgcryptoProviderUnitContext(view))
 		raw, _ := value.Binary()
 		if err != nil || hex.EncodeToString([]byte(raw)) != "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843" {
 			t.Fatal("relocated HMAC", raw, err)

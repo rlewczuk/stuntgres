@@ -22,9 +22,11 @@ func TestSSLInfoNestedDefaultClosure(t *testing.T) {
 	e, _ := sslInfoUnitInstalled(t)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)
+	op.Session.Transactions.Mu.Lock()
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
 	e.Mu.Unlock()
+	op.Session.Transactions.Mu.Unlock()
 	if err != nil { t.Fatal(err) }
 	extensionUnitPublish(t, e, op, stage)
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)

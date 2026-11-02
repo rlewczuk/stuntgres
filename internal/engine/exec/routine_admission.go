@@ -204,6 +204,9 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			return err
 		}
 	}
+	if crypto, ok := node.(plan.InstalledCryptoExpr); ok {
+		if err := c.InitializePgcrypto(crypto.Procedure, crypto.Ref); err != nil { return err }
+	}
 	if inquiryRoutine(captured) {
 		return validateInquiryBodyLifetime(c, node, captured)
 	}
