@@ -2747,6 +2747,13 @@ completion while observing the exact queue.
 Publication units use real provider barriers and exact namespace/name resources,
 join workers before cleanup, and reject retirement or competing bindings without
 adopting successors. Use `RACE=1` for the publication family.
+
+Same-package integer/NULL FDW fixtures use private `fdwIntegerImport` and
+`fdwIntegerExport` in `fdw_query_prepared_test.go`: import `int64`/nil with the
+declared integer type and export `int64`/nil. Metadata-only nil codecs and
+intentional failing callbacks remain local. FDW units use `RUN='^TestFDW'`;
+public SQL witnesses remain in `reference/tables`.
+
 Foreign selected-plan backing and canonical/journal sampled-statistics ownership
 use `RUN='^Test(FDWExplain|AnalyzeForeign)'`. Public dual-mode scenarios remain
 in `reference/tables`; prepared definitions retain no provider plans or sampler

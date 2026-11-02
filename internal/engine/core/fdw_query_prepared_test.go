@@ -38,6 +38,20 @@ func (p *preparedQueryProvider) BeginForeignQueryScan(_ context.Context, r catal
 	return &fdwDispatchPartition{rows: []catalog.ForeignRow{row}}, p.failure
 }
 
+func fdwIntegerImport(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
+	if value == nil {
+		return sqltype.Null(usage.Type), nil
+	}
+	return sqltype.Integer(usage.Type, value.(int64))
+}
+
+func fdwIntegerExport(_ context.Context, value sqltype.Value, _ sqltype.OutputEnvironment) (driver.Value, error) {
+	if value.IsNull() {
+		return nil, nil
+	}
+	return value.Integer()
+}
+
 func preparedQueryFixture(t *testing.T) (*core.Engine, *session.Session, *preparedQueryProvider) {
 	t.Helper()
 	e := engine.New()
@@ -46,17 +60,7 @@ func preparedQueryFixture(t *testing.T) (*core.Engine, *session.Session, *prepar
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, func(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
-		if value == nil {
-			return sqltype.Null(usage.Type), nil
-		}
-		return sqltype.Integer(usage.Type, value.(int64))
-	}, func(_ context.Context, value sqltype.Value, _ sqltype.OutputEnvironment) (driver.Value, error) {
-		if value.IsNull() {
-			return nil, nil
-		}
-		return value.Integer()
-	}); err != nil {
+	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, fdwIntegerImport, fdwIntegerExport); err != nil {
 		t.Fatal(err)
 	}
 	s := enginetest.StartSession(t, e, nil)
