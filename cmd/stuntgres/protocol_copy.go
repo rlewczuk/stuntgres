@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/core"
@@ -43,6 +44,27 @@ func (p *protocolCopy) closeCommand() {
 	p.release()
 	p.started = false
 	p.transportErr = nil
+}
+
+// notices sends notices raised while a top-level DO block runs and flushes
+// them, as PostgreSQL flushes each NoticeResponse. A socket failure is the
+// command's transport error; a conversion failure fails the RAISE.
+func (p *protocolCopy) notices(notices []sqlstate.Error) error {
+	p.client.refreshEncoding()
+	for _, notice := range notices {
+		if err := p.client.wire.notice(notice); err != nil {
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) {
+				p.transportErr = err
+			}
+			return err
+		}
+	}
+	if err := p.client.wire.flush(); err != nil {
+		p.transportErr = err
+		return err
+	}
+	return nil
 }
 func (p *protocolCopy) start(metadata core.CopyProtocolMetadata) error {
 	p.release()

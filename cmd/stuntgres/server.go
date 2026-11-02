@@ -110,7 +110,7 @@ func (s *server) newClient(socket net.Conn) (*client, error) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	c := &client{server: s, socket: socket, wire: newWire(socket), ctx: ctx, cancel: cancel, id: s.nextID, key: secret, keyLength: 4, lastSettings: make(map[string]string)}
 	c.copyStream.client = c
-	c.copyHooks = core.CopyProtocolHooks{Start: c.copyStream.start, FinishInput: c.copyStream.finishInput}
+	c.copyHooks = core.CopyProtocolHooks{Start: c.copyStream.start, FinishInput: c.copyStream.finishInput, Notices: c.copyStream.notices}
 	s.clients[c] = struct{}{}
 	s.workers.Add(1)
 	return c, nil

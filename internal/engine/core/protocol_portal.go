@@ -359,6 +359,9 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		out.Empty = true
 		return out, nil
 	}
+	previousNotices := s.protocol().notices
+	s.protocol().notices = hooks.Notices
+	defer func() { s.protocol().notices = previousNotices }()
 	if err = s.Gate(p.Entry.Body); err != nil {
 		return out, err
 	}
@@ -620,6 +623,8 @@ type protocolScope struct {
 	simpleStreaming bool
 	simplePortal    *protocolPortal
 	command         bool // Explicit wire preparation/execution policy, not session state.
+	// notices is the frontend's CopyProtocolHooks.Notices for this execution.
+	notices func([]sqlstate.Error) error
 }
 
 // protocol returns the statement's protocol slot, allocating it on first use.

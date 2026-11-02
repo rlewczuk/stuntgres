@@ -51,6 +51,9 @@ func (e *Engine) executeDO(s *StatementScope, raw *parser.Do, count int) (Result
 		return Result{}, err
 	}
 	defer s.leaveSQLRoutine()
+	previousStream := s.plNoticeStream
+	s.plNoticeStream = s.activeSQLRoutineDepth == 1
+	defer func() { s.plNoticeStream = previousStream }()
 	previousAtomic := s.plAtomic
 	s.plAtomic = previousAtomic || s.plSubtransactionActive()
 	defer func() { s.plAtomic = previousAtomic }()

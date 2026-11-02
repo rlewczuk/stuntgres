@@ -186,7 +186,10 @@ func (h *plHost) Message(f *proc.PLFrame, in proc.PLInstruction) error {
 	previous := h.setOrigin(proc.PLOrigin{Position: in.Syntax.Pos, Action: action})
 	defer func() { h.live.origin = previous }()
 	if in.Raise != nil {
-		return h.s.executePLRaise(h.d, f, in, h.read)
+		if err := h.s.executePLRaise(h.d, f, in, h.read); err != nil {
+			return err
+		}
+		return h.s.streamPLNotices()
 	}
 	return h.s.executePLAssert(h.d, f, in, h.read)
 }

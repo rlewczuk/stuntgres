@@ -154,7 +154,9 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   End-of-command notices remain fallible before statement Finish; actual writes
   use the active unlocked owner reservation, retaining conversion rollback and
   terminal transport-failure cleanup for simple, extended and FunctionCall
-  commands. Diagnostics retain the failing command's encoding before unwind;
+  commands. A top-level DO block's RAISE notices are sent and flushed as each
+  RAISE completes (`CopyProtocolHooks.Notices`); a socket failure aborts the
+  block. Diagnostics retain the failing command's encoding before unwind;
   FunctionCall reports recoverable errors at its own ReadyForQuery boundary.
 - Dual-backend forwarding (`reference_forward.go`): the dispatcher owns the
   reference write side, waiting and record assembly, and forwards each

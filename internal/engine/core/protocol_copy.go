@@ -4,6 +4,7 @@ import (
 	"io"
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // A frontend grants stream capability only for its active canonical execution.
@@ -23,9 +24,13 @@ type CopyProtocolMetadata struct {
 
 // CopyProtocolHooks are optional transport callbacks. FinishInput is a terminal
 // input veto: it runs before staged rows can reach applyInsertValidated.
+// Notices, when set, receives the final notices of a top-level DO block as its
+// RAISE statements complete, inside the same lock-releasing I/O as row
+// streaming; the remaining notices still follow the statement.
 type CopyProtocolHooks struct {
 	Start       func(CopyProtocolMetadata) error
 	FinishInput func() error
+	Notices     func([]sqlstate.Error) error
 }
 
 // protocolCopyStart returns the frontend start publication, or nil without a

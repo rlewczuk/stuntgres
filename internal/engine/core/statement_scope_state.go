@@ -107,6 +107,7 @@ type StatementScope struct {
 	activeTriggerDepth          int                 // Actual user/RI invocations, independent of routine safety depth.
 	activeConstraintTriggers    []ids.ObjectAddress // Call-owned LIFO ancestry; never checkpointed as transaction state.
 	plAtomic                    bool                // Captured command context, then defer-scoped active invocation barriers.
+	plNoticeStream              bool                // Top-level DO body: RAISE publishes its final notices at once.
 	plLoops                     *plQueryRows        // Borrowed active adapters; not a named portal registry.
 	plExecutingPortal           *protocolPortal     // Current CALL/DO portal survives its own internal boundaries.
 	routineLive                 *routineLive

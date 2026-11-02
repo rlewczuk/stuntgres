@@ -21,7 +21,10 @@ import (
 func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe func([]catalog.Column) error, row func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (result Result, err error) {
 	s.protocol().simple = true
 	s.protocol().simpleStreaming = true
+	previousNotices := s.protocol().notices
+	s.protocol().notices = hooks.Notices
 	defer func() {
+		s.protocol().notices = previousNotices
 		s.protocol().simpleStreaming = false
 		s.protocol().bind = nil
 		if p := s.protocolOrZero().simplePortal; p != nil {

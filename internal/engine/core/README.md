@@ -1075,7 +1075,10 @@ new buffered notice range after cleanup, using the caller identity captured
 before lexical scratch activation. Query-loop producer execute/fetch/close ranges
 exclude body execution, so a body message does not gain a spurious FOR frame.
 No callback stack or rendered context is allocated when a range is empty; error
-unwinding and later adapter callback delivery remain separate.
+unwinding and later adapter callback delivery remain separate. A frontend
+`CopyProtocolHooks.Notices` receives a top-level DO block's final notices as
+each RAISE completes, through `protocolSimpleIO`; only the DO's own frame outside
+PL subtransactions streams, where no outer executor or notice range is open.
 Static query loops (`plQueryRows`, reused per nesting depth) borrow the
 [`exec`](../exec/README.md) nested producer and CTE row owner under a live lexical
 activation that spans the body. DML and modifying CTEs complete eagerly and
