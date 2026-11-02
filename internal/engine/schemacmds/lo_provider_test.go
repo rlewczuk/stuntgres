@@ -152,14 +152,19 @@ func TestLoProviderConflicts(t *testing.T) {
 			e.Catalog.InstallOIDFrontierLocked(frontier)
 			stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
 			e.Mu.Unlock()
-			if stage != nil {
-				e.DiscardCatalogStage(stage)
+			extensionUnitDiscardFailed(t, e, stage)
+			if !errors.Is(err, catalog.ErrObjectIdentityExhausted) || stage == nil || e.Catalog.State != before {
+				t.Fatal("exhausted installation lost failed ownership or published a prefix", stage, err)
 			}
-			if err == nil || stage != nil || e.Catalog.State != before {
-				t.Fatal("exhausted installation published a prefix", stage, err)
+			read := e.CatalogRead()
+			namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+			if read.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "lo"}) != (ids.ObjectAddress{}) || len(read.State().ProceduresNamed(namespace, "lo_manage")) != 0 {
+				t.Fatal("failed installation leaked extension or procedure names")
 			}
-			if e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "lo"}) != (ids.ObjectAddress{}) || e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "lo"}) != (ids.ObjectAddress{}) {
-				t.Fatal("failed installation leaked names")
+			for _, name := range []string{"lo", "_lo"} {
+				if read.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: name}) != (ids.ObjectAddress{}) {
+					t.Fatal("failed installation leaked type name", name)
+				}
 			}
 		})
 	}

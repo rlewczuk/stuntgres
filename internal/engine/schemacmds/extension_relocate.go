@@ -26,7 +26,7 @@ func stageExtensionSchemaLocked(h *extensionHost, old *catalog.Extension, target
 	}
 	auth = core.DDLAuthorityOf(nextAuth)
 	h.Auth = auth
-	h.namespace = destination.Address
+	h.ObserveNamespace(destination.Address)
 	if err := base.CheckCreateIn(auth, destination); err != nil {
 		return err
 	}

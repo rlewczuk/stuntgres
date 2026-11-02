@@ -24,10 +24,10 @@ func segProviderStage(t *testing.T, e *core.Engine, op *session.Operation) *core
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "seg"}})
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	return stage
 }
 func segProviderInstalled(t *testing.T) (*core.Engine, *session.Operation, *catalog.Extension, *catalog.Type) {
@@ -166,8 +166,9 @@ func TestSegProviderPublicationConflict(t *testing.T) {
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	e.Mu.Lock()
-	_, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "seg"}})
+	failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "seg"}})
 	e.Mu.Unlock()
+	extensionUnitDiscardFailed(t, e, failed)
 	if err == nil || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(collision) != original {
 		t.Fatal("collision published fragments", err)
 	}

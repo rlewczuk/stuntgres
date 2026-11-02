@@ -33,10 +33,10 @@ func isnUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, sch
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if initializingPgcrypto { op.Session.Transactions.Mu.Unlock() }
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	return stage
 }
 

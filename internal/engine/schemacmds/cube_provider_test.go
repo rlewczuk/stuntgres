@@ -35,10 +35,10 @@ func cubeUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, sc
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	return stage
 }
 
@@ -332,8 +332,9 @@ func TestCubeProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "cube"}})
+		failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "cube"}})
 		e.Mu.Unlock()
+		extensionUnitDiscardFailed(t, e, failed)
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: extension.CubeTypeContext}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.Catalog.State != before {

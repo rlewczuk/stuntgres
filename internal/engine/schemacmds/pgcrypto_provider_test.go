@@ -59,6 +59,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
 	e.Mu.Unlock()
 	op.Session.Transactions.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}

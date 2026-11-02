@@ -1,20 +1,20 @@
 package schemacmds_test
 
 import (
- "errors"
- "reflect"
- "testing"
- "stuntgres/internal/engine"
- "stuntgres/internal/engine/authorization"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/core"
- "stuntgres/internal/engine/enginetest"
- "stuntgres/internal/engine/extension"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/schemacmds"
- "stuntgres/internal/parser"
- "stuntgres/internal/sqlstate"
- "stuntgres/internal/sqltype"
+	"errors"
+	"reflect"
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/schemacmds"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 type ltxtqueryConflictStage struct {
@@ -40,7 +40,9 @@ func (s ltxtqueryConflictStage) Create(d catalog.Descriptor) error {
 		return err
 	}
 	signature := extension.LquerySignature(typ.SQLType.ID())
-	if s.name == "ltxtq_in" { signature = "2275" }
+	if s.name == "ltxtq_in" {
+		signature = "2275"
+	}
 	return s.Stage.Create(&catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: typ.Namespace(), ObjectRevision: rev, ObjectName: s.name, Signature: signature, Owner: s.owner})
 }
 
@@ -132,8 +134,9 @@ func ltxtqueryProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "ltree"}})
+		failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "ltree"}})
 		e.Mu.Unlock()
+		extensionUnitDiscardFailed(t, e, failed)
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "ltxtquery" already exists`, Context: "SQL statement \"CREATE TYPE ltxtquery (\n\tINTERNALLENGTH = -1,\n\tINPUT = ltxtq_in,\n\tOUTPUT = ltxtq_out,\n\tSTORAGE = extended\n)\"\nextension script file \"ltree--1.1.sql\", near line 424"}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.Catalog.State != before {

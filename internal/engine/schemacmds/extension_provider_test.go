@@ -32,10 +32,36 @@ func extensionUnitStage(t *testing.T, e *core.Engine, op *session.Operation) *co
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
 	return stage
+}
+
+// Failed staging can still transfer an owned candidate. Disposal must occur
+// after unlocking, and must make even an unpublished prefix unwritable.
+func extensionUnitDiscardFailed(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
+	t.Helper()
+	if !e.Mu.TryLock() {
+		t.Fatal("failed extension candidate disposed with Engine.Mu held")
+	}
+	e.Mu.Unlock()
+	e.DiscardCatalogStage(stage)
+	if stage == nil {
+		return
+	}
+	if stage.Lifecycle != core.CatalogDiscarded {
+		t.Fatal("failed extension candidate was not discarded", stage.Lifecycle)
+	}
+	if stage.Create(&catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 999997}, ObjectName: "discarded_extension_probe"}) == nil {
+		t.Fatal("discarded failed extension candidate accepted a creation")
+	}
+	namespace := *stage.Base.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace.ObjectRevision++
+	if stage.Replace(&namespace) == nil {
+		t.Fatal("discarded failed extension candidate accepted a replacement")
+	}
 }
 func extensionUnitPublish(t *testing.T, e *core.Engine, op *session.Operation, stage *core.CatalogStage) {
 	t.Helper()
@@ -211,8 +237,9 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			}
 			before := e.Catalog.State
 			e.Mu.Lock()
-			_, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
+			failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 			e.Mu.Unlock()
+			extensionUnitDiscardFailed(t, e, failed)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) {
 				t.Fatal("collision accepted", err)
@@ -355,6 +382,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		e.Mu.Lock()
 		stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
 		e.Mu.Unlock()
+		defer e.DiscardCatalogStage(stage)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}

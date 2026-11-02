@@ -40,6 +40,7 @@ func uuidOsspUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}

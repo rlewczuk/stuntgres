@@ -10,6 +10,7 @@ import (
 // against.
 type AuthorityObservation struct {
 	Roles               uint64
+	NamespaceAddress    ids.ObjectAddress
 	Namespace, Database catalog.Descriptor
 }
 
@@ -26,8 +27,8 @@ func (o AuthorityObservation) Current(names map[ids.NameKey]ids.ObjectAddress, s
 			return NameConflict(key.Name)
 		}
 	}
-	if roles != o.Roles || o.Namespace == nil || o.Database == nil ||
-		state.Get(o.Namespace.Address()) != o.Namespace ||
+	if roles != o.Roles || o.NamespaceAddress.ClassID != ids.NamespaceClassID || o.NamespaceAddress.ObjectID == 0 || o.NamespaceAddress.SubID != 0 || o.Database == nil ||
+		state.Get(o.NamespaceAddress) != o.Namespace ||
 		state.Get(o.Database.Address()) != o.Database {
 		return catalog.Conflict{}
 	}

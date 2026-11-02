@@ -177,8 +177,12 @@ Each family host carries a compile-time assertion; `RoutineHost` and
 `extensionHost` captures one authorization view and wraps the stage rather
 than being a defined type over `CatalogStage`, so `Create` and `Replace` keep
 the stage's lifecycle checks. `BeginStage` stores it in
-`CatalogStage.ExtensionSlot`; `stageOf` gives the executors their stage back
-and `extensionNamespaceOf` the exact namespace fenced for publication.
+`CatalogStage.ExtensionSlot`; `stageOf` returns the root stage and
+`extensionNamespacesOf` returns all captured schema/predecessor observations.
+`Read` remains the immutable stage base; `CurrentRead` includes earlier staged
+prerequisites. Script helper lookup replaces the caller path with target then
+actual required namespaces, preserving implicit pg_catalog priority and excluding
+own TEMP functions. Schema USAGE is checked as the actual script principal.
 
 ## Extensions
 
@@ -194,6 +198,18 @@ script's initial C-validation boundary. This loads even when a later member
 collides, but never for IF NOT EXISTS or earlier privilege/schema/version errors.
 Settings/session locks are released before owned warnings are queued; no external
 notice callback runs under publication locks.
+CREATE acquires one stage for the whole recursive closure. Any staging or
+materialization error disposes that owned stage after releasing `Engine.Mu`;
+successful staging transfers disposal to publication. Cancellation before
+recursive work and publication rejects the whole candidate.
+Every script target, reused prerequisite schema and originally explicit schema
+retains its committed predecessor before validation releases the mutex.
+Namespace authority fences carry an explicit address and nullable predecessor:
+a transaction-private schema has committed absence, never an unset address.
+Reused prerequisite descriptors and their members retain actual private/base
+observations and committed originals; concurrent replacement cannot silently
+change the provider used by a newly installed dependent.
+
 Successful membership ADD/DROP and real schema movement annotate one outer
 `ALTER EXTENSION` address on the gated command stage; recursive members and
 internal namespace movers do not emit separate command receipts. Publication
@@ -246,6 +262,14 @@ the session IDs `enginetest` mints, so a test may use both. The extension
 provider units stage through the shared extension host
 (`schemacmds.ExtensionHost`, `StageExtensionLocked`); the type, domain and
 enum units stage through `StageSchemaLocked`.
+`StageExtensionLocked` transfers every nonnil candidate to its caller, including
+an uncommitted partial candidate returned with an error. Unlock `Engine.Mu`
+before disposing it; the executor owns that unlocked failure path. Internal
+callers register cleanup before any error/Fatal branch and must not lose a
+returned failed stage. Failure units check disposal rejects further writes and
+that no staged extension/member prefix reaches the committed catalog; a nil
+stage is expected only when admission fails before a stage was created.
+
 Unaccent expression, remap and rollback-survivor units evaluate with real
 `Engine.StartStatement` admission and `HostOf(scope)`. They finish each scope
 before publishing catalog mutations or starting the next statement, and defer
@@ -259,6 +283,7 @@ omit pinned builtins. Remap fixtures occupy the exact source dictionary identity
 with a real dictionary in a live session's TEMP namespace, assert that replacement
 retains that descriptor and callback, then distinguish imported execution and
 rendering from the retained collision.
+
 SSLInfo provider, expression-protocol and stored-identity units use
 `RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
 sealed authority, scalar source cardinality and destination remapping without

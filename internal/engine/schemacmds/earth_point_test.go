@@ -123,11 +123,9 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	e.Mu.Lock()
 	failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
-	if failed != nil {
-		e.DiscardCatalogStage(failed)
-	}
+	extensionUnitDiscardFailed(t, e, failed)
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != "operator <@> already exists" || failed != nil {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != "operator <@> already exists" || failed == nil {
 		t.Fatal("actual provider late operator collision", failed, err)
 	}
 	after := e.CatalogRead()

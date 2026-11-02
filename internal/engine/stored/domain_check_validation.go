@@ -43,7 +43,14 @@ func ValidateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 			return fmt.Errorf("stuntgres: invalid domain CHECK definition")
 		}
 		previous = check.Name
-		if _, err := (ScalarRenderer{DomainValue: &base}).SQL(context.Background(), view, check.Expression); err != nil {
+		renderer := ScalarRenderer{DomainValue: &base}
+		if _, installed := check.Expression.(plan.EarthCheckExpr); installed {
+			if len(check.Dependencies) == 0 {
+				return fmt.Errorf("stuntgres: missing earth CHECK dependency manifest")
+			}
+			renderer.CapturedChecks = check.Dependencies
+		}
+		if _, err := renderer.SQL(context.Background(), view, check.Expression); err != nil {
 			return err
 		}
 		for _, dependency := range check.Dependencies {

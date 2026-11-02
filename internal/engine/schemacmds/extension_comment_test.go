@@ -56,10 +56,10 @@ func TestExtensionCommentInitialMetadata(t *testing.T) {
 			e.Mu.Lock()
 			stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 			e.Mu.Unlock()
+			defer e.DiscardCatalogStage(stage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer e.DiscardCatalogStage(stage)
 			view := e.StageRead(stage)
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 			if ext.Comment != want || pgcatalog.DescriptorComment(ext, 0) != want || pgcatalog.DescriptorComment(ext, 1) != "" {

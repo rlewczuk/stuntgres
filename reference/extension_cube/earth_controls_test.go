@@ -36,7 +36,7 @@ func earthControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fix
 	}
 }
 
-func earthNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+func earthNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, verify func(*testing.T, *fixture.Pair, fixture.Backend, fixture.Executor, *fixture.Recorder)) {
 	t.Helper()
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET extra_float_digits=0", 0))
 	var dump bytes.Buffer
@@ -73,16 +73,27 @@ func earthNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	}
 	earthControlVerify(t, p, b, c, b.Recorder)
 	earthIdentityChecks(t, p, b, c, b.Recorder)
+	if verify != nil {
+		verify(t, p, b, c, b.Recorder)
+	}
 	cubeConsumeRetained(t, retained, earthControlRows(true))
 	cubeColumnMetadata(t, false, metadata, []string{"id", "v"}, []bool{false, true})
 	target := fixture.NewFixture(t, false, true)
-	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE TABLE earth_allocator_spacer(v integer)", 0))
+	targetConn, err := target.Memory.Conn(target.Ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer targetConn.Close()
+	fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("CREATE TABLE earth_allocator_spacer(v integer)", 0))
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	earthControlVerify(t, target, b, target.Memory, target.MemoryRecord)
-	earthIdentityChecks(t, target, b, target.Memory, target.MemoryRecord)
-	old, err := target.Memory.QueryContext(target.Ctx, "SELECT id,v FROM earth_controls ORDER BY id")
+	earthControlVerify(t, target, b, targetConn, target.MemoryRecord)
+	earthIdentityChecks(t, target, b, targetConn, target.MemoryRecord)
+	if verify != nil {
+		verify(t, target, b, targetConn, target.MemoryRecord)
+	}
+	old, err := targetConn.QueryContext(target.Ctx, "SELECT id,v FROM earth_controls ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,15 +102,21 @@ func earthNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	bad := "CREATE EXTENSION cube; CREATE EXTENSION earthdistance; CREATE TABLE earth_staged(v earth); INSERT INTO earth_staged VALUES ('6378168'); INSERT INTO earth_staged VALUES ('(0)');"
 	want := earthCheckDiagnostic("public", "on_surface", true)
 	fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)), &want)
+	if verify != nil {
+		verify(t, target, b, targetConn, target.MemoryRecord)
+	}
 	malformedPrefix := "CREATE EXTENSION cube; CREATE EXTENSION earthdistance; CREATE TABLE earth_staged(v earth); INSERT INTO earth_staged VALUES ('6378168'); INSERT INTO earth_staged VALUES ("
 	malformed := cubeSyntaxDiagnostic(`syntax error at or near ")"`)
 	malformed.Position = strconv.Itoa(len(malformedPrefix) + 1)
 	fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(malformedPrefix+"'(6378168,)');")), &malformed)
-	earthControlVerify(t, target, b, target.Memory, target.MemoryRecord)
-	earthIdentityChecks(t, target, b, target.Memory, target.MemoryRecord)
+	if verify != nil {
+		verify(t, target, b, targetConn, target.MemoryRecord)
+	}
+	earthControlVerify(t, target, b, targetConn, target.MemoryRecord)
+	earthIdentityChecks(t, target, b, targetConn, target.MemoryRecord)
 	cubeConsumeRetained(t, old, earthControlRows(false))
 	cubeColumnMetadata(t, false, oldMetadata, []string{"id", "v"}, []bool{false, true})
-	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("SET extra_float_digits=0", 0))
+	fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET extra_float_digits=0", 0))
 	var after bytes.Buffer
 	if err := stuntgres.Dump(target.Ctx, target.Native, &after); err != nil {
 		t.Fatal(err)
@@ -117,6 +134,9 @@ func earthNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 		pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
 		earthControlVerify(t, p, pg, pg.DB, pg.Recorder)
 		earthIdentityChecks(t, p, pg, pg.DB, pg.Recorder)
+		if verify != nil {
+			verify(t, p, pg, pg.DB, pg.Recorder)
+		}
 		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +160,7 @@ func TestReferenceEarthControls(t *testing.T) {
 		earthControlVerify(t, p, b, c, b.Recorder)
 		earthIdentityChecks(t, p, b, c, b.Recorder)
 		if !b.PG {
-			earthNativeControls(t, p, b, c)
+			earthNativeControls(t, p, b, c, nil)
 		}
 	})
 }

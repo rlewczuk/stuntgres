@@ -41,7 +41,7 @@ func (p *DictIntProvider) Stage(stage Stage, ext *catalog.Extension, owner autho
 			return err
 		}
 	}
-	found, err := stage.ScriptFunctions(owner, ext.TargetNamespace, dictIntScriptFunctions[:])
+	found, err := stage.ScriptFunctions(owner, ext, dictIntScriptFunctions[:])
 	if err != nil {
 		return err
 	}

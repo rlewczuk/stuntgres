@@ -229,10 +229,10 @@ func TestPGInitPrivsProviderDefaultPublication(t *testing.T) {
 			e.Mu.Lock()
 			stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "amcheck"}})
 			e.Mu.Unlock()
+			defer e.DiscardCatalogStage(stage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer e.DiscardCatalogStage(stage)
 			key := catalog.DefaultACLKey{Creator: op.RoleState().CurrentUser, Class: authorization.DefaultRoutines}
 			record, observed := stage.DefaultObservation(key)
 			if !observed || (record != nil) != existing {
@@ -307,10 +307,10 @@ func pgInitPrivsProviderDefaultExplicitEmpty(t *testing.T) {
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "amcheck"}})
 	e.Mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer e.DiscardCatalogStage(stage)
 	extensionUnitPublish(t, e, op, stage)
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"}))

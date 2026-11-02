@@ -61,6 +61,8 @@ type cubeRoutineSpec struct {
 const (
 	cubeFloat8RoutineIndex           = 9
 	cubeAppendFloat8RoutineIndex     = 13
+	cubeDimensionRoutineIndex        = 15
+	cubePointRoutineIndex            = 16
 	cubeLowerCoordinateRoutineIndex  = 17
 	cubeRawCoordinateRoutineIndex    = 19
 	cubeSignedCoordinateRoutineIndex = 20
@@ -82,8 +84,8 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube", [3]sqltype.ID{1022, 1022}, 2, 0, "cube_a_f8_f8"},
 	cubeAppendFloat8RoutineIndex: {"cube", [3]sqltype.ID{0, sqltype.Float8}, 2, 0, "cube_c_f8"},
 	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0, "cube_c_f8_f8"},
-	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4, "cube_dim"},
-	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool, "cube_is_point"},
+	cubeDimensionRoutineIndex:       {"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4, "cube_dim"},
+	cubePointRoutineIndex:           {"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool, "cube_is_point"},
 	cubeLowerCoordinateRoutineIndex: {"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ll_coord"},
 	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ur_coord"},
 	cubeRawCoordinateRoutineIndex:    {"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},

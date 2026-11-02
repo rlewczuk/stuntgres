@@ -36,17 +36,53 @@ func earthCube(v catalog.Read) (*catalog.Type, error) {
 	return base, nil
 }
 
+// EarthCheckHelper resolves the closed CHECK recipe's genuine cube declaration.
+// The sealed base-type cohort, not installed names or current e-membership,
+// selects its immutable role. Current declaration/principal validation remains.
+func EarthCheckHelper(view catalog.Read, base *catalog.Type, kind sqltype.EarthCheck) (*catalog.Procedure, error) {
+	if base == nil || !kind.Valid() || ValidateTypeOrigin(view, base) != nil {
+		return nil, fmt.Errorf("stuntgres: invalid earth CHECK base")
+	}
+	installation, ok := catalog.OriginInstallation(base)
+	if !ok || installation.Implementation != StockCube || base.Origin.Declaration != 0 {
+		return nil, fmt.Errorf("stuntgres: missing earth CHECK cube installation")
+	}
+	var slot int
+	var symbol string
+	switch kind {
+	case sqltype.EarthNotPoint:
+		slot, symbol = cubeRoutineMember(cubePointRoutineIndex), "cube_is_point"
+	case sqltype.EarthNot3D:
+		slot, symbol = cubeRoutineMember(cubeDimensionRoutineIndex), "cube_dim"
+	default:
+		slot, symbol = cubeSpatialProcedureStart+int(sqltype.CubeDistance), sqltype.CubeDistance.Routine()
+	}
+	if slot >= len(installation.Members) {
+		return nil, fmt.Errorf("stuntgres: missing earth CHECK helper role")
+	}
+	helper, ok := view.Procedure(installation.Members[slot])
+	if !ok || !catalog.SameInstallation(helper, installation) {
+		return nil, fmt.Errorf("stuntgres: missing earth CHECK helper")
+	}
+	actual, err := ProcedureSymbol(view, helper)
+	if err != nil || actual != symbol {
+		return nil, fmt.Errorf("stuntgres: invalid earth CHECK helper declaration")
+	}
+	return helper, nil
+}
+
 func (*EarthdistanceProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
-	cube, err := earthCube(stage.Read())
+	read := stage.CurrentRead()
+	cube, err := earthCube(read)
 	if err != nil {
 		return err
 	}
-	ns := stage.Read().Get(cube.Namespace()).Name()
+	ns := read.Get(cube.Namespace()).Name()
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "earth")
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "earth") {
+	if !available || typedef.RelationTypeNameOccupied(stage.CurrentRead(), ext.TargetNamespace, "earth") {
 		q := catalog.DependencyIdentifier(ns)
 		context := "SQL statement \"CREATE DOMAIN earth AS public.cube\n  CONSTRAINT not_point CHECK(public.cube_is_point(VALUE))\n  CONSTRAINT not_3d CHECK(public.cube_dim(VALUE) <= 3)\n  CONSTRAINT on_surface CHECK(abs(public.cube_distance(VALUE, '(0)'::public.cube) /\n  earth() - '1'::float8) < '10e-7'::float8)\"\nextension script file \"earthdistance--1.1.sql\", near line 30"
 		context = strings.ReplaceAll(context, "public.", q+".")
@@ -60,7 +96,7 @@ func (*EarthdistanceProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 	if err != nil {
 		return err
 	}
-	declaration := catalog.DependencyIdentifier(stage.Read().Get(ext.TargetNamespace).Name()) + ".earth"
+	declaration := catalog.DependencyIdentifier(read.Get(ext.TargetNamespace).Name()) + ".earth"
 	typ, err := sqltype.Domain(sqltype.ID(oid), "earth", declaration, cube.SQLType.Usage(), true)
 	if err != nil {
 		return err

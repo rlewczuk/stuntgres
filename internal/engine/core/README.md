@@ -1411,7 +1411,7 @@ code. A statement or stage slot that one family owns is opaque:
 `StatementScope.DropsSlot` is a `StatementSlot` (core only clones it for
 PL/pgSQL exception checkpoints; `dropScopeOf` recovers the `DropScope`), and
 `CatalogStage.ExtensionSlot` holds the `schemacmds` extension host that began
-the stage (`extensionNamespaceOf`).
+the stage (its `extensionNamespacesOf` collection retains schema observations).
 
 `DropProvider.ColumnDependencies` and `ExpressionDependencies` share one canonical
 closure discovery, full RESTRICT preflight, retirement admissions and

@@ -4421,7 +4421,8 @@ drop_extension: DROP EXTENSION view_names drop_mode { $$=&DropExtension{Names:$3
 extension_options: extension_option_list { $$=$1 } | WITH extension_option_list { $$=$2 } ;
 extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_option { $$=append($1,$2) } ;
 extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
- | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
+ | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | CASCADE { $$=ExtensionOption{Name:"cascade",Pos:$1.pos} } ;
 extension_version: name | STRING ;
 alter_extension_update: ALTER EXTENSION name UPDATE extension_update_options { $$=&AlterExtensionUpdate{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$5,Pos:$1.pos} }
  | ALTER EXTENSION name SET SCHEMA name {$$=&AlterExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"schema",Schema:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}

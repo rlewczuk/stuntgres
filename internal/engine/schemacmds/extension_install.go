@@ -24,8 +24,14 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
 	if initializingPgcrypto { scope.Owner.Mu.Unlock() }
-	if err != nil || stage == nil {
+	if err != nil {
+		// Staging and materialization can fail before publication owns the
+		// stage. Discard only after releasing both mutexes: disposal can lock.
+		e.DiscardCatalogStage(stage)
 		return core.Result{}, err
+	}
+	if stage == nil {
+		return core.Result{}, nil
 	}
 	return publishExtensionStage(e, scope, stage)
 }
@@ -39,6 +45,9 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	if err := scope.Op.Context().Err(); err != nil {
+		return core.Result{}, err
+	}
 	changes := scope.PendingCatalog().Clone()
 	capture := session.JournalCapture{Journal: changes, Candidate: &stage.Candidate, Committed: e.Catalog.State, Current: e.PrivateCatalogLocked(scope.PendingCatalog()).State()}
 	if err := capture.ObserveCandidate(); err != nil {
@@ -58,9 +67,38 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 			}
 		}
 	}
-	namespace := extensionNamespaceOf(stage)
-	if err := capture.ObserveBase(namespace); err != nil {
-		return core.Result{}, err
+	namespaces := extensionNamespacesOf(stage)
+	for _, observed := range namespaces {
+		if e.Catalog.State.Get(observed.Address) != observed.Predecessor {
+			return core.Result{}, catalog.Conflict{}
+		}
+		if original, exists := changes.Originals[observed.Address]; exists && original != observed.Predecessor {
+			return core.Result{}, catalog.Conflict{}
+		}
+		if err := capture.ObserveBase(observed.Address); err != nil {
+			return core.Result{}, err
+		}
+		changes.Originals[observed.Address] = observed.Predecessor
+	}
+	if h, ok := stage.ExtensionSlot.(*extensionHost); ok {
+		for _, observed := range h.prerequisites {
+			address := observed.descriptor.Address()
+			if e.Catalog.State.Get(address) != observed.predecessor {
+				return core.Result{}, catalog.Conflict{}
+			}
+			if original, exists := changes.Originals[address]; exists && original != observed.predecessor {
+				return core.Result{}, catalog.Conflict{}
+			}
+			if err := capture.Observe(address, observed.descriptor); err != nil {
+				return core.Result{}, err
+			}
+			changes.Originals[address] = observed.predecessor
+			for _, member := range observed.descriptor.Members {
+				if err := capture.ObserveBase(member); err != nil {
+					return core.Result{}, err
+				}
+			}
+		}
 	}
 	if h, ok := stage.ExtensionSlot.(*extensionHost); ok && h.predecessor != nil {
 		if err := capture.ObserveBase(h.predecessor.Address()); err != nil {
@@ -77,7 +115,9 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	if changes.RolesBase != nil {
 		roleRevision = changes.RolesBase.Revision
 	}
-	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: roleRevision, Namespace: e.Catalog.State.Get(namespace), Database: stage.DatabasePredecessor}})
+	for _, observed := range namespaces {
+		changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: roleRevision, NamespaceAddress: observed.Address, Namespace: observed.Predecessor, Database: stage.DatabasePredecessor}})
+	}
 	if err := e.CatalogPreflightLocked(changes); err != nil {
 		return core.Result{}, err
 	}
@@ -89,16 +129,21 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	return core.Result{}, nil
 }
 
-// stageExtensionLocked stages CREATE EXTENSION in a new catalog stage under
-// Engine.Mu, for ExecuteExtension to publish.
+// stageExtensionLocked stages CREATE EXTENSION under Engine.Mu. Any nonnil
+// stage is transferred to the caller even on error: publish it on success or
+// discard it after unlocking on failure. Pre-stage failures may return nil.
 func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
-	staged, err := extension.StageCreate(&extensionHost{Engine: e, Op: scope.Op, Auth: auth}, auth, auth.View, s)
-	if err != nil || staged == nil {
-		return nil, err
+	host := &extensionHost{Engine: e, Op: scope.Op, Auth: auth}
+	staged, err := extension.StageCreate(host, auth, auth.View, s)
+	if err != nil {
+		return host.Stage, err
+	}
+	if staged == nil {
+		return nil, nil
 	}
 	stage, err := stageOf(staged)
 	if err == nil {

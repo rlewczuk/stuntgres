@@ -30,11 +30,12 @@ func earthRoutineResult(op sqltype.EarthOperation, earth sqltype.ID) ids.OID {
 	return ids.OID(sqltype.Float8)
 }
 func (p *EarthdistanceProvider) stageRoutines(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef, earth *sqltype.Descriptor) error {
-	cube, err := earthCube(stage.Read())
+	read := stage.CurrentRead()
+	cube, err := earthCube(read)
 	if err != nil {
 		return err
 	}
-	cubeSchema := stage.Read().Get(cube.Namespace()).Name()
+	cubeSchema := read.Get(cube.Namespace()).Name()
 	for op := sqltype.EarthRadiusOperation; op <= sqltype.EarthLongitude; op++ {
 		oid, err := stage.AllocateOID()
 		if err != nil {

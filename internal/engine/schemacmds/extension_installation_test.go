@@ -29,10 +29,10 @@ func TestExtensionInstallationStagedAuthority(t *testing.T) {
 			e.Mu.Lock()
 			stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: name}})
 			e.Mu.Unlock()
+			defer e.DiscardCatalogStage(stage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer e.DiscardCatalogStage(stage)
 			candidate := e.StageRead(stage)
 			address := candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name})
 			ext := candidate.MustExtension(address)

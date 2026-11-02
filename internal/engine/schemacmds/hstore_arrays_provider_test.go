@@ -22,10 +22,10 @@ func hstoreArraysStage(t *testing.T, e *core.Engine, op *session.Operation) *cor
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "hstore"}})
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	return stage
 }
 func TestHstoreArraysProviderIdentity(t *testing.T) {

@@ -668,14 +668,20 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   shape)` builds the `pg_extension_update_paths` rows (0A000 first, then one
   row per ordered version pair, checking `ctx` before each).
 - **Staging** (`stage.go`, `*_stage.go`, `extension_actions.go`): `Stage` is the
-  host a provider installs through (the stage base, name lookup, checked
-  `Create`/`Replace`, OID and revision allocation, the associated array helpers,
-  creation type/routine ACLs and `ScriptFunctions`, the shared script helper lookup
-  used by unaccent and citext). `Installer` is an implementation with
-  `Stage(Stage, ext, owner)`; every stock provider is one, and fuzzystrmatch is
-  also an `Updater` (`Updates`, one `UpdateAction` per executable version edge).
-  `Actions`, `ValidateActions` (registration check) and `StagePath` (runs the
-  update actions along a version path).
+  host a provider installs through: immutable base `Read`, coherent candidate
+  `CurrentRead`, staged-only `Get`, name lookup, checked `Create`/`Replace`,
+  allocation, array and creation ACL helpers. Genuine prerequisite lookups use
+  `CurrentRead`, never staged-only `Get`; reading it does not change the base.
+  `ObserveNamespace` and `ObservePrerequisite` retain
+  the schemas and incumbent installations consulted by the statement.
+  `ScriptFunctions(owner, ext, helpers)` resolves the target and actual direct
+  prerequisite schemas under the script principal, retaining implicit
+  pg_catalog priority and excluding the caller's TEMP routines.
+  Closed Earth CHECK kernels capture genuine cube helper declarations through
+  the sealed base-type cohort. Names and current e-membership do not select
+  their roles; ordinary stored reference/manifest validation retains authority.
+  `Installer.Stage(Stage, ext, owner)` constructs the base version; `StagePath`
+  executes the provider's explicit update path.
   Bundled installers stage finite declarative provider graphs; they do not load
   arbitrary filesystem control/SQL scripts, native libraries or external
   processes. Event-command inspection records their real outer CREATE/UPDATE,
@@ -695,8 +701,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   state, registry (`Owner.Extensions`) and object domain. `StageCreate` and
   `StageUpdate` make every decision of the two statements and stage the result,
   returning nil for a skipped statement (IF NOT EXISTS, already installed
-  version). `DropTargets` selects DROP EXTENSION's targets (notices through a
-  callback). `ImportOwners` applies Restore's owner/installed-procedure ACL
+  version). `DropTargets` selects DROP EXTENSION's targets (notices through a callback).
+  CREATE owns one candidate for the entire depth-first prerequisite closure.
+  Dependencies use their own default versions, inherit only the original
+  explicit schema and CASCADE, and reuse installed prerequisites unchanged.
+  Each provider resolves its own control/default namespace before its script
+  privilege boundary; untrusted-script failure discards newly staged trusted
+  dependencies too. Schema overrides do not bypass explicit-schema existence
+  checks. Recursion tracks active names and rejects cycles without publication.
+  `ImportOwners` applies Restore's owner/installed-procedure ACL
   records to a private catalog clone and reports whether authority changed.
   Ownership import uses the shared immutable ACL-owner transform for types,
   companions and procedures. Synthetic type baselines encode as raw NULL ACLs,
@@ -766,9 +779,9 @@ SQL identities and checks real reconstructed origin, never a same-named loose ty
   `Installer.Stage`, the update actions and `StagePath` with `Engine.Mu` held,
   and its `Host` and `Stage` implementation (`schemacmds`' `extensionHost`)
   runs under that lock too; nothing here may call anything that takes it. Provider validation
-  (`ValidateExtension`) runs later, outside the lock. Allocation and check order
-  are part of the output: installed OIDs, revisions and the first error must
-  not change.
+  (`ValidateExtension`) runs later, outside the lock. Provider member order and
+  diagnostic precedence remain release-defined; dynamic allocator values are
+  identities, not expected numeric sequences.
 - **Immutable stock providers.** The stock instances are never mutated;
   `Control` and `Versions` return detached copies.
 - **One provider identity.** The engine registers the stock providers in
@@ -832,6 +845,10 @@ namespace pairs until an observed identity collides, failing if allocation
 passes the target. Replacement must remint the imported domain while preserving
 the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
+Recursive candidate, script-path and publication ownership units use the
+`RUN='^TestExtensionDependency'` family. Public closure, metadata, diagnostics
+and logical-control witnesses live in `reference/extension_cube`.
+
 Hstore comparison graph, authenticated index support, staged collision and
 source-preserving transport units use `RUN='^TestHstoreComparison(Provider|IndexSupport|IndexTransport|Remap)$'`.
 

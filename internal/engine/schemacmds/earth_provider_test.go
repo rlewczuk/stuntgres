@@ -83,6 +83,7 @@ func TestEarthProviderConflicts(t *testing.T) {
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
+	extensionUnitDiscardFailed(t, e, stage)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.Catalog.State != before {
 		t.Fatal("missing prerequisite published", err)
@@ -236,6 +237,7 @@ func TestEarthProviderControls(t *testing.T) {
 	if err := (stored.TypeProvider{}).Validate(target.CatalogRead(), imported); err != nil {
 		t.Fatal(err)
 	}
+	earthCheckDependencyWitness(t, target.CatalogRead(), imported)
 	mapped, err := typedef.ReownDomainDatum(v, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{d.SQLType: imported.SQLType, base: imported.SQLType.DomainBase().Type}, nil)
 	if err != nil {
 		t.Fatal(err)

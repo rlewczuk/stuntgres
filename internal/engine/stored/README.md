@@ -620,9 +620,21 @@ host methods.
   descriptors before rendering current qualified labels.
   Replacement and type-only refresh bootstrap closed installed-domain CHECK
   recipes before SQL declaration/body/default preparation or other consumers.
-  `ReownInstalledDomainChecks` reuses the operation's type/collation authority;
-  reference remapping occurs once, including callers that prebind routines.
-  This ordering does not relax provider validation or bootstrap user defaults.
+  `ReownInstalledDomainChecks` reuses the operation's original-procedure and
+  type/collation authority; reference remapping occurs once, including callers
+  that prebind routines. Closed Earth kernels retain their actual sealed cube
+  helper in `Info.RoutineReference`: ordinary renderer/definition visitors
+  record the normal helper dependency, never a special catalog-only edge.
+  Validation checks the captured declaration/revision manifest against the
+  genuine base-type role while rendering authenticated current labels.
+  Before reference rewriting, nonempty source manifests must preserve a coherent
+  nonzero domain/epoch and each captured helper's exact declaration stamp.
+  Replacement first validates the actual source catalog; already local captures
+  cannot introduce a foreign reference domain. Genuine cross-driver imports and
+  same-owner epoch/type rewrites retain their existing mapping policy.
+  Remapping preserves source routine stamps; only an explicitly authorized
+  definition-refresh callback advances them. This ordering neither bootstraps
+  user defaults nor relaxes provider or principal validation.
   FLOAT8-only coordinate calls still track their hidden earth generation in
   the existing descriptor-change scans.
   Earth-point captures instead depend only on builtin POINT/FLOAT8 generations

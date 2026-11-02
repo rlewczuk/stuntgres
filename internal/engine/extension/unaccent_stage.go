@@ -64,8 +64,8 @@ func (p *UnaccentProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		}
 	}
 	// The script resolves its helpers as the member owner, against the staged
-	// catalog, with the target schema as its whole search path.
-	found, err := stage.ScriptFunctions(owner, ext.TargetNamespace, unaccentScriptFunctions[:])
+	// catalog, with the target and actual prerequisite schemas as its path.
+	found, err := stage.ScriptFunctions(owner, ext, unaccentScriptFunctions[:])
 	if err != nil {
 		return err
 	}

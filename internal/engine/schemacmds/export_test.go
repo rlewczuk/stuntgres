@@ -6,12 +6,13 @@ package schemacmds
 var (
 	AdmitDefinitionMutation    = admitDefinitionMutation
 	DomainRestrictError        = domainRestrictError
-	ExtensionNamespaceOf       = extensionNamespaceOf
+	ExtensionNamespacesOf      = extensionNamespacesOf
 	StageDomainDependents      = stageDomainDependents
 	StageExtensionLocked       = stageExtensionLocked
 	StageExtensionUpdateLocked = stageExtensionUpdateLocked
 	StageForeignLocked         = stageForeignLocked
 	StageOf                    = stageOf
+	PublishExtensionStage      = publishExtensionStage
 	StageSchemaDropLocked      = stageSchemaDropLocked
 	StageSchemaLocked          = stageSchemaLocked
 )

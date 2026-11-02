@@ -16,8 +16,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   diagnostics before parity. Native controls retain actual TEMP identities to
   force remapping and replay the emitted SQL on PostgreSQL. Excluded Restore
   INSERT producers fail with ordinary control errors, not SQL codec diagnostics.
-- `earthIdentityChecks` is shared by Earth Metadata, Controls and
-  PrerequisiteRemoval; rerun all three after changing it. Its selected inventory
+- `earthIdentityChecks` is shared by Earth Metadata, Controls,
+  PrerequisiteRemoval and extension dependency scenarios; rerun those families
+  after changing it. Its selected inventory
   includes `cube_distance`, the six earth coordinate/conversion routines and
   `geo_distance(point,point)` with its operator backing/commutator/membership links.
 - Earth coordinate principal roundtrips reject nonfinite outputs before applying
@@ -30,11 +31,18 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   controls. Raw precision additionally compares native/oracle direct/fresh/held
   results within two ULP, with exact NULL/nonfinite categories and zero signs.
   Reuse the family selector `RUN='^TestReferenceEarthPoint'` in both modes.
+- Dependency scenarios preserve incumbent cube descriptors/owners/ACLs and
+  e-membership while asserting the newly added normal Earth→cube edge separately.
+  They share the Earth controls algorithm with a narrow destination verifier;
+  after changing it, select both EarthControls and dependency Controls in both
+  modes. Public path shadows use supported TEMP TABLE rowtypes and persistent
+  hostile routines; TEMP-function exclusion also has candidate-owner unit proof.
 
 ### Family selectors
 
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
+- extension prerequisite closure: `RUN='^TestReferenceExtensionDependencies'`
 
 ### Cube fixtures
 
@@ -93,8 +101,11 @@ Catalog probes relate exact qualified procedure/operator signatures and both
 argument identities, without fixed dynamic OIDs. Keep probes bounded to a single
 catalog or derived identities rather than expanding catalog products.
 
-Control scenarios retain readers and compare same/fresh-driver results, settings,
-ownership and future writes. Forced remapping requires measured retained TEMP
+Control scenarios retain detached readers and copied metadata across replacement,
+and compare same/fresh-driver results, settings, ownership and future writes.
+Prepared statements belong to one physical generation: close their handles before
+Reset/Restore, then reprepare against restored types rather than demanding old
+result-type OIDs survive. Forced remapping requires measured retained TEMP
 collisions, not permanent allocator spacers. Replay the actual emitted SQL on a
 dedicated PostgreSQL connection; refresh materialized views explicitly because
 native snapshot comments do not populate them.

@@ -19,7 +19,7 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "cube") {
+	if !available || typedef.RelationTypeNameOccupied(stage.CurrentRead(), ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: CubeTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, CubeMemberCount)
@@ -41,7 +41,7 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 		}
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	ns := stage.Read().Get(ext.TargetNamespace).Name()
+	ns := stage.CurrentRead().Get(ext.TargetNamespace).Name()
 	typ, err := sqltype.Cube(sqltype.ID(ext.Members[0].ObjectID), "cube", catalog.DependencyIdentifier(ns)+".cube")
 	if err != nil {
 		return err

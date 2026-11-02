@@ -163,6 +163,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					if err := extension.StockEarthdistance.ValidateExtension(view, ext); err != nil {
 						t.Fatal(err)
 					}
+					earthCheckDependencyWitness(t, view, current)
 					for i, source := range sourceCalls {
 						call := next.MustRelation(consumer.Address()).ColumnMeta.Defaults[int32(i+1)].Expression.(plan.InstalledEarthExpr)
 						expectedEarth := current.SQLType

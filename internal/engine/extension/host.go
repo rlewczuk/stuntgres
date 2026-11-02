@@ -27,8 +27,7 @@ type Host interface {
 	// BootstrapSuperuser owns the members of a superuser-only extension
 	// that a non-superuser installs.
 	BootstrapSuperuser() authorization.PrincipalRef
-	// BeginStage begins the statement's catalog stage from the captured
-	// catalog, authorizes it and records namespace as the extension
-	// namespace its publication observes.
+	// BeginStage acquires one statement-owned stage. Recursive prerequisite
+	// installation shares it; UPDATE and ALTER still acquire their own stage.
 	BeginStage(namespace ids.ObjectAddress) Stage
 }

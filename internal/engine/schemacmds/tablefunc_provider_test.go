@@ -26,6 +26,7 @@ func tablefuncUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "tablefunc"}})
 	e.Mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		t.Fatal(err)
 	}

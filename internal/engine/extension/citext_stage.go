@@ -82,7 +82,7 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	// CREATE TYPE resolves its I/O names through the registry's staged script
 	// lookup, which excludes the installer's own temporary namespace.
 	helpers := [2]ScriptFunction{{Name: "citextin", Signature: "2275"}, {Name: "citextout", Signature: CitextSignature(typ.ID())}}
-	found, err := stage.ScriptFunctions(owner, ext.TargetNamespace, helpers[:])
+	found, err := stage.ScriptFunctions(owner, ext, helpers[:])
 	if err != nil {
 		return err
 	}
@@ -111,6 +111,8 @@ func (p *CitextProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	if err := p.stagePatterns(stage, ext, owner, typ); err != nil {
 		return err
 	}
- if err:=p.stageRegexp(stage,ext,owner,typ);err!=nil {return err}
- return p.stageStrings(stage,ext,owner,typ)
+	if err := p.stageRegexp(stage, ext, owner, typ); err != nil {
+		return err
+	}
+	return p.stageStrings(stage, ext, owner, typ)
 }

@@ -25,10 +25,10 @@ func lqueryProviderStage(t *testing.T, e *core.Engine, op *session.Operation) *c
 	e.Mu.Lock()
 	stage, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "ltree"}})
 	e.Mu.Unlock()
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	return stage
 }
 
@@ -337,8 +337,9 @@ func TestLqueryProviderPublication(t *testing.T) {
 	// A genuinely staged second installation fails its occupied type check and
 	// never publishes a prefix over the already installed descriptors.
 	e.Mu.Lock()
-	_, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "ltree"}})
+	failed, err := schemacmds.StageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "ltree"}})
 	e.Mu.Unlock()
+	extensionUnitDiscardFailed(t, e, failed)
 	if err == nil || e.CatalogRead().State() != before.State() || e.CatalogRead().MustType(base.Address()) != base {
 		t.Fatal("failed install changed original", err)
 	}

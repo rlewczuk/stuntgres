@@ -22,13 +22,20 @@ type Stage interface {
 	// Roles is the installation authority's coherent role snapshot.
 	Roles() authorization.Read
 	Read() catalog.Read
-	// CurrentRead and Get expose the unpublished coherent candidate to the
-	// installation owner when sealing and validating a complete script.
+	// CurrentRead includes both the immutable base and unpublished changes.
 	CurrentRead() catalog.Read
+	// Get reads only staged creations/replacements, as used by sealing.
+	// Resolve incumbent dependencies through CurrentRead, not Get.
 	Get(ids.ObjectAddress) catalog.Descriptor
 	LookupName(ids.NameKey) ids.ObjectAddress
 	Create(catalog.Descriptor) error
 	Replace(catalog.Descriptor) error
+	// ObserveNamespace fences every script target, explicit schema and actual
+	// prerequisite namespace against its captured committed predecessor.
+	ObserveNamespace(ids.ObjectAddress)
+	// ObservePrerequisite retains the exact incumbent extension descriptor;
+	// dependencies created by this stage already have CREATE observations.
+	ObservePrerequisite(ids.ObjectAddress)
 	// CreationRoutineACL observes the creator's ordinary routine defaults.
 	CreationRoutineACL(authorization.PrincipalRef, ids.ObjectAddress) authorization.ACLValue
 	// RoutineCreationACLWithoutPublic applies the supported script's PUBLIC
@@ -37,11 +44,10 @@ type Stage interface {
 	// RecordInitialPrivilege records an actual script ACL event, not membership
 	// or an unrelated descriptor replacement.
 	RecordInitialPrivilege(ids.ObjectAddress, byte, authorization.ACLValue)
-	// ScriptFunctions resolves an extension script's helper functions as the
-	// script would: against the staged catalog, as owner, with namespace as
-	// the whole search path. It checks USAGE on namespace first. The result
-	// has one entry per helper, nil when that helper does not exist.
-	ScriptFunctions(owner authorization.PrincipalRef, namespace ids.ObjectAddress, helpers []ScriptFunction) ([]*catalog.Procedure, error)
+	// ScriptFunctions resolves helpers as owner through the actual extension's
+	// target and prerequisite schemas, replacing the caller path and excluding
+	// TEMP functions. It checks schema USAGE under that script principal.
+	ScriptFunctions(owner authorization.PrincipalRef, ext *catalog.Extension, helpers []ScriptFunction) ([]*catalog.Procedure, error)
 	// EarthChecks attaches the three genuine provider domain recipes using
 	// the engine's ordinary constraint allocator/renderer/dependency authority.
 	EarthChecks(*catalog.Type) error

@@ -16,21 +16,30 @@ import (
 
 // extensionHost is the engine side of the extension handlers and their
 // staging: the engine, the statement's operation and captured authorization
-// view, and the catalog stage and its namespace once BeginStage has begun it.
-// BeginStage stores the host in the stage's ExtensionSlot, so publication
-// recovers the namespace (extensionNamespaceOf). Every method runs with e.mu
-// held (extension.Host and extension.Stage contracts). It wraps the stage
-// rather than being a defined type over CatalogStage, so Create and Replace
-// keep CatalogStage's lifecycle checks.
+// view and statement-owned catalog stage. ExtensionSlot retains the host's
+// captured namespace and incumbent-prerequisite observations for publication.
+// Every method runs with Engine.Mu held; the wrapped CatalogStage retains its
+// lifecycle checks for writes.
 type extensionHost struct {
-	Engine    *core.Engine
-	Op        *session.Operation
-	Auth      core.AuthorizationView
-	Stage     *core.CatalogStage
-	namespace ids.ObjectAddress
+	Engine        *core.Engine
+	Op            *session.Operation
+	Auth          core.AuthorizationView
+	Stage         *core.CatalogStage
+	namespaces    []extensionNamespace
+	prerequisites []extensionPrerequisite
 	// Membership and relocation, including same-target admission, retain the
 	// extension predecessor even when no descriptor is replaced.
 	predecessor *catalog.Extension
+}
+
+type extensionNamespace struct {
+	Address     ids.ObjectAddress
+	Predecessor catalog.Descriptor
+}
+
+type extensionPrerequisite struct {
+	descriptor  *catalog.Extension
+	predecessor catalog.Descriptor
 }
 
 var (
@@ -48,17 +57,17 @@ func stageOf(s extension.Stage) (*core.CatalogStage, error) {
 	return h.Stage, nil
 }
 
-// extensionNamespaceOf returns the namespace stage was begun in; a stage no
-// extension host began has the zero address.
-func extensionNamespaceOf(stage *core.CatalogStage) ids.ObjectAddress {
+// extensionNamespacesOf returns the captured schemas, including committed
+// absence for a transaction-private schema. A foreign stage has no host inputs.
+func extensionNamespacesOf(stage *core.CatalogStage) []extensionNamespace {
 	if stage.ExtensionSlot == nil {
-		return ids.ObjectAddress{}
+		return nil
 	}
 	h, ok := stage.ExtensionSlot.(*extensionHost)
 	if !ok {
 		panic(fmt.Sprintf("stuntgres: unexpected extension slot %T", stage.ExtensionSlot))
 	}
-	return h.namespace
+	return h.namespaces
 }
 
 func (h *extensionHost) Context() context.Context { return h.Op.Context() }
@@ -91,9 +100,43 @@ func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
 func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
 	stage := h.Engine.BeginCatalogStage(h.Auth.Catalog)
 	stage.AuthorizeLocked(h.Auth, h.Op.Session)
-	h.Stage, h.namespace = stage, namespace
+	h.Stage = stage
 	stage.ExtensionSlot = h
+	h.ObserveNamespace(namespace)
 	return h
+}
+
+func (h *extensionHost) committedPredecessor(address ids.ObjectAddress) catalog.Descriptor {
+	if h.Auth.Statement != nil {
+		if journal := h.Auth.Statement.PendingCatalog(); journal != nil {
+			if predecessor, exists := journal.Originals[address]; exists {
+				return predecessor
+			}
+		}
+	}
+	return h.Engine.Catalog.State.Get(address)
+}
+
+func (h *extensionHost) ObserveNamespace(address ids.ObjectAddress) {
+	for _, observed := range h.namespaces {
+		if observed.Address == address {
+			return
+		}
+	}
+	h.namespaces = append(h.namespaces, extensionNamespace{Address: address, Predecessor: h.committedPredecessor(address)})
+}
+
+func (h *extensionHost) ObservePrerequisite(address ids.ObjectAddress) {
+	descriptor, ok := h.Stage.Base.Extension(address)
+	if !ok {
+		return
+	} // A new closure member is already fenced by CREATE.
+	for _, observed := range h.prerequisites {
+		if observed.descriptor.Address() == address {
+			return
+		}
+	}
+	h.prerequisites = append(h.prerequisites, extensionPrerequisite{descriptor: descriptor, predecessor: h.committedPredecessor(address)})
 }
 
 func (h *extensionHost) Read() catalog.Read                         { return h.Stage.Base }
@@ -154,18 +197,42 @@ func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namesp
 // ScriptFunctions resolves helper names against the coherent staged search
 // path, under the actual script execution principal. In particular,
 // unqualified function lookup excludes the installer's own TEMP namespace.
-func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, namespace ids.ObjectAddress, helpers []extension.ScriptFunction) ([]*catalog.Procedure, error) {
+func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, ext *catalog.Extension, helpers []extension.ScriptFunction) ([]*catalog.Procedure, error) {
 	e, auth := h.Engine, h.Auth
 	auth.Catalog = e.StageRead(h.Stage)
 	auth.Recapture(auth.Catalog)
 	auth.State.CurrentUser = owner
-	if err := auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {
+	required, err := catalog.ExtensionPrerequisites(auth.Catalog, ext)
+	if err != nil {
 		return nil, err
 	}
-	// Extension scripts replace, rather than prefix, the caller's path. The
-	// stock scripts have no prerequisite schemas; implicit pg_catalog remains,
-	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := core.EffectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
+	schemas := make([]ids.ObjectAddress, 1, 1+len(required))
+	schemas[0] = ext.TargetNamespace
+	for _, address := range required {
+		prerequisite, _ := auth.Catalog.Extension(address)
+		namespace := prerequisite.TargetNamespace
+		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
+			continue
+		}
+		duplicate := false
+		for _, previous := range schemas {
+			if namespace == previous {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			schemas = append(schemas, namespace)
+		}
+	}
+	for _, namespace := range schemas {
+		if err := auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {
+			return nil, err
+		}
+	}
+	// EffectivePath retains implicit pg_catalog priority and excludes TEMP
+	// procedures, even when the caller supplied an explicit TEMP entry.
+	path := core.EffectivePath(auth, schemas, analyze.InstalledFunctionLookup)
 	found := make([]*catalog.Procedure, len(helpers))
 	for i, helper := range helpers {
 		found[i] = analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.Name, helper.Signature)
