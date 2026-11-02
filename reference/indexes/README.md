@@ -158,6 +158,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Owning `TestBtreeGINScalar` proofs independently check sorted typed keys,
   exact row/version/slot candidate postings (not scan parity), immutable
   publication/presentation backing and destination-owned replacement authority.
+  Temporal classes use `RUN='^TestReferenceBtreeGINTemporal'` for independent
+  released graphs, finite/infinite boundaries, exact diagnostics, raw typed
+  metadata, presentation and actual emitted native Dump replay on PostgreSQL.
+  Owning `TestBtreeGINTemporal` proofs assert typed equivalence groups, exact
+  selective posting triples, immutable publication/presentation and independent
+  destination generations and sealed authority; public SQL alone is not index-use
+  evidence.
   Native controls distinguish successful builtin-signature/datum held rebinding
   from the ordinary lifetime fence of a captured enum literal and the exact
   `0A000` concrete-enum parameter/result fences. Fresh enum-literal preparation

@@ -51,10 +51,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Existing generic DDL can give a genuine handler alias ordinary int4/text
   classes: binding requires the actual matching family, builtin equality1 and
   exact native support1. Neither alias nor class acquires stock origin by name.
-  Btree_gin stages bit, varbit, enum, money, inet, cidr, macaddr, macaddr8, uuid
-  and oid families with five search and five support slots through the same
-  installation owner. Network-family recipes retain AUTO family ownership for
-  search/optional supports and INTERNAL class ownership for extraction slots2/3.
+  Btree_gin stages bit, varbit, enum, money, inet, cidr, macaddr, macaddr8, uuid,
+  oid, int2, int4, int8, float4, float8, bool, date, time, timetz, timestamp,
+  timestamptz and interval families with five search and five support slots through
+  the same installation owner. Network, numeric/boolean and temporal recipes retain
+  AUTO family ownership for search/optional supports and INTERNAL class ownership
+  for extraction slots2/3; incumbent compound dependency ownership is unchanged.
   CIDR support association remains650 while its actual search/comparator operands
   are869; the stage and authenticator use these distinct identities explicitly.
   Internal-ABI declarations are index capabilities, not C pointers or scalar emulation.

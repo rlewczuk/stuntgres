@@ -79,6 +79,12 @@ builds a binder.
   int8 keys never pass through float64, float4 keys retain binary32 rounding,
   signed zeros share an equality key, and NaNs compare equal above infinity.
   Duplicate SQL rows retain separate postings, including zero/NaN peers.
+  Date/time/timetz/timestamp/timestamptz/interval classes retain their concrete
+  temporal generations and exact finite/infinite representations. Timetz compares
+  the unwrapped UTC clock then the stored offset, so equal clocks alone are not
+  equality. Interval uses the shared wide span comparison: month/day/hour peers
+  share one dictionary key while source components remain distinct. NULL and
+  reserved interval infinity tuples remain separate from finite extrema.
   Only strategies1–5 are scalar GIN probes; SQL not-equal remains ordinary
   predicate evaluation and does not authorize a GiST/distance member.
   Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
@@ -634,6 +640,7 @@ make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot)$
 make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestGINCancellation)$'
 make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and immutable lifecycle
 make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings and transport
+make check RUN='^TestBtreeGINTemporal' # typed temporal equivalence, exact postings and sealed lifecycle
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

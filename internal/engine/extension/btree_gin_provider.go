@@ -98,6 +98,24 @@ var btreeGinRoutines = [...]struct {
 	{"gin_extract_value_bool", "16,2281", 2281},
 	{"gin_extract_query_bool", "16,2281,21,2281,2281", 2281},
 	{"gin_compare_prefix_bool", "16,16,21,2281", 23},
+	{"gin_extract_value_date", "1082,2281", 2281},
+	{"gin_extract_query_date", "1082,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_date", "1082,1082,21,2281", 23},
+	{"gin_extract_value_time", "1083,2281", 2281},
+	{"gin_extract_query_time", "1083,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_time", "1083,1083,21,2281", 23},
+	{"gin_extract_value_timetz", "1266,2281", 2281},
+	{"gin_extract_query_timetz", "1266,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_timetz", "1266,1266,21,2281", 23},
+	{"gin_extract_value_timestamp", "1114,2281", 2281},
+	{"gin_extract_query_timestamp", "1114,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_timestamp", "1114,1114,21,2281", 23},
+	{"gin_extract_value_timestamptz", "1184,2281", 2281},
+	{"gin_extract_query_timestamptz", "1184,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_timestamptz", "1184,1184,21,2281", 23},
+	{"gin_extract_value_interval", "1186,2281", 2281},
+	{"gin_extract_query_interval", "1186,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_interval", "1186,1186,21,2281", 23},
 }
 
 // BtreeGinRoutineName is a discovery hint only. Executable selection still
@@ -135,6 +153,12 @@ var btreeGinClasses = [...]btreeGinClass{
 	{"float4_ops", 700, 700, 354, [5]ids.OID{622, 624, 620, 625, 623}, true},
 	{"float8_ops", 701, 701, 355, [5]ids.OID{672, 673, 670, 675, 674}, true},
 	{"bool_ops", 16, 16, 1693, [5]ids.OID{58, 1694, 91, 1695, 59}, true},
+	{"date_ops", 1082, 1082, 1092, [5]ids.OID{1095, 1096, 1093, 1098, 1097}, true},
+	{"time_ops", 1083, 1083, 1107, [5]ids.OID{1110, 1111, 1108, 1113, 1112}, true},
+	{"timetz_ops", 1266, 1266, 1358, [5]ids.OID{1552, 1553, 1550, 1555, 1554}, true},
+	{"timestamp_ops", 1114, 1114, 2045, [5]ids.OID{2062, 2063, 2060, 2065, 2064}, true},
+	{"timestamptz_ops", 1184, 1184, 1314, [5]ids.OID{1322, 1323, 1320, 1325, 1324}, true},
+	{"interval_ops", 1186, 1186, 1315, [5]ids.OID{1332, 1333, 1330, 1335, 1334}, true},
 }
 
 // Zero InternalOwner means AUTO dependency on the actual family. Preserve the

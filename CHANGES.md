@@ -1,5 +1,12 @@
 # Changes
 
+- Add btree_gin 1.3's date, time, timetz, timestamp, timestamptz and interval
+  operator classes and released helper declarations. Reuse typed scalar GIN
+  dictionaries and exact posting probes, preserving offset ties, wide interval
+  equivalence, finite extrema and infinities. Installed dependency ownership,
+  sealed origin and effective captures survive authorized presentation changes
+  and native logical replay into destination-owned generations.
+
 - Extend the intarray 1.5 provider with genuine intbig_gkey support identity,
   rejecting released I/O and typed NULL/empty/NULL-only shared arrays. Seal both
   type roles and all four I/O declarations through atomic installation, ownership
