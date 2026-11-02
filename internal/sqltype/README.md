@@ -299,12 +299,17 @@ admission and removes it before nested binding.
   multirange and text-search datums without a B-tree comparator. Logical
   exclusion predicates reuse their scalar owners; catalog class membership
   does not supply an otherwise missing scalar operation.
-  GIN classes retain a separate capability and actual anyarray2277 admission.
-  `GinBinding` retains the concrete key/element generations, scalar element
-  comparison and collation for typed token extraction/dictionary order, without
-  granting B-tree indexing. Empty/NULL-item/NULL-element tokens cannot alias
-  ordinary elements. `TSVectorLexemeView` exposes only checked immutable canonical
-  strings, not mutable vector backing, rendering/reinput or another tokenizer.
+  GIN classes retain a separate capability, actual anyarray admission and
+  narrowly binary-compatible bit/varbit inputs. `GinBinding` distinguishes
+  scalar, array-element and vector extraction while retaining exact concrete
+  generations and typed comparison. Each non-NULL scalar is one ordinary key;
+  empty varbit and the least money datum are ordinary values, not sentinels.
+  Empty/NULL-item/NULL-element categories cannot alias ordinary keys. Captured
+  support includes the sealed installation's opaque `IndexAuthority`; selected
+  search stamps retain member/operator/routine generations without changing
+  declared class identity. None of this grants B-tree indexing or SQL ordering.
+  `TSVectorLexemeView` exposes only checked immutable canonical strings, not
+  mutable vector backing, rendering/reinput or another tokenizer.
 - `CitextPattern` retains genuine operand descriptors and prepared implicit text
   adapters, delegating insensitive LIKE and POSIX evaluation to the shared plans.
   Source pattern bytes and embedded options remain unchanged; regex execution

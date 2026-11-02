@@ -20,6 +20,10 @@ and lexical wrappers override promoted kernel projections without adding a
 second tag; selected plan fields and operands remain with the analyzed visitor.
 `RowComparisonExpr` also projects its bound comparison kind exactly once;
 pair operator, operator-family and input-collation identities remain ignored.
+`GinEnumCompareExpr` supplies its own discriminator; the shared analyzed visitor
+then retains the genuine selected routine OID and both ordered lexical operands.
+Mutable routine/schema presentation and literal values do not replace that
+identity or require a special statistics execution path.
 
 
 ## Imports
@@ -174,6 +178,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   procedure and domain/epoch reference. Rebuild rebinds typed comparison without
   reparsing values; strict evaluation evaluates written children before NULL
   propagation. Capture and rendering preserve operand order and exact usages.
+  `GinEnumCompareExpr` owns two ordered concrete enum operands, the selected
+  installed declaration/reference and a typed `Comparison`. Strict evaluation
+  preserves child order and returns the comparison sign as INT4. Rebuild and
+  substitution rebind destination generations without retaining a catalog,
+  input frame or live routine handle.
 - **Generated range constructors** (`range_constructor.go`):
   `RangeConstructorExpr` captures the actual type-owned procedure and result
   generation, with ordinary callable coercion, dependency and EXECUTE admission.
@@ -428,6 +437,10 @@ Freespace layout, released identity and composed capture ownership use
 `RUN='^TestPgFreespace'`.
 Installed visibility identity, source shape and retained ownership use
 `RUN='^TestPgvisibility'`.
+Installed `gin_enum_cmp` callable capture, immutable rebuild, concrete enum
+generation fencing and original-procedure remapping use
+`make check RUN='^TestBtreeGINCompoundBinding$'`; SQL behavior and metadata are
+independently specified by `TestReferenceBtreeGINCompoundEnumComparator`.
 
 
 ```sh

@@ -63,6 +63,8 @@ func TestOperatorFamilySupportDeclarations(t *testing.T) {
 		{1314, 11, "timestamptz_cmp", "1184,1184", 23, true, expr.Immutable},
 		{1315, 11, "interval_cmp", "1186,1186", 23, true, expr.Immutable},
 		{1358, 11, "timetz_cmp", "1266,1266", 23, true, expr.Immutable},
+		{1596, 11, "bitcmp", "1560,1560", 23, true, expr.Immutable},
+		{1672, 11, "varbitcmp", "1562,1562", 23, true, expr.Immutable},
 		{1688, 11, "time_hash", "1083", 23, true, expr.Immutable},
 		{1693, 11, "btboolcmp", "16,16", 23, true, expr.Immutable},
 		{1696, 11, "timetz_hash", "1266", 23, true, expr.Immutable},
@@ -129,6 +131,24 @@ func TestOperatorFamilySupportDeclarations(t *testing.T) {
 		identity := catalog.RoutineIdentity{ID: w.oid, Namespace: w.namespace, Name: w.name, Signature: catalog.ProcedureSignature(w.inputs)}
 		if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != w.result || d.Strict != w.strict || d.Volatility != w.volatility || d.ReturnsSet || d.Providers != functions.IndexSupportRoutineProvider {
 			t.Errorf("support routine %d: got %+v; want identity %+v, function result %d, strict %t, volatility %v, scalar index-support provider", w.oid, *d, identity, w.result, w.strict, w.volatility)
+		}
+	}
+	// Released REL_18_6 pg_proc.dat gives both declarations the internal C
+	// source bitcmp (not varbitcmp), leakproof true and the default cost 1.
+	// Keep their independent metadata alongside the support identity proof.
+	for _, oid := range []ids.OID{1596, 1672} {
+		d := BuiltinRoutine(oid)
+		if d == nil {
+			t.Fatal("missing released bit comparator", oid)
+		}
+		display, ok := builtinRoutineDisplay[oid]
+		wantDisplay := builtinDisplayFacts{Language: catalog.InternalRoutineLanguage, Source: "bitcmp"}
+		if !ok || display != wantDisplay || BuiltinRoutineCost(d) != 1 {
+			t.Fatal("released bit comparator display/cost", oid, display)
+		}
+		rendered := builtinRoutineDisplayValue(oid, display)
+		if !rendered.Leakproof || rendered.Support != 0 || d.Parallel != 's' || d.Defaults != 0 || d.Variadic != 0 || d.Outputs != nil {
+			t.Fatal("released bit comparator properties", oid, rendered, d)
 		}
 	}
 	installed := 0

@@ -418,6 +418,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{1314, ids.PGCatalogNamespaceOID, "timestamptz_cmp", "1184,1184"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{1315, ids.PGCatalogNamespaceOID, "interval_cmp", "1186,1186"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{1358, ids.PGCatalogNamespaceOID, "timetz_cmp", "1266,1266"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
+	{catalog.RoutineIdentity{1596, ids.PGCatalogNamespaceOID, "bitcmp", "1560,1560"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
+	{catalog.RoutineIdentity{1672, ids.PGCatalogNamespaceOID, "varbitcmp", "1562,1562"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{1688, ids.PGCatalogNamespaceOID, "time_hash", "1083"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{1693, ids.PGCatalogNamespaceOID, "btboolcmp", "16,16"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{1696, ids.PGCatalogNamespaceOID, "timetz_hash", "1266"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},

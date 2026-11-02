@@ -39,7 +39,10 @@ func (EarthCheckExpr) JumbleFields(s expr.StatementFields)  { s.JumbleText("plan
 func (ExtensionPathsExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.ExtensionPathsExpr")
 }
-func (FieldExpr) JumbleFields(s expr.StatementFields)    { s.JumbleText("plan.FieldExpr") }
+func (FieldExpr) JumbleFields(s expr.StatementFields) { s.JumbleText("plan.FieldExpr") }
+func (GinEnumCompareExpr) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("plan.GinEnumCompareExpr")
+}
 func (GroupExpr) JumbleFields(s expr.StatementFields)    { s.JumbleText("plan.GroupExpr") }
 func (GroupingExpr) JumbleFields(s expr.StatementFields) { s.JumbleText("plan.GroupingExpr") }
 func (HstoreComparisonExpr) JumbleFields(s expr.StatementFields) {

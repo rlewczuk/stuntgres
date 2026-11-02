@@ -203,6 +203,14 @@ capture and publication: CREATE, UPDATE, membership mutation and schema
 relocation share `publishExtensionStage`, whose provider validation runs with
 the mutex released, fenced by `extensionAuthorityFence`. Destination resolution
 includes CREATE admission before extension ownership and same-target handling.
+The extension adapter retains all candidate/name/member/namespace/prerequisite
+observations and finish authority, then unlocks and uses the ordinary
+`Engine.StageCatalogOverlay`. That owner transfers descriptors/defaults,
+prepares actual private index roots and produced outputs outside the mutex,
+and performs final epoch/role/routine-source/preflight/admission fences before
+installing the scope journal and event commands. Cohort relocation therefore
+refreshes private GIN binding wrappers as well as committed roots; it does not
+publish a descriptor-only private graph or bypass same-schema no-op fences.
 The narrow pg_trgm script capability delegates to core's physical settings owner
 after early CREATE admission and extension-header staging, before the released
 script's initial C-validation boundary. This loads even when a later member

@@ -109,6 +109,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if ext.Provider != "dblink" || ext.Version != "1.2" || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}) {
 			return invalid()
 		}
+	case StockBtreeGin:
+		count = btreeGinMemberCount
+		if slot < 0 || slot >= len(btreeGinRoutines) || ext.Provider != "btree_gin" || ext.Version != "1.3" {
+			return invalid()
+		}
+		member := btreeGinRoutines[slot]
+		name, signature, result = member.name, member.signature, member.result
+		if p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.AccessMethod != catalog.NoAccessMethod || p.BrinSupport != 0 || p.PLHandler != catalog.NoPLHandler || p.Language != (ids.ObjectAddress{}) || p.DeclarationBody != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/btree_gin", HasBinary: true}) {
+			return invalid()
+		}
 	case StockBloom:
 		count = 6
 		name, signature, result, volatility, strict = "blhandler", "2281", 325, expr.Volatile, false

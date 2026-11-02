@@ -19,11 +19,15 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	initializingPgcrypto := s.Name.Text == "pgcrypto" && !scope.Op.Session.Settings.PgcryptoInitialized()
-	if initializingPgcrypto { scope.Owner.Mu.Lock() }
+	if initializingPgcrypto {
+		scope.Owner.Mu.Lock()
+	}
 	e.Mu.Lock()
 	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
-	if initializingPgcrypto { scope.Owner.Mu.Unlock() }
+	if initializingPgcrypto {
+		scope.Owner.Mu.Unlock()
+	}
 	if err != nil {
 		// Staging and materialization can fail before publication owns the
 		// stage. Discard only after releasing both mutexes: disposal can lock.
@@ -44,24 +48,38 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if err := scope.Op.Context().Err(); err != nil {
+	changes, err := prepareExtensionStageChangesLocked(e, scope, stage)
+	e.Mu.Unlock()
+	if err != nil {
 		return core.Result{}, err
+	}
+	if err := e.StageCatalogOverlay(scope, stage, changes); err != nil {
+		return core.Result{}, err
+	}
+	return core.Result{}, nil
+}
+
+// Extension-specific observations supplement the ordinary validated catalog
+// overlay. Physical index preparation and final publication remain owned by
+// StageCatalogOverlay, outside this observation lock.
+func prepareExtensionStageChangesLocked(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage) (*session.Journal, error) {
+	if err := scope.Op.Context().Err(); err != nil {
+		return nil, err
 	}
 	changes := scope.PendingCatalog().Clone()
 	capture := session.JournalCapture{Journal: changes, Candidate: &stage.Candidate, Committed: e.Catalog.State, Current: e.PrivateCatalogLocked(scope.PendingCatalog()).State()}
 	if err := capture.ObserveCandidate(); err != nil {
-		return core.Result{}, err
+		return nil, err
 	}
 	if err := capture.FenceNames(nil); err != nil {
-		return core.Result{}, err
+		return nil, err
 	}
 	for a, d := range stage.Descriptors() {
 		if _, extension := d.(*catalog.Extension); extension {
 			if old, exists := stage.Base.Extension(a); exists {
 				for _, member := range old.Members {
 					if err := capture.ObserveBase(member); err != nil {
-						return core.Result{}, err
+						return nil, err
 					}
 				}
 			}
@@ -70,13 +88,13 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	namespaces := extensionNamespacesOf(stage)
 	for _, observed := range namespaces {
 		if e.Catalog.State.Get(observed.Address) != observed.Predecessor {
-			return core.Result{}, catalog.Conflict{}
+			return nil, catalog.Conflict{}
 		}
 		if original, exists := changes.Originals[observed.Address]; exists && original != observed.Predecessor {
-			return core.Result{}, catalog.Conflict{}
+			return nil, catalog.Conflict{}
 		}
 		if err := capture.ObserveBase(observed.Address); err != nil {
-			return core.Result{}, err
+			return nil, err
 		}
 		changes.Originals[observed.Address] = observed.Predecessor
 	}
@@ -84,31 +102,27 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 		for _, observed := range h.prerequisites {
 			address := observed.descriptor.Address()
 			if e.Catalog.State.Get(address) != observed.predecessor {
-				return core.Result{}, catalog.Conflict{}
+				return nil, catalog.Conflict{}
 			}
 			if original, exists := changes.Originals[address]; exists && original != observed.predecessor {
-				return core.Result{}, catalog.Conflict{}
+				return nil, catalog.Conflict{}
 			}
 			if err := capture.Observe(address, observed.descriptor); err != nil {
-				return core.Result{}, err
+				return nil, err
 			}
 			changes.Originals[address] = observed.predecessor
 			for _, member := range observed.descriptor.Members {
 				if err := capture.ObserveBase(member); err != nil {
-					return core.Result{}, err
+					return nil, err
 				}
 			}
 		}
 	}
 	if h, ok := stage.ExtensionSlot.(*extensionHost); ok && h.predecessor != nil {
 		if err := capture.ObserveBase(h.predecessor.Address()); err != nil {
-			return core.Result{}, err
+			return nil, err
 		}
 	}
-	for a, d := range stage.Descriptors() {
-		e.CatalogChangeLocked(changes, a, d)
-	}
-	changes.RecordCandidateDefaults(e.Catalog.State, &stage.Candidate)
 	// Candidate observations use the private predecessor; journal fences
 	// retain committed roots, including names already changed by this TX.
 	roleRevision := stage.RoleRevision
@@ -118,15 +132,8 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	for _, observed := range namespaces {
 		changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: roleRevision, NamespaceAddress: observed.Address, Namespace: observed.Predecessor, Database: stage.DatabasePredecessor}})
 	}
-	if err := e.CatalogPreflightLocked(changes); err != nil {
-		return core.Result{}, err
-	}
-	scope.Catalog = changes
-	scope.CatalogAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
-	if scope.EventCommand != nil && scope.EventCommand.CollectDDL {
-		scope.EventCommand.Commands = append(scope.EventCommand.Commands, stage.DDLCommands...)
-	}
-	return core.Result{}, nil
+	stage.FinishAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
+	return changes, nil
 }
 
 // stageExtensionLocked stages CREATE EXTENSION under Engine.Mu. Any nonnil

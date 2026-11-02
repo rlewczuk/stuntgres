@@ -1,7 +1,7 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
+and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
@@ -51,6 +51,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Existing generic DDL can give a genuine handler alias ordinary int4/text
   classes: binding requires the actual matching family, builtin equality1 and
   exact native support1. Neither alias nor class acquires stock origin by name.
+  Btree_gin stages its bit, varbit, enum and money families, five search members
+  and five support slots through the same installation owner. Internal-ABI
+  declarations are index capabilities, not C pointers or scalar emulation.
+  The genuine `gin_enum_cmp` declaration is separately SQL-callable through the
+  concrete enum comparator. Class/helper authority follows original sealed
+  recipe roles across current membership and presentation; allocated IDs alone
+  cannot substitute an independently installed recipe.
   Initial privileges are separate historical catalog records, not recipe ACLs.
   Providers call `Stage.RecordInitialPrivilege` only for genuine script ACL
   events: amcheck's nine implemented final REVOKE declarations capture the

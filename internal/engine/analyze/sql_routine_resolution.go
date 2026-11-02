@@ -109,6 +109,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	// Canonical module names only admit catalog discovery. A selected sealed
 	// declaration, never this hint or an unrelated cast, grants capability.
 	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime" || name == "lo_manage" || name == "is_valid" || name == "make_valid" || name == "isn_weak"
+	if strings.HasPrefix(name, "gin_") && extension.BtreeGinRoutineName(name) {
+		providerOverride = true
+	}
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
@@ -172,6 +175,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			}
 			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
+			}
+			if d.Implementation == extension.StockBtreeGin {
+				hasSQL = true
 			}
 			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.PgTrgmProviderOf(d) == extension.StockPgTrgm || extension.LtreeProviderOf(d) == extension.StockLtree || extension.IsnProviderOf(d) == extension.StockIsn {
 				hasSQL = true
@@ -1093,6 +1099,18 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			return node, err
 		}
+	}
+	if d != nil && d.Implementation == extension.StockBtreeGin {
+		node, err := b.bindSelectedGinEnumComparison(raw, selected)
+		if err == nil && freezeSyntax {
+			frozen := raw
+			frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, "gin_enum_cmp"
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+		}
+		return node, err
 	}
 	if d != nil && extension.CubeProviderOf(d) == extension.StockCube {
 		symbol, err := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)

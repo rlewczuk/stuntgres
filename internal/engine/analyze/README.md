@@ -40,6 +40,10 @@ omits exact-identity source-assignment carriers while retaining real conversions
 and the typed implicit constants. Owner units, including the executable utility
 inventory, selective SQL/JSON defaults, normalized spans and accepted child
 bindings, use `make check RUN='^TestPgStatStatementsFingerprint'`.
+`TestPgStatStatementsFingerprintBtreeGINCompound` covers the genuine installed
+enum comparator's discriminator, both ordered operands and selected routine
+OID, including literal normalization, immutable reconstruction, presentation
+changes and replacement by a newly installed routine without changing enums.
 
 Row comparison identity retains the bound comparison kind while ignoring pair
 operator, operator-family and input-collation identities. Lexical traversal
@@ -90,6 +94,14 @@ The intarray support-I/O binder admits only authenticated original slots 4/5
 after ordinary callable selection. It captures the actual dynamic support
 family, cstring formal/result, routine revision and stored provider symbol.
 This does not enable declaration-only bqarr/seg routines or a general C loader.
+
+Installed `gin_enum_cmp` selection authenticates its original btree_gin procedure
+and ordinary callable ACL/dependencies before constructing `GinEnumCompareExpr`.
+The authenticated engine-owned callable uses the ordinary polymorphic signature
+probe to select one matching concrete enum generation, then binds the existing
+typed comparison. Unknown operands use that selected concrete target; mutable
+function names and catalog OIDs never select its operation. Internal GIN helper
+signatures retain the common explicit-INTERNAL call boundary.
 
 
 Freespace shares installed selection and bounded scalar-statistics admission.

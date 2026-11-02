@@ -64,6 +64,13 @@ and never the engine.
   nonnull membership and exact immutable row/version/slot postings. Full batches
   sort/deduplicate typed tokens; delta batches merge dictionaries once and retain
   untouched posting backing. Binary lookup consumes postings rather than full Entries.
+  `UnionGinPostingLists` combines selected sorted posting lists with a typed
+  binary cursor heap, sharing the single-list fast path and otherwise allocating
+  one result plus O(k) cursor scratch. It uses the same complete
+  Row/Version/Position order as existing posting operations, deduplicates only
+  exact triples and never changes source backing. Capacity sums are checked;
+  bounds/sizing/heap/merge completion remain cancellable, with nil results on
+  error rather than partial output. The selector owns token/category bounds.
   `ValidateGinMerge` shares extraction and comparison/cancellation traversal with
   `MergeGin`, but retains only delta-sized scratch. Admission never appends an
   incumbent survivor dictionary or allocates merged posting output.

@@ -200,6 +200,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.GinEnumCompareExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
 		targets, failure := MapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {

@@ -319,6 +319,11 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Complete native inventory expectations include pg_freespacemap 1.3's genuine
   untrusted, superuser-required, relocatable control row; selected package
   metadata is checked in both modes without asserting whole-oracle parity.
+  The btree_gin row uses released default/version1.3, trusted/superuser-required
+  and relocatable controls, no fixed schema or prerequisites, and the exact
+  released comment. Filtering asserts these rows directly, freshly prepared and
+  held in both modes; complete native inventory and private statement-frontier
+  expectations include the same available-but-uninstalled module.
 - Installed dictionary metadata: `RUN='^TestReferenceTSDict'` preserves full
   metadata and identity links across unaccent installation/removal, including
   the complete native bootstrap inventory of 18 dictionaries (simple and 17

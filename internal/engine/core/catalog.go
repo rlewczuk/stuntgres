@@ -399,7 +399,51 @@ func (e *Engine) normalizeCatalogStage(ctx context.Context, s *CatalogStage) err
 	if err := s.validateMaterializedReplacement(); err != nil {
 		return err
 	}
+	// Extension relocation and current membership changes bypass class ALTER.
+	// Certify their complete staged cohort without Mu before allocating/applying
+	// live-key wrappers through this same open-stage publication lifecycle.
+	var ginUpdates []index.GinPresentationKeyUpdate
+	for address, descriptor := range s.Descriptors() {
+		if s.Base.Get(address) == nil {
+			continue
+		}
+		switch descriptor.(type) {
+		case *catalog.OperatorClass, *catalog.OperatorFamily, *catalog.Procedure:
+		default:
+			continue
+		}
+		origin := catalog.DescriptorOrigin(descriptor)
+		if origin == nil || origin.Installation.Provider != "btree_gin" {
+			continue
+		}
+		var err error
+		ginUpdates, err = index.CaptureGinPresentationKeys(ctx, s.Base, e.StageRead(s))
+		if err != nil {
+			return err
+		}
+		break
+	}
 	e.Mu.Lock()
+	for _, update := range ginUpdates {
+		if err := ctx.Err(); err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+		if e.StageRead(s).Get(update.Source.Address()) != update.Source {
+			e.Mu.Unlock()
+			return catalog.Conflict{}
+		}
+		next := *update.Target
+		var err error
+		next.ObjectRevision, err = e.Catalog.RevisionLocked()
+		if err == nil {
+			err = s.Replace(&next)
+		}
+		if err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+	}
 	if err := view.SynchronizeTriggersLocked(&s.Candidate, func() catalog.Read { return e.StageRead(s) }, &e.Catalog, s.TriggerReplacement); err != nil {
 		e.Mu.Unlock()
 		return err

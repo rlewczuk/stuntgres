@@ -2175,6 +2175,12 @@ publication fences. The index owner certifies old/current support authority;
 rebuilding keys or replaying earlier own-write expressions. Produced key backing,
 construction debt and any prior routine-source receipt survive the transport.
 Rollback/savepoints discard the new wrappers without changing committed roots.
+Installed scalar extension relocation and membership are normalized through the
+same open `CatalogStage`: the index owner certifies complete before/after cohorts
+outside `Engine.Mu`, then core allocates/applies dependent key revisions under
+the mutex before index evolution/history marking and final provider validation.
+No validated stage or committed root is patched afterward. Only genuine
+presentation/current-membership projections preserve executable support authority.
 
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, VIEW, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE, SEQUENCE and EXTENSION) in SQL BEGIN and Go BeginTx.

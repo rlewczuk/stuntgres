@@ -716,6 +716,8 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{3633, 3614, "b", false, false, 0, 0, 3625, 0, 0},
 	{3636, 16, "b", false, false, 3637, 0, 3634, 3686, 3687},
 	{3637, 16, "b", false, false, 3636, 0, 3635, 3686, 3687},
+	// Released legacy tsvector GIN strategy2 uses the same genuine matcher.
+	{3660, 16, "b", false, false, 3661, 0, 3634, 3686, 3687},
 	{3680, 3615, "b", false, false, 0, 0, 3669, 0, 0},
 	{3681, 3615, "b", false, false, 0, 0, 3670, 0, 0},
 	{3682, 3615, "l", false, false, 0, 0, 3671, 0, 0},

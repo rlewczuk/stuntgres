@@ -44,6 +44,7 @@ type GinBinding struct {
 	Class      IndexClass
 	element    *Descriptor
 	comparison Comparison
+	scalar     bool
 }
 
 func BindGinTokens(u Usage, class IndexClass) (GinBinding, error) {
@@ -62,14 +63,28 @@ func BindGinTokens(u Usage, class IndexClass) (GinBinding, error) {
 		p.comparison, err = BindComparison(base, base, u.Collation, false)
 		return p, err
 	}
+	switch class.InputOID() {
+	case uint32(Bit), uint32(VarBit), 3500, uint32(Money):
+		if class.Support(1).Authority == nil {
+			return p, fmt.Errorf("missing scalar GIN installation authority")
+		}
+		p.scalar = true
+		p.element = u.Type
+		base := u.Type.BaseType()
+		var err error
+		p.comparison, err = BindComparison(base, base, u.Collation, false)
+		return p, err
+	}
 	if class.InputOID() != uint32(TSVector) {
 		return p, failure("0A000", "GIN token provider is unsupported")
 	}
 	return p, nil
 }
 func (p GinBinding) Same(other GinBinding) bool {
-	return p.Usage == other.Usage && p.Class == other.Class && p.element == other.element && p.comparison.Equal(other.comparison)
+	return p.Usage == other.Usage && p.Class == other.Class && p.element == other.element && p.scalar == other.scalar && p.comparison.Equal(other.comparison)
 }
+
+func (p GinBinding) IsScalar() bool { return p.scalar }
 func (p GinBinding) Extract(ctx context.Context, v Value, emit func(GinToken) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -79,6 +94,9 @@ func (p GinBinding) Extract(ctx context.Context, v Value, emit func(GinToken) er
 	}
 	if v.null {
 		return emit(GinToken{Kind: GinNullItem})
+	}
+	if p.scalar {
+		return emit(GinToken{Element: v})
 	}
 	if p.element != nil {
 		if v.array == nil {

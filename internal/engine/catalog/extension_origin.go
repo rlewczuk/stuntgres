@@ -1,6 +1,9 @@
 package catalog
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 // Installation is an immutable released recipe. Cohort is logical provenance,
 // not a foreign key to a currently installed extension. An UPDATE may publish a
@@ -15,8 +18,9 @@ type Installation struct {
 	// logical declarations. They spell even source-deleted baseline objects
 	// during replay; historical owner/ACL fields grant no current authority.
 	// They are never published or executed as live catalog descriptors.
-	Declarations []Descriptor
-	sealed       *Installation
+	Declarations   []Descriptor
+	sealed         *Installation
+	indexAuthority sqltype.IndexAuthority
 }
 
 func (i *Installation) Address() ids.ObjectAddress { return i.Cohort }
@@ -32,6 +36,16 @@ func NewInstallation(cohort ids.ObjectAddress, provider, version string, impleme
 
 func (i *Installation) Valid() bool {
 	return i != nil && i.sealed == i && i.Cohort.ClassID == ids.ExtensionClassID && i.Cohort.ObjectID != 0 && i.Cohort.SubID == 0 && len(i.Members) > 0 && len(i.Declarations) == len(i.Members)
+}
+
+// IndexAuthority returns only this genuine sealed recipe's opaque authority.
+// Presentation and membership share it; an independent installation/remint
+// owns its own embedded token, even when every allocated number is equal.
+func (i *Installation) IndexAuthority() *sqltype.IndexAuthority {
+	if !i.Valid() {
+		return nil
+	}
+	return &i.indexAuthority
 }
 
 // InstalledOrigin binds a descriptor to one declaration in a genuine staged

@@ -588,6 +588,11 @@ neither owns catalog authority.
   Native handlers and GIN support seeds leave `Procedure.Parallel` at its zero
   override sentinel: their intrinsic projected safety is SAFE. Explicit ALTER
   overrides remain replayable, while pristine Dump emits no metadata repairs.
+  Installed scalar GIN classes use ordinary allocated class/family/member
+  descriptors and sealed helper declarations. Each genuine `Installation`
+  embeds a nonzero-size opaque index token exposed only while its seal is valid.
+  Same-recipe presentation and no-op remaps preserve it; independent installations
+  and reminted recipes own distinct tokens even with identical numeric stamps.
   BRIN descriptors retain released minmax and diagnostic-only excluded algorithm
   identities, including inet's actual
   inclusion default. Four `BrinSupport` procedure capabilities declare internal

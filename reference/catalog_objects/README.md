@@ -98,6 +98,11 @@ is covered by `TestReferenceSecurityLabelEventBoundary` in `reference/triggers`.
   class/family inventories, with all six released search members and ten genuine
   internal support declarations. These capabilities do not activate JSONB,
   deprecated @@@ execution, physical callbacks or optimizer index use.
+  The shared fifteen-field operator bag includes legacy GIN strategy2 operator
+  3660 with its actual commutator3661, matcher3634 and estimators3686/3687.
+  Complete inventory, permissions, lifecycle and polymorphic consumers retain
+  that row; References also checks the symbolic targets. All799 alias identities
+  are unchanged, including the existing reverse `@@@` identity.
   `pg_amop` projects live operator-family owners, not generic rows per class
   or per physical index. Its admitted inventory preserves cross-type search
   members and ordering members with their real sort-family links; catalog

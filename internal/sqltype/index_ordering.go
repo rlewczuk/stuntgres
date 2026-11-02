@@ -22,6 +22,7 @@ type IndexClass struct {
 	bloom                   bool
 	gin                     bool
 	support                 [6]IndexSupport
+	search                  [5]IndexSearch
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
@@ -63,6 +64,7 @@ func (c IndexClass) IsGin() bool    { return c.gin }
 // members captured for execution or current presentation names.
 func (c IndexClass) SameIdentity(other IndexClass) bool {
 	c.support, other.support = [6]IndexSupport{}, [6]IndexSupport{}
+	c.search, other.search = [5]IndexSearch{}, [5]IndexSearch{}
 	c.Name, other.Name, c.Family, other.Family = "", "", "", ""
 	return c == other
 }
@@ -342,6 +344,9 @@ func (c IndexClass) AcceptsID(id ID) bool {
 	if id == c.input {
 		return true
 	}
+	if c.gin && (c.input == Bit || c.input == VarBit) {
+		return id == Bit || id == VarBit
+	}
 	switch c.input {
 	case Inet:
 		return id == Cidr
@@ -383,11 +388,38 @@ const (
 	IsnIndexSupport
 )
 
+// IndexAuthority is an opaque process-local installed-provider token. Owners
+// embed it in a sealed immutable recipe; equal numeric catalog IDs are not
+// sufficient to transfer executable index authority between installations.
+type IndexAuthority struct{ identity byte }
+
 type IndexSupport struct {
 	Provider                                       IndexSupportProvider
+	Authority                                      *IndexAuthority
 	Family, Member, Routine, Left, Right           uint32
 	Revision                                       uint64
 	ClassRevision, FamilyRevision, RoutineRevision uint64
+}
+
+// IndexSearch captures a selected GIN member and its executable generations.
+// Declared class identity excludes these stamps; a bound class never does.
+type IndexSearch struct {
+	Member, Operator, Routine                         uint32
+	MemberRevision, OperatorRevision, RoutineRevision uint64
+}
+
+func (c IndexClass) WithSearch(strategy int, search IndexSearch) IndexClass {
+	if strategy >= 1 && strategy <= len(c.search) {
+		c.search[strategy-1] = search
+	}
+	return c
+}
+
+func (c IndexClass) Search(strategy int) IndexSearch {
+	if strategy < 1 || strategy > len(c.search) {
+		return IndexSearch{}
+	}
+	return c.search[strategy-1]
 }
 
 func (c IndexClass) WithSupport(slot int, support IndexSupport) IndexClass {
@@ -417,6 +449,9 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 	}
 	if !c.Accepts(u.Type) {
 		return IndexComparison{}, failure("42804", fmt.Sprintf("operator class %q does not accept data type %s", c.Name, u.Type.DiagnosticName()))
+	}
+	if isBitString(u.Type.BaseType().ID()) {
+		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
 	if c.input == NameArray {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")

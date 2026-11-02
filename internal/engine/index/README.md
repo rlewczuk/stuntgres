@@ -63,17 +63,25 @@ builds a binder.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
-  GIN (`gin.go`, `delta.go`) binds actual array_ops/tsvector_ops family support,
-  then builds per-column typed token dictionaries and exact row/version/slot
-  postings from already-produced keys. Batch delta merges extract only added
+  GIN (`gin.go`, `gin_scalar.go`, `delta.go`) binds actual array/vector or
+  authenticated installed scalar family support, then builds per-column typed
+  dictionaries and exact row/version/slot postings from already-produced keys.
+  Batch delta merges extract only added
   keys, end exact predecessors and share unchanged posting backing. NULL items,
   empty items and NULL elements are separate categories; array duplicate tokens
   are deduplicated per version, never across duplicate SQL rows. Token comparison
   reuses concrete scalar element equality/ordering and collation, not rendered
   values or a B-tree opclass. Vector projection reads immutable canonical lexemes.
-  Minimal exact/prefix/array probes consume postings and always require scalar
-  recheck; there is no optimizer path or second array/FTS matcher. Current roots
-  do not replace ordinary own-write or historical visibility.
+  Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
+  Scalar equality shares the exact list; range probes binary-bound ordinary keys
+  and use storage's typed cursor-heap union of only the selected lists, never
+  relation heap or NonNull membership. For P postings from k nonempty lists,
+  work is O(P log k), with one output allocation and O(k) cursor scratch rather
+  than growing-prefix copies. Empty intervals return nil; one selected list
+  remains borrowed. Cancellation at any phase, including the final boundary,
+  returns nil rather than partial postings. Scalar predicate recheck and
+  visibility remain source-owned; no optimizer path or second scalar/array/FTS
+  matcher is introduced.
   Class/family presentation ALTER (`gin_presentation.go`) strictly authenticates
   predecessor captures before selecting current target support. The catalog
   stage copies affected live index keys; ordinary/private publication copies
@@ -81,7 +89,16 @@ builds a binder.
   Mapped construction history retains prior recipe debt. Private own-write keys
   travel with the certified descriptor mapping without executing SQL again;
   retained routine-source fences remain required. Detached stale support still
-  fails ordinary binding. Provider/member/codec changes cannot use this transport.
+  fails ordinary binding. Extension relocation/current membership uses the same
+  stage certificate for complete installed cohorts, allowing only authenticated
+  SQL presentation/membership changes with unchanged original executable seal.
+  Installed helper OWNER changes require exactly `SchemaACLOwner`'s projection
+  of the predecessor ACL: grantor/grantee replacement, coalescing and retained
+  grant options, preserving NULL versus explicit-empty ACLs. Unchanged owners
+  require unchanged ACLs. This certificate never skips current provider,
+  principal/ACL validation or ordinary callable EXECUTE checks, and cannot
+  authorize an unrelated grant, wrong grantor or dropped grant option.
+  A changed fifth strategy, provider, helper body or codec cannot use transport.
   Nonmaterializing admission uses the same fallible merge traversal with only
   delta-sized scratch, never constructing merged survivor dictionaries/postings
   or an installable root merely to discard it.
@@ -568,6 +585,17 @@ exclusion and unique-claim selections with `RACE=1`. Private units assert
 support IDs/routines and root membership, never ORDER BY results as evidence of
 index use. Public SQL: [reference/indexes](../../../reference/indexes/README.md#testing)
 (add `REFERENCE=1` for the oracle).
+Retained-root snapshots preserve nil versus nonnil-empty entry/key slices.
+The compound presentation proof checks snapshot equality before performing any
+operation, then retains the same strict deep-equality and shared-backing checks
+after relocation, membership changes and indexed writes.
+`TestBtreeGINCompoundHelperOwnerACL` covers actual explicit-ACL ownership with
+dependent roots, empty/populated/private/rollback cases, coalesced owner grants
+and unpublished invalid/canceled candidates. `TestBtreeGINCompoundRangeResources`
+builds genuine 256/2048-key money roots, checks all broad ranges and exact
+physical identities, equality backing, source immutability and nil-on-cancel.
+Only probe work is measured: at most eight allocations and `192*N+8192` bytes
+per call, with large-case growth at most twelve times small plus 8192 bytes.
 
 **Frame names matched by tests.** `TestHashIndexMergeCancellation` matches
 `.MergeHashIndexRoot` and `TestSerializablePublicationRealChangedPredecessorRetry`
@@ -583,6 +611,7 @@ make check RUN='^TestBrinIndex'   # range summaries, consistency, publication an
 make check RUN='^TestSPGiST'   # genuine method, membership, publication and destination transport
 make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot)$'
 make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestGINCancellation)$'
+make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and immutable lifecycle
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

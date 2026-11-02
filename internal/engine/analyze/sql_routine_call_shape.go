@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
@@ -247,6 +248,12 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 	name, err := callableProviderBindingName(b.BindingCatalog(), candidate.Procedure)
 	if err != nil {
 		return false
+	}
+	// The installed scalar comparator is engine-owned, not a registry
+	// function family. Its authenticated ANYENUM declaration uses the same
+	// concrete-generation resolver as ordinary polymorphic signatures.
+	if candidate.Procedure.Implementation == extension.StockBtreeGin && name == "gin_enum_cmp" {
+		return b.probeRoutineSignature(operands, candidate)
 	}
 	if name == "hstore_from_record" || name == "hstore_populate_record" {
 		return b.probeRoutineSignature(operands, candidate)

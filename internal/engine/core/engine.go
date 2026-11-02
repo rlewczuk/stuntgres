@@ -228,6 +228,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.registerExtension("bloom", extension.StockBloom); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("btree_gin", extension.StockBtreeGin); err != nil {
+		return nil, err
+	}
 	if err := e.registerExtension("dblink", extension.StockDblink); err != nil {
 		return nil, err
 	}

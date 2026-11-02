@@ -80,6 +80,12 @@ attachment or originating-header retirement does not revoke surviving support.
 `BindCapturedIndexOrdering` additionally seals the actual source declarations
 and typed support operation for immutable sort/window transport.
 
+The builtin bit-string comparators used by selected btree_gin classes retain
+their full released routine metadata: OIDs 1596 (`bitcmp`) and 1672
+(`varbitcmp`) both use the internal source `bitcmp`, cost 1 and leakproof,
+parallel-safe declarations. Display and declaration-property inventories are
+part of the genuine builtin declaration, not exceptions to completeness checks.
+
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
 the actual language and orders real declaration prerequisites before PL source.
@@ -474,15 +480,19 @@ package or the engine.
   `catalog.ValidateBrinSupport`, not `NativeIndexRoutine` scalar comparator
   dispatch. Live class/family members remain authority for both supported minmax
   and explicit excluded-algorithm diagnostics.
-  GIN validates the selected class/method/family, exact required strategies and
-  ten genuine `catalog.ValidateGinSupport` operations with current effective
-  revisions. It captures extraction/consistency capabilities, never a B-tree
-  full-value comparator or authorization by class name. The array family has no
-  support1; typed element comparison belongs to sqltype. Method aliases keep
-  their actual SQL identity while sharing the finite GIN operation authority.
-  Detached stale GIN captures remain rejected after class/family presentation
-  changes. Only the index owner's certified predecessor-to-candidate publication
-  refreshes live key/root captures; the binder has no stale-refresh fallback.
+  GIN validates the selected class/method/family and exact required strategies.
+  Builtin array/vector support uses ten genuine `catalog.ValidateGinSupport`
+  operations; installed scalar support authenticates the original btree_gin
+  recipe, signatures and mapped helpers. Captures include effective class,
+  family, support, search-member, operator and backing-routine revisions plus
+  the original installation's opaque index authority. The array family has no
+  support1; typed element/scalar dictionary comparison belongs to sqltype.
+  Vector strategy2 retains the actual released operator3660 (`@@@`) descriptor
+  and genuine backing routine3634 (`ts_match_vq`); its deprecated SQL spelling
+  never permits absent operator metadata or a missing/stale routine capture.
+  Method aliases retain their actual SQL identity. Detached stale captures
+  remain rejected; only the index owner's certified predecessor-to-candidate
+  publication refreshes live key/root captures, never a binder fallback.
   Cube and hstore support require the exact INTERNAL class address,
   never merely a nonzero family/class owner. Hstore binds only its installed
   B-tree comparator or two distinct hash routines, with authenticated manifest

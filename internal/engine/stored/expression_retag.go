@@ -129,6 +129,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, installed := node.(plan.GinEnumCompareExpr); installed && ok {
+				if failure := remapGinEnumCompare(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if capture, isCitext := citextComparisonCaptureOf(node); isCitext {
 				if failure := remapCitextComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
 					return nil, false, failure
@@ -481,6 +486,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			rebound, err = n.Rebuild(info, n.Args)
 		}
 	case plan.CubeComparisonExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		if changed {
+			rebound, err = n.Rebuild(info, n.Args[:])
+		}
+	case plan.GinEnumCompareExpr:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if err != nil {
 			return node, false, err

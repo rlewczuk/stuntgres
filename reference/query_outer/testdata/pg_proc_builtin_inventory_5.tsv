@@ -103,3 +103,5 @@
 3921	gin_tsquery_triconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 3614 23 2281 2281 2281	\N	\N	\N	false	\N	gin_tsquery_triconsistent	\N	false	\N
 4086	to_regnamespace	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	4089	25	\N	\N	\N	false	\N	to_regnamespace	\N	false	\N
 6317	to_regtypemod	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	25	\N	\N	\N	false	\N	to_regtypemod	\N	false	\N
+1596	bitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1560 1560	\N	\N	\N	false	\N	bitcmp	\N	false	\N
+1672	varbitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1562 1562	\N	\N	\N	false	\N	bitcmp	\N	false	\N

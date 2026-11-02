@@ -124,6 +124,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.CubeComparisonExpr:
 		r.Add(n.Ref.Address)
+	case plan.GinEnumCompareExpr:
+		r.Add(n.Ref.Address)
 	case functions.IsnValidation:
 		r.Add(n.RoutineRef.Address)
 	case plan.ComparisonExpr:

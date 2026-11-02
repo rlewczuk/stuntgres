@@ -205,8 +205,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// and unnamed inputs.
 	// GIN adds its genuine handler333 and ten internal extraction/consistency
 	// support declarations, with no scalar C ABI execution.
-	if len(facts) != 2205 {
-		t.Fatalf("released represented overloads: got %d, want 2205", len(facts))
+	// Selected btree_gin classes add genuine bitcmp/varbitcmp declarations:
+	// both are leakproof and strict IMMUTABLE/parallel-safe INT4 comparators;
+	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
+	if len(facts) != 2207 {
+		t.Fatalf("released represented overloads: got %d, want 2207", len(facts))
 	}
 	return facts
 }

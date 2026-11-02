@@ -15,6 +15,20 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### GIN legacy strategy metadata admission
+
+The supported fifteen-field inventory also includes released operator3660
+`@@@(tsvector,tsquery)`, required by the existing tsvector GIN strategy2.
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+specifies namespace11/owner10, binary kind, false merge/hash flags, BOOL16 result,
+commutator3661, no negator, backing routine3634 (`ts_match_vq`), and estimator
+routines3686/3687 (`tsmatchsel`/`tsmatchjoinsel`). Existing all799 alias facts
+already include both3660 and3661 and remain unchanged. Complete catalog bags
+consume the new metadata row without filtering it out; reference-link tests
+also assert its genuine symbolic targets. This metadata admission does not
+enable deprecated `@@@` SQL execution or a new operator provider.
+
+
 ### Geometric transform admission
 
 The supported inventory includes binary operators731–739,804–807 and1516–1519.

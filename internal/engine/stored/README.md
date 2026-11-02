@@ -652,6 +652,12 @@ host methods.
   and their installed procedure; the selected operator retains a separate address.
   Remap/retag rebuilds that kernel against destination descriptors, and rendering
   validates current manifest links before using qualified presentation names.
+  The scalar GIN enum comparator retains its actual installed routine and both
+  concrete enum generations. Reference relocation precedes mapped-original
+  declaration validation; retagging rebinds the existing typed comparator.
+  Replay checks current installed authority and renders its current qualified
+  name with explicit operand casts, preserving stored-view identity across
+  routine rename/schema changes without authorizing replacement by spelling.
   `StoredProviderRoutine` is distinct from SQL-body/owned-aggregate markers and
   reuses the existing `routineRefs` occurrence map and dependency manifest.
   `StoredProviderSymbol` records immutable symbols to reject substituted captures;

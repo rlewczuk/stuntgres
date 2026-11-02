@@ -59,6 +59,8 @@ var nativeIndexRoutines = [...]NativeIndexRoutine{
 	{1314, "timestamptz_cmp", 1184, 1184, IndexCompareRoutine, false, "1184,1184"},
 	{1315, "interval_cmp", 1186, 1186, IndexCompareRoutine, false, "1186,1186"},
 	{1358, "timetz_cmp", 1266, 1266, IndexCompareRoutine, false, "1266,1266"},
+	{1596, "bitcmp", 1560, 1560, IndexCompareRoutine, false, "1560,1560"},
+	{1672, "varbitcmp", 1562, 1562, IndexCompareRoutine, false, "1562,1562"},
 	{1688, "time_hash", 1083, 0, IndexHashRoutine, false, "1083"},
 	{1693, "btboolcmp", 16, 16, IndexCompareRoutine, false, "16,16"},
 	{1696, "timetz_hash", 1266, 0, IndexHashRoutine, false, "1266"},

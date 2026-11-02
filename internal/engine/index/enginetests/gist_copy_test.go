@@ -3,6 +3,7 @@ package enginetests_test
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -99,9 +100,9 @@ func gistCopyMembership(t *testing.T, e *core.Engine, parent, idx *catalog.Relat
 }
 
 func gistCopyEntries(root *storage.IndexRoot) []storage.IndexEntry {
-	entries := append([]storage.IndexEntry(nil), root.Entries...)
+	entries := slices.Clone(root.Entries)
 	for i := range entries {
-		entries[i].Keys = append([]sqltype.Value(nil), entries[i].Keys...)
+		entries[i].Keys = slices.Clone(entries[i].Keys)
 	}
 	return entries
 }

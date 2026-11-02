@@ -440,3 +440,104 @@ func CombineGinPostings(ctx context.Context, left, right []GinPosting, intersect
 	}
 	return out, ctx.Err()
 }
+
+// UnionGinPostingLists merges selected sorted immutable candidate lists with a
+// typed cursor heap. It borrows a sole list; otherwise output is owned, sorted
+// and deduplicated by the full physical Row/Version/Position identity.
+// Work is O(P log k), with O(P+k) allocation, never repeated prefix copies.
+func UnionGinPostingLists(ctx context.Context, lists []GinPostingList) ([]GinPosting, error) {
+	total, count := 0, 0
+	var single []GinPosting
+	const maxInt = int(^uint(0) >> 1)
+	for i := range lists {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		postings := lists[i].Postings
+		if len(postings) == 0 {
+			continue
+		}
+		if len(postings) > maxInt-total {
+			return nil, fmt.Errorf("stuntgres: GIN posting union capacity overflow")
+		}
+		total += len(postings)
+		count++
+		single = postings
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, nil
+	}
+	if count == 1 {
+		return single, nil
+	}
+	heap := make([]ginPostingCursor, 0, count)
+	for i := range lists {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if postings := lists[i].Postings; len(postings) != 0 {
+			heap = append(heap, ginPostingCursor{postings: postings})
+		}
+	}
+	for i := len(heap)/2 - 1; i >= 0; i-- {
+		if err := siftGinPostingCursor(ctx, heap, i); err != nil {
+			return nil, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]GinPosting, 0, total)
+	for len(heap) != 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		next := heap[0].postings[0]
+		if len(out) == 0 || out[len(out)-1] != next {
+			out = append(out, next)
+		}
+		heap[0].postings = heap[0].postings[1:]
+		if len(heap[0].postings) == 0 {
+			last := len(heap) - 1
+			heap[0] = heap[last]
+			heap = heap[:last]
+		}
+		if len(heap) > 1 {
+			if err := siftGinPostingCursor(ctx, heap, 0); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type ginPostingCursor struct {
+	postings []GinPosting
+}
+
+func siftGinPostingCursor(ctx context.Context, heap []ginPostingCursor, at int) error {
+	cursor := heap[at]
+	head := cursor.postings[0]
+	for at < len(heap)/2 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		child := at*2 + 1
+		if child+1 < len(heap) && compareGinPosting(heap[child+1].postings[0], heap[child].postings[0]) < 0 {
+			child++
+		}
+		if compareGinPosting(head, heap[child].postings[0]) <= 0 {
+			break
+		}
+		heap[at] = heap[child]
+		at = child
+	}
+	heap[at] = cursor
+	return nil
+}

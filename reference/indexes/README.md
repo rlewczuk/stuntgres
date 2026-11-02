@@ -138,6 +138,22 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   exit. Internal `TestGINPresentationRebinding` retains strict detached rejection
   and actual shared backing; `TestGINNonmaterializingMerge` checks required
   validation/cancellation and bounded append/delete/no-change allocation.
+  Installed scalar families and their SQL-callable enum comparator use
+  `RUN='^TestReferenceBtreeGINCompound'`, including independent released
+  signatures, direct/held values and descriptors, full diagnostics, presentation
+  and real native Dump replay. Matching private `TestBtreeGINCompound` units
+  assert selective physical posting triples and installation authority rather
+  than inferring GIN use from successful SQL queries.
+  Native controls distinguish successful builtin-signature/datum held rebinding
+  from the ordinary lifetime fence of a captured enum literal and the exact
+  `0A000` concrete-enum parameter/result fences. Fresh enum-literal preparation
+  succeeds after Restore while old eager values and metadata remain readable.
+  `TestReferenceBtreeGINCompoundHelperOwnerACL` adds the explicit-ACL helper
+  owner projection with an existing dependent index, rollback, grant options,
+  direct/fresh/held allowed and denied calls, and indexed writes by a caller
+  denied helper EXECUTE. Installer-role expectations retain the fixture's native
+  postgres versus pinned-PostgreSQL stuntgres distinction; transferred ownership
+  has the same independently specified role/grantor projection on both backends.
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`
 - UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`

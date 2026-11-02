@@ -85,6 +85,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"autoinc":            {"autoinc", "1.0", nil, "functions for autoincrementing fields"},
 			"amcheck":            {"amcheck", "1.5", nil, "functions for verifying relation integrity"},
 			"bloom":              {"bloom", "1.0", nil, "bloom access method - signature file based index"},
+			"btree_gin":          {"btree_gin", "1.3", nil, "support for indexing common datatypes in GIN"},
 			"citext":             {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 			"cube":               {"cube", "1.5", nil, "data type for multidimensional cubes"},
 			"dblink":             {"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"},
@@ -121,6 +122,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
 			expected["amcheck"] = []any{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}
 			expected["bloom"] = []any{"bloom", "1.0", false, true, false, true, nil, nil, "bloom access method - signature file based index"}
+			expected["btree_gin"] = []any{"btree_gin", "1.3", false, true, true, true, nil, nil, "support for indexing common datatypes in GIN"}
 			expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 			expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 			expected["dblink"] = []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}

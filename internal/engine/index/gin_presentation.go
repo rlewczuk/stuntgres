@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -35,6 +36,9 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 	newClass, _ := after.OperatorClass(ids.OID(old.OID()))
 	class := *newClass
 	class.ObjectName, class.ObjectNamespace, class.Owner, class.ObjectRevision = oldClass.ObjectName, oldClass.ObjectNamespace, oldClass.Owner, oldClass.ObjectRevision
+	if oldClass.Origin != nil && oldClass.Origin.Installation.Implementation == extension.StockBtreeGin {
+		class.Extension = oldClass.Extension
+	}
 	if class != *oldClass {
 		return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed class authority")
 	}
@@ -43,6 +47,9 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 	newFamily, _ := after.OperatorFamily(address)
 	family := *newFamily
 	family.ObjectName, family.ObjectNamespace, family.Owner, family.ObjectRevision = oldFamily.ObjectName, oldFamily.ObjectNamespace, oldFamily.Owner, oldFamily.ObjectRevision
+	if oldFamily.Origin != nil && oldFamily.Origin.Installation.Implementation == extension.StockBtreeGin {
+		family.Extension = oldFamily.Extension
+	}
 	if family != *oldFamily {
 		return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed family authority")
 	}
@@ -65,13 +72,15 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 		}
 		if oldOK {
 			routine := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oldMember.Function}
-			if before.Get(routine) != after.Get(routine) {
+			if !ginPresentationProcedure(before, after, routine) {
 				return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed support authority")
 			}
 		}
 	}
-	right, strategies := input, int16(4)
-	if input == 3614 {
+	right, strategies := input, int16(5)
+	if input == 2277 {
+		strategies = 4
+	} else if input == 3614 {
 		right, strategies = 3615, 2
 	}
 	for number := int16(1); number <= strategies; number++ {
@@ -83,6 +92,9 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 		operator := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oldMember.Operator}
 		if before.Get(operator) != after.Get(operator) {
 			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed operator authority")
+		}
+		if old.Search(int(number)) != current.Search(int(number)) {
+			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed search executable generation")
 		}
 	}
 	return current, nil

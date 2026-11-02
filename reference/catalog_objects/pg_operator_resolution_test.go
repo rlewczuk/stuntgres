@@ -311,6 +311,11 @@ func TestReferencePGOperatorReferences(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 		q = "SELECT oprcode,oprrest,oprjoin FROM pg_operator WHERE oid=96"
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"oprcode", "oprrest", "oprjoin"}, []string{"REGPROC", "REGPROC", "REGPROC"}, [][]any{{"int4eq", "eqsel", "eqjoinsel"}}))
+		legacy := fixture.Select("SELECT oid,oprcom::regoperator::text AS commutator,oprcode::regproc::text AS implementation,oprrest::regproc::text AS restriction,oprjoin::regproc::text AS join_estimator FROM pg_operator WHERE oid=3660",
+			[]string{"oid", "commutator", "implementation", "restriction", "join_estimator"}, []string{"OID", "TEXT", "TEXT", "TEXT", "TEXT"},
+			[][]any{{int64(3660), "@@@(tsquery,tsvector)", "ts_match_vq", "tsmatchsel", "tsmatchjoinsel"}})
+		fixture.PgDescriptionRows(t, p, b, legacy)
+		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(legacy))
 		aliases, facts := pgOperatorAliasText(t), pgOperatorFacts(t)
 		var targets [][]any
 		for _, row := range facts {

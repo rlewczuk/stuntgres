@@ -44,7 +44,11 @@ func BindClassOptions(view catalog.Read, class sqltype.IndexClass, options []par
 		return captured, err
 	}
 	if !hasSiglenOptions(view, class) {
-		return captured, sqlError("22023", fmt.Sprintf("operator class %s has no options", class.Name))
+		name := catalog.Identifier(class.Name)
+		if fact, ok := view.OperatorClass(ids.OID(class.OID())); ok && fact.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+			name = catalog.Identifier(view.MustNamespace(fact.Namespace()).Name()) + "." + name
+		}
+		return captured, sqlError("22023", fmt.Sprintf("operator class %s has no options", name))
 	}
 	for _, option := range options {
 		name := option.Name.Text
