@@ -349,13 +349,17 @@ consumer denial/restoration; engine units additionally cover immutable roots.
 
 ### Column grant metadata
 
-`info_role_column_grants_helpers_test.go` owns the shared scenario, exact
-eight-column bags, domain/adapter metadata, identity setup and held consumers.
-The family checks ACL origins and raw-UNION multiplicity, enabled grantors and
-grantees, object classes, mutation atomicity and fresh execution visibility.
+`info_column_privileges_helpers_test.go` and
+`info_role_column_grants_helpers_test.go` own exact eight-column bags,
+domain/adapter metadata, identity setup and held consumers. The families check
+shared table/column ACL origins, raw-UNION multiplicity, enabled endpoints,
+object classes, mutation atomicity and fresh execution visibility.
+The column-privilege view additionally exposes exact `PUBLIC` grantee names:
+pseudo-PUBLIC and the distinct named role retain separate origins and
+grantability. The role view still requires an enabled endpoint.
 Eager retained rows and native controls are explicit native-only phases.
 
-- Column grants: `RUN='^TestReferenceInfoRoleColumnGrants'`
+- Column grant families: `RUN='^TestReferenceInfo(ColumnPrivileges|RoleColumnGrants)'`
 
 ### UDT grants
 

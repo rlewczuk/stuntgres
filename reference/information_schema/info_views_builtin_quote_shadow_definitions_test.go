@@ -2,6 +2,7 @@ package reference_test
 
 // Independent PostgreSQL 18.6 quote_all_identifiers definition expectations.
 var ivBuiltinQuoteShadowDefinitions = map[string]string{
+	"information_schema.column_privileges": cpQuoteShadowDefinition,
 	"information_schema.attributes": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "udt_catalog",
     ("nc"."nspname")::"information_schema"."sql_identifier" AS "udt_schema",
     ("c"."relname")::"information_schema"."sql_identifier" AS "udt_name",

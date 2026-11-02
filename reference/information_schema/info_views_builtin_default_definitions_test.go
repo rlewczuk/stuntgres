@@ -3,6 +3,7 @@ package reference_test
 // Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinDefinitions = map[string]string{
+	"information_schema.column_privileges": cpDefaultDefinition,
 	"information_schema.attributes": ` SELECT (current_database())::information_schema.sql_identifier AS udt_catalog,
     (nc.nspname)::information_schema.sql_identifier AS udt_schema,
     (c.relname)::information_schema.sql_identifier AS udt_name,

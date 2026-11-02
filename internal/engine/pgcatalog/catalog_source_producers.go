@@ -170,6 +170,7 @@ var producers = [...]Registration{
 	{InfoElementTypesOID, captureInfoElementTypes},
 	{InfoApplicableRolesOID, captureInfoApplicableRoles},
 	{InfoAttributesOID, captureInfoAttributes},
+	{InfoColumnPrivilegesOID, captureInfoColumnPrivileges},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

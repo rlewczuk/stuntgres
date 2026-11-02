@@ -664,7 +664,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Absent and explicit-empty ACLs stay distinct: `ClassACL` returns NULL for an
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
-  primitive carriers. `table_privileges`, `role_column_grants`, `role_table_grants`,
+  primitive carriers. `table_privileges`, `column_privileges`, `role_column_grants`, `role_table_grants`,
   `role_routine_grants`, `routine_privileges`, `role_udt_grants`, `udt_privileges`, `role_usage_grants` and `usage_privileges` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
@@ -713,13 +713,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Its released definition retains the direction joins, including explicit OID
   coercions of the regproc direction references, and UNION; automatic INSERT,
   UPDATE and DELETE are rejected by the shared view path.
-- `role_column_grants` captures one catalog/role frontier and projects actual
-  table/column ACL origins on live positive attributes. Its raw-origin UNION
-  includes the grant-option bit before ownership determines grantability, so
-  identical final rows can retain multiplicity. Visibility uses enabled grantor
-  or enabled named grantee, including PUBLIC origins with an enabled grantor;
-  it does not reuse table/column data-access predicates. Membership closures
-  and grantee/owner authority are cached within that capture.
+- `column_privileges` and `role_column_grants` share one captured catalog/role
+  frontier and project actual table/column ACL origins on live positive
+  attributes. Their raw-origin UNION includes the grant-option bit before
+  ownership determines grantability, so identical final rows retain multiplicity.
+  Both expose enabled grantors or named grantees; `column_privileges` also
+  exposes grantees whose resolved name is exactly `PUBLIC`, including the
+  distinct pseudo-PUBLIC and named-role identities. The role view retains
+  pseudo-PUBLIC origins only with an enabled grantor. Named grantees retain
+  normal grantability; pseudo-PUBLIC never receives grant options.
+  Neither uses schema-USAGE or data-access predicates. Membership closures
+  and grantee/owner authority are cached within that immutable capture;
+  cancellation discards the entire result.
 - `table_privileges` and `role_table_grants` share a projector over real relation
   ACL origins, including zero-column relations, without schema-USAGE or
   data-readability filters. Both expose enabled grantors or named grantees;
@@ -1630,6 +1635,8 @@ a hash root alone does not select that access method.
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
+- Column ACL producer, ownership and frontier units (`enginetests/`):
+  `RUN='^TestInfo(ColumnPrivileges|RoleColumnGrants)'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`
 - Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
 - Composite attribute producer/capture/authority units: `RUN='^TestInfoAttributes'`
