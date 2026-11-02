@@ -208,8 +208,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Selected btree_gin classes add genuine bitcmp/varbitcmp declarations:
 	// both are leakproof and strict IMMUTABLE/parallel-safe INT4 comparators;
 	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
-	if len(facts) != 2207 {
-		t.Fatalf("released represented overloads: got %d, want 2207", len(facts))
+	// The selected network GIN family adds genuine macaddr8_cmp OID4119.
+	if len(facts) != 2208 {
+		t.Fatalf("released represented overloads: got %d, want 2208", len(facts))
 	}
 	return facts
 }

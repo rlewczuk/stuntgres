@@ -73,7 +73,7 @@ func (p *BtreeGinProvider) Stage(stage Stage, e *catalog.Extension, owner author
 			if err != nil {
 				return err
 			}
-			if err := stage.Create(&catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: oid}, ObjectRevision: revision, Family: class.Family, Left: spec.input, Right: spec.input, Operator: operator, Method: class.Method, InternalOwner: class.Address(), Number: int16(number + 1), Purpose: 's'}); err != nil {
+			if err := stage.Create(&catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: oid}, ObjectRevision: revision, Family: class.Family, Left: spec.search, Right: spec.search, Operator: operator, Method: class.Method, InternalOwner: spec.memberOwner(class.Address(), number+1, false), Number: int16(number + 1), Purpose: 's'}); err != nil {
 				return err
 			}
 			oid, err = stage.AllocateOID()
@@ -84,7 +84,7 @@ func (p *BtreeGinProvider) Stage(stage Stage, e *catalog.Extension, owner author
 			if err != nil {
 				return err
 			}
-			if err := stage.Create(&catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: oid}, ObjectRevision: revision, Family: class.Family, Left: spec.input, Right: spec.input, Function: routines[number], InternalOwner: class.Address(), Number: int16(number + 1), CatalogVisible: true}); err != nil {
+			if err := stage.Create(&catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: oid}, ObjectRevision: revision, Family: class.Family, Left: spec.input, Right: spec.input, Function: routines[number], InternalOwner: spec.memberOwner(class.Address(), number+1, true), Number: int16(number + 1), CatalogVisible: true}); err != nil {
 				return err
 			}
 		}

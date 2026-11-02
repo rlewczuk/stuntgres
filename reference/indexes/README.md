@@ -144,6 +144,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   and real native Dump replay. Matching private `TestBtreeGINCompound` units
   assert selective physical posting triples and installation authority rather
   than inferring GIN use from successful SQL queries.
+  Network/UUID/OID scalar classes use `RUN='^TestReferenceBtreeGINNetwork'` for
+  independently specified graphs, slot-dependent dependency ownership, raw
+  direct/held values, diagnostics, presentation and persistent replay. Owning
+  `TestBtreeGINNetwork` definitions prove actual unsigned/prefix dictionary
+  ordering, exact physical postings, cancellation and destination authority.
+  Independent-driver and PostgreSQL Dump replay provision referenced global
+  roles separately before executing unchanged emitted SQL; role definitions
+  are not database Dump contents, while ownership and schema ACLs remain checked.
   Native controls distinguish successful builtin-signature/datum held rebinding
   from the ordinary lifetime fence of a captured enum literal and the exact
   `0A000` concrete-enum parameter/result fences. Fresh enum-literal preparation

@@ -38,11 +38,10 @@ func (p *BtreeGinProvider) validateRecipe(v catalog.Read, e *catalog.Extension) 
 	return p.ValidateExtension(v, e)
 }
 
-// Slots0..13 are the actual released C declarations. Families/classes follow
-// in pairs; pg_amop/pg_amproc rows are class-owned internal members, not extra
-// extension recipe declarations. This order is stable across symbolic replay.
-const btreeGinRoutineCount = 14
-const btreeGinMemberCount = btreeGinRoutineCount + 8
+// Released C declarations precede family/class pairs. The recipe order is stable
+// across symbolic replay; family members retain their exact dependency policy.
+const btreeGinRoutineCount = len(btreeGinRoutines)
+const btreeGinMemberCount = btreeGinRoutineCount + 2*len(btreeGinClasses)
 
 var btreeGinRoutines = [...]struct {
 	name      string
@@ -63,6 +62,24 @@ var btreeGinRoutines = [...]struct {
 	{"gin_extract_value_money", "790,2281", 2281},
 	{"gin_extract_query_money", "790,2281,21,2281,2281", 2281},
 	{"gin_compare_prefix_money", "790,790,21,2281", 23},
+	{"gin_extract_value_inet", "869,2281", 2281},
+	{"gin_extract_query_inet", "869,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_inet", "869,869,21,2281", 23},
+	{"gin_extract_value_cidr", "650,2281", 2281},
+	{"gin_extract_query_cidr", "650,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_cidr", "650,650,21,2281", 23},
+	{"gin_extract_value_macaddr", "829,2281", 2281},
+	{"gin_extract_query_macaddr", "829,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_macaddr", "829,829,21,2281", 23},
+	{"gin_extract_value_macaddr8", "774,2281", 2281},
+	{"gin_extract_query_macaddr8", "774,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_macaddr8", "774,774,21,2281", 23},
+	{"gin_extract_value_uuid", "2950,2281", 2281},
+	{"gin_extract_query_uuid", "2950,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_uuid", "2950,2950,21,2281", 23},
+	{"gin_extract_value_oid", "26,2281", 2281},
+	{"gin_extract_query_oid", "26,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_oid", "26,26,21,2281", 23},
 }
 
 // BtreeGinRoutineName is a discovery hint only. Executable selection still
@@ -76,23 +93,46 @@ func BtreeGinRoutineName(name string) bool {
 	return false
 }
 
-var btreeGinClasses = [...]struct {
-	name              string
-	input, comparator ids.OID
-	operators         [5]ids.OID
-}{
-	{"bit_ops", 1560, 1596, [5]ids.OID{1786, 1788, 1784, 1789, 1787}},
-	{"varbit_ops", 1562, 1672, [5]ids.OID{1806, 1808, 1804, 1809, 1807}},
-	{"enum_ops", 3500, 0, [5]ids.OID{3518, 3520, 3516, 3521, 3519}},
-	{"money_ops", 790, 377, [5]ids.OID{902, 904, 900, 905, 903}},
+type btreeGinClass struct {
+	name                      string
+	input, search, comparator ids.OID
+	operators                 [5]ids.OID
+	releasedDependencies      bool
+}
+
+var btreeGinClasses = [...]btreeGinClass{
+	{"bit_ops", 1560, 1560, 1596, [5]ids.OID{1786, 1788, 1784, 1789, 1787}, false},
+	{"varbit_ops", 1562, 1562, 1672, [5]ids.OID{1806, 1808, 1804, 1809, 1807}, false},
+	{"enum_ops", 3500, 3500, 0, [5]ids.OID{3518, 3520, 3516, 3521, 3519}, false},
+	{"money_ops", 790, 790, 377, [5]ids.OID{902, 904, 900, 905, 903}, false},
+	{"inet_ops", 869, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, true},
+	{"cidr_ops", 650, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, true},
+	{"macaddr_ops", 829, 829, 836, [5]ids.OID{1222, 1223, 1220, 1225, 1224}, true},
+	{"macaddr8_ops", 774, 774, 4119, [5]ids.OID{3364, 3365, 3362, 3367, 3366}, true},
+	{"uuid_ops", 2950, 2950, 2960, [5]ids.OID{2974, 2976, 2972, 2977, 2975}, true},
+	{"oid_ops", 26, 26, 356, [5]ids.OID{609, 611, 607, 612, 610}, true},
+}
+
+// Zero InternalOwner means AUTO dependency on the actual family. Preserve the
+// incumbent compound policy; selected recipes use ginadjustmembers' hard slots.
+func (spec btreeGinClass) memberOwner(class ids.ObjectAddress, number int, support bool) ids.ObjectAddress {
+	if !spec.releasedDependencies || support && (number == 2 || number == 3) {
+		return class
+	}
+	return ids.ObjectAddress{}
+}
+
+type BtreeGinBindings struct {
+	Support, Search [5]ids.OID
+	SearchType      ids.OID
 }
 
 // BtreeGinClassBindings authenticates the original installation and its exact
 // support/search graph independently of current names, owners and membership.
 // The returned IDs are mapped destination declarations, never source handles.
-func BtreeGinClassBindings(v catalog.Read, c *catalog.OperatorClass) ([5]ids.OID, [5]ids.OID, error) {
-	invalid := func() ([5]ids.OID, [5]ids.OID, error) {
-		return [5]ids.OID{}, [5]ids.OID{}, fmt.Errorf("stuntgres: invalid btree_gin class binding")
+func BtreeGinClassBindings(v catalog.Read, c *catalog.OperatorClass) (BtreeGinBindings, error) {
+	invalid := func() (BtreeGinBindings, error) {
+		return BtreeGinBindings{}, fmt.Errorf("stuntgres: invalid btree_gin class binding")
 	}
 	if c == nil || catalog.ValidateInstalledClassOrigin(v, c) != nil || !c.Origin.Valid(c.Address()) {
 		return invalid()
@@ -119,7 +159,7 @@ func BtreeGinClassBindings(v catalog.Read, c *catalog.OperatorClass) ([5]ids.OID
 	}
 	for i, expected := range routines {
 		support, ok := v.FamilySupport(c.Family, c.InputType, c.InputType, int16(i+1))
-		if !ok || support.Function != expected || support.InternalOwner != c.Address() || support.Revision() == 0 || !support.CatalogVisible {
+		if !ok || support.Function != expected || support.InternalOwner != spec.memberOwner(c.Address(), i+1, true) || support.Revision() == 0 || !support.CatalogVisible {
 			return invalid()
 		}
 		procedure, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: expected})
@@ -136,22 +176,22 @@ func BtreeGinClassBindings(v catalog.Read, c *catalog.OperatorClass) ([5]ids.OID
 			return invalid()
 		}
 		if err := provider.Validate(v, procedure); err != nil {
-			return [5]ids.OID{}, [5]ids.OID{}, err
+			return BtreeGinBindings{}, err
 		}
 	}
 	if _, ok := v.FamilySupport(c.Family, c.InputType, c.InputType, 6); ok {
 		return invalid()
 	}
 	for i, expected := range spec.operators {
-		member, ok := v.FamilyOperator(c.Family, c.InputType, c.InputType, int16(i+1), 's')
-		if !ok || member.Operator != expected || member.Method != c.Method || member.SortFamily != 0 || member.InternalOwner != c.Address() || member.Revision() == 0 {
+		member, ok := v.FamilyOperator(c.Family, spec.search, spec.search, int16(i+1), 's')
+		if !ok || member.Operator != expected || member.Method != c.Method || member.SortFamily != 0 || member.InternalOwner != spec.memberOwner(c.Address(), i+1, false) || member.Revision() == 0 {
 			return invalid()
 		}
 	}
 	for _, strategy := range []int16{6, 15} {
-		if _, ok := v.FamilyOperator(c.Family, c.InputType, c.InputType, strategy, 's'); ok {
+		if _, ok := v.FamilyOperator(c.Family, spec.search, spec.search, strategy, 's'); ok {
 			return invalid()
 		}
 	}
-	return routines, spec.operators, nil
+	return BtreeGinBindings{Support: routines, Search: spec.operators, SearchType: spec.search}, nil
 }

@@ -134,7 +134,11 @@ func compoundControlSeed(run func(fixture.Step)) {
 	run(fixture.Exec("INSERT INTO compound_saved VALUES(1,'100','0','a','0.01','{2,2}','cat:1 rat:2'),(2,'011','','q','-0.01','{}','dog:1'),(3,NULL,NULL,NULL,NULL,NULL,NULL),(4,'100','00','a','0.01','{2}','cat:1 rat:2')", 4))
 }
 
-func compoundControlCheck(b fixture.Backend, run func(fixture.Step)) {
+func compoundControlCheck(b fixture.Backend, run func(fixture.Step), indexCount ...int64) {
+	indexes := int64(5)
+	if len(indexCount) != 0 {
+		indexes = indexCount[0]
+	}
 	for _, s := range []fixture.Step{
 		fixture.Select("SELECT extversion,extrelocatable FROM pg_extension WHERE extname='btree_gin'", []string{"extversion", "extrelocatable"}, []string{"TEXT", "BOOL"}, [][]any{{"1.3", true}}),
 		fixture.Select("SELECT c.opcintype::bigint,c.opcmethod::bigint,c.opcdefault,c.opckeytype::bigint,f.opfmethod::bigint,(SELECT count(*) FROM pg_amop a WHERE a.amopfamily=f.oid) AS strategies,(SELECT count(*) FROM pg_amproc a WHERE a.amprocfamily=f.oid) AS supports,c.oid<>0 AND f.oid<>0 AS allocated FROM pg_opclass c JOIN pg_opfamily f ON f.oid=c.opcfamily WHERE c.opcmethod=2742 AND c.opcintype IN(790,1560,1562,3500) ORDER BY c.opcintype",
@@ -145,7 +149,7 @@ func compoundControlCheck(b fixture.Backend, run func(fixture.Step)) {
 		ginIDs("SELECT id FROM compound_saved WHERE b<'100'::bit(3) AND v<'0'::varbit AND e<'a'::compound_saved_enum AND m<'0'::money ORDER BY id", []int64{2}),
 		ginIDs("SELECT id FROM compound_saved WHERE b IS NULL AND v IS NULL AND e IS NULL AND m IS NULL ORDER BY id", []int64{3}),
 		fixture.Select("SELECT reloptions::text AS options FROM pg_class WHERE oid='compound_saved_i'::regclass", []string{"options"}, []string{"TEXT"}, [][]any{{"{fastupdate=off,gin_pending_list_limit=64}"}}),
-		amCount("SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE i.indrelid='compound_saved'::regclass AND c.relam=2742 AND i.indisvalid AND i.indisready AND i.indislive", 5),
+		amCount("SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE i.indrelid='compound_saved'::regclass AND c.relam=2742 AND i.indisvalid AND i.indisready AND i.indislive", indexes),
 		compoundValueStep(b, "SELECT id,b AS v FROM compound_saved ORDER BY id", "BIT", 3, [][]any{{int64(1), "100"}, {int64(2), "011"}, {int64(3), nil}, {int64(4), "100"}}),
 		compoundValueStep(b, "SELECT id,v FROM compound_saved ORDER BY id", "VARBIT", -1, [][]any{{int64(1), "0"}, {int64(2), ""}, {int64(3), nil}, {int64(4), "00"}}),
 		compoundValueStep(b, "SELECT id,e AS v FROM compound_saved ORDER BY id", "", 0, [][]any{{int64(1), "a"}, {int64(2), "q"}, {int64(3), nil}, {int64(4), "a"}}),

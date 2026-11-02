@@ -85,6 +85,11 @@ their full released routine metadata: OIDs 1596 (`bitcmp`) and 1672
 (`varbitcmp`) both use the internal source `bitcmp`, cost 1 and leakproof,
 parallel-safe declarations. Display and declaration-property inventories are
 part of the genuine builtin declaration, not exceptions to completeness checks.
+Builtin `macaddr8_cmp`4119 retains its genuine774/774→23 declaration, internal
+source, cost1 and leakproof/strict/immutable/parallel-safe metadata. Its
+SQL-callable index-support provider shares the unsigned MACADDR8 kernel without
+granting a B-tree class or arbitrary internal-function execution.
+
 
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
@@ -483,7 +488,9 @@ package or the engine.
   GIN validates the selected class/method/family and exact required strategies.
   Builtin array/vector support uses ten genuine `catalog.ValidateGinSupport`
   operations; installed scalar support authenticates the original btree_gin
-  recipe, signatures and mapped helpers. Captures include effective class,
+  recipe, signatures, mapped helpers and exact per-slot dependency owners.
+  Support-associated operands and actual search operands remain distinct for CIDR.
+  Captures include effective class,
   family, support, search-member, operator and backing-routine revisions plus
   the original installation's opaque index authority. The array family has no
   support1; typed element/scalar dictionary comparison belongs to sqltype.

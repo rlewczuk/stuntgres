@@ -105,3 +105,4 @@
 6317	to_regtypemod	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	25	\N	\N	\N	false	\N	to_regtypemod	\N	false	\N
 1596	bitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1560 1560	\N	\N	\N	false	\N	bitcmp	\N	false	\N
 1672	varbitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1562 1562	\N	\N	\N	false	\N	bitcmp	\N	false	\N
+4119	macaddr8_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	774 774	\N	\N	\N	false	\N	macaddr8_cmp	\N	false	\N

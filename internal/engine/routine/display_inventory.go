@@ -1821,6 +1821,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	4116: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_gt"},
 	4117: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_ge"},
 	4118: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_ne"},
+	4119: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_cmp"},
 	4120: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_not"},
 	4121: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_and"},
 	4122: {Language: catalog.InternalRoutineLanguage, Source: "macaddr8_or"},

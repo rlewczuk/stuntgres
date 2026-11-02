@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bindIntegerIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+func bindScalarIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var oid uint32
 	switch name {
@@ -16,6 +16,8 @@ func bindIntegerIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 		oid = 450
 	case "hashint4extended":
 		oid = 425
+	case "macaddr8_cmp":
+		oid = 4119
 	}
 	arity := 2
 	if oid == 450 {
@@ -45,6 +47,9 @@ func bindIntegerIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 	var targets [2]sqltype.Usage
 	for i := range arity {
 		formals[i] = sqltype.Int4
+		if oid == 4119 {
+			formals[i] = sqltype.Macaddr8
+		}
 		if oid == 425 && i == 1 {
 			formals[i] = sqltype.Int8
 		}
@@ -74,6 +79,9 @@ func bindIntegerIndexSupport(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(result).Usage(), raw.Pos, properties), IndexSupportRoutineProvider, name, formals[:arity]...)
 	if err != nil {
 		return nil, err
+	}
+	if oid == 4119 {
+		return NewMacaddr8Compare(info, args)
 	}
 	return IntegerIndexSupport{Info: info, OID: oid, Args: args}, nil
 }

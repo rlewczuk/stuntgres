@@ -106,6 +106,7 @@ func TestOperatorFamilySupportDeclarations(t *testing.T) {
 		{3515, 11, "hashenum", "3500", 23, true, expr.Immutable},
 		{4044, 11, "jsonb_cmp", "3802,3802", 23, true, expr.Immutable},
 		{4045, 11, "jsonb_hash", "3802", 23, true, expr.Immutable},
+		{4119, 11, "macaddr8_cmp", "774,774", 23, true, expr.Immutable},
 		{5096, 11, "xid8cmp", "5069,5069", 23, true, expr.Immutable},
 		{6413, 11, "hashbytea", "17", 23, true, expr.Immutable},
 		{6414, 11, "hashbyteaextended", "17,20", 20, true, expr.Immutable},

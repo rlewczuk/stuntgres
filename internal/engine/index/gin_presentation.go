@@ -77,24 +77,29 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 			}
 		}
 	}
-	right, strategies := input, int16(5)
-	if input == 2277 {
-		strategies = 4
-	} else if input == 3614 {
-		right, strategies = 3615, 2
-	}
-	for number := int16(1); number <= strategies; number++ {
-		oldMember, oldOK := before.FamilyOperator(familyID, input, right, number, 's')
-		newMember, newOK := after.FamilyOperator(familyID, input, right, number, 's')
+	// Required search slots and operand types belong to the authenticated
+	// bindings, not the class input (CIDR support and search types differ).
+	for number := 1; number <= 5; number++ {
+		prior, next := old.Search(number), current.Search(number)
+		if prior == (sqltype.IndexSearch{}) && next == (sqltype.IndexSearch{}) {
+			continue
+		}
+		if prior == (sqltype.IndexSearch{}) || next == (sqltype.IndexSearch{}) {
+			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed search membership")
+		}
+		if prior != next {
+			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed search executable generation")
+		}
+		oldAddress := ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: ids.OID(prior.Member)}
+		newAddress := ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: ids.OID(next.Member)}
+		oldMember, oldOK := before.Get(oldAddress).(*catalog.OperatorFamilyOperator)
+		newMember, newOK := after.Get(newAddress).(*catalog.OperatorFamilyOperator)
 		if !oldOK || !newOK || *oldMember != *newMember {
 			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed search membership")
 		}
 		operator := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oldMember.Operator}
 		if before.Get(operator) != after.Get(operator) {
 			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed operator authority")
-		}
-		if old.Search(int(number)) != current.Search(int(number)) {
-			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: GIN presentation changed search executable generation")
 		}
 	}
 	return current, nil

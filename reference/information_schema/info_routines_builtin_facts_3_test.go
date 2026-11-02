@@ -377,6 +377,7 @@ var irBuiltinFacts3 = []irBuiltinFact{
 	{4116, "macaddr8_gt", "macaddr8_gt", "INTERNAL", "INVOKER"},
 	{4117, "macaddr8_ge", "macaddr8_ge", "INTERNAL", "INVOKER"},
 	{4118, "macaddr8_ne", "macaddr8_ne", "INTERNAL", "INVOKER"},
+	{4119, "macaddr8_cmp", "macaddr8_cmp", "INTERNAL", "INVOKER"},
 	{4120, "macaddr8_not", "macaddr8_not", "INTERNAL", "INVOKER"},
 	{4121, "macaddr8_and", "macaddr8_and", "INTERNAL", "INVOKER"},
 	{4122, "macaddr8_or", "macaddr8_or", "INTERNAL", "INVOKER"},

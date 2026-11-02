@@ -52,7 +52,7 @@ func ValidateCurrentInstallation(v catalog.Read, ext *catalog.Extension, impleme
 			}
 		}
 		if class, ok := d.(*catalog.OperatorClass); ok && class.Origin.Installation.Implementation == StockBtreeGin {
-			if _, _, err := BtreeGinClassBindings(v, class); err != nil {
+			if _, err := BtreeGinClassBindings(v, class); err != nil {
 				return err
 			}
 		}

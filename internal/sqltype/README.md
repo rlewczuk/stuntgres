@@ -300,9 +300,11 @@ admission and removes it before nested binding.
   exclusion predicates reuse their scalar owners; catalog class membership
   does not supply an otherwise missing scalar operation.
   GIN classes retain a separate capability, actual anyarray admission and
-  narrowly binary-compatible bit/varbit inputs. `GinBinding` distinguishes
-  scalar, array-element and vector extraction while retaining exact concrete
-  generations and typed comparison. Each non-NULL scalar is one ordinary key;
+  narrowly binary-compatible bit/varbit, CIDR/INET and OID inputs. Authenticated
+  scalar extraction covers bit/varbit/enum/money and inet/cidr/macaddr/macaddr8/
+  uuid/oid. `GinBinding` retains concrete generations and shared typed comparison;
+  selected oid_ops reinterprets admitted INT4 as unsigned without changing its
+  source datum or SQL integer comparison semantics. Each non-NULL scalar is one ordinary key;
   empty varbit and the least money datum are ordinary values, not sentinels.
   Empty/NULL-item/NULL-element categories cannot alias ordinary keys. Captured
   support includes the sealed installation's opaque `IndexAuthority`; selected

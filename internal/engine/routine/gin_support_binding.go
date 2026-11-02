@@ -14,26 +14,26 @@ func bindGinSupport(view catalog.Read, class, captured sqltype.IndexClass, fact 
 	}
 	input := ids.OID(2277)
 	operators := []ids.OID{2750, 2751, 2752, 1070}
-	right := input
+	left, right := input, input
 	providerFamily := ids.OID(2745)
 	var scalarSupport [5]ids.OID
 	scalar := false
 	switch {
 	case fact.InputType == 2277 && fact.StorageType == 2283:
 	case fact.InputType == 3614 && fact.StorageType == 25:
-		input, right = 3614, 3615
+		input, left, right = 3614, 3614, 3615
 		operators = []ids.OID{3636, 3660}
 		providerFamily = 3659
 	default:
-		var search [5]ids.OID
-		var err error
-		scalarSupport, search, err = extension.BtreeGinClassBindings(view, fact)
+		bindings, err := extension.BtreeGinClassBindings(view, fact)
 		if err != nil {
 			return class, err
 		}
 		scalar = true
-		input, right = fact.InputType, fact.InputType
-		operators = search[:]
+		scalarSupport = bindings.Support
+		input = fact.InputType
+		left, right = bindings.SearchType, bindings.SearchType
+		operators = bindings.Search[:]
 	}
 	for slot := int16(1); slot <= 6; slot++ {
 		expected, required := catalog.GinSupportRoutine(providerFamily, slot)
@@ -71,12 +71,12 @@ func bindGinSupport(view catalog.Read, class, captured sqltype.IndexClass, fact 
 		class = class.WithSupport(int(slot), support)
 	}
 	for i, operator := range operators {
-		member, ok := view.FamilyOperator(fact.Family, input, right, int16(i+1), 's')
+		member, ok := view.FamilyOperator(fact.Family, left, right, int16(i+1), 's')
 		if !ok || member.Operator != operator || member.Method != fact.Method || member.SortFamily != 0 || member.Revision() == 0 {
 			return class, fmt.Errorf("stuntgres: invalid GIN search strategy")
 		}
 		operatorFact, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: operator})
-		if !ok || operatorFact.Left != input || operatorFact.Right != right || operatorFact.Result != 16 {
+		if !ok || operatorFact.Left != left || operatorFact.Right != right || operatorFact.Result != 16 {
 			return class, fmt.Errorf("stuntgres: invalid GIN operator authority")
 		}
 		provider := view.Owner().Provider(ids.OperatorClassID)

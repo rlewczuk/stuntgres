@@ -584,17 +584,23 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 		return int(n), nil
 	}
 	if p.input == Oid && a.typ.BaseType().id == Int4 {
-		av, bv := uint32(a.integer), uint32(b.integer)
-		if av < bv {
-			return -1, nil
-		}
-		if av > bv {
-			return 1, nil
-		}
-		return 0, nil
+		return compareIndexOIDInt4(a, b), nil
 	}
 	if p.input == BPChar {
 		return p.comparison.inputCollation.CompareText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 	}
 	return p.comparison.Compare(ctx, a, b, input)
+}
+
+// compareIndexOIDInt4 applies OID's unsigned interpretation to lawful INT4
+// inputs. Callers validate concrete source generations and non-NULL datums.
+func compareIndexOIDInt4(a, b Value) int {
+	av, bv := uint32(a.integer), uint32(b.integer)
+	if av < bv {
+		return -1
+	}
+	if av > bv {
+		return 1
+	}
+	return 0
 }

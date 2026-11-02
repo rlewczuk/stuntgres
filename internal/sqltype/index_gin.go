@@ -64,7 +64,7 @@ func BindGinTokens(u Usage, class IndexClass) (GinBinding, error) {
 		return p, err
 	}
 	switch class.InputOID() {
-	case uint32(Bit), uint32(VarBit), 3500, uint32(Money):
+	case uint32(Bit), uint32(VarBit), 3500, uint32(Money), uint32(Inet), uint32(Cidr), uint32(Macaddr), uint32(Macaddr8), uint32(UUID), uint32(Oid):
 		if class.Support(1).Authority == nil {
 			return p, fmt.Errorf("missing scalar GIN installation authority")
 		}
@@ -168,6 +168,13 @@ func (p GinBinding) Compare(ctx context.Context, a, b GinToken, input InputEnvir
 	if a.Element.typ != p.element || b.Element.typ != p.element {
 		return 0, fmt.Errorf("foreign GIN token generation")
 	}
-	a.Element.typ, b.Element.typ = p.element.BaseType(), p.element.BaseType()
+	base := p.element.BaseType()
+	if p.scalar && p.Class.InputOID() == uint32(Oid) && base.id == Int4 {
+		if a.Element.null || b.Element.null {
+			return 0, fmt.Errorf("invalid scalar GIN token")
+		}
+		return compareIndexOIDInt4(a.Element, b.Element), nil
+	}
+	a.Element.typ, b.Element.typ = base, base
 	return p.comparison.Compare(ctx, a.Element, b.Element, input)
 }

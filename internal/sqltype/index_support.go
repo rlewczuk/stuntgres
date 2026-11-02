@@ -88,6 +88,7 @@ var nativeIndexRoutines = [...]NativeIndexRoutine{
 	{3515, "hashenum", 3500, 0, IndexHashRoutine, false, "3500"},
 	{4044, "jsonb_cmp", 3802, 3802, IndexCompareRoutine, false, "3802,3802"},
 	{4045, "jsonb_hash", 3802, 0, IndexHashRoutine, false, "3802"},
+	{4119, "macaddr8_cmp", 774, 774, IndexCompareRoutine, false, "774,774"},
 	{5096, "xid8cmp", 5069, 5069, IndexCompareRoutine, false, "5069,5069"},
 	{6413, "hashbytea", 17, 0, IndexHashRoutine, false, "17"},
 	{6414, "hashbyteaextended", 17, 20, IndexExtendedHashRoutine, false, "17,20"},

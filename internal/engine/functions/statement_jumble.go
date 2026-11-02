@@ -346,6 +346,9 @@ func (IndexProperty) JumbleFields(s expr.StatementFields) { s.JumbleText("functi
 func (IntegerIndexSupport) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.IntegerIndexSupport")
 }
+func (Macaddr8Compare) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.Macaddr8Compare")
+}
 func (InputValidity) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.InputValidity") }
 func (InstalledText) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.InstalledText") }
 func (IntaggEnumeration) JumbleFields(s expr.StatementFields) {

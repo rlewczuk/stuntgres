@@ -376,6 +376,7 @@ var builtinRoutineProperties = map[ids.OID]struct {
 	4116: {support: 0, leakproof: true},
 	4117: {support: 0, leakproof: true},
 	4118: {support: 0, leakproof: true},
+	4119: {support: 0, leakproof: true},
 	4123: {support: 0, leakproof: true},
 	5034: {support: 0, leakproof: true},
 	5035: {support: 0, leakproof: true},

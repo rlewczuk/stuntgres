@@ -1492,7 +1492,7 @@ publication and lock-manager tickets stay in the engine.
   the already analyzed child. Numeric/unknown selection stays with the existing
   math owner, and numeric defaults remain excluded. Resolved numeric trunc
   also rejects decorations admitted by the shared ordinary scalar grammar.
-  Only `macaddr8_set7bit` adds a registry name. Its function-owned six-to-eight
+  `macaddr8_set7bit` retains its distinct registry name. Its function-owned six-to-eight
   expansion retains source829 while selecting sole formal/result774 and
   routine4125, not a general cast. Helpers use genuine NetworkRoutineProvider
   declarations; symbolic MAC operators use OperatorRoutineProvider.
@@ -1502,6 +1502,12 @@ publication and lock-manager tickets stay in the engine.
   cross-width CAST. Catalog lifetime/provenance remains with existing admission
   and stored-renderer owners. See [kernels](../../sqltype/README.md#mac-address-operations)
   and [public proof](../../../reference/geometry_network/README.md#mac-address-operations).
+  `macaddr8_cmp`4119 instead uses `IndexSupportRoutineProvider` and the common
+  scalar-support argument binder. `Macaddr8Compare` owns one prebound unsigned
+  comparison and two immutable operands; bind/rebuild selects destination
+  generations, while evaluation reads each operand once with ordinary strict
+  NULL, error and cancellation semantics. Routine capture, rendering and stored
+  validation remain ordinary expression-owner operations, not B-tree admission.
 - **cube**: `cubeFunctionNames` is the single name inventory for registry dispatch
   and analyzer family recognition; registry folding does not bypass exact
   installed resolution. `bindCube` consumes selected/coerced operands from the

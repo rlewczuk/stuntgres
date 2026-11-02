@@ -72,6 +72,9 @@ builds a binder.
   are deduplicated per version, never across duplicate SQL rows. Token comparison
   reuses concrete scalar element equality/ordering and collation, not rendered
   values or a B-tree opclass. Vector projection reads immutable canonical lexemes.
+  Network/UUID/OID scalar classes use the same dictionary and probe paths, with
+  whole concrete source datums, selected unsigned OID semantics and separately
+  authenticated CIDR support/search associations.
   Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
   Scalar equality shares the exact list; range probes binary-bound ordinary keys
   and use storage's typed cursor-heap union of only the selected lists, never
@@ -83,7 +86,10 @@ builds a binder.
   visibility remain source-owned; no optimizer path or second scalar/array/FTS
   matcher is introduced.
   Class/family presentation ALTER (`gin_presentation.go`) strictly authenticates
-  predecessor captures before selecting current target support. The catalog
+  predecessor captures before selecting current target support. Search transport
+  follows the bound member IDs and complete search stamps, never inferred class
+  input types or duplicated strategy counts; full member/owner/operator authority
+  remains identical even when CIDR support and search operands differ. The catalog
   stage copies affected live index keys; ordinary/private publication copies
   only root/binding wrappers and shares actual entries, dictionaries and postings.
   Mapped construction history retains prior recipe debt. Private own-write keys
@@ -589,6 +595,10 @@ Retained-root snapshots preserve nil versus nonnil-empty entry/key slices.
 The compound presentation proof checks snapshot equality before performing any
 operation, then retains the same strict deep-equality and shared-backing checks
 after relocation, membership changes and indexed writes.
+The network presentation fixture retains its six plain-column lanes and adds a
+genuine callable MACADDR8 comparison key requiring insertion output. It checks
+actual produced-key backing and descriptor migration without forcing allocation
+on the plain-column row-backed path.
 `TestBtreeGINCompoundHelperOwnerACL` covers actual explicit-ACL ownership with
 dependent roots, empty/populated/private/rollback cases, coalesced owner grants
 and unpublished invalid/canceled candidates. `TestBtreeGINCompoundRangeResources`
@@ -612,6 +622,7 @@ make check RUN='^TestSPGiST'   # genuine method, membership, publication and des
 make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot)$'
 make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestGINCancellation)$'
 make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and immutable lifecycle
+make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings and transport
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

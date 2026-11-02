@@ -379,6 +379,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{2533, ids.PGCatalogNamespaceOID, "timestamptz_cmp_timestamp", "1184,1114"}, catalog.FunctionRoutine, 23, true, expr.Stable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	// Executable REL_18_6 family support; physical callbacks remain lookup-only.
 	{catalog.RoutineIdentity{836, ids.PGCatalogNamespaceOID, "macaddr_cmp", "829,829"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
+	{catalog.RoutineIdentity{4119, ids.PGCatalogNamespaceOID, "macaddr8_cmp", "774,774"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{350, ids.PGCatalogNamespaceOID, "btint2cmp", "21,21"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{351, ids.PGCatalogNamespaceOID, "btint4cmp", "23,23"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
 	{catalog.RoutineIdentity{354, ids.PGCatalogNamespaceOID, "btfloat4cmp", "700,700"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider, nil},
