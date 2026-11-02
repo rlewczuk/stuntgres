@@ -31,6 +31,7 @@ const (
 	DblinkExtension
 	PgFreespaceExtension
 	PgStatStatementsExtension
+	XML2Extension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

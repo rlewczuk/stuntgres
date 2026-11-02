@@ -1,0 +1,60 @@
+package sqltype
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/xml"
+)
+
+// XML2Scalar converts a successful legacy operation to its exact SQL result.
+// Input is TEXT, never a prevalidated SQL XML value.
+func XML2Scalar(ctx context.Context, result *Descriptor, input, path string) (Value, error) {
+	if result == nil {
+		return Value{}, fmt.Errorf("invalid xml2 result descriptor")
+	}
+	var kind xml.LegacyScalarKind
+	switch result.ID() {
+	case Text:
+		kind = xml.LegacyString
+	case Float4:
+		kind = xml.LegacyNumber
+	case Bool:
+		kind = xml.LegacyBoolean
+	default:
+		return Value{}, fmt.Errorf("invalid xml2 result type")
+	}
+	v, err := xml.XPathScalar(ctx, input, path, kind)
+	if err != nil {
+		var legacy *xml.LegacyXPathError
+		if errors.As(err, &legacy) {
+			return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "10608", Message: legacy.Error(), Detail: legacy.Detail}
+		}
+		return Value{}, xmlError(err)
+	}
+	if v.Null {
+		return Null(result), nil
+	}
+	switch kind {
+	case xml.LegacyString:
+		return String(result, v.Text), nil
+	case xml.LegacyNumber:
+		return Value{typ: result, floating: float64(v.Number)}, nil
+	default:
+		return Boolean(result, v.Boolean), nil
+	}
+}
+
+func XML2Valid(ctx context.Context, result *Descriptor, input string, env InputEnvironment) (Value, error) {
+	if result == nil || result.ID() != Bool {
+		return Value{}, fmt.Errorf("invalid xml_valid result descriptor")
+	}
+	valid, events, err := xml.ValidateText(ctx, input, env.XMLMode)
+	xmlWarnings(events, env)
+	if err != nil {
+		return Value{}, xmlInputError(err, env)
+	}
+	return Boolean(result, valid), nil
+}

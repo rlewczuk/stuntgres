@@ -18,6 +18,18 @@ changes another call's accepted value, warnings or parser state.
 The document-context memory-reader entry owns its initial UTF8 BOM handling and
 single empty-document diagnostic; type input retains its distinct entry rules.
 
+`XPathScalar` owns xml2's distinct raw-memory DOCUMENT operation. It expands
+entity markup, omits DTD defaults and starts at the actual root element while
+retaining its document parent for absolute paths. Namespace and validity events
+are recorded without rejecting an otherwise usable LEGACY tree; grammar,
+conversion and prior fatality remain authoritative. String conversion compiles
+the literal `string(path)` wrapper. Structured document/evaluation failures
+project to NULL/NULL/false; compile failures retain every ordered diagnostic,
+including warnings, in `LegacyXPathError`. Number narrows once to float32 and
+maps NaN to NULL. Ordinary cancellation, size and invariant errors propagate.
+`ValidateText` instead returns ordinary Text/current-mode validation with its
+genuine warnings. Neither bridge changes core validation or retains a tree.
+
 XPath compilation retains immutable syntax only. Invocation-private frames
 project seven node kinds with stable owner/namespace identity, document order,
 all axes and axis-ordered predicates. Namespace axes retain explicit empty default
@@ -606,6 +618,10 @@ forward-compatible version/QName grammar and structured-column cases are
 source-derived, not fresh observations. Typed declaration eligibility, output
 warnings and DOCUMENT/CONTENT BOM boundaries have independent actual
 typed-text/binary-send observations, distinct from raw character casts.
+
+Legacy scalar policy, stage projection and invocation isolation use the reusable
+`RUN='^TestXML2'` family, including real parser/decoder/compiler/evaluator
+cancellation and strict-core contrasts.
 
 XMLTABLE invocation, namespace, node-output and cancellation units use
 `RUN='^TestXMLTableProvider$'`.

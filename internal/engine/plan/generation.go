@@ -90,6 +90,8 @@ func GenerationImmutable(node expr.Expr) bool {
 		return args(n.Args)
 	case InstalledLevenshteinExpr:
 		return args(n.Args)
+	case InstalledXML2Expr:
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledSSLInfoExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
 	case InstalledUUIDOsspExpr:

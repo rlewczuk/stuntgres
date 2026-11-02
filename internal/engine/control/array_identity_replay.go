@@ -74,9 +74,9 @@ func replayTypeSQL(schema, name string) string {
 func (s *dumpScript) replayInstalledType(schedule *installationSchedule, item replayInstallation, current *catalog.Type, temporary string) error {
 	p := s.installationTypeReplay
 	model := p.names
-	inPlace := item.schema == "pg_catalog" && current.Namespace().ObjectID == ids.PGCatalogNamespaceOID
+	inPlace := item.schema == schedule.catalogSchema && current.Namespace().ObjectID == ids.PGCatalogNamespaceOID
 	namespace := current.Namespace()
-	schema := "pg_catalog"
+	schema := item.schema
 	if !inPlace {
 		var err error
 		namespace, err = p.namespace()

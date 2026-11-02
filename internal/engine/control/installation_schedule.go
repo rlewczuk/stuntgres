@@ -92,6 +92,7 @@ type installationSchedule struct {
 	temporary                      map[string]bool
 	temporaries                    []temporaryInstallation
 	currentSchema                  []string
+	catalogSchema                  string
 	cubePlacement                  []string
 	cubeDependency                 []int
 	createdSchemas                 []string
@@ -103,7 +104,14 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 	if err != nil {
 		return nil, err
 	}
+	// Namespace preamble renames run before provider replay. Retain the
+	// initialized catalog identity, not its possibly obsolete bootstrap name.
+	catalogNamespace, ok := s.CatalogView.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
+	if !ok || catalogNamespace.Temporary != (ids.SessionToken{}) {
+		return nil, fmt.Errorf("stuntgres: installation catalog namespace is not portable")
+	}
 	schedule := &installationSchedule{script: s, items: items, dependencies: dependencies, missing: missing, dependents: make([][]int, len(items)), installed: map[int]bool{}, completed: map[int]bool{}, visiting: map[int]bool{}, active: map[string]int{}, names: map[string]bool{}, temporary: map[string]bool{}}
+	schedule.catalogSchema = catalogNamespace.Name()
 	schedule.currentSchema = make([]string, len(items))
 	schedule.cubePlacement = make([]string, len(items))
 	schedule.cubeDependency = make([]int, len(items))
@@ -130,18 +138,29 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 		}
 	}
 	for i := range items {
+		fixedTarget := ""
+		if items[i].ext != nil && !items[i].recipe.Implementation.Control().Relocatable {
+			namespace, ok := s.CatalogView.Namespace(items[i].ext.TargetNamespace)
+			if !ok || namespace.Temporary != (ids.SessionToken{}) {
+				return nil, fmt.Errorf("stuntgres: nonrelocatable installation target is not portable")
+			}
+			// The surviving header cannot move after CREATE. Ordinary schema
+			// replay establishes this authentic target before installation.
+			fixedTarget = namespace.Name()
+			items[i].schema, items[i].retainedSchema = fixedTarget, true
+		}
 		if items[i].recipe.Provider == "plpgsql" {
-			items[i].schema = "pg_catalog"
+			items[i].schema = schedule.catalogSchema
 		} else {
 			// Public namespace movers cannot create objects in pg_catalog.
 			// Reproduce genuine installation there instead; the initialized
 			// namespace is neither created nor retired by this replay.
 			if items[i].ext != nil && items[i].ext.TargetNamespace.ObjectID == ids.PGCatalogNamespaceOID {
-				items[i].schema, items[i].retainedSchema = "pg_catalog", true
+				items[i].schema, items[i].retainedSchema = schedule.catalogSchema, true
 			}
 			for _, address := range items[i].recipe.Members {
 				if current := s.CatalogView.Get(address); current != nil && current.Namespace().ObjectID == ids.PGCatalogNamespaceOID {
-					items[i].schema, items[i].retainedSchema = "pg_catalog", true
+					items[i].schema, items[i].retainedSchema = schedule.catalogSchema, true
 				}
 			}
 			for _, address := range items[i].recipe.Members {
@@ -163,6 +182,9 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 				items[i].schema = schedule.schema("__stuntgres_install_" + strconv.Itoa(i))
 			}
 		}
+		if fixedTarget != "" && items[i].schema != fixedTarget {
+			return nil, fmt.Errorf("stuntgres: conflicting nonrelocatable installation creation namespace")
+		}
 		for _, dependency := range dependencies[i] {
 			schedule.dependents[dependency] = append(schedule.dependents[dependency], i)
 		}
@@ -172,7 +194,7 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 	for dependency := range items {
 		dependents := schedule.dependents[dependency]
 		for j, dependent := range dependents {
-			if schedule.cubeDependency[dependent] == dependency && schedule.cubePlacement[dependent] == "pg_catalog" {
+			if schedule.cubeDependency[dependent] == dependency && schedule.cubePlacement[dependent] == schedule.catalogSchema {
 				dependents[0], dependents[j] = dependents[j], dependents[0]
 				break
 			}
@@ -182,6 +204,9 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 				continue
 			}
 			schema := schedule.cubePlacement[dependent]
+			if items[dependency].ext != nil && !items[dependency].recipe.Implementation.Control().Relocatable && items[dependency].schema != schema {
+				return nil, fmt.Errorf("stuntgres: conflicting nonrelocatable prerequisite creation namespace")
+			}
 			items[dependency].schema = schema
 			items[dependency].retainedSchema = s.CatalogView.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema}) != (ids.ObjectAddress{})
 			break
@@ -298,7 +323,7 @@ func (p *installationSchedule) placePrerequisite(index int, schema string) error
 	if current == schema {
 		return nil
 	}
-	if schema == "pg_catalog" {
+	if schema == p.catalogSchema {
 		return fmt.Errorf("stuntgres: declaration prerequisite cannot move into pg_catalog")
 	}
 	if !p.created[schema] && p.script.CatalogView.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema}) == (ids.ObjectAddress{}) {

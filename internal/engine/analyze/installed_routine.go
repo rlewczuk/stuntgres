@@ -127,6 +127,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgvisibilityProviderOf(proc) == extension.StockPgvisibility
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
+	case functions.XML2Extension:
+		installed = extension.XML2ProviderOf(proc) == extension.StockXML2
 	case functions.SSLInfoExtension:
 		installed = extension.SSLInfoProviderOf(proc) == extension.StockSSLInfo
 	case functions.UUIDOsspExtension:
@@ -185,6 +187,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgvisibility.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
+	case extension.XML2ProviderOf(p) != nil:
+		return extension.StockXML2.ValidateProcedure(r.catalog, p)
 	case extension.SSLInfoProviderOf(p) != nil:
 		return extension.StockSSLInfo.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
@@ -472,6 +476,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledEarthPointExpr{EarthPoint: c, Procedure: p, Ref: ref}, nil
+	case functions.XML2:
+		if extension.XML2ProviderOf(p) != extension.StockXML2 {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledXML2Expr{XML2: c, Procedure: p, Ref: ref}, nil
 	case functions.SSLInfo:
 		if extension.SSLInfoProviderOf(p) != extension.StockSSLInfo {
 			break

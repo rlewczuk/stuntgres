@@ -7,11 +7,7 @@ func (p *parser) xmlIDValue(value string) {
 	if p.saxDisabled || p.validXMLID(value) {
 		return
 	}
-	before := len(p.events)
-	p.eventLevel("XML_DTD_XMLID_VALUE", p.joinMessage("xml:id : attribute value ", value, " is not an NCName"), Error)
-	if len(p.events) > before {
-		p.events[len(p.events)-1].Domain = DTDValidityDomain
-	}
+	p.domainEvent("XML_DTD_XMLID_VALUE", p.joinMessage("xml:id : attribute value ", value, " is not an NCName"), Error, DTDValidityDomain)
 }
 
 func (p *parser) validXMLID(value string) bool {

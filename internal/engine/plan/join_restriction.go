@@ -208,6 +208,8 @@ func JoinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case InstalledLevenshteinExpr:
 		children = e.Args
+	case InstalledXML2Expr:
+		children = e.Args
 	case InstalledUUIDOsspExpr:
 		children = e.Args
 	case InstalledCryptoExpr:

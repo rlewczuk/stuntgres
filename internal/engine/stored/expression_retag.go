@@ -714,6 +714,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InstalledXML2Expr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.XML2ProviderOf(proc) != extension.StockXML2 {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped xml2 function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledXML2(n, view)
+		rebound = n
 	case plan.InstalledSSLInfoExpr:
 		proc, ok := originalProcedure(n.Procedure)
 		if !ok || extension.SSLInfoProviderOf(proc) != extension.StockSSLInfo {

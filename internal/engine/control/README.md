@@ -354,6 +354,17 @@ No physical WAL position or flush guarantee is serialized.
   afterward, before any genuine release UPDATE; destination role attributes need
   not match the source. Final strict owner/principal import restores current
   authority and still rejects a recreated captured principal.
+- **Nonrelocatable headers** (`installation_schedule.go`): a surviving genuine
+  header installs directly at its authenticated target namespace's provider-phase
+  coordinate. Namespace preamble renames and ordinary schema creation precede
+  provider replay: the initialized catalog namespace is resolved by identity,
+  not assumed to retain the bootstrap spelling `pg_catalog`. Seeded installation,
+  retained member/type placement and prerequisite constraints use that same
+  coordinate; initialized types still normalize in place without public moves.
+  Installation replay neither creates nor retires the target as scratch.
+  Contradictory retained creation coordinates fail structurally rather than moving
+  the header. Absent-header cohorts keep their ordinary scratch reconstruction,
+  detached-member placement and header retirement.
 - **Immutable body coordinates** (`installation_schedule.go`): sealed Earth
   declaration syntax supplies only the captured cube-schema spelling. The sealed
   domain's base-type identity selects the actual prerequisite cohort. Replay

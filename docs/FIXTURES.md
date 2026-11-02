@@ -471,6 +471,11 @@ keys move first; cycles or blocked intermediate keys may need a checked
 temporary name. Stable extension slots plus validated current schema/name/signature
 identify owner records, not a mutable member name in the extension target schema.
 
+XML2's four scalar consumers use this same provider-before-consumer replay.
+Renamed and detached functions keep sealed installation-slot authority while
+their current names, owners and ACLs are restored normally; no parser tree,
+decoder scratch, XPath frame or validation-mode snapshot enters the stream.
+
 Provider-only streams need no SQL-body replay directive. Restore rebuilds
 canonical destination providers before changes, remaps checked captures and
 retains destination-configured foreign capabilities. Unchanged provider streams

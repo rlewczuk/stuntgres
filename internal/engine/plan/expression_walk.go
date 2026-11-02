@@ -120,6 +120,8 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.Child)
 	case ConditionalExpr:
 		args(e.Args)
+	case InstalledXML2Expr:
+		args(e.Args)
 	case InstalledUUIDOsspExpr:
 		args(e.Args)
 	case InstalledTextExpr:

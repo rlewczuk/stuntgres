@@ -138,6 +138,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if slot >= 14 {
 			sqlName, name = name, pgcryptoSources[slot]
 		}
+	case StockXML2:
+		count = len(functions.XML2Members)
+		if slot >= count || ext.Version != "1.2" {
+			return invalid()
+		}
+		m := functions.XML2Members[slot]
+		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), ids.OID(m.Result), m.Volatility
+		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || p.Display != xml2Display(slot) {
+			return invalid()
+		}
 	case StockSSLInfo:
 		count = len(functions.SSLInfoMembers)
 		if slot >= count {

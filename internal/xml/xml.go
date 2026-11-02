@@ -60,7 +60,7 @@ func (r Result) RequestedMode() Mode       { return r.requested }
 func (r Result) EffectiveMode() Mode       { return r.effective }
 func (r Result) Declaration() Declaration  { return r.declaration }
 func (r Result) Diagnostics() []Diagnostic { return append([]Diagnostic(nil), r.diagnostics...) }
-func (r Result) RawInput() RawInputInfo { return r.rawInput }
+func (r Result) RawInput() RawInputInfo    { return r.rawInput }
 
 // Valid reports genuine parser acceptance or checked accepted-value construction,
 // including empty CONTENT. It does not promise a constructed value is reparsable.
@@ -76,8 +76,9 @@ func Parse(ctx context.Context, input string, opts Options) (Result, error) {
 type parsePolicy struct {
 	collect, ignoreBlanks                                     bool
 	strictNamespaces, preserveEntities, omitDefaultAttributes bool
-	strictValidity                                           bool
+	strictValidity                                            bool
 	documentContext                                           bool // xmlCtxtReadMemory entry, distinct from type input
+	legacyDiagnostics                                         bool // collect namespace/validity events without rejecting their returned tree
 }
 
 func parse(ctx context.Context, input string, opts Options, collect bool) (Result, *document, error) {
@@ -116,7 +117,9 @@ func parseConfigured(ctx context.Context, input string, opts Options, policy par
 	}
 	p := parser{ctx: ctx, s: input, requested: opts.Mode, effective: opts.Mode, line: 1, column: 1, replaceEntities: opts.Mode == Document, ignoreBlanks: policy.ignoreBlanks, policy: policy, spaceState: -1}
 	if opts.InputKind == RawMemory {
-		if err := p.startRaw(); err != nil { return Result{}, nil, nil, err }
+		if err := p.startRaw(); err != nil {
+			return Result{}, nil, nil, err
+		}
 	}
 	if opts.InputKind != RawMemory && policy.documentContext && opts.Mode == Document && len(input) >= 3 && input[:3] == "\xef\xbb\xbf" {
 		p.i = 3
@@ -174,6 +177,8 @@ func parseConfigured(ctx context.Context, input string, opts Options, policy par
 			return Result{}, nil, p.events, err
 		}
 	}
-	if opts.InputKind == RawMemory { input = p.s }
+	if opts.InputKind == RawMemory {
+		input = p.s
+	}
 	return Result{original: input, requested: opts.Mode, effective: p.effective, declaration: p.declaration, diagnostics: p.events, valid: true, rawInput: p.rawInfo}, p.tree, p.events, nil
 }

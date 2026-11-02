@@ -383,6 +383,12 @@ Both kinds retain committed values for the Driver's process-local lifetime,
 including pool close/reopen. These logical controls do not provide WAL, crash
 truncation, disk durability, standby replication or recovery across process exit.
 
+The installed `xml2` scalars retain exact INTERNAL/C declarations, typed
+TEXT/FLOAT4/BOOL results and ordinary current schema/EXECUTE checks in direct,
+prepared and stored consumers. Their immutable folded values retain original
+callable dependencies, not cached permissions; `xml_valid` reads the executing
+connection's XML mode and delivers genuine input warnings.
+
 Current extension membership does not select a provider implementation. Native
 controls recreate genuine released declarations and dependencies, then restore
 final membership, symbolic identities, owners and ACLs, including detached

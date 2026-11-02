@@ -325,6 +325,15 @@ with a real dictionary in a live session's TEMP namespace, assert that replaceme
 retains that descriptor and callback, then distinguish imported execution and
 rendering from the retained collision.
 
+XML2 provider, expression and stored-identity units use `RUN='^TestXML2'`.
+They inspect real staged collision rollback, sealed declarations, typed children,
+group/capture reconstruction and forced destination identity remapping.
+CHECK ownership coverage extracts an actual row-bound installed expression and
+its routine/type/attribute manifest, preserves CHECK versus DEFAULT closure,
+rejects invalid recipes/captures and renders genuine renamed/detached and remapped
+provider authority. Public CHECK writes and diagnostics live in the shared
+reference scenarios, not these composed-owner units.
+
 SSLInfo provider, expression-protocol and stored-identity units use
 `RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
 sealed authority, scalar source cardinality and destination remapping without

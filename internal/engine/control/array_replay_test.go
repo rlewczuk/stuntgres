@@ -88,4 +88,54 @@ func TestArrayIdentityReplayRealOwnerModel(t *testing.T) {
 			}
 		})
 	}
+	t.Run("retained_catalog_namespace", func(t *testing.T) {
+		for _, schema := range []string{"pg_catalog", "moved_catalog"} {
+			t.Run(schema, func(t *testing.T) {
+				source, _, _, _ := fdwUnitSource()
+				catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+				address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+				original := source.CatalogView.MustNamespace(address)
+				namespace := *original
+				source.State.UnbindName(catalog.DescriptorNameKey(original))
+				namespace.ObjectName = schema
+				source.State.SetDescriptor(address, &namespace)
+				source.State.BindName(catalog.DescriptorNameKey(&namespace), address)
+				integer, ok := source.CatalogView.LookupType(sqltype.Int4)
+				if !ok {
+					t.Fatal("missing integer")
+				}
+				domain, err := sqltype.Domain(70000, "retained_type", schema+".retained_type", integer.Usage())
+				if err != nil {
+					t.Fatal(err)
+				}
+				array, err := sqltype.Array(70001, "_retained_type", domain)
+				if err != nil {
+					t.Fatal(err)
+				}
+				parent := &catalog.Type{SQLType: domain, ObjectNamespace: address, ObjectRevision: 1, Owner: source.Bootstrap, Array: array.ID()}
+				companion := &catalog.Type{SQLType: array, ObjectNamespace: address, ObjectRevision: 1, Owner: source.Bootstrap}
+				for _, typ := range []*catalog.Type{parent, companion} {
+					source.State.SetDescriptor(typ.Address(), typ)
+					source.State.BindName(catalog.DescriptorNameKey(typ), typ.Address())
+				}
+				model := newInstallationTypeReplay(source.CatalogView, context.Background())
+				script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView}, installationTypeReplay: model}
+				schedule, err := script.newInstallationSchedule(nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				item := replayInstallation{schema: schema, retainedSchema: true}
+				if err := script.replayInstalledType(schedule, item, parent, "temporary_type"); err != nil {
+					t.Fatal(err)
+				}
+				want := "ALTER TYPE " + replayTypeSQL(schema, "temporary_type") + " RENAME TO \"retained_type\";\n"
+				if text := strings.Join(script.installationStatements, ""); text != want || len(schedule.createdSchemas) != 0 {
+					t.Fatal("retained initialized identity moved through scratch", text, schedule.createdSchemas)
+				}
+				if model.names.Names[domain.ID()] != catalog.DescriptorNameKey(parent) || model.names.Names[array.ID()] != catalog.DescriptorNameKey(companion) || model.names.Arrays[domain.ID()] != array.ID() {
+					t.Fatal("retained parent/array namespace identity changed", model.names.Names[domain.ID()], model.names.Names[array.ID()])
+				}
+			})
+		}
+	})
 }

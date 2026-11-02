@@ -179,6 +179,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledLevenshteinExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledXML2Expr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledSSLInfoExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledUUIDOsspExpr:

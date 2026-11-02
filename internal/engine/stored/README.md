@@ -62,6 +62,12 @@ unchanged callable declarations retain their original identity rather than an
 operation-local clone. The complete expression mapper still checks hidden
 type/collation fields, so genuine provider changes replace recipe backing.
 
+`ValidateInstalledXML2` authenticates one current sealed declaration and every
+operand/result type generation. Scalar remap carries all children and the
+destination domain/epoch reference; retag rebinds its procedure and routine
+carrier together. Both renderers use the current qualified SQL name, including
+renamed or detached functions, never a released label as implementation authority.
+
 XML recipes retain modes, whitespace/indent options and document negation through
 rendering and frozen query presentation. Special XMLEXISTS lowers to the ordinary
 qualified routine recipe, with normal function capture and replay; ignored passing

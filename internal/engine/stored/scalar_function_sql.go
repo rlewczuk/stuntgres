@@ -264,6 +264,20 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.InstalledXML2Expr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored xml2 reference")
+		}
+		if err := ValidateInstalledXML2(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored xml2 namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledSSLInfoExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored sslinfo reference")

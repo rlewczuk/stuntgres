@@ -251,6 +251,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 	}{
 		{UUIDOsspExtension, "uuid_generate_v4 uuid_nil uuid_ns_dns uuid_ns_url uuid_ns_oid uuid_ns_x500 uuid_generate_v1 uuid_generate_v1mc uuid_generate_v3 uuid_generate_v5"},
 		{SSLInfoExtension, "ssl_is_used ssl_version ssl_cipher ssl_client_cert_present ssl_client_serial ssl_client_dn ssl_issuer_dn"},
+		{XML2Extension, "xml_valid xpath_string xpath_number xpath_bool"},
 		{PgcryptoExtension, "digest hmac crypt gen_salt encrypt decrypt encrypt_iv decrypt_iv gen_random_bytes gen_random_uuid fips_mode armor dearmor pgp_armor_headers"},
 		{FuzzystrmatchExtension, "levenshtein levenshtein_less_equal metaphone dmetaphone dmetaphone_alt soundex difference daitch_mokotoff"},
 		{UnaccentExtension, "unaccent"},

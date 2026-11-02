@@ -293,6 +293,18 @@ non-strict, evaluate their optional child once and validate exact format names
 before returning collector absence. Ordinary live routine EXECUTE admission owns
 authorization, including NULL operands and inherited `pg_monitor` grants.
 
+`XML2` binds the four installed TEXT-formal scalar declarations through ordinary
+catalog-aware implicit coercion, including declared non-STRICT casts. Children
+evaluate once in written order before the routine's strict-NULL rule.
+`xml_valid` is STABLE and reads current `FunctionInput` mode/warning delivery;
+the XPath calls are IMMUTABLE and opt execution preflight into shared conditional
+simplification and constant publication. The validator preflights children only.
+Neither operation evaluates at Parse/Describe. Conditional pruning precedes
+dead-arm folding, while an independent constant target can fail before an empty
+WHERE result.
+Recipes retain only selector, typed children and ordinary routine provenance.
+Installed dependencies and current EXECUTE admission survive scalar folding.
+
 `SSLInfo` is a zero-child installed selector with BOOL, TEXT or NUMERIC result
 usage. It retains neither transport state nor certificates: embedded non-TLS
 sessions yield two false booleans and five typed NULLs. All seven inquiries stay

@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bytes"
 	"context"
 	"slices"
 	"strings"
@@ -226,6 +227,81 @@ func TestInstallationReplayUnchangedSeed(t *testing.T) {
 		t.Fatal("genuine seed cohort missing", items, err)
 	}
 	item := items[0]
+	for _, changedHandler := range []bool{false, true} {
+		name := "relocated_catalog"
+		if changedHandler {
+			name += "_handler_cost"
+		}
+		t.Run(name, func(t *testing.T) {
+			next := catalog.CloneState(source.CatalogView.State())
+			namespace := *source.CatalogView.MustNamespace(item.ext.TargetNamespace)
+			next.UnbindName(catalog.DescriptorNameKey(&namespace))
+			namespace.ObjectName = "moved_catalog"
+			next.SetDescriptor(namespace.Address(), &namespace)
+			next.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
+			handler := *source.CatalogView.MustProcedure(item.recipe.Members[0])
+			if changedHandler {
+				handler.Cost = 9.25
+				next.SetDescriptor(handler.Address(), &handler)
+			}
+			view := source.CatalogView.WithState(next)
+			changed := &dumpScript{Capture: &Capture{CatalogView: view, OriginalCatalog: view, DomainRoles: source.DomainRoles, OriginalRoles: source.OriginalRoles}}
+			items, err := changed.installations()
+			if err != nil || len(items) != 1 {
+				t.Fatal("genuine relocated seed cohort", items, err)
+			}
+			schedule, err := changed.newInstallationSchedule(items)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if items[0].ext != item.ext || items[0].recipe != item.recipe || items[0].schema != namespace.Name() || !items[0].retainedSchema || schedule.catalogSchema != namespace.Name() {
+				t.Fatal("seed lost authentic namespace/cohort", items[0], schedule.catalogSchema)
+			}
+			if err := schedule.install(0); err != nil {
+				t.Fatal(err)
+			}
+			if schedule.currentSchema[0] != namespace.Name() || len(changed.installationStatements) != 0 {
+				t.Fatal("initialized seed reconstructed", schedule.currentSchema, changed.installationStatements)
+			}
+			changed = &dumpScript{Capture: changed.Capture}
+			if err := changed.prepareInstallationReplay(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			preamble, err := dumpBuiltinSchemaPreamble(next, source.DomainRoles)
+			if err != nil || !slices.Equal(preamble, []string{"ALTER SCHEMA \"pg_catalog\" RENAME TO \"moved_catalog\";\n"}) {
+				t.Fatal("authentic relocated namespace preamble", preamble, err)
+			}
+			changed.Preamble = preamble
+			var out bytes.Buffer
+			writer := &dumpWriter{ctx: context.Background(), dst: &out}
+			for _, section := range dumpSections {
+				if section.name == "preamble" || section.name == "provider alterations" {
+					if err := section.emit(context.Background(), changed, writer); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			text := strings.Join(changed.installationStatements, "")
+			if strings.Contains(text, "CREATE ") || strings.Contains(text, " SET SCHEMA ") || strings.Contains(text, "DROP EXTENSION ") || strings.Contains(text, "DROP SCHEMA ") || strings.Contains(text, "\"pg_catalog\".") {
+				t.Fatal("seed replay used stale bootstrap coordinates", text)
+			}
+			if changedHandler {
+				identity, err := extension.MemberSQL(view, &handler)
+				if err != nil {
+					t.Fatal(err)
+				}
+				alter := "ALTER " + identity + " COST 9.25;\n"
+				if !strings.Contains(text, alter) || strings.Index(out.String(), alter) <= strings.Index(out.String(), preamble[0]) {
+					t.Fatal("handler alteration did not follow authentic namespace preamble", out.String())
+				}
+			} else if text != "" || len(changed.membershipStatements) != 0 || len(changed.installationMetadata) != 0 || len(changed.preservedSeedMembership) != 4 || out.String() != preamble[0] {
+				t.Fatal("unchanged relocated seed emitted deltas", out.String(), changed.membershipStatements, changed.installationMetadata, changed.preservedSeedMembership)
+			}
+			if source.CatalogView.MustNamespace(namespace.Address()).Name() != "pg_catalog" || item.ext.TargetNamespace != namespace.Address() || handler.Origin.Installation != item.recipe {
+				t.Fatal("replay mutated authenticated source identity")
+			}
+		})
+	}
 	for _, tc := range []struct {
 		name    string
 		comment string

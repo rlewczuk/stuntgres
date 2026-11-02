@@ -34,6 +34,16 @@ func ClosedPgcryptoDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
+	case plan.InstalledXML2Expr:
+		if !ValidInstalledXML2Shape(n) {
+			return false
+		}
+		for _, child := range n.Args {
+			if !ClosedPgcryptoDefault(child) {
+				return false
+			}
+		}
+		return true
 	case plan.InstalledSSLInfoExpr:
 		return ClosedSSLInfoDefault(n)
 	case plan.InstalledCryptoExpr:
@@ -356,6 +366,16 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		return false
 	}
 	switch n := node.(type) {
+	case plan.InstalledXML2Expr:
+		if !ValidInstalledXML2Shape(n) || p.StageDependent {
+			return false
+		}
+		for _, child := range n.Args {
+			if !closedPgstattupleExpression(child, view, rowOwner) {
+				return false
+			}
+		}
+		return true
 	case plan.InstalledSSLInfoExpr:
 		return !p.StageDependent && ValidInstalledSSLInfoShape(n)
 	case plan.InstalledPgFreespaceExpr:

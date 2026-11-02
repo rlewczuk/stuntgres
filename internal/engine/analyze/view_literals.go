@@ -896,6 +896,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		if n, ok := bound.(plan.InstalledLevenshteinExpr); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(plan.InstalledXML2Expr); ok {
+			if !ValidInstalledXML2Shape(n) || n.Ref.Domain() != b.BindingCatalog().Domain() || n.Ref.Epoch != b.BindingCatalog().Epoch() {
+				return fmt.Errorf("stuntgres: invalid captured xml2 identity")
+			}
+			if err := extension.StockXML2.ValidateProcedure(b.BindingCatalog(), n.Procedure); err != nil {
+				return err
+			}
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(plan.InstalledSSLInfoExpr); ok {
 			if !ValidInstalledSSLInfoShape(n) || n.Ref.Domain() != b.BindingCatalog().Domain() || n.Ref.Epoch != b.BindingCatalog().Epoch() {
 				return fmt.Errorf("stuntgres: invalid captured sslinfo identity")

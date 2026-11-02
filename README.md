@@ -254,6 +254,14 @@ XML element content, attributes and forests honor `xmlbinary`'s base64 or hex
 encoding. XML results scan as strings; use character serialization when original
 declaration spelling is needed instead of transport-normalized typed XML output.
 
+Install `xml2` to use `xml_valid(text)`, `xpath_string(text,text)`,
+`xpath_number(text,text)` and `xpath_bool(text,text)`. For example,
+`SELECT xpath_number('<r><a>12</a></r>','a')` returns REAL `12`, with the root
+element as the relative XPath context. `xml_valid` follows the current
+`xmloption`; the XPath scalars read declaration-aware document bytes independently.
+Their prepared calls and stored consumers retain installed identity and live
+access checks through native Dump/Reset/Restore.
+
 All 20 [preset options](internal/engine/settings/README.md#preset-options) are
 universally readable and immutable (`55P02` on individual SET/RESET, even for
 superusers). Physical presets are explicit setting-only simulations: they do

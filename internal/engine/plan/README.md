@@ -191,7 +191,7 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
 - **Installed extension nodes** (`expression_installed.go`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_earth_point.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
-  `InstalledUUIDOsspExpr`, `InstalledSSLInfoExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
+  `InstalledUUIDOsspExpr`, `InstalledSSLInfoExpr`, `InstalledXML2Expr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
   `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledPgstattupleExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
   `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
@@ -234,6 +234,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   operation, lexical formal slots and result shape through rebuilding and source
   occurrence matching. Its runtime distinguishes scalar-once NULL records from
   empty STRICT sets; neither analyzed nodes nor cursors retain live authority.
+  `InstalledXML2Expr` preserves exact procedure/reference identity and ordered
+  TEXT children through rebuild, retag, substitution, grouping and stored
+  rendering. Its shared scalar protocols retain current validation mode for the
+  STABLE operation and authentic callable dependencies for immutable folds.
   `InstalledSSLInfoExpr` keeps exact procedure/reference authority around the
   zero-child inquiry recipe, even though embedded connections always take its
   non-TLS branch. Rebuild, retag, substitution and grouping preserve the wrapper;

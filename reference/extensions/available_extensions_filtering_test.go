@@ -143,6 +143,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"})
 				wantAvailable = append(wantAvailable, []any{"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"})
 				wantVersions = append(wantVersions, []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"})
+				wantAvailable = append(wantAvailable, []any{"xml2", "1.2", nil, "XPath querying and XSLT"})
+				wantVersions = append(wantVersions, []any{"xml2", "1.2", false, true, false, false, nil, nil, "XPath querying and XSLT"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

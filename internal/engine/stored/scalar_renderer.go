@@ -203,6 +203,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InsertUsernameExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledXML2Expr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledSSLInfoExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.RangeConstructorExpr, plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr, plan.InstalledCubeExpr:

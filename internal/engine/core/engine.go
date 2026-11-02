@@ -234,6 +234,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.registerExtension("dblink", extension.StockDblink); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("xml2", extension.StockXML2); err != nil {
+		return nil, err
+	}
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer

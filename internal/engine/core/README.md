@@ -2847,6 +2847,12 @@ Prepared metadata identity, immutable buffers and token lifetime units use
 `RUN='^TestPGPreparedStatements'`; public SQL and wire scenarios use
 `RUN='^TestReferencePGPreparedStatements'`.
 
+XML2 prepared ownership uses the reusable `RUN='^TestXML2'` family, also with
+`RACE=1`. It retains real definitions, exact callable/type generations, ordered
+fold inputs, accepted datum backing and private portal graphs through rejected
+publication, definition retirement and producer cleanup. Public scalar outcomes
+and live authority remain in `reference/extension_xml2`.
+
 SSLInfo definition/accepted-graph ownership uses `RUN='^TestSSLInfoExpressionProtocol$'`.
 It retains actual protocol definitions, installed dependencies and volatile
 wrappers through repeated bindings and rejected publication, without internal

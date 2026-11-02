@@ -272,11 +272,7 @@ func (p *parser) namespaceEvent(code Condition, message string, severity Severit
 	if !p.policy.strictNamespaces {
 		return
 	}
-	before := len(p.events)
-	p.eventLevel(code, message, severity)
-	if len(p.events) > before {
-		p.events[len(p.events)-1].Domain = NamespaceDomain
-	}
+	p.domainEvent(code, message, severity, NamespaceDomain)
 }
 func (p *parser) namespaceDeclaration(name, local string, v *namespaceValue) {
 	if !p.policy.strictNamespaces {

@@ -109,6 +109,12 @@ admission and removes it before nested binding.
   `XMLIsDocument`, `XMLIsWellFormed` and `XMLExists` bridge BOOL providers without
   retaining trees. XPath stage errors map to 10608; strict context-parse errors
   map to 2200M with operation-specific primary text and original XML Detail.
+  `XML2Scalar` separately bridges TEXT inputs to exact TEXT/FLOAT4/BOOL results,
+  mapping only the legacy compiler error to `10608` / `XPath Syntax Error`.
+  Its FLOAT4 datum imports the already-narrowed result without textual input or
+  another rounding policy. `XML2Valid` forwards actual parser warnings through
+  `InputEnvironment.XMLInput` and reads that invocation's XML mode; ordinary
+  context errors remain ordinary and the core mapper remains independent.
   `XMLXPath` checks namespace-array shape before provider work, converts numeric
   scalars through current FLOAT8 output, and accepts each generated element as
   CONTENT independently of session XML input mode. It publishes one owned

@@ -4,7 +4,7 @@ The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
-sslinfo, unaccent, uuid-ossp and seeded plpgsql),
+sslinfo, unaccent, uuid-ossp, xml2 and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -190,6 +190,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the `namespace`, `name` input labels of v3/v5. These labels belong to the
   sealed declaration, survive remapping and current membership changes, and
   resolve named calls through the ordinary formal-argument binder.
+  XML2 1.2 seals exactly `xml_valid(text)` and the two-TEXT `xpath_string`,
+  `xpath_number`, `xpath_bool` scalars. Its superuser-only untrusted installation
+  is nonrelocatable. The strict parallel-safe declarations retain INTERNAL
+  `xml_is_well_formed` / STABLE and C `$libdir/pgxml` / IMMUTABLE provenance.
+  These are registered native implementations, not a shared-library loader.
+  Signature collisions use released `xml2--1.1.sql` statement contexts through
+  ordinary atomic staging; diagnostic provenance does not add an update graph.
   SSLInfo 1.2 seals exactly seven zero-input scalar inquiries: ssl_is_used,
   ssl_version, ssl_cipher, ssl_client_cert_present, ssl_client_serial,
   ssl_client_dn and ssl_issuer_dn. Its untrusted superuser-only relocatable
