@@ -35,8 +35,8 @@ func TestDblinkBuildSQLDeleteProviderIdentity(t *testing.T) {
 	if control.Version != "1.2" || !control.Superuser || control.Trusted || !control.Relocatable || control.Comment == nil || *control.Comment != "connect to other PostgreSQL databases from within a database" {
 		t.Fatal("stock control changed", control)
 	}
-	if len(ext.Members) != 2 || ext.Installation == nil || len(ext.Installation.Members) != 2 || len(ext.Installation.Declarations) != 2 || !ext.Installation.Valid() {
-		t.Fatal("constructors must own exactly two sealed slots", ext)
+	if len(ext.Members) != 3 || ext.Installation == nil || len(ext.Installation.Members) != 3 || len(ext.Installation.Declarations) != 3 || !ext.Installation.Valid() {
+		t.Fatal("constructors must own exactly three sealed slots", ext)
 	}
 	if err := extension.StockDblink.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestDblinkBuildSQLDeleteProviderIdentity(t *testing.T) {
 	mappedExt := remap(ext).(*catalog.Extension)
 	mappedProc := remap(p).(*catalog.Procedure)
 	if mappedExt.Installation == ext.Installation || !mappedExt.Installation.Valid() || mappedProc.Origin.Installation != mappedExt.Installation || !mappedProc.Origin.Valid(mapping[p.Address()]) || mappedExt.Installation.Declarations[0].Address() != mapping[p.Address()] || ext.Installation.Declarations[0].Address() != p.Address() {
-		t.Fatal("remap split or mutated sealed two-slot recipe")
+		t.Fatal("remap split or mutated sealed three-slot recipe")
 	}
 }
 

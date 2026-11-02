@@ -32,10 +32,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   or parallel safety from current membership. The sealed recipe retains those
   declaration facts while current owner/ACL, cost and parallel overrides remain
   independent and survive native replay.
-  Dblink's bounded recipe installs `dblink_build_sql_delete` in slot0 and
-  `dblink_build_sql_insert` in slot1, with stock 1.2 control and released C
-  declarations. Both sealed slots authenticate independently of current names,
-  owner and membership. Connection routines and adjacent builders have no stubs.
+  Dblink's bounded recipe installs `dblink_build_sql_delete` in slot0,
+  `dblink_build_sql_insert` in slot1 and `dblink_build_sql_update` in slot2,
+  with stock 1.2 control and released C declarations. All three sealed slots
+  authenticate independently of current names, owner and membership, including
+  the same-signature INSERT/UPDATE pair. Connection routines have no stubs.
   Bloom installs its released six-member handler/method/family/class graph.
   Its C declaration describes a registered Go implementation, not a loaded
   shared library. The global AM is ownerless; its handler and int4/text classes
@@ -94,6 +95,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   consumer. Independently remapped sealed recipes compare by mapped cohort,
   provider, implementation, release and slot; copied/unsealed recipes and changed
   releases or declaration slots are not equivalent.
+  Recipe equivalence is not catalog-domain authority: current resident procedure,
+  principal and domain/epoch-qualified reference admission still reject imported
+  descriptors or references even when independent installations allocated equal IDs.
   `ProcedureInstallationName` applies the same origin checks to the released SQL
   name used by replay; executable C symbols are not SQL call names.
   Pgcrypto preserves its fourteen incumbent slots and appends exactly four armor

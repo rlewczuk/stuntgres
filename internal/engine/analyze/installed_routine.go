@@ -318,6 +318,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledDblinkBuildSQLInsertExpr{DblinkBuildSQLInsert: c, Procedure: p, Ref: ref}, nil
+	case functions.DblinkBuildSQLUpdate:
+		if err := extension.ValidateDblinkIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidateDblinkBuildSQLUpdateCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledDblinkBuildSQLUpdateExpr{DblinkBuildSQLUpdate: c, Procedure: p, Ref: ref}, nil
 	case functions.Tcn:
 		if extension.TcnProviderOf(p) != extension.StockTcn {
 			break

@@ -84,6 +84,20 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return dblinkInsertCallSQL(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
+	case plan.InstalledDblinkBuildSQLUpdateExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored dblink reference")
+		}
+		if err := ValidateInstalledDblinkBuildSQLUpdate(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing dblink namespace")
+		}
+		r.record(n.Ref)
+		return dblinkUpdateCallSQL(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledPgstattupleExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored pgstattuple reference")

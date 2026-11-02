@@ -1792,6 +1792,15 @@ with row effects; standalone utilities retain their ordinary publication boundar
   Its `PreparedResource.Root` is the real SELECT graph consumed by the cursor,
   with the existing unlocked terminal close capability, never an observation
   copy or a graph in a shared definition.
+  Source/expansion stamps belong to each binder's immutable syntax, not a global
+  portal sequence: independent bindings may carry equal ordinals. Their actual
+  producer, graph and accepted-group holders remain distinct while borrowing the
+  definition's same immutable fold backing. Rejected publication and definition
+  retirement preserve each accepted binding's exact provenance and typed inputs.
+  Retention assertions capture accepted groups and typed entries while the
+  definition is live; a retired definition is not a reusable-entry lookup API.
+  Producer retirement detaches the live resource graph/group without mutating
+  the previously retained graph, accepted-group holders or immutable backing.
   Strict scalar read erasure removes invocation identity only from the private
   executable expression; original bound source and analysis manifests retain
   their routine lifetime. RECORD and set-returning file calls keep invocation

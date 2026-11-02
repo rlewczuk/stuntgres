@@ -763,13 +763,14 @@ Scalar STRICT NULL retains one scalar-source row; a STRICT relation set retains
 its declared metadata with no rows. No child, context or physical root is retained
 by the completed result.
 
-The dblink DELETE/INSERT evaluators authenticate the demanded installed scalar
+The dblink DELETE/INSERT/UPDATE evaluators authenticate the demanded installed scalar
 and current schema/EXECUTE authority before evaluating their four/five written
 children once. Runtime whole NULL returns typed TEXT NULL without relation
 admission; ordinary strict planning may erase known NULL calls earlier.
 Non-NULL calls use `ContribRuntime`: DELETE captures metadata only, whereas
-INSERT executes and fully drains a real nested source SELECT. Neither retains
-returned SQL, selected rows, locks or a prepared text cache, or executes remotely.
+INSERT and UPDATE share one real nested source SELECT executor and fully draining
+consumer, with each builder's genuine caller identity and volatile command policy.
+None retains returned SQL, selected rows, locks or a prepared text cache, or executes remotely.
 
 ## Invariants
 

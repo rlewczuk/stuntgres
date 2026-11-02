@@ -172,8 +172,8 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
-  `InstalledDblinkBuildSQLDeleteExpr` and `InstalledDblinkBuildSQLInsertExpr` carry
-  genuine procedure/reference authority and four/five typed operands through
+  `InstalledDblinkBuildSQLDeleteExpr`, `InstalledDblinkBuildSQLInsertExpr` and
+  `InstalledDblinkBuildSQLUpdateExpr` carry genuine procedure/reference authority and four/five typed operands through
   rebuild, substitution, capture and stored remapping. Their TEXT relation
   operand is not a captured relation identity. Runtime supplies metadata and
   returned text per invocation;

@@ -301,6 +301,9 @@ func (h *contribHost) DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteE
 func (h *contribHost) DblinkBuildSQLInsert(n plan.InstalledDblinkBuildSQLInsertExpr, values [5]sqltype.Value) (string, error) {
 	return contrib.DblinkBuildSQLInsert[AuthorizationView](h.host(), n, values)
 }
+func (h *contribHost) DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateExpr, values [5]sqltype.Value) (string, error) {
+	return contrib.DblinkBuildSQLUpdate[AuthorizationView](h.host(), n, values)
+}
 
 func (h *contribHost) ValidatePgFreespace(n plan.InstalledPgFreespaceExpr) error {
 	return contrib.ValidatePgFreespace[AuthorizationView](h.host(), n)

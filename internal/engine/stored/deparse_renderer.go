@@ -908,6 +908,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing dblink namespace")
 		}
 		return dblinkInsertCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
+	case plan.InstalledDblinkBuildSQLUpdateExpr:
+		if err := ValidateInstalledDblinkBuildSQLUpdate(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Ref.Address)
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing dblink namespace")
+		}
+		return dblinkUpdateCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
 	case plan.InstalledPgstattupleExpr:
 		if err := ValidateInstalledPgstattuple(n, r.View); err != nil {
 			return "", err

@@ -57,6 +57,7 @@ var dblinkMembers = [...]struct {
 }{
 	{functions.DblinkDeleteName, functions.DblinkDeleteSignature},
 	{functions.DblinkInsertName, functions.DblinkInsertSignature},
+	{functions.DblinkUpdateName, functions.DblinkUpdateSignature},
 }
 
 func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
@@ -125,6 +126,27 @@ func ValidateDblinkBuildSQLInsertCall(v catalog.Read, p *catalog.Procedure, call
 		return err
 	}
 	if symbol != functions.DblinkInsertName || p.Signature != functions.DblinkInsertSignature {
+		return fmt.Errorf("stuntgres: mismatched dblink constructor")
+	}
+	if err := call.ValidateArguments(call.Args[:]); err != nil {
+		return err
+	}
+	typ, ok := v.LookupType(sqltype.Text)
+	if !ok || call.ResultUsage() != typ.Usage() {
+		return fmt.Errorf("stuntgres: invalid dblink constructor result")
+	}
+	return nil
+}
+
+func ValidateDblinkBuildSQLUpdateCall(v catalog.Read, p *catalog.Procedure, call functions.DblinkBuildSQLUpdate) error {
+	if p == nil || DblinkProviderOf(p) != StockDblink || call.RoutineReference != p {
+		return fmt.Errorf("stuntgres: invalid dblink constructor identity")
+	}
+	symbol, err := ProcedureSymbol(v, p)
+	if err != nil {
+		return err
+	}
+	if symbol != functions.DblinkUpdateName || p.Signature != functions.DblinkUpdateSignature {
 		return fmt.Errorf("stuntgres: mismatched dblink constructor")
 	}
 	if err := call.ValidateArguments(call.Args[:]); err != nil {

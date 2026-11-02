@@ -919,8 +919,8 @@ reviewed decision:
   eight-field hash RecordShape for scalar, field and one-row FROM usage
   (including an all-NULL row for STRICT NULL). It is VOLATILE, stage dependent
   and never folded; only the installed plan wrapper can execute it.
-  `DblinkBuildSQLDelete` and `DblinkBuildSQLInsert` bind TEXT/INT2VECTOR/INT4
-  followed by one or two TEXT[] operands to TEXT through the same installed-call
+  `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert` and `DblinkBuildSQLUpdate` bind
+  TEXT/INT2VECTOR/INT4 followed by one or two TEXT[] operands to TEXT through the same installed-call
   gateway. Their four/five fixed operands preserve written order and immutable
   type generations; rebuild, substitution and capture own their slots.
   Non-NULL calls are VOLATILE and stage dependent, never planning-evaluated.

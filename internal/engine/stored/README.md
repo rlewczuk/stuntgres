@@ -614,6 +614,10 @@ host methods.
   Mutation-rule VALUES expressions use the same checked current-label projection
   while preserving their original OLD/NEW bindings and callable input assembly.
   `RetagTypes` is a structural generation rewrite, not a presentation refresh.
+  Element-generation replacement rebuilds dependent array companions through
+  `typedef.ReownDomainTypes` before mapping stored usages and nested datums.
+  Declaration rendering still requires the current reciprocal element/array
+  generations; equal OIDs or an unchanged codec cannot authorize stale companions.
   Earth coordinate captures remap the actual domain, cube base, procedure,
   formals and result generation together. Stored view/default calls keep their
   unevaluated kernels; provider validation rejects stale or same-OID foreign
@@ -1343,8 +1347,9 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
-`InstalledDblinkBuildSQLDeleteExpr` and `InstalledDblinkBuildSQLInsertExpr`
-preserve sealed routine authority, domain/epoch references and four/five typed
+`InstalledDblinkBuildSQLDeleteExpr`, `InstalledDblinkBuildSQLInsertExpr` and
+`InstalledDblinkBuildSQLUpdateExpr` preserve sealed routine authority,
+domain/epoch references and four/five typed
 children through reference walking, literal capture, rebuild, substitution,
 remap and retag. Renderers use the current qualified SQL callable name, never
 its C source symbol. The relation
