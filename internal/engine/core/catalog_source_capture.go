@@ -157,10 +157,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
 		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
-	case pgcatalog.InfoApplicableRolesOID, pgcatalog.InfoElementTypesOID, pgcatalog.InfoUdtPrivilegesOID, pgcatalog.InfoViewColumnUsageOID, pgcatalog.InfoViewRoutineUsageOID,
+	case pgcatalog.InfoAttributesOID, pgcatalog.InfoApplicableRolesOID, pgcatalog.InfoElementTypesOID, pgcatalog.InfoUdtPrivilegesOID, pgcatalog.InfoViewColumnUsageOID, pgcatalog.InfoViewRoutineUsageOID,
 		pgcatalog.InfoInformationSchemaCatalogNameOID, pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.InfoUserMappingOptionsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoRoutineRoutineUsageOID, pgcatalog.InfoCheckConstraintRoutineUsageOID, pgcatalog.InfoCheckConstraintsOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.InfoCollationsOID, pgcatalog.InfoSchemataOID, pgcatalog.InfoColumnOptionsOID, pgcatalog.InfoTableConstraintsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.ConstraintTableUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoColumnDomainUsageOID, pgcatalog.InfoDomainUdtUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID, pgcatalog.InfoUserDefinedTypesOID, pgcatalog.InfoViewsOID, pgcatalog.InfoTablesOID, pgcatalog.InfoRoleTableGrantsOID, pgcatalog.InfoRoutinesOID, pgcatalog.InfoParametersOID, pgcatalog.InfoRoleRoutineGrantsOID, pgcatalog.InfoRoleUdtGrantsOID, pgcatalog.InfoSQLFeaturesOID, pgcatalog.InfoRoleUsageGrantsOID, pgcatalog.InfoSQLSizingOID, pgcatalog.InfoSQLImplementationInfoOID, pgcatalog.InfoSQLPartsOID, pgcatalog.InfoRoutinePrivilegesOID, pgcatalog.InfoUsagePrivilegesOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
-		if oid == pgcatalog.InfoElementTypesOID || oid == pgcatalog.InfoInformationSchemaCatalogNameOID || oid == pgcatalog.InfoViewRoutineUsageOID {
+		if oid == pgcatalog.InfoAttributesOID || oid == pgcatalog.InfoElementTypesOID || oid == pgcatalog.InfoInformationSchemaCatalogNameOID || oid == pgcatalog.InfoViewRoutineUsageOID {
 			// Relation opening initially resolves the live descriptor. This
 			// inquiry's source and column generation belong to its captured root.
 			var exists bool
@@ -171,13 +171,13 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			}
 		}
 		runtime.Auth = scope.Inquiry.deparseAuth
-		if oid == pgcatalog.InfoElementTypesOID || oid == pgcatalog.InfoDomainUdtUsageOID || oid == pgcatalog.InfoInformationSchemaCatalogNameOID || oid == pgcatalog.InfoViewRoutineUsageOID {
+		if oid == pgcatalog.InfoAttributesOID || oid == pgcatalog.InfoElementTypesOID || oid == pgcatalog.InfoDomainUdtUsageOID || oid == pgcatalog.InfoInformationSchemaCatalogNameOID || oid == pgcatalog.InfoViewRoutineUsageOID {
 			runtime.Database = scope.Inquiry.databaseName
 		} else {
 			runtime.Database = scope.Op.Session.DatabaseName
 		}
 		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
-		if oid == pgcatalog.InfoColumnsOID || oid == pgcatalog.InfoViewsOID || oid == pgcatalog.InfoParametersOID || oid == pgcatalog.InfoCheckConstraintsOID {
+		if oid == pgcatalog.InfoAttributesOID || oid == pgcatalog.InfoColumnsOID || oid == pgcatalog.InfoViewsOID || oid == pgcatalog.InfoParametersOID || oid == pgcatalog.InfoCheckConstraintsOID {
 			runtime.Presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
 		}
 		if oid == pgcatalog.InfoElementTypesOID || oid == pgcatalog.InfoDomainsOID || oid == pgcatalog.InfoRoutinesOID || oid == pgcatalog.InfoParametersOID {

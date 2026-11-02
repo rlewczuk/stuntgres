@@ -4,7 +4,7 @@
 shared with `pg_views`), `view_table_usage`, `view_column_usage`, `view_routine_usage`, `triggers`, `routines`, `parameters`, `element_types`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
-`character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`,
+`character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`, `attributes`,
 `domain_constraints`, `domain_udt_usage`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
@@ -59,6 +59,20 @@ consumers cover typed empty/NULL results, complete diagnostics and current displ
 settings. Native controls retain old rows/types and rebuild declarations without
 serializing provider rows. The exhaustive column and six definition inventories
 include this source without narrowing their other candidates.
+
+Composite attribute inquiry prescribes all 31 nullable domain-backed columns,
+including raw NAME/VARCHAR/INT4 adapter metadata and typed empty/all-NULL results.
+Real standalone composites retain declared member identity, sparse physical
+ordinals, domain nullability, attribute-only defaults and actual collation;
+dimensional helpers use the immediate domain base independently of declared type
+classification. Inherited ownership or composite type USAGE controls disclosure,
+without schema, member-type or backing-relation gates. Direct, fresh-prepared and
+held consumers cover identity/ACL publication, transactional DDL, exact diagnostics
+and retained metadata. Native controls rebuild real declarations into independent
+authority without serializing provider rows, preserving captured rows/types and
+the ordinary replacement lifetime fence. The complete provider inventory and six
+builtin definition maps include the source; direct normal/pretty view-definition
+consumers separately assert released presentation.
 
 ## Testing
 
@@ -142,6 +156,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign-server options: `RUN='^TestReferenceInfoForeignServerOptions'`
 - Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
+- Composite attribute inquiry: `RUN='^TestReferenceInfoAttributes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
 - Domain/base usage: `RUN='^TestReferenceInfoDomainUdtUsage'`
 - Catalog-name inquiry: `RUN='^TestReferenceInfoInformationSchemaCatalogName'`

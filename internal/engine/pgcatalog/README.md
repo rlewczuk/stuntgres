@@ -9,7 +9,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `applicable_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
-`role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`, `parameters`, `element_types`). Each producer is a pure
+`role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `attributes`, `domains`, `user_defined_types`, `views`, `tables`, `routines`, `parameters`, `element_types`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -799,6 +799,18 @@ Each capture owns detached rows; malformed metadata or cancellation publishes
 none. Its read-only builtin definition uses the shared explicit spelling parts
 for both view-definition consumers, independently of query execution.
 
+`attributes` traverses only actual standalone composite relations and their live
+positive attributes, retaining sparse physical ordinals. Reciprocal type/member
+authority, source domains, database and immediately usable ownership or composite
+type USAGE share the admitted catalog/role frontier. Schema, member-type and
+relation SELECT privileges do not gate disclosure. All 31 nullable cells retain
+their source-owned domains. Declared member identity/classification is distinct
+from immediate-domain-base dimensional helpers; attribute defaults never borrow
+domain defaults. Actual attribute collation suppresses only pg_catalog.default.
+Invalid metadata and cancellation publish no prefix; returned rows remain owned
+across publication and catalog replacement. Symbolic normal/pretty definitions
+are presentation only and confer no write or execution capability.
+
 ### Wait-event definitions
 
 `pg_wait_events` exposes three nullable TEXT columns, `type`, `name` and
@@ -1484,7 +1496,7 @@ base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
 including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`, `information_schema.information_schema_catalog_name`,
-`information_schema.user_defined_types`, `information_schema.tables`,
+`information_schema.user_defined_types`, `information_schema.attributes`, `information_schema.tables`,
 `information_schema.usage_privileges`, `pg_catalog.pg_policies` and
 `pg_catalog.pg_rules`, with classification and per-output capability facts.
 Every represented catalog view, including a newly registered virtual source,
@@ -1620,6 +1632,8 @@ a hash root alone does not select that access method.
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`
 - Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
+- Composite attribute producer/capture/authority units: `RUN='^TestInfoAttributes'`
+- Composite attribute public scenarios: `RUN='^TestReferenceInfoAttributes'`
 - Domain-definition producer units: `RUN='^TestInfoDomains'`
 - Domain-definition public scenarios: `RUN='^TestReferenceInfoDomains'`
 - Domain/base usage producer/capture/cancellation units: `RUN='^TestInfoDomainUdtUsage'`

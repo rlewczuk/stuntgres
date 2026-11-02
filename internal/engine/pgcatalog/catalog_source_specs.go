@@ -1250,6 +1250,7 @@ var Specs = [...]Spec{
 		{"is_grantable", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing usage privilege domain"},
 	{InfoColumnsOID, 13229, "columns", infoColumnsColumns, true, false, false, false, "stuntgres: missing columns domain"},
+	{InfoAttributesOID, 13229, "attributes", infoAttributesColumns, true, false, false, false, "stuntgres: missing attributes domain"},
 	{InfoDomainsOID, 13229, "domains", []ColumnSpec{
 		{"domain_catalog", 13248, true, 950, 0, -1},
 		{"domain_schema", 13248, true, 950, 0, -1},

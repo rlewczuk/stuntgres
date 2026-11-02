@@ -60,6 +60,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "tables"}, {"information_schema", "routines"},
 	{"information_schema", "parameters"},
 	{"information_schema", "element_types"},
+	{"information_schema", "attributes"},
 }
 
 func TestReferenceInfoViewsBuiltins(t *testing.T) {
