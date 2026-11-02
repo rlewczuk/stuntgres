@@ -1,4 +1,4 @@
-// Command generate emits recognition-only switches from the pinned inventory.
+// Command generate emits pinned recognition switches and the licensed JIS0208 table.
 package main
 
 import (
@@ -105,4 +105,7 @@ func main() {
  data,err:=os.ReadFile("internal/xml/data/recognition.tsv");if err!=nil{panic(err)}
  v,err:=parse(data,true);if err!=nil{panic(err)}
  if err=os.WriteFile("internal/xml/declaration_names_generated.go",generate(v),0644);err!=nil{panic(err)}
+ data,err=os.ReadFile("internal/xml/data/JIS0208.TXT");if err!=nil{panic(err)}
+ table,err:=parseJIS0208(data);if err!=nil{panic(err)}
+ if err=os.WriteFile("internal/xml/jis0208_generated.go",generateJIS0208(table),0644);err!=nil{panic(err)}
 }

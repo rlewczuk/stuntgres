@@ -10,6 +10,7 @@ type Domain string
 type Severity uint8
 const ( Warning Severity = iota+1; Error; Fatal )
 const ( ParserDomain Domain = "parser"; NamespaceDomain Domain = "namespace"; DTDValidityDomain Domain = "dtd" )
+const ( EncodingDomain Domain = "encoding"; IODomain Domain = "io" )
 type DiagnosticSource uint8
 const (OriginalSource DiagnosticSource=iota; EntitySource)
 type Diagnostic struct {

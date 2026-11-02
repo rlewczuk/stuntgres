@@ -55,6 +55,10 @@ type parser struct {
 	peFrames                              []inputFrame
 	inputID, nextInputID                  int
 	declarationInput                      int
+	raw                                   bool
+	rawBOMBytes                           int
+	rawInfo                               RawInputInfo
+	rawFailure                            *RawInputError
 }
 
 func (p *parser) poll() bool {

@@ -129,17 +129,19 @@ func Step(src, dst int, s string) (first, second uint32, consumed int, invalid b
 	if src == 6 {
 		local, dir = dst, 1
 	}
+	if dir == 0 {
+		first, second = lookupUTF8(local, code, n)
+		if first != 0 { return first, second, n, false }
+		return 0, 0, 0, false
+	}
 	if local == 8 {
-		if dir == 0 {
-			return utfWord(code), 0, n, false
-		}
 		u := utfScalar(code)
 		if u < 256 {
 			return u, 0, n, false
 		}
 		return 0, 0, 0, false
 	}
-	if dir == 1 && len(s) > n {
+	if len(s) > n {
 		n2 := Length(6, s[n:])
 		code2 := Pack(s[n:], n2)
 		for _, c := range unicodeCombined[local][1] {
@@ -151,17 +153,35 @@ func Step(src, dst int, s string) (first, second uint32, consumed int, invalid b
 	if mapped := unicodeTrees[local][dir].lookup(code, n); mapped != 0 {
 		return mapped, 0, n, false
 	}
-	if dir == 0 {
-		for _, c := range unicodeCombined[local][0] {
-			if c[0] == code {
-				return c[1], c[2], n, false
-			}
-		}
-	}
 	if local == 39 {
-		if mapped := gbMap(code, dir == 0); mapped != 0 {
+		if mapped := gbMap(code, false); mapped != 0 {
 			return mapped, 0, n, false
 		}
 	}
 	return 0, 0, 0, false
+}
+
+// LookupUTF8 resolves one explicitly framed local character through the existing
+// immutable Unicode mappings. It does not apply PostgreSQL Length or Verify:
+// callers must first validate their source entry's framing and pass exactly its
+// packed bytes/width. This permits raw readers to reuse mappings without adopting
+// PostgreSQL byte-string validation. Both words of combined mappings are retained.
+// Invalid IDs/packed widths and unmapped characters return two zero words.
+func LookupUTF8(src int, packed uint32, width int) (first, second uint32) {
+	if !HasPair(src,6) || width < 1 || width > 4 || Width(packed) != width {
+		return 0, 0
+	}
+	return lookupUTF8(src, packed, width)
+}
+
+// Step has already established its PostgreSQL framing and source identity.
+func lookupUTF8(src int, code uint32, width int) (first, second uint32) {
+	if code < 128 { return code, 0 }
+	if src == 8 { return utfWord(code), 0 }
+	if mapped := unicodeTrees[src][0].lookup(code, width); mapped != 0 { return mapped, 0 }
+	for _, c := range unicodeCombined[src][0] {
+		if c[0] == code { return c[1], c[2] }
+	}
+	if src == 39 { return gbMap(code, true), 0 }
+	return 0, 0
 }

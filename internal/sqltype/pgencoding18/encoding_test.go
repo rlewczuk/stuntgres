@@ -85,6 +85,8 @@ func TestBinaryEncodingCombined(t *testing.T) {
 			if bad || consumed != len(in) || a != Pack(utf, n) || b != Pack(utf[n:], len(utf)-n) {
 				t.Fatalf("combined %v: %x %x %d %v", local, a, b, consumed, bad)
 			}
+			first, second := LookupUTF8(local.id, Pack(in,len(in)), len(in))
+			if first!=Pack(utf,n)||second!=Pack(utf[n:],len(utf)-n){t.Fatalf("mapping-only combined %v: %x %x",local,first,second)}
 			a, b, consumed, bad = Step(6, local.id, utf)
 			if bad || consumed != len(utf) || a != Pack(in, len(in)) || b != 0 {
 				t.Fatalf("reverse combined %v: %x %x %d %v", local, a, b, consumed, bad)
@@ -150,4 +152,30 @@ func TestBinaryEncodingDirectEdges(t *testing.T) {
 			t.Fatalf("%d -> %d %s: %x %x %d %v want%x %d %v", tc.src, tc.dst, tc.in, a, b, n, bad, tc.want, tc.consumed, tc.bad)
 		}
 	}
+}
+
+func TestBinaryEncodingLookupUTF8(t *testing.T) {
+	// Literal mappings are independent of the PostgreSQL framing contract.
+	for _,tc:=range []struct{src int;code uint32;width int;first,second uint32}{
+		{1,0xa4a2,2,0xe38182,0},{8,0xe9,1,0xc3a9,0},
+		{24,0x80,1,0xe282ac,0},{39,0x9439fc36,4,0xf09f9880,0},
+		{40,0x8861,2,0xeab080,0},{40,0x8f41,2,0xeb80a8,0},
+		{40,0x5c,1,0x5c,0},{40,0x8441,2,0,0},
+		{5,0xa4f7,2,0xe3818b,0xe3829a},{41,0x82f5,2,0xe3818b,0xe3829a},
+	}{
+		a,b:=LookupUTF8(tc.src,tc.code,tc.width)
+		if a!=tc.first||b!=tc.second{t.Fatalf("mapping id%d %x/%d: %x %x want %x %x",tc.src,tc.code,tc.width,a,b,tc.first,tc.second)}
+	}
+	for _,tc:=range []struct{src int;code uint32;width int}{
+		{-1,0x80,1},{0,0x80,1},{6,0xc3a9,2},{7,0x80,1},{Count,0x80,1},
+		{40,0x8861,0},{40,0x8861,-1},{40,0x8861,5},{40,0x8861,1},{40,0x80,2},{40,0,1},
+	}{
+		a,b:=LookupUTF8(tc.src,tc.code,tc.width);if a!=0||b!=0{t.Fatalf("invalid mapping request %+v: %x %x",tc,a,b)}
+	}
+	// Preserve PG's released byte contracts, including 8F's EUC-style width.
+	if Length(40,"\x8f\x41A")!=3||Verify(40,"\x8f\x41A")!=-1||Verify(40,"\x8f\xa1\xa1")!=3||Verify(40,"\x88\x61")!=-1{t.Fatal("raw lookup changed PostgreSQL JOHAB verification")}
+	a,b,n,bad:=Step(40,6,"\x88\x61")
+	if a!=0xeab080||b!=0||n!=2||bad{t.Fatal("existing PostgreSQL Step mapping changed",a,b,n,bad)}
+	a,b,n,bad=Step(40,6,"\x8f\x41A")
+	if a!=0||b!=0||n!=0||bad{t.Fatal("PostgreSQL Step stopped using its released width",a,b,n,bad)}
 }

@@ -63,6 +63,7 @@ func (p *parser) documentDeclaration() {
  if !p.has("<?xml")||len(p.s)-p.i<=5||!space(p.s[p.i+5]) {return}
  p.declaration.Present=true;p.advance(5);p.spaces()
  version:=""
+ versionStart:=0
  if p.has("version") {
   p.advance(7);q:=p.docStringStart()
   if q!=0 {
@@ -72,7 +73,7 @@ func (p *parser) documentDeclaration() {
     p.advance(1)
     if p.byte()=='.' {p.advance(1);valid=true;for p.byte()>='0'&&p.byte()<='9'&&p.poll(){p.advance(1)}}
    }
-   if valid {version=p.s[start:p.i]}
+   if valid {version=p.s[start:p.i];versionStart=start}
    if p.byte()!=q {p.declEvent("XML_ERR_STRING_NOT_CLOSED","String not closed expecting \" or '")}else{p.advance(1)}
   }
  }
@@ -97,7 +98,14 @@ func (p *parser) documentDeclaration() {
    if p.byte()!=q {p.declEvent("XML_ERR_STRING_NOT_CLOSED","String not closed expecting \" or '")}else{
     label:=p.s[start:p.i];p.advance(1)
     p.declaration.Encoding,p.declaration.EncodingPresent=label,true
-    if valid&&!recognizedEncoding(label) {
+    if valid&&p.raw {
+     if !p.selectRawEncoding(label) {return}
+     // Converted metadata shares the final immutable character spelling,
+     // rather than retaining the superseded transport backing.
+     p.declaration.Encoding=p.s[start:start+len(label)]
+     if version!="" {p.declaration.Version=p.s[versionStart:versionStart+len(version)]}
+    }
+    if valid&&!p.raw&&!recognizedEncoding(label) {
      p.declEvent("XML_ERR_UNSUPPORTED_ENCODING",p.joinMessage("Unsupported encoding ",label))
      p.stopped=true;return // XML REC requires stopping on unsupported encoding.
     }
@@ -133,7 +141,7 @@ func (p *parser) finishDocumentDeclaration() {
  p.declEvent("XML_ERR_XMLDECL_NOT_FINISHED","parsing XML declaration: '?>' expected")
  // MOVETO_ENDTAG recovery belongs only to this declaration production.
  // It must not become a generic scan-to-EOF grammar fallback.
- for p.i<len(p.s)&&p.byte()!=0&&p.byte()!='>'&&p.poll(){p.advance(1)}
+ for p.i<len(p.s)&&p.byte()!=0&&p.byte()!='>'&&p.poll(){if p.raw {p.i++}else{p.advance(1)}}
  if p.byte()=='>' {p.advance(1);p.declaration.End=p.i}else if p.i<len(p.s) {p.stopped=true}
  // Physical exhaustion still reaches DOCUMENT's required-root diagnostic.
  // An embedded NUL remains a distinct halted-production boundary.

@@ -53,13 +53,67 @@ serializes requested node sequences using the common cancellation-aware saver,
 reconciling inherited namespaces without mutating source nodes. SQL target input,
 DEFAULT demand and column constraints remain in the SQL adapter/source owner.
 
-`Options.InputKind` distinguishes already-decoded `Text` from raw-byte `Binary`
-strings. Text declarations never reinterpret the characters. Binary preflight
-captures a declared PostgreSQL encoding before later declaration errors, resolves
-its identity and uses only direct `pgencoding18` kernels. The entire source is
-verified before conversion steps, with missing-pair precedence owned here rather
-than inherited from SQL's conversion adapter. DOCUMENT text handler recognition
-uses separate immutable recognition metadata; it adds no binary codecs.
+`Options.InputKind` has three distinct contracts. `Text` is already-decoded
+UTF8: declarations never reinterpret its characters. PostgreSQL-codec `Binary`
+preflight captures an encoding before later declaration errors, resolves its
+PostgreSQL identity and uses only direct `pgencoding18` kernels, verifying the
+whole source before conversion. DOCUMENT text handler recognition is separate
+immutable metadata and adds no Binary codecs.
+
+`RawMemory` accepts byte strings only with `Mode: Document`. It starts in UTF8,
+consumes one initial UTF8 BOM, and selects a decoder at the completed valid quoted
+encoding field in the same DOCUMENT declaration production. Selection can
+override UTF8 BOM detection, preserves earlier declaration events, and precedes
+later standalone/close errors. Only unread bytes are decoded; the same scanner
+continues over the final character spelling. Malformed declaration recovery
+retains its pointer-only skip and independently tracked character column.
+Physical EOF genuine partial ISO-2022-JP designation prefixes remain buffered
+without producing a character: ESC alone or followed by `(` or `$`, and a lone
+JIS lead in the selected double-byte state. Illegal bytes do not become buffered
+merely because they follow ESC near EOF. Grammar must still accept the entire
+decoded document. No reset, replacement character, valid-prefix publication or
+MIME line restriction is introduced. Unknown escapes fall through as literal
+ESC for XML validation; true conversion faults remain distinct failures.
+Sizing and emission retain the same full physical input for decoder lookahead.
+Emission stops at the sized consumption boundary without treating that boundary
+as EOF: a literal ESC produced before a later fault remains in the decoded
+prefix for grammar diagnostics. Genuine incomplete physical tails still emit
+no character. Replay does not retry the known conversion fault or add decoder
+events; parser continuation and failure-atomic publication remain separate.
+
+Executable RawMemory labels use ASCII case-insensitivity, without trimming,
+punctuation removal, PostgreSQL aliases or ICU fuzzy matching:
+
+| Labels | Effective codec |
+| --- | --- |
+| UTF8, UTF-8 | UTF8 |
+| ISO-2022-JP, ISO2022JP, CSISO2022JP, ISO_2022_JP | ISO-2022-JP |
+| EUC_JP, EUC-JP; EUC_CN; EUC_KR; EUC_TW | corresponding PostgreSQL direct codec |
+| EUC-JISX0213; SHIFT_JISX0213 | EUC_JIS_2004; SHIFT_JIS_2004 |
+| LATIN1–LATIN10 | corresponding PostgreSQL direct codec |
+| ISO-8859-1/2/3/4/9/10/13/14/15/16 | LATIN1/2/3/4/5/6/7/8/9/10 |
+| WINDOWS-1250–WINDOWS-1258 | corresponding WIN1250–WIN1258 codec |
+| CP866; CP874 | WIN866; WIN874 |
+| ISO_8859_5/6/7/8, ISO-8859-5/6/7/8 | corresponding ISO_8859 codec |
+| KOI8R, KOI8-R; KOI8U | KOI8R; KOI8U |
+| SJIS, SHIFT_JIS; BIG5; GBK; UHC; GB18030; JOHAB | corresponding direct codec |
+
+Ranges above enumerate finite decimal suffixes, not wildcard aliases. The
+39 nonUTF8 direct identities reuse their existing mappings, including both words
+of combined JIS2004 mappings. Genuine ISO-2022-JP owns ASCII, Roman yen/overline
+and JIS0208 designations and its complete independently licensed forward table.
+Raw JOHAB admits its two-byte Hangul/symbol framing before consulting the
+existing immutable PostgreSQL Unicode mappings via `pgencoding18.LookupUTF8`.
+This is separate from the PostgreSQL byte-string verifier: raw `88 61` decodes
+as U+AC00 and raw `8F 41` as U+B028, each consuming two bytes. Valid framing does
+not admit an unmapped cell. Symbol subranges retain the D9/DA/DE restrictions,
+and invalid/truncated frames fail without repair. ASCII keeps the existing
+mapping policy; PostgreSQL `Verify`, `Length`, Binary input and all old callers
+retain their own contracts.
+Recognition alone never authorizes decoding: unknown/rejected labels fail,
+recognized labels outside this admitted set report unavailable capability.
+RawMemory introduces no SQL function, XPath policy, stylesheet transformation,
+transport or output-encoding change; existing Text/Binary consumers are unchanged.
 
 ## Representation and errors
 
@@ -86,6 +140,35 @@ rescans separator whitespace, and skips collector-only work in validation mode.
 `Diagnostics()` returns an independent slice; its strings are immutable. A zero
 Result is not accepted empty CONTENT and cannot be output. All failures return
 zero Result and no partial transient document.
+
+`RawInput()` returns immutable `RawInputInfo`: effective codec, default selection,
+initial UTF8 BOM presence and the exact unconsumed physical EOF byte count.
+The written label stays in `Declaration.Encoding`; `Original()` is decoded,
+BOM-less, unexpanded character spelling, never the superseded transport.
+`RawInputError` distinguishes unknown label, unavailable codec, conversion fault
+and empty input. It owns declaration/ordered diagnostics and, on conversion
+fault, the cause, zero-based original raw-byte offset (including BOM) and at most
+four actual offending bytes. Empty input has no fabricated provider callback.
+Grammar errors remain `ParseError`. Encoding and I/O conversion diagnostics have
+no XML source coordinate. Parser `Offset` addresses the full decoded spelling;
+after a converter switch `SourceBaseOffset` is the completed quote's exclusive
+index, the lower bound of the replacement buffer's context window, not an offset
+subtraction. Default/UTF8 input keeps its ordinary source window. Entity frames
+start at their own zero and restore the parent's switched window on return.
+Contexts retain literal control bytes; visible terminal rendering is not a
+byte-exact context record. Failed-buffer retry events stay ordered, without
+deduplication. Source windows/carets and offsets are source-derived provenance,
+separate from callback domain/condition/severity/line/column/text observations.
+All failures publish zero Result and no tree, even when a converted prefix was
+consumed for the reader's premature-end continuation.
+At physical EOF, conversion previews contain at most four actual remaining
+bytes and, if shorter, one terminating `0x00`. They never read allocator residue
+past that terminator or invent padding; `RawInputError.Bytes` contains actual
+input only. A genuine conversion fault remains an error even after a complete
+root. The pinned reader can return a nonnil document pointer alongside fatal
+conversion callbacks; pointer existence is not this package's acceptance rule.
+Incomplete buffered ISO input with no conversion fault is a separate case and
+can still follow a completed document successfully.
 
 `ConstructText`, `ConstructComment`, `ConstructConcat`, `ConstructElement`,
 `ConstructForest`, `ConstructPI` and `ConstructRoot` publish genuine generated
@@ -500,14 +583,18 @@ work poll independently of the source cursor. Validation does not construct
 ordinary nodes or text/attribute payloads. DTD declaration/default tables and
 namespace/value/catalog-PI captures are transient grammar state.
 
-## Recognition inputs
+## Recognition and mapping inputs
 
 `data/recognition.tsv` contains compact pinned handler names, compiled ICU
 preferred resolution and independent finite recognition observations, not
 conversion mappings. Its provenance, reproduction and licensing are in
 [data/README.md](data/README.md). From the repository root, the offline stdlib-only
 `go run ./internal/xml/generate` validates these inputs and deterministically emits
-`declaration_names_generated.go`. Runtime uses static switches only.
+`declaration_names_generated.go` and the immutable `jis0208_generated.go` mapping.
+The original Unicode JIS0208 input, Unicode license and independently qualified
+single-cell raw-reader correction are documented in [data/README.md](data/README.md).
+Runtime uses static switches and the immutable forward table, never source files,
+native codecs, network or host mapping data.
 
 ## Testing
 
@@ -541,8 +628,17 @@ Complex-comment cancellation uses the same admitted production polling checks as
 other grammar; uncommitted segment scans and subsequent recovery remain cancellable.
 The generator family validates immutable input and whole generated output;
 recognition tests separately assert literal labels and all finite observations.
+Raw-memory decoding, complete JIS0208 membership/values and holes, finite aliases,
+ordered conversion/declaration errors, EOF provenance, DTD/no-I/O and real-phase
+cancellation/ownership use the reusable `RUN='^TestXMLRaw'` family. Generator units
+in that family compare all 8836 cells to the original licensed input plus the
+literal independently observed correction, and reject corrupt/incomplete inputs.
 Cancellation tests admit real private production/conversion phases; ownership
 cases also support selected race execution.
+The retained Result schema is checked explicitly; nested declaration, raw-input
+metadata and diagnostic values are recursively restricted to immutable scalar
+fields. The accessor-copied diagnostics slice is the sole admitted slice, not
+permission to retain decoder scratch, pointers, maps, contexts or parser frames.
 DTD units use independent pinned PostgreSQL18.6 UTF8/C diagnostics (the literal
 `data/dtd-oracle.json` corpus) and shared-parser parsed-serialization projections.
 The distinct XPath parse and unsuccessful `xmlsend` discovery query are not

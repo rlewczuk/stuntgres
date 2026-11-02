@@ -75,9 +75,80 @@ identity/codec attribution and its full license remain in `pgencoding18`.
 The offline stdlib generator rejects invalid/duplicate/conflicting/unhandled
 rows and incomplete inventories, sorts keys and writes deterministic switches
 using standard-library `go/format`, following the existing codec generator.
-Run `go run ./internal/xml/generate` from the repository root. It requires only
-this compact input, not Docker, network, iconv, ICU, a host XML parser or the
-original temporary research helpers.
+Run `go run ./internal/xml/generate` from the repository root. It requires the
+vendored recognition and mapping inputs only, not Docker, network, iconv, ICU,
+a host XML parser or the original temporary research helpers.
+
+## Raw-memory JIS0208 mapping
+
+`JIS0208.TXT` preserves the complete original bytes and header from
+[Unicode's JIS X 0208 (1990) mapping](https://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/JIS/JIS0208.TXT),
+table version 2.0, Unicode version 1.1, header dated 2015-12-02 and copyright
+2015 Unicode, Inc. The source's possible-mappings caveat is not treated as
+product-equivalence authority. The accompanying original
+[Unicode License V3](https://www.unicode.org/license.txt) notice is retained in
+`LICENSE-Unicode`; both files were retrieved 2026-11-02. The generated mapping
+retains that attribution and license reference.
+
+Independent exhaustive qualification against the exact pinned PostgreSQL18.6
+image/libxml2 raw `xmlReadMemory(..., XML_PARSE_NOENT)` entry compared every one
+of the 94×94 cells: 8836 parsed, 6879 assigned and accepted, 1957 holes rejected.
+Exactly one source cell differs: JIS **2140**, original **U+005C**, decodes as
+**U+FF3C** in that reader. Generation applies this explicit correction only after
+asserting its original value; the licensed input itself remains unchanged.
+All other assignments and holes agree. This is independent reader evidence,
+not generated expectations learned from the Go decoder.
+
+The existing offline stdlib generator validates row syntax, scalar/cell bounds,
+duplicates, the complete assigned count and the correction's original value.
+It emits `../jis0208_generated.go`, an immutable big-endian BMP string indexed
+by `(lead-0x21)*94+(trail-0x21)`, two bytes per cell, zero for holes. No runtime
+parsing, mutable map, cache, external library or filesystem/network I/O exists.
+Generator units independently parse the original source, compare every emitted
+cell and hole, and reject malformed, missing, duplicate and drifting inputs.
+The package raw-input family additionally parses genuine documents through all
+8836 cells and checks independently expected characters or complete failures.
+
+[glibc2.36's ISO-2022-JP input loop](https://raw.githubusercontent.com/bminor/glibc/glibc-2.36/iconvdata/iso-2022-jp.c)
+is behavior research for designations, literal unknown escapes and incomplete
+buffering, not a copied mapping source. No LGPL glibc table or derived data is
+relicensed here. The Unicode input plus independent single-cell observation
+supplies the entire new forward mapping. PostgreSQL EUC_JP is deliberately not
+used as a substitute: its mappings and extensions differ. Existing direct-codec
+families continue to use the independently licensed PostgreSQL release kernels.
+Raw declaration selection follows the matching libxml DOCUMENT grammar, not
+the CONTENT/Binary preflight or a header regex. Text/Binary recognition and
+output contracts remain separate.
+
+Raw diagnostic qualification uses that same pinned image and exact-length input.
+Physical EOF one-/two-byte conversion faults exposed native preview reads beyond
+the terminating NUL: e.g. actual `80` appeared as `80 00 3C 72`, and `80 41` as
+`80 41 00 72`; those later bytes are stale memory, not transport. The provider's
+deterministic safe preview retains actual remaining bytes (at most four) and at
+most one NUL terminator, never residue or zero-padding to four. Three actual
+bytes plus the terminator reproduce the pinned four-byte preview exactly.
+The reader also returned nonnil document pointers after completed roots while
+reporting two fatal conversion events and an I/O error. The package's structured
+failure-atomic contract rejects genuine conversion faults regardless of that
+pointer, and adds the parser's premature-end event only for an unclosed root.
+This is distinct from fault-free incomplete buffering, which remains admissible
+after a completed root. Permanent closed/unclosed EOF boundary cases preserve
+the distinction without retaining or manufacturing host-memory bytes.
+
+Raw JOHAB's byte framing follows the independently inspected
+[glibc2.36 johab.c input loop](https://raw.githubusercontent.com/bminor/glibc/glibc-2.36/iconvdata/johab.c):
+ASCII is one byte; Hangul leads84–D3 use trails41–7E/81–FE; symbols use
+leadsD9–DE/E0–F9 and trails31–7E/91–FE with the input loop's D9/DA/DE
+subrange restrictions. This is framing research, not copied conversion data.
+Assigned character values come exclusively from the existing immutable
+PostgreSQL `johab_to_utf8` map through the mapping-only `LookupUTF8` seam.
+The observed raw `8861` witness is U+AC00. The independently source-derived
+`8F41` witness is U+B028 (Hangul bitfields and the release map's EB80A8 leaf).
+Both are two-byte raw characters; PostgreSQL's existing JOHAB verifier and
+EUC-style `Length` remain unchanged, as do Binary/SQL conversions. ASCII follows
+the existing map policy rather than adding a host-specific won-sign conversion.
+Framed-but-unassigned cells and illegal/truncated frames remain failures; no
+second JOHAB map or external runtime decoder is introduced.
 
 ## Character serialization oracle
 

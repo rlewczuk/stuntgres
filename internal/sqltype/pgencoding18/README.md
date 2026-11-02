@@ -63,6 +63,17 @@ adapter use that contract without importing one another or duplicating tables.
 Transforms allocate only final immutable output; no-op callers may share source
 strings. Callers apply the release huge/result-allocation guards before use.
 
+`LookupUTF8(sourceID, packed, width)` is a mapping-only seam for callers whose
+source entry has its own byte framing. It bounds the codec ID and exact packed
+width, then reuses the same immutable forward trees, combined words and GB18030
+algorithm as `Step`; zero words mean unsupported or unassigned. The caller must
+validate its encoding-specific framing before lookup. This does not relax
+PostgreSQL `Length`/`Verify`, change `Step`'s consumed widths or define a new
+codec. Raw XML JOHAB uses its two-byte framing here, including lead8F, rather
+than importing PostgreSQL's EUC-style JOHAB byte-string validation. ASCII follows
+the existing mapping policy; no host handler, map copy or runtime dependency is
+introduced.
+
 ## Testing
 
 Package units contain literal witnesses for all 128 pairs/all 42 identities,
@@ -71,6 +82,9 @@ per JIS2004 encoding in both directions, radix zero/boundary entries, all 13
 GB18030 range endpoints and adjacent GB gaps, Japanese replacement/IBM/UDC,
 JIS2004 plane boundaries, BIG5/CNS private planes and direct table holes.
 Generator units exercise invalid syntax, declarations and reachable bounds.
+Mapping-only units retain both combined output words, reject invalid IDs/packed
+widths and preserve the existing PostgreSQL JOHAB verification/width behavior
+alongside explicitly framed Hangul mappings.
 Public, independently specified PostgreSQL goldens live in `reference/`; they
 are never generated from this implementation.
 `TestEncodingNames` owns the complete pure alias/identity corpus and raw-length

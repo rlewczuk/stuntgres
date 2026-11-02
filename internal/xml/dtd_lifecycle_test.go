@@ -65,8 +65,35 @@ func TestXMLDTDOwnershipConcurrency(t *testing.T) {
  if root.children[1].children[0].value!="ok"||retained.Original()!=input{t.Fatal("tree/result ownership")}
  warning:=retained.Diagnostics();warning[0].Message="changed"
  if retained.Diagnostics()[0].Message!="Unsupported version '1.1'"{t.Fatal("borrowed diagnostics")}
- // The public retained value has no parser, tree, map, context or input frame.
- typ:=reflect.TypeOf(retained);if typ.NumField()!=6{t.Fatal("Result ownership shape",typ)}
+ // The retained value admits only its explicit immutable metadata and the
+ // accessor-copied diagnostics slice: no parser, tree, map, context or frame.
+ typ:=reflect.TypeOf(retained)
+ fields:=[]struct{name string;typ reflect.Type}{
+  {"original",reflect.TypeFor[string]()},
+  {"requested",reflect.TypeFor[Mode]()},
+  {"effective",reflect.TypeFor[Mode]()},
+  {"declaration",reflect.TypeFor[Declaration]()},
+  {"diagnostics",reflect.TypeFor[[]Diagnostic]()},
+  {"valid",reflect.TypeFor[bool]()},
+  {"rawInput",reflect.TypeFor[RawInputInfo]()},
+ }
+ if typ.NumField()!=len(fields){t.Fatal("Result ownership shape",typ)}
+ var immutable func(reflect.Type)
+ immutable=func(value reflect.Type){
+  switch value.Kind(){
+  case reflect.Bool,reflect.Int,reflect.Uint8,reflect.String:
+  case reflect.Struct:
+   for i:=range value.NumField(){immutable(value.Field(i).Type)}
+  default:
+   t.Fatal("mutable state retained in Result metadata",value)
+  }
+ }
+ for i,want:=range fields{
+  field:=typ.Field(i)
+  if field.Name!=want.name||field.Type!=want.typ{t.Fatalf("Result ownership field %d: %+v want %s %v",i,field,want.name,want.typ)}
+  if field.Name=="diagnostics"{immutable(field.Type.Elem())}else{immutable(field.Type)}
+ }
+ if retained.RawInput()!=(RawInputInfo{}){t.Fatal("Text input acquired raw transport metadata")}
  growthText:=strings.Repeat("a",1000)
  growthInput:=`<!DOCTYPE a [<!ENTITY % p "`+growthText+`"><!ENTITY % r '<!ENTITY &#37; q "&#37;p;">`+strings.Repeat(" ",1000)+`<!ENTITY e "&#37;q;">'>%r;]><a>&e;</a>`
  growthFailure:=`<!DOCTYPE a [<!ENTITY % p "`+strings.Repeat("a",1401)+`"><!ENTITY % r '<!ENTITY &#37; q "&#37;p;">'>%r;]><a/>`

@@ -42,7 +42,7 @@ func TestXMLCoreModes(t *testing.T) {
  for _,s:=range []string{"<a/><","<a/>junk<"} {for _,m:=range []Mode{Content,Document}{reject(t,s,m)}}
  for _,s:=range []string{"  <!--p--><?go?><a/>\n<!--e-->","<?xml version='1.0'?><a/>"} {for _,m:=range []Mode{Content,Document}{accept(t,s,m)}}
  if _,e:=Parse(context.Background(),"",Options{Mode:2});e==nil {t.Fatal("invalid mode")}
- if _,e:=Parse(context.Background(),"",Options{InputKind:2});e==nil {t.Fatal("invalid input kind")}
+ if _,e:=Parse(context.Background(),"",Options{InputKind:RawMemory+1});e==nil {t.Fatal("invalid input kind")}
  if out,w,e:=OutputText(context.Background(),Result{});e==nil||out!=""||w!=(OutputWarning{}) {t.Fatal("zero result output")}
 }
 func TestXMLCoreNamespaces(t *testing.T) {

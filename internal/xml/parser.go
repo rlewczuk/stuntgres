@@ -9,6 +9,10 @@ func (p *parser) top() {
 		return
 	}
 	if p.effective == Document {
+		if p.raw && len(p.s) == 0 {
+			p.event("XML_ERR_DOCUMENT_EMPTY", "Start tag expected, '<' not found")
+			return
+		}
 		if len(p.s) == 0 {
 			if !p.policy.documentContext {
 				p.event("XML_ERR_INTERNAL_ERROR", "switching encoding : no input")
