@@ -52,7 +52,7 @@ func dependencyAbsent(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 	run(fixture.Select("SELECT extname FROM pg_extension WHERE extname IN ('cube','earthdistance') ORDER BY extname", []string{"extname"}, []string{"NAME"}, [][]any{}))
 	run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('cube','_cube') ORDER BY typname", []string{"typname"}, []string{"NAME"}, [][]any{}))
-	run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('cube_in','cube_out','cube_dim','cube_distance','cube_is_point','earth','ll_to_earth','latitude','longitude','gc_to_sec','sec_to_gc','geo_distance') ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{}))
+	run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('cube_in','cube_out','cube_dim','cube_distance','cube_is_point','earth','ll_to_earth','latitude','longitude','gc_to_sec','sec_to_gc','geo_distance','earth_distance','earth_box') ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{}))
 	run(fixture.Select("SELECT conname FROM pg_constraint WHERE connamespace='public'::regnamespace AND conname IN ('not_3d','not_point','on_surface') ORDER BY conname", []string{"conname"}, []string{"NAME"}, [][]any{}))
 }
 

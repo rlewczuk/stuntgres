@@ -1548,13 +1548,25 @@ publication and lock-manager tickets stay in the engine.
   rebuild, retag, substitution, grouping and stored rendering.
 - **earthdistance**: `EarthRoutine` exposes the genuine installed domain to
   `bindEarthCoordinate`; shared callable selection owns coercion and shadows.
-  `EarthCoordinate` evaluates a captured typed plan, then attaches SQL-body
-  diagnostic context only to failures reached inside that plan. On that error
-  path, `EarthCoordinateRuntime` resolves the checked current routine name;
-  immutable operation selection never follows mutable presentation. Argument
-  and coercion errors keep their own origin. Successful calls perform no
-  diagnostic-name lookup. `InstalledEarthExpr` retains callable authority
-  through reconstruction and catalog replacement.
+  `EarthCoordinate` retains positional formals/results, including earth/FLOAT8
+  to ordinary CUBE for box. Query calls compose the shared cube/scalar kernels.
+  Coerced argument provenance separately captures semantic conversion demand and
+  helper-only, statement or during-inlining error presentation. Expanded literal
+  and row-earth bodies demand gc-to-sec once before the outer cube NULL gate;
+  parameter-only first-earth calls retain strict NULL in custom execution.
+  `BoxExecutionRoute` combines that immutable provenance with already-captured
+  command `PreserveParameterDemand`: explicit generic parameter execution demands
+  the conversion and reports helper-only errors, without caching session mode.
+  The runtime policy getter reads only the executing frame, not the settings
+  store; successful calls still perform no diagnostic-name lookup. Row-earth calls
+  use helper-only errors for variable radii, or during-inlining errors for
+  immutable execution-constant literal/parameter radii. Reconstruction rederives
+  both decisions without consulting input values. On body failure only,
+  `EarthCoordinateRuntime` resolves the checked current query/helper names;
+  immutable operation selection never follows mutable presentation. Argument and
+  coercion errors keep their own origin. Successful calls perform no diagnostic
+  lookup. `InstalledEarthExpr` retains callable authority through reconstruction
+  and catalog replacement.
   `EarthPoint` separately owns two POINT operands and a checked mile-distance
   plan, without domain/cube generations or SQL-body error wrapping.
   `InstalledEarthPointExpr` retains its selected procedure through the same

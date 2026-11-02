@@ -66,6 +66,7 @@ const (
 	cubeLowerCoordinateRoutineIndex  = 17
 	cubeRawCoordinateRoutineIndex    = 19
 	cubeSignedCoordinateRoutineIndex = 20
+	cubeEnlargeRoutineIndex          = 24
 )
 
 var cubeRoutines = [...]cubeRoutineSpec{
@@ -93,7 +94,7 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_subset", [3]sqltype.ID{0, 1007}, 2, 0, "cube_subset"},
 	{"cube_union", [3]sqltype.ID{0, 0}, 2, 0, "cube_union"},
 	{"cube_inter", [3]sqltype.ID{0, 0}, 2, 0, "cube_inter"},
-	{"cube_enlarge", [3]sqltype.ID{0, sqltype.Float8, sqltype.Int4}, 3, 0, "cube_enlarge"},
+	cubeEnlargeRoutineIndex: {"cube_enlarge", [3]sqltype.ID{0, sqltype.Float8, sqltype.Int4}, 3, 0, "cube_enlarge"},
 }
 
 // The selected comparison graph keeps its stable prefix. Other installed

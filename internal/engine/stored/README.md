@@ -631,10 +631,15 @@ host methods.
   `typedef.ReownDomainTypes` before mapping stored usages and nested datums.
   Declaration rendering still requires the current reciprocal element/array
   generations; equal OIDs or an unchanged codec cannot authorize stale companions.
-  Earth coordinate captures remap the actual domain, cube base, procedure,
-  formals and result generation together. Stored view/default calls keep their
-  unevaluated kernels; provider validation rejects stale or same-OID foreign
-  descriptors before rendering current qualified labels.
+  Earth coordinate/query captures remap the actual domain, cube base, procedure,
+  positional formals and result generations together. Ordinary CUBE/FLOAT8 query
+  results do not erase the nominal Earth capture. Stored view/default calls keep
+  their unevaluated kernels, semantic conversion demand and independently derived
+  wrapper presentation mode. Reconstruction preserves original argument
+  provenance; provider validation rejects stale or same-OID foreign descriptors
+  before rendering current qualified labels.
+  The current command's preserved-parameter policy combines with that provenance
+  at evaluation; remapping does not cache a prepared consumer's last plan mode.
   Replacement and type-only refresh bootstrap closed installed-domain CHECK
   recipes before SQL declaration/body/default preparation or other consumers.
   `ReownInstalledDomainChecks` reuses the operation's original-procedure and
@@ -652,8 +657,8 @@ host methods.
   Remapping preserves source routine stamps; only an explicitly authorized
   definition-refresh callback advances them. This ordering neither bootstraps
   user defaults nor relaxes provider or principal validation.
-  FLOAT8-only coordinate calls still track their hidden earth generation in
-  the existing descriptor-change scans.
+  Earth query calls track their hidden nominal graph through the existing
+  descriptor-change scans. Radius and sec/gc scalar calls retain only FLOAT8.
   Earth-point captures instead depend only on builtin POINT/FLOAT8 generations
   and their installed procedure; the selected operator retains a separate address.
   Remap/retag rebuilds that kernel against destination descriptors, and rendering
@@ -1521,7 +1526,7 @@ reject, while healthy fresh current manifests remain usable.
 - Catalog projections: `RUN='^TestReference(PGDepend|PGTableViews)'`
 - Stored generated columns: `RUN='^TestReferenceGeneratedStored'`
 - Installed comparison capture and lifecycle: `RUN='^TestCube'`
-- Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point)'`
+- Installed earth captures and generation ordering: `RUN='^TestEarth(Coordinate|Point|Query)'`
 - Installed hstore conversion/comparison/record reconstruction, provenance and authorized generation remap:
   `RUN='^TestHstore'` (also with `RACE=1`). These units preserve
   original declaration/operand identity and reject foreign or corrupted

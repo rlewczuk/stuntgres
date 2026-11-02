@@ -7,6 +7,15 @@
   calls, without enabling a general C loader. Preserve existing integer-array
   data and NULL transport through uninstall and native logical controls.
 
+- Add earthdistance's `earth_distance(earth,earth)` and
+  `earth_box(earth,double precision)`, with surface distances and ordinary cube
+  candidate bounds requiring an exact distance recheck. Preserve installed
+  identities, parsed helper dependencies, current nested diagnostics and stored
+  view/default calls through rename, relocation and native Dump/Reset/Restore.
+  Expanded literal/column box bodies preserve radius-conversion errors even for
+  NULL earth values. Parameter-first custom calls retain strict NULL; explicit
+  generic demand evaluates the conversion with current helper-only diagnostics.
+
 - Add transactional shared-builtin `ALTER TABLESPACE ... RENAME TO` and typed
   `OWNER TO`, with immutable live-name rebinding, owner/grantor/grantee ACL
   rebasing, same-owner no-op, shared target publication and attachment inheritance.

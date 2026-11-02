@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 )
 
 // EarthRadius is the stock released radius shared by domain checks and calls.
@@ -18,6 +19,8 @@ const (
 	EarthLL
 	EarthLatitude
 	EarthLongitude
+	EarthDistance
+	EarthBox
 )
 
 func (o EarthOperation) Name() string {
@@ -34,6 +37,10 @@ func (o EarthOperation) Name() string {
 		return "latitude"
 	case EarthLongitude:
 		return "longitude"
+	case EarthDistance:
+		return "earth_distance"
+	case EarthBox:
+		return "earth_box"
 	}
 	return ""
 }
@@ -41,7 +48,7 @@ func (o EarthOperation) Arity() int {
 	if o == EarthRadiusOperation {
 		return 0
 	}
-	if o == EarthLL {
+	if o == EarthLL || o == EarthDistance || o == EarthBox {
 		return 2
 	}
 	if o <= EarthLongitude {
@@ -54,6 +61,8 @@ func (o EarthOperation) Arity() int {
 type EarthCoordinatePlan struct {
 	operation             EarthOperation
 	earth, cube, floating *Descriptor
+	chord                 CubeSpatialPlan
+	integer               *Descriptor
 }
 
 func BindEarthCoordinate(o EarthOperation, earth, floating *Descriptor) (EarthCoordinatePlan, error) {
@@ -66,7 +75,18 @@ func BindEarthCoordinate(o EarthOperation, earth, floating *Descriptor) (EarthCo
 	if earth == nil || !earth.IsDomain() || !earth.DomainBase().Type.IsCube() {
 		return EarthCoordinatePlan{}, fmt.Errorf("invalid earth coordinate types")
 	}
-	return EarthCoordinatePlan{o, earth, earth.DomainBase().Type, floating}, nil
+	p := EarthCoordinatePlan{operation: o, earth: earth, cube: earth.DomainBase().Type, floating: floating}
+	if o == EarthDistance {
+		var err error
+		p.chord, err = BindCubeSpatial(CubeDistance, floating.Usage(), p.cube.Usage(), p.cube.Usage())
+		if err != nil {
+			return EarthCoordinatePlan{}, err
+		}
+	}
+	if o == EarthBox {
+		p.integer = earthQueryInteger()
+	}
+	return p, nil
 }
 func (p EarthCoordinatePlan) Operation() EarthOperation { return p.operation }
 func (p EarthCoordinatePlan) Earth() *Descriptor        { return p.earth }
@@ -75,10 +95,16 @@ func (p EarthCoordinatePlan) Result() *Descriptor {
 	if p.operation == EarthLL {
 		return p.earth
 	}
+	if p.operation == EarthBox {
+		return p.cube
+	}
 	return p.floating
 }
-func (p EarthCoordinatePlan) Formal() *Descriptor {
-	if p.operation >= EarthLatitude {
+func (p EarthCoordinatePlan) Formal(index int) *Descriptor {
+	if index < 0 || index >= p.operation.Arity() {
+		return nil
+	}
+	if p.operation == EarthLatitude || p.operation == EarthLongitude || p.operation == EarthDistance || p.operation == EarthBox && index == 0 {
 		return p.earth
 	}
 	return p.floating
@@ -88,8 +114,8 @@ func (p EarthCoordinatePlan) Evaluate(ctx context.Context, args []Value, input I
 	if p.operation.Name() == "" || p.floating == nil || p.operation >= EarthLL && p.earth == nil || len(args) != p.operation.Arity() {
 		return Value{}, fmt.Errorf("invalid earth coordinate plan")
 	}
-	for _, v := range args {
-		if v.typ != p.Formal() {
+	for i, v := range args {
+		if v.typ != p.Formal(i) {
 			return Value{}, fmt.Errorf("foreign earth coordinate argument")
 		}
 	}
@@ -103,6 +129,9 @@ func (p EarthCoordinatePlan) Evaluate(ctx context.Context, args []Value, input I
 	}
 	if p.operation == EarthRadiusOperation {
 		return Float(p.floating, EarthRadius)
+	}
+	if p.operation == EarthDistance || p.operation == EarthBox {
+		return p.evaluateQuery(ctx, args, input)
 	}
 	if p.operation == EarthLL {
 		a, err := checkedFloatingBinary(ArithmeticMultiply, Float8, args[0].floating, directRadiansPerDegree)
@@ -159,7 +188,7 @@ func (p EarthCoordinatePlan) Evaluate(ctx context.Context, args []Value, input I
 	}
 	var n float64
 	var err error
-	if p.operation >= EarthLatitude {
+	if p.operation == EarthLatitude || p.operation == EarthLongitude {
 		v, e := args[0].BaseValue()
 		if e != nil {
 			return Value{}, e
@@ -192,39 +221,109 @@ func (p EarthCoordinatePlan) Evaluate(ctx context.Context, args []Value, input I
 			n, err = checkedFloatingBinary(ArithmeticDivide, Float8, n, directRadiansPerDegree)
 		}
 	} else {
-		d := args[0].floating
-		if d < 0 {
-			return Float(p.floating, 0)
-		}
-		denominator := 2 * EarthRadius
-		if p.operation == EarthGCToSec {
-			denominator = EarthRadius
-		}
-		q, e := checkedFloatingBinary(ArithmeticDivide, Float8, d, denominator)
-		if e != nil {
-			return Value{}, e
-		}
-		pi := float64(math.Pi)
-		if p.operation == EarthSecToGC {
-			if math.IsNaN(q) || q > 1 {
-				return Float(p.floating, pi*EarthRadius)
-			}
-			n, err = inverseTrig("asin", q, 0)
-		} else {
-			if math.IsNaN(q) || q > pi {
-				return Float(p.floating, 2*EarthRadius)
-			}
-			q, err = checkedFloatingBinary(ArithmeticDivide, Float8, d, 2*EarthRadius)
-			if err == nil {
-				n, err = directTrig("sin", q)
-			}
-		}
-		if err == nil {
-			n, err = checkedFloatingBinary(ArithmeticMultiply, Float8, 2*EarthRadius, n)
-		}
+		return p.convert(p.operation, args[0].floating)
 	}
 	if err != nil {
 		return Value{}, err
 	}
 	return Float(p.floating, n)
+}
+
+// The private INT4 constant never escapes the composed cube call. Reuse the
+// immutable builtin template rather than minting a descriptor or argument per row.
+var earthQueryInteger = sync.OnceValue(func() *Descriptor {
+	for _, d := range builtins().types {
+		if d.ID() == Int4 {
+			return d
+		}
+	}
+	panic("stuntgres: missing builtin INT4")
+})
+
+func (p EarthCoordinatePlan) convert(operation EarthOperation, d float64) (Value, error) {
+	if d < 0 {
+		return Float(p.floating, 0)
+	}
+	denominator := 2 * EarthRadius
+	if operation == EarthGCToSec {
+		denominator = EarthRadius
+	}
+	q, err := checkedFloatingBinary(ArithmeticDivide, Float8, d, denominator)
+	if err != nil {
+		return Value{}, err
+	}
+	pi := float64(math.Pi)
+	var n float64
+	if operation == EarthSecToGC {
+		if math.IsNaN(q) || q > 1 {
+			return Float(p.floating, pi*EarthRadius)
+		}
+		n, err = inverseTrig("asin", q, 0)
+	} else {
+		if math.IsNaN(q) || q > pi {
+			return Float(p.floating, 2*EarthRadius)
+		}
+		q, err = checkedFloatingBinary(ArithmeticDivide, Float8, d, 2*EarthRadius)
+		if err == nil {
+			n, err = directTrig("sin", q)
+		}
+	}
+	if err == nil {
+		n, err = checkedFloatingBinary(ArithmeticMultiply, Float8, 2*EarthRadius, n)
+	}
+	if err != nil {
+		return Value{}, err
+	}
+	return Float(p.floating, n)
+}
+
+func (p EarthCoordinatePlan) evaluateQuery(ctx context.Context, args []Value, input InputEnvironment) (Value, error) {
+	center, err := args[0].BaseValue()
+	if err != nil {
+		return Value{}, err
+	}
+	if p.operation == EarthDistance {
+		other, err := args[1].BaseValue()
+		if err != nil {
+			return Value{}, err
+		}
+		chord, err := p.chord.Evaluate(ctx, [2]Value{center, other})
+		if err != nil {
+			return Value{}, err
+		}
+		return p.convert(EarthSecToGC, chord.floating)
+	}
+	chord, err := p.convert(EarthGCToSec, args[1].floating)
+	if err != nil {
+		return Value{}, err
+	}
+	values := [3]Value{center, chord, {typ: p.integer, integer: 3}}
+	return TransformCube(ctx, p.cube, CubeEnlarge, values[:])
+}
+
+// EvaluateExpandedBox evaluates gc_to_sec before cube_enlarge's NULL gate in
+// the expanded literal/row body. Diagnostic presentation is not kernel policy.
+func (p EarthCoordinatePlan) EvaluateExpandedBox(ctx context.Context, args []Value, input InputEnvironment) (Value, error) {
+	if p.operation != EarthBox || len(args) != 2 || args[0].typ != p.Formal(0) || args[1].typ != p.Formal(1) {
+		return Value{}, fmt.Errorf("invalid expanded earth box")
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	if args[1].null {
+		return Null(p.cube), nil
+	}
+	chord, err := p.convert(EarthGCToSec, args[1].floating)
+	if err != nil {
+		return Value{}, err
+	}
+	if args[0].null {
+		return Null(p.cube), nil
+	}
+	center, err := args[0].BaseValue()
+	if err != nil {
+		return Value{}, err
+	}
+	values := [3]Value{center, chord, {typ: p.integer, integer: 3}}
+	return TransformCube(ctx, p.cube, CubeEnlarge, values[:])
 }

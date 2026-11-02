@@ -471,11 +471,18 @@ typmods; naming is captured only on failure and is never retained in result tupl
   readmission; catalog trees retain neither executable state nor authority.
   A new actor phase admits original consumed calls before borrowing cooked
   expressions, without replaying truth or retaining permission results.
-  Earth coordinate body failures use `EarthCoordinateDiagnosticName` in
-  `context_admission.go`: the same descriptor extraction and stored-declaration
-  revalidation select the current name from the statement's catalog. Hard calls
-  captured before rename and remapped Restore calls do not cache diagnostic
-  labels; argument/coercion failures never enter this error-only accessor.
+  Earth body failures use `EarthCoordinateDiagnosticNames` in
+  `context_admission.go`: descriptor extraction and stored-declaration validation
+  select the current query name and exact same-installation conversion-helper
+  role. Hard calls captured before rename and remapped Restore calls never cache
+  diagnostic labels; child/coercion failures do not enter this error-only seam.
+  Strict NULL planning retains authenticated expanded box's independent
+  conversion demand, including helper-only presentation. `BoxExecutionRoute`
+  combines provenance with the existing command `PreserveParameterDemand`
+  capture, not an error label or a retained statement's previous mode. Custom
+  parameter-first calls keep ordinary strict NULL; explicit generic execution
+  demands the conversion with helper-only diagnostics from the first call.
+  Neither this path nor its tests introduce an automatic cost-based chooser.
   Grafted rules borrow the original manifest only after validating the live
   relation's exact rule/action-or-condition presentation. Ancestry is per
   occurrence, not the whole rewritten command; substituted fresh inputs return

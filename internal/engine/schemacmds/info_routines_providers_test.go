@@ -102,7 +102,11 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 		{"intagg", catalog.InternalRoutineLanguage, []string{"aggregate_dummy", "array_unnest"}},
 		{"pgrowlocks", catalog.CRoutineLanguage, []string{"pgrowlocks"}},
 		{"cube", catalog.CRoutineLanguage, []string{"cube_in", "cube_out", "cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp", "cube_f8", "cube_f8_f8", "cube_a_f8", "cube_a_f8_f8", "cube_c_f8", "cube_c_f8_f8", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur", "cube_subset", "cube_union", "cube_inter", "cube_enlarge", "cube_overlap", "cube_contains", "cube_contained", "cube_distance", "distance_taxicab", "distance_chebyshev"}},
-		{"earthdistance", catalog.SQLRoutineLanguage, []string{"", "", "", "", "", "", "geo_distance"}},
+		{"earthdistance", catalog.SQLRoutineLanguage, []string{
+			"", "", "", "", "", "", // earth, sec_to_gc, gc_to_sec, ll_to_earth, latitude, longitude
+			"geo_distance",
+			"", "", // earth_distance, earth_box: parsed RETURN bodies have no source text
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()

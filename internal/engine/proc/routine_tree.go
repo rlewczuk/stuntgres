@@ -59,6 +59,14 @@ func EarthDeclarationCubeSchema(tree sqltype.StructuralTree, op sqltype.EarthOpe
 	if !ok || len(query.Targets) != 1 || query.From != nil || query.Values != nil || len(query.With) != 0 || query.Where != nil || query.Set != nil {
 		return invalid()
 	}
+	if op == sqltype.EarthDistance || op == sqltype.EarthBox {
+		// RETURN belongs to the declaration recipe. Its readonly expression
+		// syntax is deliberately parsed as SELECT, not a user routine RETURN.
+		if !body.recipe.Return || query.GroupBy != nil || query.Having != nil || len(query.Windows) != 0 || query.Order != nil || query.Into != nil || len(query.Locking) != 0 || query.Bounds != nil || query.Distinct != nil {
+			return invalid()
+		}
+		return earthQueryDeclarationCubeSchema(query.Targets[0], op)
+	}
 	name, count := "cube_ll_coord", 0
 	switch op {
 	case sqltype.EarthLL:
@@ -165,6 +173,44 @@ func EarthDeclarationCubeSchema(tree sqltype.StructuralTree, op sqltype.EarthOpe
 		return invalid()
 	}
 	return schema, nil
+}
+
+func earthQueryDeclarationCubeSchema(value parser.Expr, op sqltype.EarthOperation) (string, error) {
+	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid Earth query declaration placement") }
+	call := func(value parser.Expr, name string, arity, qualification int) (parser.FunctionExpr, bool) {
+		f, ok := value.(parser.FunctionExpr)
+		return f, ok && len(f.Name.Parts) == qualification && f.Name.Parts[qualification-1].Text == name && len(f.Args) == arity && !f.ProcedureCall && !f.Variadic && !f.Star && !f.Distinct && !f.All && len(f.Order) == 0 && f.Filter == nil && !f.Within && f.Window == nil && len(f.ArgNames) == 0 && len(f.ColumnDefinitions) == 0
+	}
+	parameter := func(value parser.Expr, number int) bool {
+		p, ok := value.(parser.ParameterExpr)
+		return ok && p.Number == number
+	}
+	var cube parser.FunctionExpr
+	var ok bool
+	if op == sqltype.EarthDistance {
+		outer, valid := call(value, "sec_to_gc", 1, 1)
+		if !valid {
+			return invalid()
+		}
+		cube, ok = call(outer.Args[0], "cube_distance", 2, 2)
+		if !ok || !parameter(cube.Args[0], 1) || !parameter(cube.Args[1], 2) {
+			return invalid()
+		}
+	} else {
+		cube, ok = call(value, "cube_enlarge", 3, 2)
+		if !ok || !parameter(cube.Args[0], 1) {
+			return invalid()
+		}
+		helper, valid := call(cube.Args[1], "gc_to_sec", 1, 1)
+		dimension, literal := cube.Args[2].(parser.LiteralExpr)
+		if !valid || !parameter(helper.Args[0], 2) || !literal || dimension.Value.Kind != parser.IntegerValue || dimension.Value.Integer != 3 {
+			return invalid()
+		}
+	}
+	if cube.Name.Parts[0].Text == "" {
+		return invalid()
+	}
+	return cube.Name.Parts[0].Text, nil
 }
 
 func (b *routineDeclarationBody) StructuralOutput(ctx context.Context) (string, error) {

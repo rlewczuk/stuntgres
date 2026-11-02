@@ -193,7 +193,7 @@ func TestEarthCoordinateScalarOwnership(t *testing.T) {
 	}
 	for _, op := range []EarthOperation{EarthRadiusOperation, EarthSecToGC, EarthGCToSec} {
 		p, err := BindEarthCoordinate(op, nil, floating)
-		if err != nil || p.Earth() != nil || p.cube != nil || p.Float() != floating || p.Result() != floating || p.Formal() != floating {
+		if err != nil || p.Earth() != nil || p.cube != nil || p.Float() != floating || p.Result() != floating || op != EarthRadiusOperation && p.Formal(0) != floating || op == EarthRadiusOperation && p.Formal(0) != nil {
 			t.Fatal("scalar ABI acquired absent nominal dependency", op, err)
 		}
 		var args []Value

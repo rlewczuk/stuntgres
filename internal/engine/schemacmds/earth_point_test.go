@@ -140,7 +140,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 			t.Fatal("failed installation published type prefix", name)
 		}
 	}
-	for _, name := range []string{"earth", "sec_to_gc", "gc_to_sec", "ll_to_earth", "latitude", "longitude", "geo_distance"} {
+	for _, name := range []string{"earth", "sec_to_gc", "gc_to_sec", "ll_to_earth", "latitude", "longitude", "geo_distance", "earth_distance", "earth_box"} {
 		if len(after.State().ProceduresNamed(namespace, name)) != 0 {
 			t.Fatal("failed installation published procedure prefix", name)
 		}

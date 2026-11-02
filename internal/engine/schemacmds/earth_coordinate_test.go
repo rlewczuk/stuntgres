@@ -125,6 +125,11 @@ func TestEarthCoordinateOwners(t *testing.T) {
 }
 
 func TestEarthCoordinateExpression(t *testing.T) {
+	earthExpressionOperations(t, []sqltype.EarthOperation{sqltype.EarthRadiusOperation, sqltype.EarthSecToGC, sqltype.EarthGCToSec, sqltype.EarthLL, sqltype.EarthLatitude, sqltype.EarthLongitude})
+}
+
+func earthExpressionOperations(t *testing.T, operations []sqltype.EarthOperation) {
+	t.Helper()
 	ctx := context.Background()
 	source, ext, earth := earthUnitInstalled(t)
 	before := source.CatalogRead()
@@ -175,25 +180,27 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		return n
 	}
 	mapperProc := extension.ProcedureRemapper(extension.DescriptorRemapper(mapping), replacementProcedurePolicyFixture(source, target), nil)
-	for slot := 2; slot < extension.EarthPointProcedureSlot; slot++ {
-		op := sqltype.EarthOperation(slot - 2)
+	for _, op := range operations {
+		slot, ok := extension.EarthOperationSlot(op)
+		if !ok {
+			t.Fatal("missing operation slot", op)
+		}
 		proc := before.MustProcedure(ext.Members[slot])
 		args := make([]expr.Expr, op.Arity())
-		formal := floating
-		if op >= sqltype.EarthLatitude {
-			formal = earth.SQLType
+		typed, err := sqltype.BindEarthCoordinate(op, earth.SQLType, floating)
+		if err != nil {
+			t.Fatal(err)
 		}
+		formal := typed.Formal(0)
 		for i := range args {
+			formal := typed.Formal(i)
 			v := sqltype.Null(formal)
 			if formal == floating {
 				v, _ = sqltype.Float(floating, 0)
 			}
 			args[i] = plan.LiteralExpr{Info: expr.Info{Usage: formal.Usage()}, Value: v}
 		}
-		result := floating
-		if op == sqltype.EarthLL {
-			result = earth.SQLType
-		}
+		result := typed.Result()
 		info := expr.Info{Usage: result.Usage(), RoutineReference: proc, Property: expr.Properties{Volatility: expr.Immutable}}
 		kernel, err := functions.NewEarthCoordinate(info, op, earth.SQLType, args)
 		if err != nil {
@@ -230,6 +237,17 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		if err := stored.ValidateInstalledEarth(badResult, before); err == nil {
 			t.Fatal("wrong result accepted")
 		}
+		foreignResult := *result
+		badResult = node
+		badResult.Usage.Type = &foreignResult
+		if err := stored.ValidateInstalledEarth(badResult, before); err == nil {
+			t.Fatal("same-OID foreign result generation accepted")
+		}
+		if op == sqltype.EarthBox {
+			if _, err := node.Rebuild(info, []expr.Expr{args[1], args[0]}); err == nil {
+				t.Fatal("box accepted transposed mixed formals")
+			}
+		}
 		unsupported := node
 		unsupported.EarthCoordinate = functions.EarthCoordinate{}
 		if err := stored.ValidateInstalledEarth(unsupported, before); err == nil {
@@ -242,11 +260,19 @@ func TestEarthCoordinateExpression(t *testing.T) {
 			bad := node
 			if op == sqltype.EarthRadiusOperation {
 				bad.Usage.Type = fresh
-			} else if formal == floating {
-				bad.Args = append([]expr.Expr(nil), args...)
-				bad.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: fresh.Usage()}, Value: sqltype.Null(fresh)}
 			} else {
-				continue
+				index := -1
+				for i, arg := range args {
+					if arg.ResultUsage().Type == floating {
+						index = i
+						break
+					}
+				}
+				if index < 0 {
+					continue
+				}
+				bad.Args = append([]expr.Expr(nil), args...)
+				bad.Args[index] = plan.LiteralExpr{Info: expr.Info{Usage: fresh.Usage()}, Value: sqltype.Null(fresh)}
 			}
 			if err := stored.ValidateInstalledEarth(bad, before); err == nil {
 				t.Fatal("same-OID foreign float generation accepted")
@@ -258,7 +284,8 @@ func TestEarthCoordinateExpression(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := node
-			bad.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}}
+			bad.Args = append([]expr.Expr(nil), args...)
+			bad.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}
 			if err := stored.ValidateInstalledEarth(bad, before); err == nil {
 				t.Fatal("same-OID foreign domain generation accepted")
 			}

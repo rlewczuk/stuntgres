@@ -182,7 +182,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Released Earth body dependencies use the shared read-aware definition visitor:
   sec_to_gc/gc_to_sec, ll_to_earth and latitude retain their real radius edge;
   ll_to_earth retains both genuine cube constructor overloads, and
-  latitude/longitude retain cube_ll_coord. The sealed Earth domain's base type
+  latitude/longitude retain cube_ll_coord. Query bodies retain precisely
+  earth_distance→sec_to_gc/cube_distance and earth_box→gc_to_sec/cube_enlarge;
+  their radius dependency is transitive, not another flattened direct edge.
+  The sealed Earth domain's base type
   selects the genuine cube origin and declaration slots, never captured spelling
   or current extension membership. Repeated written calls yield one direct edge.
   Current callee identity and principal validation still gate callable authority.
@@ -711,9 +714,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   display metadata does not replace the installed provider's execution authority.
   Earthdistance requires installed cube and atomically stages the `earth` domain,
   its actual companion and six coordinate/conversion routines, followed by
-  `geo_distance(point,point)` and its self-commuting `<@>` operator. Incumbent slots
-  stay fixed. Operator admission validates its exact slot, formals, result and
-  backing procedure against the current manifest. `Stage.EarthChecks` attaches the
+  `geo_distance(point,point)` and its self-commuting `<@>` operator. Slots0–9 stay
+  fixed; earth_distance and earth_box append at10/11 in the twelve-member recipe.
+  Explicit operation/slot mapping skips the point pair. Operator admission
+  validates its exact slot, formals, result and backing procedure against the
+  current manifest. `Stage.EarthChecks` attaches the
   three released domain recipes. V3 owner metadata records final portable SQL
   identities plus immutable release/declaration keys; companion resolution uses
   the domain's actual Array identity, not `_earth`. Routine labels, namespaces,

@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	EarthPointProcedureSlot = 8
-	EarthPointOperatorSlot  = 9
-	EarthMemberCount        = 10
+	EarthPointProcedureSlot    = 8
+	EarthPointOperatorSlot     = 9
+	EarthDistanceProcedureSlot = 10
+	EarthBoxProcedureSlot      = 11
+	EarthMemberCount           = 12
 )
 
 func (p *EarthdistanceProvider) stagePoint(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {

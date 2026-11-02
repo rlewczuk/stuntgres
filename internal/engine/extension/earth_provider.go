@@ -144,7 +144,10 @@ func (p *EarthdistanceProvider) validateRecipe(v catalog.Read, ext *catalog.Exte
 	if err := validateEarthDomainChecks(d, cube.SQLType.Usage()); err != nil {
 		return err
 	}
-	for slot := 2; slot < EarthPointOperatorSlot; slot++ {
+	for slot := 2; slot < EarthMemberCount; slot++ {
+		if slot == EarthPointOperatorSlot {
+			continue
+		}
 		proc, ok := v.Procedure(ext.Members[slot])
 		if !ok || proc.Implementation != p {
 			return invalid()

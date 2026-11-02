@@ -24,7 +24,7 @@ func earthCoordinateMissing(signature, position string) fixture.Diagnostic {
 	return want
 }
 
-func earthCoordinateError(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q, route string, args []any, want fixture.Diagnostic, prepareFailure bool, valid []any) {
+func earthCoordinateError(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, q, route string, args []any, want fixture.Diagnostic, prepareFailure bool, valid []any) {
 	t.Helper()
 	s := fixture.ErrorDiagnostic(q, want, args...)
 	s.SelectRows, s.ErrorStage = true, "execute"

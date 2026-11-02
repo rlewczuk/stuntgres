@@ -28,6 +28,12 @@ formals; otherwise source is assembled from the parts. Formal slots, the current
 routine-name qualifier, routine/operator identities, types, relation attributes,
 catalog-alias literals and installation-member identities remain explicit metadata,
 not token replacement or a second per-name SQL output table.
+
+The recipe's `Return` flag owns SQL-standard RETURN metadata; its expression
+parts are parsed as a readonly SELECT. That normalized AST does not acquire the
+user-routine `parser.Select.RoutineReturn` marker. Closed Earth query placement
+checks the retained recipe flag as well as the exact nested SELECT shape.
+
 `RoutineDeclarationRecipe` exposes only
 immutable part values; `stored.RoutineDeclarationSQL` applies the current
 catalog/search path, names and captured quoting/string policy without binding,

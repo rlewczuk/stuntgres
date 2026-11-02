@@ -24,6 +24,11 @@ import (
 )
 
 func TestEarthCoordinateReownOrdering(t *testing.T) {
+	earthReownOperations(t, []sqltype.EarthOperation{sqltype.EarthRadiusOperation, sqltype.EarthSecToGC, sqltype.EarthGCToSec, sqltype.EarthLL, sqltype.EarthLatitude, sqltype.EarthLongitude})
+}
+
+func earthReownOperations(t *testing.T, operations []sqltype.EarthOperation) {
+	t.Helper()
 	for _, typesOnly := range []bool{false, true} {
 		for _, supplied := range []bool{false, true} {
 			for _, reverse := range []bool{false, true} {
@@ -64,23 +69,23 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 						t.Fatal("lost independent labels/owners", record)
 					}
 					floating, _ := before.LookupType(sqltype.Float8)
-					columns := make([]catalog.Column, 6)
-					attributes := []int32{1, 2, 3, 4, 5, 6}
-					defaults := make(map[int32]catalog.ColumnDefault, 6)
-					var sourceCalls [6]plan.InstalledEarthExpr
-					var userRoutines [6]ids.ObjectAddress
-					for i := range 6 {
-						operation := sqltype.EarthOperation(i)
-						p := before.MustProcedure(ext.Members[i+2])
-						result, formal := floating, floating
-						if operation == sqltype.EarthLL {
-							result = earth.SQLType
+					columns := make([]catalog.Column, len(operations))
+					attributes := make([]int32, len(operations))
+					defaults := make(map[int32]catalog.ColumnDefault, len(operations))
+					sourceCalls := make([]plan.InstalledEarthExpr, len(operations))
+					userRoutines := make([]ids.ObjectAddress, len(operations))
+					for i, operation := range operations {
+						attributes[i] = int32(i + 1)
+						slot, _ := extension.EarthOperationSlot(operation)
+						p := before.MustProcedure(ext.Members[slot])
+						typed, err := sqltype.BindEarthCoordinate(operation, earth.SQLType, floating)
+						if err != nil {
+							t.Fatal(err)
 						}
-						if operation >= sqltype.EarthLatitude {
-							formal = earth.SQLType
-						}
+						result := typed.Result()
 						args := make([]expr.Expr, operation.Arity())
 						for j := range args {
+							formal := typed.Formal(j)
 							args[j] = plan.LiteralExpr{Info: expr.Info{Usage: formal.Usage()}, Value: sqltype.Null(formal)}
 						}
 						kernel, err := functions.NewEarthCoordinate(expr.Info{Usage: result.Usage(), RoutineReference: p, Property: expr.Properties{Volatility: expr.Immutable}}, operation, earth.SQLType, args)
@@ -111,7 +116,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					if reverse {
 						oid = 900101
 					}
-					consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: earth.Namespace(), ObjectName: "earth_reown_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: ext.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: 6, Defaults: defaults}}
+					consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: earth.Namespace(), ObjectName: "earth_reown_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: ext.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(operations)), Defaults: defaults}}
 					state.SetDescriptor(consumer.Address(), consumer)
 					state.BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
 					next := catalog.CloneState(state)
@@ -167,7 +172,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					for i, source := range sourceCalls {
 						call := next.MustRelation(consumer.Address()).ColumnMeta.Defaults[int32(i+1)].Expression.(plan.InstalledEarthExpr)
 						expectedEarth := current.SQLType
-						if sqltype.EarthOperation(i) < sqltype.EarthLL {
+						if operations[i] < sqltype.EarthLL {
 							expectedEarth = nil
 						}
 						if call.Plan.Earth() != expectedEarth {
@@ -181,7 +186,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 						// generation. An epoch change during stored reownership
 						// alone does not retire this unchanged scalar declaration.
 						err := stored.ValidateInstalledEarth(source, view)
-						unchangedScalar := sqltype.EarthOperation(i) < sqltype.EarthLL
+						unchangedScalar := operations[i] < sqltype.EarthLL
 						if unchangedScalar && err != nil {
 							t.Fatal("unchanged scalar capture rejected", i, err)
 						}

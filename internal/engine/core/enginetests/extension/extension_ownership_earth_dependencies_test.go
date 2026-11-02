@@ -41,6 +41,9 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 	}
 	coordinate := lookup("cube_ll_coord", cubeID+",23")
 	radius := lookup("earth", "")
+	sec, gc := lookup("sec_to_gc", "701"), lookup("gc_to_sec", "701")
+	chord := lookup("cube_distance", cubeID+","+cubeID)
+	enlarge := lookup("cube_enlarge", cubeID+",701,23")
 	cases := []struct {
 		name      string
 		signature string
@@ -49,6 +52,8 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 		{"ll_to_earth", "701,701", []ids.ObjectAddress{radius, constructors[0], constructors[1]}},
 		{"latitude", earthID, []ids.ObjectAddress{radius, coordinate}},
 		{"longitude", earthID, []ids.ObjectAddress{coordinate}},
+		{"earth_distance", earthID + "," + earthID, []ids.ObjectAddress{sec, chord}},
+		{"earth_box", earthID + ",701", []ids.ObjectAddress{gc, enlarge}},
 	}
 	for _, mode := range []string{"attached", "detached", "foreign", "absent"} {
 		t.Run(mode, func(t *testing.T) {
@@ -160,6 +165,39 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 					t.Fatal("invalid current callee/body authority admitted", corruption)
 				}
 			}
+			for _, tc := range cases[3:] {
+				query := view.MustProcedure(lookup(tc.name, tc.signature))
+				for _, address := range tc.want {
+					for _, corruption := range []string{"missing", "copied_origin", "wrong_slot", "signature", "principal"} {
+						invalid := catalog.CloneState(state)
+						helper := *view.MustProcedure(address)
+						switch corruption {
+						case "missing":
+							invalid.RemoveDescriptor(address)
+						case "copied_origin":
+							origin := *helper.Origin
+							recipe := *origin.Installation
+							origin.Installation = &recipe
+							helper.Origin = &origin
+						case "wrong_slot":
+							origin := *helper.Origin
+							origin.Declaration++
+							helper.Origin = &origin
+						case "signature":
+							helper.Signature = "23"
+						case "principal":
+							helper.Owner = catalog.Procedure{}.Owner
+						}
+						if corruption != "missing" {
+							invalid.SetDescriptor(address, &helper)
+						}
+						broken := view.WithState(invalid)
+						if _, err := extension.ProcedureSymbol(broken, broken.MustProcedure(query.Address())); err == nil {
+							t.Fatal("query accepted foreign direct helper authority", tc.name, corruption)
+						}
+					}
+				}
+			}
 		})
 	}
 	t.Run("remapped_callee_identities", func(t *testing.T) {
@@ -167,6 +205,10 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 			constructors[0]: {ClassID: ids.ProcedureClassID, ObjectID: 940001},
 			constructors[1]: {ClassID: ids.ProcedureClassID, ObjectID: 940002},
 			coordinate:      {ClassID: ids.ProcedureClassID, ObjectID: 940003},
+			sec:             {ClassID: ids.ProcedureClassID, ObjectID: 940004},
+			gc:              {ClassID: ids.ProcedureClassID, ObjectID: 940005},
+			chord:           {ClassID: ids.ProcedureClassID, ObjectID: 940006},
+			enlarge:         {ClassID: ids.ProcedureClassID, ObjectID: 940007},
 		}
 		remap := extension.DescriptorRemapper(mapping)
 		state := catalog.CloneState(base.State())

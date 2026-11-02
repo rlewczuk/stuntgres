@@ -207,17 +207,21 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 	case StockEarthdistance:
 		count = EarthMemberCount
-		if ext.Version != "1.2" || slot < 2 || slot >= EarthPointOperatorSlot {
+		if ext.Version != "1.2" || slot < 2 || slot >= EarthMemberCount || slot == EarthPointOperatorSlot {
 			return invalid()
 		}
 		if slot == EarthPointProcedureSlot {
 			name, signature, result = "geo_distance", "600,600", ids.OID(sqltype.Float8)
 		} else {
-			op := sqltype.EarthOperation(slot - 2)
+			op, selected := EarthSlotOperation(slot)
+			if !selected {
+				return invalid()
+			}
 			if p.DeclarationBody == nil {
 				return invalid()
 			}
 			earthID := sqltype.ID(ext.Members[0].ObjectID)
+			var cubeID sqltype.ID
 			if op >= sqltype.EarthLL {
 				base, ok := v.Type(ext.Members[0])
 				if !ok || base.SQLType == nil || !base.SQLType.IsDomain() || !base.SQLType.DomainBase().Type.IsCube() || !catalog.SameInstallation(base, ext) {
@@ -226,6 +230,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 				if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
 					return invalid()
 				}
+				cubeID = base.SQLType.DomainBase().Type.ID()
 			}
 			dependencies := 0
 			valid := StockEarthdistance.VisitProcedureDependencies(v, p, func(dependency ids.ObjectAddress) bool {
@@ -237,12 +242,30 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 				if err != nil {
 					return false
 				}
-				if dependency == ext.Members[2] {
-					if !catalog.SameInstallation(helper, ext) || symbol != "earth" {
+				if catalog.SameInstallation(helper, ext) {
+					want := sqltype.EarthRadiusOperation
+					if op == sqltype.EarthDistance {
+						want = sqltype.EarthSecToGC
+					} else if op == sqltype.EarthBox {
+						want = sqltype.EarthGCToSec
+					}
+					role, _ := EarthOperationSlot(want)
+					if dependency != ext.Members[role] || symbol != want.Name() {
 						return false
 					}
-				} else if helper.Implementation != StockCube || symbol != "cube" && symbol != "cube_ll_coord" {
-					return false
+				} else {
+					want := "cube_ll_coord"
+					switch op {
+					case sqltype.EarthLL:
+						want = "cube"
+					case sqltype.EarthDistance:
+						want = "cube_distance"
+					case sqltype.EarthBox:
+						want = "cube_enlarge"
+					}
+					if helper.Implementation != StockCube || symbol != want {
+						return false
+					}
 				}
 				dependencies++
 				return true
@@ -251,7 +274,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			switch op {
 			case sqltype.EarthSecToGC, sqltype.EarthGCToSec, sqltype.EarthLongitude:
 				expected = 1
-			case sqltype.EarthLatitude:
+			case sqltype.EarthLatitude, sqltype.EarthDistance, sqltype.EarthBox:
 				expected = 2
 			case sqltype.EarthLL:
 				expected = 3
@@ -259,7 +282,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			if !valid || dependencies != expected {
 				return invalid()
 			}
-			name, signature, result, strict = op.Name(), earthRoutineSignature(op, earthID), earthRoutineResult(op, earthID), op != sqltype.EarthRadiusOperation
+			name, signature, result, strict = op.Name(), earthRoutineSignature(op, earthID), earthRoutineResult(op, earthID, cubeID), op != sqltype.EarthRadiusOperation
 		}
 	case StockCube:
 		count = CubeMemberCount

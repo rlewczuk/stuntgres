@@ -349,7 +349,9 @@ validate immutable manifests and symbolic ownership, and exercise genuine
 collision/allocation and destination-role replacement fences without public
 SQL. Routine-metadata units use the real capture fixture and staged
 extension constructors for declaration completeness, independent source
-bags, redaction, empty/canceled results and generation fences.
+bags, redaction, empty/canceled results and generation fences. The complete
+Earth routine source bag includes all eight parsed SQL RETURN bodies with empty
+source text and the C `geo_distance` symbol, preserving their language split.
 Dependency-bag units resolve every installed Snowball seed pair by
 declaration, retaining each pair's normal dependencies and the shared
 template-to-helper edges once, without pinning allocated identities. Hindi and

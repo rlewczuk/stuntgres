@@ -197,6 +197,13 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
+  `InstalledEarthExpr` uses the same carrier for coordinates and surface queries:
+  mixed formals and CUBE/FLOAT8 results retain the hidden nominal Earth graph.
+  Grouping and reconstruction preserve independent semantic conversion demand
+  and checked query/helper presentation mode, without retaining current names
+  or execution/catalog authority.
+  Explicit generic parameter demand is derived from each command's evaluation
+  authority, not retained in the analyzed node or its grouping identity.
   `InstalledDblinkBuildSQLDeleteExpr`, `InstalledDblinkBuildSQLInsertExpr` and
   `InstalledDblinkBuildSQLUpdateExpr` carry genuine procedure/reference authority and four/five typed operands through
   rebuild, substitution, capture and stored remapping. Their TEXT relation

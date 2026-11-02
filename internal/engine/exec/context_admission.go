@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -186,25 +187,38 @@ func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependenci
 	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
 }
 
-// EarthCoordinateDiagnosticName follows immutable declaration identity across
-// mutable names, just as stored admission does. Never use the operation symbol
-// or a name captured when the hard expression was first bound.
-func (c *Context) EarthCoordinateDiagnosticName(n functions.EarthCoordinate) (string, error) {
+// EarthCoordinatePreserveParameterDemand borrows the existing command-invocation
+// capture, never the session store or a retained prepared statement's last mode.
+func (c *Context) EarthCoordinatePreserveParameterDemand() bool {
+	return c != nil && c.PreserveParameterDemand
+}
+
+// EarthCoordinateDiagnosticNames follows checked immutable query/helper roles
+// across presentation changes. It is demanded only on the body-error path.
+func (c *Context) EarthCoordinateDiagnosticNames(n functions.EarthCoordinate) (string, string, error) {
 	if err := EvaluationContext(c); err != nil {
-		return "", err
+		return "", "", err
 	}
 	captured, err := ExpressionRoutineDescriptor(n)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if captured == nil {
-		return "", fmt.Errorf("stuntgres: missing earth coordinate routine identity")
+		return "", "", fmt.Errorf("stuntgres: missing earth coordinate routine identity")
 	}
-	current, err := ValidateStoredRoutineDescriptor(preparation.DomainCatalog(c), captured)
+	view := preparation.DomainCatalog(c)
+	current, err := ValidateStoredRoutineDescriptor(view, captured)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return current.Name(), nil
+	if n.Plan.Operation() != sqltype.EarthBox && n.Plan.Operation() != sqltype.EarthDistance {
+		return current.Name(), "", nil
+	}
+	helper, err := extension.EarthQueryConversionHelper(view, current)
+	if err != nil {
+		return "", "", err
+	}
+	return current.Name(), helper.Name(), nil
 }
 
 // CitextRegexpDiagnosticName borrows the current admitted declaration rather

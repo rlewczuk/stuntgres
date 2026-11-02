@@ -13,14 +13,26 @@ func (provider *EarthdistanceProvider) VisitProcedureDependencies(v catalog.Read
 		return true
 	}
 	recipe := p.Origin.Installation
-	op := sqltype.EarthOperation(p.Origin.Declaration - 2)
+	op, selected := EarthSlotOperation(int(p.Origin.Declaration))
+	if !selected {
+		return true
+	}
 	switch op {
 	case sqltype.EarthSecToGC, sqltype.EarthGCToSec, sqltype.EarthLL, sqltype.EarthLatitude:
 		if !yield(recipe.Members[2]) {
 			return false
 		}
+	case sqltype.EarthDistance, sqltype.EarthBox:
+		conversion := sqltype.EarthSecToGC
+		if op == sqltype.EarthBox {
+			conversion = sqltype.EarthGCToSec
+		}
+		slot, _ := EarthOperationSlot(conversion)
+		if !yield(recipe.Members[slot]) {
+			return false
+		}
 	}
-	if op != sqltype.EarthLL && op != sqltype.EarthLatitude && op != sqltype.EarthLongitude {
+	if op != sqltype.EarthLL && op != sqltype.EarthLatitude && op != sqltype.EarthLongitude && op != sqltype.EarthDistance && op != sqltype.EarthBox {
 		return true
 	}
 	// The sealed domain binds the prerequisite nominal type even after either
@@ -36,6 +48,12 @@ func (provider *EarthdistanceProvider) VisitProcedureDependencies(v catalog.Read
 		return true
 	}
 	members := cube.Origin.Installation.Members
+	if op == sqltype.EarthDistance {
+		return yield(members[cubeSpatialProcedureStart+int(sqltype.CubeDistance)])
+	}
+	if op == sqltype.EarthBox {
+		return yield(members[cubeRoutineMember(cubeEnlargeRoutineIndex)])
+	}
 	if op == sqltype.EarthLL {
 		return yield(members[cubeRoutineMember(cubeFloat8RoutineIndex)]) && yield(members[cubeRoutineMember(cubeAppendFloat8RoutineIndex)])
 	}

@@ -31,6 +31,17 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 	if node == nil {
 		return node, false, nil
 	}
+	if box, ok := node.(plan.InstalledEarthExpr); ok && box.Plan.Operation() == sqltype.EarthBox {
+		demand, _ := box.BoxExecutionRoute(c != nil && c.PreserveParameterDemand)
+		if demand {
+			if err := box.ValidateStoredProvider(); err != nil {
+				return nil, false, err
+			}
+			// Expanded body demand includes the preserved-parameter command
+			// route. Retain it independently of diagnostic presentation.
+			return node, false, nil
+		}
+	}
 	if n, ok := node.(plan.InstalledTextExpr); ok {
 		if !preparation.ValidInstalledText(n) {
 			return nil, false, fmt.Errorf("stuntgres: invalid installed function expression")

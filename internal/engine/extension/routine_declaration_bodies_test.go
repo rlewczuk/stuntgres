@@ -12,7 +12,7 @@ import (
 func TestEarthRoutineDeclarationBodies(t *testing.T) {
 	// Exercise every actual installed declaration recipe, including quoted
 	// installation schema substitution; no routine binding or execution occurs.
-	for op := sqltype.EarthRadiusOperation; op <= sqltype.EarthLongitude; op++ {
+	for op := sqltype.EarthRadiusOperation; op <= sqltype.EarthBox; op++ {
 		t.Run(op.Name(), func(t *testing.T) {
 			body, err := earthDeclarationBody(op, "cube schema")
 			if err != nil {
@@ -20,6 +20,10 @@ func TestEarthRoutineDeclarationBodies(t *testing.T) {
 			}
 			if body == nil {
 				t.Fatal("missing released SQL-standard declaration body")
+			}
+			recipe, ok := proc.RoutineDeclarationRecipe(body)
+			if !ok || !recipe.Return() {
+				t.Fatal("lost SQL-standard RETURN declaration metadata")
 			}
 			output, err := body.StructuralOutput(t.Context())
 			if err != nil {
@@ -36,7 +40,7 @@ func TestEarthRoutineDeclarationBodies(t *testing.T) {
 }
 
 func TestEarthDeclarationCubePlacement(t *testing.T) {
-	for _, op := range []sqltype.EarthOperation{sqltype.EarthLL, sqltype.EarthLatitude, sqltype.EarthLongitude} {
+	for _, op := range []sqltype.EarthOperation{sqltype.EarthLL, sqltype.EarthLatitude, sqltype.EarthLongitude, sqltype.EarthDistance, sqltype.EarthBox} {
 		for _, schema := range []string{"public", `Cube " historical`, "pg_catalog"} {
 			body, err := earthDeclarationBody(op, schema)
 			if err != nil {
@@ -61,7 +65,7 @@ func TestEarthDeclarationCubePlacement(t *testing.T) {
 	}
 	valid := longitude(coord("a.cube_ll_coord", first, second), coord("a.cube_ll_coord", first, one))
 	for _, test := range []struct {
-		name string
+		name  string
 		parts declarationParts
 	}{
 		{"mixed_schemas", longitude(coord("a.cube_ll_coord", first, second), coord("b.cube_ll_coord", first, one))},
@@ -86,6 +90,47 @@ func TestEarthDeclarationCubePlacement(t *testing.T) {
 		}
 		if _, err := proc.EarthDeclarationCubeSchema(body, op); err == nil {
 			t.Fatal("scalar declaration constrained replay", op)
+		}
+	}
+}
+
+func TestEarthQueryDeclarationShapes(t *testing.T) {
+	for _, test := range []struct {
+		op         sqltype.EarthOperation
+		expression string
+	}{
+		{sqltype.EarthDistance, "sec_to_gc(cube_distance($1,$2))"},
+		{sqltype.EarthDistance, "gc_to_sec(a.cube_distance($1,$2))"},
+		{sqltype.EarthDistance, "sec_to_gc(a.cube_distance($2,$1))"},
+		{sqltype.EarthDistance, "sec_to_gc(a.cube_distance($1,$3))"},
+		{sqltype.EarthBox, "a.cube_enlarge($1,gc_to_sec($2),2)"},
+		{sqltype.EarthBox, "a.cube_enlarge($1,sec_to_gc($2),3)"},
+		{sqltype.EarthBox, "a.cube_enlarge($1,gc_to_sec($1),3)"},
+		{sqltype.EarthBox, "a.cube_enlarge($1,gc_to_sec($2),3) FROM t"},
+	} {
+		body, err := proc.NewRoutineDeclarationBody(proc.DeclarationRecipe{Return: true, Parts: declarationText(test.expression)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := proc.EarthDeclarationCubeSchema(body, test.op); err == nil {
+			t.Fatal("malformed query declaration placement accepted", test.expression)
+		}
+	}
+	// A matching SELECT expression without RETURN declaration metadata does
+	// not become an authentic query recipe merely by having the right calls.
+	for _, test := range []struct {
+		op     sqltype.EarthOperation
+		source string
+	}{
+		{sqltype.EarthDistance, "SELECT sec_to_gc(a.cube_distance($1,$2))"},
+		{sqltype.EarthBox, "SELECT a.cube_enlarge($1,gc_to_sec($2),3)"},
+	} {
+		body, err := proc.NewRoutineDeclarationBody(proc.DeclarationRecipe{Parts: declarationText(test.source)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := proc.EarthDeclarationCubeSchema(body, test.op); err == nil {
+			t.Fatal("SELECT-only body acquired RETURN recipe placement", test.source)
 		}
 	}
 }

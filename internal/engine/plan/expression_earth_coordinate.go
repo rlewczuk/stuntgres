@@ -44,7 +44,7 @@ func (e InstalledEarthExpr) Retag(info expr.Info, children []expr.Expr, changed 
 }
 func (e InstalledEarthExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(InstalledEarthExpr)
-	if !ok || e.Procedure != o.Procedure || e.Ref != o.Ref || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+	if !ok || e.Procedure != o.Procedure || e.Ref != o.Ref || e.Plan != o.Plan || e.BoxContext != o.BoxContext || e.BoxConversionDemand != o.BoxConversionDemand || len(e.Args) != len(o.Args) {
 		return false
 	}
 	for i, arg := range e.Args {

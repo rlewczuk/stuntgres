@@ -744,8 +744,16 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   recognizing coincident subset boxes without mutating their retained storage flag.
 - `EarthCoordinatePlan` captures only actual FLOAT8 for radius/sec-to-gc/gc-to-sec;
   those scalar kernels retain no earth/cube generation. Typed ll/latitude/longitude
-  retain the actual nominal graph. All share `EarthRadius` with released domain
-  checks. Checked binary64 arithmetic
+  and query calls retain the actual nominal graph. `Formal(index)` owns positional
+  types, including earth/FLOAT8 for box and its ordinary CUBE result. Distance
+  captures the existing cube Euclidean plan and composes the shared sec-to-gc
+  conversion; box composes gc-to-sec with the existing cube enlargement kernel.
+  Fixed argument arrays and a private immutable builtin INT4 constant avoid
+  per-row plan/descriptor allocation. `EvaluateExpandedBox` preserves independent
+  conversion demand for expanded literal/row bodies before the outer NULL gate,
+  without converting twice. Ordinary `Evaluate` retains outer strict NULL;
+  expression provenance selects semantics independently of diagnostic labels.
+  All share `EarthRadius` with released domain checks. Checked binary64 arithmetic
   retains SQL NaN ordering, signed zero and underflow. Projection borrows private
   coordinates; ll construction owns one three-coordinate point allocation and
   checks the result through the ordinary domain input environment before wrapping.
@@ -962,7 +970,7 @@ match engine tests of the same mechanism):
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Installed rejecting support-key identity, NULL and generic arrays: `RUN='^TestIntbigGkey'`
-- Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel)$'`
+- Earth domain, coordinate, point and surface-query kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel|QueryKernel|QueryCancellation)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps|JSONPath)'`
