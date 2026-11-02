@@ -31,8 +31,11 @@ factory hook (`Engine.Factory`).
 Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteRoleAttributes` (CREATE and ALTER ROLE) validates under
   `Engine.Mu`, takes the role name or principal locks unlocked, prepares the
-  password and VALID UNTIL inputs with no lifecycle lock held, then
-  revalidates and reads typed `createrole_self_grant` from EffectiveSettings.
+  VALID UNTIL input with no lifecycle lock held. If the immutable registry has
+  the source-owned passwordcheck definition, it captures the current typed byte
+  minimum briefly under Settings.Mu, releases it, and runs the stock hook before
+  password preparation, empty clearing or notice generation. NULL and omission
+  bypass it. It then revalidates and reads typed `createrole_self_grant` from EffectiveSettings.
   Descriptor, bootstrap ADMIN and optional creator-origin INHERIT/SET grants
   share one candidate, initial-membership locks and transactional publication
   fence. A changed record or allocator restarts the decision with current options.
@@ -156,4 +159,6 @@ make check RUN='^Test(Role|Membership|Predefined|SessionIdentity|DriverBatchIden
 make check RUN='^Test(ObjectGrant|ObjectRevoke|DefaultPrivileges|TransactionalPrivileges|Database)'  # grants, default ACLs and database command ownership
 make check RUN='^Test(RoleOwnership|ReassignOwned|DropOwned|LargeObjectOwner)'  # ALTER OWNER, REASSIGN and DROP OWNED
 make check RACE=1 RUN='^Test(RoleOwnershipPublication|ReassignOwnedPublication|RoleTransactional|RoleSwitch|DatabaseCreate)'  # publication and session races
+make check RUN='^TestPasswordCheckPublication'
+make check RACE=1 RUN='^TestPasswordCheckPublication'
 ```

@@ -4,6 +4,16 @@ This document records logical SQL versus external-mechanism ownership boundaries
 Other feature contracts remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md)
 and the owning reference package documentation.
 
+## Passwordcheck activation
+
+`Driver.RegisterPasswordCheck` enables the stock role-password hook and
+`passwordcheck.min_password_length` before connector construction. ROLE/USER
+password effects use ordinary settings, parameter ACLs and atomic role
+publication. There is no SQL extension package or serialized activation.
+PostgreSQL server preload, C ABI/hook chaining, process/loader resources and
+optional CrackLib builds remain external mechanisms; native startup registration
+replaces only activation. See the [Driver contract](DRIVER.md#password-strength-startup-registration).
+
 ## Tablespaces
 
 Supported logical lifecycle syntax:

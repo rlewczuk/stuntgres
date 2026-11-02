@@ -306,6 +306,13 @@ node identifiers and target lists; these internal fields are nonportable.
 Activation survives transaction rollback and DISCARD ALL, but is not transported
 by Dump/Restore. Use a pinned `*sql.Conn` for LOAD and subsequent EXPLAIN calls.
 
+For embedded password-strength enforcement, call `d.RegisterPasswordCheck()`
+before constructing a connector. It enables stock byte-length, username and
+character-variety checks on CREATE/ALTER ROLE passwords, with the privileged
+`passwordcheck.min_password_length` setting. This default-off Driver capability
+replaces preload activation, not password semantics; it is not a CREATE EXTENSION
+package and is not serialized by Dump. See the [Driver contract](docs/DRIVER.md#password-strength-startup-registration).
+
 Standalone `ANALYZE`/`ANALYSE` collects actual statement-visible table values
 and refreshes metadata consumed by logical `EXPLAIN`, without changing query
 results. It supports selected columns, inheritance/partition populations,

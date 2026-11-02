@@ -71,3 +71,21 @@ func (d *Driver) RegisterSetting(def SettingDefinition) error {
 	d.settings = append(d.settings, v)
 	return nil
 }
+
+// RegisterPasswordCheck enables the stock password-strength hook for every
+// cluster and logical database on d. It must precede the first connector.
+// Activation is startup configuration, not a SQL extension or dump object.
+func (d *Driver) RegisterPasswordCheck() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.settingsFrozen {
+		return core.RegistrationError("setting registry is frozen")
+	}
+	for _, old := range d.settings {
+		if old.Name == settings.PasswordCheckMinimum {
+			return core.RegistrationError("passwordcheck is already registered")
+		}
+	}
+	d.settings = append(d.settings, settings.PasswordCheckDefinition())
+	return nil
+}

@@ -138,6 +138,21 @@ Rows; rejected/canceled Restore and independent destinations check atomicity.
 
 ## Testing
 
+Password-strength scenarios use `RUN='^TestReferencePasswordCheck'` and the
+ordinary public fixture with genuine oracle `WithPasswordCheck()` startup.
+Independent direct/prepared outcomes cover byte boundaries, complete hook
+diagnostics, typed settings, parameter ACLs, NULL/empty/prehash distinctions,
+publication atomicity and interrupted username verification. Static registration
+scenarios cover default-off/zero Driver, freeze, independent clusters and logical
+databases. Native Dump/Reset/Restore and independent-Driver replay are explicit
+phases in the same scenario, not substitute PostgreSQL commands. Exact oracle
+credential bytes use privileged `pg_authid`; native public role identity,
+membership, notices and physical admission witnesses complement mandatory
+RoleRead owner tests for exact storage, clearing, omission, rejected publication
+and control retention, without adding a password-inspection API. PostgreSQL
+preload/C ABI/process lifetime and optional CrackLib custom builds remain external.
+
+
 Installed statistics scenarios use `RUN='^TestReferencePgstat(index|hashindex)'`.
 Visibility inquiry scenarios use `RUN='^TestReferencePgvisibility'`. Their
 `pgvisibility_fixture_test.go` helper owns isolated installation, exact typed
@@ -174,9 +189,10 @@ share native replacement phases with retained results and atomic rejected replay
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 [reference/catalogs](../catalogs/README.md#testing). `TestMain` is
-`fixture.Main(m, fixture.WithLegacyCryptoProvider())`, as in every catalog
-package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
-([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
+`fixture.Main(m, fixture.WithLegacyCryptoProvider(), fixture.WithAlterSystemDisabled(), fixture.WithPasswordCheck())`.
+The genuine passwordcheck preload is oracle-only unless a scenario explicitly
+registers the native capability. Pgcrypto's BF/DES/CAST scenarios need the legacy
+OpenSSL provider ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example

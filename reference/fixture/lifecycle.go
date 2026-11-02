@@ -55,9 +55,16 @@ func referenceStart() error {
 	if alterSystemDisabled {
 		args = append(args, "-c", "allow_alter_system=off")
 	}
+	var preload []string
 	if pgStatStatements {
-		args = append(args, "-c", "shared_preload_libraries=pg_stat_statements",
-			"-c", "compute_query_id=on", "-c", "pg_stat_statements.max=5000")
+		preload = append(preload, "pg_stat_statements")
+		args = append(args, "-c", "compute_query_id=on", "-c", "pg_stat_statements.max=5000")
+	}
+	if passwordCheck {
+		preload = append(preload, "passwordcheck")
+	}
+	if len(preload) != 0 {
+		args = append(args, "-c", "shared_preload_libraries="+strings.Join(preload, ","))
 	}
 	options := []testcontainers.ContainerCustomizer{
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
@@ -155,10 +162,20 @@ func referenceInitialize(ctx context.Context) (err error) {
 		if err = Admin.QueryRowContext(ctx, "SELECT current_setting('shared_preload_libraries'), current_setting('compute_query_id'), current_setting('pg_stat_statements.max')").Scan(&preload, &queryID, &statementCapacity); err != nil {
 			return fmt.Errorf("pg_stat_statements configuration: %w", err)
 		}
-		if preload != "pg_stat_statements" || queryID != "on" || statementCapacity != "5000" {
-			return fmt.Errorf("pg_stat_statements configuration mismatch: shared_preload_libraries=%q compute_query_id=%q pg_stat_statements.max=%q (want pg_stat_statements/on/5000)", preload, queryID, statementCapacity)
+		if !referencePreloadContains(preload, "pg_stat_statements") || queryID != "on" || statementCapacity != "5000" {
+			return fmt.Errorf("pg_stat_statements configuration mismatch: shared_preload_libraries=%q compute_query_id=%q pg_stat_statements.max=%q (want pg_stat_statements token/on/5000)", preload, queryID, statementCapacity)
 		}
 		fmt.Fprintf(os.Stderr, "reference pg_stat_statements: shared_preload_libraries=%s compute_query_id=%s max=%s\n", preload, queryID, statementCapacity)
+	}
+	if passwordCheck {
+		var preload, shown, setting, unit, context, kind, boot, minimum, maximum, description string
+		if err = Admin.QueryRowContext(ctx, "SELECT current_setting('shared_preload_libraries'), current_setting('passwordcheck.min_password_length'), setting, unit, context, vartype, boot_val, min_val, max_val, short_desc FROM pg_settings WHERE name='passwordcheck.min_password_length'").Scan(&preload, &shown, &setting, &unit, &context, &kind, &boot, &minimum, &maximum, &description); err != nil {
+			return fmt.Errorf("passwordcheck configuration: %w", err)
+		}
+		if !referencePreloadContains(preload, "passwordcheck") || shown != "8B" || setting != "8" || unit != "B" || context != "superuser" || kind != "integer" || boot != "8" || minimum != "0" || maximum != "2147483647" || description != "Minimum allowed password length." {
+			return fmt.Errorf("passwordcheck configuration mismatch: preload=%q shown=%q setting=%q unit=%q context=%q vartype=%q boot=%q min=%q max=%q description=%q", preload, shown, setting, unit, context, kind, boot, minimum, maximum, description)
+		}
+		fmt.Fprintf(os.Stderr, "reference passwordcheck: shared_preload_libraries=%s minimum=%s unit=%s context=%s\n", preload, setting, unit, context)
 	}
 	// Native dumps name their bootstrap owner postgres, independently of initdb.
 	if _, err = Admin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
@@ -166,6 +183,17 @@ func referenceInitialize(ctx context.Context) (err error) {
 	}
 	fmt.Fprintf(os.Stderr, "reference oracle: container=%s image=%s server_version=%q server_version_num=%s server_encoding=%s datcollate=%s datctype=%s lc_messages=%s\n", ContainerID, referenceImage, version, number, encoding, collate, ctype, messages)
 	return nil
+}
+
+// Both supported names are unquoted identifiers in the fixture-owned GUC list.
+// Compare tokens, not the whole string, so startup options genuinely compose.
+func referencePreloadContains(value, module string) bool {
+	for _, token := range strings.Split(value, ",") {
+		if strings.TrimSpace(token) == module {
+			return true
+		}
+	}
+	return false
 }
 
 // Release ownership before cleanup so a failed startup cannot leave resources

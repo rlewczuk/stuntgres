@@ -90,8 +90,9 @@ English stopwords and Accept=false to reach replacement normalization.
 
 ## Startup options
 
-`fixture.Main(m, opts...)` applies options before eager startup; native scenario
-engines inherit the same mode.
+`fixture.Main(m, opts...)` applies options before eager startup. Each option
+states whether it also configures native scenarios; physical oracle options do
+not implicitly register native providers.
 
 - `WithCommitTimestampTracking()` enables commit timestamps on the package's single
   oracle (used by `locking_transactions`; other packages stay default-off). It is
@@ -105,11 +106,20 @@ engines inherit the same mode.
   off; packages without this option retain and verify on. This is physical-oracle
   configuration only, not a native setting-default change, reload or file write.
 - `WithPgStatStatements()` starts the same pinned oracle with the genuine
-  `shared_preload_libraries=pg_stat_statements`, `compute_query_id=on` and
-  `pg_stat_statements.max=5000`. Startup validates all three settings. Scenarios
+  `pg_stat_statements` preload token, `compute_query_id=on` and
+  `pg_stat_statements.max=5000`. Startup validates the token and both settings. Scenarios
   install SQL objects explicitly; this option neither installs them nor changes
   native configuration. Collection history is cluster-wide and is not cleared
   by public-schema teardown.
+- `WithPasswordCheck()` preloads the genuine stock `passwordcheck` module in
+  the same pinned 18.6 oracle. Startup requires its preload token and independently
+  checks the default byte-unit setting and descriptor metadata. It creates no
+  `pg_extension` objects and does not configure a native Driver. Scenarios use
+  `NewScenarioWithDriverConfig` with `(*stuntgres.Driver).RegisterPasswordCheck`
+  for explicit preconnector native configuration.
+  Passwordcheck and pg_stat_statements compose into one
+  `shared_preload_libraries` argument; validation checks individual list tokens,
+  not an exclusive whole-string value.
 - `WithHostPython()` provisions actual PL/Python in that same pinned container,
   only in real-reference mode; it does not register a native language. Startup
   first requires installed `postgresql-18` exactly `18.6-1.pgdg12+2` on amd64.

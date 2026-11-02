@@ -394,6 +394,11 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   rechecking SET grants (including after revoke); individual RESET still
   checks current SET authority. The same setting action stack makes that reset
   transactional. Immutable and deny-only definitions remain excluded.
+  Source-owned passwordcheck uses this same privileged parameter-ACL eligibility,
+  typed byte setting and reset journal. Its active unknown-prefix admission
+  checks original case-sensitive spelling only after case-insensitive lookup of
+  known definitions or placeholders; quoted uppercase unknown names remain
+  ordinary placeholders, including later lowercase SET/RESET lookup.
   Replication shares the store: wal_sender_timeout is user-settable and
   output_plugin_libraries uses parameter SET authority independently of its
   restricted reads. primary_conninfo also restricts reads. Plugin SQL SET
@@ -722,6 +727,8 @@ also with `RACE=1`; they retain a real reader across detached no-read round trip
 XML diagnostic ownership and real protocol output codec units use
 `RUN='^TestXML(Input|Protocol)'`, including `RACE=1`
 for detached collector/cancellation ownership.
+Passwordcheck definition/placeholder admission and parameter-reset ownership use
+`RUN='^TestPasswordCheckRegistration'`.
 
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'

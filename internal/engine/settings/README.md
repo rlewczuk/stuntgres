@@ -113,6 +113,13 @@ import this package directly.
   public registration cannot replace its reserved exact name. Session activation,
   placeholder replay, metadata visibility and values belong to `session`, not
   to a mutable global registry. Returned enum storage belongs to that recipe.
+- **Opt-in passwordcheck** (`passwordcheck.go`): `PasswordCheckDefinition`
+  supplies an owned source-defined integer/byte/superuser descriptor with typed
+  boot value 8 and range 0..2147483647. Driver registration appends it before
+  freeze; immutable registry presence is the role hook's activation authority.
+  Public custom registration reserves the entire case-folded passwordcheck
+  prefix against spoofing. Runtime original-spelling prefix admission and
+  parameter SET/RESET authority belong to the session owner.
 
 ## Invariants
 
@@ -831,6 +838,7 @@ make check RUN='^TestVacuumSettings'
 make check RUN='^TestWALSettings'
 make check RUN='^TestPlannerOtherSettingsDefinitions$'
 make check RUN='^TestSettingFlagsMetadata$'
+make check RUN='^TestPasswordCheckRegistrationDefinition$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

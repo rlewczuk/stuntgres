@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(fixture.Main(m, fixture.WithLegacyCryptoProvider(), fixture.WithAlterSystemDisabled()))
+	os.Exit(fixture.Main(m, fixture.WithLegacyCryptoProvider(), fixture.WithAlterSystemDisabled(), fixture.WithPasswordCheck()))
 }

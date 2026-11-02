@@ -166,6 +166,9 @@ func Validate(d Definition) (Definition, error) {
 	if strings.HasPrefix(d.Name, "pg_stat_statements.") {
 		return d, registrationError("setting name is reserved for pg_stat_statements")
 	}
+	if strings.HasPrefix(d.Name, "passwordcheck.") {
+		return d, registrationError("setting name is reserved for passwordcheck")
+	}
 	d.Category = "Customized Options"
 	d.ExtraDescription = ""
 	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil || d.FixedDefault || d.Flags != 0 {

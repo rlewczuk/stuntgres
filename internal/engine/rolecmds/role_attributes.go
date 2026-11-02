@@ -69,6 +69,15 @@ func ExecuteRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt pars
 	var password string
 	var notice authorization.PasswordNotice
 	if o.Present&parser.RolePassword != 0 && !o.PasswordNull {
+		if _, active := e.Settings.Definitions()[settings.PasswordCheckMinimum]; active {
+			store := op.EffectiveSettings()
+			store.Mu.Lock()
+			minimum := int32(store.TypedValue(settings.PasswordCheckMinimum).Number)
+			store.Mu.Unlock()
+			if err := authorization.CheckRolePassword(op.Context(), target.Name, o.Password, minimum); err != nil {
+				return core.Result{}, err
+			}
+		}
 		password, notice, err = authorization.PrepareRolePassword(op.Context(), target.Name, o.Password)
 		if err != nil {
 			return core.Result{}, err

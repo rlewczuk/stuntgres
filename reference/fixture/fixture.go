@@ -70,6 +70,14 @@ func WithPgStatStatements() StartupOption {
 	return func() { pgStatStatements = true }
 }
 
+var passwordCheck bool
+
+// WithPasswordCheck preloads the genuine stock passwordcheck module on the
+// package's oracle. Native activation remains explicit per scenario Driver.
+func WithPasswordCheck() StartupOption {
+	return func() { passwordCheck = true }
+}
+
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
 func Main(m *testing.M, options ...StartupOption) (code int) {

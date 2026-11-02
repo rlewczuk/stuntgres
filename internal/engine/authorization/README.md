@@ -60,7 +60,12 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   `CreationDefaultACL`, `ValidateDefaultACL`, `ValidateDefaultACLHeader` and
   `EqualACL`.
 - **Passwords:** `PrepareRolePassword` (SCRAM-SHA-256 and MD5 verifiers,
-  SASLprep) and `PasswordNotice`.
+  SASLprep), `PasswordNotice` and `CheckRolePassword`. The opt-in stock checker
+  applies byte length, case-sensitive username substring, then C-locale ASCII
+  variety to plaintext. Recognized verifiers only guess the username; SCRAM
+  reuses the parser, SASLprep and cancellable Hi derivation and compares ServerKey
+  alone. These functions hold no engine/session/settings locks and publish
+  nothing. NULL/omission bypass and activation belong to the canonical executor.
 
 ## Invariants
 
@@ -142,6 +147,7 @@ ACL baselines).
 make check RUN='^Test(ACLItemBits|Authorization(DescriptorCandidate|Diagnostic|Malformed)|Default(LargeObject|Schema)CreationACLOrder|DefaultPrivileges(Baselines|Masks|Merge)|MembershipCandidate|ObjectGrant|ObjectRevoke|OwnershipDeletionCandidate|PGGroupMalformedRoot|PredefinedRoleInitialization|RoleAttributes|RoleOwnership(ACLScopes|GrantOptions)|RolePrivilegesParse|SessionIdentityMembershipClosure)'
 make check RUN='^Test(AuthorizationStampRetainsRolePublication|RoleOwnershipDatabase|CollationBootstrapPrincipalNameReuse|RoleOwnershipInitialSourceCanonicalIdentity|RoleStore|PGGroup|AccessInquiryRoleOIDs|DatabaseACLBaselineTransitions|PgClassACLTranslation)'
 make check RACE=1 RUN='^Test(MembershipConcurrentCyclePublication|AuthorizationInitializationFencesDeletedPrincipal|RoleAttributesConnectionLimitRaces|RoleAttributesPasswordCancellationLifecycle)$$'
+make check RUN='^TestPasswordCheck(Rules|Verifier|Cancellation)$'
 ```
 
 Public behavior is in [reference/roles](../../../reference/roles/README.md#testing)

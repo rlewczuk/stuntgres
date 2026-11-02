@@ -31,7 +31,7 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   LOGIN and database admission before initializing defaults; role connection
   limits remain cluster-wide. Stored passwords and `VALID UNTIL` do not affect
   native admission.
-- Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
+- Configuration (`RegisterPasswordCheck`, `RegisterSetting`, `RegisterForeignDataWrapper`,
   `RegisterForeignValidator`, `RegisterHostLanguage`, `RegisterTextSearchFile`,
   `ConfigureIdentFile`)
   must happen before the Driver's first successful connector construction; the
@@ -51,6 +51,38 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   destination resources and fails atomically when they are missing or malformed.
   Missing names fail; no filesystem paths, loader callbacks or sample language
   data are synthesized.
+
+### Password-strength startup registration
+
+Call `d.RegisterPasswordCheck()` before `OpenConnector` to enable the stock
+passwordcheck policy. It is off by default; a zero-value Driver is supported.
+Duplicate or late registration returns an ordinary Go error without SQLSTATE
+and changes nothing. First connector construction freezes registration without
+requiring Ping. Every exact-DSN cluster and logical database on that Driver
+inherits the immutable capability; independent Drivers remain isolated.
+
+The registered `passwordcheck.min_password_length` integer has byte units,
+default 8 and range 0..2147483647. Its superuser context uses genuine parameter
+SET grants, including effective-role membership and revocation. Single RESET
+requires current SET authority; RESET ALL restores previously set values even
+after grant revocation. Public `RegisterSetting` cannot replace the reserved
+passwordcheck prefix. Runtime unknown-name reservation uses the original
+case-sensitive prefix spelling; known-setting lookup is case-insensitive.
+
+CREATE/ALTER ROLE and USER run the hook before clearing or encrypting supplied
+nonnull passwords. Plaintext checks byte length, case-sensitive username
+inclusion, then ASCII-letter/nonletter variety. Prehashed MD5/SCRAM input only
+rejects an exact username password; it cannot establish general strength.
+NULL clears without checking; omission preserves an existing credential.
+Rejected changes publish neither accompanying role attributes nor membership.
+
+Registration replaces server-start preload activation, not the password effects.
+There is no CREATE EXTENSION package, extension membership or native C handle.
+Dump omits activation and shared role credentials; Reset/Restore retain
+destination startup configuration, applicable session settings and shared roles.
+PostgreSQL shared-object ABI/hook chaining, postmaster/backend processes,
+OS loader resources and optional CrackLib/custom-source builds are external
+mechanisms. Native trusted-host admission is not password authentication.
 
 ### Native identity-file inspection
 
