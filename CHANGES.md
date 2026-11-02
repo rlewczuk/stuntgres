@@ -31,6 +31,16 @@
   argument-count limit. Held calls, stored defaults/views and native control
   round trips retain runtime lookup rather than an early resolved target.
 
+- Add installed `dblink_build_sql_insert` with invocation-time relation/SELECT
+  admission, real nested source selection, exact key/cardinality diagnostics and
+  quoted executable INSERT text. Genuine five-operand carriers survive native
+  controls; volatile source snapshots restore enclosing stable caller visibility.
+  The dblink provider preserves DELETE slot0 and appends genuine INSERT slot1.
+  Preserve PL simple-expression diagnostic provenance for runtime-dependent
+  scalar calls without treating their internal source SQL as an outer SPI query.
+  Capture relation spelling before source execution and render column identifiers
+  and typed values with refreshed settings after escaped source-command effects.
+
 - Add `pg_get_statisticsobjdef(oid)` through typed binding and nullable TEXT
   results, reconstructing authoritative extended-statistics definitions with
   current names, expression syntax, visibility and quoting. Existing native

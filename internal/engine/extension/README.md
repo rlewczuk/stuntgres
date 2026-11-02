@@ -32,10 +32,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   or parallel safety from current membership. The sealed recipe retains those
   declaration facts while current owner/ACL, cost and parallel overrides remain
   independent and survive native replay.
-  Dblink's bounded recipe installs only `dblink_build_sql_delete`, with its stock
-  1.2 control and released C declaration. One sealed slot authenticates the
-  implementation independently of current names, owner and membership. No
-  connection routines or adjacent SQL constructors are declared as placeholders.
+  Dblink's bounded recipe installs `dblink_build_sql_delete` in slot0 and
+  `dblink_build_sql_insert` in slot1, with stock 1.2 control and released C
+  declarations. Both sealed slots authenticate independently of current names,
+  owner and membership. Connection routines and adjacent builders have no stubs.
   Bloom installs its released six-member handler/method/family/class graph.
   Its C declaration describes a registered Go implementation, not a loaded
   shared library. The global AM is ownerless; its handler and int4/text classes

@@ -79,8 +79,9 @@ func PLAssignmentProjection(root Node) (Node, error) {
 	return &copy, nil
 }
 
-// PLSimpleExpression reports whether root is a single-expression projection over
-// a singleton with no subquery or stage-dependent node: PL's simple route.
+// PLSimpleExpression reports whether root is a scalar projection over a
+// singleton without query/set/stage-slot structure. Runtime dependence and
+// volatility do not themselves require PL's SPI expression callback.
 func PLSimpleExpression(root Node) bool {
 	project, ok := root.(*ProjectNode)
 	if !ok || len(project.Expressions) != 1 || project.HasTargetSet {
@@ -91,7 +92,11 @@ func PLSimpleExpression(root Node) bool {
 	}
 	simple := true
 	WalkExpression(project.Expressions[0], func(node expr.Expr) {
-		if _, subquery := node.(SubqueryExpr); subquery || node.Properties().StageDependent {
+		switch node.(type) {
+		case SubqueryExpr, AggregateExpr, GroupExpr, GroupingExpr, *WindowExpr, CachedOrderExpr:
+			simple = false
+		}
+		if expr.IsSetSource(node) {
 			simple = false
 		}
 	})

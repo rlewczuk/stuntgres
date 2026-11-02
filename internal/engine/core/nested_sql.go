@@ -21,6 +21,10 @@ var _ exec.NestedSQL = (*statementHost)(nil)
 func (h *statementHost) EnterNestedSQL() error { return h.scope().enterSQLRoutine() }
 func (h *statementHost) LeaveNestedSQL()       { h.scope().leaveSQLRoutine() }
 
+func (h *statementHost) ActivateContribRoutineCommand(procedure *catalog.Procedure) func() {
+	return h.scope().activateRoutineCommandPolicy(procedure, false)
+}
+
 func (h *statementHost) ParseNestedSQL(ctx context.Context, text string) (catalog.Read, []parser.Statement, error) {
 	s := h.scope()
 	e := s.Engine()
@@ -47,7 +51,12 @@ func (h *statementHost) ExecuteNestedSQL(statement parser.Statement, read catalo
 	s := h.scope()
 	e := s.Engine()
 	var restore func(error) error
-	if request.BorrowSource {
+	if request.FreshCommand {
+		if request.BorrowSource {
+			return fmt.Errorf("stuntgres: conflicting nested source policies")
+		}
+		restore = s.ActivateSQLRoutine(nil, read)
+	} else if request.BorrowSource {
 		restore = s.activateNestedSource(read)
 	} else {
 		view, refs := s.View, s.rlsDataRefs
@@ -58,6 +67,9 @@ func (h *statementHost) ExecuteNestedSQL(statement parser.Statement, read catalo
 	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor, s.sqlRoutine.readOnlySPI = false, true, request.ReadOnly
 	diagnose := func(err error) error {
 		if request.Diagnose {
+			if request.FreshCommand {
+				return exec.SPIStatementDiagnostic(s.Op.CommandError(err), request.Text)
+			}
 			return exec.RewriteSQLDiagnostic(err, request.Text)
 		}
 		return err
@@ -98,6 +110,9 @@ func (h *statementHost) ExecuteNestedSQL(statement parser.Statement, read catalo
 			if closeErr := rows.Close(); err == nil {
 				err = closeErr
 			}
+		}
+		if request.FreshCommand {
+			err = diagnose(err)
 		}
 	}()
 	return consumer.NestedRows(statement, result.Rows)

@@ -560,12 +560,20 @@ Installed crypto is not a closed-worker expression; aggregate SQL support bodies
 enter their own gated live lexical evaluation rather than inherit that capture.
 
 `NestedSQL` (`nested_sql.go`) is the SPI analogue for functions that run SQL
-text inside the calling statement (ts_rewrite, ts_stat, crosstab, connectby).
+text inside the calling statement (ts_rewrite, ts_stat, crosstab, connectby, dblink).
 The engine implements it, because admission, binder construction and
 dispatch re-entry stay in core; the caller owns its statement loop, its SPI
 policy (`NestedRequest`) and a `NestedConsumer` that admits each command and
 consumes its rows. Each command runs in fresh lexical command scratch, with
 no parameters, over the caller's private catalog and data.
+`FreshCommand` opts into ordinary command snapshot admission instead of
+reinstalling the caller's View/RLS references or borrowing source roots. Its
+core-owned lexical routine policy determines volatile freshness versus stable
+transaction visibility; activation restores exact outer snapshot and scratch.
+This policy cannot be combined with `BorrowSource`. INSERT source diagnostics
+stack the actual SPI statement frame once, including fetch/close failures and
+admitted cancellation; existing nested callers keep their own diagnostic policy.
+
 
 The typed `ReplicationOrigin` capability resolves through `LiveHost` for each
 surviving invocation, after common routine admission and strict operand handling.
@@ -755,12 +763,13 @@ Scalar STRICT NULL retains one scalar-source row; a STRICT relation set retains
 its declared metadata with no rows. No child, context or physical root is retained
 by the completed result.
 
-`dblink_build_sql_delete.go` authenticates the demanded installed scalar and
-current schema/EXECUTE authority before evaluating its four written children
-once. Runtime whole NULL returns typed TEXT NULL without relation admission;
-ordinary strict planning can erase constant or substituted-parameter NULL calls
-earlier. Non-NULL calls use `ContribRuntime` for metadata-only SQL construction,
-not source-row evaluation, remote execution or a prepared text cache.
+The dblink DELETE/INSERT evaluators authenticate the demanded installed scalar
+and current schema/EXECUTE authority before evaluating their four/five written
+children once. Runtime whole NULL returns typed TEXT NULL without relation
+admission; ordinary strict planning may erase known NULL calls earlier.
+Non-NULL calls use `ContribRuntime`: DELETE captures metadata only, whereas
+INSERT executes and fully drains a real nested source SELECT. Neither retains
+returned SQL, selected rows, locks or a prepared text cache, or executes remotely.
 
 ## Invariants
 

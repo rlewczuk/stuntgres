@@ -32,6 +32,9 @@ type Host[A Authority] interface {
 	Context() context.Context
 	Operation() *session.Operation
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
+	// ActivateContribRoutineCommand installs an authenticated routine's lexical
+	// command policy. The caller restores it after all nested cursors close.
+	ActivateContribRoutineCommand(*catalog.Procedure) func()
 	// Active fails once the statement is finished or its operation is no
 	// longer valid.
 	Active() error

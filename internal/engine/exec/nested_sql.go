@@ -65,6 +65,10 @@ type NestedRequest struct {
 	// BorrowSource lets nested sources borrow the outer data view's roots
 	// instead of keeping the outer view and its row-security references.
 	BorrowSource bool
+	// FreshCommand uses ordinary fresh command admission rather than reinstalling
+	// the outer View/RLS roots. Its caller supplies the lexical routine policy.
+	// It is mutually exclusive with BorrowSource.
+	FreshCommand bool
 	// CloseFailed closes the rows and row sets of a failed execution.
 	CloseFailed bool
 }

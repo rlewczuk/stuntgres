@@ -1343,10 +1343,11 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
-`InstalledDblinkBuildSQLDeleteExpr` preserves sealed routine authority, its
-domain/epoch reference and all four typed children through reference walking,
-literal capture, rebuild, substitution, remap and retag. Renderers use the
-current qualified SQL callable name, never its C source symbol. The relation
+`InstalledDblinkBuildSQLDeleteExpr` and `InstalledDblinkBuildSQLInsertExpr`
+preserve sealed routine authority, domain/epoch references and four/five typed
+children through reference walking, literal capture, rebuild, substitution,
+remap and retag. Renderers use the current qualified SQL callable name, never
+its C source symbol. The relation
 name remains a TEXT operand and acquires no persistent relation dependency;
 saved callers resolve current metadata at execution. Owner/ACL replay uses the
 existing symbolic installation graph, not source OID authority or live handles.

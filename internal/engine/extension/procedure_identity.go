@@ -59,9 +59,13 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	count := 0
 	switch p.Implementation {
 	case StockDblink:
-		count = 1
-		name, signature, result, volatility = functions.DblinkDeleteName, functions.DblinkDeleteSignature, 25, expr.Volatile
-		if ext.Provider != "dblink" || ext.Version != "1.2" || slot != 0 || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}) {
+		count = len(dblinkMembers)
+		if slot >= count {
+			return invalid()
+		}
+		member := dblinkMembers[slot]
+		name, signature, result, volatility = member.name, member.signature, 25, expr.Volatile
+		if ext.Provider != "dblink" || ext.Version != "1.2" || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}) {
 			return invalid()
 		}
 	case StockBloom:

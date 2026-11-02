@@ -1160,6 +1160,10 @@ draining/close and event/command completion, then retires before late cardinalit
 conversion or CALL output copyback. Failed execution retains the node through
 fallback cleanup and activation restoration. The outer PL action remains active
 through late assignment; ordinary simple expressions do not gain SQL query frames.
+Simple-expression classification uses scalar query structure, not volatility or
+fold/runtime dependence. A genuine installed scalar can run nested source SQL
+without giving its enclosing RETURN/assignment an extra PL expression frame;
+actual subquery, set-source and aggregate/window/order/group slots remain SPI.
 Live context renders lazily and remains separate from error-unwind callbacks.
 Dynamic PL commands evaluate their command and typed USING values once, then
 parse the complete computed input on each reached execution. The ordinary
