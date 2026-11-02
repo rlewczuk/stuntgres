@@ -101,6 +101,11 @@ import it.
   already-parsed type syntax. The `Retarget*` methods implement the `analyze`
   retarget interfaces, and `DetachCursorInput` rebinds a cursor's resolvers to
   its execution authority.
+  `ClassInput.ResolveRelationName` retains regclass input's `42P01` relation
+  diagnostic even when an explicit schema is absent. Relation-open callers use
+  `ResolveRelationOpenName` for explicit-schema existence (`3F000`) instead.
+  Both share parsing, captured paths, TEMP selection and schema USAGE (`42501`);
+  neither textual-name entry point gives numeric text an OID shortcut.
   `CaptureEvaluationInput` instead closes parallel evaluator inputs over their
   immutable captured authority and an evaluator-private notice sink, removing
   identifier-observation sinks and live cursor-host notice fallback. It also
@@ -308,6 +313,11 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
   `stored.ScalarRenderer`.
 
 ## Testing
+
+The captured relation-name context boundary uses
+`RUN='^TestClassInputRelationLookupContexts'`: the same authority and names retain
+regclass's missing-relation diagnostic versus relation-open's missing-schema
+diagnostic without changing parsing, path selection or numeric input shortcuts.
 
 Package units (captured-input retargeting, notice routing, address lookup cuts,
 dropped identity projection, collation selection, CBOX and path-measurement

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqltype"
 )
 
 // A target column shares the UPDATE frame, but never source SELECT authority.
@@ -26,8 +27,9 @@ type QueryQualifier struct {
 	Name, Schema, Original, Alias string
 	Ref                           ids.ObjectRef
 	Columns                       []QueryColumn
-	ScalarAlias                   bool // The admitted producer declares an alias value as its scalar result.
-	ExcludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
+	ScalarAlias                   bool                // The admitted producer declares an alias value as its scalar result.
+	RowType                       *sqltype.Descriptor // A single composite function keeps its declared nominal row identity.
+	ExcludeColumnDiagnostics      bool                // Whole-join and USING aliases are not error RTE candidates.
 	SourceRoot                    plan.Node
 	NullExtended                  bool
 	LateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.

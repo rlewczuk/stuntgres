@@ -23,6 +23,15 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 	name := ""
 	var err error
 	switch ext.Name() {
+	case "dblink":
+		if err := StockDblink.ValidateExtension(v, ext); err != nil {
+			return nil, err
+		}
+		typ, ok := v.Type(ext.Installation.Members[dblinkPkeyTypeSlot])
+		if !ok || !catalog.SameInstallation(typ, ext.Installation) {
+			return nil, fmt.Errorf("stuntgres: missing installed dblink type role")
+		}
+		return []InstalledTypeRole{{dblinkPkeyTypeRole, typ}}, nil
 	case "tablefunc":
 		if err := StockTablefunc.ValidateExtension(v, ext); err != nil {
 			return nil, err
@@ -106,8 +115,8 @@ func MemberTypeRole(v catalog.Read, ext *catalog.Extension, t *catalog.Type) (st
 		if t.Address() == role.Type.Address() && t.SQLType == role.Type.SQLType {
 			return role.Name, nil
 		}
-		if (ext.Name() == "earthdistance" || ext.Name() == "lo" || ext.Name() == "tablefunc") && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(role.Type.Array)}) {
-			if ext.Name() == "tablefunc" && t.SQLType != v.MustType(t.Address()).SQLType {
+		if (ext.Name() == "earthdistance" || ext.Name() == "lo" || ext.Name() == "tablefunc" || ext.Name() == "dblink") && t.Address() == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(role.Type.Array)}) {
+			if (ext.Name() == "tablefunc" || ext.Name() == "dblink") && t.SQLType != v.MustType(t.Address()).SQLType {
 				return "", fmt.Errorf("stuntgres: invalid installed type ownership role")
 			}
 			return role.Name + "[]", nil

@@ -25,8 +25,8 @@ func TestDblinkInsertProviderIdentity(t *testing.T) {
 	if control.Version != "1.2" || !control.Superuser || control.Trusted || !control.Relocatable || control.Comment == nil || *control.Comment != "connect to other PostgreSQL databases from within a database" {
 		t.Fatal("stock control changed", control)
 	}
-	if len(ext.Members) != 3 || ext.Installation == nil || len(ext.Installation.Members) != 3 || len(ext.Installation.Declarations) != 3 || !ext.Installation.Valid() {
-		t.Fatal("constructors must own exactly three sealed slots", ext)
+	if len(ext.Members) != 6 || ext.Installation == nil || len(ext.Installation.Members) != 6 || len(ext.Installation.Declarations) != 6 || !ext.Installation.Valid() {
+		t.Fatal("dblink must own six sealed declaration slots", ext)
 	}
 	if err := extension.StockDblink.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)

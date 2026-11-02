@@ -108,6 +108,7 @@ type viewRenderColumn struct {
 }
 type viewRenderWholeRow struct {
 	sql   string
+	value string
 	names []string
 }
 type viewRenderFrom struct {
@@ -396,6 +397,7 @@ func (v *QueryRenderer) presentationColumnAlias(from viewRenderFrom, name string
 	}
 	from.relation = text
 	from.alias = name
+	from.wholeSQL = qualifier
 	v.Slots[from.root] = from.slots
 	v.setSourceQualifier(from.root, qualifier)
 	return from
@@ -452,7 +454,7 @@ func (v *QueryRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item 
 					return viewRenderFrom{}, fmt.Errorf("stuntgres: missing rendered whole-row field")
 				}
 			}
-			v.wholeRows[plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.Frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
+			v.wholeRows[plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.Frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", value: from.wholeSQL, names: names}
 		}
 	}
 	return from, err

@@ -62,13 +62,23 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	count := 0
 	switch p.Implementation {
 	case StockDblink:
-		count = len(dblinkMembers)
-		if slot >= count {
+		count = dblinkMemberCount
+		declaration := catalog.InstalledRoutineDeclaration{Parallel: 'r'}
+		if slot < len(dblinkMembers) {
+			member := dblinkMembers[slot]
+			name, signature, result = member.name, member.signature, 25
+		} else if slot == dblinkPkeyProcedureSlot && len(ext.Members) == dblinkMemberCount {
+			name, signature, result = functions.DblinkGetPkeyName, "25", ext.Members[dblinkPkeyTypeSlot].ObjectID
+			typ, exists := v.Type(ext.Members[dblinkPkeyTypeSlot])
+			if !exists || ValidateTypeOrigin(v, typ) != nil {
+				return invalid()
+			}
+			declaration = dblinkPkeyDeclaration()
+		} else {
 			return invalid()
 		}
-		member := dblinkMembers[slot]
-		name, signature, result, volatility = member.name, member.signature, 25, expr.Volatile
-		if ext.Provider != "dblink" || ext.Version != "1.2" || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}) {
+		volatility = expr.Volatile
+		if ext.Provider != "dblink" || ext.Version != "1.2" || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}) {
 			return invalid()
 		}
 	case StockBloom:

@@ -380,6 +380,10 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
 - Selected ordinary calls retain FILTER and OVER on their actual function node,
   not on a parenthesized or composed scalar. Duplicate FILTER and FILTER after
   OVER are syntax errors; binding owns aggregate/window versus scalar admission.
+- `pg_get_viewdef` shares the existing ordinary scalar-call route with
+  `pg_get_serial_sequence`, retaining result casts and LIKE composition. Only
+  callable tokens followed by `(` are promoted; bare identifiers, other selected
+  functions and configured prewalk behavior retain their existing boundaries.
 - Recursive view lowering keeps the original body, projects aliases from an
   unqualified lexical self and gives synthetic nodes zero positions.
 - SEARCH-bearing CTE expandability is deferred to the binder; CYCLE-only,

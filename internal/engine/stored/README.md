@@ -1360,6 +1360,20 @@ Standalone carrier validation requires the current reference epoch before
 resolving the installed declaration; absent, stale or future epochs cannot
 borrow an otherwise genuine routine's authority.
 
+`InstalledDblinkGetPkeyExpr` uses the same routine provenance with one runtime
+TEXT name and the genuine nominal result generation. Reference walking,
+capture, current-name rendering, remap and retag preserve callable/result-type
+dependencies and destination-owned type/array/backing relationships. Catalog-only
+key metadata does not enter dynamic tuple-source capture or create a static
+dependency on the text-named relation. Replay retains no lock, cursor or approval.
+Saved bare whole-row values replay as the actual source alias, not a top-level
+star expansion. This preserves the single nominal output and its field notation
+through view rebinding and native replacement. The presented SELECT keeps that
+scalar value too, while scalar-star and field-selection syntax retain their
+whole-row star spelling. Function-source presentation publishes its actual FROM
+alias together with column slots and whole-row names through the shared alias
+owner, so presented queries can be executed rather than only inspected as text.
+
 `InstalledPgstattupleStatsExpr` and the exact/approximate/page-discriminated
 `InstalledPgstattupleExpr` use immutable installation authority. Renderers
 preserve the selected overload and original text versus regclass argument;

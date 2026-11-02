@@ -3,7 +3,7 @@
 The contrib function runtimes: amcheck's B-tree checks and `verify_heapam`,
 pageinspect's BRIN and heap attribute captures, `pgrowlocks`, pgstattuple's
 tuple, page and index statistics, tablefunc's `crosstab`, `connectby` and
-`normal_rand` validation, dblink's local SQL construction, and generic file functions. It is a leaf below
+`normal_rand` validation, dblink's local SQL construction and primary-key metadata, and generic file functions. It is a leaf below
 core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 `storage`, `exec`, `functions` and `sqltype`.
 
@@ -21,7 +21,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 
 - `Amcheck`, `VerifyHeapam`, `Pageinspect`, `PageinspectHeap`, `Pgrowlocks`,
   `PgstattupleStats` (pgstatindex, pgstathashindex), `Pgstattuple`, `Pgvisibility`,
-  `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert`, `DblinkBuildSQLUpdate`, `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
+  `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert`, `DblinkBuildSQLUpdate`, `DblinkGetPkey`, `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
   authority before argument evaluation.
@@ -69,12 +69,19 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 
 ## Behaviour
 
-### dblink SQL construction
+### dblink local relations
 
 All three dblink constructors resolve the TEXT relation name at invocation and admit
 the exact installed routine plus table-level SELECT authority through
 `dblinkRelation`. They capture live logical columns, visibility-driven schema
 qualification and output settings; none performs network execution.
+The shared name resolver uses `ClassInput.ResolveRelationOpenName` for released
+`get_rel_from_relname`/`table_openrv` semantics: an absent explicit schema is
+`3F000`, an admitted schema's absent relation is `42P01`, and denied schema
+USAGE remains `42501`. Parsing, caller search_path and TEMP selection share the
+regclass resolver, but ordinary regclass input (including COPY) keeps `42P01`
+for an absent explicit schema. All constructors and `DblinkGetPkey` use this
+same invocation-time relation-open boundary.
 Post-wait locked admission follows `table_openrv`: indexes (including represented
 partitioned indexes) and composite relations fail with their exact `42809`
 kind Detail before table SELECT, key/count or array validation. Views, sequences,
@@ -85,6 +92,16 @@ run outside both, with exact descriptor/epoch and authority readmission after
 waiting. `DblinkDeleteSQL` consumes only detached immutable metadata and typed
 vector/array payloads, validating the used prefix before target cardinality.
 It shares identifier and literal policies with their existing owners.
+
+`DblinkGetPkey` shares that admission and releases its contribution before
+returning detached nominal values. It reads only Primary constraint Attributes
+in declared order, resolves each stable attribute to its current live column,
+and emits INT4 key ordinals with raw TEXT column names. No-PK still requires
+SELECT; strict NULL skips relation lookup but not current routine admission.
+There is no tuple capture, remote call, Prepare-time name lookup or retained
+descriptor/authority. Emission requires a concrete nominal composite, never an
+anonymous RECORD or a domain lookalike. Normal source ownership carries the
+actual declaration's metadata on empty results.
 
 INSERT and UPDATE share `dblink_source.go`: used-key and flattened-array validation,
 the released explicit SELECT with physical dropped-slot NULL placeholders, and
@@ -326,8 +343,9 @@ rejecting physical listing. Nodes retain neither authority nor physical state.
 
 ## Testing
 
-- Dblink provider, detached-construction and retained-carrier ownership units use
-  `RUN='^Test(DblinkBuildSQLDelete|DblinkInsert|DblinkUpdate)'` in core and its binder enginetests.
+- Dblink provider, metadata, detached-construction and retained-carrier ownership
+  units use `RUN='^Test(DblinkBuildSQLDelete|DblinkInsert|DblinkUpdate|DblinkGetPkey)'`
+  in this package, core and its binder enginetests.
 - The runtimes' engine tests stay in core until their census owners move them
   (`RUN='^Test(Amcheck|Connectby|GenericFile|Pageinspect|Pgrowlocks|Pgstat|Tablefunc|VerifyHeapam)'`
   over `./internal/engine/core`; core's README lists the per-family

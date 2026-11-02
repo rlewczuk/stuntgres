@@ -180,6 +180,10 @@ closed-DEFAULT check's calendar calls.
 independently; neither spelling nor `Composite`/`Renderable` membership admits
 a call. `ScalarSourceOut` only supplies an OUT label. `SourceOccurrence`
 compares occurrence identity (grouping identity is a different contract).
+`SourceResultDeclaration` explicitly claims backing-declaration column
+nullability for a nominal source result; the binder validates and reads that
+declaration. Neither nominal shape nor scalar/set cardinality implies this
+claim, and its absence does not erase the nominal row identity.
 `SourceOpening` opens fresh execution-private state. Lexical rewrites use
 `Children` and `Substitute`, keeping provider, provenance and template.
 

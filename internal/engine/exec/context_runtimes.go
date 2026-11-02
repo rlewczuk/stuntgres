@@ -683,16 +683,26 @@ func (c *Context) FunctionPgcryptoEntropy(bytes []byte) error {
 func (c *Context) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
 func (c *Context) InitializePgcrypto(procedure *catalog.Procedure, ref ids.ObjectRef) error {
-	if c != nil && c.ClosedEvaluation != nil { return fmt.Errorf("stuntgres: pgcrypto initialization is unavailable in closed evaluation") }
-	host, ok := c.LiveHost().(interface { InitializePgcrypto(*catalog.Procedure, ids.ObjectRef) error })
-	if !ok { return fmt.Errorf("stuntgres: missing pgcrypto initialization authority") }
+	if c != nil && c.ClosedEvaluation != nil {
+		return fmt.Errorf("stuntgres: pgcrypto initialization is unavailable in closed evaluation")
+	}
+	host, ok := c.LiveHost().(interface {
+		InitializePgcrypto(*catalog.Procedure, ids.ObjectRef) error
+	})
+	if !ok {
+		return fmt.Errorf("stuntgres: missing pgcrypto initialization authority")
+	}
 	return host.InitializePgcrypto(procedure, ref)
 }
 
 func (c *Context) CheckPgcryptoBuiltinCrypto() error {
-	if c != nil && c.ClosedEvaluation != nil { return fmt.Errorf("stuntgres: pgcrypto policy is unavailable in closed evaluation") }
-	host, ok := c.LiveHost().(interface { CheckPgcryptoBuiltinCrypto() error })
-	if !ok { return fmt.Errorf("stuntgres: missing pgcrypto policy authority") }
+	if c != nil && c.ClosedEvaluation != nil {
+		return fmt.Errorf("stuntgres: pgcrypto policy is unavailable in closed evaluation")
+	}
+	host, ok := c.LiveHost().(interface{ CheckPgcryptoBuiltinCrypto() error })
+	if !ok {
+		return fmt.Errorf("stuntgres: missing pgcrypto policy authority")
+	}
 	return host.CheckPgcryptoBuiltinCrypto()
 }
 
@@ -912,6 +922,35 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 		return expr.SourceCursor{}, err
 	}
 	return n.Pgrowlocks.OpenSource(c)
+}
+
+func (c *Context) OpenDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: dblink_get_pkey lacks statement scope")
+	}
+	if err := host.Contrib().ValidateDblinkGetPkey(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	value, err := n.Arg.Eval(c)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	if value.IsNull() {
+		return expr.OwnedSource(n.Usage.Type, nil), nil
+	}
+	name, err := value.Text()
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	rows, err := host.Contrib().DblinkGetPkey(n, name)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return expr.OwnedSource(n.Usage.Type, rows), nil
 }
 
 func (c *Context) OpenPgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) (expr.SourceCursor, error) {

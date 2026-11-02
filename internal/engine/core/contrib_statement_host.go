@@ -251,6 +251,14 @@ func (h *contribHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
 	return contrib.ValidatePgrowlocks[AuthorizationView](h.host(), n)
 }
 
+func (h *contribHost) ValidateDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) error {
+	return contrib.ValidateDblinkGetPkey[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) DblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr, name string) ([]sqltype.Value, error) {
+	return contrib.DblinkGetPkey[AuthorizationView](h.host(), n, name)
+}
+
 func (h *contribHost) ValidatePgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) error {
 	return contrib.ValidatePgpArmorHeaders[AuthorizationView](h.host(), n)
 }

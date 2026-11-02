@@ -926,6 +926,12 @@ reviewed decision:
   Non-NULL calls are VOLATILE and stage dependent, never planning-evaluated.
   Whole-NULL simplification uses ordinary strict scalar planning. No relation,
   returned SQL, catalog or runtime authority is retained by the kernel.
+  `DblinkGetPkey` uses the same installed gateway with one unnamed TEXT operand.
+  Attachment supplies the genuine installation's nominal composite usage.
+  The strict set source is always volatile/stage-dependent and FoldNever;
+  current callable admission precedes argument demand and NULL-to-empty handling.
+  Only the installed plan/statement-host path opens it; no catalog resolver or
+  relation-name cache belongs to the kernel.
   `AppendSQLLiteral` shares the formatter's PostgreSQL literal escaping directly
   into an invocation-owned builder without an intermediate rendered string.
   `PgFreespace` retains sealed scalar/set operation, written-order operands,

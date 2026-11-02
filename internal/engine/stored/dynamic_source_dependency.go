@@ -14,6 +14,8 @@ import (
 // Stored calls keep their own lifetime/ACL manifests rather than joining the
 // outer binder's routineDependencies. Consult those analyzed manifests before
 // the first capture, including views opened only later.
+// dblink_get_pkey reads detached catalog metadata, not a tuple source. Its text
+// argument deliberately creates neither a source capture nor a relation edge.
 func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.ExpressionDependency, leaves []exec.Leaf) (bool, error) {
 	hasCall := func(dependencies []catalog.ExpressionDependency, consumer *catalog.Relation) (bool, error) {
 		for _, dependency := range dependencies {

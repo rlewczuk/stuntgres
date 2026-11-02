@@ -49,7 +49,7 @@ func dblinkRelation[A Authority](h Host[A], procedure *catalog.Procedure, routin
 	if err != nil {
 		return nil, "", false, nil, err
 	}
-	oid, err := h.ClassInput(auth, path).ResolveRelationName(h.Operation().Context(), text)
+	oid, err := h.ClassInput(auth, path).ResolveRelationOpenName(h.Operation().Context(), text)
 	if err != nil {
 		return nil, "", false, nil, err
 	}

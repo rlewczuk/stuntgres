@@ -26,6 +26,16 @@ declarations, ordinary REGCLASS/INT8 coercions, unnamed-first/named-block formal
 and exact typed OUT usages. Only the two relation-set operations enter SRF
 admission; scalar records never imply set cardinality.
 
+Single composite function sources retain their declared row type through range
+aliases and whole-row expressions; ROWS FROM combinations and WITH ORDINALITY
+remain anonymous rows. Nominal identity does not imply column nullability
+knowledge: only a source opting into `expr.SourceResultDeclaration` copies that
+metadata from its actual backing declaration. Other composite-producing sources
+retain unknown field nullability even when returning the same nominal type.
+Installed dblink primary-key sources own that declaration contract, including
+empty and strict-NULL results, and capture the nominal generation alongside the
+original callable and expression occurrence in prepared analysis.
+
 
 Freespace shares installed selection and bounded scalar-statistics admission.
 Unnamed scalar regclass/bigint inputs return INT2; named `rel` belongs only to the
@@ -710,6 +720,8 @@ units that build bindings, grep `internal/engine/*_test.go` and
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
 - Source identity binding and lexical frame semantics: `RUN='^TestQueryTableOID'`
+- Function-source declaration knowledge and independent nominal row identity:
+  `RUN='^TestFunctionSourceDeclarationMetadata$'`.
 - Aggregate capture purpose/synthetic builtin scope:
   `RUN='^TestRoutineAggregateDependencyPurpose$'`.
 - Exact SQL routine grouped metadata and immutable rewrites:

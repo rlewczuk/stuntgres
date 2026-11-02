@@ -113,13 +113,7 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 		return from, nil
 	}
 	if root.RegexpNamespace && v.Presentation.Deparse {
-		from.slots = make(map[int]string, len(from.columns))
-		qualifier := v.Presentation.identifier(v.namespaceAlias(ns))
-		for _, column := range from.columns {
-			from.slots[column.slot] = qualifier + "." + v.Presentation.identifier(column.name)
-		}
-		v.Slots[root] = from.slots
-		return from, nil
+		return v.presentationAlias(from, ns, v.namespaceAlias(ns), nil, false), nil
 	}
 	aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 	aliased.relation = text

@@ -531,6 +531,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return plan.InstalledAmcheckExpr{Amcheck: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgrowlocks:
 		return r.attachPgrowlocks(c, ref)
+	case functions.DblinkGetPkey:
+		return r.attachDblinkGetPkey(c, ref)
 	case functions.PgpArmorHeaders:
 		return r.attachPgpArmorHeaders(c, ref)
 	case functions.TablefuncNormal:

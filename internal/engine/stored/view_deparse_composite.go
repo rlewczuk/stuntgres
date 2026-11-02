@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (v *QueryRenderer) wholeRowSQL(captured analyze.TypeOccurrence) (string, error) {
+func (v *QueryRenderer) wholeRowSQL(captured analyze.TypeOccurrence, value bool) (string, error) {
 	if captured.RuleSide != 0 {
 		if captured.RuleSide > 2 || captured.Kind != analyze.CompositeWholeRow {
 			return "", fmt.Errorf("stuntgres: invalid rendered pseudo whole row")
@@ -29,6 +29,12 @@ func (v *QueryRenderer) wholeRowSQL(captured analyze.TypeOccurrence) (string, er
 	rendered, ok := v.wholeRows[captured.Source]
 	if !ok || rendered.sql == "" {
 		return "", fmt.Errorf("stuntgres: missing rendered whole-row occurrence")
+	}
+	// A bare whole-row target is one nominal value. Replaying it as alias.*
+	// would expand its fields and change the saved query's output descriptor.
+	// The same distinction keeps the presented SELECT executable.
+	if value {
+		return rendered.value, nil
 	}
 	return rendered.sql, nil
 }

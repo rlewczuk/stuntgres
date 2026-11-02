@@ -107,3 +107,73 @@ func TestCreateRecursiveViewSyntheticPositions(t *testing.T) {
 		})
 	}
 }
+
+func TestViewDefinitionScalarAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		parts []string
+	}{
+		{"pg_get_viewdef", []string{"pg_get_viewdef"}},
+		{"pg_catalog.pg_get_viewdef", []string{"pg_catalog", "pg_get_viewdef"}},
+		{"public.pg_get_viewdef", []string{"public", "pg_get_viewdef"}},
+		{`"PG_GET_VIEWDEF"`, []string{"PG_GET_VIEWDEF"}},
+	} {
+		query := "SELECT " + tc.name + "($1::regclass)::text LIKE '%retained_pkey%' AS moved"
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+		predicate, ok := statements[0].(*Select).Targets[0].(OperatorExpr)
+		if !ok || len(predicate.Args) != 2 || predicate.Name.Parts[0].Text != "~~" {
+			t.Fatal("lost view definition predicate", statements[0])
+		}
+		cast, ok := predicate.Args[0].(CastExpr)
+		if !ok || cast.TypeName.Name != "text" {
+			t.Fatal("lost explicit inquiry result cast", predicate)
+		}
+		call, ok := cast.Child.(FunctionExpr)
+		if !ok || len(call.Args) != 1 || call.directSelectedCall || call.Pos.Character != 8 {
+			t.Fatal("lost ordinary scalar inquiry", cast.Child)
+		}
+		if len(call.Name.Parts) != len(tc.parts) {
+			t.Fatal("lost qualified inquiry name", call.Name)
+		}
+		for i, part := range tc.parts {
+			if call.Name.Parts[i].Text != part {
+				t.Fatal("rewrote inquiry identity", call.Name, tc.parts)
+			}
+		}
+		for _, suffix := range []string{" trailing junk", " FILTER (WHERE true)"} {
+			if statements, err := Parse(query + suffix); err == nil || len(statements) != 0 {
+				t.Fatal("accepted incomplete inquiry continuation", query+suffix, statements, err)
+			}
+		}
+	}
+	for _, query := range []string{
+		"SELECT CAST(pg_get_viewdef($1::regclass) AS text)",
+		"SELECT COALESCE(pg_catalog.pg_get_viewdef($1::regclass),'missing')",
+	} {
+		if statements, err := Parse(query); err != nil || len(statements) != 1 {
+			t.Fatal("rejected scalar inquiry consumer", query, statements, err)
+		}
+	}
+	// Promoting this callable never promotes its bare identifier or adjacent
+	// selected functions, and does not change selectedScalarChild's boundary.
+	statements, err := Parse("SELECT pg_get_viewdef FROM names")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	column, ok := statements[0].(*Select).Targets[0].(ColumnExpr)
+	if !ok || column.Name.Parts[0].Text != "pg_get_viewdef" {
+		t.Fatal("inquiry spelling stole a column", statements[0])
+	}
+	for _, query := range []string{
+		"SELECT abs(1)::text",
+		"SELECT pg_get_indexdef(1)::text",
+		"SELECT pg_get_viewdef_extra(1)::text",
+	} {
+		if statements, err := Parse(query); err == nil || len(statements) != 0 {
+			t.Fatal("view inquiry widened unrelated scalar admission", query, statements, err)
+		}
+	}
+}

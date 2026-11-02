@@ -30,8 +30,8 @@ func TestDblinkUpdateProviderIdentity(t *testing.T) {
 	if control.Version != "1.2" || !control.Superuser || control.Trusted || !control.Relocatable || control.Comment == nil || *control.Comment != "connect to other PostgreSQL databases from within a database" {
 		t.Fatal("stock control changed", control)
 	}
-	if len(ext.Members) != 3 || ext.Installation == nil || len(ext.Installation.Members) != 3 || len(ext.Installation.Declarations) != 3 || !ext.Installation.Valid() {
-		t.Fatal("constructors must own exactly three sealed slots", ext)
+	if len(ext.Members) != 6 || ext.Installation == nil || len(ext.Installation.Members) != 6 || len(ext.Installation.Declarations) != 6 || !ext.Installation.Valid() {
+		t.Fatal("dblink must own six sealed declaration slots", ext)
 	}
 	if err := extension.StockDblink.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
@@ -139,9 +139,10 @@ func TestDblinkUpdateProviderIdentity(t *testing.T) {
 	mappedExt := remap(ext).(*catalog.Extension)
 	mappedProc := remap(p).(*catalog.Procedure)
 	if mappedExt.Installation == ext.Installation || !mappedExt.Installation.Valid() || mappedProc.Origin.Installation != mappedExt.Installation || !mappedProc.Origin.Valid(mapping[p.Address()]) || mappedExt.Installation.Declarations[2].Address() != mapping[p.Address()] || ext.Installation.Declarations[2].Address() != p.Address() {
-		t.Fatal("remap split or mutated sealed three-slot recipe")
+		t.Fatal("remap split or mutated sealed recipe")
 	}
-	for slot, address := range ext.Members {
+	// This fixture relocates the three incumbent constructor addresses only.
+	for slot, address := range ext.Members[:3] {
 		member := remap(view.MustProcedure(address)).(*catalog.Procedure)
 		if mappedExt.Members[slot] != mapping[address] || member.Extension != mapping[ext.Address()] || member.Origin.Installation != mappedExt.Installation || member.Origin.Declaration != slot || !member.Origin.Valid(member.Address()) || ext.Installation.Declarations[slot].Address() != address {
 			t.Fatal("remapping broke sealed cohort or mutated source", slot)

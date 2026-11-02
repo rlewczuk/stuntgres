@@ -26,6 +26,11 @@ func ValidateTypeOrigin(v catalog.Read, t *catalog.Type) error {
 	}
 	accepted := false
 	switch i.Implementation {
+	case StockDblink:
+		if err := validateDblinkTypeOrigin(v, t); err != nil {
+			return err
+		}
+		accepted = true
 	case StockHstore:
 		accepted = slot == 0 && t.SQLType.IsHstore()
 	case StockIntarray:

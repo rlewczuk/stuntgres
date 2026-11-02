@@ -14,6 +14,14 @@ type Source interface {
 	SourceAdmission() (admitted, returnsSet bool)
 }
 
+// SourceResultDeclaration opts a source into its nominal result's backing
+// declaration for column nullability. A nominal result alone supplies identity
+// and shape, not this metadata claim. The binder resolves and validates the
+// declaration; this hook neither reads the catalog nor evaluates the source.
+type SourceResultDeclaration interface {
+	SourceResultDeclaration() bool
+}
+
 type ScalarSourceOut interface{ ScalarSourceOutName() string }
 type SourceOccurrence interface{ SameSourceOccurrence(Expr) bool }
 type SourceOpening interface {

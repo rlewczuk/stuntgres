@@ -1,9 +1,9 @@
 # reference/dblink
 
-Public acceptance for installed dblink INSERT and UPDATE SQL construction. Scenarios use
-only public SQL, driver/native-control APIs and `reference/fixture`; no network
-connection is opened by the constructor. Incumbent DELETE scenarios remain in
-`reference/extensions`.
+Public acceptance for installed dblink INSERT/UPDATE SQL construction and local
+primary-key metadata. Scenarios use only public SQL, driver/native-control APIs
+and `reference/fixture`; no network connection is opened. Incumbent DELETE
+scenarios remain in `reference/extensions`.
 
 The shared family helper owns schema/extension cleanup and pinned sessions.
 Expected SQL and logical diagnostics are independently specified from released
@@ -25,6 +25,12 @@ cancellation diagnostics and independent post-command resource ownership.
 Statement atomicity witnesses roll back enclosing marker/source effects rather
 than deleting them manually.
 
+Primary-key scenarios assert constraint order after dropped/renamed attributes,
+typed strict empties, caller-path/TEMP resolution, table versus column SELECT,
+released kind precedence and nominal composite/array/backing identities. Retained
+definitions use current names and privileges; native replacement checks detached
+Rows, owned nominal values and symbolic member/type replay without live handles.
+
 Native-only phases inside shared scenarios cover Reset/Dump/Restore, independent
 Driver destinations, genuine INSERT, UPDATE and DELETE membership, retained statement and
 result lifetimes, preserved session TEMP/settings, and rejected/canceled replay.
@@ -32,7 +38,7 @@ These phases do not replace SQL assertions against real PostgreSQL.
 
 ## Testing
 
-Family selector: `make check RUN='^TestReferenceDblinkBuildSQL(Insert|Update)'`, also with
+Family selector: `make check RUN='^TestReferenceDblink(BuildSQL(Insert|Update)|GetPkey)'`, also with
 `REFERENCE=1`. Follow `docs/TESTING.md` for selected test-first oracle discovery,
 complete diagnostic assertions and dual-mode verification. This package's
 `TestMain` uses the common `fixture.Main` without changing oracle configuration.

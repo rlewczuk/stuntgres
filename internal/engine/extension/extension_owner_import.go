@@ -171,7 +171,7 @@ func importOwners(ctx context.Context, view catalog.Read, roles authorization.Re
 				}
 				replacements[d.Address()] = n
 			}
-			if typ, ok := d.(*catalog.Type); ok && record.Name == "tablefunc" && typ.SQLType.IsComposite() {
+			if typ, ok := d.(*catalog.Type); ok && (record.Name == "tablefunc" || record.Name == "dblink") && typ.SQLType.IsComposite() {
 				relation, ok := view.Relation(typ.OwningRelation)
 				if !ok || relation.RowType != typ.SQLType.ID() || relation.Owner != typ.Owner {
 					return invalid()

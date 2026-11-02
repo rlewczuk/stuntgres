@@ -12,8 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// DblinkProvider installs the released declarations for local SQL constructors.
-// It does not install connection routines or adjacent SQL-builder stubs.
+// DblinkProvider installs local SQL constructors and primary-key metadata.
+// It does not install connection routines.
 type DblinkProvider struct{ control catalog.ExtensionControl }
 
 var StockDblink = &DblinkProvider{control: catalog.ExtensionControl{Version: "1.2", Superuser: true, Relocatable: true, Comment: new("connect to other PostgreSQL databases from within a database")}}
@@ -30,15 +30,24 @@ func DblinkProviderOf(p *catalog.Procedure) *DblinkProvider {
 	return provider
 }
 func (p *DblinkProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
-	if p != StockDblink || !currentManifest(v, ext) || ext.Name() != "dblink" || ext.Version != "1.2" || len(ext.Members) != len(dblinkMembers) {
+	if p != StockDblink || !currentManifest(v, ext) || ext.Name() != "dblink" || ext.Version != "1.2" || len(ext.Members) != dblinkMemberCount {
 		return fmt.Errorf("stuntgres: invalid dblink manifest")
 	}
-	for slot, address := range ext.Members {
-		member, ok := v.Procedure(address)
+	for _, slot := range [...]int{0, 1, 2, dblinkPkeyProcedureSlot} {
+		member, ok := v.Procedure(ext.Members[slot])
 		if !ok || member.Origin == nil || member.Origin.Declaration != slot {
 			return fmt.Errorf("stuntgres: missing dblink member")
 		}
 		if _, err := ProcedureSymbol(v, member); err != nil {
+			return err
+		}
+	}
+	for _, slot := range [...]int{dblinkPkeyTypeSlot, dblinkPkeyArraySlot} {
+		typ, ok := v.Type(ext.Members[slot])
+		if !ok {
+			return fmt.Errorf("stuntgres: missing dblink result type")
+		}
+		if err := ValidateTypeOrigin(v, typ); err != nil {
 			return err
 		}
 	}
@@ -61,8 +70,11 @@ var dblinkMembers = [...]struct {
 }
 
 func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
-	ext.Members = make([]ids.ObjectAddress, len(dblinkMembers))
-	for slot, member := range dblinkMembers {
+	destination := ext
+	candidate := *ext
+	ext = &candidate
+	ext.Members = make([]ids.ObjectAddress, dblinkMemberCount)
+	createProcedure := func(slot int, name string, signature catalog.ProcedureSignature, result ids.OID, declaration catalog.InstalledRoutineDeclaration) error {
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -74,10 +86,10 @@ func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		proc := &catalog.Procedure{
 			ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision,
-			ObjectName: member.name, Signature: member.signature, Owner: owner,
-			RoutineKind: catalog.FunctionRoutine, Result: 25, Volatility: expr.Volatile, Strict: true,
-			Installed: catalog.InstalledRoutineDeclaration{Parallel: 'r'},
-			Display:   catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.name, Binary: "$libdir/dblink", HasBinary: true}, Implementation: p,
+			ObjectName: name, Signature: signature, Owner: owner,
+			RoutineKind: catalog.FunctionRoutine, Result: result, Volatility: expr.Volatile, Strict: true,
+			Installed: declaration,
+			Display:   catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}, Implementation: p,
 		}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
@@ -86,7 +98,28 @@ func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			return err
 		}
 		ext.Members[slot] = address
+		return nil
 	}
+	for slot, member := range dblinkMembers {
+		if err := createProcedure(slot, member.name, member.signature, 25, catalog.InstalledRoutineDeclaration{Parallel: 'r'}); err != nil {
+			return err
+		}
+	}
+	int4, _ := stage.Read().LookupType(sqltype.Int4)
+	text, _ := stage.Read().LookupType(sqltype.Text)
+	columns := []catalog.Column{
+		{Name: "position", Usage: int4.Usage(), Nullable: true, NullabilityKnown: true},
+		{Name: "colname", Usage: text.Usage(), Nullable: true, NullabilityKnown: true},
+	}
+	typ, array, err := stage.Composite(ext.TargetNamespace, dblinkPkeyTypeRole, owner, columns, ext.Address())
+	if err != nil {
+		return err
+	}
+	ext.Members[dblinkPkeyTypeSlot], ext.Members[dblinkPkeyArraySlot] = typ.Address(), array.Address()
+	if err := createProcedure(dblinkPkeyProcedureSlot, functions.DblinkGetPkeyName, "25", typ.Address().ObjectID, dblinkPkeyDeclaration()); err != nil {
+		return err
+	}
+	destination.Members = ext.Members
 	return nil
 }
 func ValidateDblinkIdentity(v catalog.Read, p *catalog.Procedure, ref ids.ObjectRef) error {

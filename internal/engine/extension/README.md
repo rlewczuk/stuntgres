@@ -34,9 +34,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   independent and survive native replay.
   Dblink's bounded recipe installs `dblink_build_sql_delete` in slot0,
   `dblink_build_sql_insert` in slot1 and `dblink_build_sql_update` in slot2,
-  with stock 1.2 control and released C declarations. All three sealed slots
-  authenticate independently of current names, owner and membership, including
-  the same-signature INSERT/UPDATE pair. Connection routines have no stubs.
+  with stock 1.2 control and released C declarations. Slots3/4 own the nominal
+  `dblink_pkey_results` composite and implicit array; slot5 owns the unnamed,
+  STRICT SETOF `dblink_get_pkey(text)` declaration. Type validation includes the
+  backing relation, declared nullable INT4/TEXT fields and reciprocal array.
+  Sealed roles authenticate independently of current names, owner and membership,
+  including the same-signature INSERT/UPDATE pair; symbolic replay retains the
+  primary/array roles and function return link. Connection routines have no stubs.
   Bloom installs its released six-member handler/method/family/class graph.
   Its C declaration describes a registered Go implementation, not a loaded
   shared library. The global AM is ownerless; its handler and int4/text classes

@@ -530,9 +530,11 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
 			q.ScalarAlias = ns.Qualifiers[0].ScalarAlias
+			q.RowType = ns.Qualifiers[0].RowType
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
 			q.ScalarAlias = ns.Qualifiers[0].ScalarAlias
+			q.RowType = ns.Qualifiers[0].RowType
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, table := n.Input.(*parser.JSONTable); table {
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
@@ -1052,10 +1054,32 @@ func (b *Binder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinali
 			return nil, QueryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = node
-		if node.ResultUsage().Type.BaseType().IsComposite() {
+		if shape := node.ResultUsage().Type.BaseType(); shape.IsComposite() {
+			var declaration *catalog.Relation
+			if source, declared := node.(expr.SourceResultDeclaration); declared && source.SourceResultDeclaration() {
+				descriptor, ok := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(shape.ID())})
+				typ, nominal := descriptor.(*catalog.Type)
+				if !ok || !nominal || typ.SQLType != shape || sqltype.IsPseudo(shape.ID()) {
+					return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function result declaration")
+				}
+				descriptor, ok = b.definitionDescriptor(typ.OwningRelation)
+				declaration, nominal = descriptor.(*catalog.Relation)
+				if !ok || !nominal {
+					return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function result declaration")
+				}
+			}
 			for j := range exec.FunctionFromCallWidth(node) {
-				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
-				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
+				member := shape.CompositeMember(j)
+				column := catalog.Column{Name: member.Name, Usage: member.Usage}
+				if declaration != nil {
+					slot := declaration.IndexForAttribute(member.Attribute)
+					if slot < 0 || slot >= len(declaration.Columns) || declaration.Columns[slot].Usage != member.Usage {
+						return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function result declaration")
+					}
+					declared := declaration.Columns[slot]
+					column.Nullable, column.NullabilityKnown = declared.Nullable, declared.NullabilityKnown
+				}
+				schema = append(schema, column)
 			}
 		} else {
 			if out := expr.SourceOutName(node); out != "" {
@@ -1074,6 +1098,12 @@ func (b *Binder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinali
 	}
 	name := rawCalls[0].Name.Parts[len(rawCalls[0].Name.Parts)-1].Text
 	q := QueryQualifier{Name: name, Original: name, Columns: columns, ScalarAlias: len(calls) == 1 && !ordinality && !calls[0].ResultUsage().Type.BaseType().IsComposite()}
+	if len(calls) == 1 && !ordinality {
+		shape := calls[0].ResultUsage().Type.BaseType()
+		if shape.IsComposite() && !sqltype.IsPseudo(shape.ID()) {
+			q.RowType = shape
+		}
+	}
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]

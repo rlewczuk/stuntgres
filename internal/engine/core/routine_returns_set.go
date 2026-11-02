@@ -10,6 +10,7 @@ func procedureReturnsSet(d *catalog.Procedure) bool {
 		extension.PageinspectProviderOf(d) == extension.StockPageinspect && d.Installed.ReturnsSet ||
 		extension.CitextProviderOf(d) == extension.StockCitext && d.Installed.ReturnsSet ||
 		extension.HstoreProviderOf(d) == extension.StockHstore && d.Installed.ReturnsSet ||
+		extension.DblinkProviderOf(d) == extension.StockDblink && d.Installed.ReturnsSet ||
 		extension.PgrowlocksProviderOf(d) == extension.StockPgrowlocks ||
 		extension.TablefuncProviderOf(d) == extension.StockTablefunc && d.Installed.ReturnsSet ||
 		extension.AmcheckProviderOf(d) == extension.StockAmcheck && d.Installed.ReturnsSet ||

@@ -178,6 +178,13 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   operand is not a captured relation identity. Runtime supplies metadata and
   returned text per invocation;
   the carrier retains neither a resolver nor a live host or lock.
+  `InstalledDblinkGetPkeyExpr` retains the genuine procedure/reference, one TEXT
+  child and nominal result usage across source grouping and structural rewrites.
+  It opts into `expr.SourceResultDeclaration` for backing-declaration column
+  nullability; merely returning that nominal type does not grant other sources
+  the same metadata claim.
+  Its statement host re-admits current authority before evaluating the argument,
+  including strict NULL; the returned source owns only detached typed rows.
   `InstalledPgpArmorHeadersExpr` retains declaration-owned two-TEXT OUT shape,
   argument and original procedure/reference through rebuild, substitution,
   grouping, capture, remap, retag and qualified replay. It opens only through

@@ -889,7 +889,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing frozen scalar star")
 		}
-		base, err := v.wholeRowSQL(captured)
+		base, err := v.wholeRowSQL(captured, false)
 		if err != nil {
 			return "", err
 		}
@@ -1061,7 +1061,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			if captured.Kind != analyze.CompositeWholeRow {
 				return "", fmt.Errorf("stuntgres: invalid frozen scalar whole row")
 			}
-			return v.wholeRowSQL(captured)
+			return v.wholeRowSQL(captured, true)
 		}
 		return v.columnSQL(ctx, catalogView, path)
 	case parser.TypedLiteralExpr:

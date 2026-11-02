@@ -215,6 +215,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgrowlocksExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledDblinkGetPkeyExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgpArmorHeadersExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledTablefuncCrosstabExpr:

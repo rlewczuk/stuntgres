@@ -198,6 +198,11 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgrowlocksExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledDblinkGetPkeyExpr:
+		r.Add(n.Ref.Address)
+		if n.Usage.Type != nil {
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(n.Usage.Type.ID())})
+		}
 	case plan.InstalledPgpArmorHeadersExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledTablefuncCrosstabExpr:

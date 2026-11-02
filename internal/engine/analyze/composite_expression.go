@@ -410,10 +410,12 @@ func (b *Binder) wholeRow(name parser.ObjectName, pos parser.Position, asValue b
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
 	props.RowDependent = true
-	var typ *sqltype.Descriptor
-	descriptor, _ := b.definitionDescriptor(q.Ref.Address)
-	if relation, ok := descriptor.(*catalog.Relation); ok && relation.RowType != 0 {
-		typ, _ = b.definitionType(relation.RowType)
+	typ := q.RowType
+	if typ == nil {
+		descriptor, _ := b.definitionDescriptor(q.Ref.Address)
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.RowType != 0 {
+			typ, _ = b.definitionType(relation.RowType)
+		}
 	}
 	if typ == nil || !typ.Concrete() {
 		typ, err = sqltype.RecordShape(members)

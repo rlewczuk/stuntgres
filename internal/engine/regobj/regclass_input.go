@@ -67,7 +67,19 @@ func (r ClassInput) ResolveRegclass(ctx context.Context, text string) (uint32, e
 // ResolveRelationName resolves only textual relation names. Unlike regclass
 // input, numeric strings and "-" have no OID shortcut. Callers retain the
 // resolved identity, not the text, through any subsequent allocation lock wait.
+// A missing explicit namespace reports the same 42P01 as a missing relation.
 func (r ClassInput) ResolveRelationName(ctx context.Context, text string) (uint32, error) {
+	return r.resolveRelationName(ctx, text, false)
+}
+
+// ResolveRelationOpenName shares textual relation lookup with regclass input,
+// but requires an explicit namespace to exist (3F000), as table_openrv does.
+// It resolves identity only; the caller owns locking, kind and relation ACL checks.
+func (r ClassInput) ResolveRelationOpenName(ctx context.Context, text string) (uint32, error) {
+	return r.resolveRelationName(ctx, text, true)
+}
+
+func (r ClassInput) resolveRelationName(ctx context.Context, text string, requireNamespace bool) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -87,6 +99,9 @@ func (r ClassInput) ResolveRelationName(ctx context.Context, text string) (uint3
 			ns = r.capture.Temporary
 		}
 		if ns == (ids.ObjectAddress{}) {
+			if requireNamespace {
+				return 0, sqlstate.SoftInputError(sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text)))
+			}
 			path = nil
 		} else {
 			namespace, _ := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, ns)
