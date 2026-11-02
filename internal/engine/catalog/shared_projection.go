@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// Database, subscription and parameter descriptors are immutable cluster
-// objects projected into each database's own domain. Preparation uses each
-// peer's current root; a publication without shared changes allocates nothing.
+// Immutable database, subscription, replication origin, parameter and tablespace
+// descriptors are projected into each database's own domain. Preparation uses
+// each peer's current root; publication without shared changes allocates nothing.
 // The cluster mutex is held throughout.
 
 var errDatabaseIdentityExhausted = errors.New("stuntgres: database identity exhausted")
@@ -32,10 +32,28 @@ func (s *Store) RetainDatabasesLocked(next *State) {
 	}
 }
 
+// InheritTablespacesLocked attaches a new database to the current shared
+// builtins. Replacement deliberately does not call this: Reset and Restore own
+// the replacement tablespace image.
+func (s *Store) InheritTablespacesLocked(next *State) {
+	for _, builtin := range BuiltinTablespaces {
+		address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}
+		if old := next.Get(address); old != nil {
+			next.UnbindName(DescriptorNameKey(old))
+		}
+	}
+	for _, builtin := range BuiltinTablespaces {
+		address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}
+		descriptor := s.State.Get(address)
+		next.SetDescriptor(address, descriptor)
+		next.BindName(DescriptorNameKey(descriptor), address)
+	}
+}
+
 // sharedClass reports whether a addresses a cluster object projected into each
 // database's own domain.
 func sharedClass(a ids.ObjectAddress) bool {
-	return a.ClassID == ids.DatabaseClassID || a.ClassID == ids.SubscriptionClassID || a.ClassID == ids.ReplicationOriginClassID || a.ClassID == ids.ParameterClassID
+	return a.ClassID == ids.DatabaseClassID || a.ClassID == ids.SubscriptionClassID || a.ClassID == ids.ReplicationOriginClassID || a.ClassID == ids.ParameterClassID || a.ClassID == ids.TablespaceClassID
 }
 
 // A state keeps the entries of the shared classes in one more persistent map,
@@ -65,8 +83,8 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 	if next.descriptors == s.State.descriptors && next.ParameterIncarnation() == s.State.ParameterIncarnation() {
 		return nil
 	}
-	// The shared maps hold only database, subscription, origin and parameter
-	// entries, so a local-only publication visits none of the others.
+	// The shared maps hold only database, subscription, origin, parameter and
+	// tablespace entries, so a local-only publication visits none of the others.
 	if next.ParameterIncarnation() == s.State.ParameterIncarnation() && next.shared.Len() == s.State.shared.Len() &&
 		next.shared.Every(func(address ids.ObjectAddress, descriptor Descriptor) bool {
 			current, _ := s.State.shared.Get(address)
@@ -101,6 +119,10 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 			if old := root.Get(descriptor.Address()); old != nil {
 				root.UnbindName(DescriptorNameKey(old))
 			}
+		}
+		// A single transaction can exchange live names through an intermediate
+		// spelling. Vacate every old key before installing any replacement.
+		for _, descriptor := range changed {
 			root.SetDescriptor(descriptor.Address(), descriptor)
 			root.BindName(DescriptorNameKey(descriptor), descriptor.Address())
 		}

@@ -1,5 +1,15 @@
 # Changes
 
+- Add transactional shared-builtin `ALTER TABLESPACE ... RENAME TO` and typed
+  `OWNER TO`, with immutable live-name rebinding, owner/grantor/grantee ACL
+  rebasing, same-owner no-op, shared target publication and attachment inheritance.
+  Add standalone `DROP TABLESPACE [IF EXISTS]` diagnostics/notices and owner/pinned
+  guards; rename and transfer never unpin OIDs 1663/1664. Native Dump emits forward
+  builtin renames before owner/ACL repairs; Reset reseeds canonical names and
+  staged Restore preserves the captured shared image. Ordinary native tablespace
+  registration/placement/deletion remain unavailable, explicitly distinguished
+  from independently tested PostgreSQL dependency/nonempty DROP behavior.
+
 - Add `information_schema.applicable_roles` through the paired catalog/role source,
   with three nullable domain-typed columns, actual visible membership triples,
   ADMIN-sensitive deduplication and the implicit database-owner edge. Direct and

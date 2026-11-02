@@ -369,6 +369,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "function"
 		} else if d.Kind() == ids.DatabaseObject {
 			kind = "database"
+		} else if d.Kind() == ids.TablespaceObject {
+			kind = "tablespace"
 		} else if d.Kind() == ids.ForeignWrapperObject {
 			kind = "foreign-data wrapper"
 		} else if d.Kind() == ids.ForeignServerObject {

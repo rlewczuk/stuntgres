@@ -49,6 +49,7 @@ type Capture struct {
 	// Preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.
 	Preamble              []string
+	Tablespaces           []*catalog.Tablespace // Renamed fixed-OID builtins only.
 	Schemas               []Schema
 	SchemaComments        []SchemaComment
 	Sequences             []sequence.Dump

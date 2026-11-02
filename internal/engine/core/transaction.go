@@ -588,7 +588,8 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
-	if _, ok := stmt.(*parser.CreateTablespace); ok {
+	switch stmt.(type) {
+	case *parser.CreateTablespace, *parser.DropTablespace:
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
@@ -606,9 +607,13 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		// CTAS/MVAS source locks belong to analysis, before the utility's
 		// active snapshot and ddl_command_start callbacks. Acquire once,
 		// retaining the existing unbound-recipe conservative demand.
-		if err:=s.AcquireRelation(stmt,true);err!=nil{return Result{},err}
-		s.exportRootDemand=true
-		if err:=s.snapshotPhase(stmt);err!=nil{return Result{},err}
+		if err := s.AcquireRelation(stmt, true); err != nil {
+			return Result{}, err
+		}
+		s.exportRootDemand = true
+		if err := s.snapshotPhase(stmt); err != nil {
+			return Result{}, err
+		}
 	}
 	if tag, eligible := session.EventCommand(stmt); eligible {
 		if !earlyEligibility {

@@ -210,12 +210,7 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 				a.ObjectID = ids.OID(role.Ref.ID())
 			}
 		case 1213:
-			if name == "pg_default" {
-				a.ObjectID = 1663
-			}
-			if name == "pg_global" {
-				a.ObjectID = 1664
-			}
+			a = view.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
 		case 1262, 3079:
 			a = view.NameAddress(ids.NameKey{ClassID: class, Name: name})
 		}

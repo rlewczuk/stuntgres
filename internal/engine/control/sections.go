@@ -28,6 +28,7 @@ type dumpSection struct {
 var dumpSections = [...]dumpSection{
 	{"routine directive", emitDumpRoutineDirective},
 	{"preamble", emitDumpPreamble},
+	{"tablespace names", emitDumpTablespaceNames},
 	{"schemas", emitDumpSchemas},
 	{"conversion schemas", emitDumpConversionSchemas},
 	{"initial object authority", emitDumpInitialACLs},
@@ -85,6 +86,10 @@ func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) e
 
 func emitDumpPreamble(_ context.Context, s *dumpScript, w *dumpWriter) error {
 	return emitDumpLines(w, s.Preamble)
+}
+
+func emitDumpTablespaceNames(ctx context.Context, s *dumpScript, w *dumpWriter) error {
+	return emitObjectACLStatements(ctx, w, s.tablespaceStatements)
 }
 
 func emitDumpSchemas(_ context.Context, s *dumpScript, w *dumpWriter) error {

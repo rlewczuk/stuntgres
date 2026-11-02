@@ -32,48 +32,49 @@ type dumpScript struct {
 	deferredDomainChecks        map[ids.OID]map[string]bool
 	providerEventStatements     map[ids.OID][]string
 
-	policyGroups, ruleGroups, securityGroups   []dump.Group
-	triggerGroups                              []dump.Group
-	foreignKeyModes                            []stored.ForeignKeyModeReplay
-	eventTriggerReplay                         []eventTriggerReplay
-	subscriptionReplay                         []subscriptionReplay
-	publicationReplay                          []publicationReplay
-	domainNodes                                map[ids.OID]*catalog.Type
-	collationStatements, conversionStatements  []dump.Statement
-	seedStatements, conversionSeeds            []string
-	familySeeds                                []string
-	familySeedFinal                            map[ids.OID]dump.Statement
-	conversionSchemas                          []string
-	sequenceCreation, sequenceCompletion       []string
-	invalidReplay                              map[ids.OID]partition.InvalidReplay
-	eventOrder                                 []dump.Event
-	declarations                               map[ids.OID]dump.Statement
-	operatorLinks                              map[ids.OID]string
-	largeObjectRecords                         []largeObjectDump
-	foreignDefaultStatements                   []foreignDefaultStatement
-	lateForeignCasts                           map[ids.OID]bool
-	providerStatements                         []string
-	extensionMetadata                          map[ids.OID]string
-	installationStatements                     []string
-	languageReplayNames                        map[ids.ObjectAddress]string
-	languageStatements                         []string
-	hostProviderStatements, hostConverterDrops []string
-	hostHandlerDrops                           []string
-	hostAbsenceComment                         string
+	policyGroups, ruleGroups, securityGroups    []dump.Group
+	triggerGroups                               []dump.Group
+	foreignKeyModes                             []stored.ForeignKeyModeReplay
+	eventTriggerReplay                          []eventTriggerReplay
+	subscriptionReplay                          []subscriptionReplay
+	publicationReplay                           []publicationReplay
+	domainNodes                                 map[ids.OID]*catalog.Type
+	collationStatements, conversionStatements   []dump.Statement
+	seedStatements, conversionSeeds             []string
+	familySeeds                                 []string
+	familySeedFinal                             map[ids.OID]dump.Statement
+	conversionSchemas                           []string
+	sequenceCreation, sequenceCompletion        []string
+	invalidReplay                               map[ids.OID]partition.InvalidReplay
+	eventOrder                                  []dump.Event
+	declarations                                map[ids.OID]dump.Statement
+	operatorLinks                               map[ids.OID]string
+	largeObjectRecords                          []largeObjectDump
+	foreignDefaultStatements                    []foreignDefaultStatement
+	lateForeignCasts                            map[ids.OID]bool
+	providerStatements                          []string
+	extensionMetadata                           map[ids.OID]string
+	installationStatements                      []string
+	languageReplayNames                         map[ids.ObjectAddress]string
+	languageStatements                          []string
+	hostProviderStatements, hostConverterDrops  []string
+	hostHandlerDrops                            []string
+	hostAbsenceComment                          string
 	transformPromises, transformFinalVolatility map[ids.OID]string
-	installationTypeReplay                     *installationTypeReplay
-	typeReplayEpilogues                        map[ids.OID]string
-	rangeCreations                             map[ids.OID]*rangeReplayCreation
-	membershipStatements                       []string
-	preservedSeedMembership                    map[ids.ObjectAddress]ids.ObjectAddress
-	installationMetadata                       []string
-	installationACLStatements                  []string
-	objectACLStatements                        []string
-	initialACLStatements                       []string
-	typeACLStatements                          map[ids.OID][]string
-	attributeHistory                           *attributeHistory
-	attributeSchedules                         map[ids.ObjectAddress]*attributeSchedule
-	deferredColumnStorage                      map[ids.ObjectAddress]bool
+	installationTypeReplay                      *installationTypeReplay
+	typeReplayEpilogues                         map[ids.OID]string
+	rangeCreations                              map[ids.OID]*rangeReplayCreation
+	membershipStatements                        []string
+	preservedSeedMembership                     map[ids.ObjectAddress]ids.ObjectAddress
+	installationMetadata                        []string
+	installationACLStatements                   []string
+	objectACLStatements                         []string
+	initialACLStatements                        []string
+	tablespaceStatements                        []string
+	typeACLStatements                           map[ids.OID][]string
+	attributeHistory                            *attributeHistory
+	attributeSchedules                          map[ids.ObjectAddress]*attributeSchedule
+	deferredColumnStorage                       map[ids.ObjectAddress]bool
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -81,6 +82,23 @@ type dumpScript struct {
 func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error) {
 	s := &dumpScript{Capture: capture}
 	var err error
+	slices.SortFunc(s.Tablespaces, func(a, b *catalog.Tablespace) int {
+		if a.Address().ObjectID < b.Address().ObjectID {
+			return -1
+		}
+		if a.Address().ObjectID > b.Address().ObjectID {
+			return 1
+		}
+		return 0
+	})
+	for _, tablespace := range s.Tablespaces {
+		for _, builtin := range catalog.BuiltinTablespaces {
+			if builtin.OID == tablespace.Address().ObjectID {
+				s.tablespaceStatements = append(s.tablespaceStatements, "ALTER TABLESPACE "+catalog.QuoteIdentifier(builtin.Name)+" RENAME TO "+catalog.QuoteIdentifier(tablespace.Name())+";\n")
+				break
+			}
+		}
+	}
 	if s.policyGroups, err = stored.PolicyDumpGroups(ctx, s.OriginalCatalog, s.OriginalRoles); err != nil {
 		return nil, err
 	}
@@ -282,7 +300,9 @@ func (s *dumpScript) addDeclarationEdges(ctx context.Context) error {
 	if err := s.castEvents(); err != nil {
 		return err
 	}
-	if err := s.transformEvents(); err != nil { return err }
+	if err := s.transformEvents(); err != nil {
+		return err
+	}
 	for event, predecessors := range s.Graph {
 		id := event.OID
 		relation, ok := s.CatalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id})
@@ -339,12 +359,14 @@ func (s *dumpScript) renderTypeStatements(ctx context.Context) error {
 func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if s.DeferDefaults {
 		for oid, predecessors := range s.InlinePredecessors {
-			event:=dump.Event{OID:oid}
-			deferred:=dump.DeclarationEvents(predecessors)
-			for _,dependency:=range s.Graph[event] {
-				if dependency.Phase==dump.TransformCompletion { deferred=append(deferred,dependency) }
+			event := dump.Event{OID: oid}
+			deferred := dump.DeclarationEvents(predecessors)
+			for _, dependency := range s.Graph[event] {
+				if dependency.Phase == dump.TransformCompletion {
+					deferred = append(deferred, dependency)
+				}
 			}
-			s.Graph[event]=deferred
+			s.Graph[event] = deferred
 		}
 	}
 	if err := s.orderExtensionTypes(ctx); err != nil {
@@ -368,12 +390,14 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	declarationOrder, err := dump.Order(ctx, s.Graph, priorities)
 	if err != nil && !s.DeferDefaults && ctx.Err() == nil && len(s.InlinePredecessors) != 0 {
 		for oid, predecessors := range s.InlinePredecessors {
-			event:=dump.Event{OID:oid}
-			deferred:=dump.DeclarationEvents(predecessors)
-			for _,dependency:=range s.Graph[event] {
-				if dependency.Phase==dump.TransformCompletion { deferred=append(deferred,dependency) }
+			event := dump.Event{OID: oid}
+			deferred := dump.DeclarationEvents(predecessors)
+			for _, dependency := range s.Graph[event] {
+				if dependency.Phase == dump.TransformCompletion {
+					deferred = append(deferred, dependency)
+				}
 			}
-			s.Graph[event]=deferred
+			s.Graph[event] = deferred
 		}
 		if err := table.PhysicalNotNullDumpDependencies(Resolver{}, s.OriginalCatalog, s.Graph); err != nil {
 			return nil, err
@@ -514,7 +538,9 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	}
 	for _, pair := range s.Transforms {
 		declaration, err := routine.TransformDumpStatement(s.CatalogView, pair, pair.Runtime != nil)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		s.declarations[pair.Address().ObjectID] = declaration
 	}
 	for _, d := range s.OwnedRoutines {

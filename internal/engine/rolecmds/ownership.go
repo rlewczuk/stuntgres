@@ -19,7 +19,7 @@ func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	if s.Kind == "statistics" {
 		return executeStatisticsOwnership(e, scope, s, name, identity, count)
 	}
-	if s.Kind == "database" || s.Kind == "large object" {
+	if s.Kind == "database" || s.Kind == "large object" || s.Kind == "tablespace" {
 		return executeUnqualifiedOwnership(e, scope, s, name, identity, count)
 	}
 	if s.Kind != "type" && s.Kind != "domain" {
@@ -66,7 +66,7 @@ func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	return core.PublishOwnership(e, scope, stage)
 }
 
-// Neither family has a namespace or a relation identity to lock.
+// These families have no namespace or relation identity to lock.
 func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, name string, identity bool, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -80,6 +80,8 @@ func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *
 	var change role.OwnerChange
 	if s.Kind == "large object" {
 		change, err = role.PlanLargeObjectOwnership(RoleHost{core.DDLHost{E: e, Op: scope.Op}}, auth, s, name, identity)
+	} else if s.Kind == "tablespace" {
+		change, err = role.PlanTablespaceOwnership(auth.View, auth, s, name, identity)
 	} else {
 		change, err = role.PlanDatabaseOwnership(auth.View, auth, s, name, identity)
 	}

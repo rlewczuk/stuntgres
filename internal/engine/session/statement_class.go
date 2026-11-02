@@ -39,6 +39,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE DATABASE"
 	case *parser.CreateTablespace:
 		return "CREATE TABLESPACE"
+	case *parser.AlterTablespaceRename:
+		return "ALTER TABLESPACE"
+	case *parser.DropTablespace:
+		return "DROP TABLESPACE"
 	case *parser.Truncate:
 		return "TRUNCATE TABLE"
 	case *parser.AlterOwner:
@@ -48,6 +52,8 @@ func ModifyingTag(stmt parser.Statement) string {
 			return "ALTER STATISTICS"
 		case "database":
 			return "ALTER DATABASE"
+		case "tablespace":
+			return "ALTER TABLESPACE"
 		case "large object":
 			return "ALTER LARGE OBJECT"
 		case "type":
@@ -309,7 +315,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateDatabaseStmt:
 		return true
-	case *parser.CreateTablespace:
+	case *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace:
 		return true
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
 		return true
@@ -356,6 +362,8 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
 	case *parser.Cluster:
 		return len(s.Table.Parts) != 0
+	case *parser.AlterTablespaceRename:
+		return true
 	case *parser.Subscription, *parser.Publication:
 		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
@@ -393,7 +401,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.CreateCast, *parser.DropCast:
 		return true
 	case *parser.AlterOwner:
-		return s.Kind == "statistics" || s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database" || s.Kind == "large object"
+		return s.Kind == "statistics" || s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database" || s.Kind == "large object" || s.Kind == "tablespace"
 	case *parser.ReassignOwned, *parser.DropOwned:
 		return true
 	case *parser.CreateQueryTable:
@@ -449,6 +457,8 @@ func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) 
 		command = "CREATE DATABASE"
 	case *parser.CreateTablespace:
 		command = "CREATE TABLESPACE"
+	case *parser.DropTablespace:
+		command = "DROP TABLESPACE"
 	case *parser.CreateIndex:
 		if s.Concurrent.Character != 0 {
 			command = "CREATE INDEX CONCURRENTLY"
@@ -461,7 +471,7 @@ func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) 
 	if command != "" && inBlock {
 		return sqlError("25001", command+" cannot run inside a transaction block")
 	}
-	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || command == "ALTER SYSTEM" || state != TxActive {
+	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || command == "DROP TABLESPACE" || command == "ALTER SYSTEM" || state != TxActive {
 		return nil
 	}
 	return UnsupportedInBlockError()

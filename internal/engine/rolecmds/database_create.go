@@ -135,6 +135,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 			e.Catalog.RetainDatabasesLocked(next)
 			e.Catalog.InheritSubscriptionsLocked(next)
 			e.Catalog.InheritParametersLocked(next)
+			e.Catalog.InheritTablespacesLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)

@@ -359,8 +359,9 @@ call live here.
   `pg_get_triggerdef`, `pg_get_ruledef`, `pg_get_statisticsobjdef`),
   `ValidateSelectedDomainRows`, `Target`/`AdmitTarget` (each statement kind
   belongs to exactly one `TargetEntry`, so entry order cannot change a result;
-  non-relation ownership, including statistics and numeric large-object ownership,
-  admits no relation target during either preparation or execution),
+  non-relation ownership, including statistics, tablespaces and numeric large
+  objects, admits no relation target during either preparation or execution;
+  recipient and object lookup remain ordered by the ownership executor),
   `CheckExplicitLock` (LOCK TABLE) and the `Stage` slot (LIKE sources checked
   at publication by `ValidateLikeSources`).
   Trigger targets use ShareRowExclusive for CREATE and AccessExclusive for DROP;

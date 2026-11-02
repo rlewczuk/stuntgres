@@ -56,9 +56,9 @@ func captureTableViewSummary(in Input) ([][]sqltype.Value, error) {
 		if source.Address().ObjectID == 12003 {
 			tablespace := sqltype.Null(source.Columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
-			// Represented shared catalogs belong to pg_global.
+			// Represented shared catalogs retain the shared tablespace identity.
 			if builtinTable && (relation.Address().ObjectID == ids.RoleClassID || relation.Address().ObjectID == AuthMembersOID || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
-				tablespace = text(3, "pg_global")
+				tablespace = text(3, view.Get(ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: catalog.GlobalTablespaceOID}).Name())
 			}
 			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.Security.RLSEnabled)})
 		} else {

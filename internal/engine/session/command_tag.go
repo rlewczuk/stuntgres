@@ -69,6 +69,10 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE DATABASE"
 	case *parser.CreateTablespace:
 		base = "CREATE TABLESPACE"
+	case *parser.AlterTablespaceRename:
+		base = "ALTER TABLESPACE"
+	case *parser.DropTablespace:
+		base = "DROP TABLESPACE"
 	case *parser.Load:
 		base = "LOAD"
 	case *parser.SecurityLabel:
@@ -283,6 +287,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 			base = "ALTER DOMAIN"
 		case "database":
 			base = "ALTER DATABASE"
+		case "tablespace":
+			base = "ALTER TABLESPACE"
 		case "large object":
 			base = "ALTER LARGE OBJECT"
 		default:

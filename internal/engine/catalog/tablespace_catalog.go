@@ -54,7 +54,7 @@ func (TablespaceProvider) Validate(v Read, descriptor Descriptor) error {
 	}
 	valid := false
 	for _, builtin := range BuiltinTablespaces {
-		valid = valid || d.Address().ObjectID == builtin.OID && d.Name() == builtin.Name
+		valid = valid || d.Address().ObjectID == builtin.OID
 	}
 	if !valid || d.Address().ClassID != ids.TablespaceClassID || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor")

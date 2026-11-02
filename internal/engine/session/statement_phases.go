@@ -52,6 +52,8 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 	switch s := stmt.(type) {
 	case *parser.SecurityLabel:
 		return DescribeOperation
+	case *parser.AlterTablespaceRename, *parser.DropTablespace:
+		return DescribeOperation
 	case *parser.AlterSystem:
 		return DescribeEmpty
 	case *parser.TransactionCharacteristics, *parser.SetConstraints, *parser.AlterTableRenameConstraint, *parser.Listen, *parser.Unlisten, *parser.Notify:
@@ -71,7 +73,7 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 	case *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return DescribeOperation
 	case *parser.AlterOwner:
-		if s.Kind == "domain" || s.Kind == "statistics" {
+		if s.Kind == "domain" || s.Kind == "statistics" || s.Kind == "tablespace" {
 			return DescribeOperation
 		}
 	case *parser.CreateTransform, *parser.DropTransform:

@@ -50,6 +50,10 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(rolecmds.ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
 		return dispatched(schemacmds.ExecuteCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
+	case *parser.AlterTablespaceRename:
+		return dispatched(schemacmds.ExecuteRenameTablespace(e, scope, stmt.(*parser.AlterTablespaceRename), count))
+	case *parser.DropTablespace:
+		return dispatched(schemacmds.ExecuteDropTablespace(e, scope, stmt.(*parser.DropTablespace), count))
 	case *parser.Load:
 		return dispatched(schemacmds.ExecuteLoad(e, op, stmt.(*parser.Load), count))
 	case *parser.SecurityLabel:

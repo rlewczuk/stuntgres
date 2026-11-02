@@ -253,6 +253,12 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	if err := catalog.Validate(catalog.TablespaceProvider{}, c.CatalogView, t); err != nil {
 		return err
 	}
+	for _, builtin := range catalog.BuiltinTablespaces {
+		if t.Address().ObjectID == builtin.OID && t.Name() != builtin.Name {
+			c.Tablespaces = append(c.Tablespaces, t)
+			break
+		}
+	}
 	return nil
 }
 

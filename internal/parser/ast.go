@@ -106,6 +106,23 @@ type CreateTablespace struct {
 
 func (*CreateTablespace) statement() {}
 
+// AlterTablespaceRename changes the name of a shared logical identity.
+type AlterTablespaceRename struct {
+	Name    Identifier
+	NewName Identifier
+	Pos     Position
+}
+
+func (*AlterTablespaceRename) statement() {}
+
+type DropTablespace struct {
+	Name     Identifier
+	IfExists bool
+	Pos      Position
+}
+
+func (*DropTablespace) statement() {}
+
 // Trigger lifecycle identities are local names qualified by their owning relation.
 type AlterTrigger struct {
 	Name   Identifier

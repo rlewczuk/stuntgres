@@ -170,6 +170,21 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
 - Constraint table usage: `RUN='^TestReferenceInfoConstraintTableUsage'`.
 - Tablespaces: `RUN='^TestReferenceTablespace'`
+  Lifecycle syntax, rename/typed owner/ACLs, admission/notices, live-name settings,
+  shared targets, retained rows and native controls:
+  `RUN='^TestReferenceTablespaceLifecycle'`. Run this identical selector both with
+  and without `REFERENCE=1`; the real fixture remains pinned to PostgreSQL 18.6.
+  The permanent feature smoke is
+  `RUN='^TestReferenceTablespaceLifecycleFeatureSmoke$'`.
+  Builtin mutations on PG end in ROLLBACK, so DROP in that phase must report
+  `25001`, never a pinned-object error. Canonical autocommit pinning is shared;
+  committed renamed/ordinary-owner pinning, cancellation-publication guarantees
+  and Dump/Reset/Restore are explicit native-only phases. Dependency/physical
+  nonempty/remote-database/ordinary-relocation proofs are PG-only physical phases.
+  Native phases independently assert physical CREATE and index-placement
+  capability errors, no ordinary registration and no phantom placement/edges.
+  Pinned native `42501` is not presented as ordinary `2BP01`/`55000` coverage.
+  Pure AST/catalog/publication units use `RUN='^TestTablespaceLifecycle'`.
 - Size formatting: `RUN='^TestReferenceSize'`; logical relation/database/tablespace allocation: `RUN='^TestReferenceRelationSize'`
   Size diagnostic scenarios include retained FILTER predicate analysis and
   resolved-scalar rejection, with direct/prepared failure publication and

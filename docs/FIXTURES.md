@@ -275,6 +275,25 @@ ignores the native comment rather than importing its historical catalog state.
   Database registrations and destination attachment owners/ACLs are never
   serialized or changed by Restore/Reset; provision destination authority
   independently.
+- Tablespace snapshots retain the two real builtin OIDs (1663/1664), their live
+  names, owners and raw ACLs, not physical directories. Dump emits deterministic
+  quoted forward `ALTER TABLESPACE` renames from the canonical seed names before
+  initial owner/ACL repairs and dependent definitions; final repairs remain in
+  place. Restore uses ordinary rename execution in its isolated staging engine,
+  then atomically replaces the shared image in existing attached databases.
+  Newly attached databases inherit current committed tablespace authority, not
+  stale template names. Reset intentionally reseeds `pg_default`/`pg_global`;
+  it does not retain renamed destination tablespaces over the replacement.
+  Provision named owners/grantors/grantees before Restore. Failed or canceled
+  Restore leaves current and peer authority unchanged; actual retained Rows
+  continue to hold their earlier immutable image.
+  No physical CREATE, placement, relocation, dependency inventory or deletion is
+  serialized. Ordinary native tablespaces are unavailable, so native pinned DROP
+  rejection is not proof of ordinary dependency/nonempty validation. Reference
+  builtin mutations on PostgreSQL run under final ROLLBACK (DROP there is
+  `25001`); committed renamed/ordinary-owner pinning and controls are native-only.
+  PostgreSQL-only ordinary physical scenarios use real tablespaces and explicit
+  cluster cleanup to prove dependency `2BP01`, nonempty `55000` and empty removal.
 - Relation replay preserves physical attribute numbers, dropped gaps and the
   next-column highwater. Inert generated INT4 or policy-bearing TEXT declarations
   are paired with ordinary drops; inheritance layouts can use staged CREATE/ADD/DROP statements

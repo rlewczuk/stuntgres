@@ -25,12 +25,15 @@ func ValidateTempTablespaces(view access.View, env access.Environment, value str
 }
 
 func resolveTempTablespace(view access.View, env access.Environment, name string) (ids.OID, error) {
-	if name == "" || name == "pg_default" {
+	if name == "" {
 		return 0, nil
 	}
 	ref, err := TablespaceRef(view, name)
 	if err != nil {
 		return 0, err
+	}
+	if ref.Address.ObjectID == 1663 {
+		return 0, nil
 	}
 	if err := CheckAlterTablespaceCreate(view, env, ref); err != nil {
 		return 0, err

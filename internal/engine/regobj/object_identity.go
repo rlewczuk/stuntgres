@@ -242,19 +242,14 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		return r, nil
 	}
 	if a.ClassID == 1213 {
-		name := ""
-		if a.ObjectID == 1663 {
-			name = "pg_default"
-		}
-		if a.ObjectID == 1664 {
-			name = "pg_global"
-		}
-		if name == "" {
+		tablespace, ok := d.(*catalog.Tablespace)
+		if !ok {
 			return r, nil
 		}
+		name := tablespace.Name()
 		r.Found = true
-		r.Name = name
-		r.Identity = name
+		r.Name = catalog.Identifier(name)
+		r.Identity = r.Name
 		r.Names = []string{name}
 		r.Description = "tablespace " + name
 		return r, nil

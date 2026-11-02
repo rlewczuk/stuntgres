@@ -72,8 +72,13 @@ func TestTableTargetAdmission(t *testing.T) {
 	}
 	// Non-relation ownership and statistics metadata utilities admit no relation
 	// target, even when semantic operands are absent. Resolution belongs to the
-	// actual executor, preserving recipient-first statistics ownership lookup.
+	// actual executor, preserving recipient-first ownership lookup.
 	for _, sql := range []string{
+		"ALTER TABLESPACE pg_default OWNER TO missing_owner",
+		"ALTER TABLESPACE missing_tablespace OWNER TO missing_owner",
+		"ALTER TABLESPACE pg_global OWNER TO CURRENT_USER",
+		"ALTER TABLESPACE pg_default OWNER TO CURRENT_ROLE",
+		"ALTER TABLESPACE \"renamed tablespace\" OWNER TO SESSION_USER",
 		"ALTER LARGE OBJECT 910201 OWNER TO missing_owner",
 		"ALTER LARGE OBJECT 0 OWNER TO missing_owner",
 		"ALTER LARGE OBJECT 1.0 OWNER TO missing_owner",

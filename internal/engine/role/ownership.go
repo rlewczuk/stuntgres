@@ -30,6 +30,11 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		return err
 	}
 	switch old := d.(type) {
+	case *catalog.Tablespace:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
+		return stage.Replace(&next)
 	case *catalog.Publication:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
@@ -233,6 +238,30 @@ func PlanLargeObjectOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, 
 		return OwnerChange{}, err
 	}
 	if err := access.OwnershipEligibility(view, auth, target, ids.ObjectAddress{}); err != nil {
+		return OwnerChange{}, err
+	}
+	return OwnerChange{Object: old, Target: target}, nil
+}
+
+// PlanTablespaceOwnership resolves the typed recipient before the shared
+// object. A same-owner command is a no-op even for an unrelated caller.
+func PlanTablespaceOwnership(view access.View, env access.Environment, s *parser.AlterOwner, name string, identity bool) (OwnerChange, error) {
+	target, err := access.SchemaOwner(view, name, identity)
+	if err != nil {
+		return OwnerChange{}, err
+	}
+	ref, err := ddl.TablespaceRef(view, s.Name.Parts[0].Text)
+	if err != nil {
+		return OwnerChange{}, err
+	}
+	old := view.Catalog.Get(ref.Address).(*catalog.Tablespace)
+	if target == old.Owner {
+		return OwnerChange{Address: ref.Address}, nil
+	}
+	if err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		return OwnerChange{}, err
+	}
+	if err := access.OwnershipEligibility(view, env, target, ids.ObjectAddress{}); err != nil {
 		return OwnerChange{}, err
 	}
 	return OwnerChange{Object: old, Target: target}, nil

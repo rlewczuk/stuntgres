@@ -35,7 +35,7 @@ func CreateTablespace(ctx context.Context, view access.View, s *parser.CreateTab
 	if _, err := catalog.ValidateTablespaceLocation(s.Location); err != nil {
 		return err
 	}
-	if err := catalog.ValidateTablespaceName(s.Name.Text, s.Name.Text == "pg_default" || s.Name.Text == "pg_global"); err != nil {
+	if err := catalog.ValidateTablespaceName(s.Name.Text, view.Catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: s.Name.Text}) != (ids.ObjectAddress{})); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {

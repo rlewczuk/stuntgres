@@ -13,6 +13,20 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+`ALTER TABLESPACE name RENAME TO new_name` and `ALTER TABLESPACE name OWNER TO
+role` update the real shared builtin descriptors transactionally, preserving
+their fixed OIDs (1663/1664). Ownership, ACLs, live-name lookups and attached
+database views follow committed changes; rollback and retained rows preserve
+their earlier image. `DROP TABLESPACE [IF EXISTS] name` supports missing-object
+errors/notices and owner checks, but both native builtins remain pinned even
+after rename or owner transfer. DROP is forbidden in a transaction block.
+Native ordinary tablespace registration, physical placement, relocation and
+deletion are unavailable: physical CREATE returns `0A000`, not a fake catalog
+row. Real PostgreSQL ordinary dependency/nonempty DROP checks have separate
+reference coverage, not an equivalent native implementation. See the
+[tablespace dialect and limits](docs/DIALECT.md#tablespaces) and
+[native fixture replay](docs/FIXTURES.md).
+
 `information_schema.applicable_roles` supports ordinary direct and prepared
 role-membership inquiry with `grantee`, `role_name` and `is_grantable`. Results
 follow current-role inherited visibility, preserve actual ADMIN options and

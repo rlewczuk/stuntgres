@@ -709,7 +709,7 @@ package parser
 %type <collationOption> collation_option
 %type <tok> collation_name_word
 %type <stmt> create_extension drop_extension alter_extension_update
-%type <stmt> create_tablespace
+%type <stmt> create_tablespace alter_tablespace_rename drop_tablespace
 %type <stmt> create_database alter_database_settings
 %type <databaseOptions> database_options database_option_list
 %type <databaseOption> database_option database_option_value
@@ -1109,7 +1109,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | set_constraints
  | prepare_sql | deallocate_sql | discard
  | create_extension | drop_extension | alter_extension_update
- | create_tablespace
+ | create_tablespace | alter_tablespace_rename | drop_tablespace
  | create_database
  | alter_database_settings
  | alter_collation | drop_collation | alter_enum
@@ -1192,6 +1192,12 @@ database_option_value: name {$$=DatabaseOption{Value:$1.text}}
  | '+' NUMBER {$$=DatabaseOption{Value:"+"+$2.text,Numeric:true}} ;
 create_tablespace: CREATE TABLESPACE name tablespace_owner tablespace_location STRING tablespace_options {
  $$=&CreateTablespace{Name:Identifier{Text:$3.text,Pos:$3.pos},Owner:$4,Location:$6.text,LocationPos:$6.pos,Options:$7,Pos:$1.pos}
+} ;
+alter_tablespace_rename: ALTER TABLESPACE name RENAME TO name {
+ $$=&AlterTablespaceRename{Name:Identifier{Text:$3.text,Pos:$3.pos},NewName:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}
+} ;
+drop_tablespace: DROP TABLESPACE drop_target {
+ $$=&DropTablespace{Name:$3.Name,IfExists:$3.IfExists,Pos:$1.pos}
 } ;
 tablespace_owner: /* empty */ {$$=nil}
  | OWNER membership_role_spec {owner:=$2;$$=&owner} ;
@@ -4470,6 +4476,7 @@ alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterO
  | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
  | statistics_alter_head relation_name OWNER TO membership_role_spec {$$=&AlterOwner{Kind:"statistics",Name:$2,Target:$5,Pos:$1.pos}}
  | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} }
+ | ALTER TABLESPACE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"tablespace",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} }
  | ALTER LARGE OBJECT grant_object_number OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"large object",Number:ownershipNumber($4),Target:$7,Pos:$1.pos} } ;
 reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;
