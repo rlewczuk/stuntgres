@@ -88,6 +88,7 @@ type Renderer struct {
 	foreignOwners                map[uint32]explainForeignContext
 	Observation                  *exec.Observation
 	trees                        []*Tree
+	rangeTable                   map[string]any // Detached query-level facts; nil unless requested.
 }
 
 // NewRenderer starts one command's presentation over host, checking and

@@ -1,0 +1,134 @@
+package analyze
+
+import (
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
+
+// Requirement is one semantic permission demand, not a grant or cached decision.
+// WholeRelation distinguishes Check from CheckColumns. Nil and empty column
+// requests both accept any live column or the relation's privilege.
+// Callers borrow Columns only for the duration of the visit.
+type Requirement struct {
+	Ref           ids.ObjectRef
+	Relation      *catalog.Relation
+	Privilege     authorization.Privileges
+	Columns       []int
+	WholeRelation bool
+}
+
+// Whole reports the actual access operation, including CheckColumns' existing
+// non-SELECT sequence delegation.
+func (r Requirement) Whole() bool {
+	return r.WholeRelation || r.Relation != nil && r.Relation.RelationKind == catalog.SequenceRelation && r.Privilege != authorization.SelectPrivilege
+}
+
+func (r Requirement) Check(auth Privileges) error {
+	if r.WholeRelation {
+		return auth.Check(access.Requirement{Object: r.Ref, Privileges: r.Privilege})
+	}
+	return auth.CheckColumns(r.Ref, r.Relation, r.Privilege, r.Columns)
+}
+
+// BindingRequirements visits target requests in the checker's original order.
+// Query sources and view-write delegation remain with their existing owners.
+func BindingRequirements(b Binding, stmt parser.Statement, visit func(Requirement) error) error {
+	if b.Relation == nil {
+		return nil
+	}
+	request := func(privilege authorization.Privileges, columns []int) error {
+		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, Columns: columns})
+	}
+	whole := func(privilege authorization.Privileges) error {
+		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, WholeRelation: true})
+	}
+	switch stmt.(type) {
+	case *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable:
+		return nil
+	case *parser.Insert:
+		if err := request(authorization.InsertPrivilege, b.Targets); err != nil {
+			return err
+		}
+		if b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0 {
+			if err := request(authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
+				return err
+			}
+		}
+		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
+			if err := request(authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
+				return err
+			}
+			if len(b.Insert.Conflict.ActionReads) != 0 {
+				if err := request(authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
+					return err
+				}
+			}
+		}
+		if b.Returning != nil && (b.Returning.ReadRequired || len(b.Returning.Reads) != 0) {
+			return request(authorization.SelectPrivilege, b.Returning.Reads)
+		}
+	case *parser.Merge:
+		if b.Merge.HasDelete {
+			if err := whole(authorization.DeletePrivilege); err != nil {
+				return err
+			}
+		}
+		if b.Merge.HasInsert {
+			if err := request(authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
+				return err
+			}
+		}
+		if len(b.Merge.UpdateTargets) != 0 {
+			if err := request(authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
+				return err
+			}
+		}
+		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
+			return request(authorization.SelectPrivilege, b.UsedColumns)
+		}
+	case *parser.Delete:
+		if err := whole(authorization.DeletePrivilege); err != nil {
+			return err
+		}
+		if len(b.UsedColumns) != 0 {
+			return request(authorization.SelectPrivilege, b.UsedColumns)
+		}
+	case *parser.Update:
+		if err := request(authorization.UpdatePrivilege, b.Targets); err != nil {
+			return err
+		}
+		if len(b.UsedColumns) != 0 {
+			return request(authorization.SelectPrivilege, b.UsedColumns)
+		}
+	default:
+		return request(authorization.SelectPrivilege, b.UsedColumns)
+	}
+	return nil
+}
+
+func SourceReadRequirements(source *exec.Leaf, visit func(Requirement) error) error {
+	if source.AnalysisOnly {
+		return nil
+	}
+	r := Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.SelectPrivilege}
+	if source.TableOIDRead {
+		r.WholeRelation = true
+		if err := visit(r); err != nil {
+			return err
+		}
+		r.WholeRelation = false
+	}
+	r.Columns = source.Uses
+	return visit(r)
+}
+
+func SourceRowMarkRequirements(source *exec.Leaf, visit func(Requirement) error) error {
+	if exec.PrivilegeQueryRowMark(source.Relation, source.Mark).Mode != 0 {
+		return visit(Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.UpdatePrivilege})
+	}
+	return nil
+}

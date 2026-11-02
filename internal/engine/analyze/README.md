@@ -330,10 +330,10 @@ library, and never the root engine or `session`. The engine, the root driver
   binder state in field groups. `NewBinder` builds one over a `Host`; `Describe`
   (`describe_bind.go`) binds a statement. `functions` reaches it through
   `functions.Binder`.
-  The existing alias binder also retains owned immutable range/column labels on
-  actual source, derived, function and VALUES projection occurrences. Labels
-  reflect the final accepted namespace, including scalar-function alias rules,
-  without mutating source schemas or adding execution stages.
+  The existing alias binder retains owned immutable range/column labels on
+  actual source, join, derived, function and VALUES projection occurrences.
+  Labels reflect the final accepted namespace, including scalar-function alias
+  rules, without mutating source schemas or adding execution stages.
   Installed heap-verification calls retain their exact provider slot and four
   OUT fields, use shared named/default coercion, and map written source
   occurrences to canonical inputs for frozen-literal capture.
@@ -506,9 +506,17 @@ library, and never the root engine or `session`. The engine, the root driver
   nonaggregate call, without publishing an executable node on either failure.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget` and
   the `*Retarget` interfaces.
-- **Privilege walkers** (`binding_privileges.go`): `CheckBinding` and
-  `CheckQuerySources` check target, column reads and query sources, each source
-  under its own principal, deciding each object through `access`.
+- **Privilege walkers** (`binding_privileges.go`, `requirements.go`):
+  `CheckBinding` and `CheckQuerySources` consume the same target/source/row-mark
+  `Requirement` enumeration used by detached EXPLAIN presentation. Requests
+  preserve check order and semantic multiplicity, including separate conflict,
+  action and RETURNING reads. Each source retains its effective principal;
+  access/view delegation and live authorization fences remain authoritative.
+  Nil and empty CheckColumns requests both mean any live column or relation
+  privilege, not a whole-relation request. `Whole` identifies explicit relation
+  checks and the existing non-SELECT sequence delegation. Enumerators borrow
+  descriptors/indices only during their callback and neither grant access nor
+  retain successful authorization.
 - **Row-lock admission** (`lock_admission.go`): `NewLockAdmission` computes a
   `LockAdmission` from syntax before binding; the engine holds one per
   statement scope.

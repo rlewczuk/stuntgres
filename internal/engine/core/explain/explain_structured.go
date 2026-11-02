@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	"stuntgres/internal/engine/catalog"
@@ -134,8 +135,12 @@ func Output(ctx context.Context, schema []catalog.Column, options Options, rende
 	if options.Structured() {
 		document := make([]map[string]any, 0)
 		for _, renderer := range renderers {
-			for _, tree := range renderer.trees {
-				document = append(document, map[string]any{"Plan": renderer.structuredNode(tree)})
+			for i, tree := range renderer.trees {
+				entry := map[string]any{"Plan": renderer.structuredNode(tree)}
+				if i == 0 && renderer.rangeTable != nil {
+					entry["Embedded Range Table"] = renderer.rangeTable
+				}
+				document = append(document, entry)
 			}
 		}
 		if len(document) == 0 {
@@ -160,15 +165,39 @@ func Output(ctx context.Context, schema []catalog.Column, options Options, rende
 		}
 		return [][]sqltype.Value{{value}}, nil
 	}
+	// Logical renderer lines can contain accepted identifier newlines. Only
+	// this publication boundary turns LF-delimited physical lines into rows.
+	count := len(lines)
+	for _, line := range lines {
+		count += strings.Count(line, "\n")
+	}
 	if summaries.Planning != nil {
-		lines = append(lines, fmt.Sprintf("Planning Time: %.3f ms", float64(*summaries.Planning)/1e6))
+		count++
 	}
 	if summaries.Execution != nil {
-		lines = append(lines, fmt.Sprintf("Execution Time: %.3f ms", float64(*summaries.Execution)/1e6))
+		count++
 	}
-	rows := make([][]sqltype.Value, len(lines))
-	for i, line := range lines {
-		rows[i] = []sqltype.Value{sqltype.String(schema[0].Usage.Type, line)}
+	rows := make([][]sqltype.Value, count)
+	typ := schema[0].Usage.Type
+	next := 0
+	for _, line := range lines {
+		for {
+			part, rest, more := strings.Cut(line, "\n")
+			rows[next] = []sqltype.Value{sqltype.String(typ, part)}
+			next++
+			if !more {
+				break
+			}
+			line = rest
+		}
+	}
+	// Do not append summaries to the caller's potentially shared line backing.
+	if summaries.Planning != nil {
+		rows[next] = []sqltype.Value{sqltype.String(typ, fmt.Sprintf("Planning Time: %.3f ms", float64(*summaries.Planning)/1e6))}
+		next++
+	}
+	if summaries.Execution != nil {
+		rows[next] = []sqltype.Value{sqltype.String(typ, fmt.Sprintf("Execution Time: %.3f ms", float64(*summaries.Execution)/1e6))}
 	}
 	return rows, nil
 }

@@ -66,6 +66,8 @@ type JoinNode struct {
 	ViewOrdinal  int
 	PresenceSlot int
 	QuerySchema
+	RangeName                 string
+	ColumnAliases             []string // Immutable final accepted namespace labels.
 	Kind                      parser.JoinKind
 	Left, Right               Node
 	Predicate                 expr.Expr

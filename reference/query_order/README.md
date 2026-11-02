@@ -18,18 +18,29 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Helpers: `query_distinct_on_fixture_test.go` (`queryDistinctOnScenario`,
   `queryDistinctOnHeld`) and `query_limit_view_helpers_test.go`
   (`queryLimitHeldBounds`).
-- EXPLAIN helpers in `explain_text_test.go` validate owned, one-line-per-row
-  `QUERY PLAN`/TEXT results. Assert native logical stages/details and independently
-  valid PostgreSQL plans, never bytewise plan parity or fixed PostgreSQL costs.
+- EXPLAIN helpers in `explain_text_test.go` validate owned, one-physical-line-per-row
+  `QUERY PLAN`/TEXT results. Literal LF in accepted identifiers crosses SQL row
+  boundaries; joining those rows retains the exact represented identifier,
+  including empty physical lines. Structured formats preserve the original
+  identifier value in one document, not split strings or escaped replacements.
+  Assert native logical stages/details and independently valid PostgreSQL plans,
+  never bytewise plan parity or fixed PostgreSQL costs.
   Structured helpers require one non-NULL typed document row, nested node/list
   boundaries and numeric/Boolean/string fields. XML is fully decoded with its
   namespace; YAML flow collections use the existing test-only YAML parser.
   Native logical trees and PostgreSQL physical trees have independent expectations;
   neither backend supplies the other's goldens. `overexplain_helpers_test.go`
   provides isolated pinned physical owners, metadata and full diagnostics for
-  session-local LOAD/DEBUG. Native Embedded Debug and PostgreSQL planner debug
-  fields are explicitly nonportable, asserted separately rather than normalized
-  into parity. Capability tests preserve exact remaining native diagnostics.
+  session-local LOAD/DEBUG and RANGE_TABLE. Native embedded debug/range facts
+  and PostgreSQL planner/RTE fields have independently specified schemas, never
+  canned string parity. Range helpers validate actual scope/entry/catalog and
+  permission-demand relationships, typed lists and primary-versus-auxiliary
+  document ownership. Rewritten CTEs distinguish original caller requirements
+  from actual rule command authority; view scenarios distinguish executable
+  reads from analysis-only mark-validation columns and tableoid whole-relation
+  requests. Correlation assertions use direct native owner-scope links, while
+  PostgreSQL independently supplies real RTE identities and subplans, never
+  native scope IDs. Capability tests preserve exact remaining diagnostics.
   ANALYZE cases assert emitted rows/loops, real effects,
   caller rollback, runtime failures and current prepared parameters independently;
   execution measurements and logical estimates are separate expectations.

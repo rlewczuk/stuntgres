@@ -44,77 +44,14 @@ func CheckBinding(auth Privileges, b Binding, stmt parser.Statement) error {
 	if b.Relation == nil {
 		return nil
 	}
-	switch stmt.(type) {
-	case *parser.Insert:
-		if err := auth.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets); err != nil {
-			return err
-		}
-		if b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0 {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
-				return err
-			}
-		}
-		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
-				return err
-			}
-			if len(b.Insert.Conflict.ActionReads) != 0 {
-				if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
-					return err
-				}
-			}
-		}
-		if b.Returning != nil && (b.Returning.ReadRequired || len(b.Returning.Reads) != 0) {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Returning.Reads); err != nil {
-				return err
-			}
-		}
-		return CheckQuerySources(auth, b.QuerySources)
-	case *parser.Merge:
-		if b.Merge.HasDelete {
-			if err := auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
-				return err
-			}
-		}
-		if b.Merge.HasInsert {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
-				return err
-			}
-		}
-		if len(b.Merge.UpdateTargets) != 0 {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
-				return err
-			}
-		}
-		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return CheckQuerySources(auth, b.QuerySources)
-	case *parser.Delete:
-		if err := auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
-			return err
-		}
-		if len(b.UsedColumns) != 0 {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return CheckQuerySources(auth, b.QuerySources)
-	case *parser.Update:
-		if err := auth.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Targets); err != nil {
-			return err
-		}
-		if len(b.UsedColumns) != 0 {
-			if err := auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return CheckQuerySources(auth, b.QuerySources)
-	default:
-		return auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
+	if err := BindingRequirements(b, stmt, func(req Requirement) error { return req.Check(auth) }); err != nil {
+		return err
 	}
+	switch stmt.(type) {
+	case *parser.Insert, *parser.Merge, *parser.Delete, *parser.Update:
+		return CheckQuerySources(auth, b.QuerySources)
+	}
+	return nil
 }
 
 // CheckQuerySources checks the SELECT columns of every executable source, then
@@ -132,12 +69,7 @@ func CheckQuerySources(auth Privileges, sources []exec.Leaf) error {
 				return err
 			}
 		}
-		if source.TableOIDRead {
-			if err := sourceAuth.Check(access.Requirement{Object: source.Ref, Privileges: authorization.SelectPrivilege}); err != nil {
-				return err
-			}
-		}
-		if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.SelectPrivilege, source.Uses); err != nil {
+		if err := SourceReadRequirements(&source, func(req Requirement) error { return req.Check(sourceAuth) }); err != nil {
 			return err
 		}
 	}
@@ -149,10 +81,8 @@ func CheckQuerySources(auth Privileges, sources []exec.Leaf) error {
 				return err
 			}
 		}
-		if exec.PrivilegeQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-			if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.UpdatePrivilege, nil); err != nil {
-				return err
-			}
+		if err := SourceRowMarkRequirements(&source, func(req Requirement) error { return req.Check(sourceAuth) }); err != nil {
+			return err
 		}
 		if source.Relation.RelationKind == catalog.ViewRelation {
 			if err := sourceAuth.CheckViewRowMarks(source.Relation, source.Mark); err != nil {

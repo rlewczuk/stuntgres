@@ -3,11 +3,9 @@ package view
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
@@ -18,19 +16,16 @@ import (
 // uses its current owner or the original invoker, never the outer owner.
 func CheckWrite(binding analyze.Privileges, a access.View, env RelationAdmission, b analyze.Binding, stmt parser.Statement) error {
 	w := ViewWriteOf(b.ViewWrite)
-	logical := w.Logical
-	if err := analyze.CheckBinding(binding, logical, stmt); err != nil {
+	if err := analyze.CheckBinding(binding, w.Logical, stmt); err != nil {
 		return err
 	}
 	invoker := a.State.CurrentUser
-	mask := authorization.UpdatePrivilege
-	switch stmt.(type) {
-	case *parser.Insert:
-		mask = authorization.InsertPrivilege
-	case *parser.Delete:
-		mask = authorization.DeletePrivilege
+	check := func(authority access.View, req analyze.Requirement) error {
+		if req.WholeRelation {
+			return authority.Check(env, access.Requirement{Object: req.Ref, Privileges: req.Privilege})
+		}
+		return authority.CheckColumns(env, req.Ref, req.Relation, req.Privilege, req.Columns)
 	}
-	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(logical.Insert.Conflict.Reads) != 0
 	for _, layer := range w.Layers {
 		current, ok := a.Catalog.Relation(layer.Ref.Address)
 		if !ok || current.View != layer.Relation.View {
@@ -48,66 +43,32 @@ func CheckWrite(binding analyze.Privileges, a access.View, env RelationAdmission
 		if err := env.AdmitRelation(source); err != nil {
 			return err
 		}
-		if mask == authorization.DeletePrivilege {
-			if err := authority.Check(env, access.Requirement{Object: layer.SourceRef, Privileges: mask}); err != nil {
-				return err
-			}
-		} else if err := authority.CheckColumns(env, layer.SourceRef, source, mask, layer.Targets); err != nil {
+		if err := check(authority, WriteTargetRequirement(stmt, layer, source)); err != nil {
 			return err
 		}
-		for occurrence, leaf := range stored.ViewOf(current).Sources() {
-			// Only the rewritten main target inherits outer command reads.
-			// Independent subquery occurrences keep their own SELECT record,
-			// including another occurrence of the same physical relation.
-			if occurrence == layer.MainOccurrence && !reads {
-				continue
-			}
-			relation, ok := a.Catalog.Relation(leaf.Ref.Address)
-			if !ok {
-				return ids.ErrCatalogReplaced
-			}
-			use, err := stored.ViewUseReference(a.Catalog, current, leaf.Ref)
+		for occurrence := range stored.ViewOf(current).Sources() {
+			leaf, included, err := WriteSourceRequirementLeaf(a, b, current, layer, occurrence)
 			if err != nil {
 				return err
 			}
-			if err := env.AdmitRelation(relation); err != nil {
+			if !included {
+				continue
+			}
+			if err := env.AdmitRelation(leaf.Relation); err != nil {
 				return err
 			}
-			indices := make([]int, 0, len(leaf.Reads))
-			for _, attr := range leaf.Reads {
-				found := false
-				for i, live := range relation.Attributes {
-					if live == attr {
-						indices = append(indices, i)
-						found = true
-						break
-					}
-				}
-				if !found {
-					return ids.ErrCatalogReplaced
-				}
-			}
-			if leaf.TableOIDRead {
-				if err := authority.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege}); err != nil {
-					return err
-				}
-			}
-			if err := authority.CheckColumns(env, use, relation, authorization.SelectPrivilege, indices); err != nil {
+			visit := func(req analyze.Requirement) error { return check(authority, req) }
+			if err := analyze.SourceReadRequirements(&leaf, visit); err != nil {
 				return err
 			}
 			if occurrence == layer.MainOccurrence {
-				continue // The next write layer owns main-source expansion.
+				continue
 			}
-			mark := stored.ViewLeafRowMark(stored.ViewOf(current), occurrence, plan.RowMark{})
-			if mark.Mode != 0 {
-				if err := authority.CheckColumns(env, use, relation, authorization.UpdatePrivilege, nil); err != nil {
-					return err
-				}
+			if err := analyze.SourceRowMarkRequirements(&leaf, visit); err != nil {
+				return err
 			}
-			// This existing visitor checks child definition SELECT records and
-			// applicable row marks under each child's owner/original invoker.
-			if relation.RelationKind == catalog.ViewRelation {
-				if err := CheckRowMarks(authority, env, relation, mark, invoker); err != nil {
+			if leaf.Relation.RelationKind == catalog.ViewRelation {
+				if err := CheckRowMarks(authority, env, leaf.Relation, leaf.Mark, invoker); err != nil {
 					return err
 				}
 			}

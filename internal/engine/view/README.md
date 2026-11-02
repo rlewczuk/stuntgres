@@ -100,6 +100,16 @@ imports `view`.
   capture) and `CheckRowSecuritySource`. They take the captured `access.View` and
   its `access.Environment`; they check only relations and columns, so the
   caller's environment serves every nested principal.
+  `requirements.go` shares stored attribute/effective-mark resolution,
+  `NeedsRowMarkValidation`, the definition-column SELECT request and per-layer
+  write demand construction with EXPLAIN. The mark gate is independent of
+  executable reads; after admission, `CheckRowMarks` visits every definition edge
+  even when a child has no mark or is analysis-only. That validation column
+  request is not the executable tableoid whole-relation SELECT path. Main
+  write-source expansion remains with the next layer; independent occurrences
+  keep their own read requests. Nested invoker views retain the original invoker
+  rather than an enclosing definer owner. Enumeration grants no source opening
+  or authority.
 - **Rules** (`rule_*.go`): `RuleRewriter.ExpandLocked` (INSTEAD, ALSO and
   conditional INSTEAD expansion with recursion detection), the programs
   `RuleProgram` and `RuleCommand`, `RuleAuthority` (the opaque statement

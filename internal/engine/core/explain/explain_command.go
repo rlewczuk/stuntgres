@@ -99,6 +99,9 @@ func (r *Renderer) Command(statement parser.Statement, bound Bound) ([]string, e
 	if r.options.Debug {
 		numberDebug(trees)
 	}
+	if err := r.captureRanges(statement, bound); err != nil {
+		return nil, err
+	}
 	r.trees = trees
 	if r.Observation != nil || r.options.Structured() {
 		return nil, nil
@@ -153,6 +156,10 @@ func (r *Renderer) Render() []string {
 	var lines []string
 	for _, tree := range r.trees {
 		r.lines(tree, 0, &lines)
+	}
+	if r.rangeTable != nil {
+		lines = append(lines, "Embedded Range Table:")
+		rangeLines(r.rangeTable, "  ", "", &lines)
 	}
 	if r.options.Costs {
 		lines = append(lines, "Estimates: logical heuristics; not execution measurements")

@@ -26,9 +26,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `DistinctOnNode`, `JoinNode`, `LimitNode`, `EvaluationNode`,
   `WorktableScanNode`, `RecursiveUnionNode`, `RowLockNode`, `SetNode`,
   `FunctionFromNode`, `SetProjectNode` and `WindowNode`.
-  Source, derived, function and alias-bound VALUES projection occurrences retain
-  immutable range names and column aliases for presentation; these labels never
-  change schemas, expression slots, provenance or execution authority.
+  Source, join, derived, function and alias-bound VALUES projection occurrences
+  retain immutable accepted range names and final column aliases for presentation.
+  Structural copies and stored remaps share that immutable label backing;
+  labels never change schemas, expression slots, provenance or execution authority.
   Invocation-local named relations retain only symbolic name, typed schema and
   normal presentation/presence labels. They never retain rows, frame identity,
   catalog references or authority; execution resolves their current backing.

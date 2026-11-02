@@ -508,6 +508,8 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			return names
 		}
 		switch source := root.(type) {
+		case *plan.JoinNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
 		case *plan.NamedRelationScanNode:
 			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
 		case *plan.DerivedNode:

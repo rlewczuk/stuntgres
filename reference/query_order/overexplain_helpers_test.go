@@ -93,9 +93,16 @@ type overexplainXML struct {
 
 func overexplainXMLValue(t *testing.T, n overexplainXML, parent string) any {
 	t.Helper()
+	if n.XMLName.Space != "http://www.postgresql.org/2009/explain" {
+		t.Fatalf("XML property escaped EXPLAIN namespace: %v", n.XMLName)
+	}
 	// Plan/Output is a target list; Sort-Targets/Item/Output is a Boolean.
 	outputList := n.XMLName.Local == "Output" && parent == "Plan"
 	list := n.XMLName.Local == "Plans" || outputList || n.XMLName.Local == "Target-List" || n.XMLName.Local == "Returning-Target-List" || n.XMLName.Local == "Sort-Targets"
+	switch n.XMLName.Local {
+	case "Range-Table", "Scopes", "Entries", "Columns", "Required-Permissions", "Outer-Scope-IDs":
+		list = true
+	}
 	if len(n.Children) == 0 {
 		if list {
 			if strings.TrimSpace(n.Text) != "" {
@@ -118,6 +125,8 @@ func overexplainXMLValue(t *testing.T, n overexplainXML, parent string) any {
 			want := "Item"
 			if n.XMLName.Local == "Plans" {
 				want = "Plan"
+			} else if n.XMLName.Local == "Range-Table" {
+				want = "Range-Table-Entry"
 			}
 			if child.XMLName.Local != want {
 				t.Fatalf("%s has unexpected list child %s", n.XMLName.Local, child.XMLName.Local)

@@ -69,7 +69,7 @@ func AuthorizeSource(a access.View, env RelationAdmission, ref ids.ObjectRef, de
 			return err
 		}
 	}
-	if mark.Mode != 0 || stored.ViewHasRowMarks(d, a.Catalog) {
+	if NeedsRowMarkValidation(a.Catalog, d, mark) {
 		return CheckRowMarks(a, env, d, mark, invoker)
 	}
 	return nil
@@ -120,13 +120,15 @@ func checkRowMarksExpanded(a access.View, env access.Environment, d *catalog.Rel
 		if err != nil {
 			return err
 		}
-		if err := a.CheckColumns(env, use, child, authorization.SelectPrivilege, indices); err != nil {
+		request := DefinitionReadRequirement(use, child, indices)
+		if err := a.CheckColumns(env, request.Ref, request.Relation, request.Privilege, request.Columns); err != nil {
 			return err
 		}
-		if exec.PrivilegeQueryRowMark(child, mark).Mode != 0 {
-			if err := a.CheckColumns(env, use, child, authorization.UpdatePrivilege, nil); err != nil {
-				return err
-			}
+		source := exec.Leaf{Ref: use, Relation: child, Mark: mark}
+		if err := analyze.SourceRowMarkRequirements(&source, func(req analyze.Requirement) error {
+			return a.CheckColumns(env, req.Ref, req.Relation, req.Privilege, req.Columns)
+		}); err != nil {
+			return err
 		}
 		if err := checkRowMarksExpanded(a, env, child, mark, invoker); err != nil {
 			return err

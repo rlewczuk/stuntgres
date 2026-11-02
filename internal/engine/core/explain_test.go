@@ -87,7 +87,7 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 	if err := s.Settings.LoadOverexplain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	for _, prefix := range []string{"", "(FORMAT TEXT, DEBUG) ", "(FORMAT XML, DEBUG) ", "(FORMAT JSON, DEBUG) ", "(FORMAT YAML, DEBUG) "} {
+	for _, prefix := range []string{"", "(FORMAT TEXT, DEBUG) ", "(FORMAT XML, DEBUG) ", "(FORMAT JSON, DEBUG) ", "(FORMAT YAML, DEBUG) ", "(FORMAT TEXT, RANGE_TABLE) ", "(FORMAT XML, RANGE_TABLE) ", "(FORMAT JSON, RANGE_TABLE) ", "(FORMAT YAML, RANGE_TABLE, DEBUG) "} {
 		for _, query := range []string{
 			"EXPLAIN SELECT id FROM explain_boundary_foreign WHERE id=1 ORDER BY id",
 			"EXPLAIN SELECT abs(-7::integer), nextval('explain_boundary_s') FROM explain_boundary_foreign",

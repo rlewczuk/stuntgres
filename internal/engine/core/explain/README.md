@@ -8,7 +8,7 @@ estimates, statistics, pruning and foreign-provider details, and TEXT/XML/JSON/Y
 
 - Imports only packages below core: `access`, `analyze`, `authorization`,
   `catalog`, `exec`, `expr`, `fdw`, `functions`, `ids`, `lock`, `partition`,
-  `plan`, `regobj`, `session`, `settings`, `storage`, `stored`, `table`,
+  `pgcatalog`, `plan`, `regobj`, `session`, `settings`, `storage`, `stored`, `table`,
   `view`, `parser`, `sqlstate`, `sqltype`. It never imports core, a family or
   the root.
 - Core calls it from its statement seam: `explain.go` (Describe, ordinary
@@ -25,7 +25,7 @@ estimates, statistics, pruning and foreign-provider details, and TEXT/XML/JSON/Y
   FORMAT alone for the result descriptor; `Error` builds located diagnostics.
 - `NewRenderer(host, auth, options)` starts one command's presentation.
   `Command(statement, Bound)` renders a bound command (and its rule rewrites,
-  CTE producers and subplans) into `Tree`s; `Render` returns TEXT lines and
+  CTE producers and subplans) into `Tree`s; `Render` returns logical TEXT lines and
   `Output` publishes rows through the selected TEXT/XML/JSON descriptor codec.
   `ForeignFence` re-checks the captured catalog state and roles.
 - EXPLAIN ANALYZE: core sets `Observation`, reads `CommandTree` (its `Actual`
@@ -95,9 +95,15 @@ may obtain genuine remote estimates during planning. Before publishing owned out
 it fences catalog, context and current authority again, including after unlocked
 typed comparisons.
 
-TEXT line rows and one non-NULL XML/JSON/YAML document row publish through one
-output owner. Database types are TEXT/XML/JSON/TEXT respectively. XML and JSON
-use their catalog input codecs, never retagged TEXT data or adapter conversion.
+TEXT physical-line rows and one non-NULL XML/JSON/YAML document row publish
+through one output owner. `Output` splits every logical TEXT string at LF,
+including ordinary plan labels, range facts, provider/debug details and
+summaries. Leading, consecutive and trailing LF retain their empty segments;
+CR and other identifier content are not normalized. Summaries follow the plan
+without modifying caller line backing. Structured identifier strings remain
+exact raw values rather than TEXT segments. Database types are TEXT/XML/JSON/TEXT
+respectively. XML and JSON use their catalog input codecs, never retagged TEXT
+data or adapter conversion.
 FORMAT description does not validate execution-only options early; ordered
 option errors still follow child analysis. `Options.Structured()` selects one
 detached typed map/list projection shared by all structured formats and late
@@ -140,6 +146,61 @@ deparser frames serve both ordinary RETURNING details and this debug projection.
 IDs, frames, target SQL and all embedded debug fields are nonportable internal
 presentation, not PostgreSQL planner structures or stable identities across rebind.
 Only detached scalar/container output survives renderer/operation teardown.
+
+RANGE_TABLE uses the same current physical activation and ordered Boolean
+validation, independently of DEBUG. Its `Embedded Range Table` is a query-level
+mapping on each renderer's primary document entry, not a plan node or a duplicate
+dump on auxiliary CTE/SubPlan roots. TEXT prints the same detached facts after
+the plan trees. COSTS and VERBOSE do not gate these facts.
+`Scopes` contains positive statement-local Scope ID, ownership Kind and Entries;
+nonroot scopes carry Parent Scope ID and genuine range owners supply Owner Entry
+ID. Each range entry has Entry ID, actual Kind, accepted Range Name when present
+and ordered effective Columns. Source occurrences preserve valid zero.
+Catalog relations additionally identify checked Relation OID, Schema, Relation
+Name, Relation Kind and `source`, `target` or `target/source` Role. Joins preserve accepted
+aliases, Join Type and immediate range-owner links. Derived/view child scopes,
+shared CTE producer scopes and opaque worktable reader edges retain actual lexical
+ownership; alias shadowing and repeated stored-view expansion remain distinct.
+CTE/worktable reader names reuse the ordinary renderer's canonical derived-alias
+resolution: an explicit accepted alias wins, otherwise the definition name is
+retained even when the scan's optional RangeName field is empty.
+Modifying CTEs rewritten by rules retain a `cte` producer container with sibling
+`caller` and `rule` scopes: the original target requirements use the normalized
+caller's authority, while the executable command uses its own rewritten binding
+and authority. Readers link to that shared container, including copied outer CTE
+lists and recursive edges, rather than re-expanding the original mutation.
+`Outer Scope IDs`, when present, contains sorted unique direct lexical captures
+from actual accepted expression coordinates and function/join capture records.
+Local function/join captures, including tableoid occurrence captures, remain
+local and do not invent an outer edge; an outer function argument can instead
+retain its correlation directly as an expression coordinate.
+These are not nesting depths or all ancestors. Uncorrelated scopes omit the
+field; a nested child's captures do not become captures of its parent. Lexical
+frame maps are cloned at query boundaries and reset for independent stored-view
+and rewritten-command bindings, so reused frame numbers cannot cross owners.
+No PostgreSQL RTIs or permission-info indices are synthesized.
+
+Required Permissions contains one detached Principal/Privilege/Columns/Whole
+Relation record per shared semantic demand, retaining multiplicity. Column names
+are catalog attributes rather than alias labels. Nil and empty column requests
+both retain the checker's any-column/presence meaning; actual whole-relation
+checks are explicit. These are requirements, never granted ACLs or cached
+authorization. Stored-view sources use the actual owner/original invoker and
+effective marks; write layers reuse the same demand constructors as CheckWrite.
+Analysis-only ancestry labels every expanded identity without inventing
+executable read rights. Mark validation is a separate channel: after the actual
+inherited/stored-mark gate it visits every definition edge, including
+analysis-only edges and zero-mark descendants. It emits the shared column SELECT
+request and effective row-mark UPDATE request, never an executable tableoid
+whole-relation SELECT. At one occurrence, executable and validation column
+SELECT demands are represented once; unrelated DML demand multiplicity remains.
+Capture walks accepted owners independently of inactive/foreign-composite
+presentation hiding, with statement-local pointer maps only during capture.
+Only detached strings/scalars/lists/maps remain on the renderer or in output.
+Disabled/default RANGE_TABLE allocates no capture maps and traverses no ranges.
+Reset/Restore require fresh current catalog bindings without transporting
+physical activation, borrowed graphs, provider plans or prepared handles.
+
 Named conflict constraints retain the raw syntax name already resolved by the
 binder to a relation-local constraint identity, rather than a descriptor lookup.
 Requested domain defaults retain their bound default origin and effective
@@ -195,7 +256,7 @@ input-query labels. OLD/NEW presentation does not replace source ownership.
 ## Testing
 
 - Pure presentation units are internal tests here
-  (`RUN='^TestExplain(JSON|Structured)Presentation$'`).
+  (`RUN='^TestExplain(JSON|Structured|Range)Presentation$'`).
 - Engine-level EXPLAIN tests stay in core until their census owners move
   them (`RUN='^Test(Explain|Planner|FDWExplain)'` over `./internal/engine/core`);
   public scenarios are `RUN='^TestReference(Explain|PlannerCosts)'`.

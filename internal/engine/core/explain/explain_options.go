@@ -10,8 +10,8 @@ import (
 )
 
 type Options struct {
-	Costs, Verbose, Analyze, Timing, Summary, Debug bool
-	Format                                          string
+	Costs, Verbose, Analyze, Timing, Summary, Debug, RangeTable bool
+	Format                                                      string
 }
 
 // Structured selects detached typed properties, rather than TEXT detail lines.
@@ -133,15 +133,19 @@ func ValidateOptions(statement *parser.Explain, overexplainLoaded bool) (Options
 			continue
 		}
 		switch name {
-		case "debug":
+		case "debug", "range_table":
 			if !overexplainLoaded {
-				return options, Error("42601", `unrecognized EXPLAIN option "debug"`, option.Pos)
+				return options, Error("42601", fmt.Sprintf("unrecognized EXPLAIN option %q", name), option.Pos)
 			}
 			value, err := explainBoolean(option)
 			if err != nil {
 				return options, err
 			}
-			options.Debug = value
+			if name == "debug" {
+				options.Debug = value
+			} else {
+				options.RangeTable = value
+			}
 		case "format", "serialize":
 			value := "text"
 			if option.Value != nil || name == "format" {

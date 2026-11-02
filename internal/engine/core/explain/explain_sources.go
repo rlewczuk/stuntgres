@@ -56,18 +56,11 @@ func (r *Renderer) sourceDetails(tree *Tree, source *plan.SourceNode, relation *
 		r.inheritedMark = plan.RowMark{}
 		r.frames, r.occurrences, r.auth = maps.Clone(frames), maps.Clone(occurrences), auth
 		r.leaves = make([]exec.Leaf, len(definition.Sources()))
-		for i, leaf := range definition.Sources() {
-			r.leaves[i] = exec.Leaf{Ref: leaf.Ref, Only: leaf.Only, Mark: stored.ViewLeafRowMark(definition, i, inherited)}
-			if relation, ok := auth.Catalog.Relation(leaf.Ref.Address); ok {
-				r.leaves[i].Relation = relation
-				r.leaves[i].Uses = make([]int, 0, len(leaf.Reads))
-				for _, attribute := range leaf.Reads {
-					slot := relation.IndexForAttribute(attribute)
-					if slot < 0 {
-						return fmt.Errorf("stuntgres: invalid stored EXPLAIN attribute")
-					}
-					r.leaves[i].Uses = append(r.leaves[i].Uses, slot)
-				}
+		for i := range definition.Sources() {
+			var err error
+			r.leaves[i], err = view.SourceRequirementLeaf(auth.View, relation, i, inherited)
+			if err != nil {
+				return err
 			}
 		}
 		child, err := r.query(definition.Query())

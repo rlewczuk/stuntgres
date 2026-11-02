@@ -3,6 +3,7 @@ package core_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"slices"
 	"strings"
@@ -39,6 +40,15 @@ func overexplainInstalledOwner(t *testing.T, read catalog.Read) (*catalog.Extens
 }
 
 func TestOverexplainControlLifetime(t *testing.T) {
+	overexplainControlLifetime(t, "DEBUG")
+}
+
+func TestExplainRangeOwnership(t *testing.T) {
+	overexplainControlLifetime(t, "RANGE_TABLE")
+}
+
+func overexplainControlLifetime(t *testing.T, options string) {
+	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	peer := enginetest.StartSession(t, e, nil)
@@ -70,7 +80,7 @@ func TestOverexplainControlLifetime(t *testing.T) {
 	if e.CatalogRead().State() != before.State() || e.CatalogRead().Get(ext.Address()) != ext || e.CatalogRead().Get(procedure.Address()) != procedure || e.CatalogRead().Get(dictionary.Address()) != dictionary || e.CatalogRead().Get(viewRef.Address) != view || peer.Settings.OverexplainLoaded() {
 		t.Fatal("activation replaced installed objects/definitions or leaked physical authority")
 	}
-	const query = "EXPLAIN (DEBUG, VERBOSE, FORMAT JSON) SELECT id,v FROM overexplain_control_view ORDER BY id"
+	query := "EXPLAIN (" + options + ", VERBOSE, FORMAT JSON) SELECT id,v FROM overexplain_control_view ORDER BY id"
 	ast, description := enginetest.PreparedDescription(t, e, s, query)
 	defer e.RetirePreparedDescription(&description)
 	owner, analysis, generation := description.Folds, description.Analysis, description.PlanGeneration
@@ -90,6 +100,39 @@ func TestOverexplainControlLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	checkRange := func(value sqltype.Value, read catalog.Read) {
+		if options != "RANGE_TABLE" {
+			return
+		}
+		encoded, err := value.Type().Output(context.Background(), value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document []map[string]any
+		if err := json.Unmarshal([]byte(encoded), &document); err != nil {
+			t.Fatal(err)
+		}
+		currentView := read.MustRelation(enginetest.CatalogRef(t, e, read, "overexplain_control_view").Address)
+		currentDefinition := stored.ViewOf(currentView)
+		actualRef := currentDefinition.Sources()[0].Ref
+		found := false
+		for _, item := range document[0]["Embedded Range Table"].(map[string]any)["Scopes"].([]any) {
+			scope := item.(map[string]any)
+			for _, item := range scope["Entries"].([]any) {
+				entry := item.(map[string]any)
+				if entry["Relation Name"] == "overexplain_control_owner" {
+					if entry["Relation OID"] != float64(actualRef.Address.ObjectID) || entry["Occurrence"] != float64(0) || !reflect.DeepEqual(entry["Columns"], []any{"id", "v"}) {
+						t.Fatal("range did not capture current stored source ownership", entry, actualRef)
+					}
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Fatal("stored source disappeared across control replacement")
+		}
+	}
+	checkRange(retained, before)
 	resource.Close()
 	if !resource.Closed || resource.Source != nil || owner.Live() || owner.Current().Generation != 0 || description.FoldPlanning != nil {
 		t.Fatal("ordinary debug retained live source/accepted executable graph")
@@ -135,6 +178,10 @@ func TestOverexplainControlLifetime(t *testing.T) {
 	if &nextResource.Anonymous[0][0] == &backing[0] {
 		t.Fatal("rebind reused prior output row backing")
 	}
+	if ok, err := nextResource.Next(context.Background(), cells); err != nil || !ok {
+		t.Fatal("missing fresh rebound range output", err)
+	}
+	checkRange(cells[0], after)
 	nextResource.Close()
 	if description.Folds != owner || owner.Live() || owner.Current().Generation != 0 || description.FoldPlanning != nil {
 		t.Fatal("control replacement granted child fold-publication rights")

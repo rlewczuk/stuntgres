@@ -26,7 +26,9 @@ func TestExplainStoredAliasRemap(t *testing.T) {
 		CROSS JOIN explain_alias_source AS "right side"("right key")
 		CROSS JOIN (SELECT id FROM explain_alias_source) AS "derived side"("derived key")
 		CROSS JOIN generate_series(1,2) AS "function side"("function key")
-		CROSS JOIN (VALUES(1)) AS "values side"("values key")`)
+		CROSS JOIN (VALUES(1)) AS "values side"("values key")
+		CROSS JOIN (explain_alias_source jl CROSS JOIN explain_alias_source jr)
+		    AS "joined side"("joined left","joined right")`)
 	ast := enginetest.Statement(t, "SELECT * FROM explain_alias_view").(*parser.Select)
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
@@ -71,6 +73,8 @@ func TestExplainStoredAliasRemap(t *testing.T) {
 			var name string
 			var columns []string
 			switch n := node.(type) {
+			case *plan.JoinNode:
+				name, columns = n.RangeName, n.ColumnAliases
 			case *plan.SourceNode:
 				name, columns = n.RangeName, n.ColumnAliases
 			case *plan.DerivedNode:
@@ -90,14 +94,15 @@ func TestExplainStoredAliasRemap(t *testing.T) {
 		return out
 	}
 	before, after := collect(original.Query().Root), collect(mapped.Query().Root)
-	for name, column := range map[string]string{
-		"left side": "left key", "right side": "right key",
-		"derived side": "derived key", "function side": "function key", "values side": "values key",
+	for name, columns := range map[string][]string{
+		"left side": {"left key"}, "right side": {"right key"},
+		"derived side": {"derived key"}, "function side": {"function key"}, "values side": {"values key"},
+		"joined side": {"joined left", "joined right"},
 	} {
 		old, oldOK := before[name]
 		next, nextOK := after[name]
-		if !oldOK || !nextOK || old.node == next.node || len(old.columns) != 1 || len(next.columns) != 1 || old.columns[0] != column || next.columns[0] != column {
-			t.Fatalf("lost occurrence %q/%q: before=%+v after=%+v", name, column, old, next)
+		if !oldOK || !nextOK || old.node == next.node || !reflect.DeepEqual(old.columns, columns) || !reflect.DeepEqual(next.columns, columns) {
+			t.Fatalf("lost occurrence %q/%q: before=%+v after=%+v", name, columns, old, next)
 		}
 		if &old.columns[0] != &next.columns[0] {
 			t.Errorf("copied immutable alias backing for %q", name)

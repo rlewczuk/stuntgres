@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
@@ -138,7 +137,7 @@ func (v AuthorizationView) canReadRestrictedSettings() (bool, error) {
 // CheckViewRowMarks checks the stored and inherited row marks of a view
 // source with the current user as invoker. Without either it checks nothing.
 func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark plan.RowMark) error {
-	if mark.Mode == 0 && !stored.ViewHasRowMarks(relation, v.Catalog) {
+	if !view.NeedsRowMarkValidation(v.Catalog, relation, mark) {
 		return nil
 	}
 	return view.CheckRowMarks(v.View, v, relation, mark, v.State.CurrentUser)
