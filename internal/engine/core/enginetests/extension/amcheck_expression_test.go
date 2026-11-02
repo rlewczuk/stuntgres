@@ -3,6 +3,7 @@ package extension_test
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -11,6 +12,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -38,8 +40,27 @@ func amcheckUnitExpression(t *testing.T, e *core.Engine, parent bool, options ..
 	return node.(plan.InstalledAmcheckExpr)
 }
 func TestAmcheckExpressionIdentity(t *testing.T) {
+	testAmcheckExpressionIdentity(t, false)
+}
+
+func TestAmcheckGINExpressionIdentity(t *testing.T) {
+	testAmcheckExpressionIdentity(t, true)
+}
+
+func testAmcheckExpressionIdentity(t *testing.T, gin bool) {
 	e, _, _ := amcheckUnitRoot(t, false)
 	n := amcheckUnitExpression(t, e, true)
+	if gin {
+		enginetest.Run(t, e, "CREATE TABLE gin_keys(a integer[])")
+		enginetest.Run(t, e, "CREATE INDEX gin_i ON gin_keys USING gin(a)")
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "gin_index_check"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "gin_i"}}}}
+		node, err := b.BindFunctionProvider(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n = node.(plan.InstalledAmcheckExpr)
+	}
 	if n.Usage.Type.ID() != sqltype.Void || n.Properties().Volatility != expr.Volatile || !n.Properties().StageDependent || len(n.Children()) != 1 || n.CallRoutineReference() != n.Procedure {
 		t.Fatal(n)
 	}
@@ -48,16 +69,39 @@ func TestAmcheckExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	copy := rebuilt.(plan.InstalledAmcheckExpr)
-	if copy.Ref != n.Ref || copy.Procedure != n.Procedure || !reflect.DeepEqual(copy.Slots, n.Slots) || !copy.Parent {
+	if copy.Ref != n.Ref || copy.Procedure != n.Procedure || !reflect.DeepEqual(copy.Slots, n.Slots) || copy.Kind != n.Kind || gin && copy.Kind != functions.AmcheckGIN || !gin && copy.Kind != functions.AmcheckBtreeParent {
 		t.Fatal("rebuild lost selected identity", copy)
+	}
+	if !expr.AdmitsSource(n) || !expr.AdmitsSource(copy) || expr.IsSetSource(n) || expr.IsSetSource(copy) || expr.AdmitsSource(n.Amcheck) {
+		t.Fatal("scalar source admission lost installed wrapper authority")
 	}
 	if err := stored.ValidateInstalledAmcheck(copy, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
+	substituted, err := n.Substitute(expr.InfoOf(n), n.Children())
+	if err != nil || substituted.(plan.InstalledAmcheckExpr).Kind != n.Kind {
+		t.Fatal("substitution lost checker kind", substituted, err)
+	}
+	captured, ok, err := n.Capture(expr.CaptureFunction)
+	if err != nil || !ok || captured.Count != 1 || &captured.Args[0] != &n.Args[0] {
+		t.Fatal("capture lost written operands", captured, err)
+	}
+	retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	if err != nil || retagged.(plan.InstalledAmcheckExpr).Kind != n.Kind || retagged.(plan.InstalledAmcheckExpr).Procedure != n.Procedure {
+		t.Fatal("retag lost checker identity", retagged, err)
+	}
 	for _, mutate := range []func(*plan.InstalledAmcheckExpr){
-		func(n *plan.InstalledAmcheckExpr) { n.Parent = false },
+		func(n *plan.InstalledAmcheckExpr) { n.Kind = functions.AmcheckBtree },
+		func(n *plan.InstalledAmcheckExpr) { n.Kind = functions.AmcheckKind(255) },
 		func(n *plan.InstalledAmcheckExpr) { n.RoutineReference = nil },
 		func(n *plan.InstalledAmcheckExpr) { n.Ref.Address.ObjectID++ },
+		func(n *plan.InstalledAmcheckExpr) { n.Ref = new(ids.Domain).Ref(n.Ref.Epoch, n.Ref.Address) },
+		func(n *plan.InstalledAmcheckExpr) { n.Slots[0] = 1 },
+		func(n *plan.InstalledAmcheckExpr) { n.Args = nil },
+		func(n *plan.InstalledAmcheckExpr) {
+			boolean := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
+			n.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Null(boolean)}}
+		},
 		func(n *plan.InstalledAmcheckExpr) {
 			n.Usage.Type = e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25}).SQLType
 		},
@@ -69,7 +113,7 @@ func TestAmcheckExpressionIdentity(t *testing.T) {
 		}
 	}
 	text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), n, stored.DeparseParent{})
-	if err != nil || text == "" {
+	if err != nil || text == "" || !strings.Contains(text, "index") || !strings.Contains(text, "=>") || gin && !strings.Contains(text, "gin_index_check") {
 		t.Fatal("deparse", text, err)
 	}
 	// Existing replacement transport remints the actual selected overload and
@@ -106,7 +150,7 @@ func TestAmcheckExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	mapped := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledAmcheckExpr)
-	if mapped.Ref != remap(n.Ref) || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || n.Procedure != view.Get(n.Ref.Address) {
+	if mapped.Ref != remap(n.Ref) || mapped.Kind != n.Kind || mapped.Slots != n.Slots || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || n.Procedure != view.Get(n.Ref.Address) {
 		t.Fatal("remap lost or mutated identity", mapped)
 	}
 	if err := stored.ValidateInstalledAmcheck(mapped, e.Catalog.Read(state)); err != nil {

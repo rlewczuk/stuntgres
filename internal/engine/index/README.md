@@ -162,6 +162,17 @@ builds a binder.
   write overlays have no stored ordered tree to descend.
   Missing-heap diagnostics use the shared logical-version TID encoding; no
   physical index coordinates or LSN Detail are synthesized.
+  `CheckGin` binds the actual GIN key/class/collation generations and validates
+  retained dictionary categories, canonical payloads, strict token/posting order,
+  exact entry-to-store ownership and NonNull membership. Independently extracted
+  retained keys must find their actual dictionary postings; ordinal stamps
+  deduplicate repeated tokens without building another tree. Real private output,
+  successor and deletion authority is checked separately, never demanded in
+  committed dictionaries. Required callable outputs are consumed, not replayed.
+  Scans, extraction and searches honor cancellation. Malformed retained GIN data
+  reports XX002 `GIN posting invariant violated for index "name"` with no
+  invented physical coordinates. Physical GIN pages, links and pending-list
+  validation are not represented by this logical checker.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over

@@ -302,8 +302,9 @@ SELECT/ownership. Logical index membership and live/dead accounting are exact.
 Page/byte/tree/density metrics use the deterministic compact model in
 [the index owner contract](../internal/engine/index/README.md), not physical
 PostgreSQL page inspection.
-Installed amcheck members share one portable installation: `verify_heapam` and
-the seven scalar B-tree overloads retain distinct result shapes. Native controls
+Installed amcheck members share one portable nine-member installation:
+`verify_heapam` retains its record-set result; the seven B-tree overloads and
+`gin_index_check(regclass)` return scalar VOID. Native controls
 preserve current installed routine ACLs, including PUBLIC entries, grant options
 and grantor provenance, atomically with member identities. Held calls still
 recheck current EXECUTE authority; a captured persistent regclass literal is not

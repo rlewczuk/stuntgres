@@ -34,15 +34,19 @@ func TestAmcheckProviderManifest(t *testing.T) {
 	if err := extension.StockAmcheck.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if len(ext.Members) != 8 {
+	if len(ext.Members) != 9 {
 		t.Fatal(ext.Members)
 	}
-	wantNames := [...]string{"bt_index_check", "bt_index_check", "bt_index_check", "bt_index_parent_check", "bt_index_parent_check", "bt_index_parent_check", "bt_index_parent_check"}
-	wantSignatures := [...]catalog.ProcedureSignature{"2205", "2205,16", "2205,16,16", "2205", "2205,16", "2205,16,16", "2205,16,16,16"}
-	wantArguments := [...][4]string{{"index"}, {"index", "heapallindexed"}, {"index", "heapallindexed", "checkunique"}, {"index"}, {"index", "heapallindexed"}, {"index", "heapallindexed", "rootdescend"}, {"index", "heapallindexed", "rootdescend", "checkunique"}}
+	wantNames := [...]string{"bt_index_check", "bt_index_check", "bt_index_check", "bt_index_parent_check", "bt_index_parent_check", "bt_index_parent_check", "bt_index_parent_check", "gin_index_check"}
+	wantSignatures := [...]catalog.ProcedureSignature{"2205", "2205,16", "2205,16,16", "2205", "2205,16", "2205,16,16", "2205,16,16,16", "2205"}
+	wantArguments := [...][4]string{{"index"}, {"index", "heapallindexed"}, {"index", "heapallindexed", "checkunique"}, {"index"}, {"index", "heapallindexed"}, {"index", "heapallindexed", "rootdescend"}, {"index", "heapallindexed", "rootdescend", "checkunique"}, {"index"}}
 	for slot, address := range ext.Members[1:] {
 		p := view.MustProcedure(address)
-		if p.Name() != wantNames[slot] || p.Signature != wantSignatures[slot] || p.Result != 2278 || p.Volatility != expr.Volatile || !p.Strict || p.Installed.ReturnsSet || p.Installed.Parallel != 'r' || p.Installed.ArgumentNames != wantArguments[slot] || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
+		parallel := byte('r')
+		if slot == 7 {
+			parallel = 'u'
+		}
+		if p.Name() != wantNames[slot] || p.Signature != wantSignatures[slot] || p.Result != 2278 || p.Volatility != expr.Volatile || !p.Strict || p.Installed.ReturnsSet || p.Installed.Parallel != parallel || p.Installed.ArgumentNames != wantArguments[slot] || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
 			t.Fatal("release declaration", slot, p)
 		}
 		if !p.ACL.Explicit || len(p.ACL.Entries) != 1 || p.ACL.Entries[0] != (authorization.ACLEntry{Grantor: ext.Owner, Grantee: authorization.ACLGrantee{Role: ext.Owner}, Privileges: authorization.ExecutePrivilege}) {
@@ -63,7 +67,7 @@ func TestAmcheckProviderManifest(t *testing.T) {
 				t.Fatal("lawful B-tree ACL not replayable", acl, err)
 			}
 			record := heapACLRecord(t, metadata)
-			if len(record.Members) != 8 {
+			if len(record.Members) != 9 {
 				t.Fatal("ACL metadata lost composed members", record)
 			}
 			destination := catalog.CloneState(view.State())
@@ -92,6 +96,12 @@ func TestAmcheckProviderManifest(t *testing.T) {
 			func(p *catalog.Procedure) { p.Volatility = expr.Stable },
 			func(p *catalog.Procedure) { p.ObjectRevision = 0 },
 			func(p *catalog.Procedure) { p.Implementation = new(extension.AmcheckProvider) },
+			func(p *catalog.Procedure) { p.Origin = nil },
+			func(p *catalog.Procedure) {
+				origin := *p.Origin
+				origin.Declaration = (origin.Declaration + 1) % 9
+				p.Origin = &origin
+			},
 			func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
 			func(p *catalog.Procedure) { p.Installed.Parallel = 's' },
 			func(p *catalog.Procedure) { p.Installed.ReturnsSet = true },

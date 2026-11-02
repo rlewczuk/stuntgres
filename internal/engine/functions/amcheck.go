@@ -8,19 +8,30 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+type AmcheckKind uint8
+
+const (
+	AmcheckBtree AmcheckKind = iota
+	AmcheckBtreeParent
+	AmcheckGIN
+)
+
 // Amcheck keeps children in their written evaluation order. Slots map written
 // children to formal arguments; named calls never reorder their effects.
 type Amcheck struct {
 	expr.Info
-	Args   []expr.Expr
-	Slots  [4]uint8
-	Parent bool
+	Args  []expr.Expr
+	Slots [4]uint8
+	Kind  AmcheckKind
 }
 
 func amcheckSlots(raw parser.FunctionExpr) ([7]int, bool) {
 	labels := []string{"index", "heapallindexed", "checkunique"}
 	if raw.Name.Parts[len(raw.Name.Parts)-1].Text == "bt_index_parent_check" {
 		labels = []string{"index", "heapallindexed", "rootdescend", "checkunique"}
+	}
+	if raw.Name.Parts[len(raw.Name.Parts)-1].Text == "gin_index_check" {
+		labels = []string{"index"}
 	}
 	if len(raw.Args) < 1 || len(raw.Args) > len(labels) {
 		return [7]int{}, false
@@ -66,7 +77,14 @@ func bindAmcheck(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", "amcheck(*) specified, but amcheck is not an aggregate function", raw.Pos)
 	}
-	n := Amcheck{Args: make([]expr.Expr, len(operands)), Parent: raw.Name.Parts[len(raw.Name.Parts)-1].Text == "bt_index_parent_check"}
+	kind := AmcheckBtree
+	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
+	case "bt_index_parent_check":
+		kind = AmcheckBtreeParent
+	case "gin_index_check":
+		kind = AmcheckGIN
+	}
+	n := Amcheck{Args: make([]expr.Expr, len(operands)), Kind: kind}
 	properties := expr.Properties{Volatility: expr.Volatile, StageDependent: true}
 	for i, operand := range operands {
 		typ := sqltype.Bool
@@ -111,8 +129,14 @@ func (Amcheck) Eval(expr.Context) (sqltype.Value, error) {
 func (n Amcheck) Children() []expr.Expr { return n.Args }
 func (n Amcheck) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	maximum := 3
-	if n.Parent {
+	switch n.Kind {
+	case AmcheckBtree:
+	case AmcheckBtreeParent:
 		maximum = 4
+	case AmcheckGIN:
+		maximum = 1
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid amcheck kind")
 	}
 	if len(children) < 1 || len(children) > maximum || len(children) != len(n.Args) {
 		return nil, fmt.Errorf("stuntgres: invalid amcheck arguments")

@@ -31,6 +31,9 @@ func amcheckError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 func (c *AmcheckCapture) corrupt(kind string) error {
+	if c.Index.SQLIndex != nil && c.Index.SQLIndex.Method == catalog.GinMethod {
+		kind = "GIN posting invariant violated"
+	}
 	return amcheckError("XX002", fmt.Sprintf("%s for index \"%s\"", kind, c.Index.Name()))
 }
 func (c *AmcheckCapture) missing(row storage.RowVersion, parent bool) error {

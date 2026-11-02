@@ -1,6 +1,6 @@
 # internal/engine/core/contrib
 
-The contrib function runtimes: amcheck's B-tree checks and `verify_heapam`,
+The contrib function runtimes: amcheck's B-tree/GIN checks and `verify_heapam`,
 pageinspect's BRIN and heap attribute captures, `pgrowlocks`, pgstattuple's
 tuple, page and index statistics, tablefunc's `crosstab`, `connectby` and
 `normal_rand` validation, dblink's local SQL construction and primary-key metadata, and generic file functions. It is a leaf below
@@ -44,7 +44,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
   relation contribution wait, the TEMP footprint, the `exec.NestedSQL`
   capability, and these core-owned steps: the pgrowlocks and `verify_heapam`
   readmission fences, pgstattuple's owner cohort and its captures, amcheck's
-  maintenance-owner check (`CheckBtreeAsOwner`), the generic file authority
+  maintenance-owner checks (`CheckBtreeAsOwner`, `CheckGinAsOwner`), the generic file authority
   and the catalog inquiry snapshot.
 - `Authority` is that authorization, held by value: `Access` for the catalog,
   roles and ACL view, `Check` for privilege requirements, and the
@@ -245,9 +245,13 @@ execution run outside `Engine.Mu`.
 ### amcheck, connectby
 
 The sole `StockAmcheck` installation retains `verify_heapam` at slot zero and
-seven scalar B-tree overloads at slots one through seven. Heap verification's
-record-set source and B-tree VOID expressions retain distinct binding,
-transport, admission and runtime paths.
+seven scalar B-tree overloads at slots one through seven. The appended slot
+eight is the single STRICT volatile, parallel-unsafe GIN
+`gin_index_check(regclass)` member. Shared index capture selects method and owner
+dispatch with the expression's single `AmcheckKind`; GIN uses AccessShare on
+heap then index, never the parent B-tree check's stronger Share mode. Heap
+verification's record-set source and scalar VOID index expressions retain
+distinct binding, transport, admission and runtime paths.
 
 `connectby_runtime.go` executes raw hierarchy SQL through ordinary nested
 parse/bind/execute activation under the caller's current catalog, retained

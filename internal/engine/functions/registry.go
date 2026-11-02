@@ -168,7 +168,7 @@ var definitions = [...]Definition{
 	{Names: []string{"connectby"}, Installed: TablefuncExtension, Bind: bindConnectby},
 	{Names: []string{"crosstab", "crosstab2", "crosstab3", "crosstab4"}, Installed: TablefuncExtension, Bind: bindTablefuncCrosstab},
 	{Names: []string{"verify_heapam"}, Installed: AmcheckExtension, Bind: bindVerifyHeapam, NamedCall: namedVerifyHeapam},
-	{Names: []string{"bt_index_check", "bt_index_parent_check"}, Installed: AmcheckExtension, Bind: bindAmcheck, NamedCall: namedAmcheck},
+	{Names: []string{"bt_index_check", "bt_index_parent_check", "gin_index_check"}, Installed: AmcheckExtension, Bind: bindAmcheck, NamedCall: namedAmcheck},
 	{Names: pgcryptoNames[:], Installed: PgcryptoExtension, Bind: bindPgcrypto},
 	{Names: cubeSpatialNames[:], Installed: CubeExtension, Bind: bindCubeSpatial},
 	{Names: fuzzystrmatchNames[:], Installed: FuzzystrmatchExtension, Bind: bindFuzzystrmatch},

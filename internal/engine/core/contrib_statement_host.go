@@ -196,6 +196,10 @@ func (h *statementHost) CheckBtreeAsOwner(parent *catalog.Relation, capture inde
 	return h.scope().WithMaintenanceOwner(parent, func(evaluation *exec.Context) error { return index.CheckBtree(evaluation, capture, options) })
 }
 
+func (h *statementHost) CheckGinAsOwner(parent *catalog.Relation, capture index.AmcheckCapture) error {
+	return h.scope().WithMaintenanceOwner(parent, func(evaluation *exec.Context) error { return index.CheckGin(evaluation, capture) })
+}
+
 // GenericFileAuthority borrows current authority and the path settings in
 // Engine -> Settings -> Session order, matching setting reads.
 func (h *statementHost) GenericFileAuthority() (dataDirectory, logDirectory string, privileged bool, err error) {

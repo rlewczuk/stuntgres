@@ -33,8 +33,7 @@ func TestReferencePGInitPrivsExtensionDefaults(t *testing.T) {
 			"ALTER DEFAULT PRIVILEGES IN SCHEMA ip_hidden GRANT EXECUTE ON FUNCTIONS TO ip_other",
 			"CREATE EXTENSION amcheck SCHEMA ip_hidden")
 		ipExtensionDefaultACLs(t, p, b, true)
-		// The same supported SQL revokes every live grant in both inventories,
-		// including PostgreSQL's additional, unimplemented gin_index_check.
+		// The same supported SQL revokes every live grant across all nine members.
 		ipExec(t, p, b, b.DB, "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ip_hidden FROM ip_reader,ip_other")
 		ipExtensionDefaultACLs(t, p, b, false)
 		// Remove default-ACL dependencies independently of current procedure ACLs.
@@ -111,28 +110,25 @@ func ipExtensionDefaultRoleDependency(t *testing.T, p *fixture.Pair, b fixture.B
 	defer conn.Close()
 	defer conn.ExecContext(p.Ctx, "ROLLBACK")
 	for _, prepared := range []bool{false, true} {
-		// Isolate one supported historical reference. PostgreSQL additionally
-		// retains its released gin_index_check snapshot; it is not implemented
-		// natively and must not be fabricated. Rollback restores all membership.
+		// Isolate the single-argument B-tree and GIN historical references.
+		// Rollback restores every member and its initial ACL snapshot.
 		ipExec(t, p, b, conn, "BEGIN")
 		for _, signature := range ipAmcheck[1:] {
-			ipExec(t, p, b, conn, "ALTER EXTENSION amcheck DROP FUNCTION ip_hidden."+signature)
+			if signature != "gin_index_check(regclass)" {
+				ipExec(t, p, b, conn, "ALTER EXTENSION amcheck DROP FUNCTION ip_hidden."+signature)
+			}
 		}
-		oid := ipOID(t, p, b, "SELECT $1::regprocedure::oid", "ip_hidden."+ipAmcheck[0])
-		ipCheck(t, p, b, conn,
-			"SELECT i.objoid FROM pg_init_privs i JOIN pg_proc f ON f.oid=i.objoid JOIN pg_namespace n ON n.oid=f.pronamespace WHERE i.classoid=1255 AND n.nspname='ip_hidden' AND f.oid=$1",
-			[]string{"objoid"}, []string{"OID"}, [][]any{{oid}}, oid)
+		for _, signature := range []string{ipAmcheck[0], "gin_index_check(regclass)"} {
+			oid := ipOID(t, p, b, "SELECT $1::regprocedure::oid", "ip_hidden."+signature)
+			ipCheck(t, p, b, conn,
+				"SELECT i.objoid FROM pg_init_privs i JOIN pg_proc f ON f.oid=i.objoid JOIN pg_namespace n ON n.oid=f.pronamespace WHERE i.classoid=1255 AND n.nspname='ip_hidden' AND f.oid=$1",
+				[]string{"objoid"}, []string{"OID"}, [][]any{{oid}}, oid)
+		}
 		s := fixture.ImplicitError("DROP ROLE ip_reader", fixture.Diagnostic{
 			Code:    "2BP01",
 			Message: `role "ip_reader" cannot be dropped because some objects depend on it`,
-			Detail:  "initial privileges for function ip_hidden.bt_index_check(regclass)",
+			Detail:  "initial privileges for function ip_hidden.bt_index_check(regclass)\ninitial privileges for function ip_hidden.gin_index_check(regclass)",
 		})
-		// REL_18_6 amcheck--1.4--1.5.sql creates gin_index_check(regclass)
-		// after the B-tree declarations. pg_shdepend reports OID-ascending
-		// dependency descriptions, so this additional initial reference follows.
-		oracle := *s.Diagnostic
-		oracle.Detail += "\ninitial privileges for function ip_hidden.gin_index_check(regclass)"
-		s.PostgresDiagnostic = &oracle
 		s.Prepared, s.ErrorStage = prepared, "execute"
 		fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
 		ipExec(t, p, b, conn, "ROLLBACK")

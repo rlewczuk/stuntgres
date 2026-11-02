@@ -53,7 +53,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   exact native support1. Neither alias nor class acquires stock origin by name.
   Initial privileges are separate historical catalog records, not recipe ACLs.
   Providers call `Stage.RecordInitialPrivilege` only for genuine script ACL
-  events: amcheck's eight implemented final REVOKE declarations capture the
+  events: amcheck's nine implemented final REVOKE declarations capture the
   creator's global/schema routine defaults after selectively removing PUBLIC
   EXECUTE. Named grantees and grant options survive; owner-only EXECUTE is the
   untouched-default case. Default-NULL providers acquire no invented records.
@@ -549,23 +549,25 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   disclosure remains metadata-only through helper rename/move, detachment and
   native replay; it does not grant or require helper EXECUTE authority.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
-  provider installs eight callable members. Slot zero is `verify_heapam`, with
+  provider installs nine callable members. Slot zero is `verify_heapam`, with
   six canonical inputs and five trailing defaults, a non-STRICT volatile
   record-set result and parallel-unsafe declaration. Slots one through seven
   are the three `bt_index_check` and four `bt_index_parent_check` scalar
   overloads returning VOID, all STRICT, VOLATILE and parallel restricted.
+  Appended slot eight is only `gin_index_check(index regclass) RETURNS void`,
+  STRICT, VOLATILE and parallel unsafe; no incumbent slot is renumbered.
   Each member's creation ACL observes the actual owner's global and target-schema
   routine defaults through the normal catalog candidate. The script's selective
   PUBLIC EXECUTE revoke preserves named grants/options and records the complete
   resulting ACL even when PUBLIC was already absent. Raw NULL defaults alone
   materialize the hardwired baseline; explicit ACLs are not replaced by it.
   Ordered manifest
-  symbols and the distinct heap/B-tree identity validators preserve exact
+  symbols and the distinct heap/shared index identity validators preserve exact
   installed declaration authority through rename, move, owner transfer and
   symbolic replay. Current arbitrary installed ACLs, including grantor and
   grant-option provenance and PUBLIC entries, use the shared member codec;
   mutable names never authorize execution. No scan state is serialized.
-  After selected-lifetime and current EXECUTE admission, the B-tree host
+  After selected-lifetime and current EXECUTE admission, the shared index host
   invocation borrows the admitted catalog's canonical procedure and epoch,
   never a retained preparation epoch. This invocation-local bridge neither
   mutates the stored selection nor authorizes an otherwise stale reference.

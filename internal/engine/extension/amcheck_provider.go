@@ -29,8 +29,8 @@ func verifyHeapamDeclaration() catalog.InstalledRoutineDeclaration {
 	return catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000, Defaults: 5, Outputs: verifyHeapamOutputs}
 }
 
-// AmcheckMember is one released B-tree declaration. The installation reserves
-// slot zero for verify_heapam; these declarations occupy slots one through seven.
+// AmcheckMember is one released scalar declaration. Slots one through seven
+// remain B-tree declarations; slot eight is GIN. Slot zero is verify_heapam.
 // A mutable SQL name is not an implementation selector.
 type AmcheckMember struct {
 	Name        string
@@ -46,6 +46,7 @@ var AmcheckMembers = [...]AmcheckMember{
 	{"bt_index_parent_check", "2205,16", amcheckDeclaration("index", "heapallindexed")},
 	{"bt_index_parent_check", "2205,16,16", amcheckDeclaration("index", "heapallindexed", "rootdescend")},
 	{"bt_index_parent_check", "2205,16,16,16", amcheckDeclaration("index", "heapallindexed", "rootdescend", "checkunique")},
+	{"gin_index_check", "2205", catalog.InstalledRoutineDeclaration{Parallel: 'u', ArgumentNames: [4]string{"index"}}},
 }
 
 func amcheckDeclaration(names ...string) catalog.InstalledRoutineDeclaration {
@@ -119,7 +120,7 @@ func ValidateAmcheckIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.Ob
 	if err != nil {
 		return err
 	}
-	if symbol != "bt_index_check" && symbol != "bt_index_parent_check" {
+	if symbol != "bt_index_check" && symbol != "bt_index_parent_check" && symbol != "gin_index_check" {
 		return fmt.Errorf("stuntgres: invalid stored amcheck identity")
 	}
 	return nil
@@ -132,8 +133,18 @@ func ValidateAmcheckCall(v catalog.Read, proc *catalog.Procedure, call functions
 	if err != nil {
 		return err
 	}
+	kind := functions.AmcheckBtree
+	switch symbol {
+	case "bt_index_parent_check":
+		kind = functions.AmcheckBtreeParent
+	case "gin_index_check":
+		kind = functions.AmcheckGIN
+	case "bt_index_check":
+	default:
+		return fmt.Errorf("stuntgres: invalid installed amcheck symbol")
+	}
 	result, ok := v.LookupType(sqltype.Void)
-	if !ok || AmcheckProviderOf(proc) != StockAmcheck || symbol != "bt_index_check" && symbol != "bt_index_parent_check" || call.CallRoutineReference() != proc || call.ResultUsage().Type != result || call.Parent != (symbol == "bt_index_parent_check") {
+	if !ok || AmcheckProviderOf(proc) != StockAmcheck || call.CallRoutineReference() != proc || call.ResultUsage().Type != result || call.Kind != kind {
 		return fmt.Errorf("stuntgres: invalid installed amcheck call")
 	}
 	if _, err := call.Rebuild(expr.InfoOf(call), call.Args); err != nil {

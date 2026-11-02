@@ -86,7 +86,7 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 			}
 			record := heapACLRecord(t, metadata)
 			member := extensionOwnerDeclarationIndex(t, record, proc.Origin.Declaration)
-			if len(record.Members) != 8 || record.Members[member].ACL == nil || record.Members[member].ACL.Explicit != tc.acl.Explicit {
+			if len(record.Members) != 9 || record.Members[member].ACL == nil || record.Members[member].ACL.Explicit != tc.acl.Explicit {
 				t.Fatal("ACL distinction lost", record)
 			}
 			if tc.name == "nonowner-grantor" {

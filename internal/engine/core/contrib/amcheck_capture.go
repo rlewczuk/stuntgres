@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -34,19 +35,25 @@ func amcheckTargetIdentity(view catalog.Read, oid uint32) (*catalog.Relation, *c
 	return d, parent, nil
 }
 
-func amcheckTargetCheckable(view catalog.Read, d, parent *catalog.Relation, token ids.SessionToken) error {
+func amcheckTargetCheckable(view catalog.Read, d, parent *catalog.Relation, token ids.SessionToken, kind functions.AmcheckKind) error {
 	// A non-index has no heap identity: PostgreSQL locks the target itself
 	// before index_open rejects its kind.
 	if d.RelationKind != catalog.IndexRelation || d.SQLIndex == nil {
 		return sqlError("42809", fmt.Sprintf("\"%s\" is not an index", d.Name()))
 	}
-	if d.SQLIndex.MethodIdentity() != catalog.BtreeMethod.OID() || parent.Partition != nil {
+	expected := catalog.BtreeMethod
+	expectedName := "btree"
+	if kind == functions.AmcheckGIN {
+		expected = catalog.GinMethod
+		expectedName = "gin"
+	}
+	if d.SQLIndex.MethodIdentity() != expected.OID() || parent.Partition != nil {
 		am, ok := view.AccessMethod(d.SQLIndex.MethodIdentity())
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
 		method := am.Name()
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "expected \"btree\" index as targets for verification", Detail: fmt.Sprintf("Relation \"%s\" is a %s index.", d.Name(), method)}
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("expected \"%s\" index as targets for verification", expectedName), Detail: fmt.Sprintf("Relation \"%s\" is a %s index.", d.Name(), method)}
 	}
 	if ns, ok := view.Namespace(parent.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions", Detail: fmt.Sprintf("Index \"%s\" is associated with temporary relation.", d.Name())}
@@ -57,7 +64,7 @@ func amcheckTargetCheckable(view catalog.Read, d, parent *catalog.Relation, toke
 	return nil
 }
 
-// Amcheck runs bt_index_check or bt_index_parent_check on the index oid.
+// Amcheck runs the selected installed index checker on the index oid.
 func Amcheck[A Authority](h Host[A], n plan.InstalledAmcheckExpr, oid uint32, flags [3]bool) (err error) {
 	if err := h.Active(); err != nil {
 		return err
@@ -88,7 +95,7 @@ func Amcheck[A Authority](h Host[A], n plan.InstalledAmcheckExpr, oid uint32, fl
 		heapRef = h.CatalogDomain().Ref(auth.Access().Catalog.Epoch(), parent.Address())
 	}
 	mode := lock.AccessShare
-	if n.Parent {
+	if n.Kind == functions.AmcheckBtreeParent {
 		mode = lock.Share
 	}
 	acquire := func(ref ids.ObjectRef, contribution *lock.RelationContribution) error {
@@ -139,13 +146,18 @@ func Amcheck[A Authority](h Host[A], n plan.InstalledAmcheckExpr, oid uint32, fl
 	if err != nil {
 		return err
 	}
-	options := index.AmcheckOptions{Parent: n.Parent, HeapAllIndexed: flags[0]}
-	if n.Parent {
-		options.RootDescend, options.CheckUnique = flags[1], flags[2]
+	if n.Kind == functions.AmcheckGIN {
+		err = h.CheckGinAsOwner(parent, capture)
 	} else {
-		options.CheckUnique = flags[1]
+		options := index.AmcheckOptions{Parent: n.Kind == functions.AmcheckBtreeParent, HeapAllIndexed: flags[0]}
+		if options.Parent {
+			options.RootDescend, options.CheckUnique = flags[1], flags[2]
+		} else {
+			options.CheckUnique = flags[1]
+		}
+		err = h.CheckBtreeAsOwner(parent, capture, options)
 	}
-	if err := h.CheckBtreeAsOwner(parent, capture, options); err != nil {
+	if err != nil {
 		return err
 	}
 	h.ReacquireEngine()
@@ -174,7 +186,7 @@ func amcheckReadmitLocked[A Authority](h Host[A], n plan.InstalledAmcheckExpr, r
 		return err
 	}
 	if checkable {
-		return amcheckTargetCheckable(view, target, parent, h.Operation().Session.SessionToken)
+		return amcheckTargetCheckable(view, target, parent, h.Operation().Session.SessionToken, n.Kind)
 	}
 	return nil
 }

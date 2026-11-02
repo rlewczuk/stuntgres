@@ -119,7 +119,7 @@ func TestPGInitPrivsProviderDefaults(t *testing.T) {
 		}
 		count++
 	}
-	if count != 8 || !slices.Equal(globalRecord.ACL.Entries, globalEntries) || !slices.Equal(scopedRecord.ACL.Entries, scopedEntries) {
+	if count != 9 || !slices.Equal(globalRecord.ACL.Entries, globalEntries) || !slices.Equal(scopedRecord.ACL.Entries, scopedEntries) {
 		t.Fatal("provider inventory/default ACL backing changed", count)
 	}
 	run("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ip_defaults FROM ip_default_reader")
@@ -129,7 +129,7 @@ func TestPGInitPrivsProviderDefaults(t *testing.T) {
 	}
 	var dependencies []access.RoleDependency
 	access.InitialRoleDependencies(e.CatalogRead(), reader.Ref, &dependencies)
-	if len(dependencies) != 8 {
+	if len(dependencies) != 9 {
 		t.Fatal("captured default grantee lost historical dependencies", dependencies)
 	}
 	for _, address := range ext.Members {
@@ -173,7 +173,7 @@ func TestPGInitPrivsProviderDefaultEdges(t *testing.T) {
 			}
 			count++
 		}
-		if count != 8 {
+		if count != 9 {
 			t.Fatal("wrong supported script event count", count)
 		}
 	})
@@ -240,7 +240,7 @@ func TestPGInitPrivsProviderDefaultPublication(t *testing.T) {
 			}
 			extAddress := stage.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"})
 			ext := stage.State().MustExtension(extAddress)
-			if len(ext.Members) != 8 || stage.InitialPrivilegeCount() != 8 {
+			if len(ext.Members) != 9 || stage.InitialPrivilegeCount() != 9 {
 				t.Fatal("race contender was not a complete installation", len(ext.Members), stage.InitialPrivilegeCount())
 			}
 			pending, err := e.ValidateCatalogStage(op.Context(), stage)
@@ -314,7 +314,7 @@ func pgInitPrivsProviderDefaultExplicitEmpty(t *testing.T) {
 	extensionUnitPublish(t, e, op, stage)
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"}))
-	if len(ext.Members) != 8 {
+	if len(ext.Members) != 9 {
 		t.Fatal("explicit empty defaults changed installed membership", len(ext.Members))
 	}
 	for _, address := range ext.Members {

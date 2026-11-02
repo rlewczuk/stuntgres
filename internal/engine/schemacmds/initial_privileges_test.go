@@ -166,7 +166,7 @@ func TestPGInitPrivsProviderEvents(t *testing.T) {
 		}
 		count++
 	}
-	if count != 8 {
+	if count != 9 {
 		t.Fatal("wrong implemented amcheck inventory", count)
 	}
 	enginetest.Run(t, e, "ALTER EXTENSION amcheck UPDATE TO '1.5'")

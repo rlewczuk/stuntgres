@@ -257,7 +257,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 		{IntaggExtension, "int_array_aggregate int_array_enum"},
 		{PgrowlocksExtension, "pgrowlocks"},
 		{TablefuncExtension, "normal_rand connectby crosstab crosstab2 crosstab3 crosstab4"},
-		{AmcheckExtension, "bt_index_check bt_index_parent_check verify_heapam"},
+		{AmcheckExtension, "bt_index_check bt_index_parent_check gin_index_check verify_heapam"},
 		{CubeExtension, "cube cube_dim cube_is_point cube_ll_coord cube_ur_coord cube_coord cube_coord_llur cube_subset cube_union cube_inter cube_enlarge cube_overlap cube_contains cube_contained cube_distance distance_taxicab distance_chebyshev"},
 		{EarthdistanceExtension, "earth sec_to_gc gc_to_sec ll_to_earth latitude longitude geo_distance"},
 		{PageinspectExtension, "brin_page_type brin_metapage_info brin_revmap_data brin_page_items bt_page_items fsm_page_contents gin_metapage_info gin_page_opaque_info gin_leafpage_items page_header page_checksum hash_page_type hash_page_stats hash_page_items hash_metapage_info heap_page_items heap_tuple_infomask_flags tuple_data_split heap_page_item_attrs"},

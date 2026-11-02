@@ -5,7 +5,7 @@ METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/GIN/BRIN/bloom
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX`,
-exclusion constraints (including GiST), and installed amcheck heap and B-tree
+exclusion constraints (including GiST), and installed amcheck heap, B-tree and GIN
 verification. Related families: partitioned-index and partitioned-exclusion
 hierarchies in `reference/partitions`; ALTER TABLE ADD
 CONSTRAINT in `reference/alter`.
@@ -65,7 +65,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- Installed B-tree verification: `RUN='^TestReferenceAmcheck'`; corrupt actual
+- Installed heap/B-tree/GIN verification: `RUN='^TestReferenceAmcheck'`; corrupt actual
   roots/private outputs and invocation internals use `RUN='^TestAmcheck'` in the
   owning engine packages. Public witnesses use real maintained indexes, exact
   scalar diagnostics, scoped locks and native controls, not a SQL corruption API.
@@ -81,6 +81,21 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   The current pinned oracle is PostgreSQL 18.6. Initial restricted search-path
   behavior is covered natively through the invocation seam: the public SQL
   surface does not provide the required custom comparison callback recipe.
+  The GIN family (`RUN='^TestReferenceAmcheckGIN'`) covers the slot-eight
+  declaration, typed NULL/VOID and occurrence bags, maintained array/tsvector
+  dictionaries, full diagnostics, EXECUTE/default ACL provenance, real queue
+  admission/cancellation and stored-expression control replay. Native
+  `RUN='^TestAmcheckGIN'` owner proofs inspect exact typed posting identities,
+  damage retained structures, and assert immutable private/capture authority.
+  The physical failed-concurrent-partial-build phase is PostgreSQL-only:
+  native concurrent partial DDL does not retain that representation. Native
+  `TestAmcheckGINTargetDiagnostics` instead publishes an actual retained-invalid
+  GIN descriptor and checks the installed common admission diagnostic, unchanged
+  retained data and healthy recovery. Both backends still check the subsequent
+  healthy partial index. Installation-default ACL replay removes the independent
+  default declaration only after proving its installed member grants, then
+  rechecks grantors, initial ACLs and executable authority across real native
+  Dump/Reset/Restore.
 
 - <a id="access-method-definitions"></a>Access-method definitions: `RUN='^TestReferenceAccessMethod'`
 - <a id="operator-class-definitions"></a>Operator classes: `RUN='^TestReferenceOperatorClass'`

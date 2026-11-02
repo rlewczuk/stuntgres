@@ -115,6 +115,7 @@ type Host[A Authority] interface {
 	// CheckBtreeAsOwner runs the B-tree checks in parent's restricted
 	// maintenance-owner environment.
 	CheckBtreeAsOwner(parent *catalog.Relation, capture index.AmcheckCapture, options index.AmcheckOptions) error
+	CheckGinAsOwner(parent *catalog.Relation, capture index.AmcheckCapture) error
 	// GenericFileAuthority is the routine principal's pg_read_server_files
 	// membership and the data and log directories, after settings admission.
 	GenericFileAuthority() (dataDirectory, logDirectory string, privileged bool, err error)

@@ -21,7 +21,7 @@ func TestReferencePGInitPrivsNoPhantoms(t *testing.T) {
 	})
 }
 
-var ipAmcheck = []string{"bt_index_check(regclass)", "bt_index_check(regclass,boolean)", "bt_index_check(regclass,boolean,boolean)", "bt_index_parent_check(regclass)", "bt_index_parent_check(regclass,boolean)", "bt_index_parent_check(regclass,boolean,boolean)", "bt_index_parent_check(regclass,boolean,boolean,boolean)", "verify_heapam(regclass,boolean,boolean,text,bigint,bigint)"}
+var ipAmcheck = []string{"bt_index_check(regclass)", "bt_index_check(regclass,boolean)", "bt_index_check(regclass,boolean,boolean)", "bt_index_parent_check(regclass)", "bt_index_parent_check(regclass,boolean)", "bt_index_parent_check(regclass,boolean,boolean)", "bt_index_parent_check(regclass,boolean,boolean,boolean)", "verify_heapam(regclass,boolean,boolean,text,bigint,bigint)", "gin_index_check(regclass)"}
 
 func ipAmcheckACLs(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()

@@ -34,7 +34,7 @@ func TestReferenceAmcheckHeapContract(t *testing.T) {
 					[]string{"proargtypes", "proallargtypes", "proargmodes", "proargnames", "pronargdefaults", "proretset", "prosecdef"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "INT2", "BOOL", "BOOL"},
 					[][]any{{"2205 16 16 25 20 20", "{2205,16,16,25,20,20,20,23,23,25}", "{i,i,i,i,i,i,o,o,o,o}", "{relation,on_error_stop,check_toast,skip,startblock,endblock,blkno,offnum,attnum,msg}", int64(5), true, false}}))
 			} else {
-				heapBoth(t, p, b, c, fixture.Select(`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e' JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid WHERE e.extname='amcheck' ORDER BY p.proname,p.pronargs`, []string{"proname"}, []string{"NAME"}, [][]any{{"bt_index_check"}, {"bt_index_check"}, {"bt_index_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"verify_heapam"}}))
+				heapBoth(t, p, b, c, fixture.Select(`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e' JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid WHERE e.extname='amcheck' ORDER BY p.proname,p.pronargs`, []string{"proname"}, []string{"NAME"}, [][]any{{"bt_index_check"}, {"bt_index_check"}, {"bt_index_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"bt_index_parent_check"}, {"gin_index_check"}, {"verify_heapam"}}))
 				for _, name := range []string{"bt_index_check_internal"} {
 					heapBoth(t, p, b, c, fixture.Select("SELECT proname FROM pg_proc WHERE proname=$1", []string{"proname"}, []string{"NAME"}, nil, name))
 				}

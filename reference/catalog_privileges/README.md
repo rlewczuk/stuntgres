@@ -99,12 +99,17 @@ membership/column cleanup, unfiltered inventory with catalog authorization,
 transaction/savepoint publication, historical role dependencies and native
 Reset/Dump/Restore with destination remapping. Native control phases use only
 unwrapped public pools; PostgreSQL phases exercise the shared SQL behavior.
+The amcheck census includes all nine members: `verify_heapam`, seven B-tree
+overloads and `gin_index_check(regclass)`. Initial ACL, update, transaction and
+native control scenarios retain the full inventory.
 `TestReferencePGInitPrivsExtensionDefaults` separately composes global routine
 default grants/options with schema-specific defaults during amcheck installation:
 its selective PUBLIC revoke preserves named grantees in both current and initial
 ACLs. Later current/default revocation leaves historical dependencies and native
-round-trip values intact. Owner-only amcheck expectations apply to untouched
-defaults, not to installations with configured named grantees.
+round-trip values intact. Its isolated role-dependency diagnostic retains both
+the single-argument B-tree and GIN initial grants, identically on both backends.
+Owner-only amcheck expectations apply to untouched defaults, not to installations
+with configured named grantees.
 Run each selected group in native mode and with `REFERENCE=1`, for example
 `make check RUN='^TestReferencePGInitPrivs(Shape|Bootstrap|Diagnostics)$'`.
 The permanent feature smoke is `make check RUN='^TestReferencePGInitPrivsSmoke$'`.

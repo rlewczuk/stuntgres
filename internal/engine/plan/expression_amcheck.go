@@ -27,6 +27,16 @@ func (n InstalledAmcheckExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	return runtime.EvalAmcheck(n)
 }
+
+func (InstalledAmcheckExpr) SourceAdmission() (bool, bool) { return true, false }
+
+func (n InstalledAmcheckExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+	value, err := n.Eval(ctx)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return expr.ScalarSource(value), nil
+}
 func (n InstalledAmcheckExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	call, err := n.Amcheck.Rebuild(info, children)
 	if err != nil {

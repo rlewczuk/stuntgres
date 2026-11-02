@@ -930,14 +930,21 @@ reviewed decision:
   statement-level snapshot demand; none captures eagerly.
 - `InstalledRoutine`: an opaque handle to an `Extension`'s installed routine;
   `Attach` returns the engine-authenticated call (installation is engine state).
-  `Amcheck` binds the seven installed B-tree scalar signatures through this
-  same handle. Its lexical children remain in written order with checked
+  `Amcheck` binds the seven installed B-tree scalar signatures and single GIN
+  signature through this same handle. One `AmcheckKind` selects basic B-tree,
+  parent B-tree or GIN; rebuild rejects unknown kinds and GIN accepts only its
+  single REGCLASS formal. Its lexical children remain in written order with checked
   written-to-formal slots; the plan wrapper, never the bare kernel, owns
   execution identity and the statement-host invocation.
-  Both heap and B-tree binders reuse the existing `AmcheckExtension` family:
+  Heap, B-tree and GIN binders reuse the existing `AmcheckExtension` family:
   `VerifyHeapam` retains its non-STRICT record-set shape and defaults, while
   `Amcheck` remains STRICT scalar VOID. Provider membership alone does not
   classify every amcheck call as set-returning.
+  Only the authenticated `InstalledAmcheckExpr` wrapper admits these index
+  checkers as scalar FROM sources. Its source opener invokes the same installed
+  evaluator and emits one VOID value through the existing scalar-once cursor,
+  including a present typed NULL row for a strict NULL argument; the bare
+  `Amcheck` kernel has no source admission.
   `PgstattupleStats` binds the selected B-tree text/regclass or hash regclass
   declaration through the shared callable selector, named `relname` mapping and
   ordinary coercions. Its authenticated operation owns the ten-field B-tree or
