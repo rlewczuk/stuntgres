@@ -28,7 +28,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		}
 	case *parser.Comment:
 		switch s.Kind {
-		case parser.CommentTable, parser.CommentView, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable, parser.CommentExtension:
+		case parser.CommentTable, parser.CommentView, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable, parser.CommentExtension, parser.CommentTextSearchDictionary:
 			return "COMMENT", true
 		default:
 			return "COMMENT", false

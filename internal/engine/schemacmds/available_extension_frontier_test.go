@@ -96,6 +96,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"cube":               {"cube", "1.5", nil, "data type for multidimensional cubes"},
 					"dblink":             {"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"},
 					"dict_int":           {"dict_int", "1.0", nil, "text search dictionary template for integers"},
+					"dict_xsyn":          {"dict_xsyn", "1.0", nil, "text search dictionary template for extended synonym processing"},
 					"earthdistance":      {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
 					"hstore":             {"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"},
 					"unaccent":           {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
@@ -131,6 +132,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 					expected["dblink"] = []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}
 					expected["dict_int"] = []any{"dict_int", "1.0", false, true, true, true, nil, nil, "text search dictionary template for integers"}
+					expected["dict_xsyn"] = []any{"dict_xsyn", "1.0", false, true, false, true, nil, nil, "text search dictionary template for extended synonym processing"}
 					expected["earthdistance"] = []any{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}
 					expected["hstore"] = []any{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}
 					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}

@@ -196,7 +196,7 @@ func (e *Engine) StatementAuthorizationLocked(op *session.Operation, stmt parser
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}
 		switch comment.Kind {
-		case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentExtension:
+		case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentExtension, parser.CommentTextSearchDictionary:
 		default:
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}

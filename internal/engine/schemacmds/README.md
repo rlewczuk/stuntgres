@@ -114,8 +114,12 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   retirement path. Creation and identity alteration apply ownerless-template
   authority; DROP also admits the containing schema's owner. Callback lookup
   records actual procedure inputs in the publication fences.
-- `ExecuteComment` stages the comment (the locked-relation check, the
-  private role record installation or object stage) and publishes it.
+- `ExecuteComment` stages the comment (the locked-relation check, the private
+  role record installation or object stage) and publishes it. Dictionary targets
+  use the ordinary captured dictionary namespace search, then the shared role
+  owner/schema-USAGE checks and immutable descriptor replacement.
+  Dictionary COMMENT lookup uses a copied semantic name without expression
+  locations, retaining the original parsed name for utility ownership diagnostics.
 - `ExecuteSecurityLabel` owns zero-argument validation, the mutex and fresh
   operation authority capture around `ddl.SecurityLabel`. All supported target
   kinds fail provider selection before target lookup or ownership, without

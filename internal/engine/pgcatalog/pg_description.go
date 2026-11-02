@@ -113,6 +113,10 @@ func DescriptorComment(d catalog.Descriptor, sub int32) string {
 		if sub == 0 {
 			return d.Comment
 		}
+	case *catalog.TSDictionary:
+		if sub == 0 {
+			return d.Comment
+		}
 	case *catalog.Relation:
 		if sub == 0 {
 			return d.Comment

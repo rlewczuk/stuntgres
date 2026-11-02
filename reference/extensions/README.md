@@ -193,6 +193,12 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   consumers, genuine configuration/GiST queries, mutable installed identities
   and native control phases. PostgreSQL replays actual native-emitted SQL;
   physical index implementation and native C loading are not test substitutes.
+- Extended synonym dictionary scenarios use `RUN='^TestReferenceDictXsyn'` in
+  both modes. `dict_xsyn_fixture_test.go` owns scenario cleanup and reuses the
+  shared rich lexeme metadata/raw-carrier assertions. Independent group/options,
+  diagnostic and identity expectations feed direct/held consumers and genuine
+  configuration queries. Native controls preserve ordinary and installed state,
+  including comment removal, and PostgreSQL replays actual native-emitted SQL.
 - Conversion helpers (`conversion_helpers_test.go`) own scenario setup, registered
   handler declarations, metadata and real byte assertions. `conversionHideSeed`
   registers repair before moving a default; owner-transaction assertions use the

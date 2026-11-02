@@ -1337,6 +1337,16 @@ publication and lock-manager tickets stay in the engine.
   Compilation, sorting and lookup check cancellation; malformed UTF8 reports the
   actual resource and line before any runtime is published. Results own their
   lexeme slices and share only immutable strings.
+  `XsynDictionary` compiles bundled `.rules` into immutable ordered group outputs
+  and a sorted whole-token-to-group table. It lowercases with C semantics and
+  retains the released word-boundary/comment grammar; it neither tokenizes input
+  nor treats quotes/stars as special syntax. Recognition settings select lookup
+  keys, independently of the keep settings that select output terms. Recognized
+  empty output consumes a token; a miss remains unrecognized for later mappings.
+  Results own lexeme slices with zero variants/no prefix flags. Compilation,
+  sorting and lookup check cancellation and retain no file/session handles or
+  mutable cache. The authentic `xsyn_sample.rules` and other bundled `.rules`
+  are selected by ordinary basenames, not a sample-only dispatch or host path.
   `IspellCompiler` consumes explicit immutable `DictionaryFiles` during detached
   initialization: legacy/MySpell
   affixes, default/long/numeric flags, aliases and conditions become dictionary
@@ -1646,6 +1656,7 @@ make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resourc
 make check RUN='^TestDictInt'  # immutable integer kernel and composed provider lifecycle
 make check RUN='^TestSnowball'  # released language rules, provider/resources and lifetime ownership
 make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes
+make check RUN='^TestXsynDictionary'  # immutable extended-synonym groups, resources and options
 make check RUN='^TestIspell'  # explicit dictionary readers, conditions, morphology, compounds and cancellation
 make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers

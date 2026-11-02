@@ -1113,6 +1113,9 @@ catalog writes or bypass a provider's independent backing-source checks.
 - `pg_description` projects immutable local descriptor comments. Extension text
   contributes exactly its header OID, class 3079 and subobject zero; absence
   produces no row and never contributes to `pg_shdescription`.
+  Text-search dictionary text contributes its genuine dictionary OID, class 3600
+  and subobject zero; removing text removes the row and class-qualified inquiry
+  returns NULL. No template or helper comments are inferred from membership.
 - `pg_am`: live global method descriptors with owned typed cells per capture;
   family→method and method→handler dependencies use shared selectors, and
   references to pinned stock handlers are suppressed, not fabricated.

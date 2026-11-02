@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // accessFixture is one engine's catalog owner with a seeded role root, a
@@ -304,5 +305,44 @@ func TestInstalledNonGrantClassPrivileges(t *testing.T) {
 		if acl.Explicit || len(acl.Entries) != 0 || columns != nil {
 			t.Fatal("non-GRANT class acquired ACL storage", descriptor.Kind())
 		}
+	}
+}
+
+func TestViewDictionaryOwnerDenial(t *testing.T) {
+	f := newAccessFixture(t)
+	dictionary := &catalog.TSDictionary{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 42000},
+		ObjectNamespace: f.public.Address(), ObjectRevision: 1,
+		ObjectName: "dictionary_owner", Owner: f.bootstrap,
+	}
+	f.read.State().SetDescriptor(dictionary.Address(), dictionary)
+	f.read.State().BindName(catalog.DescriptorNameKey(dictionary), dictionary.Address())
+	env := countingEnvironment{calls: new(int)}
+	owner := f.view(t, "postgres")
+	if err := owner.Check(env, Requirement{Object: owner.Ref(dictionary.Address()), OwnerOnly: true}); err != nil {
+		t.Fatal("actual dictionary owner denied", err)
+	}
+	reader := f.view(t, "pg_monitor")
+	err := reader.Check(env, Requirement{Object: reader.Ref(dictionary.Address()), OwnerOnly: true})
+	diagnostic, ok := err.(interface{ SQLState() string })
+	if !ok || diagnostic.SQLState() != "42501" || err.Error() != "stuntgres: must be owner of text search dictionary dictionary_owner" {
+		t.Fatal("dictionary ownership denial lost its canonical object kind", err)
+	}
+	empty := parser.ObjectName{}
+	err = reader.Check(env, Requirement{Object: reader.Ref(dictionary.Address()), OwnerOnly: true, OwnerName: &empty})
+	diagnostic, ok = err.(interface{ SQLState() string })
+	if !ok || diagnostic.SQLState() != "42501" || err.Error() != "stuntgres: must be owner of text search dictionary dictionary_owner" {
+		t.Fatal("empty utility name changed canonical ownership diagnostics", err)
+	}
+	supplied := parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "dictionary_owner"}}}
+	requirement := Requirement{Object: reader.Ref(dictionary.Address()), OwnerOnly: true, OwnerName: &supplied}
+	err = reader.Check(env, requirement)
+	diagnostic, ok = err.(interface{ SQLState() string })
+	if !ok || diagnostic.SQLState() != "42501" || err.Error() != "stuntgres: must be owner of text search dictionary public.dictionary_owner" {
+		t.Fatal("utility ownership denial lost its supplied semantic name", err)
+	}
+	requirement.Object = owner.Ref(dictionary.Address())
+	if err := owner.Check(env, requirement); err != nil {
+		t.Fatal("diagnostic context changed owner authority", err)
 	}
 }

@@ -16,6 +16,11 @@ func DictIntProviderOf(d *catalog.Procedure) *DictIntProvider {
 	return p
 }
 
+func DictXsynProviderOf(d *catalog.Procedure) *DictXsynProvider {
+	p, _ := d.Implementation.(*DictXsynProvider)
+	return p
+}
+
 func HstoreProviderOf(d *catalog.Procedure) *HstoreProvider {
 	p, _ := d.Implementation.(*HstoreProvider)
 	return p
@@ -97,5 +102,15 @@ func DictIntTemplateProviderOf(d *catalog.TSTemplate) *DictIntProvider {
 
 func DictIntDictionaryProviderOf(d *catalog.TSDictionary) *DictIntProvider {
 	p, _ := d.Implementation.(*DictIntProvider)
+	return p
+}
+
+func DictXsynTemplateProviderOf(d *catalog.TSTemplate) *DictXsynProvider {
+	p, _ := d.Implementation.(*DictXsynProvider)
+	return p
+}
+
+func DictXsynDictionaryProviderOf(d *catalog.TSDictionary) *DictXsynProvider {
+	p, _ := d.Implementation.(*DictXsynProvider)
 	return p
 }

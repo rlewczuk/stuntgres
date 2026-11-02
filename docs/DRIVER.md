@@ -419,6 +419,12 @@ preserving current names, placement, owners, ACLs, dictionary options and mappin
 ordinary Snowball dictionaries still replay as genuine CREATE declarations.
 Database-system pins remain independent of membership and prohibit fixed simple/parser
 seed DROP. Allocated Snowball identities instead retain ordinary dependencies.
+Installed xsyn helpers/template/dictionary retain genuine released identity
+through rename, relocation, detachment and native replay. Ordered settings,
+absence of rules, dictionary comments and stored REGDICTIONARY references
+survive replacement; initialization recompiles the destination's bundled `.rules`
+bytes. These resources replace PostgreSQL's share-file acquisition only: no OS
+path, shared-library handle or new host registration API is involved.
 
 The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 

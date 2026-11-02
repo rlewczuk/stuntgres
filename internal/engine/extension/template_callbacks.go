@@ -54,6 +54,11 @@ func validateTemplate(v catalog.Read, d *catalog.TSTemplate) error {
 		if DictIntTemplateProviderOf(d) != StockDictInt || StockDictInt.Versions().InstallPath(installation.Version) == nil {
 			return InvalidProviderDescriptor()
 		}
+	case StockDictXsyn:
+		templateSlot, helperSlot, members = 2, 0, 4
+		if DictXsynTemplateProviderOf(d) != StockDictXsyn || StockDictXsyn.Versions().InstallPath(installation.Version) == nil {
+			return InvalidProviderDescriptor()
+		}
 	default:
 		return InvalidProviderDescriptor()
 	}
@@ -118,6 +123,13 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 			return 0
 		}
 		return 7
+	}
+	if DictXsynProviderOf(init) == StockDictXsyn && DictXsynProviderOf(lexize) == StockDictXsyn {
+		installation, ok := catalog.OriginInstallation(init)
+		if !ok || !catalog.SameInstallation(lexize, installation) || init.Origin.Declaration != 0 || lexize.Origin.Declaration != 1 {
+			return 0
+		}
+		return 8
 	}
 	if UnaccentProviderOf(init) != StockUnaccent || UnaccentProviderOf(lexize) != StockUnaccent {
 		return 0

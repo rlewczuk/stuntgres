@@ -446,8 +446,10 @@ neither owns catalog authority.
   the complete released declaration, including formal names and intrinsic body,
   handler/support and dependency payloads; an e link or copied origin grants no ABI.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
-  dictionaries hold ordered decoded immutable options, actual owner/template and
-  a catalog-free `DictionaryRuntime`. Its invocation-owned `fts.LexicalResult`
+  dictionaries hold ordered decoded immutable options, actual owner/template,
+  comment metadata and a catalog-free `DictionaryRuntime`. Comments are empty
+  when absent and remain independent of runtime/options/provider origin through
+  metadata replacement and remapping. Its invocation-owned `fts.LexicalResult`
   distinguishes unrecognized tokens from recognized-empty stopwords and retains
   prefix/variant metadata without SQL descriptors. Runtime authority is separate
   from genuine extension membership; bootstrap simple and Snowball are not extensions.

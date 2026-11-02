@@ -56,6 +56,8 @@ func CommentText(view catalog.Read, roles authorization.Read, kind functions.Com
 				class = ids.NamespaceClassID
 			case "pg_type":
 				class = ids.TypeClassID
+			case "pg_ts_dict":
+				class = ids.TSDictionaryClassID
 			}
 			if class != 0 {
 				text = pgcatalog.DescriptorComment(view.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}), 0)

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // View is the immutable captured authorization pair: a catalog read
@@ -53,7 +54,8 @@ type Requirement struct {
 	Object     ids.ObjectRef
 	Privileges authorization.Privileges
 	OwnerOnly  bool
-	OwnerNoun  string // Utility diagnostic context; never changes authority.
+	OwnerNoun  string             // Utility diagnostic context; never changes authority.
+	OwnerName  *parser.ObjectName // Borrowed only during Check; diagnostic context, never authority.
 }
 
 // Stamp identifies a captured view: its catalog epoch, the role
@@ -347,6 +349,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "schema"
 		} else if d.Kind() == ids.ExtensionObject {
 			kind = "extension"
+		} else if d.Kind() == ids.TSDictionaryObject {
+			kind = "text search dictionary"
 		} else if d.Kind() == ids.CollationObject {
 			kind = "collation"
 		} else if d.Kind() == ids.ConversionObject {
@@ -398,6 +402,9 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = req.OwnerNoun
 		}
 		name := d.Name()
+		if req.OwnerName != nil && len(req.OwnerName.Parts) != 0 {
+			name = catalog.ObjectNameText(*req.OwnerName)
+		}
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, name))
 	}
 	mask := ClassPrivileges(d)

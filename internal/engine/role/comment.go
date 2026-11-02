@@ -43,11 +43,10 @@ func PlanRoleComment(view access.View, name, text string) (*access.RoleRecord, e
 }
 
 // PlanObjectComment decides COMMENT ON a supported local object: it resolves
-// the target (relations through locked), checks schema USAGE where applicable
-// and ownership, and returns the target's descriptor with the comment set to text
-// (empty removes it) and a new revision from revision. domain mints the
-// references; the engine stages and publishes the result.
-func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, locked ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error), target *ids.ObjectAddress) (catalog.Descriptor, error) {
+// the target (relations and dictionaries through resolved), checks schema USAGE
+// where applicable and ownership, and returns an immutable replacement with a
+// new revision. domain mints references; the engine stages and publishes it.
+func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, resolved ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error), target *ids.ObjectAddress) (catalog.Descriptor, error) {
 	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
@@ -62,8 +61,17 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 			return nil, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Name.Parts[0].Text))
 		}
 		ref = domain.Ref(view.Catalog.Epoch(), a)
+	case parser.CommentTextSearchDictionary:
+		ref = resolved
+		dictionary, ok := view.Catalog.TSDictionary(ref.Address)
+		if ref.Domain() == nil || !ok {
+			return nil, fmt.Errorf("stuntgres: COMMENT dictionary reference is missing")
+		}
+		if err := view.CanUse(env, domain.Ref(ref.Epoch, dictionary.Namespace())); err != nil {
+			return nil, err
+		}
 	case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn:
-		ref = locked
+		ref = resolved
 		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
 		}
@@ -104,7 +112,13 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 	default:
 		return nil, sqlError("0A000", "COMMENT object kind is unsupported")
 	}
-	if err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	requirement := access.Requirement{Object: ref, OwnerOnly: true}
+	if s.Kind == parser.CommentTextSearchDictionary {
+		// Released object-address ownership reports the supplied name list,
+		// independently of the resolved descriptor's canonical local name.
+		requirement.OwnerName = &s.Name
+	}
+	if err := view.Check(env, requirement); err != nil {
 		return nil, err
 	}
 	a := ref.Address
@@ -121,6 +135,11 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		n.ObjectRevision = stamp
 		updated = &n
 	case *catalog.Namespace:
+		n := *d
+		n.Comment = text
+		n.ObjectRevision = stamp
+		updated = &n
+	case *catalog.TSDictionary:
 		n := *d
 		n.Comment = text
 		n.ObjectRevision = stamp

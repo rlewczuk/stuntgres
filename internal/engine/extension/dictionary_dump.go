@@ -40,10 +40,14 @@ func DictionaryDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 	if len(options) > 0 {
 		text += ", " + catalog.DictionaryOptionsText(options)
 	}
+	following := "ALTER TEXT SEARCH DICTIONARY " + qualified(d) + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
+	if d.Comment != "" {
+		following += "COMMENT ON TEXT SEARCH DICTIONARY " + qualified(d) + " IS " + dump.CommentLiteral(d.Comment) + ";\n"
+	}
 	return dump.Statement{
 		Owner:              owner.Name,
 		SQL:                text + ");\n",
-		FollowingSQL:       "ALTER TEXT SEARCH DICTIONARY " + qualified(d) + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n",
+		FollowingSQL:       following,
 		PrivilegedCreation: true,
 	}, nil
 }

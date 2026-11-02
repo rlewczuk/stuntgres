@@ -36,6 +36,17 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 		return nil, dictionaryError("42601", fmt.Sprintf(`text search template "%s" does not accept options`, template.Name()))
 	}
 	capability := dictionaryCapability(view, template)
+	if capability == 8 {
+		settings, err := xsynDictionaryOptions(options)
+		if err != nil {
+			return nil, err
+		}
+		runtime, err := settings.compile(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return runtime, nil
+	}
 	if capability == 7 {
 		maxlen, rejectlong, absval, err := intDictionaryOptions(options)
 		if err != nil {
@@ -257,6 +268,18 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		if d.Implementation != nil || d.Origin != nil {
 			installation, installed := catalog.OriginInstallation(d)
 			if !installed || DictIntDictionaryProviderOf(d) != StockDictInt || d.Origin.Declaration != 3 || installation.Implementation != StockDictInt || !catalog.SameInstallation(template, installation) {
+				return InvalidProviderDescriptor()
+			}
+		}
+	} else if capability == 8 {
+		runtime, ok := d.Runtime.(*functions.XsynDictionary)
+		settings, err := xsynDictionaryOptions(d.Options)
+		if !ok || err != nil || !settings.configured(runtime) {
+			return InvalidProviderDescriptor()
+		}
+		if d.Implementation != nil || d.Origin != nil {
+			installation, installed := catalog.OriginInstallation(d)
+			if !installed || DictXsynDictionaryProviderOf(d) != StockDictXsyn || d.Origin.Declaration != 3 || installation.Implementation != StockDictXsyn || !catalog.SameInstallation(template, installation) {
 				return InvalidProviderDescriptor()
 			}
 		}

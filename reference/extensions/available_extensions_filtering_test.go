@@ -129,6 +129,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pg_trgm", "1.6", false, true, true, true, nil, nil, "text similarity measurement and index searching based on trigrams"})
 				wantAvailable = append(wantAvailable[:3:3], append([][]any{{"dict_int", "1.0", nil, "text search dictionary template for integers"}}, wantAvailable[3:]...)...)
 				wantVersions = append(wantVersions[:3:3], append([][]any{{"dict_int", "1.0", false, true, true, true, nil, nil, "text search dictionary template for integers"}}, wantVersions[3:]...)...)
+				wantAvailable = append(wantAvailable, []any{"dict_xsyn", "1.0", nil, "text search dictionary template for extended synonym processing"})
+				wantVersions = append(wantVersions, []any{"dict_xsyn", "1.0", false, true, false, true, nil, nil, "text search dictionary template for extended synonym processing"})
 				wantAvailable = append(wantAvailable, []any{"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"})
 				wantVersions = append(wantVersions, []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"})
 				wantAvailable = append(wantAvailable, []any{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"})

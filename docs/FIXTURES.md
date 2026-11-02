@@ -106,6 +106,9 @@ ignores the native comment rather than importing its historical catalog state.
   template relabels replay without duplicate CREATE or invented ownership.
   Restore remaps template/dictionary links together and recompiles admitted real
   dictionary resources rather than copying initialized execution state.
+  Installed and ordinary xsyn dictionaries retain their genuine callback cohort,
+  ordered Boolean/rules options and absence-sensitive rule source; destination
+  compilation uses bundled rule bytes, never serialized runtime state.
   Thesaurus logical normalizers precede their consumers as replay-only edges,
   without changing SQL dependency or DROP behavior. Dump resolves qualified
   Dictionary options in its committed snapshot; an unqualified option uses its
@@ -167,6 +170,9 @@ ignores the native comment rather than importing its historical catalog state.
   names independently; Restore compiles against destination bytes and rejects
   missing/malformed resources without publishing any replacement. Reset retains
   startup resources, and already returned typed Rows retain their values.
+  Dictionary comments are descriptor state. Ordinary declarations replay their
+  text; installed and detached declarations explicitly replay NULL when users
+  removed a released default comment.
 - Parameter ACLs roundtrip by canonical name through strict typed catalog repairs,
   preserving explicit empty arrays, ordered grantors and grant options. Restore
   replaces shared parameter authority across all destination database attachments,

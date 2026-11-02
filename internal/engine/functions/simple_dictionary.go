@@ -25,7 +25,7 @@ import (
 // src/backend/tsearch/dicts/thesaurus_sample.ths, under the same license above.
 // stuntgres_thes_*.ths are project-owned deterministic dictionary resources.
 //
-//go:embed english.stop danish.stop dutch.stop french.stop finnish.stop german.stop hungarian.stop italian.stop norwegian.stop portuguese.stop nepali.stop russian.stop spanish.stop swedish.stop turkish.stop unaccent.rules synonym_sample.syn *.ths
+//go:embed english.stop danish.stop dutch.stop french.stop finnish.stop german.stop hungarian.stop italian.stop norwegian.stop portuguese.stop nepali.stop russian.stop spanish.stop swedish.stop turkish.stop unaccent.rules xsyn_sample.rules synonym_sample.syn *.ths
 var dictionaryResources embed.FS
 
 // Each exact resource has immutable backing shared by simple and Snowball.

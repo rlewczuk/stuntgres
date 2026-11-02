@@ -1912,6 +1912,7 @@ const (
 	CommentForeignTable
 	CommentExtension
 	CommentView
+	CommentTextSearchDictionary
 )
 
 type Comment struct {

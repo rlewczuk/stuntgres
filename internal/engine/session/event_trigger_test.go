@@ -161,7 +161,7 @@ func TestEventTriggerClassification(t *testing.T) {
 	check(&parser.CreateLanguage{}, "", false)
 	check(&parser.AlterLanguage{}, "", false)
 	check(&parser.DropLanguage{}, "", false)
-	for _, kind := range []parser.CommentKind{parser.CommentView, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable, parser.CommentExtension} {
+	for _, kind := range []parser.CommentKind{parser.CommentView, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable, parser.CommentExtension, parser.CommentTextSearchDictionary} {
 		check(&parser.Comment{Kind: kind}, "COMMENT", true)
 	}
 	check(&parser.Comment{Kind: parser.CommentRole}, "", false)

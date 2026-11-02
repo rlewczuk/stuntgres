@@ -2,10 +2,12 @@ package schemacmds
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // ExecuteComment runs COMMENT ON for every object kind except sequences,
@@ -58,8 +60,35 @@ func stageCommentLocked(e *core.Engine, scope *core.StatementScope, s *parser.Co
 		}
 		return nil, core.InstallOperationRolesLocked(e, op, roles)
 	}
+	resolved := scope.LockedRef
+	if s.Kind == parser.CommentTextSearchDictionary {
+		host := core.DDLHost{E: e, Op: op}
+		// REL_18_6 get_object_address resolves dictionary COMMENT from a
+		// semantic name list through get_ts_dict_oid/LookupExplicitNamespace,
+		// not expression locations. Preserve the original AST for diagnostics.
+		name := s.Name
+		var semanticParts [3]parser.Identifier
+		name.Parts = append(semanticParts[:0], s.Name.Parts...)
+		for i := range name.Parts {
+			name.Parts[i].Pos = parser.Position{}
+		}
+		path, err := host.SearchNamespaces(auth, name, ids.TSDictionaryClassID)
+		if err != nil {
+			return nil, err
+		}
+		for _, namespace := range path {
+			address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: namespace, Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
+			if address != (ids.ObjectAddress{}) {
+				resolved = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address)
+				break
+			}
+		}
+		if resolved.Domain() == nil {
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf(`text search dictionary "%s" does not exist`, catalog.ObjectNameText(s.Name))}
+		}
+	}
 	var target ids.ObjectAddress
-	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, scope.LockedRef, text, e.Catalog.RevisionLocked, &target)
+	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, resolved, text, e.Catalog.RevisionLocked, &target)
 	if err != nil {
 		return nil, err
 	}

@@ -170,6 +170,7 @@ type TSDictionary struct {
 	Origin                                              *InstalledOrigin
 	ObjectRevision                                      ids.DefinitionRevision
 	ObjectName                                          string
+	Comment                                             string
 	Owner                                               authorization.PrincipalRef
 	Implementation                                      ExtensionImplementation
 	Options                                             []DictionaryOption

@@ -109,3 +109,32 @@ func TestCommentExtensionGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestCommentTextSearchDictionaryGrammar(t *testing.T) {
+	for _, tc := range []struct {
+		query string
+		parts int
+		text  string
+		null  bool
+	}{
+		{`COMMENT ON TEXT SEARCH DICTIONARY "s.dot"."dict.dot" IS E'quote\' slash\\\n雪'`, 2, "quote' slash\\\n雪", false},
+		{`COMMENT ON TEXT SEARCH DICTIONARY xsyn IS NULL`, 1, "", true},
+		{`COMMENT ON TEXT SEARCH DICTIONARY xsyn IS ''`, 1, "", false},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		c, ok := statements[0].(*Comment)
+		if !ok || c.Kind != CommentTextSearchDictionary || len(c.Name.Parts) != tc.parts || c.Text != tc.text || c.Null != tc.null || c.Pos.Offset != 0 {
+			t.Fatal("dictionary comment syntax/position", tc, c)
+		}
+	}
+	for _, suffix := range []string{"IS $1", "IS 7", "IS 'x'||'y'", "IS 'x' extra", "IS"} {
+		statements, err := Parse("CREATE TABLE prefix(v INT); COMMENT ON TEXT SEARCH DICTIONARY public.xsyn " + suffix)
+		var diagnostic *sqlstate.Error
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Position == "" {
+			t.Fatal("invalid dictionary comment accepted a prefix", suffix, statements, err)
+		}
+	}
+}

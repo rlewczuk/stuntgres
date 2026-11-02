@@ -2,7 +2,7 @@
 
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
-earthdistance, dblink, dict_int, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
+earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
@@ -235,7 +235,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Text-search templates validate their captured callbacks through the registered
   procedure provider, including exact intrinsic builtin declaration identity.
   Ordinary templates remain ordinary creators even when extension members.
-  Installed unaccent and dict_int templates authenticate their sealed released
+  Installed unaccent, dict_int and dict_xsyn templates authenticate their sealed released
   template role and callback declarations from the same genuine cohort;
   detached, foreign and absent-origin membership states do not change execution
   capability. Compilation and publication-current checks share this validation.
@@ -314,7 +314,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   description uses the current dependency search path, not input qualification.
   Definition validity is separate from native dictionary execution. Compilation
   admits only the genuine stock-simple/synonym/thesaurus/ispell pairs, authenticated bootstrap
-  Snowball helpers, or a currently authenticated unaccent or dict_int helper pair.
+  Snowball helpers, or a currently authenticated unaccent, dict_int or dict_xsyn helper pair.
   Intrinsic callback/template/dictionary capability does not require empty or
   matching current extension membership or a live installation header. Each
   current member edge still requires its own reciprocal parent validation.
@@ -324,7 +324,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Detached compilation captures the catalog and rechecks both real helpers at
   completion. No callback or resource I/O runs under the catalog mutex.
   Callback links remain executable dependencies even when SQL `pg_depend`
-  omits references to pinned builtin procedures. Installed unaccent and dict_int
+  omits references to pinned builtin procedures. Installed unaccent, dict_int and dict_xsyn
   helpers retain visible NORMAL dependency edges.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
   owner authority, independent of extension installation privileges. Preparation
@@ -333,7 +333,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   rechecks current namespace/template/revision and role authority.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
-  Ordered immutable options and genuine simple/synonym/unaccent/dict_int/Snowball/thesaurus/ispell runtime state publish in
+  Ordered immutable options and genuine simple/synonym/unaccent/dict_int/dict_xsyn/Snowball/thesaurus/ispell runtime state publish in
   the existing catalog journal. Unaccent initializes each Rules resource at its
   ordered option occurrence, so an earlier resource failure precedes later
   duplicate or unknown options without publishing partial runtime state.
@@ -361,6 +361,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   helpers, the template and the default dictionary. Its registered Go kernel
   owns only maxlen/rejectlong/absval settings; ordered option text remains
   independent from effective settings, and no server files or C ABI are loaded.
+  Dict_xsyn is superuser-required and untrusted. Its four released declarations
+  seal the strict volatile parallel-unsafe helper pair, xsyn_template and an
+  initially resource-free dictionary. Ordered Boolean/rules duplicates are
+  last-wins; resource loading follows the entire option scan. Absent rules
+  differs from a supplied empty basename. Admission checks every immutable
+  Boolean, basename and presence bit against the genuine helper cohort.
+  Bundled `.rules` bytes replace only server-file acquisition; ordinary
+  dictionaries acquire no provider membership. Dictionary comments are immutable
+  descriptor metadata, independent of runtime, and replay under actual qualified
+  identities; installed/detached replay explicitly preserves default removal.
   Shared configuration lexization and logical typed index roots consume the same
   rich lexical result; physical PostgreSQL index machinery is not reconstructed.
   Thesaurus preparation resolves decoded logical Dictionary options using current
@@ -863,6 +873,9 @@ ownership units use `RUN='^TestPgcryptoArmor'`; incumbent provider units use
 
 Integer dictionary kernel, provider, publication and index-owner units share
 `RUN='^TestDictInt'`; the public family is owned by `reference/extensions`.
+Extended synonym kernel/options and installed identity/publication/remap owners
+use `RUN='^Test(XsynDictionary|DictXsyn)'`; public scenarios remain in
+`reference/extensions`.
 
 Autoinc installation and forgery units in `enginetests` use
 `RUN='^TestAutoincProviderIdentity$'`; its public scenarios live in `reference/operators`.

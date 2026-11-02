@@ -123,12 +123,16 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   names and released legacy aliases without validating or creating providers.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
-  `PlanObjectComment` resolves a schema, extension, table, ordinary view, foreign
-  table or column (relations through the engine's locked ref), checks kind,
-  schema USAGE where applicable and live ownership, and returns an immutable
-  replacement revision. A VIEW target requires the actual ordinary-view kind;
-  its comment changes no stored query, column layout or membership authority.
-  Extension headers have no schema-USAGE requirement.
+  `PlanObjectComment` resolves a schema or extension and accepts genuine resolved
+  table, ordinary-view, foreign-table, column and text-search dictionary references
+  (relations through the engine's lock). It checks kind, schema USAGE where
+  applicable and live ownership, then returns an immutable replacement revision.
+  A VIEW target requires the actual ordinary-view kind; its comment changes no
+  stored query, column layout or membership authority. Dictionary comments change
+  metadata, never runtime/options/origin backing. Extension headers have no
+  schema-USAGE requirement.
+  Dictionary COMMENT ownership diagnostics preserve the supplied name list,
+  while the checked reference and schema access remain catalog-derived.
   These existing kinds work in autocommit and explicit transactions. Object
   metadata is database-local; role text is cluster-shared, with private changes
   visible only to the transaction owner until commit. Role renaming remains a

@@ -293,8 +293,15 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 			return err
 		}
 		*authority = append(*authority, "ALTER "+sql+" OWNER TO "+catalog.QuoteIdentifier(role.Name)+";\n")
-		if dictionary, ok := current.(*catalog.TSDictionary); ok && len(dictionary.Options) != 0 {
-			*authority = append(*authority, "ALTER "+sql+" ("+catalog.DictionaryOptionsText(dictionary.Options)+");\n")
+		if dictionary, ok := current.(*catalog.TSDictionary); ok {
+			if len(dictionary.Options) != 0 {
+				*authority = append(*authority, "ALTER "+sql+" ("+catalog.DictionaryOptionsText(dictionary.Options)+");\n")
+			}
+			literal := "NULL"
+			if dictionary.Comment != "" {
+				literal = dump.CommentLiteral(dictionary.Comment)
+			}
+			*authority = append(*authority, "COMMENT ON "+sql+" IS "+literal+";\n")
 		}
 	}
 	schedule.finish(placement.index)

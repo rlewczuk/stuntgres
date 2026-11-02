@@ -42,6 +42,12 @@ No parallel language-permission table or cached grant decision exists.
     CREATE OR REPLACE; statement-specific callers supply their own nouns.
     Extension ownership denials use the canonical extension kind; extensions
     have an owner but no grantable ACL privileges.
+    Dictionary ownership denials use the canonical text-search dictionary noun,
+    including ordinary COMMENT checks; names or extension membership never
+    substitute a relation kind or change the underlying owner authority.
+    A utility may borrow its parsed object name for the immediate ownership
+    check; rendering occurs only on denial, after ordinary authority checks.
+    This diagnostic context never replaces the checked object reference.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
