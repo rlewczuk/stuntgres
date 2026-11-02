@@ -47,6 +47,13 @@ func TestReferenceInfoColumnsPopulation(t *testing.T) {
 			icRow(c.database, "pg_catalog", "pg_namespace", "nspacl", 4, "ARRAY", "pg_catalog", "_aclitem", map[string]any{"is_nullable": nspaclNullable}),
 		}))
 		c.run(c.conn, icProjection(c.b.PG, "table_schema='information_schema' AND table_name='enabled_roles'", [][]any{icRow(c.database, "information_schema", "enabled_roles", "role_name", 1, "name", "pg_catalog", "name", map[string]any{"domain_catalog": c.database, "domain_schema": "information_schema", "domain_name": "sql_identifier", "collation_catalog": c.database, "collation_schema": "pg_catalog", "collation_name": "C", "is_updatable": "NO"})}))
+		applicable := icProjection(c.b.PG, "table_schema='information_schema' AND table_name='applicable_roles'", [][]any{
+			icRow(c.database, "information_schema", "applicable_roles", "grantee", 1, "name", "pg_catalog", "name", map[string]any{"domain_catalog": c.database, "domain_schema": "information_schema", "domain_name": "sql_identifier", "collation_catalog": c.database, "collation_schema": "pg_catalog", "collation_name": "C", "is_updatable": "NO"}),
+			icRow(c.database, "information_schema", "applicable_roles", "role_name", 2, "name", "pg_catalog", "name", map[string]any{"domain_catalog": c.database, "domain_schema": "information_schema", "domain_name": "sql_identifier", "collation_catalog": c.database, "collation_schema": "pg_catalog", "collation_name": "C", "is_updatable": "NO"}),
+			icRow(c.database, "information_schema", "applicable_roles", "is_grantable", 3, "character varying", "pg_catalog", "varchar", map[string]any{"domain_catalog": c.database, "domain_schema": "information_schema", "domain_name": "yes_or_no", "character_maximum_length": int64(3), "character_octet_length": int64(12), "collation_catalog": c.database, "collation_schema": "pg_catalog", "collation_name": "C", "is_updatable": "NO"}),
+		})
+		c.run(c.conn, applicable)
+		c.run(c.conn, fixture.Prepared(applicable))
 		peer, err := c.b.DB.Conn(c.p.Ctx)
 		if err != nil {
 			t.Fatal(err)

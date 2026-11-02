@@ -1,5 +1,11 @@
 # Changes
 
+- Add `information_schema.applicable_roles` through the paired catalog/role source,
+  with three nullable domain-typed columns, actual visible membership triples,
+  ADMIN-sensitive deduplication and the implicit database-owner edge. Direct and
+  held prepared reads follow current identity, role options, names and ownership;
+  builtin presentation and column inventories include the read-only view.
+
 - Add pg_freespacemap 1.3's documented scalar and all-block pg_freespace calls,
   genuine C/SQL identities and dependencies, ordinary grants and exact errors.
   Native quantized compact live-row estimates reflect own writes, deletion,

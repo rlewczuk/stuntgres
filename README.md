@@ -13,6 +13,12 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+`information_schema.applicable_roles` supports ordinary direct and prepared
+role-membership inquiry with `grantee`, `role_name` and `is_grantable`. Results
+follow current-role inherited visibility, preserve actual ADMIN options and
+include the current database owner's implicit `pg_database_owner` membership.
+Held statements refresh membership, role names and ownership at execution.
+
 `pg_export_snapshot() → text` shares a transaction's real committed snapshot
 with a peer using `SET TRANSACTION SNAPSHOT 'identifier'`. Import before the
 first query in a REPEATABLE READ or SERIALIZABLE transaction. Tokens expire at

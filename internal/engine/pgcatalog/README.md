@@ -7,7 +7,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`, `domain_udt_usage`, `information_schema_catalog_name`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
-`character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `applicable_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`, `parameters`, `element_types`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -1313,6 +1313,15 @@ catalog writes or bypass a provider's independent backing-source checks.
   `RoleClosure` (self, INHERIT paths, implicit database-owner hop), a current
   superuser enumerates live role entries. No copied membership graph or cached
   name set; partial rows are discarded on cancellation.
+- `applicable_roles` (16257): one inherited closure selects visible grantees;
+  allocation-free edge enumeration emits actual member/target/ADMIN triples,
+  not closure edges. Grantor duplicates collapse only when ADMIN agrees. The
+  paired database owner contributes the implicit `pg_database_owner` NO edge
+  through the same filter/emitter. Actual current superusers see all live edges;
+  inherited SUPERUSER attributes and edge SET flags do not bypass visibility.
+  Source-owned identifier/yes-or-no domains share one flat result backing.
+  Invalid authority or cancellation publishes no prefix; no-edge ordinary
+  readers receive a typed nonnil empty result through normal source admission.
 - `character_sets`: one current-database UTF8 row; encoding and locale facts
   are shared with `pg_database`.
 - `collations`: four nullable source-owned domains (`sql_identifier` for the

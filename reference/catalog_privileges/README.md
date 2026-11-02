@@ -5,7 +5,7 @@ Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`, `udt_privileges`,
-`role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`, `user_mapping_options`,
+`role_usage_grants`, `usage_privileges`, `enabled_roles`, `applicable_roles`, `data_type_privileges`, `user_mappings`, `user_mapping_options`,
 `key_column_usage`, `constraint_column_usage`, `constraint_table_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
@@ -161,6 +161,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
+- Applicable roles: `RUN='^TestReferenceInfoApplicableRoles'`
+  uses literal three-column edge bags, exact domain/adapter metadata, current-role
+  visibility, independent enabled-role closure, distinct-grantor deduplication,
+  implicit database ownership and retained prepared publication witnesses.
+  Shared identity scenarios assert complete errors and protected `pg_authid`
+  denial independently of the PUBLIC view and masked `pg_roles` inquiry.
 - Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
 - Constraint table usage: `RUN='^TestReferenceInfoConstraintTableUsage'`.
 - Tablespaces: `RUN='^TestReferenceTablespace'`

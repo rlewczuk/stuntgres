@@ -1058,6 +1058,11 @@ var Specs = [...]Spec{
 	{InfoEnabledRolesOID, 13229, "enabled_roles", []ColumnSpec{
 		{"role_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing enabled role identifier domain"},
+	{InfoApplicableRolesOID, 13229, "applicable_roles", []ColumnSpec{
+		{"grantee", 13248, true, 950, 0, -1},
+		{"role_name", 13248, true, 950, 0, -1},
+		{"is_grantable", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing applicable role domain"},
 	{InfoViewTableUsageOID, 13229, "view_table_usage", []ColumnSpec{
 		{"view_catalog", 13248, true, 950, 0, -1},
 		{"view_schema", 13248, true, 950, 0, -1},
