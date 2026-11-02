@@ -834,12 +834,15 @@ None retains returned SQL, selected rows, locks or a prepared text cache, or exe
   interface values stored once.
 - **Filter candidates.** Two WHERE shapes visit only candidate rows, and the
   produce loop still evaluates the whole predicate on each: a top-level equality
-  over a captured hash index, and a WHERE (also inside derived subqueries) that is
-  one oid equality between a column of a shared catalog capture
-  (`Source.CatalogKeys`) and a literal or parameter under non-volatile casts.
+  over a captured hash index, and a WHERE (also inside derived subqueries) over a
+  shared catalog capture (`Source.CatalogKeys`) that is one equality, or an AND
+  of equalities, between a column and a literal or parameter under non-volatile
+  casts, with at least one oid column; the oid key with the fewest rows selects.
   `CatalogKeyIndex` builds a column on first use and publishes it atomically. A
-  column qualifies only when every cell has the column's exact oid descriptor, so
-  no skipped row could have raised an error; any failing probe keeps the scan.
+  column qualifies only when every cell has the column's exact oid descriptor,
+  and the other conjuncts compare plain bool/char/name/int/text/oid columns with
+  their own equality, so no skipped row could have raised an error (AND evaluates
+  both operands); any failing probe keeps the scan.
 - **Join keys** (`query_join_hash.go`). When a join's whole predicate is a
   conjunction of builtin same-type equalities between a left and a right key (a
   plain column, maybe cast to oid from another OID type), the first left row

@@ -81,7 +81,13 @@ func TestCatalogKeyCandidatesProbesAndFallbacks(t *testing.T) {
 		{"SELECT typname FROM pg_type WHERE oid=23", true, 1},
 		{"SELECT typname FROM pg_type WHERE oid='int4'::regtype::oid", true, 1},
 		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid", true, 1},
-		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND proname='upper'", false, 1},
+		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND proname='upper'", true, 1},
+		{"SELECT proname FROM pg_proc WHERE pronamespace=11 AND (proname='upper' AND oid='upper(text)'::regprocedure::oid)", true, 1},
+		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND proname=NULL", true, 0},
+		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND proname='lower'", true, 0},
+		{"SELECT proname FROM pg_proc WHERE proname='upper' AND pronargs=1", false, 3},
+		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND proname LIKE 'up%'", false, 1},
+		{"SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND pronamespace=(SELECT 11::oid)", false, 1},
 		{"SELECT proname FROM pg_proc WHERE oid<>'upper(text)'::regprocedure::oid AND oid='upper(text)'::regprocedure::oid", false, 0},
 		{"SELECT proname FROM pg_proc WHERE oid::int8='upper(text)'::regprocedure::oid::int8", false, 1},
 	} {
@@ -92,6 +98,13 @@ func TestCatalogKeyCandidatesProbesAndFallbacks(t *testing.T) {
 		}
 		release()
 	}
+	// A conjunct that can fail keeps the full scan, so rows the oid key would
+	// skip still raise its error.
+	query, source, release = hashImplicitQuery(t, e, "SELECT proname FROM pg_proc WHERE oid='upper(text)'::regprocedure::oid AND 1/pronargs=1")
+	if keyed, _, err := catalogKeyDrain(t, query, source, nil); keyed || err == nil {
+		t.Fatal("a failing conjunct must keep the full scan and its error", keyed, err)
+	}
+	release()
 	// A wrongly typed probe keeps the full scan, which raises the comparison
 	// error on its first row.
 	query, source, release = hashImplicitQuery(t, e, "SELECT proname FROM pg_proc WHERE oid=$1")
