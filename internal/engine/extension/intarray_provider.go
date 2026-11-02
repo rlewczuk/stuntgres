@@ -31,30 +31,33 @@ func (p *IntarrayProvider) validateRecipe(v catalog.Read, ext *catalog.Extension
 	if !currentManifest(v, ext) {
 		return invalid()
 	}
-	if p != StockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != StockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != IntarrayMemberCount {
 		return invalid()
 	}
-	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
-		return invalid()
-	}
-	base, ok := v.Type(ext.Members[0])
-	if !ok || base.SQLType == nil || base.Address() != ext.Members[0] || !base.SQLType.IsQueryInt() || base.Extension != ext.Address() || base.ObjectRevision == 0 || base.Array == 0 {
-		return invalid()
-	}
-	array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-	if !ok || array.SQLType == nil || !array.SQLType.IsArray() || array.SQLType.Concrete() || array.SQLType.Element() != base.SQLType || array.Namespace() != base.Namespace() || array.Owner != base.Owner || array.Extension != (ids.ObjectAddress{}) {
-		return invalid()
-	}
-	if err := validateRegisteredType(v, array); err != nil {
-		return err
-	}
-	for _, address := range ext.Members[1:] {
-		proc, ok := v.Procedure(address)
-		if !ok {
+	for group := range 2 {
+		slot := group * 3
+		if ext.Members[slot].ClassID != ids.TypeClassID || ext.Members[slot+1].ClassID != ids.ProcedureClassID || ext.Members[slot+2].ClassID != ids.ProcedureClassID {
 			return invalid()
 		}
-		if _, err := ProcedureSymbol(v, proc); err != nil {
+		base, ok := v.Type(ext.Members[slot])
+		if !ok || base.SQLType == nil || base.Address() != ext.Members[slot] || group == 0 && !base.SQLType.IsQueryInt() || group == 1 && !base.SQLType.IsIntbigGkey() || base.Extension != ext.Address() || base.ObjectRevision == 0 || base.Array == 0 {
+			return invalid()
+		}
+		array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+		if !ok || array.SQLType == nil || !array.SQLType.IsArray() || array.SQLType.Concrete() != (group == 1) || array.SQLType.Element() != base.SQLType || array.Namespace() != base.Namespace() || array.Owner != base.Owner || array.Extension != (ids.ObjectAddress{}) {
+			return invalid()
+		}
+		if err := validateRegisteredType(v, array); err != nil {
 			return err
+		}
+		for _, address := range ext.Members[slot+1 : slot+3] {
+			proc, ok := v.Procedure(address)
+			if !ok {
+				return invalid()
+			}
+			if _, err := ProcedureSymbol(v, proc); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

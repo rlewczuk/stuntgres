@@ -26,6 +26,12 @@ XML streams released implicit constant types without creating runtime children;
 ignored names/options stay out of identity. TableFunc omits
 PG18-ignored namespaces/defaults/column metadata instead of hashing recipes.
 
+`IntbigIO` owns one immutable operand and the genuine intarray support-I/O role
+selected by the analyzer, including ordinary routine capture and rendering.
+Its strict NULL result is typed; nonnull input/output invoke the real rejecting
+support codec. Rebuild and retag follow destination result/formal generations,
+never a source catalog, execution handle or mutable name-based capability.
+
 
 `LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
 and descriptor functions. Descriptor IDs/modes use signed INT4 formals, while

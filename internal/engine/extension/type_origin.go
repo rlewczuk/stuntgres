@@ -34,7 +34,7 @@ func ValidateTypeOrigin(v catalog.Read, t *catalog.Type) error {
 	case StockHstore:
 		accepted = slot == 0 && t.SQLType.IsHstore()
 	case StockIntarray:
-		accepted = slot == 0 && t.SQLType.IsQueryInt()
+		accepted = slot == 0 && t.SQLType.IsQueryInt() || slot == 3 && t.SQLType.IsIntbigGkey()
 	case StockSeg:
 		accepted = slot == 0 && t.SQLType.IsSeg()
 	case StockCube:

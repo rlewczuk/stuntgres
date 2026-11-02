@@ -58,6 +58,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsSeg()
 	case a.IsQueryInt():
 		return b.IsQueryInt()
+	case a.IsIntbigGkey():
+		return b.IsIntbigGkey()
 	case a.IsLquery():
 		return b.IsLquery()
 	case a.IsLtxtquery():

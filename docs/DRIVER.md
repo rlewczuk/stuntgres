@@ -842,6 +842,14 @@ non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-ni
 byte arguments are NULL. Their canonical values and declared types survive native
 Dump/Reset/Restore through the ordinary type-owned codecs.
 
+After `CREATE EXTENSION intarray`, native support-key columns report
+`INTBIG_GKEY` and their concrete arrays report `_INTBIG_GKEY`, both with string
+scan types even for empty or NULL-only results. Scalar nil and typed-nil byte
+arguments retain typed SQL NULL; nonnull scalar input invokes the genuine
+rejecting support codec. Empty and NULL-only arrays use the ordinary array
+transport. Installation does not replace existing integer-array values, bounds
+or NULL-element transport.
+
 After `CREATE EXTENSION hstore`, hstore columns accept literal and bound text or
 non-nil bytes. Empty input is an empty nonnull value; nil and typed-nil bytes are
 SQL NULL. A present NULL-valued key and quoted text `NULL` remain distinct.

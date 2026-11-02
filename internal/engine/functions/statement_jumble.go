@@ -306,6 +306,7 @@ func (LtreeHierarchy) JumbleFields(s expr.StatementFields) { s.JumbleText("funct
 func (LtreeLquery) JumbleFields(s expr.StatementFields)    { s.JumbleText("functions.LtreeLquery") }
 func (LtreeLtxtquery) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.LtreeLtxtquery") }
 func (LtreePath) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.LtreePath") }
+func (IntbigIO) JumbleFields(s expr.StatementFields)       { s.JumbleText("functions.IntbigIO") }
 func (PgTrgm) JumbleFields(s expr.StatementFields)         { s.JumbleText("functions.PgTrgm") }
 func (Posix) JumbleFields(s expr.StatementFields)          { s.JumbleText("functions.Posix") }
 func (Regexp) JumbleFields(s expr.StatementFields)         { s.JumbleText("functions.Regexp") }

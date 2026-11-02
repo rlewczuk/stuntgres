@@ -56,12 +56,24 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 4 || len(ext.Installation.Members) != 3 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 8 || len(ext.Installation.Members) != 6 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() == base.SQLType.ID() {
 		t.Fatal("lookup-only reciprocal array")
+	}
+	support := view.MustType(ext.Installation.Members[3])
+	supportArray, ok := view.LookupArray(support.SQLType)
+	if !support.SQLType.IsIntbigGkey() || support.Origin.Declaration != 3 || support.Origin.Installation != ext.Installation || !ok || !supportArray.Concrete() || supportArray.Element() != support.SQLType || supportArray.ID() != support.Array {
+		t.Fatal("genuine support role and concrete reciprocal array", support, supportArray)
+	}
+	if !typedef.StoredArrayElement(support.SQLType) || !typedef.StoredArrayElement(supportArray) || typedef.StoredArrayElement(base.SQLType) || typedef.StoredArrayElement(array) {
+		t.Fatal("support array storage admission or retained query_int boundary")
+	}
+	roles, err := extension.InstalledTypes(view, ext)
+	if err != nil || len(roles) != 2 || roles[0].Name != "query_int" || roles[0].Type != base || roles[1].Name != "intbig_gkey" || roles[1].Type != support {
+		t.Fatal("canonical installed type roles", roles, err)
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
 	if stored.DependPinned(view, nil, base.Address()) || stored.DependPinned(view, nil, arrayAddress) {
@@ -101,7 +113,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 4 || !arrayInternal || !members[arrayAddress] {
+	if len(members) != 8 || !arrayInternal || !members[arrayAddress] {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -130,7 +142,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := extensionOwnerRecipeOrder(records[0])
-	if record.Name != "intarray" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 4 {
+	if record.Name != "intarray" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 8 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -225,6 +237,28 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				array := *state.MustType(address)
 				array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), text)
 				state.SetDescriptor(address, &array)
+			},
+			func(state *catalog.State, d *catalog.Extension) {
+				typ := *state.MustType(d.Installation.Members[3])
+				typ.SQLType, _ = sqltype.QueryInt(typ.SQLType.ID(), typ.Name(), typ.SQLType.SQLName())
+				state.SetDescriptor(typ.Address(), &typ)
+			},
+			func(state *catalog.State, d *catalog.Extension) {
+				typ := *state.MustType(d.Installation.Members[3])
+				origin := *typ.Origin
+				origin.Declaration = 0
+				typ.Origin = &origin
+				state.SetDescriptor(typ.Address(), &typ)
+			},
+			func(state *catalog.State, d *catalog.Extension) {
+				proc := *state.MustProcedure(d.Installation.Members[4])
+				proc.Implementation = extension.StockSeg
+				state.SetDescriptor(proc.Address(), &proc)
+			},
+			func(state *catalog.State, d *catalog.Extension) {
+				proc := *state.MustProcedure(d.Installation.Members[5])
+				proc.Signature = extension.QueryIntSignature(base.SQLType.ID())
+				state.SetDescriptor(proc.Address(), &proc)
 			},
 		} {
 			candidate := catalog.CloneState(e.Catalog.State)

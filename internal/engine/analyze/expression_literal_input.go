@@ -26,7 +26,7 @@ func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	}
 	switch r := raw.(type) {
 	case parser.XMLConstructExpr:
-		return r.Kind.String(),true
+		return r.Kind.String(), true
 	case parser.XMLDocumentPredicateExpr:
 		return "xml_is_document", true
 	case parser.XMLParseExpr:
@@ -226,7 +226,7 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		return node.(plan.LiteralExpr).Value, nil
 	}
-	if u.Type.BaseType().ID() == sqltype.XML || u.Type.BaseType().ID() == sqltype.Polygon || u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsHstore() || u.Type.BaseType().IsCube() || u.Type.BaseType().IsSeg() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsLquery() || u.Type.BaseType().IsLtree() || u.Type.BaseType().IsCitext() || u.Type.BaseType().IsEan13() || u.Type.BaseType().IsIsbn() || u.Type.BaseType().IsIsbn13() || u.Type.BaseType().IsIsmn() || u.Type.BaseType().IsIsmn13() || u.Type.BaseType().IsIssn() || u.Type.BaseType().IsIssn13() || u.Type.BaseType().IsUpc() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().IsRange() || u.Type.BaseType().IsMultirange() {
+	if u.Type.BaseType().ID() == sqltype.XML || u.Type.BaseType().ID() == sqltype.Polygon || u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsHstore() || u.Type.BaseType().IsCube() || u.Type.BaseType().IsSeg() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsIntbigGkey() || u.Type.BaseType().IsLquery() || u.Type.BaseType().IsLtree() || u.Type.BaseType().IsCitext() || u.Type.BaseType().IsEan13() || u.Type.BaseType().IsIsbn() || u.Type.BaseType().IsIsbn13() || u.Type.BaseType().IsIsmn() || u.Type.BaseType().IsIsmn13() || u.Type.BaseType().IsIssn() || u.Type.BaseType().IsIssn13() || u.Type.BaseType().IsUpc() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().IsRange() || u.Type.BaseType().IsMultirange() {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}

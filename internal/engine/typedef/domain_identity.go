@@ -203,6 +203,8 @@ func stageTypeIdentityReplacement(h StageHost, old *catalog.Type, namespace ids.
 		next.SQLType, err = sqltype.Seg(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsQueryInt():
 		next.SQLType, err = sqltype.QueryInt(old.SQLType.ID(), name, declaration)
+	case old.SQLType.IsIntbigGkey():
+		next.SQLType, err = sqltype.IntbigGkey(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsLquery():
 		next.SQLType, err = sqltype.Lquery(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsLtxtquery():

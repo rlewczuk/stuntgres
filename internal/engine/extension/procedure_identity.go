@@ -354,7 +354,28 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/ltree", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
-	case StockHstore, StockIntarray, StockSeg, StockCitext:
+	case StockIntarray:
+		count = IntarrayMemberCount
+		if len(ext.Members) != count || slot%3 == 0 || slot >= count {
+			return invalid()
+		}
+		baseSlot := slot / 3 * 3
+		base, ok := v.Type(ext.Members[baseSlot])
+		if !ok || base.SQLType == nil || !catalog.SameInstallation(base, ext) || baseSlot == 0 && !base.SQLType.IsQueryInt() || baseSlot == 3 && !base.SQLType.IsIntbigGkey() {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+			return invalid()
+		}
+		name = intarrayIONames[slot/3*2+slot%3-1]
+		signature, result = "2275", ids.OID(base.SQLType.ID())
+		if slot%3 == 2 {
+			signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+		}
+		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/_int", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			return invalid()
+		}
+	case StockHstore, StockSeg, StockCitext:
 		count = 3
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
@@ -369,7 +390,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || !catalog.SameInstallation(base, ext) || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockSeg && !base.SQLType.IsSeg() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || !catalog.SameInstallation(base, ext) || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockSeg && !base.SQLType.IsSeg() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -387,11 +408,6 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			strict = recipe.strict
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/hstore", HasBinary: true}) || p.Installed != hstoreRoutineDeclaration(slot) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
-			}
-		case StockIntarray:
-			name = "bqarr_in"
-			if slot == 2 {
-				name = "bqarr_out"
 			}
 		case StockSeg:
 			name = "seg_in"

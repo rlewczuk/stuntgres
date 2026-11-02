@@ -86,6 +86,10 @@ released SQL recipe independently of C symbols and mutable public names;
 engine-owned specialized families retain executable-symbol dispatch, including
 hstore's polymorphic constructor and record replacement. Selected gateway
 attachment still checks the exact registered family and genuine current provider.
+The intarray support-I/O binder admits only authenticated original slots 4/5
+after ordinary callable selection. It captures the actual dynamic support
+family, cstring formal/result, routine revision and stored provider symbol.
+This does not enable declaration-only bqarr/seg routines or a general C loader.
 
 
 Freespace shares installed selection and bounded scalar-statistics admission.

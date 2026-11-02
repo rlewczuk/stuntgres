@@ -139,7 +139,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			visited[address], visited[multiAddress] = true, true
 			return nil
 		}
-		if d.SQLType.IsHstore() || d.SQLType.IsSeg() || d.SQLType.IsQueryInt() || d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
+		if d.SQLType.IsHstore() || d.SQLType.IsSeg() || d.SQLType.IsQueryInt() || d.SQLType.IsIntbigGkey() || d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
 			target, namespace, extension := address, d.Namespace(), d.Extension
 			if to, ok := mapping[address]; ok {
 				target = to
@@ -161,6 +161,9 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			}
 			if target != address || namespace != d.Namespace() || extension != d.Extension || associated != d.Array || declaration != d.SQLType.SQLName() {
 				constructor := sqltype.QueryInt
+				if d.SQLType.IsIntbigGkey() {
+					constructor = sqltype.IntbigGkey
+				}
 				if d.SQLType.IsSeg() {
 					constructor = sqltype.Seg
 				}
@@ -509,7 +512,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
-		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsHstore() && !target.BaseType().IsSeg() && !target.BaseType().IsQueryInt() && !target.BaseType().IsLquery() && !target.BaseType().IsLtree() && !target.BaseType().IsLtxtquery() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() && !target.BaseType().IsEan13() && !target.BaseType().IsIsbn() && !target.BaseType().IsIsbn13() && !target.BaseType().IsIsmn() && !target.BaseType().IsIsmn13() && !target.BaseType().IsIssn() && !target.BaseType().IsIssn13() && !target.BaseType().IsUpc() {
+		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsHstore() && !target.BaseType().IsSeg() && !target.BaseType().IsQueryInt() && !target.BaseType().IsIntbigGkey() && !target.BaseType().IsLquery() && !target.BaseType().IsLtree() && !target.BaseType().IsLtxtquery() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() && !target.BaseType().IsEan13() && !target.BaseType().IsIsbn() && !target.BaseType().IsIsbn13() && !target.BaseType().IsIsmn() && !target.BaseType().IsIsmn13() && !target.BaseType().IsIssn() && !target.BaseType().IsIssn13() && !target.BaseType().IsUpc() {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported scalar destination")
 		}
 		physical, err := value.BaseValue()
@@ -522,6 +525,8 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 			physical, err = physical.RemapSeg(target.BaseType())
 		} else if physical.Type().IsQueryInt() {
 			physical, err = physical.RemapQueryInt(target.BaseType())
+		} else if physical.Type().IsIntbigGkey() {
+			physical, err = physical.RemapIntbigGkey(target.BaseType())
 		} else if physical.Type().IsLquery() {
 			physical, err = physical.RemapLquery(target.BaseType())
 		} else if physical.Type().IsLtxtquery() {
@@ -573,7 +578,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		from.Collation = mapped
 	}
-	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsHstore() && !from.Type.IsSeg() && !from.Type.IsQueryInt() && (!from.Type.IsLquery() && !from.Type.IsLtree() && !from.Type.IsLtxtquery()) && !from.Type.IsCube() && !from.Type.IsCitext() && !from.Type.IsEan13() && !from.Type.IsIsbn() && !from.Type.IsIsbn13() && !from.Type.IsIsmn() && !from.Type.IsIsmn13() && !from.Type.IsIssn() && !from.Type.IsIssn13() && !from.Type.IsUpc() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsHstore() && !from.Type.IsSeg() && !from.Type.IsQueryInt() && !from.Type.IsIntbigGkey() && (!from.Type.IsLquery() && !from.Type.IsLtree() && !from.Type.IsLtxtquery()) && !from.Type.IsCube() && !from.Type.IsCitext() && !from.Type.IsEan13() && !from.Type.IsIsbn() && !from.Type.IsIsbn13() && !from.Type.IsIsmn() && !from.Type.IsIsmn13() && !from.Type.IsIssn() && !from.Type.IsIssn13() && !from.Type.IsUpc() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()

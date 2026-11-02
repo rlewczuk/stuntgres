@@ -489,7 +489,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed seg/hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
+Installed seg/hstore/cube/query_int/intbig_gkey/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -497,6 +497,15 @@ general enum[] storage or an executable codec for a lookup-only installed array.
 Domains over lookup-only bases retain user ownership, checks, names and immediate
 base identity without gaining storage/input codecs. Builtin lookup provenance
 remains distinct from these user domain declarations.
+
+`IntbigGkey` is an extension-allocated concrete support identity, not a text or
+integer-array alias. Typed NULL is valid and survives authorized generation
+remapping. Released nonnull input/output intentionally raise 0A000; there is no
+public nonnull key constructor or fabricated key payload. Its real associated
+array uses the generic codec: empty and NULL-only arrays round-trip normally,
+while nonnull elements reach the rejecting element input. Existing integer[]
+values, bounds and NULL elements are unaffected by installing or dropping the
+provider; operation-specific array restrictions belong to executable leaves.
 
 ### Range families
 
@@ -939,6 +948,7 @@ match engine tests of the same mechanism):
 - Installed label-query codecs, identity and cancellation: `RUN='^Test(Lquery|Ltxtquery)'`
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
+- Installed rejecting support-key identity, NULL and generic arrays: `RUN='^TestIntbigGkey'`
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`

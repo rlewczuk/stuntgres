@@ -441,6 +441,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   labels/ownership; original-source calls retain their revision fence and
   prepared reanalysis. `RoutineProgram` preserves this distinction through
   readmission and phase initialization without retaining granted rights.
+  Intarray support-I/O strict NULL calls retain lifetime-only admission through
+  their owning checks, stored-reference or direct-source lane. Missing/foreign
+  manifests and stale direct revisions remain invalid even when invocation is
+  elided; genuine NULL does not acquire EXECUTE or a consumed-call record.
+  This bounded rule leaves unrelated strict-provider admission unchanged.
   Non-elided authenticated ISN C calls initialize the physical module during
   execution admission before row demand, not during Prepare/description.
   Operation-local input evaluators forward `PrepareIsnInput` unchanged through

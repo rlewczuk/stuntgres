@@ -89,7 +89,7 @@ func TypeFacts(ctx context.Context, view catalog.Read, d *catalog.Type, output s
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsSeg() || d.SQLType.IsHstore() || d.SQLType.IsQueryInt() || (d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery()) || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
+	if d.SQLType.IsSeg() || d.SQLType.IsHstore() || d.SQLType.IsQueryInt() || d.SQLType.IsIntbigGkey() || (d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery()) || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
 		installation, ok := catalog.OriginInstallation(d)
 		if !ok || d.Origin.Declaration+2 >= len(installation.Members) {
 			return f, fmt.Errorf("stuntgres: missing installed scalar role")

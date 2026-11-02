@@ -28,7 +28,7 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	if physical.IsComposite() {
 		return physical.Concrete()
 	}
-	if physical.IsLtree() || physical.IsLquery() {
+	if physical.IsLtree() || physical.IsLquery() || physical.IsIntbigGkey() {
 		return true
 	}
 	return sqltype.ArrayElementAdmitted(physical.ID())

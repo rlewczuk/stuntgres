@@ -138,6 +138,7 @@ type Descriptor struct {
 	delimiter                           byte
 	enum                                *enumDefinition
 	queryInt                            bool
+	intbigGkey                          bool
 	seg                                 bool
 	lquery                              bool
 	ltree                               bool
@@ -618,6 +619,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if fromEnum.IsQueryInt() && !v.null && !v.validQueryInt() {
 		return Value{}, fmt.Errorf("invalid query_int payload")
 	}
+	if fromEnum.IsIntbigGkey() != toEnum.IsIntbigGkey() || fromEnum.IsIntbigGkey() && !v.null {
+		return Value{}, fmt.Errorf("incompatible intbig_gkey declaration or payload")
+	}
 	if fromEnum.IsLquery() != toEnum.IsLquery() || fromEnum.IsLquery() && (fromEnum != toEnum || !v.null && !v.validLquery()) {
 		return Value{}, fmt.Errorf("incompatible lquery generation or payload")
 	}
@@ -876,6 +880,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
+	}
+	if d.IsIntbigGkey() {
+		return Value{}, failure("0A000", "cannot accept a value of type intbig_gkey")
 	}
 	if env.ExactSnapshot && typmod >= 0 {
 		value, err := d.InputWithEnvironment(ctx, text, -1, env)
@@ -1272,6 +1279,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.id == 32 {
 		return "", failure("0A000", "cannot display a value of type pg_ddl_command")
 	}
+	if d.IsIntbigGkey() {
+		return "", failure("0A000", "cannot display a value of type intbig_gkey")
+	}
 	if d.IsDomain() {
 		v.typ = d.BaseType()
 		return v.typ.OutputWithEnvironment(ctx, v, env)
@@ -1600,6 +1610,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + text + "'", nil
+	}
+	if d.IsIntbigGkey() {
+		return "", failure("0A000", "cannot display a value of type intbig_gkey")
 	}
 	if d.IsLquery() {
 		text, err := d.lqueryOutput(ctx, v)

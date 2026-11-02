@@ -1,5 +1,12 @@
 # Changes
 
+- Extend the intarray 1.5 provider with genuine intbig_gkey support identity,
+  rejecting released I/O and typed NULL/empty/NULL-only shared arrays. Seal both
+  type roles and all four I/O declarations through atomic installation, ownership
+  replay and destination remapping; bind only the authenticated support-I/O
+  calls, without enabling a general C loader. Preserve existing integer-array
+  data and NULL transport through uninstall and native logical controls.
+
 - Add transactional shared-builtin `ALTER TABLESPACE ... RENAME TO` and typed
   `OWNER TO`, with immutable live-name rebinding, owner/grantor/grantee ACL
   rebasing, same-owner no-op, shared target publication and attachment inheritance.

@@ -1,6 +1,6 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `seg`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
+Dual-mode tests for extension types: `seg`, `query_int`, `intbig_gkey`, `lquery`, `ltree`, `ltxtquery`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 `hstore` is in [reference/extension_hstore](../extension_hstore/README.md#testing);
 `cube` and `earth` are in [reference/extension_cube](../extension_cube/README.md#testing).
@@ -165,6 +165,19 @@ Rules:
 ### Family selectors
 
 - `query_int`: `RUN='^TestReferenceQueryInt'`
+- Progressive intarray provider declarations, support-key NULL/rejecting I/O,
+  shared integer arrays, lifecycle and native controls:
+  `RUN='^TestReferenceIntarrayProvider'`. Expected inventories select genuine
+  provider-owned declarations, not leaf-owned module routines or index classes.
+  Full diagnostics and raw/metadata accessors retain independent PostgreSQL
+  expectations; native controls also replay their actual emitted SQL.
+  Companion array I/O checks use the shared fixed OIDs 750/751 and canonical
+  regproc names. Complete pg_proc metadata checks cover the four owned intarray
+  routines; this does not claim a complete shared builtin pg_proc inventory.
+  Identity verifiers require the expected installation/source owner explicitly:
+  transport metadata never determines ownership of a replayed dump. Replay
+  registers bounded unconditional authorization/schema cleanup before executing
+  SQL, so failed assertions cannot pollute the next backend's fresh setup.
 - `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
   `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,

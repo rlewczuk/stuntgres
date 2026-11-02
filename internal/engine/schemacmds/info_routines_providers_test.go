@@ -97,7 +97,7 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 			"", "", // regexp_split_to_table
 			"", "", "", "", // strpos, replace, split_part, translate: unnamed SQL scalars
 		}},
-		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out"}},
+		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out", "_intbig_in", "_intbig_out"}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out", "ismn_in", "isn_out", "ismn_in", "ean13_out", "issn_in", "isn_out", "issn_in", "ean13_out", "upc_in", "isn_out"}},
 		{"intagg", catalog.InternalRoutineLanguage, []string{"aggregate_dummy", "array_unnest"}},
 		{"pgrowlocks", catalog.CRoutineLanguage, []string{"pgrowlocks"}},

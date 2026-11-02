@@ -173,6 +173,9 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			return failure
 		}
 		if null {
+			if _, supportIO := node.(functions.IntbigIO); supportIO {
+				return checkIntbigNullRoutineLifetime(c, auth, dependencies, captured)
+			}
 			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {
 				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, catalog.DefinitionDependency)
 				return err
@@ -205,12 +208,46 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 		}
 	}
 	if crypto, ok := node.(plan.InstalledCryptoExpr); ok {
-		if err := c.InitializePgcrypto(crypto.Procedure, crypto.Ref); err != nil { return err }
+		if err := c.InitializePgcrypto(crypto.Procedure, crypto.Ref); err != nil {
+			return err
+		}
 	}
 	if inquiryRoutine(captured) {
 		return validateInquiryBodyLifetime(c, node, captured)
 	}
 	return admitRoutineBody(c, node, captured, constantComputation)
+}
+
+// Strict support I/O may avoid invocation and EXECUTE, never its original
+// declaration lifetime. Keep the established checks/ref-only/direct ownership
+// precedence without recording a consumed call or changing other strict nodes.
+func checkIntbigNullRoutineLifetime(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+	if c.RoutineChecks != nil {
+		_, err := routineDescriptorLifetime(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, catalog.DefinitionDependency)
+		return err
+	}
+	if c.RoutineReferences != nil {
+		if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
+			return err
+		}
+		for _, ref := range c.RoutineReferences {
+			if ref.Address != captured.Address() {
+				continue
+			}
+			if !preparation.StoredReferenceValid(auth.Catalog, c.RoutineConsumer, ref) {
+				return ids.ErrCatalogReplaced
+			}
+			ref.Epoch = auth.Catalog.Epoch()
+			_, err := auth.Object(ref)
+			return err
+		}
+		return fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
+	}
+	if c.RoutineRecipe {
+		return fmt.Errorf("stuntgres: empty owning routine lifetime manifest")
+	}
+	_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, catalog.DefinitionDependency)
+	return err
 }
 
 func AdmitCaseEquality(c *Context, arm plan.CaseBranch) error {

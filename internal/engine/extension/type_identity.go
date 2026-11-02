@@ -50,8 +50,18 @@ func InstalledTypes(v catalog.Read, ext *catalog.Extension) ([]InstalledTypeRole
 		name = "cube"
 		err = StockCube.ValidateExtension(v, ext)
 	case "intarray":
-		name = "query_int"
-		err = StockIntarray.ValidateExtension(v, ext)
+		if err := StockIntarray.ValidateExtension(v, ext); err != nil {
+			return nil, err
+		}
+		roles := make([]InstalledTypeRole, 2)
+		for i, name := range intarrayTypeNames {
+			typ, ok := v.Type(ext.Installation.Members[i*3])
+			if !ok || !catalog.SameInstallation(typ, ext.Installation) {
+				return nil, fmt.Errorf("stuntgres: missing installed intarray type role")
+			}
+			roles[i] = InstalledTypeRole{name, typ}
+		}
+		return roles, nil
 	case "seg":
 		name = "seg"
 		err = StockSeg.ValidateExtension(v, ext)

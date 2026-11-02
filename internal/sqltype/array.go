@@ -70,7 +70,7 @@ func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {
 	if element != nil && (IsSnapshot(element.BaseType().ID()) || element.BaseType().ID() == PgLSN) {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
-	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !element.IsLtree() && !element.IsLquery() && !ArrayElementAdmitted(element.ID()) {
+	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !element.IsLtree() && !element.IsLquery() && !element.IsIntbigGkey() && !ArrayElementAdmitted(element.ID()) {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
 	return &Descriptor{id: id, name: name, sql: element.SQLName() + "[]", database: strings.ToUpper(name), element: element}, nil
@@ -516,7 +516,9 @@ func (p *arrayReader) contents(dimensions []ArrayDimension) ([]ArrayDimension, e
 }
 func (d *Descriptor) arrayInput(ctx context.Context, text string, typmod int32, env InputEnvironment) (Value, error) {
 	v, err := readArrayPayload(ctx, d.element, text, typmod, env)
-	if err != nil { return Value{}, err }
+	if err != nil {
+		return Value{}, err
+	}
 	return ownedArray(d, v.array.dimensions, v.array.elements)
 }
 func readArrayPayload(ctx context.Context, element *Descriptor, text string, typmod int32, env InputEnvironment) (Value, error) {
