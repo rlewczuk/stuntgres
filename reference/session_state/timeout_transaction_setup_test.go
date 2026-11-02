@@ -216,6 +216,54 @@ func (f *timeoutReferenceFixture) prepareReenable(kind string, mark func(string)
 	panic("unreachable reenable setup")
 }
 
+// prepareAdmittedSetConfig arms a 250 ms transaction_timeout, begins, and
+// disables it with set_config inside the admitted transaction. A preparation
+// that misses the budget must be the exact validated 25P04 expiry; it retries
+// at most three times on a fresh physical owner.
+func (f *timeoutReferenceFixture) prepareAdmittedSetConfig() {
+	f.t.Helper()
+	ctx, cancel := f.transactionSetupContext()
+	defer cancel()
+	for attempt := 1; attempt <= 3; attempt++ {
+		if ctx.Err() != nil {
+			f.t.Fatal("set_config setup allowance expired", ctx.Err())
+		}
+		var beginBefore time.Time
+		expired := false
+		for i, q := range []string{"SET transaction_timeout='250ms'", "BEGIN", "SELECT set_config('transaction_timeout','0',false)"} {
+			before := time.Now()
+			var err error
+			if i == 2 {
+				err = f.transactionSetupText(ctx, q, "set_config", "0", true)
+			} else {
+				err = f.transactionSetupExec(ctx, q, 0)
+			}
+			after := time.Now()
+			if i == 1 {
+				beginBefore = before
+			}
+			earliest := beginBefore.Add(250 * time.Millisecond)
+			if i == 0 {
+				earliest = before.Add(250 * time.Millisecond)
+			}
+			if err != nil {
+				f.t.Logf("set_config setup attempt=%d query=%s command=[%v,%v] earliest=%v transaction=250ms error=%v", attempt, q, before, after, earliest, err)
+				f.transactionSetupExpiry(ctx, err, after, earliest)
+				f.rows(f.peer, 7)
+				expired = true
+				break
+			}
+		}
+		if !expired {
+			return
+		}
+		if attempt == 3 {
+			f.t.Fatal("set_config setup exhausted three fixed 250ms attempts")
+		}
+		f.replaceTimeoutOwner()
+	}
+}
+
 func (f *timeoutReferenceFixture) prepareAbortRestore(failure string, child bool) (any, func()) {
 	f.t.Helper()
 	ctx, cancel := f.transactionSetupContext()

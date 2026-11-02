@@ -174,14 +174,13 @@ func timeoutReferencePrecedenceAssignment(t *testing.T) {
 	t.Helper()
 	timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		f := newTimeoutReferenceFixture(t, p, b)
-		f.set("statement_timeout", "250ms")
-		f.set("transaction_timeout", "250ms")
-		f.exec(f.owner, "BEGIN", 0)
-		fixture.RunStep(t, p.Ctx, f.owner, b.Recorder,
-			localReferenceSelect(b.PG, "SELECT set_config('transaction_timeout','0',false)", "set_config", "0"))
+		f.prepareAdmittedSetConfig()
 		timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 		f.show("transaction_timeout", "0")
 		release := f.holdBlocked()
+		// Arm the statement timer last: the wait reports it, not the disabled
+		// transaction timer. ROLLBACK reverts it.
+		f.set("statement_timeout", "250ms")
 		o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)
 		f.diagnostic(o.Err, "57014")
 		f.exec(f.owner, "ROLLBACK", 0)
