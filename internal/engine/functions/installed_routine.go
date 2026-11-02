@@ -28,6 +28,7 @@ const (
 	AutoincExtension
 	PgstattupleExtension
 	PgvisibilityExtension
+	DblinkExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

@@ -69,6 +69,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='moddatetime' AND version='1.0'", true, [][]any{{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='bloom'", false, [][]any{{"bloom", "1.0", nil, "bloom access method - signature file based index"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='bloom' AND version='1.0'", true, [][]any{{"bloom", "1.0", false, true, false, true, nil, nil, "bloom access method - signature file based index"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='dblink'", false, [][]any{{"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='dblink' AND version='1.2'", true, [][]any{{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			if !pg {
 				// Native availability is its embedded registry, including the genuine
 				// installed bootstrap plpgsql extension.
@@ -123,6 +125,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pg_trgm", "1.6", false, true, true, true, nil, nil, "text similarity measurement and index searching based on trigrams"})
 				wantAvailable = append(wantAvailable[:3:3], append([][]any{{"dict_int", "1.0", nil, "text search dictionary template for integers"}}, wantAvailable[3:]...)...)
 				wantVersions = append(wantVersions[:3:3], append([][]any{{"dict_int", "1.0", false, true, true, true, nil, nil, "text search dictionary template for integers"}}, wantVersions[3:]...)...)
+				wantAvailable = append(wantAvailable, []any{"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"})
+				wantVersions = append(wantVersions, []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

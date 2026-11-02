@@ -145,10 +145,17 @@ metadata and full diagnostics. Physical flags use independently specified
 ownership/maintenance fixtures; quiescent summary/scalar/SRF consistency is an
 additional invariant, never a substitute for those expectations. Native control
 witnesses remain phases of the same public dual-mode definitions.
+
 Genuine partitioned-index and TOAST construction are oracle-only setup phases.
 Native partitioned-index rejection additionally uses real published descriptors
 and the current installed host, preserving kind-before-block diagnostics without
 adding public construction machinery.
+
+Dblink delete-construction scenarios use `RUN='^TestReferenceDblinkBuildSQLDelete'`
+in both modes. Shared direct/prepared/held bodies assert independent generated
+TEXT and execute the returned SQL against local fixtures. Metadata, complete
+diagnostics, logical numbering, settings, privileges and genuine identities
+share native replacement phases with retained results and atomic rejected replay.
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 [reference/catalogs](../catalogs/README.md#testing). `TestMain` is

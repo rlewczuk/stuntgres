@@ -151,6 +151,12 @@ select the regclass declaration. The spelling only admits discovery: the live
 winner's sealed provider identity and immutable signature authorize binding.
 Relabelled routines retain the ordinary provider override/tombstone path.
 
+Installed dblink delete construction uses the same selected-call gateway with
+one fixed four-input signature. Binding records the genuine routine revision
+and each typed child without resolving its TEXT relation name. Saved literal
+capture records the routine reference, not a relation dependency; the shared
+strict scalar planner distinguishes erased NULL from demanded runtime NULL.
+
 Installed ltree array routines enter the same catalog callable discovery and
 selection as their backing operators. Recipe spellings are discovery hints only;
 the selected declaration's sealed installed origin and released procedure symbol,

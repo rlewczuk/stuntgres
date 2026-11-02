@@ -1328,6 +1328,17 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
+`InstalledDblinkBuildSQLDeleteExpr` preserves sealed routine authority, its
+domain/epoch reference and all four typed children through reference walking,
+literal capture, rebuild, substitution, remap and retag. Renderers use the
+current qualified SQL callable name, never its C source symbol. The relation
+name remains a TEXT operand and acquires no persistent relation dependency;
+saved callers resolve current metadata at execution. Owner/ACL replay uses the
+existing symbolic installation graph, not source OID authority or live handles.
+Standalone carrier validation requires the current reference epoch before
+resolving the installed declaration; absent, stale or future epochs cannot
+borrow an otherwise genuine routine's authority.
+
 `InstalledPgstattupleStatsExpr` and the exact/approximate/page-discriminated
 `InstalledPgstattupleExpr` use immutable installation authority. Renderers
 preserve the selected overload and original text versus regclass argument;

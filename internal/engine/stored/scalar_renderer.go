@@ -187,6 +187,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgvisibilityExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledDblinkBuildSQLDeleteExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgstattupleExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPageinspectExpr:

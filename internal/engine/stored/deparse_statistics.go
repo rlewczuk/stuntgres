@@ -58,6 +58,7 @@ func statisticsFunctionShape(node expr.Expr) (bool, error) {
 		plan.ExtensionPathsExpr, plan.MergeActionExpr,
 		plan.InstalledUUIDOsspExpr, plan.InstalledSSLInfoExpr,
 		plan.InstalledPgvisibilityExpr, plan.InstalledPgstattupleExpr,
+		plan.InstalledDblinkBuildSQLDeleteExpr,
 		plan.InstalledPgstattupleStatsExpr, plan.InstalledPageinspectExpr,
 		plan.InstalledAmcheckExpr, plan.InstalledEarthExpr, plan.InstalledCubeExpr:
 		return true, nil

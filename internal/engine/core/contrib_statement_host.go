@@ -295,6 +295,10 @@ func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype
 	return contrib.Pgstattuple[AuthorizationView](h.host(), n, input)
 }
 
+func (h *contribHost) DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteExpr, values [4]sqltype.Value) (string, error) {
+	return contrib.DblinkBuildSQLDelete[AuthorizationView](h.host(), n, values)
+}
+
 func (h *contribHost) Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
 	return contrib.Pgvisibility[AuthorizationView](h.host(), n, oid, block)
 }

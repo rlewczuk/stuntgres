@@ -172,6 +172,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
+  `InstalledDblinkBuildSQLDeleteExpr` carries the selected constructor's genuine
+  procedure/reference and four typed operands through rebuild, substitution,
+  capture and stored remapping. Its TEXT relation operand is not a captured
+  relation identity. Runtime supplies metadata and returned text per invocation;
+  the carrier retains neither a resolver nor a live host or lock.
   `InstalledPgpArmorHeadersExpr` retains declaration-owned two-TEXT OUT shape,
   argument and original procedure/reference through rebuild, substitution,
   grouping, capture, remap, retag and qualified replay. It opens only through

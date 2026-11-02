@@ -2,7 +2,7 @@
 
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
-earthdistance, dict_int, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
+earthdistance, dblink, dict_int, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
@@ -32,6 +32,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   or parallel safety from current membership. The sealed recipe retains those
   declaration facts while current owner/ACL, cost and parallel overrides remain
   independent and survive native replay.
+  Dblink's bounded recipe installs only `dblink_build_sql_delete`, with its stock
+  1.2 control and released C declaration. One sealed slot authenticates the
+  implementation independently of current names, owner and membership. No
+  connection routines or adjacent SQL constructors are declared as placeholders.
   Bloom installs its released six-member handler/method/family/class graph.
   Its C declaration describes a registered Go implementation, not a loaded
   shared library. The global AM is ownerless; its handler and int4/text classes

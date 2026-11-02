@@ -108,6 +108,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	}
 	var installed bool
 	switch family {
+	case functions.DblinkExtension:
+		installed = extension.DblinkProviderOf(proc) == extension.StockDblink
 	case functions.TcnExtension:
 		installed = extension.TcnProviderOf(proc) == extension.StockTcn
 	case functions.AutoincExtension:
@@ -160,6 +162,8 @@ type installedExtensionRoutine struct {
 func (r installedExtensionRoutine) Validate() error {
 	p := r.procedure
 	switch {
+	case extension.DblinkProviderOf(p) != nil:
+		return extension.StockDblink.ValidateProcedure(r.catalog, p)
 	case extension.TcnProviderOf(p) != nil:
 		return extension.StockTcn.ValidateProcedure(r.catalog, p)
 	case extension.AutoincProviderOf(p) != nil:
@@ -279,6 +283,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
+	case functions.DblinkBuildSQLDelete:
+		if err := extension.ValidateDblinkIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidateDblinkBuildSQLDeleteCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledDblinkBuildSQLDeleteExpr{DblinkBuildSQLDelete: c, Procedure: p, Ref: ref}, nil
 	case functions.Tcn:
 		if extension.TcnProviderOf(p) != extension.StockTcn {
 			break

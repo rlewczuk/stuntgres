@@ -903,6 +903,14 @@ reviewed decision:
   eight-field hash RecordShape for scalar, field and one-row FROM usage
   (including an all-NULL row for STRICT NULL). It is VOLATILE, stage dependent
   and never folded; only the installed plan wrapper can execute it.
+  `DblinkBuildSQLDelete` binds TEXT/INT2VECTOR/INT4/TEXT[] to TEXT through the
+  same installed-call gateway. Its four fixed operands preserve written order
+  and immutable type generations; rebuild, substitution and capture own their
+  slots. Non-NULL calls are VOLATILE and stage dependent, never planning-evaluated.
+  Whole-NULL simplification uses ordinary strict scalar planning. No relation,
+  returned SQL, catalog or runtime authority is retained by the kernel.
+  `AppendSQLLiteral` shares the formatter's PostgreSQL literal escaping directly
+  into an invocation-owned builder without an intermediate rendered string.
   `Pgvisibility` carries a selected block/map/page/summary operation and typed
   OUT shape. REGCLASS/INT8 inputs use the shared callable/coercion hooks; lexical
   children and checked formal slots preserve evaluation order. Scalar records

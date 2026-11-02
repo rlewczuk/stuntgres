@@ -716,6 +716,13 @@ Scalar STRICT NULL retains one scalar-source row; a STRICT relation set retains
 its declared metadata with no rows. No child, context or physical root is retained
 by the completed result.
 
+`dblink_build_sql_delete.go` authenticates the demanded installed scalar and
+current schema/EXECUTE authority before evaluating its four written children
+once. Runtime whole NULL returns typed TEXT NULL without relation admission;
+ordinary strict planning can erase constant or substituted-parameter NULL calls
+earlier. Non-NULL calls use `ContribRuntime` for metadata-only SQL construction,
+not source-row evaluation, remote execution or a prepared text cache.
+
 ## Invariants
 
 - **No mutexes.** The package adds no lock. Lock order, modes and waits belong to

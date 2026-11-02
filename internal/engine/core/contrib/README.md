@@ -3,7 +3,7 @@
 The contrib function runtimes: amcheck's B-tree checks and `verify_heapam`,
 pageinspect's BRIN and heap attribute captures, `pgrowlocks`, pgstattuple's
 tuple, page and index statistics, tablefunc's `crosstab`, `connectby` and
-`normal_rand` validation, and the generic file functions. It is a leaf below
+`normal_rand` validation, dblink's delete SQL construction, and generic file functions. It is a leaf below
 core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 `storage`, `exec`, `functions` and `sqltype`.
 
@@ -21,7 +21,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 
 - `Amcheck`, `VerifyHeapam`, `Pageinspect`, `PageinspectHeap`, `Pgrowlocks`,
   `PgstattupleStats` (pgstatindex, pgstathashindex), `Pgstattuple`, `Pgvisibility`,
-  `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
+  `DblinkBuildSQLDelete`, `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
   authority before argument evaluation.
@@ -65,6 +65,23 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
   contribution is released on every exit.
 
 ## Behaviour
+
+### dblink SQL construction
+
+`DblinkBuildSQLDelete` resolves the TEXT relation name at invocation and admits
+the exact installed routine plus table-level SELECT authority. It captures live
+logical columns, visibility-driven schema qualification and output settings;
+it never opens storage, fetches a source tuple or performs network execution.
+Post-wait locked admission follows `table_openrv`: indexes (including represented
+partitioned indexes) and composite relations fail with their exact `42809`
+kind Detail before table SELECT, key/count or array validation. Views, sequences,
+foreign tables and partitioned tables acquire no statistics-style kind exclusion.
+Scoped AccessShare contributions are released on every exit. Metadata and ACL
+capture takes Owner.Mu before Engine.Mu; name resolution, waits and formatting
+run outside both, with exact descriptor/epoch and authority readmission after
+waiting. `DblinkDeleteSQL` consumes only detached immutable metadata and typed
+vector/array payloads, validating the used prefix before target cardinality.
+It shares identifier and literal policies with their existing owners.
 
 ### pgstattuple
 
@@ -262,6 +279,8 @@ rejecting physical listing. Nodes retain neither authority nor physical state.
 
 ## Testing
 
+- Dblink provider, detached-construction and retained-carrier ownership units use
+  `RUN='^TestDblinkBuildSQLDelete'` in core and its binder enginetests.
 - The runtimes' engine tests stay in core until their census owners move them
   (`RUN='^Test(Amcheck|Connectby|GenericFile|Pageinspect|Pgrowlocks|Pgstat|Tablefunc|VerifyHeapam)'`
   over `./internal/engine/core`; core's README lists the per-family

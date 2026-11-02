@@ -151,6 +151,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgvisibilityExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledDblinkBuildSQLDeleteExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgstattupleExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgstattupleStatsExpr:

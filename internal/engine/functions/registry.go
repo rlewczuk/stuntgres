@@ -151,6 +151,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pgp_armor_headers"}, Bind: bindPgpArmorHeaders},
 	{Names: []string{"pgstatindex", "pgstathashindex"}, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
 	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Bind: bindPgstattuple, NamedCall: namedPgstattuple},
+	{Names: []string{DblinkDeleteName}, Bind: bindDblinkBuildSQLDelete},
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary"}, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
 	{Names: pageinspectNames[:], Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Bind: bindTablefuncNormal},

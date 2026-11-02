@@ -232,6 +232,12 @@ func formatWidth(ctx context.Context, value sqltype.Value, int4 *sqltype.Descrip
 	return int(n), err
 }
 
+// AppendSQLLiteral shares quote_literal's escaping without an intermediate
+// formatted string. The caller owns out; NULL uses SQL's unquoted NULL token.
+func AppendSQLLiteral(ctx context.Context, out *strings.Builder, value sqltype.Value, output sqltype.OutputEnvironment) error {
+	return formatField(ctx, out, value, 'L', 0, false, output)
+}
+
 func formatField(ctx context.Context, out *strings.Builder, value sqltype.Value, verb rune, width int, left bool, output sqltype.OutputEnvironment) error {
 	text := ""
 	quote, escape := byte(0), false

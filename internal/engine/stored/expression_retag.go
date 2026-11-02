@@ -504,6 +504,24 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InstalledDblinkBuildSQLDeleteExpr:
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.DblinkProviderOf(proc) != extension.StockDblink {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped dblink function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledDblinkBuildSQLDelete(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledPgstattupleExpr:
 		n.Args = children(n.Args)
 		if err != nil {
