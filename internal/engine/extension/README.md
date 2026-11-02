@@ -428,8 +428,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   resolves to the installation-local hstore in both staging and validation.
   Authenticated recipe operators may change schema independently; manifest,
   signature, result, backer and current header checks retain identity authority.
-  The sealed manifest has sixty-six declarations, independent of current
-  membership; its sixty-five owner-bearing roles retain their authority.
+  The 1.8 `hstore_subscript_handler` is the last, newest role; through the
+  optional `catalog.TypeSubscriptProvider` it is hstore's `typsubscript`.
+  The sealed manifest has sixty-seven declarations, independent of current
+  membership; its sixty-six owner-bearing roles retain their authority.
   Nonstrict `hstore(record)` and `populate_record(anyelement,hstore)` retain
   their released pseudo signatures; binary `#=` has ANYELEMENT left/result and
   the exact replacement backer. Symbolic ownership never substitutes a selected

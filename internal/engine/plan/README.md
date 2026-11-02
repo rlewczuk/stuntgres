@@ -279,7 +279,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `GenerationHasTableOID` (it reads the owner's `tableoid`), used by generated
   columns, index snapshot repair and partition checks. `SubscriptChildren`
   (`expression_array.go`) lists a subscript's base and bounds in caller storage
-  for these and the other walkers.
+  for these and the other walkers. `SubscriptExpr.Handler` selects the
+  container's `typsubscript` semantics for fetch and `ArrayAssignmentTarget`
+  assignment: arrays (zero) or hstore's single text key
+  (`expression_hstore_subscript.go`).
 
 ## Node runtime
 

@@ -96,6 +96,10 @@ func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	case parser.ArrayExpr:
 		return "array", false
 	case parser.SubscriptExpr:
+		// A non-array handler's result type is not the container's element.
+		if subscript, ok := bound.(plan.SubscriptExpr); ok && subscript.Handler != plan.ArraySubscripts {
+			return ExpressionName(r.Base, subscript.Base.ResultUsage(), subscript.Base)
+		}
 		return ExpressionName(r.Base, usage, bound)
 	case parser.TimeZoneExpr:
 		return "timezone", true

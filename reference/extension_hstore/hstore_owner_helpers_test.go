@@ -24,7 +24,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		t.Fatal("wrong actual owner record", string(data))
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 67 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 68 {
 		t.Fatalf("actual bounded owner inventory %s/%v", data, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
@@ -56,7 +56,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 	if err := json.Unmarshal(bySlot[0]["name"], &typeName); err != nil {
 		t.Fatal(err)
 	}
-	portable := map[string]string{"hstore": schema + "." + typeName, "2275": "pg_catalog.cstring", "25": "pg_catalog.text", "1009": "pg_catalog.text[]", "20": "bigint", "2249": "pg_catalog.record", "2283": "pg_catalog.anyelement", "0": "NONE"}
+	portable := map[string]string{"hstore": schema + "." + typeName, "2275": "pg_catalog.cstring", "25": "pg_catalog.text", "1009": "pg_catalog.text[]", "20": "bigint", "2249": "pg_catalog.record", "2283": "pg_catalog.anyelement", "2281": "pg_catalog.internal", "0": "NONE"}
 	for slot, want := range []struct{ kind, signature string }{
 		{"type", ""},
 		{"procedure", "2275"},
@@ -124,6 +124,7 @@ func hstoreInvalidOwnerDump(t *testing.T, dump []byte, kind string) string {
 		{"operator", "hstore,25"},
 		{"operator", "hstore,1009"},
 		{"operator", "hstore,hstore"},
+		{"procedure", "2281"},
 	} {
 		if slot == 11 {
 			continue

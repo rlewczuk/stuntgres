@@ -185,7 +185,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 			t.Fatal("RHS did not use original execution frame", number, err)
 		}
 	}
-	if usage := analyze.TargetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
+	if usage := analyze.TargetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}, nil); usage.Type != integer {
 		t.Fatal("leaf metadata", usage)
 	}
 	if _, err := b.BindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {

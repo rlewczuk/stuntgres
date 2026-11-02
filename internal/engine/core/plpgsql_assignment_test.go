@@ -262,7 +262,7 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 	}
 	want := usage
 	want.Type = array.Element()
-	if bound.Container != shape.Usage() || bound.Next == nil || bound.Next.Container != usage || bound.Destination != want || analyze.TargetUsage(shape.Usage(), target.Steps) != want {
+	if bound.Container != shape.Usage() || bound.Next == nil || bound.Next.Container != usage || bound.Destination != want || analyze.TargetUsage(shape.Usage(), target.Steps, nil) != want {
 		t.Fatal("target discarded full usage", bound.Destination, want)
 	}
 	t.Run("local_composite_array_admission", func(t *testing.T) {

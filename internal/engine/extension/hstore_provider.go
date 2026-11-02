@@ -69,6 +69,8 @@ const (
 	HstoreDeleteOperatorSlot
 	HstoreDeleteArrayOperatorSlot
 	HstoreDeleteHstoreOperatorSlot
+	// The 1.7--1.8 handler is the newest member; type hstore's typsubscript.
+	HstoreSubscriptHandlerSlot
 	HstoreMemberCount
 )
 
@@ -122,6 +124,7 @@ var hstoreRoutines = [...]hstoreRoutine{
 	{HstoreDeleteArraySlot, "delete", "hstore_delete_array", "hstore,1009", 0, true},
 	{HstoreDeleteHstoreSlot, "delete", "hstore_delete_hstore", "hstore,hstore", 0, true},
 	{HstoreUpdateSliceSlot, "slice", "hstore_slice_to_hstore", "hstore,1009", 0, true},
+	{HstoreSubscriptHandlerSlot, "hstore_subscript_handler", "hstore_subscript_handler", "2281", 2281, true},
 }
 
 var hstoreEachOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25}, "hs", "key", "value")
@@ -275,6 +278,11 @@ func (p *HstoreProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) 
 		return err
 	}
 	return validateHstoreComparisons(v, ext, base)
+}
+
+// TypeSubscriptDeclaration names the handler slot of the hstore type slot.
+func (p *HstoreProvider) TypeSubscriptDeclaration(declaration int) (int, bool) {
+	return HstoreSubscriptHandlerSlot, declaration == HstoreTypeSlot
 }
 
 func (p *HstoreProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {

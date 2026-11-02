@@ -107,7 +107,7 @@ func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usa
 		usage = current.Type().Usage()
 	}
 	e := h.s.Engine()
-	if leaf := analyze.TargetUsage(usage, target.Steps); leaf.Valid() {
+	if leaf := analyze.TargetUsage(usage, target.Steps, nil); leaf.Valid() {
 		return leaf, nil
 	}
 	e.Mu.Lock()

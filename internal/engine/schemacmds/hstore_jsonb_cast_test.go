@@ -185,6 +185,7 @@ func TestHstoreJSONBCastMutableOriginAuthority(t *testing.T) {
 		"ALTER EXTENSION hstore DROP FUNCTION hstore_to_jsonb(hstore)",
 		"ALTER EXTENSION hstore DROP FUNCTION hstore_in(cstring)",
 		"ALTER EXTENSION hstore DROP FUNCTION hstore_out(hstore)",
+		"ALTER EXTENSION hstore DROP FUNCTION hstore_subscript_handler(internal)",
 		"ALTER EXTENSION hstore DROP TYPE hstore",
 		"DROP EXTENSION hstore",
 	} {

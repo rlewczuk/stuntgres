@@ -58,6 +58,9 @@ func (t *ArrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Valu
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
+	if t.Node.Handler == HstoreSubscripts {
+		return t.applyHstore(ctx, current, expression, rhs)
+	}
 	var storage [6]sqltype.ArraySubscriptValue
 	bounds, err := evaluateArrayBounds(ctx, t.Node.Subscripts, t.Node.Slice, storage[:len(t.Node.Subscripts)])
 	if err != nil {
@@ -254,6 +257,7 @@ type SubscriptExpr struct {
 	Base       expr.Expr
 	Subscripts []BoundArraySubscript
 	Slice      bool
+	Handler    SubscriptHandler
 }
 
 // SubscriptChildren lists the base and the present bounds, in evaluation
@@ -287,6 +291,9 @@ func (n SubscriptExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if value.IsNull() {
 		return sqltype.Null(n.Usage.Type), nil
+	}
+	if n.Handler == HstoreSubscripts {
+		return n.hstoreFetch(ctx, value)
 	}
 	var storage [6]sqltype.ArraySubscriptValue
 	bounds, err := evaluateArrayBounds(ctx, n.Subscripts, n.Slice, storage[:len(n.Subscripts)])

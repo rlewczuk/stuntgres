@@ -122,6 +122,16 @@ func TypeFacts(ctx context.Context, view catalog.Read, d *catalog.Type, output s
 			return f, err
 		}
 		f.Input, f.Output = uint32(installation.Members[slot+1].ObjectID), uint32(installation.Members[slot+2].ObjectID)
+		handler, ok, err := catalog.InstalledTypeSubscript(view, d)
+		if err != nil {
+			return f, err
+		}
+		if ok {
+			if err := validateInstalledProcedureOwner(view, handler); err != nil {
+				return f, err
+			}
+			f.Subscript = uint32(handler.Address().ObjectID)
+		}
 	}
 	return f, nil
 }

@@ -157,7 +157,7 @@ func bindUpdateAssignmentSource(b *Binding, binder *Binder, a parser.UpdateAssig
 	if slot, ok := b.Relation.Index[a.Target.Text]; ok {
 		expected = b.Relation.Columns[slot].Usage
 		if len(a.Steps) != 0 {
-			expected = TargetUsage(expected, a.Steps)
+			expected = TargetUsage(expected, a.Steps, binder.Type(sqltype.Text))
 		}
 	}
 	return binder.Bind(a.Value, ExpressionPolicy{Context: ProjectionContext, Expected: expected, Mode: sqltype.Assignment})

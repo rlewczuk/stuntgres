@@ -169,28 +169,7 @@ func (b *Binder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.BoundArray
 	}
 	slice := false
 	bind := func(raw parser.Expr) (expr.Expr, error) {
-		if raw == nil {
-			return nil, nil
-		}
-		o, err := b.comparisonOperand(raw)
-		if err != nil {
-			return nil, err
-		}
-		node, err := b.finalizeOperand(o, b.Type(sqltype.Int4))
-		if err != nil {
-			return nil, err
-		}
-		if node.ResultUsage().Type == b.Type(sqltype.Int4) {
-			return node, nil
-		}
-		if selected, handled, selectionErr := b.declaredCoercion(node, b.Type(sqltype.Int4).Usage(), sqltype.Assignment, node.SourcePosition(), raw); handled {
-			return selected, selectionErr
-		}
-		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), b.Type(sqltype.Int4).Usage(), sqltype.Assignment)
-		if err != nil {
-			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
-		}
-		return plan.CoercionExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), node.SourcePosition(), CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
+		return b.bindSubscriptOperand(raw, sqltype.Int4, "array subscript must have type integer")
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)
@@ -212,6 +191,34 @@ func (b *Binder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.BoundArray
 	return subs, slice, nil
 }
 
+// bindSubscriptOperand binds one subscript and assignment-coerces it to the
+// handler's subscript type, failing with message at the operand.
+func (b *Binder) bindSubscriptOperand(raw parser.Expr, target sqltype.ID, message string) (expr.Expr, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	o, err := b.comparisonOperand(raw)
+	if err != nil {
+		return nil, err
+	}
+	typ := b.Type(target)
+	node, err := b.finalizeOperand(o, typ)
+	if err != nil {
+		return nil, err
+	}
+	if node.ResultUsage().Type == typ {
+		return node, nil
+	}
+	if selected, handled, selectionErr := b.declaredCoercion(node, typ.Usage(), sqltype.Assignment, node.SourcePosition(), raw); handled {
+		return selected, selectionErr
+	}
+	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), typ.Usage(), sqltype.Assignment)
+	if err != nil {
+		return nil, expr.ErrorAt("42804", message, parser.ExpressionStart(raw))
+	}
+	return plan.CoercionExpr{Info: b.Info(typ.Usage(), node.SourcePosition(), CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
+}
+
 func (b *Binder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 	base, err := b.Bind(raw.Base, ExpressionPolicy{Context: ProjectionContext})
 	if err != nil {
@@ -224,6 +231,9 @@ func (b *Binder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 		if err!=nil{return nil,err}
 		base=plan.CoercionExpr{Info:b.Info(lowered,base.SourcePosition(),CoercionProperties(base,conversion)),Child:base,Plan:conversion,Mode:sqltype.Implicit}
 		usage=lowered
+	}
+	if usage.Type.IsHstore() {
+		return b.bindHstoreSubscript(raw, base, usage.Type)
 	}
 	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg && usage.Type.ID() != sqltype.Point {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), parser.ExpressionStart(raw.Base))

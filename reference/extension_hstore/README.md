@@ -41,7 +41,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   and missing versus NULL-valued keys; exact body diagnostics remain separate
   from overload errors. `_TEXT` transport covers array lookups. Native controls
   carry constructors, named backers and operators with the shared exact
-  sixty-five-owner validator, omitting only the ownerless cast. Nonstrict
+  sixty-six-owner validator, omitting only the ownerless cast. Nonstrict
   constructors preserve present NULL values under current caller admission.
   Held installed-hstore result signatures reject true Reset/Restore replacement
   with the cached-plan result-type diagnostic; builtin TEXT signatures rebind

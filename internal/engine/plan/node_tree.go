@@ -171,6 +171,9 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		}
 	case SubscriptExpr:
 		fmt.Fprintf(out, "Subscript slice %t", n.Slice)
+		if n.Handler != ArraySubscripts {
+			fmt.Fprintf(out, " handler %d", n.Handler)
+		}
 		if err = child(n.Base); err != nil {
 			return err
 		}

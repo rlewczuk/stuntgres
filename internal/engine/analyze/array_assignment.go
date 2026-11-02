@@ -12,8 +12,16 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sqltype.Usage {
+// arrayTargetUsage is the type assigned through subs. An hstore subscript
+// assigns text; without the caller's text descriptor it is unknown here.
+func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript, text *sqltype.Descriptor) sqltype.Usage {
 	usage := container.BaseUsage()
+	if usage.Type.IsHstore() {
+		if text == nil {
+			return sqltype.Usage{}
+		}
+		return text.Usage()
+	}
 	for _, s := range subs {
 		if s.Slice {
 			return usage
@@ -28,6 +36,9 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 func (b *Binder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if usage.Type.IsCatalogVector() { usage=b.Type(usage.Type.Element().AssociatedArray()).Usage() }
+	if usage.Type.IsHstore() {
+		return b.bindHstoreTarget(column, usage, raw, pos)
+	}
 	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg && usage.Type.ID() != sqltype.Point {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.DiagnosticTypeName(usage.Type)), pos)
 	}
@@ -43,7 +54,7 @@ func (b *Binder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscr
 		if column.Usage.Type.BaseType().IsCatalogVector() { return nil,expr.ErrorAt("42846",fmt.Sprintf("cannot cast type %s to %s",usage.Type.DiagnosticName(),column.Usage.Type.DiagnosticName()),pos) }
 		return nil, err
 	}
-	return &plan.ArrayAssignmentTarget{Node: plan.SubscriptExpr{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil
+	return &plan.ArrayAssignmentTarget{Node: plan.SubscriptExpr{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw, nil), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil
 }
 
 func (b *Binder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
@@ -70,7 +81,9 @@ func (b *Binder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarget, err er
 	return &copy
 }
 
-func TargetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usage {
+// TargetUsage is the type assigned through steps. text is the binding
+// catalog's text type; nil leaves an hstore subscript target unknown.
+func TargetUsage(container sqltype.Usage, steps []parser.TargetStep, text *sqltype.Descriptor) sqltype.Usage {
 	usage := container
 	for i := 0; i < len(steps); {
 		if field := steps[i].Field; field != nil {
@@ -102,7 +115,7 @@ func TargetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usa
 				n++
 				i++
 			}
-			usage = arrayTargetUsage(usage, subs[:n])
+			usage = arrayTargetUsage(usage, subs[:n], text)
 		}
 	}
 	return usage

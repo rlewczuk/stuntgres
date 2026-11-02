@@ -2037,7 +2037,13 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if err != nil {
 			return "", err
 		}
-		text = "(" + text + ")"
+		// Display parenthesizes the base unless it is a plain column or a
+		// field selection, as PostgreSQL's ruleutils does.
+		if _, column := e.Base.(parser.ColumnExpr); !v.Presentation.Deparse || !column {
+			if _, field := e.Base.(parser.FieldExpr); !v.Presentation.Deparse || !field {
+				text = "(" + text + ")"
+			}
+		}
 		for _, s := range e.Subscripts {
 			text += "["
 			if s.Lower != nil {

@@ -202,7 +202,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return true
 	case plan.SubscriptExpr:
 		o, ok := other.(plan.SubscriptExpr)
-		if !ok || e.Slice != o.Slice || len(e.Subscripts) != len(o.Subscripts) || !same(e.Base, o.Base) {
+		if !ok || e.Slice != o.Slice || e.Handler != o.Handler || len(e.Subscripts) != len(o.Subscripts) || !same(e.Base, o.Base) {
 			return false
 		}
 		for i, s := range e.Subscripts {

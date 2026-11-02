@@ -63,6 +63,10 @@ func TestPreparedInstalledScalarMembership(t *testing.T) {
 						output := before.MustProcedure(ext.Installation.Members[tc.slot+2])
 						execute("ALTER EXTENSION " + tc.provider + " DROP FUNCTION public." + input.Name() + "(cstring)")
 						execute("ALTER EXTENSION " + tc.provider + " DROP FUNCTION public." + output.Name() + "(public." + tc.family + ")")
+						if tc.provider == "hstore" {
+							// The type's typsubscript handler is a NORMAL provider too.
+							execute("ALTER EXTENSION hstore DROP FUNCTION public.hstore_subscript_handler(internal)")
+						}
 						execute("DROP EXTENSION " + tc.provider)
 					}
 					e.Mu.Lock()

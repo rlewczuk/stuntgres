@@ -27,7 +27,7 @@ func TestHstoreUpdateProvider(t *testing.T) {
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "hstore"}))
 	base := ext.Members[0].ObjectID
-	if extension.HstoreEachSlot != 56 || extension.HstoreConcatSlot != 57 || extension.HstoreUpdateSliceSlot != 61 || extension.HstoreConcatOperatorSlot != 62 || extension.HstoreDeleteHstoreOperatorSlot != 65 || len(ext.Installation.Members) != 66 || len(ext.Members) != 67 {
+	if extension.HstoreEachSlot != 56 || extension.HstoreConcatSlot != 57 || extension.HstoreUpdateSliceSlot != 61 || extension.HstoreConcatOperatorSlot != 62 || extension.HstoreDeleteHstoreOperatorSlot != 65 || len(ext.Installation.Members) != 67 || len(ext.Members) != 68 {
 		t.Fatal("append-only update frontier and generated companion")
 	}
 	for _, tc := range []struct {

@@ -254,7 +254,7 @@ func TestHstoreRowsMutableMembershipAuthority(t *testing.T) {
 		enginetest.SessionSQL(t, s, "ALTER EXTENSION \"uuid-ossp\" ADD FUNCTION "+name+"(hstore)")
 	}
 	validate()
-	for _, declaration := range []string{"FUNCTION hstore_in(cstring)", "FUNCTION hstore_out(hstore)", "TYPE hstore"} {
+	for _, declaration := range []string{"FUNCTION hstore_in(cstring)", "FUNCTION hstore_out(hstore)", "FUNCTION hstore_subscript_handler(internal)", "TYPE hstore"} {
 		enginetest.SessionSQL(t, s, "ALTER EXTENSION hstore DROP "+declaration)
 	}
 	enginetest.SessionSQL(t, s, "DROP EXTENSION hstore")
