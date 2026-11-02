@@ -79,7 +79,7 @@ func pgAMHeldExecution(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		check()
 	}
 	pgAMMetadata(t, old, b.PG)
-	pgAMConsume(t, old, pgAMFacts(b.PG, false))
+	pgAMConsume(t, old, pgAMFacts(false))
 	pgAMSavedMetadata(t, saved, b.PG, false)
 }
 
@@ -92,7 +92,7 @@ func pgAMLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	run(fixture.Exec("INSERT INTO am_life VALUES(7,'kept'),(8,'also')", 2))
 	run(fixture.Exec("CREATE INDEX am_life_b ON am_life(n)", 0))
 	run(fixture.Exec("CREATE INDEX am_life_h ON am_life USING hash(s)", 0))
-	run(fixture.Exec("CREATE VIEW am_life_view AS SELECT * FROM pg_catalog.pg_am WHERE oid IN (2,403,405,783,3580,4000)", 0))
+	run(fixture.Exec("CREATE VIEW am_life_view AS SELECT * FROM pg_catalog.pg_am WHERE oid IN (2,403,405,783,2742,3580,4000)", 0))
 	stmt, err := b.DB.PrepareContext(p.Ctx, pgAMProbe)
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +107,7 @@ func pgAMLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	defer viewstmt.Close()
 	viewheld := fixture.HeldStatement{Executor: b.DB, Statement: viewstmt, SQL: viewq}
 	viewRows := func(e fixture.Executor, prepared bool) {
-		s := pgAMStep(b, viewq, pgAMFacts(false, false))
+		s := pgAMStep(b, viewq, pgAMFacts(false))
 		s.Prepared = prepared
 		// User views retain nullable descriptors even over NOT NULL catalog
 		// columns; base-catalog checks continue to require NOT NULL.
@@ -179,7 +179,7 @@ func pgAMLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		}
 	}
 	pgAMMetadata(t, old, b.PG)
-	pgAMConsume(t, old, pgAMFacts(b.PG, false))
+	pgAMConsume(t, old, pgAMFacts(false))
 	pgAMSavedMetadata(t, saved, b.PG, false)
 }
 

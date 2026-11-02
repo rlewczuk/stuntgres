@@ -1,7 +1,7 @@
 # reference/indexes
 
 Indexes and index-backed constraints: access-method definitions (`CREATE ACCESS
-METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/BRIN/bloom indexes, partial,
+METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/GIN/BRIN/bloom indexes, partial,
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX`,
@@ -111,6 +111,18 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - GiST classes, exact predicates, options and lifecycle: `RUN='^TestReferenceGiST'`.
   Text-search predicate rows assert scalar match behavior independently of index use.
 - SP-GiST classes, exact predicates, bytewise text providers and lifecycle: `RUN='^TestReferenceSPGiST'`
+- GIN arrays/tsvector, exact released catalogs, diagnostics, typed/lexical options,
+  publication and replay: `RUN='^TestReferenceGIN'`. Public predicates retain the
+  scalar array/FTS authority independently of index use; internal `TestGIN` units
+  prove substantive typed postings, immutable batch merge, destination ownership,
+  every transport, vacuum and cancellation. Fastupdate/pending-limit controls
+  retain physical configuration intent, not a physical pending-list algorithm.
+  `TestReferenceGINPresentationChanges` independently covers populated array/
+  vector class and family rename/owner/schema changes, indexed writes, inquiry,
+  private rollback and native replay. Builtin identities are restored on every
+  exit. Internal `TestGINPresentationRebinding` retains strict detached rejection
+  and actual shared backing; `TestGINNonmaterializingMerge` checks required
+  validation/cancellation and bounded append/delete/no-change allocation.
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`
 - UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`

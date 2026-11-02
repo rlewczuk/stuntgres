@@ -1,7 +1,7 @@
 # internal/engine/index
 
-Index records and algorithms: B-tree, hash, GiST and SP-GiST keys and roots, BRIN
-min/max range summaries, bloom signatures, unique and exclusion enforcement,
+Index records and algorithms: B-tree, hash, GiST and SP-GiST keys and roots, GIN
+typed inverted postings, BRIN min/max summaries, bloom signatures, unique and exclusion enforcement,
 publication and snapshots, write-time maintenance, operator-family/access-method
 DDL and partition propagation.
 
@@ -63,6 +63,37 @@ builds a binder.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
+  GIN (`gin.go`, `delta.go`) binds actual array_ops/tsvector_ops family support,
+  then builds per-column typed token dictionaries and exact row/version/slot
+  postings from already-produced keys. Batch delta merges extract only added
+  keys, end exact predecessors and share unchanged posting backing. NULL items,
+  empty items and NULL elements are separate categories; array duplicate tokens
+  are deduplicated per version, never across duplicate SQL rows. Token comparison
+  reuses concrete scalar element equality/ordering and collation, not rendered
+  values or a B-tree opclass. Vector projection reads immutable canonical lexemes.
+  Minimal exact/prefix/array probes consume postings and always require scalar
+  recheck; there is no optimizer path or second array/FTS matcher. Current roots
+  do not replace ordinary own-write or historical visibility.
+  Class/family presentation ALTER (`gin_presentation.go`) strictly authenticates
+  predecessor captures before selecting current target support. The catalog
+  stage copies affected live index keys; ordinary/private publication copies
+  only root/binding wrappers and shares actual entries, dictionaries and postings.
+  Mapped construction history retains prior recipe debt. Private own-write keys
+  travel with the certified descriptor mapping without executing SQL again;
+  retained routine-source fences remain required. Detached stale support still
+  fails ordinary binding. Provider/member/codec changes cannot use this transport.
+  Nonmaterializing admission uses the same fallible merge traversal with only
+  delta-sized scratch, never constructing merged survivor dictionaries/postings
+  or an installable root merely to discard it.
+  Baseline and vacuum structurally filter/remap postings without SQL callbacks;
+  slot-only layouts share unchanged bindings/backing. Snapshot/remint reconstructs
+  destination generations and exact physical ownership from transported produced
+  keys, retaining construction history. Empty roots retain actual column bindings.
+  `fastupdate` and `gin_pending_list_limit` retain typed and lexical physical
+  configuration intent (absent defaults on/4096KB), without pending lists/pages.
+  Metadata-only SET/RESET never rebuilds logical postings; inquiry and separate
+  ALTER replay preserve explicit defaults, spelling and order. JSONB token
+  providers are honestly unavailable, not reported as nonexistent PG classes.
   `pgstattuple.go` estimates tuple/page metrics from current logical roots and
   already-produced private outputs. Published logical removal stops contributing
   at once; pgstattuple dead index count is zero because roots have no killed-item
@@ -422,7 +453,7 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 ## Invariants
 
 - **Immutable roots.** Roots are ordered entries, unsorted GiST/SP-GiST memberships,
-  equality buckets or logical range summaries, maintained at the same
+  equality buckets, typed inverted postings or logical range summaries, maintained at the same
   Finish/commit frontier as rows. Derived keys evaluate
   at Execute, after predicate qualification and before rows are installed;
   failed batches, waits and builds preserve predecessor rows and roots.
@@ -535,6 +566,8 @@ make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFenc
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport
 make check RUN='^TestSPGiST'   # genuine method, membership, publication and destination transport
+make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot)$'
+make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestGINCancellation)$'
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

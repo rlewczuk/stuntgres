@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// IndexEntry is one exact B-tree, GiST, SP-GiST or bloom membership entry.
+// IndexEntry is one exact B-tree or logical membership/provenance entry.
 type IndexEntry struct {
 	Keys     []sqltype.Value
 	Row      ids.RowID
@@ -15,7 +15,7 @@ type IndexEntry struct {
 }
 
 // IndexRoot is one published logical index root. Hash keeps buckets in Hash,
-// BRIN keeps range summaries in Brin, and bloom signs the memberships in Entries.
+// GIN keeps inverted postings, BRIN summaries, and bloom per-entry signatures.
 type IndexRoot struct {
 	// Construction is the immutable recipe of the last complete build.
 	// Incremental writes and transport must preserve it, including recipe debt.
@@ -24,6 +24,7 @@ type IndexRoot struct {
 	Hash         *HashRoot
 	Brin         *BrinRoot
 	Bloom        *BloomRoot
+	Gin          *GinRoot
 	Membership   map[ids.RowID]ids.VersionID // Immutable; partial roots only.
 	RowEntries   map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
 }

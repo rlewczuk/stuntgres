@@ -19,23 +19,30 @@ import (
 )
 
 func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
-	for _, name := range []string{"gin"} {
-		for _, kind := range []string{"unresolved", "table"} {
+	for _, name := range []string{"unit_exclusion_method"} {
+		for _, kind := range []string{"unresolved", "table", "native_gin"} {
 			t.Run(name+"/"+kind, func(t *testing.T) {
 				e := engine.New()
+				selectedName := name
+				if kind == "native_gin" {
+					selectedName = "gin"
+				}
 				if kind == "table" {
 					enginetest.AccessMethodPublish(t, e, enginetest.AccessMethodUnit(t, e, name, catalog.HeapAccessMethod, 3))
 				}
 				op, auth := conversionUnitAuth(t, e)
 				stage := e.BeginCatalogStage(auth.Catalog)
 				defer e.DiscardCatalogStage(stage)
-				raw := &parser.ExclusionConstraint{Index: parser.CreateIndex{Method: name, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}}, Operators: []parser.ObjectName{ddlHostName("=")}}
+				raw := &parser.ExclusionConstraint{Index: parser.CreateIndex{Method: selectedName, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}}, Operators: []parser.ObjectName{ddlHostName("=")}}
 				e.Mu.Lock()
 				err := index.StageExclusion(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, sqltype.InputEnvironment{}, &catalog.Relation{}, raw, false)
 				e.Mu.Unlock()
-				code, message := "0A000", `access method "`+name+`" does not support exclusion constraints`
+				code, message := "42704", `access method "`+selectedName+`" does not exist`
+				if kind == "native_gin" {
+					code, message = "0A000", `access method "gin" does not support exclusion constraints`
+				}
 				if kind == "table" {
-					code, message = "55000", `access method "`+name+`" is not of type INDEX`
+					code, message = "55000", `access method "`+selectedName+`" is not of type INDEX`
 				}
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != code || diagnostic.Message != message || diagnostic.Position != "" || stage.DescriptorCount() != 0 {
@@ -46,10 +53,10 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := engine.New()
 			if _, exists := e.CatalogRead().LookupAccessMethod(name); exists {
-				t.Fatal("fixture requires an absent native builtin name")
+				t.Fatal("fixture requires an unregistered custom method name")
 			}
-			// These are genuinely registered btree descriptors and method-owned
-			// classes, not an implementation of the absent stock GIN algorithm.
+			// Genuine descriptors and their method-owned classes, rather than
+			// any SQL spelling, determine the exclusion algorithm.
 			method, family, class, support := accessMethodClassUnit(t, e, name)
 			view := e.CatalogRead()
 			builtin, ok := view.OperatorClass(1978)
@@ -97,7 +104,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			}
 			e.Mu.Unlock()
 			if err != nil {
-				t.Fatal("registered btree descriptor must override absent-builtin spelling", err)
+				t.Fatal("registered btree descriptor must supply exclusion authority", err)
 			}
 			if len(parent.Constraints.Exclusion) != 1 {
 				t.Fatal("exclusion constraint not staged")

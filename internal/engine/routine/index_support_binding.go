@@ -35,10 +35,17 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 	if !class.SameIdentity(current) {
 		return class, fmt.Errorf("stuntgres: inconsistent index operator class capture")
 	}
+	captured := class
 	class = current
 	family, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: fact.Family})
 	if !ok || family.Method != fact.Method {
 		return class, fmt.Errorf("stuntgres: invalid index family method")
+	}
+	if class.IsGin() {
+		if err := (catalog.AccessMethodProvider{}).Validate(view, method); err != nil {
+			return class, err
+		}
+		return bindGinSupport(view, class, captured, fact, family)
 	}
 	if class.IsBloom() {
 		if err := extension.ValidateBloomClassBindings(view, fact); err != nil {

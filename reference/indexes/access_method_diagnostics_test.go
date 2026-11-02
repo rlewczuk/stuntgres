@@ -56,13 +56,9 @@ func TestReferenceAccessMethodDiagnostics(t *testing.T) {
 			atomic()
 		}
 		q := `CREATE ACCESS METHOD am_diag_gin TYPE INDEX HANDLER pg_catalog.ginhandler`
-		if b.PG {
-			run(fixture.Prepared(fixture.Exec(q, 0)))
-			run(fixture.Exec(`DROP ACCESS METHOD am_diag_gin`, 0))
-		} else {
-			amError(t, p, b, conn, q, fixture.Diagnostic{Code: "0A000", Message: `access method handler has no registered native implementation`})
-			run(amCount(`SELECT count(*) FROM pg_am WHERE amname='am_diag_gin'`, 0))
-		}
+		run(fixture.Prepared(fixture.Exec(q, 0)))
+		run(amCount(`SELECT count(*) FROM pg_am WHERE amname='am_diag_gin' AND amhandler=333::oid`, 1))
+		run(fixture.Exec(`DROP ACCESS METHOD am_diag_gin`, 0))
 		for _, tc := range []struct{ q, token string }{
 			{`CREATE ACCESS METHOD am_diag_failed TYPE BOGUS HANDLER bthandler`, "BOGUS"},
 			{`CREATE ACCESS METHOD public.am_diag_failed TYPE INDEX HANDLER bthandler`, "."},

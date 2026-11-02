@@ -106,7 +106,7 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*catalog.Procedure); ok {
-		if proc.Builtin != nil || proc.AccessMethod != catalog.NoAccessMethod || proc.BrinSupport != 0 || proc.Conversion.Name() != "" || proc.SnowballHelper != catalog.NoSnowballHelper {
+		if proc.Builtin != nil || proc.AccessMethod != catalog.NoAccessMethod || proc.BrinSupport != 0 || proc.GinSupport != 0 || proc.Conversion.Name() != "" || proc.SnowballHelper != catalog.NoSnowballHelper {
 			if err := catalog.Validate(stored.ProcedureProvider{}, view, proc); err != nil {
 				return 0, err
 			}

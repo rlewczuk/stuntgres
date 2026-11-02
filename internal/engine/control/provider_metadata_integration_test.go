@@ -49,6 +49,8 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 			family = "access-method"
 		case p.BrinSupport != 0:
 			family = "brin"
+		case p.GinSupport != 0:
+			family = "gin"
 		case p.Conversion.Name() != "":
 			family = "conversion"
 		case p.Implementation != nil:
@@ -65,8 +67,8 @@ func TestProviderReplayActualFamilies(t *testing.T) {
 			selected[family] = p
 		}
 	}
-	if len(selected) != 15 {
-		t.Fatalf("expected 5 constructor, 3 handler and 7 other families, got %d", len(selected))
+	if len(selected) != 16 {
+		t.Fatalf("expected 5 constructor, 3 handler and 8 other families, got %d", len(selected))
 	}
 	for family, p := range selected {
 		ns := view.MustNamespace(p.Namespace())

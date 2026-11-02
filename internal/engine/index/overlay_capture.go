@@ -8,11 +8,13 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-// OverlayCapture is one ready index a transaction overlay must rebuild: the
-// index, its parent and a detached copy of the parent's private store.
+// OverlayCapture is one ready index a transaction overlay must rebuild or
+// presentation-transport, with a detached capture of its physical baseline.
 type OverlayCapture struct {
-	Index, Parent *catalog.Relation
-	Store         storage.Relation
+	Index, Parent                    *catalog.Relation
+	Store                            storage.Relation
+	PresentationSource, SourceParent *catalog.Relation
+	PresentationRoot                 *storage.IndexRoot
 }
 
 // SelectOverlayCapturesLocked selects the indexes of view that a staged
@@ -53,6 +55,27 @@ func SelectOverlayCapturesLocked(published *storage.Store, view catalog.Read, st
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
 		if previous, ok := staged.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.Rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && SameIndexKeySemantics(previous, idx) {
+			continue
+		}
+		if previous, ok := staged.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.Rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && ginPresentationIndexSemantics(previous, idx) {
+			store := session.PrivateStorage(published, c, parent.Address())
+			root := EffectiveRoot(published.IndexRoots, owner, a)
+			if store == nil || root == nil {
+				return nil, catalog.Conflict{}
+			}
+			if owner != nil {
+				journal := JournalIndexesOrZero(owner)
+				if private := journal.UniqueRoots[a]; private != nil {
+					candidate, exists := journal.Candidates[a]
+					if !exists || candidate.Root != private || !candidate.MatchesIndex(previous, store) {
+						return nil, catalog.Conflict{}
+					}
+				}
+			}
+			snapshot := *store
+			snapshot.IndexSource = store.IndexIdentity()
+			captures = append(captures, OverlayCapture{Index: idx, Parent: parent, Store: snapshot, PresentationSource: previous, SourceParent: old, PresentationRoot: root})
+			c.AddFence(session.NewStorageReadFence(parent.Address(), published.Relations[parent.Address()]))
 			continue
 		}
 		if previous, ok := staged.Base.Relation(a); ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && !previous.SQLIndex.Valid && !idx.SQLIndex.Valid && stage.Rebuilds[a] == nil && SameIndexKeySemantics(previous, idx) {

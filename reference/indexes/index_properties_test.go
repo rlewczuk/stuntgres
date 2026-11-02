@@ -60,15 +60,8 @@ func TestReferenceIndexPropertiesAccessMethods(t *testing.T) {
 			{783, []any{false, false, true, true, true}}, {2742, []any{false, false, true, false, false}},
 			{4000, []any{false, false, false, true, true}}, {3580, []any{false, false, true, false, false}},
 		} {
-			// GIN remains metadata-only natively. Preserve its released vector
-			// independently; SP-GiST now has genuine catalog/capability authority.
 			if tc.oid == 2742 {
-				n := int64(1)
-				if !b.PG {
-					tc.values = []any{nil, nil, nil, nil, nil}
-					n = 0
-				}
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, amCount(`SELECT count(*) FROM pg_am WHERE oid=$1::oid`, n, tc.oid))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, amCount(`SELECT count(*) FROM pg_am WHERE oid=$1::oid`, 1, tc.oid))
 			}
 			if tc.oid == 4000 {
 				method := fixture.Select("SELECT oid::bigint AS oid,amname,amhandler::oid::bigint AS handler FROM pg_am WHERE oid=4000", []string{"oid", "amname", "handler"}, []string{"INT8", "NAME", "INT8"}, [][]any{{int64(4000), "spgist", int64(334)}})

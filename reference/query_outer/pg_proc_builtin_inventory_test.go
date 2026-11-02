@@ -203,8 +203,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// OIDs4093/4195, callable identities3476/3479/3492/3494 and relation/type
 	// identities3495/4086/3493/6317, with strict/STABLE/parallel-safe metadata
 	// and unnamed inputs.
-	if len(facts) != 2194 {
-		t.Fatalf("released represented overloads: got %d, want 2194", len(facts))
+	// GIN adds its genuine handler333 and ten internal extraction/consistency
+	// support declarations, with no scalar C ABI execution.
+	if len(facts) != 2205 {
+		t.Fatalf("released represented overloads: got %d, want 2205", len(facts))
 	}
 	return facts
 }

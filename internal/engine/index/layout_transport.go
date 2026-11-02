@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/sqltype"
 )
 
 // evolveIndexRevision records this only for its explicit slot-only path, with
@@ -175,6 +176,30 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 					return nil, false, ids.ErrCatalogReplaced
 				}
 			}
+			if lineage.Target.SQLIndex.Method == catalog.GinMethod {
+				bindings, err := BindGinIndex(evaluation.Catalog, lineage.TargetParent, lineage.Target.SQLIndex)
+				if err != nil {
+					return nil, false, err
+				}
+				same := root.Gin != nil && len(root.Gin.Columns) == len(bindings)
+				for i, binding := range bindings {
+					if !same {
+						break
+					}
+					same = binding.Same(root.Gin.Columns[i].Binding)
+				}
+				next := logicalIndexRoot(lineage.Target.SQLIndex, root.Entries, transportConstruction(root, lineage.Source, lineage.Target))
+				if same {
+					next.Gin = root.Gin
+				} else {
+					next.Gin, err = storage.BuildGin(evaluation.Context, bindings, root.Entries, evaluation.Input)
+					if err != nil {
+						return nil, false, err
+					}
+				}
+				RetainIndexBuild(changes, lineage.Target, targetStore, next)
+				continue
+			}
 			if !indexLayoutSlotsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) {
 				root = logicalIndexRoot(lineage.Target.SQLIndex, root.Entries, transportConstruction(root, lineage.Source, lineage.Target))
 			} else if !SameIndexKeySemantics(lineage.Source, lineage.Target) {
@@ -280,6 +305,12 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 		} else if index.SQLIndex.Method == catalog.BloomMethod {
 			var err error
 			root, err = bloomRoot(ctx, view, parent, index, nil, store, store.Generation, 0, store.Ends, nil)
+			if err != nil {
+				return err
+			}
+		} else if index.SQLIndex.Method == catalog.GinMethod {
+			var err error
+			root, err = ginRoot(ctx, view, parent, index.SQLIndex, nil, newConstruction(index.SQLIndex), sqltype.InputEnvironment{})
 			if err != nil {
 				return err
 			}

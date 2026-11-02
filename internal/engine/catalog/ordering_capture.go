@@ -53,7 +53,7 @@ func orderingRoutineOf(p *Procedure) orderingRoutineStamp {
 func nativeOrderingRoutine(p *Procedure) bool {
 	return p != nil && p.Builtin == nil && p.Implementation != nil &&
 		p.SQL == nil && p.SQLBody == nil && p.SQLDefaults == nil && p.Foreign == nil &&
-		p.AccessMethod == NoAccessMethod && p.BrinSupport == 0 && p.Conversion.Name() == "" &&
+		p.AccessMethod == NoAccessMethod && p.BrinSupport == 0 && p.GinSupport == 0 && p.Conversion.Name() == "" &&
 		p.Dictionary == (ids.ObjectAddress{}) && p.RangeConstructor == nil &&
 		p.DeclarationBody == nil && len(p.DeclarationDependencies) == 0 && len(p.Body) == 0 &&
 		p.Aggregate == nil && p.Language == (ids.ObjectAddress{}) && p.PLHandler == NoPLHandler &&

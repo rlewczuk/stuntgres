@@ -81,8 +81,7 @@ func ValidateUnorderedKeyDirection(key parser.IndexKey, methodName string) error
 }
 
 // Resolve once from the captured catalog, retaining SQL identity separately
-// from physical validation. Absent advertised-unsupported builtins retain their
-// existing clause diagnostics; no unknown method defaults to B-tree.
+// from physical validation. No unknown method defaults to B-tree.
 func ResolveIndexMethod(view catalog.Read, s *parser.CreateIndex) (*catalog.AccessMethod, error) {
 	method, exists := view.LookupAccessMethod(s.Method)
 	if !exists {
@@ -115,7 +114,7 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 			return sqlError("0A000", "partial indexes are unsupported")
 		}
 		return nil
-	case catalog.BrinMethod, catalog.BloomMethod:
+	case catalog.BrinMethod, catalog.BloomMethod, catalog.GinMethod:
 		if s.Unique {
 			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
 		}
@@ -144,26 +143,9 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 	}
 }
 
-// Only unresolved advertised-unsupported builtin names retain the historical
-// native capability boundary. A registered descriptor always wins first.
+// Missing methods retain the released undefined-object diagnostic.
 func unresolvedIndexMethod(s *parser.CreateIndex) error {
-	switch s.Method {
-	case "gin":
-		if len(s.Include) > 0 {
-			return sqlError("0A000", `access method "gin" does not support included columns`)
-		}
-		for _, key := range s.Keys {
-			if key.DirectionExplicit {
-				return sqlError("0A000", fmt.Sprintf("access method %q does not support ASC/DESC options", s.Method))
-			}
-			if key.Nulls != parser.NullsDefault {
-				return sqlError("0A000", fmt.Sprintf("access method %q does not support NULLS FIRST/LAST options", s.Method))
-			}
-		}
-		return sqlError("0A000", "non-btree indexes are unsupported")
-	default:
-		return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method))
-	}
+	return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method))
 }
 
 // RejectVirtualUses rejects an index that reads a virtual generated column

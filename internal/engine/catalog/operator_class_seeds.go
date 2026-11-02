@@ -73,6 +73,17 @@ func RemapOperatorClass(d *OperatorClass, mapping map[ids.ObjectAddress]ids.Obje
 
 // Bootstrap-only member ownership; live admission uses FamilyMemberInternalOwner.
 func builtinMemberInternalOwner(method, family, left, right ids.OID, number int16, function bool) ids.ObjectAddress {
+	if method == 2742 {
+		if family == 2745 && left == 2277 && (right == 2277) || family == 3659 && left == 3614 && (right == 3614 && function || right == 3615 && !function) {
+			for i := range sqltype.IndexClassMetadataCount() {
+				f, ok := sqltype.IndexClassMetadataAt(i)
+				if ok && f.Method == 2742 && ids.OID(f.Family) == family {
+					return ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(f.OID)}
+				}
+			}
+		}
+		return ids.ObjectAddress{}
+	}
 	if method == 783 {
 		if !function || number != 1 && number != 2 && number != 5 && number != 6 && number != 7 {
 			return ids.ObjectAddress{}

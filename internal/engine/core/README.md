@@ -2021,6 +2021,13 @@ then locks its typed-table closure in deterministic order. Schema moves do not a
 backing AX. Grants recapture exact private providers and authorization, never a
 same-named replacement or a fabricated scalar relation.
 
+GIN class/family presentation changes use the same private index baseline and
+publication fences. The index owner certifies old/current support authority;
+`catalog_overlay_indexes.go` retains a COW binding/root transport instead of
+rebuilding keys or replaying earlier own-write expressions. Produced key backing,
+construction debt and any prior routine-source receipt survive the transport.
+Rollback/savepoints discard the new wrappers without changing committed roots.
+
 - `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
   FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.
   Describe remains effect-free; Execute preserves read-only and aborted-state

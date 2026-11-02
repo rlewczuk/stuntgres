@@ -88,7 +88,18 @@
 3479	to_regprocedure	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2202	25	\N	\N	\N	false	\N	to_regprocedure	\N	false	\N
 3492	to_regoper	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2203	25	\N	\N	\N	false	\N	to_regoper	\N	false	\N
 3494	to_regproc	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	24	25	\N	\N	\N	false	\N	to_regproc	\N	false	\N
-3495	to_regclass	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2205	25	\N	\N	\N	false	\N	to_regclass	\N	false	\N
-4086	to_regnamespace	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	4089	25	\N	\N	\N	false	\N	to_regnamespace	\N	false	\N
+333	ginhandler	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	325	2281	\N	\N	\N	false	\N	ginhandler	\N	false	\N
+2700	gin_cmp_prefix	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	23	25 25 21 2281	\N	\N	\N	false	\N	gin_cmp_prefix	\N	false	\N
+2743	ginarrayextract	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	2281	2277 2281 2281	\N	\N	\N	false	\N	ginarrayextract	\N	false	\N
+2744	ginarrayconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	8	0	16	2281 21 2277 23 2281 2281 2281 2281	\N	\N	\N	false	\N	ginarrayconsistent	\N	false	\N
+2774	ginqueryarrayextract	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	2281	2277 2281 21 2281 2281 2281 2281	\N	\N	\N	false	\N	ginqueryarrayextract	\N	false	\N
 3493	to_regtype	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2206	25	\N	\N	\N	false	\N	to_regtype	\N	false	\N
+3495	to_regclass	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2205	25	\N	\N	\N	false	\N	to_regclass	\N	false	\N
+3656	gin_extract_tsvector	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	2281	3614 2281 2281	\N	\N	\N	false	\N	gin_extract_tsvector	\N	false	\N
+3657	gin_extract_tsquery	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	2281	3614 2281 21 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_extract_tsquery	\N	false	\N
+3658	gin_tsquery_consistent	11	12	1	0	0	0	f	false	false	true	false	i	s	8	0	16	2281 21 3614 23 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_tsquery_consistent	\N	false	\N
+3724	gin_cmp_tslexeme	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	25 25	\N	\N	\N	false	\N	gin_cmp_tslexeme	\N	false	\N
+3920	ginarraytriconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 2277 23 2281 2281 2281	\N	\N	\N	false	\N	ginarraytriconsistent	\N	false	\N
+3921	gin_tsquery_triconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 3614 23 2281 2281 2281	\N	\N	\N	false	\N	gin_tsquery_triconsistent	\N	false	\N
+4086	to_regnamespace	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	4089	25	\N	\N	\N	false	\N	to_regnamespace	\N	false	\N
 6317	to_regtypemod	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	25	\N	\N	\N	false	\N	to_regtypemod	\N	false	\N

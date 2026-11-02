@@ -60,6 +60,9 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if !ok {
 		return invalid()
 	}
+	if d.GinSupport != 0 {
+		return catalog.ValidateGinSupport(d)
+	}
 	if d.HostConversion != nil {
 		return catalog.ValidateHostConversion(v, d)
 	}

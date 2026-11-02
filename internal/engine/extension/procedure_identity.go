@@ -26,6 +26,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
 	}
+	if p.GinSupport != 0 {
+		return invalid()
+	}
 	if (p.SecurityDefiner || p.Configuration != nil) && !StockInsertUsername.SupportsDMLTrigger(p) {
 		return invalid()
 	}

@@ -74,7 +74,7 @@ func (d *Procedure) CostEstimate() float32 {
 }
 
 func (d *Procedure) Seeded() bool {
-	return d.SnowballHelper != NoSnowballHelper || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
+	return d.SnowballHelper != NoSnowballHelper || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.GinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
 }
 
 // Snowball helpers are allocated after initdb stops making pinned objects.

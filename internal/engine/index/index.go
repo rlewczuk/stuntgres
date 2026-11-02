@@ -335,6 +335,9 @@ func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catal
 	if err != nil {
 		return nil, err
 	}
+	if d.Method == catalog.GinMethod {
+		return ginRoot(evaluation.Context, evaluation.Catalog, parent, d, entries, newConstruction(d), evaluation.Input)
+	}
 	return NewLogicalIndexRoot(d, entries), nil
 }
 
@@ -411,69 +414,17 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	if d.Method == catalog.BrinMethod {
 		return nil, fmt.Errorf("stuntgres: BRIN requires summary publication")
 	}
+	if d.Method == catalog.GinMethod {
+		return nil, fmt.Errorf("stuntgres: GIN requires inverted publication")
+	}
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
 	o, err := BindIndexKeys(evaluation.Catalog, parent, d)
 	if err != nil {
 		return nil, err
 	}
-	endedCount := len(p.Writes)
-	if p.Deletion != nil {
-		endedCount += len(p.Deletion.Rows)
-	}
-	ended := make(map[ids.RowID]ids.VersionID, endedCount)
-	added := make([]storage.IndexEntry, 0, len(p.Writes))
-	var preparation ExecutionPreparation
-	for i, row := range p.Writes {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if row.Base != 0 {
-			ended[row.Row] = row.Base
-		}
-		if p.Deletion != nil {
-			if end, ok := p.Deletion.Rows[row.Row]; ok && end.Version == row.Version {
-				continue
-			}
-		}
-		output, produced := row.IndexOutputs[index.Address()]
-		produced = produced && OutputMatches(output, index)
-		if !reconstruct && !produced && !RowMaintainsIndex(row, index) {
-			continue
-		}
-		var entry storage.IndexEntry
-		if produced {
-			if !output.Member {
-				continue
-			}
-			entry = storage.IndexEntry{Keys: output.Keys, Row: row.Row, Version: row.Version}
-		} else {
-			if d.HasRuntimeDomainConversion() && evaluation.LiveHost() == nil && row.Born == 0 {
-				return nil, fmt.Errorf("stuntgres: missing produced index row")
-			}
-			matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, &o, nil)
-			if err != nil {
-				return nil, err
-			}
-			if !matches {
-				continue
-			}
-			if err := preparation.PrepareKeys(evaluation, parent, d, &o, nil); err != nil {
-				return nil, err
-			}
-			entry, err = o.Entry(row, evaluation)
-			if err != nil {
-				return nil, err
-			}
-		}
-		entry.Position = PublicationSlot(p, i)
-		added = append(added, entry)
-	}
-	if p.Deletion != nil {
-		for id, end := range p.Deletion.Rows {
-			if !end.Own {
-				ended[id] = end.Version
-			}
-		}
+	added, ended, err := collectIndexDelta(evaluation, parent, index, p, reconstruct, &o)
+	if err != nil {
+		return nil, err
 	}
 	if len(added) == 0 && len(ended) == 0 {
 		if validate {

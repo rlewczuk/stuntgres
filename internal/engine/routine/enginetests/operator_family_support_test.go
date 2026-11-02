@@ -19,7 +19,7 @@ import (
 func TestOperatorFamilyProviderInventory(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
-	if sqltype.IndexClassMetadataCount() != 145 {
+	if sqltype.IndexClassMetadataCount() != 147 {
 		t.Fatal("incomplete released class inventory", sqltype.IndexClassMetadataCount())
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
@@ -42,6 +42,23 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 		if fact.Method == 783 || fact.Method == 4000 {
 			if selected.Support(1).Routine != 0 {
 				t.Fatal("logical method acquired a physical callback", fact)
+			}
+			continue
+		}
+		if fact.Method == 2742 {
+			for slot := 1; slot <= 6; slot++ {
+				expected, required := catalog.GinSupportRoutine(ids.OID(fact.Family), int16(slot))
+				support := selected.Support(slot)
+				if !required {
+					if support != (sqltype.IndexSupport{}) {
+						t.Fatal("unexpected GIN support", fact, support)
+					}
+					continue
+				}
+				proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: expected})
+				if !ok || catalog.ValidateGinSupport(proc) != nil || support.Routine != uint32(expected) || support.Family != fact.Family || support.Left != fact.Input || support.Right != fact.Input || support.Member == 0 || support.Revision != 1 {
+					t.Fatal("incomplete genuine GIN support", fact, support, proc)
+				}
 			}
 			continue
 		}

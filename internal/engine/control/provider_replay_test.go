@@ -413,6 +413,57 @@ func TestProviderReplayCanonicalMetadataCapture(t *testing.T) {
 	t.Fatal("released abs(integer) missing")
 }
 
+func TestProviderReplayNativeIndexCanonicalMetadata(t *testing.T) {
+	source, _, _, _ := fdwUnitSource()
+	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+	seeds := routine.NativeAccessMethodProcedures(source.Bootstrap)
+	if len(seeds) != 21 { // Seven handlers, four BRIN and ten GIN operations.
+		t.Fatal("incomplete native index declarations", len(seeds))
+	}
+	for _, seed := range seeds {
+		t.Run(seed.Name(), func(t *testing.T) {
+			original := seed
+			if original.Parallel != 0 {
+				t.Fatal("intrinsic SAFE default became an explicit override", original.Name())
+			}
+			capture := func(p *catalog.Procedure) []string {
+				t.Helper()
+				source.State.SetDescriptor(p.Address(), p)
+				source.State.BindName(catalog.DescriptorNameKey(p), p.Address())
+				c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
+				if err := collectProcedureDump(context.Background(), c, p.Address(), p); err != nil {
+					t.Fatal(err)
+				}
+				statements, err := planProviderReplay(c.Providers)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return statements
+			}
+			if got := capture(&original); len(got) != 0 {
+				t.Fatal("canonical native metadata emitted repairs", got)
+			}
+			for _, change := range []struct {
+				parallel byte
+				keyword  string
+			}{{'r', "RESTRICTED"}, {'u', "UNSAFE"}, {'s', "SAFE"}} {
+				patched := original
+				patched.Parallel = change.parallel
+				got := capture(&patched)
+				if len(got) != 1 || !strings.HasPrefix(got[0], "ALTER FUNCTION \"pg_catalog\"."+catalog.QuoteIdentifier(original.Name())+"(") || !strings.HasSuffix(got[0], ") PARALLEL "+change.keyword+";\n") {
+					t.Fatal("genuine native parallel override lost", change, got)
+				}
+				if original.Parallel != 0 {
+					t.Fatal("override mutated intrinsic seed metadata")
+				}
+			}
+			if got := capture(&original); len(got) != 0 {
+				t.Fatal("restored canonical seed retained overrides", got)
+			}
+		})
+	}
+}
+
 func TestProviderReplayPLHandlerMetadata(t *testing.T) {
 	source, _, _, _ := fdwUnitSource()
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)

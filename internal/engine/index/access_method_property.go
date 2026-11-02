@@ -15,7 +15,7 @@ func MethodProperty(method catalog.IndexMethod, property string) (bool, bool) {
 		multi, exclude, include = true, true, true
 	case catalog.SpgistMethod:
 		exclude, include = true, true
-	case catalog.BrinMethod, catalog.BloomMethod:
+	case catalog.BrinMethod, catalog.BloomMethod, catalog.GinMethod:
 		multi = true
 	default:
 		return false, false

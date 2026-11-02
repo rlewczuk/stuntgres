@@ -41,7 +41,7 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if seeded != 116 || ordinary != 1 {
+	if seeded != 118 || ordinary != 1 {
 		t.Fatal("missing owner mapping", seeded, ordinary)
 	}
 	mapped := base.WithState(destination)
@@ -61,6 +61,17 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 		destination, destinationOK := mapped.OperatorFamily(address)
 		if !sourceOK || !destinationOK || destination == original || original.Method != 4000 || destination.Method != 4000 || original.Name() != expected.name || destination.Name() != expected.name || original.Owner != sourceDomain.Principal(10) || destination.Owner != destinationDomain.Principal(110) {
 			t.Fatal("released SP-GiST family owner/identity remap", expected, original, destination)
+		}
+	}
+	for _, expected := range []struct {
+		oid  ids.OID
+		name string
+	}{{2745, "array_ops"}, {3659, "tsvector_ops"}} {
+		address := ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: expected.oid}
+		original, sourceOK := base.OperatorFamily(address)
+		destination, destinationOK := mapped.OperatorFamily(address)
+		if !sourceOK || !destinationOK || destination == original || original.Method != 2742 || destination.Method != 2742 || original.Name() != expected.name || destination.Name() != expected.name || original.Owner != sourceDomain.Principal(10) || destination.Owner != destinationDomain.Principal(110) {
+			t.Fatal("released GIN family owner/identity remap", expected, original, destination)
 		}
 	}
 	for address, descriptor := range base.Descriptors() {

@@ -70,6 +70,8 @@ func pgOpclassFacts(pgLSNOID int64) [][]any {
 		}
 	}
 	rows = append(rows,
+		[]any{int64(10064), int64(2742), "array_ops", int64(11), int64(10), int64(2745), int64(2277), true, int64(2283)},
+		[]any{int64(10073), int64(2742), "tsvector_ops", int64(11), int64(10), int64(3659), int64(3614), true, int64(25)},
 		[]any{int64(10017), int64(783), "inet_ops", int64(11), int64(10), int64(3550), int64(869), false, int64(0)},
 		[]any{int64(10060), int64(783), "box_ops", int64(11), int64(10), int64(2593), int64(603), true, int64(0)},
 		[]any{int64(10061), int64(783), "point_ops", int64(11), int64(10), int64(1029), int64(600), true, int64(603)},
@@ -213,7 +215,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 145 {
+	if len(facts) != 147 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
@@ -225,7 +227,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"opcname"}, []string{"NAME"}, want))
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405,783,3580,4000)", []string{"opcname"}, []string{"NAME"}, nil))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405,783,2742,3580,4000)", []string{"opcname"}, []string{"NAME"}, nil))
 	}
 }
 

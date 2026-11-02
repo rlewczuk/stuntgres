@@ -66,6 +66,22 @@ func (b *AlterIndexBuild) BaselineRoot(evaluation *exec.Context, index *catalog.
 		entry.Position = position
 		entries = append(entries, entry)
 	}
+	if index.SQLIndex.Method == catalog.GinMethod {
+		payload, err := storage.TransportGin(ctx, b.Root.Gin, func(p storage.GinPosting) (storage.GinPosting, bool, error) {
+			position, ok := positions[RowIdentity{Row: p.Row, Version: p.Version}]
+			if ok && (position < 0 || position >= len(baseline.Versions) || baseline.Versions[position].Row != p.Row || baseline.Versions[position].Version != p.Version) {
+				return p, false, ids.ErrCatalogReplaced
+			}
+			p.Position = position
+			return p, ok, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		root := logicalIndexRoot(index.SQLIndex, entries, b.Root.Construction)
+		root.Gin = payload
+		return root, ctx.Err()
+	}
 	if index.SQLIndex.Method == catalog.BloomMethod {
 		parent, ok := evaluation.Catalog.Relation(index.SQLIndex.Parent)
 		if !ok {

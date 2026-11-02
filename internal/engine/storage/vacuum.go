@@ -174,6 +174,17 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 			next.Entries = append(next.Entries, entry)
 		}
 	}
+	if root.Gin != nil {
+		payload, err := TransportGin(ctx, root.Gin, func(p GinPosting) (GinPosting, bool, error) {
+			next, err := position(p.Row, p.Version, p.Position)
+			p.Position = next
+			return p, next >= 0, err
+		})
+		if err != nil {
+			return nil, err
+		}
+		next.Gin = payload
+	}
 	if root.Hash != nil {
 		h := *root.Hash
 		h.Buckets = make(map[uint64][]HashEntry, len(root.Hash.Buckets))

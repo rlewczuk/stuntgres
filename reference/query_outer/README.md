@@ -143,10 +143,12 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2194 rows, all backed
-by actual descriptors; metadata ownership does not grant execution. The ten
-nullable lookup records retain one unnamed TEXT input, their exact alias or
-INT4 typmod results and strict STABLE/parallel-safe scalar declarations.
+supplements. The complete released inventory contains 2205 rows, all backed
+by actual descriptors, including GIN handler333 and ten genuine internal
+extraction/consistency support declarations. Metadata ownership grants no scalar
+C ABI execution. The ten nullable lookup records retain one unnamed TEXT input,
+their exact alias or INT4 typmod results and strict STABLE/parallel-safe
+scalar declarations.
 Large-object descriptor OIDs952–955 retain strict VOLATILE/parallel-unsafe scalar signatures,
 unnamed inputs and the released internal implementation symbols. XML aggregate
 OID2901 has one unnamed XML formal, an XML result, non-strict IMMUTABLE/

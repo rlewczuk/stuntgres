@@ -201,7 +201,7 @@ func ValidateSnowballHelper(v Read, d *Procedure) error {
 	if d.Display.Language != CRoutineLanguage || d.Display.Source != name || !d.Display.HasBinary || d.Display.Binary != "$libdir/dict_snowball" {
 		return invalid()
 	}
-	if d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.PLHandler != NoPLHandler || d.BrinSupport != 0 || d.RangeConstructor != nil || d.Conversion.Name() != "" || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 || d.Dictionary != (ids.ObjectAddress{}) || d.Language != (ids.ObjectAddress{}) {
+	if d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.Aggregate != nil || d.AccessMethod != NoAccessMethod || d.PLHandler != NoPLHandler || d.BrinSupport != 0 || d.GinSupport != 0 || d.RangeConstructor != nil || d.Conversion.Name() != "" || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 || d.Dictionary != (ids.ObjectAddress{}) || d.Language != (ids.ObjectAddress{}) {
 		return invalid()
 	}
 	return nil

@@ -12,7 +12,7 @@ var pgAMTypes = []string{"OID", "NAME", "REGPROC", "CHAR"}
 const pgAMProbe = "SELECT * FROM pg_catalog.pg_am WHERE oid=$1::oid"
 
 // Released REL_18_0 pg_am.dat and pg_proc.dat, not another backend's output.
-func pgAMFacts(pg bool, numeric bool) [][]any {
+func pgAMFacts(numeric bool) [][]any {
 	rows := [][]any{
 		{int64(2), "heap", int64(3), "t"},
 		{int64(403), "btree", int64(330), "i"},
@@ -20,10 +20,8 @@ func pgAMFacts(pg bool, numeric bool) [][]any {
 		{int64(783), "gist", int64(332), "i"},
 	}
 	names := []string{"heap_tableam_handler", "bthandler", "hashhandler", "gisthandler"}
-	if pg {
-		rows = append(rows, []any{int64(2742), "gin", int64(333), "i"})
-		names = append(names, "ginhandler")
-	}
+	rows = append(rows, []any{int64(2742), "gin", int64(333), "i"})
+	names = append(names, "ginhandler")
 	rows = append(rows, []any{int64(3580), "brin", int64(335), "i"})
 	names = append(names, "brinhandler")
 	rows = append(rows, []any{int64(4000), "spgist", int64(334), "i"})
@@ -116,7 +114,7 @@ func pgAMLookup(value any, name bool) [][]any {
 	if name {
 		column = 1
 	}
-	for _, row := range pgAMFacts(false, false) {
+	for _, row := range pgAMFacts(false) {
 		if row[column] == value {
 			return [][]any{row}
 		}
@@ -153,14 +151,14 @@ func pgAMInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
 		for _, relation := range []string{"pg_catalog.pg_am", "pg_am"} {
-			pgAMRows(t, p, b, b.DB, "SELECT * FROM "+relation+" ORDER BY oid", pgAMFacts(b.PG, false), prepared)
+			pgAMRows(t, p, b, b.DB, "SELECT * FROM "+relation+" ORDER BY oid", pgAMFacts(false), prepared)
 		}
-		s := fixture.Select("SELECT oid,amname,amhandler::oid AS amhandler,amtype FROM pg_catalog.pg_am ORDER BY oid", fixture.PGAMColumns, []string{"OID", "NAME", "OID", "CHAR"}, pgAMFacts(b.PG, true))
+		s := fixture.Select("SELECT oid,amname,amhandler::oid AS amhandler,amtype FROM pg_catalog.pg_am ORDER BY oid", fixture.PGAMColumns, []string{"OID", "NAME", "OID", "CHAR"}, pgAMFacts(true))
 		s.Prepared = prepared
 		fixture.PgDescriptionRows(t, p, b, s)
-		pgAMRows(t, p, b, b.DB, "SELECT * FROM pg_am WHERE oid IN (2,403,405,783,3580,4000) ORDER BY oid", pgAMFacts(false, false), prepared)
+		pgAMRows(t, p, b, b.DB, "SELECT * FROM pg_am WHERE oid IN (2,403,405,783,2742,3580,4000) ORDER BY oid", pgAMFacts(false), prepared)
 	}
-	s := pgAMStep(b, "SELECT * FROM pg_catalog.pg_am", pgAMFacts(b.PG, false))
+	s := pgAMStep(b, "SELECT * FROM pg_catalog.pg_am", pgAMFacts(false))
 	s.Bag = true
 	fixture.PgDescriptionRows(t, p, b, s)
 }

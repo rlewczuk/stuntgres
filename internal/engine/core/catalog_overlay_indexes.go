@@ -46,6 +46,27 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if stage.deferredAlterRows[parent.Address()] {
 			continue
 		}
+		if capture.PresentationSource != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			root, err := index.RebindGinPresentationRoot(stage.Base, view, capture.SourceParent, parent, capture.PresentationSource, idx, capture.PresentationRoot)
+			if err != nil {
+				return err
+			}
+			writes, deletes := scope.ColumnProjectionRoots(parent.Address())
+			updated, changed, err := index.TransportGinPresentationOutputs(ctx, writes, capture.PresentationSource, idx)
+			if err != nil {
+				return err
+			}
+			if changed {
+				scope.StageProjectedColumnRoots(parent.Address(), updated, deletes)
+			}
+			if err := capture.RetainGinPresentation(c, root); err != nil {
+				return err
+			}
+			continue
+		}
 		building := true
 		indexAuth := auth
 		if r := stage.MaterializedOrZero().Replacement; r != nil && r.Concurrent && r.Original.Address() == parent.Address() {

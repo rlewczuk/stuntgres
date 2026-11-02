@@ -474,6 +474,15 @@ package or the engine.
   `catalog.ValidateBrinSupport`, not `NativeIndexRoutine` scalar comparator
   dispatch. Live class/family members remain authority for both supported minmax
   and explicit excluded-algorithm diagnostics.
+  GIN validates the selected class/method/family, exact required strategies and
+  ten genuine `catalog.ValidateGinSupport` operations with current effective
+  revisions. It captures extraction/consistency capabilities, never a B-tree
+  full-value comparator or authorization by class name. The array family has no
+  support1; typed element comparison belongs to sqltype. Method aliases keep
+  their actual SQL identity while sharing the finite GIN operation authority.
+  Detached stale GIN captures remain rejected after class/family presentation
+  changes. Only the index owner's certified predecessor-to-candidate publication
+  refreshes live key/root captures; the binder has no stale-refresh fallback.
   Cube and hstore support require the exact INTERNAL class address,
   never merely a nonzero family/class owner. Hstore binds only its installed
   B-tree comparator or two distinct hash routines, with authenticated manifest

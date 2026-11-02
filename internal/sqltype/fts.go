@@ -87,3 +87,16 @@ func (a Value) sameFTS(ctx context.Context, b Value) (bool, error) {
 	}
 	return a.ftsQuery.Equal(ctx, b.ftsQuery)
 }
+
+// TSVectorLexemeView projects canonical immutable strings, without exposing the
+// vector's mutable representation or allocating a method-value closure.
+type TSVectorLexemeView struct{ vector *fts.Vector }
+
+func (v TSVectorLexemeView) Count() int      { return v.vector.LexemeCount() }
+func (v TSVectorLexemeView) At(i int) string { return v.vector.LexemeAt(i) }
+func TSVectorLexemes(v Value, expected *Descriptor) (TSVectorLexemeView, error) {
+	if expected == nil || !expected.Concrete() || expected.BaseType().ID() != TSVector || v.typ != expected || v.null || !v.validFTS() {
+		return TSVectorLexemeView{}, fmt.Errorf("invalid tsvector lexeme authority")
+	}
+	return TSVectorLexemeView{vector: v.ftsVector}, nil
+}

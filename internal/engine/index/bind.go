@@ -31,6 +31,12 @@ func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, methodOID
 				return c, nil
 			}
 		}
+		// These released adjacent providers exist in PostgreSQL, but have no
+		// native token authority. Do not misreport a real class as missing.
+		name := raw.Parts[len(raw.Parts)-1].Text
+		if method.Native == catalog.GinAccessMethod && namespace.ObjectID == ids.PGCatalogNamespaceOID && (name == "jsonb_ops" || name == "jsonb_path_ops") {
+			return sqltype.IndexClass{}, sqlError("0A000", "GIN JSONB token provider is unsupported")
+		}
 	}
 	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method.Name()))
 }
@@ -120,6 +126,9 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		}
 	}
 	if !exists {
+		if method == catalog.GinMethod && base.ID() == sqltype.JSONB {
+			return key, sqlError("0A000", "GIN JSONB token provider is unsupported")
+		}
 		return key, DefaultClassError(typeName, fact.Name())
 	}
 	var supportErr error
@@ -128,6 +137,13 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		return key, supportErr
 	}
 	key.Class = c
+	if method == catalog.GinMethod {
+		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
+			return key, err
+		}
+		_, err := sqltype.BindGinTokens(KeyCollation(u, key), c)
+		return key, err
+	}
 	if method == catalog.GistMethod || method == catalog.SpgistMethod {
 		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
@@ -262,7 +278,7 @@ func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 				} else if err := validateSystemKey(h, auth, raw, d.MethodOID); err != nil {
 					return fail(err)
 				}
-				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod || d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod || d.Method == catalog.BloomMethod) {
+				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod || d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod || d.Method == catalog.BloomMethod || d.Method == catalog.GinMethod) {
 					if err := ValidateUnorderedKeyDirection(raw, method.Name()); err != nil {
 						return fail(err)
 					}

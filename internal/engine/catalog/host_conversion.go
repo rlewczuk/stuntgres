@@ -88,7 +88,7 @@ func ValidateHostConversion(v Read, d *Procedure) error {
 	if d.Address().ClassID != ids.ProcedureClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.Get(d.Address()) != d || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return invalid()
 	}
-	if d.BrinSupport != 0 || d.SnowballHelper != NoSnowballHelper || d.InputNames != nil || d.LiteralDefaults != nil || d.DeclarationBody != nil || len(d.DeclarationDependencies) != 0 {
+	if d.BrinSupport != 0 || d.GinSupport != 0 || d.SnowballHelper != NoSnowballHelper || d.InputNames != nil || d.LiteralDefaults != nil || d.DeclarationBody != nil || len(d.DeclarationDependencies) != 0 {
 		return invalid()
 	}
 	if d.Dictionary != (ids.ObjectAddress{}) {

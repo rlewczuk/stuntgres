@@ -903,6 +903,11 @@ candidate, these owning operations retain the engine's error contracts:
    A retained catalog-only NULL composite closes over its actual member types
    and companion array. Otherwise type reownership rebuilds the fixed description
    against the candidate's current member generations, preserving old captures.
+   Index class remapping preserves every finite method capability, including
+   GIN, while discarding source-bound support captures. Destination binding
+   selects current members and generations; retained TEMP roots keep their
+   exact local authority. GIN option replay uses the existing qualified-target
+   ALTER format, including malformed-option atomicity witnesses.
    Collision remapping stays selective outside actual affected alias endpoint
    components. All captured range/member order edges are structural facts;
    unrelated collisions, unused families and separate singleton values do not

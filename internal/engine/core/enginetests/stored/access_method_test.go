@@ -29,6 +29,8 @@ func TestAccessMethodHandlerRegistration(t *testing.T) {
 		{330, 325, catalog.BtreeAccessMethod, "bthandler"},
 		{331, 325, catalog.HashAccessMethod, "hashhandler"},
 		{332, 325, catalog.GistAccessMethod, "gisthandler"},
+		{333, 325, catalog.GinAccessMethod, "ginhandler"},
+		{335, 325, catalog.BrinAccessMethod, "brinhandler"},
 		{334, 325, catalog.SpgistAccessMethod, "spghandler"},
 	} {
 		p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid})
@@ -76,7 +78,7 @@ func TestAccessMethodHandlerRegistration(t *testing.T) {
 			}
 		}
 	}
-	if catalog.NativeHandler(333) != catalog.NoAccessMethod {
-		t.Fatal("lookup-only gin signature granted native implementation")
+	if catalog.NativeHandler(333) != catalog.GinAccessMethod {
+		t.Fatal("released GIN handler lost native implementation")
 	}
 }

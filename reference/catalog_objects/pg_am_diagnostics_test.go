@@ -101,7 +101,7 @@ func pgAMPermissions(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42501", Message: message})
 			s.SelectRows, s.Prepared, s.ErrorStage = strings.HasPrefix(q, "WITH"), route.prepared, "execute"
 			fixture.RunStep(t, p.Ctx, route.e, b.Recorder, s)
-			pgAMRows(t, p, b, c, "SELECT * FROM pg_am ORDER BY oid", pgAMFacts(b.PG, false), false)
+			pgAMRows(t, p, b, c, "SELECT * FROM pg_am ORDER BY oid", pgAMFacts(false), false)
 			// Inspect user effects as the owner, on a separate real connection.
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT v FROM pgam_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		}
@@ -118,7 +118,7 @@ func pgAMPermissions(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		s.SelectRows = true
 		run(s)
 	}
-	pgAMRows(t, p, b, c, "SELECT * FROM pg_am ORDER BY oid", pgAMFacts(b.PG, false), false)
+	pgAMRows(t, p, b, c, "SELECT * FROM pg_am ORDER BY oid", pgAMFacts(false), false)
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT v FROM pgam_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }
 

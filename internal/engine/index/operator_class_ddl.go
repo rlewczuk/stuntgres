@@ -35,7 +35,8 @@ func classOwner(h FamilyDDLHost, auth ddl.Authority, d *catalog.OperatorClass) e
 	return nil
 }
 func StageAlterOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.AlterOperatorClass) error {
-	method, err := familyMethod(h.StageRead(), s.Method.Text)
+	before := h.StageRead()
+	method, err := familyMethod(before, s.Method.Text)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,10 @@ func StageAlterOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Alte
 	if err != nil {
 		return err
 	}
-	return ddl.ReplaceCommand(h.Stage(), "ALTER OPERATOR CLASS", &next)
+	if err := ddl.ReplaceCommand(h.Stage(), "ALTER OPERATOR CLASS", &next); err != nil {
+		return err
+	}
+	return refreshGinPresentationKeys(h, before, d.Address())
 }
 func StageDropOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.DropOperatorClass) error {
 	method, err := familyMethod(h.StageRead(), s.Method.Text)

@@ -235,6 +235,12 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 				}
 				rebuilt.Construction = transportConstruction(source.Root, source.Index, index)
 				roots[address] = rebuilt
+			} else if index.SQLIndex.Method == catalog.GinMethod {
+				rebuilt, err := ginRoot(ctx, view, parent, index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index), sqltype.InputEnvironment{})
+				if err != nil {
+					return nil, err
+				}
+				roots[address] = rebuilt
 			} else {
 				roots[address] = logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))
 			}

@@ -68,7 +68,7 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 		if store == nil || root == nil || store != c.Store(parent.Address()) || root != c.Root(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) || (root.Brin != nil) != (idx.SQLIndex.Method == catalog.BrinMethod) || (root.Bloom != nil) != (idx.SQLIndex.Method == catalog.BloomMethod) {
+		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) || (root.Brin != nil) != (idx.SQLIndex.Method == catalog.BrinMethod) || (root.Bloom != nil) != (idx.SQLIndex.Method == catalog.BloomMethod) || (root.Gin != nil) != (idx.SQLIndex.Method == catalog.GinMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.Hash != nil && (root.Hash.Storage != store.IndexIdentity() || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends || root.Hash.Prefix != len(store.Versions)) {
@@ -117,6 +117,38 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 				}
 				if err := check(entry.Row, entry.Version, entry.Position); err != nil {
 					return nil, err
+				}
+			}
+		}
+		if root.Gin != nil {
+			if len(root.Gin.Columns) != len(idx.SQLIndex.Keys) {
+				return nil, ids.ErrCatalogReplaced
+			}
+			bindings, err := BindGinIndex(view, parent, idx.SQLIndex)
+			if err != nil {
+				return nil, err
+			}
+			for ordinal, column := range root.Gin.Columns {
+				if !bindings[ordinal].Same(column.Binding) {
+					return nil, ids.ErrCatalogReplaced
+				}
+				for _, posting := range column.NonNull {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					if err := check(posting.Row, posting.Version, posting.Position); err != nil {
+						return nil, err
+					}
+				}
+				for _, list := range column.Tokens {
+					for _, posting := range list.Postings {
+						if err := ctx.Err(); err != nil {
+							return nil, err
+						}
+						if err := check(posting.Row, posting.Version, posting.Position); err != nil {
+							return nil, err
+						}
+					}
 				}
 			}
 		}

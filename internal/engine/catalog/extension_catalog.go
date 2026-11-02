@@ -69,12 +69,12 @@ type Procedure struct {
 	Language                                  ids.ObjectAddress
 	Display                                   RoutineDisplay
 	// Transforms owns ordered exact pair identities independently of execution.
-	Transforms                                *RoutineTransforms
-	PLHandler                                 PLHandler
-	HostHandler                               *host.Runtime
-	Host                                      *HostRoutine
-	HostConversion                            *HostConversion
-	RangeConstructor                          *RangeConstructor
+	Transforms       *RoutineTransforms
+	PLHandler        PLHandler
+	HostHandler      *host.Runtime
+	Host             *HostRoutine
+	HostConversion   *HostConversion
+	RangeConstructor *RangeConstructor
 	// DeclarationDependencies order replay only; PL source is not an eager SQL
 	// body dependency manifest and these addresses do not create pg_depend edges.
 	DeclarationDependencies []ids.ObjectAddress
@@ -102,6 +102,7 @@ type Procedure struct {
 	Conversion     sqltype.EncodingConversionHandler
 	AccessMethod   NativeAccessMethod
 	BrinSupport    uint8 // Registered minmax summary operation 1–4; never a scalar ABI.
+	GinSupport     uint8 // Genuine internal GIN operation, never scalar execution.
 	ACL            authorization.ACLValue
 	Dictionary     ids.ObjectAddress
 	Foreign        *ForeignProcedure

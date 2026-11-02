@@ -98,7 +98,7 @@ func familySupportImplemented(view catalog.Read, oid ids.OID) bool {
 	if _, ok := sqltype.NativeIndexRoutineByOID(uint32(oid)); ok {
 		return true
 	}
-	return catalog.ValidateBrinSupport(d) == nil || d.SQL != nil || d.Builtin != nil && d.Builtin.Providers != 0 || d.Implementation != nil
+	return catalog.ValidateBrinSupport(d) == nil || catalog.ValidateGinSupport(d) == nil || d.SQL != nil || d.Builtin != nil && d.Builtin.Providers != 0 || d.Implementation != nil
 }
 func familyOperator(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFamilyItem) (*catalog.Operator, error) {
 	return familyOperatorInput(h, auth, item, 0)

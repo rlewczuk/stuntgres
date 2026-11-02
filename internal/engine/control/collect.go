@@ -101,7 +101,9 @@ type dumpCollector struct {
 var dumpCollectors = [...]dumpCollector{
 	{"transform", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Transform); return ok }, func(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 		pair := d.(*catalog.Transform)
-		if err := (catalog.TransformProvider{}).Validate(c.CatalogView, pair); err != nil { return err }
+		if err := (catalog.TransformProvider{}).Validate(c.CatalogView, pair); err != nil {
+			return err
+		}
 		c.Transforms = append(c.Transforms, pair)
 		return nil
 	}},
@@ -322,7 +324,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
-	if t.AccessMethod != catalog.NoAccessMethod && t.Origin == nil || t.BrinSupport != 0 {
+	if t.AccessMethod != catalog.NoAccessMethod && t.Origin == nil || t.BrinSupport != 0 || t.GinSupport != 0 {
 		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}

@@ -47,6 +47,8 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 	}
 	want[10017] = IndexClassMetadata{10017, 783, 3550, 869, 0, "inet_ops", false}
 	want[10078] = IndexClassMetadata{10078, 783, 3919, 3831, 0, "range_ops", true}
+	want[10064] = IndexClassMetadata{10064, 2742, 2745, 2277, 2283, "array_ops", true}
+	want[10073] = IndexClassMetadata{10073, 2742, 3659, 3614, 25, "tsvector_ops", true}
 	want[10151] = IndexClassMetadata{10151, 3580, 4079, 1560, 1560, "bit_minmax_ops", true}
 	want[10132] = IndexClassMetadata{10132, 3580, 4586, 1042, 1042, "bpchar_bloom_ops", false}
 	want[10131] = IndexClassMetadata{10131, 3580, 4076, 1042, 1042, "bpchar_minmax_ops", true}
@@ -137,7 +139,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 145 || len(want) != 145 {
+	if IndexClassMetadataCount() != 147 || len(want) != 147 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -179,7 +181,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	}
 	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "bit_ops", "varbit_ops", "network_ops"} {
 		for _, m := range got {
-			if m.Name == name {
+			if m.Name == name && !(name == "array_ops" && m.Method == 2742 && m.OID == 10064) {
 				t.Fatal("diagnostic-only class advertised", m)
 			}
 		}
@@ -194,6 +196,37 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 	}
 	for i := range IndexClassMetadataCount() {
 		m, _ := IndexClassMetadataAt(i)
+		if m.Method == 2742 {
+			c, ok := LookupGinIndexClass(m.Name)
+			if !ok || !c.IsGin() || c.IsHash() || c.IsGiST() || c.OID() != m.OID || c.MethodOID() != m.Method || c.FamilyOID() != m.Family || c.InputOID() != m.Input || c.StorageOID() != m.KeyType {
+				t.Fatal("GIN catalog identity", m, c)
+			}
+			typ := types[TSVector]
+			if m.Input == 2277 {
+				typ = types[1007] // A concrete owned integer[] generation, not anyarray.
+			}
+			if typ == nil || !typ.Concrete() || !c.Accepts(typ) {
+				t.Fatal("GIN concrete owner", m, typ)
+			}
+			for _, domain := range []bool{false, true} {
+				input := typ
+				if domain {
+					var err error
+					input, err = Domain(49000+ID(i), "gin_class_domain", "public.gin_class_domain", typ.Usage())
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				binding, err := BindGinTokens(input.Usage(), c)
+				if err != nil || binding.Usage.Type != input || binding.Class != c {
+					t.Fatal("advertised GIN provider", m, binding, err)
+				}
+				if _, err := bindTestIndexOrdering(input.Usage(), c); err == nil {
+					t.Fatal("GIN acquired a B-tree ordering fallback", m)
+				}
+			}
+			continue
+		}
 		if m.Method == 3580 {
 			c, ok := LookupBrinIndexClass(m.Name)
 			if !ok || !c.IsBrin() || c.OID() != m.OID || c.FamilyOID() != m.Family || c.InputOID() != m.Input || c.StorageOID() != m.KeyType {

@@ -1,7 +1,7 @@
 # internal/engine/storage
 
 The engine's physical data layer: committed relation storage and row
-versions, deletion roots, logical B-tree/hash/GiST/SP-GiST/BRIN/bloom index roots, sequence
+versions, deletion roots, logical B-tree/hash/GiST/SP-GiST/GIN/BRIN/bloom index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
@@ -60,6 +60,17 @@ and never the engine.
   and storage/generation/prefix/end authority. Local signature scratch never
   escapes into a root. Delta publication shares only unchanged immutable
   signature backing; vacuum moves signatures with their exact versions.
+  `index_gin.go` owns `GinRoot` per-column dictionaries, concrete token bindings,
+  nonnull membership and exact immutable row/version/slot postings. Full batches
+  sort/deduplicate typed tokens; delta batches merge dictionaries once and retain
+  untouched posting backing. Binary lookup consumes postings rather than full Entries.
+  `ValidateGinMerge` shares extraction and comparison/cancellation traversal with
+  `MergeGin`, but retains only delta-sized scratch. Admission never appends an
+  incumbent survivor dictionary or allocates merged posting output.
+  `TransportGin` is pure cancellable structural filtering/position
+  remapping; vacuum validates each original heap identity and preserves unchanged
+  roots when no compaction is needed. SQL key/predicate execution stays outside
+  storage and all fallible work completes before publication.
   These are process-local logical artifacts, not physical pages/WAL or a durable
   PostgreSQL index format. Native controls rebuild destination signatures rather
   than serializing roots, live pointers or session resources.

@@ -20,7 +20,8 @@ type IndexClass struct {
 	brin                    bool
 	spgist                  bool
 	bloom                   bool
-	support                 [4]IndexSupport
+	gin                     bool
+	support                 [6]IndexSupport
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
@@ -40,15 +41,15 @@ func (c IndexClass) InputOID() uint32 {
 // IndexClassDefinition contains catalog-selected identity and provider input.
 // Construction never resolves a class name or substitutes a builtin class.
 type IndexClassDefinition struct {
-	OID, Method, Family, Input, Storage uint32
-	Name, FamilyName                    string
-	Hash, GiST, Brin, SPGiST, Bloom     bool
+	OID, Method, Family, Input, Storage  uint32
+	Name, FamilyName                     string
+	Hash, GiST, Brin, SPGiST, Bloom, Gin bool
 }
 
 func NewIndexClass(d IndexClassDefinition) IndexClass {
 	return IndexClass{Name: d.Name, Family: d.FamilyName, oid: d.OID,
 		method: d.Method, family: d.Family, storage: d.Storage,
-		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin, spgist: d.SPGiST, bloom: d.Bloom}
+		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin, spgist: d.SPGiST, bloom: d.Bloom, gin: d.Gin}
 }
 
 func (c IndexClass) IsHash() bool   { return c.hash }
@@ -56,11 +57,12 @@ func (c IndexClass) IsGiST() bool   { return c.gist }
 func (c IndexClass) IsBrin() bool   { return c.brin }
 func (c IndexClass) IsSPGiST() bool { return c.spgist }
 func (c IndexClass) IsBloom() bool  { return c.bloom }
+func (c IndexClass) IsGin() bool    { return c.gin }
 
 // SameIdentity compares the declared class, independently of the catalog
 // members captured for execution or current presentation names.
 func (c IndexClass) SameIdentity(other IndexClass) bool {
-	c.support, other.support = [4]IndexSupport{}, [4]IndexSupport{}
+	c.support, other.support = [6]IndexSupport{}, [6]IndexSupport{}
 	c.Name, other.Name, c.Family, other.Family = "", "", "", ""
 	return c == other
 }
@@ -89,7 +91,7 @@ func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
-	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin && c.spgist == other.spgist && c.bloom == other.bloom
+	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin && c.spgist == other.spgist && c.bloom == other.bloom && c.gin == other.gin
 }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
@@ -308,6 +310,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if !t.Concrete() {
 		return false
 	}
+	if c.gin && c.input == 2277 {
+		return t.BaseType().IsArray()
+	}
 	if c.hash && c.input == NameArray {
 		return t.BaseType().IsArray()
 	}
@@ -407,7 +412,7 @@ type IndexComparison struct {
 }
 
 func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
-	if c.hash || c.gist || c.brin || c.spgist {
+	if c.hash || c.gist || c.brin || c.spgist || c.gin {
 		return IndexComparison{}, fmt.Errorf("non-btree class has no ordering provider")
 	}
 	if !c.Accepts(u.Type) {

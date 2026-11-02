@@ -9,9 +9,13 @@ const (
 	BrinMethod
 	SpgistMethod
 	BloomMethod
+	GinMethod
 )
 
 func (m IndexMethod) String() string {
+	if m == GinMethod {
+		return "gin"
+	}
 	if m == BloomMethod {
 		return "bloom"
 	}

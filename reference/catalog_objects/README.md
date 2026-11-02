@@ -94,6 +94,10 @@ is covered by `TestReferenceSecurityLabelEventBoundary` in `reference/triggers`.
   handler and minmax classes. Genuine minmax support operations 3383–3386 consume
   internal summaries; this does not advertise missing physical callback ABIs.
   BRIN class tuples are independently captured in `pg_opclass_brin_facts_test.go`.
+  GIN joins the complete seven-method inventory and selected array/tsvector
+  class/family inventories, with all six released search members and ten genuine
+  internal support declarations. These capabilities do not activate JSONB,
+  deprecated @@@ execution, physical callbacks or optimizer index use.
   `pg_amop` projects live operator-family owners, not generic rows per class
   or per physical index. Its admitted inventory preserves cross-type search
   members and ordering members with their real sort-family links; catalog

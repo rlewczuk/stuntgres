@@ -68,7 +68,7 @@ func TransformIndexOptions(old catalog.RelationOptions, s *parser.AlterIndex, me
 				continue
 			}
 			option := catalog.RelationOption{Name: request.Name.Text, Text: indexOptionText(request.Value)}
-			if option.Name == "fillfactor" || option.Name == "pages_per_range" || method == catalog.BloomMethod {
+			if option.Name == "fillfactor" || option.Name == "pages_per_range" || option.Name == "gin_pending_list_limit" || method == catalog.BloomMethod {
 				option.Kind = catalog.RelationOptionInteger
 				n := float64(request.Value.Integer)
 				if request.Value.Kind != parser.IntegerValue {
@@ -118,6 +118,9 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 		if method == catalog.BloomMethod {
 			recognized = bloomOption(name)
 		}
+		if method == catalog.GinMethod {
+			recognized = name == "fastupdate" || name == "gin_pending_list_limit"
+		}
 		if !recognized {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
@@ -125,7 +128,7 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 			return sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
 		}
 		seen[name] = true
-		if name == "fillfactor" || name == "pages_per_range" || method == catalog.BloomMethod {
+		if name == "fillfactor" || name == "pages_per_range" || name == "gin_pending_list_limit" || method == catalog.BloomMethod {
 			n, suffix, ok := float64(o.Value.Integer), "", true
 			if o.Value.Kind != parser.IntegerValue {
 				n, suffix, ok = settings.ParseNumber(o.Value.Text, true)
@@ -143,6 +146,9 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 				if name == "length" {
 					high = 4096
 				}
+			}
+			if name == "gin_pending_list_limit" {
+				low, high = 64, math.MaxInt32
 			}
 			if n < float64(low) || n > float64(high) {
 				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`value %s out of bounds for option "%s"`, indexOptionText(o.Value), name), Detail: fmt.Sprintf(`Valid values are between "%d" and "%d".`, low, high)}

@@ -566,6 +566,14 @@ neither owns catalog authority.
   capability must agree with its genuine installed handler; ordinary aliases
   retain separate SQL identities without acquiring an origin. Canonical recipe
   and live handler addresses remap together. Builtin handler gates remain exact.
+  GIN has genuine method2742/handler333, array_ops10064/family2745 and
+  tsvector_ops10073/family3659. All selected released search/support rows retain
+  pinned18.6 identities, including metadata-only deprecated @@@. Ten `GinSupport`
+  declarations are internal capabilities, not scalar ABI emulation. Anyarray2277
+  defaults adapt concrete/domain arrays consistently in binding and deparse.
+  Native handlers and GIN support seeds leave `Procedure.Parallel` at its zero
+  override sentinel: their intrinsic projected safety is SAFE. Explicit ALTER
+  overrides remain replayable, while pristine Dump emits no metadata repairs.
   BRIN descriptors retain released minmax and diagnostic-only excluded algorithm
   identities, including inet's actual
   inclusion default. Four `BrinSupport` procedure capabilities declare internal

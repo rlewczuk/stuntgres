@@ -430,7 +430,8 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		if roots != nil && root == nil && old != nil && old.SQLIndex.Ready && !intent {
 			return nil, fmt.Errorf("stuntgres: ready index root is missing")
 		}
-		rebuild := !produced && (root == nil || old == nil || intent || !SameIndexKeySemantics(old, index))
+		sameKeys := SameIndexKeySemantics(old, index) || ginPresentationIndexSemantics(old, index)
+		rebuild := !produced && (root == nil || old == nil || intent || !sameKeys)
 		// Generic parent shape changes cannot heal invalid indexes. Supplied
 		// phase roots and ready-invalid maintenance still use the same core.
 		if old != nil && !index.SQLIndex.Valid && rebuildIndexes[a] == nil && !runtime {
@@ -472,6 +473,47 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		var entries []storage.IndexEntry
 		if root != nil {
 			entries = root.Entries
+		}
+		if index.SQLIndex.Method == catalog.GinMethod {
+			if !rebuild && old != nil && old != index {
+				oldParent, ok := current.Relation(old.SQLIndex.Parent)
+				if !ok {
+					return nil, fmt.Errorf("stuntgres: missing GIN presentation parent")
+				}
+				root, err = RebindGinPresentationRoot(view.WithState(current), view, oldParent, parent, old, index, root)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if rebuild {
+				if err := ValidateIndexDefinition(view, index); err != nil {
+					return nil, err
+				}
+				capture := BuildCapture{Index: index, Progress: progress.ObserverFor(a)}
+				root, err = BuildIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], &capture)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for i := range publications {
+				if publications[i].Address != parent.Address() {
+					continue
+				}
+				reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
+				merged, mergeErr := MergeGinIndexRoot(evaluation, parent, index, root, &publications[i], reconstruct, materialize)
+				if mergeErr != nil {
+					return nil, mergeErr
+				}
+				if merged != nil {
+					root = merged
+				}
+				break
+			}
+			progress.Complete(a)
+			if materialize {
+				result[a] = root
+			}
+			continue
 		}
 		if index.SQLIndex.Method == catalog.BloomMethod {
 			var err error

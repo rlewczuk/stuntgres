@@ -94,6 +94,8 @@ var supportedIndexClasses = [...]struct {
 	{"kd_point_ops", 4000, 4016, 0, true},
 	{"text_ops", 4000, 4017, 0, false},
 	{"poly_ops", 4000, 5008, 603, false},
+	{"array_ops", 2742, 2745, 2283, false},
+	{"tsvector_ops", 2742, 3659, 25, false},
 }
 
 func IndexClassMetadataCount() int { return len(supportedIndexClasses) + len(brinIndexClasses) }
@@ -116,6 +118,8 @@ func IndexClassMetadataAt(index int) (IndexClassMetadata, bool) {
 		class, ok = LookupHashIndexClass(fact.name)
 	} else if fact.method == 4000 {
 		class, ok = LookupSPGiSTIndexClass(fact.name)
+	} else if fact.method == 2742 {
+		class, ok = LookupGinIndexClass(fact.name)
 	} else {
 		class, ok = LookupGiSTIndexClass(fact.name)
 	}
@@ -145,6 +149,10 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 	var name string
 	var method uint32
 	switch oid {
+	case 2745:
+		name, method = "array_ops", 2742
+	case 3659:
+		name, method = "tsvector_ops", 2742
 	case 3794:
 		name, method = "network_ops", 4000
 	case 3474:

@@ -64,6 +64,8 @@ func TestRoutineProviderAttributeEligibility(t *testing.T) {
 			family = "language-handler"
 		case d.BrinSupport != 0:
 			family = "brin-support"
+		case d.GinSupport != 0:
+			family = "gin-support"
 		case d.AccessMethod != catalog.NoAccessMethod:
 			family = "access-method"
 		case d.Foreign != nil:
@@ -82,7 +84,7 @@ func TestRoutineProviderAttributeEligibility(t *testing.T) {
 			families[family] = d
 		}
 	}
-	for _, family := range []string{"installed", "range", "language-handler", "brin-support", "access-method", "foreign", "conversion", "aggregate", "builtin-scalar", "builtin-set"} {
+	for _, family := range []string{"installed", "range", "language-handler", "brin-support", "gin-support", "access-method", "foreign", "conversion", "aggregate", "builtin-scalar", "builtin-set"} {
 		d := families[family]
 		if d == nil {
 			t.Fatalf("missing genuine family %s", family)

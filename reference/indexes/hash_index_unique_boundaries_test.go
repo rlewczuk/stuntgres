@@ -16,9 +16,6 @@ func TestReferenceHashIndexStandaloneUniqueBoundaries(t *testing.T) {
 					q := prefix.sql + "CREATE UNIQUE INDEX boundary ON t USING " + method + "(n)"
 					if method == "gin" {
 						want := fixture.Diagnostic{Code: "0A000", Message: `access method "gin" does not support unique indexes`}
-						if !b.PG {
-							want.Message = "non-btree indexes are unsupported"
-						}
 						hashIndexSemanticFailure(t, p, b, run, q, want)
 					} else if method == "missing" {
 						hashIndexSemanticFailure(t, p, b, run, q, fixture.Diagnostic{Code: "42704", Message: `access method "missing" does not exist`})

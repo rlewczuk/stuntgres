@@ -13,6 +13,8 @@ var builtinFamilyRows = [...]struct {
 	oid, method ids.OID
 	name        string
 }{
+	{2745, 2742, "array_ops"},
+	{3659, 2742, "tsvector_ops"},
 	{424, 403, "bool_ops"},
 	{426, 403, "bpchar_ops"},
 	{427, 405, "bpchar_ops"},
@@ -131,6 +133,12 @@ var builtinFamilyRows = [...]struct {
 	{4080, 3580, "varbit_minmax_ops"},
 }
 var builtinFamilyOperators = [...]OperatorFamilyOperator{
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10349}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 1, Purpose: 's', Operator: 2750, Method: 2742},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10350}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 2, Purpose: 's', Operator: 2751, Method: 2742},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10351}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 3, Purpose: 's', Operator: 2752, Method: 2742},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10352}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 4, Purpose: 's', Operator: 1070, Method: 2742},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10365}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3615, Number: 1, Purpose: 's', Operator: 3636, Method: 2742},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10366}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3615, Number: 2, Purpose: 's', Operator: 3660, Method: 2742},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10180}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 1, Purpose: 's', Operator: 1222, Method: 403, SortFamily: 0},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10181}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 2, Purpose: 's', Operator: 1223, Method: 403, SortFamily: 0},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10182}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 3, Purpose: 's', Operator: 1220, Method: 403, SortFamily: 0},
@@ -771,6 +779,16 @@ var builtinFamilyOperators = [...]OperatorFamilyOperator{
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 10522}, ObjectRevision: 1, Family: 3794, Left: 869, Right: 869, Number: 27, Purpose: 's', Operator: 934, Method: 4000, SortFamily: 0},
 }
 var builtinFamilySupports = [...]OperatorFamilySupport{
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10276}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 2, Function: 2743, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10277}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 3, Function: 2774, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10278}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 4, Function: 2744, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10279}, ObjectRevision: 1, Family: 2745, Left: 2277, Right: 2277, Number: 6, Function: 3920, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10280}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 1, Function: 3724, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10281}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 2, Function: 3656, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10282}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 3, Function: 3657, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10283}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 4, Function: 3658, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10284}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 5, Function: 2700, CatalogVisible: true},
+	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10285}, ObjectRevision: 1, Family: 3659, Left: 3614, Right: 3614, Number: 6, Function: 3921, CatalogVisible: true},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10074}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 1, Function: 836},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10075}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 2, Function: 3359},
 	{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 10076}, ObjectRevision: 1, Family: 1984, Left: 829, Right: 829, Number: 4, Function: 5051},
@@ -1166,6 +1184,12 @@ var builtinFamilySupportKeys = func() [len(builtinFamilySupports)]ids.NameKey {
 		d := &builtinFamilySupports[i]
 		_, d.CatalogVisible = sqltype.NativeIndexRoutineByOID(uint32(d.Function))
 		for _, operation := range brinSupportDeclarations {
+			if operation.oid == d.Function {
+				d.CatalogVisible = true
+				break
+			}
+		}
+		for _, operation := range ginSupportDeclarations {
 			if operation.oid == d.Function {
 				d.CatalogVisible = true
 				break

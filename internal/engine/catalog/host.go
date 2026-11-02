@@ -32,7 +32,9 @@ func (h *HostRoutine) SetLayout(layout *proc.Definition) error {
 		}
 		member := HostResultUsage(layout)
 		plan, err := proc.PlanTuple([]sqltype.Usage{member}, layout.Result.Type)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		h.outputPlan, h.outputTuple = plan, layout.Result.Type
 	}
 	return nil
@@ -84,11 +86,14 @@ func HostLogicalType(t *sqltype.Descriptor) host.Type {
 	}
 	return ""
 }
+
 // HostResultUsage is the scalar program output, distinct from CALL's record.
 func HostResultUsage(layout *proc.Definition) sqltype.Usage {
 	if layout.Procedure && len(layout.OutputFormals) == 1 {
 		index := layout.OutputFormals[0]
-		if index < 0 || index >= len(layout.Formals) { return sqltype.Usage{} }
+		if index < 0 || index >= len(layout.Formals) {
+			return sqltype.Usage{}
+		}
 		return layout.Formals[index].Usage
 	}
 	return layout.Result
@@ -113,7 +118,7 @@ func ValidateHostProcedure(v Read, d *Procedure) error {
 	if d.Address().ClassID != ids.ProcedureClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() || d.Dictionary != (ids.ObjectAddress{}) {
 		return invalid()
 	}
-	if d.BrinSupport != 0 || d.SnowballHelper != NoSnowballHelper || d.InputNames != nil || d.LiteralDefaults != nil || d.DeclarationBody != nil || len(d.DeclarationDependencies) != 0 {
+	if d.BrinSupport != 0 || d.GinSupport != 0 || d.SnowballHelper != NoSnowballHelper || d.InputNames != nil || d.LiteralDefaults != nil || d.DeclarationBody != nil || len(d.DeclarationDependencies) != 0 {
 		return invalid()
 	}
 	if d.HostHandler != nil {
@@ -151,18 +156,30 @@ func ValidateHostProcedure(v Read, d *Procedure) error {
 			return invalid()
 		}
 		if f.Output() {
-			if !layout.Procedure || layout.OutputFormals[0] != i { return invalid() }
+			if !layout.Procedure || layout.OutputFormals[0] != i {
+				return invalid()
+			}
 			outputCount++
 		}
 		slot := layout.FormalInputs[i]
 		if f.Input() {
 			inputCount++
-			if slot < 0 || slot >= len(layout.Inputs) || layout.InputFormals[slot] != i || f.Usage != layout.Inputs[slot] || f.Name != layout.Names[slot] { return invalid() }
-		} else if slot != -1 { return invalid() }
+			if slot < 0 || slot >= len(layout.Inputs) || layout.InputFormals[slot] != i || f.Usage != layout.Inputs[slot] || f.Name != layout.Names[slot] {
+				return invalid()
+			}
+		} else if slot != -1 {
+			return invalid()
+		}
 	}
-	if inputCount != len(layout.Inputs) || outputCount != len(layout.OutputFormals) { return invalid() }
-	if ValidateRoutineTransforms(v, d) != nil { return invalid() }
-	if (layout.Procedure && h.outputTuple != layout.Result.Type) || (!layout.Procedure && h.outputTuple != nil) { return invalid() }
+	if inputCount != len(layout.Inputs) || outputCount != len(layout.OutputFormals) {
+		return invalid()
+	}
+	if ValidateRoutineTransforms(v, d) != nil {
+		return invalid()
+	}
+	if (layout.Procedure && h.outputTuple != layout.Result.Type) || (!layout.Procedure && h.outputTuple != nil) {
+		return invalid()
+	}
 	signature := string(d.Signature)
 	for i, u := range layout.Inputs {
 		if HostLogicalType(u.Type) != p.InputType(i) || !validateType(u) {
@@ -215,7 +232,9 @@ func ValidateHostProcedure(v Read, d *Procedure) error {
 func ResolveHostRoutine(v Read, layout *proc.Definition, p *host.Program, language ids.ObjectAddress, associations *RoutineTransforms) (*HostRoutine, error) {
 	count := len(layout.Inputs) + 1
 	h := &HostRoutine{Layout: layout, Program: p, Converters: make([]ids.ObjectAddress, count), Pairs: make([]ids.ObjectAddress, count), Tokens: make([]*host.Conversion, count)}
-	if err := h.SetLayout(layout); err != nil { return nil, err }
+	if err := h.SetLayout(layout); err != nil {
+		return nil, err
+	}
 	for i := range count {
 		typ, from := HostResultUsage(layout).Type, false
 		if i < len(layout.Inputs) {
@@ -228,7 +247,9 @@ func ResolveHostRoutine(v Read, layout *proc.Definition, p *host.Program, langua
 			}
 			h.Pairs[i] = pair.Address()
 			h.Converters[i] = pair.To
-			if from { h.Converters[i] = pair.From }
+			if from {
+				h.Converters[i] = pair.From
+			}
 		}
 		if h.Converters[i].ObjectID == 0 {
 			token := p.Runtime().DefaultConversion(HostLogicalType(typ), from)
@@ -243,7 +264,9 @@ func ResolveHostRoutine(v Read, layout *proc.Definition, p *host.Program, langua
 		converter, ok := v.Procedure(h.Converters[i])
 		if !ok || converter.HostConversion == nil {
 			direction := "TO"
-			if from { direction = "FROM" }
+			if from {
+				direction = "FROM"
+			}
 			return nil, fmt.Errorf("stuntgres: unavailable host %s SQL direction", direction)
 		}
 		h.Tokens[i] = converter.HostConversion.Token
