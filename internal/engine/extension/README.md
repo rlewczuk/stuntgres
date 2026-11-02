@@ -118,7 +118,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   they do not replace nonexistent base predecessors. The original CREATE
   name/absence observations remain publication fences. Base-object revisions
   still use ordinary replacement, and all candidates retain full provider,
-  reciprocal membership and current installed-declaration validation.
+  reciprocal membership and current installed-declaration validation. The one
+  exception is a membership-only header revision (ALTER EXTENSION ADD/DROP,
+  `catalog.MembershipRevision`): `CatalogProvider.ValidateRevision` checks its
+  provenance and reciprocal membership but not the surviving declarations, which
+  never read sibling membership; the re-linked members are staged and validated
+  by their own providers.
   Initial CREATE copies the control comment into the immutable extension header;
   skipped CREATE and UPDATE never reapply that default. Header copies preserve
   current comment text across placement, membership and ownership changes.

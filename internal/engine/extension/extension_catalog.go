@@ -34,6 +34,22 @@ func ValidateProviderHeader(v catalog.Read, d catalog.Descriptor, class ids.OID)
 }
 
 func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	return p.validate(v, d, true)
+}
+
+// ValidateRevision does not revalidate the surviving declarations of a
+// membership-only extension revision (ALTER EXTENSION ADD/DROP): no declaration
+// check reads sibling membership, and each member whose link changed is staged
+// and validated by its own provider. Provenance and reciprocal membership are
+// still checked. Without this, replaying an installation member by member
+// (native Restore) revalidates every declaration once per statement.
+func (p CatalogProvider) ValidateRevision(v catalog.Read, old, d catalog.Descriptor) error {
+	previous, _ := old.(*catalog.Extension)
+	next, ok := d.(*catalog.Extension)
+	return p.validate(v, d, !ok || !catalog.MembershipRevision(previous, next))
+}
+
+func (p CatalogProvider) validate(v catalog.Read, d catalog.Descriptor, declarations bool) error {
 	invalid := InvalidProviderDescriptor
 	if err := ValidateProviderHeader(v, d, p.Class); err != nil {
 		return err
@@ -55,7 +71,11 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if _, err := catalog.ExtensionPrerequisites(v, d); err != nil {
 			return err
 		}
-		if err := implementation.ValidateExtension(v, d); err != nil {
+		if !declarations {
+			if err := validateInstallationHeader(v, d, implementation); err != nil {
+				return err
+			}
+		} else if err := implementation.ValidateExtension(v, d); err != nil {
 			return err
 		}
 	case *catalog.Procedure:

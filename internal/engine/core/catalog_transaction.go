@@ -101,7 +101,11 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		if err := catalog.ValidateExtensionMembership(view, d); err != nil {
 			return nil, err
 		}
-		if err := catalog.Validate(p, view, d); err != nil {
+		if view.SeedIdentical(d) {
+			continue
+		}
+		// Originals are the published predecessors, fenced current above.
+		if err := catalog.ValidateRevision(p, view, c.Originals[a], d); err != nil {
 			return nil, err
 		}
 	}

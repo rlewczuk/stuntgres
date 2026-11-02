@@ -66,3 +66,12 @@ func Validate(p Provider, v Read, d Descriptor) error {
 	}
 	return p.Validate(v, d)
 }
+
+// ValidateRevision checks d, which replaces old (nil for a new descriptor),
+// with p's RevisionValidator when p has one, and with p.Validate otherwise.
+func ValidateRevision(p Provider, v Read, old, d Descriptor) error {
+	if r, ok := p.(RevisionValidator); ok && old != nil {
+		return r.ValidateRevision(v, old, d)
+	}
+	return p.Validate(v, d)
+}

@@ -35,6 +35,14 @@ type Extension struct {
 	Members             []ids.ObjectAddress // current SQL membership; immutable after publication
 }
 
+// MembershipRevision reports whether next differs from old only in its current
+// SQL membership and revision, as ALTER EXTENSION ADD/DROP stages it.
+func MembershipRevision(old, next *Extension) bool {
+	return old != nil && next != nil && old.ObjectAddress == next.ObjectAddress && old.ObjectName == next.ObjectName &&
+		old.Version == next.Version && old.Comment == next.Comment && old.TargetNamespace == next.TargetNamespace &&
+		old.Owner == next.Owner && old.Installation == next.Installation
+}
+
 func (d *Extension) Address() ids.ObjectAddress { return d.ObjectAddress }
 
 func (d *Extension) Revision() ids.DefinitionRevision { return d.ObjectRevision }

@@ -12,10 +12,7 @@ import (
 // membership independently. Complete recipe checks run only at install/update
 // admission; removing a declaration does not invalidate its surviving siblings.
 func ValidateCurrentInstallation(v catalog.Read, ext *catalog.Extension, implementation catalog.ExtensionImplementation) error {
-	if ext == nil || !ext.Installation.Valid() || v.Owner() == nil || v.Owner().Extensions[ext.Name()] != implementation || ext.Installation.Implementation != implementation || ext.Installation.Provider != ext.Name() || ext.Installation.Version != ext.Version || ext.Installation.Cohort != ext.Address() || implementation.Versions().InstallPath(ext.Version) == nil {
-		return fmt.Errorf("stuntgres: invalid extension installation provenance")
-	}
-	if err := catalog.ValidateExtensionMembership(v, ext); err != nil {
+	if err := validateInstallationHeader(v, ext, implementation); err != nil {
 		return err
 	}
 	for _, a := range ext.Installation.Members {
@@ -56,6 +53,15 @@ func ValidateCurrentInstallation(v catalog.Read, ext *catalog.Extension, impleme
 		}
 	}
 	return nil
+}
+
+// validateInstallationHeader checks released provenance and current reciprocal
+// membership: the installation facts that ALTER EXTENSION ADD/DROP can change.
+func validateInstallationHeader(v catalog.Read, ext *catalog.Extension, implementation catalog.ExtensionImplementation) error {
+	if ext == nil || !ext.Installation.Valid() || v.Owner() == nil || v.Owner().Extensions[ext.Name()] != implementation || ext.Installation.Implementation != implementation || ext.Installation.Provider != ext.Name() || ext.Installation.Version != ext.Version || ext.Installation.Cohort != ext.Address() || implementation.Versions().InstallPath(ext.Version) == nil {
+		return fmt.Errorf("stuntgres: invalid extension installation provenance")
+	}
+	return catalog.ValidateExtensionMembership(v, ext)
 }
 
 // SealInstallation is called on a complete unpublished script candidate. New

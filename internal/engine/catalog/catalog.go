@@ -256,6 +256,14 @@ type Provider interface {
 	Validate(Read, Descriptor) error
 }
 
+// RevisionValidator is an optional Provider capability for a descriptor whose
+// predecessor is known: a stage's base descriptor or a journal's original.
+// ValidateRevision must reject everything Validate rejects that the change
+// from old to d can affect.
+type RevisionValidator interface {
+	ValidateRevision(v Read, old, d Descriptor) error
+}
+
 type NamespaceProvider struct{}
 
 func (NamespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }

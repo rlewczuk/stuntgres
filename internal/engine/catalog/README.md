@@ -325,7 +325,10 @@ neither owns catalog authority.
   implementations. The core-kind providers here (`NamespaceProvider`,
   `DatabaseProvider`, `TablespaceProvider`, `CollationProvider`,
   `ConversionProvider`, `ForeignCatalogProvider`, `LargeObjectProvider`) validate
-  against a `Read`.
+  against a `Read`. Catalog stages and transaction journals validate a replaced
+  descriptor with `ValidateRevision`, which hands its predecessor to providers
+  that implement `RevisionValidator` (extension headers skip their surviving
+  declarations on a membership-only revision).
   `Database` owns real allow-connections and connection-limit policy alongside
   identity/owner/ACL. Initial and CREATE defaults are explicit true/−1. Authority
   compatibility permits freezing-horizon drift but rejects admission-policy drift;

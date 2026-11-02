@@ -483,7 +483,7 @@ func (e *Engine) validateCatalogDescriptor(s *CatalogStage, read catalog.Read, d
 	if err := catalog.ValidateExtensionMembership(read, d); err != nil {
 		return err
 	}
-	if err := p.Validate(read, d); err != nil {
+	if err := catalog.ValidateRevision(p, read, s.Base.Get(d.Address()), d); err != nil {
 		return err
 	}
 	e.Mu.Lock()
