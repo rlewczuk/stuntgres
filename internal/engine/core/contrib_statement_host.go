@@ -299,6 +299,12 @@ func (h *contribHost) DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteE
 	return contrib.DblinkBuildSQLDelete[AuthorizationView](h.host(), n, values)
 }
 
+func (h *contribHost) ValidatePgFreespace(n plan.InstalledPgFreespaceExpr) error {
+	return contrib.ValidatePgFreespace[AuthorizationView](h.host(), n)
+}
+func (h *contribHost) PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error) {
+	return contrib.PgFreespace[AuthorizationView](h.host(), n, oid, block)
+}
 func (h *contribHost) Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
 	return contrib.Pgvisibility[AuthorizationView](h.host(), n, oid, block)
 }

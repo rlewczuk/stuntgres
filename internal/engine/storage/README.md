@@ -323,6 +323,19 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   collection only borrows these roots. Index roots have no physical-item archive.
   `pgstattuple.go` owns Dirty/Vacuum classification and checked deterministic
   page/byte/percentage arithmetic, not a second statistics store.
+  `pgfreespace.go` owns a separate compact live-population model. Each visible
+  logical row contributes checked `RowAllocation+4` bytes once, using the caller's
+  own writes/deletes and retained MVCC frontier, not dirty physical predecessors.
+  Payload P occupies ceil(P/8168) pages (zero when empty); full pages report zero,
+  the last floor((8168-used)/32)*32 bytes, and absent valid blocks zero. Deletions
+  reclaim/repack immediately; rollback restores the population. The immutable
+  layout holds only page count and last slack, never expanding scalar probes.
+  A genuine sequence contributes a fixed 48-byte state tuple and 4-byte pointer.
+  Index domains use ceil(Allocation.Forks.Main/8192) and only entirely unused pages;
+  current compact roots retain none, so probes are zero (hash has no FSM).
+  This does not change relation_size's retained-version allocation model.
+  Physical FSM tree pages, stale update cadence, disk history and index recycling
+  are non-engine mechanisms, not fabricated storage or authorities.
   `pgvisibility.go` consumes detached facts in genuine VersionID order, deduplicates
   only physical identity, and packs checked `RowAllocation+4` weights into
   8168-byte page payloads. Compressed immutable runs supply probes, relation rows
@@ -410,6 +423,8 @@ recipes live in external `enginetests/`, avoiding a storage→plan→storage tes
 variant import cycle. Pure collector and snapshot-codec units remain local.
 Heap tuple classification and allocation units use `RUN='^TestPgstattupleHeap'`;
 composed retention, publication and race witnesses live with core.
+Freespace layout, released identity and composed capture ownership use
+`RUN='^TestPgFreespace'`.
 Visibility layout/classification and composed owner proofs use `RUN='^TestPgvisibility'`.
 
 MCV collection, full marginals, typed collision chains and immutable construction

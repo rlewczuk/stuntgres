@@ -31,7 +31,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -414,6 +414,22 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
 				return invalid()
 			}
+		}
+	case StockPgFreespace:
+		count = 2
+		if ext.Provider != "pg_freespacemap" || ext.Version != "1.3" || slot >= count {
+			return invalid()
+		}
+		m := PgFreespaceMembers[slot]
+		name, signature, result, volatility, strict = "pg_freespace", m.Signature, m.Result, expr.Volatile, slot == 0
+		display := catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_freespacemap", HasBinary: true}
+		var body sqltype.StructuralTree
+		if slot == 1 {
+			display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}
+			body = pgFreespaceBody
+		}
+		if p.Installed != m.Declaration || p.Display != display || p.DeclarationBody != body || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
 		}
 	case StockPgvisibility:
 		count = len(PgvisibilityMembers)

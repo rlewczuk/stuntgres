@@ -358,6 +358,19 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 	switch n := node.(type) {
 	case plan.InstalledSSLInfoExpr:
 		return !p.StageDependent && ValidInstalledSSLInfoShape(n)
+	case plan.InstalledPgFreespaceExpr:
+		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgFreespaceIdentity(view, current, n.Ref) != nil {
+			return false
+		}
+		call := n.PgFreespace
+		call.RoutineReference = current
+		if extension.ValidatePgFreespaceCall(view, current, call) != nil {
+			return false
+		}
 	case plan.InstalledPgvisibilityExpr:
 		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

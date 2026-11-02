@@ -27,6 +27,11 @@ and exact typed OUT usages. Only the two relation-set operations enter SRF
 admission; scalar records never imply set cardinality.
 
 
+Freespace shares installed selection and bounded scalar-statistics admission.
+Unnamed scalar regclass/bigint inputs return INT2; named `rel` belongs only to the
+SQL record-set wrapper. Stored literal capture and dependencies preserve actual
+procedure and regclass identities through native controls.
+
 `DefaultOrigin` keeps the original consumer, stable physical attribute/default
 identity and fold provenance. `PrepareDefault` joins existing INSERT, shipped
 domain-column UPDATE DEFAULT and normalized rule/CTE preparation to the accepted

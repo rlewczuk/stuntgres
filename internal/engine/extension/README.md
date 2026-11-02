@@ -427,6 +427,20 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
+- **pg_freespacemap** (`pgfreespacemap_provider.go`) installs exactly the 1.3
+  unnamed STRICT C `(regclass,bigint)->int2` scalar and non-STRICT SQL
+  `(rel regclass)->SETOF (blkno bigint,avail int2)` wrapper. Both are volatile,
+  parallel safe and invoker-rights. PUBLIC EXECUTE is revoked; genuine
+  pg_stat_scan_tables grants and initial ACLs use normal authority. The released
+  BEGIN ATOMIC declaration retains actual scalar-member and pinned builtin
+  identities. Its normal wrapper-to-scalar dependency participates in catalog
+  visitors, rename, relocation, retirement and native remapping. Optimized native
+  execution enumerates the live-row freespace layout, not the physical-size counter.
+  Inner authority resolves the authenticated scalar slot and installation cohort,
+  never a same-named routine or a captured descriptor's old ACL.
+  Installation collisions use the failed member's recipe-specific statement and
+  location in the released 1.1 base script, including its legacy SQL wrapper;
+  this diagnostic source is distinct from the final 1.3 BEGIN ATOMIC body.
 - **pg_visibility** (`pgvisibility_provider.go`) owns five read declarations:
   the block and relation overloads of `pg_visibility_map` and `pg_visibility`,
   and `pg_visibility_map_summary`. Immutable slots retain their released C
@@ -791,6 +805,8 @@ DDL and catalogs),
 [reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
+Freespace layout, released identity and composed capture ownership use
+`RUN='^TestPgFreespace'`.
 Visibility provider and expression ownership use `RUN='^TestPgvisibility'`.
 Pgcrypto formal/kernel, authenticated OUT/source, retained definition and remap
 ownership units use `RUN='^TestPgcryptoArmor'`; incumbent provider units use

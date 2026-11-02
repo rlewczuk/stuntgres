@@ -153,6 +153,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Bind: bindPgstattuple, NamedCall: namedPgstattuple},
 	{Names: []string{DblinkDeleteName}, Bind: bindDblinkBuildSQLDelete},
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary"}, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
+	{Names: []string{"pg_freespace"}, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
 	{Names: pageinspectNames[:], Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Bind: bindConnectby},

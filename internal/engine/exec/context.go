@@ -308,6 +308,9 @@ func (c *Context) ParameterValue(number int, usage sqltype.Usage) (sqltype.Value
 type Authority struct {
 	Host       Host
 	Expression *CursorExpressionData
+	// Immutable invocation metadata survives Host detachment and evaluator
+	// reconstruction; reattaching a held source never resamples session settings.
+	PreserveParameterDemand bool
 }
 
 type CursorExpressionData struct {

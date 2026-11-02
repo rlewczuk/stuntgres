@@ -1038,8 +1038,11 @@ host methods.
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
-  crosstab, pgrowlocks, pageinspect, pgstattuple, connectby and amcheck capture); view validation and
-  view-write shape; `ValidateRules`; and `DependencyObject` (object
+  crosstab, pgrowlocks, pageinspect, pgstattuple, pg_freespace, pg_visibility,
+  connectby and amcheck capture); `HasDynamicMutationDependency` (destination-owned
+  DEFAULT/CHECK demand at the initial command frontier, without merging authority
+  manifests); view validation and view-write shape; `ValidateRules`; and
+  `DependencyObject` (object
   descriptions for DROP and role diagnostics, including global procedural
   languages and text-search templates, dictionaries and configurations with
   class-specific search-path visibility).
@@ -1356,6 +1359,13 @@ descriptor pointer after rename, relocation or ACL changes. Reference domain,
 epoch, overload and scalar/OUT usage authority remain mandatory at both boundaries.
 `pg_relpages` has no scalar OUT declaration: its range alias supplies the column
 label unless an explicit column alias overrides it, including folded NULL calls.
+`InstalledPgFreespaceExpr` follows the complete reference/literal, dependency,
+remap, retag and renderer protocol. Current names and the wrapper's actual `rel`
+formal render without inventing scalar input names. Scalar DEFAULT/CHECK/statistics
+closure authenticates the same provider and keeps volatile execution-time demand;
+SRFs remain confined to ordinary source admission. Native replacement remaps real
+member and regclass identities without retaining execution contexts or grants.
+
 `InstalledPgvisibilityExpr` follows the same closed scalar-statistics admission
 and complete reference/literal/dependency/remap/retag traversal. Scalar and set
 operations retain distinct result usages and genuine sealed overloads.

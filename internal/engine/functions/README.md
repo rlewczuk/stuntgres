@@ -911,6 +911,11 @@ reviewed decision:
   returned SQL, catalog or runtime authority is retained by the kernel.
   `AppendSQLLiteral` shares the formatter's PostgreSQL literal escaping directly
   into an invocation-owned builder without an intermediate rendered string.
+  `PgFreespace` retains sealed scalar/set operation, written-order operands,
+  checked regclass/bigint slots and INT2/record usage. Only wrapper `rel` is named.
+  Volatile stage-dependent calls never fold state results; scalar known-NULL
+  simplification uses the shared strict planner, while the non-STRICT wrapper
+  retains execution admission. Rebuilding owns children, never execution grants.
   `Pgvisibility` carries a selected block/map/page/summary operation and typed
   OUT shape. REGCLASS/INT8 inputs use the shared callable/coercion hooks; lexical
   children and checked formal slots preserve evaluation order. Scalar records

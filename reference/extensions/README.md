@@ -145,6 +145,21 @@ metadata and full diagnostics. Physical flags use independently specified
 ownership/maintenance fixtures; quiescent summary/scalar/SRF consistency is an
 additional invariant, never a substitute for those expectations. Native control
 witnesses remain phases of the same public dual-mode definitions.
+Free-space inquiries use `RUN='^TestReferencePgFreespace'`. The shared fixture
+keeps compact native live-row estimates distinct from PostgreSQL FSM counters,
+while fixing exact declaration, identity, ACL, NULL and diagnostic contracts.
+Declaration scenarios cover scalar and wrapper installation collisions separately,
+including full script diagnostics and atomic preservation of the existing SQL
+routine's identity, source and output without publishing staged members.
+Permission scenarios select custom and generic SQL-body parameter-demand routes
+explicitly: fresh custom NULL is empty, generic parameter NULL still requires the
+genuine inner scalar, and revoked outer EXECUTE denies either route. Automatic
+PostgreSQL plan-cache history is not inferred from a fresh outer statement.
+Control and smoke phases borrow retained Rows on a separate connection, keep
+their old data and metadata through Reset, then drain/close the rows and return
+that borrower before fresh queries, Restore or destination DML. Private writers
+are rolled back and returned before retained-output capture; held statements
+remain available to prove current authority and restored identities.
 
 Genuine partitioned-index and TOAST construction are oracle-only setup phases.
 Native partitioned-index rejection additionally uses real published descriptors
@@ -290,6 +305,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   preserve retained row data/metadata while fresh generations resolve current
   identities. Available-but-uninstalled modules remain absent from `pg_extension`;
   the complete available-extension registry also includes installed `plpgsql`.
+  Complete native inventory expectations include pg_freespacemap 1.3's genuine
+  untrusted, superuser-required, relocatable control row; selected package
+  metadata is checked in both modes without asserting whole-oracle parity.
 - Installed dictionary metadata: `RUN='^TestReferenceTSDict'` preserves full
   metadata and identity links across unaccent installation/removal, including
   the complete native bootstrap inventory of 18 dictionaries (simple and 17

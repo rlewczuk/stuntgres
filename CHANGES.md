@@ -1,5 +1,22 @@
 # Changes
 
+- Add pg_freespacemap 1.3's documented scalar and all-block pg_freespace calls,
+  genuine C/SQL identities and dependencies, ordinary grants and exact errors.
+  Native quantized compact live-row estimates reflect own writes, deletion,
+  rollback and retained snapshots; stored expressions and immutable results survive
+  native controls without changing the separate relation_size allocation model.
+  Include the provider in complete registry inventories and isolate retained-row
+  borrowers from later control-fixture queries and writes.
+  Retain destination-owned DEFAULT/CHECK dynamic roots at the statement frontier,
+  authenticate current invocation and inner-member identities without mutating
+  bound carriers, and preserve custom/generic SQL-body NULL authority boundaries.
+  Carry admitted parameter demand through shared query-source invocation metadata,
+  so fresh, held and reconstructed generic wrapper frames retain inner authority
+  demand for NULL parameters without changing custom or literal strict folding.
+  Report installation collisions with the actual scalar or wrapper declaration
+  and released 1.1 script location, preserving pre-existing routines and publishing
+  neither the extension nor staged members after failure.
+
 - Add `pg_get_statisticsobjdef(oid)` through typed binding and nullable TEXT
   results, reconstructing authoritative extended-statistics definitions with
   current names, expression syntax, visibility and quoting. Existing native

@@ -175,6 +175,25 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		if err != nil {
 			return nil, err
 		}
+		// Stored mutation expressions own separate lifetime manifests. Preserve
+		// their dynamic roots before the INSERT/UPDATE source fixes its view.
+		if !in.RetainDynamic {
+			in.RetainDynamic, err = stored.HasDynamicMutationDependency(in.Read, s.snapshotTarget.Relation)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if !in.RetainDynamic {
+			for _, target := range s.snapshotTargets {
+				in.RetainDynamic, err = stored.HasDynamicMutationDependency(in.Read, target.Relation)
+				if err != nil {
+					return nil, err
+				}
+				if in.RetainDynamic {
+					break
+				}
+			}
+		}
 		// A logical INSTEAD endpoint has no physical snapshotTarget. Its
 		// synchronous bodies still borrow this command's initial lazy roots.
 		if !in.RetainDynamic && s.ViewWrite != nil && s.ViewWrite.Instead {

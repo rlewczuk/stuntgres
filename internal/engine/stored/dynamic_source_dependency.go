@@ -41,7 +41,7 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 					return true, nil
 				}
 			}
-			if ok && (extension.PgvisibilityProviderOf(procedure) == extension.StockPgvisibility || extension.PgstattupleProviderOf(procedure) == extension.StockPgstattuple || extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
+			if ok && (extension.PgFreespaceProviderOf(procedure) == extension.StockPgFreespace || extension.PgvisibilityProviderOf(procedure) == extension.StockPgvisibility || extension.PgstattupleProviderOf(procedure) == extension.StockPgstattuple || extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
 				return true, nil
 			}
 		}
@@ -87,6 +87,29 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 			if found, err := visit(leaf.Relation); found || err != nil {
 				return found, err
 			}
+		}
+	}
+	return false, nil
+}
+
+// HasDynamicMutationDependency includes the destination-owned DEFAULT/CHECK
+// manifests. They deliberately do not join the outer query's routine manifest,
+// but their lazy relation reads still need this command's original roots.
+func HasDynamicMutationDependency(read catalog.Read, relation *catalog.Relation) (bool, error) {
+	if relation == nil {
+		return false, nil
+	}
+	for _, definition := range relation.ColumnMeta.Defaults {
+		for _, ref := range definition.Dependencies {
+			dependency := [1]catalog.ExpressionDependency{{Ref: ref}}
+			if found, err := HasDynamicSourceDependency(read, dependency[:], nil); found || err != nil {
+				return found, err
+			}
+		}
+	}
+	for _, check := range relation.Constraints.Check {
+		if found, err := HasDynamicSourceDependency(read, check.Dependencies, nil); found || err != nil {
+			return found, err
 		}
 	}
 	return false, nil

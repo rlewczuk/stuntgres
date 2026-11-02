@@ -192,6 +192,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   reconstruction and source opening. Generic completion supplies an anonymous
   record usage; fixed wrappers retain their genuine named composite generation.
   Source/group equality includes both selected identity and result shape.
+  `InstalledPgFreespaceExpr` preserves genuine procedure/reference, typed usage
+  and formal slots through rebuild/substitution and source matching. Scalar INT2
+  and SETOF record remain distinct. Shared strict simplification can replace a
+  known-NULL scalar, never the non-STRICT wrapper or a non-NULL state inquiry.
+  Nodes retain no execution host, capture roots or authority.
   `InstalledPgvisibilityExpr` retains its authentic procedure/reference,
   operation, lexical formal slots and result shape through rebuilding and source
   occurrence matching. Its runtime distinguishes scalar-once NULL records from
@@ -392,6 +397,8 @@ the query reference packages and cast definitions in
 `REFERENCE=1` for the oracle.
 Routine source occurrence reconstruction uses
 `RUN='^TestSQLRoutineResultSourceOccurrence$'`, also with `RACE=1`.
+Freespace layout, released identity and composed capture ownership use
+`RUN='^TestPgFreespace'`.
 Installed visibility identity, source shape and retained ownership use
 `RUN='^TestPgvisibility'`.
 

@@ -57,7 +57,7 @@ func statisticsFunctionShape(node expr.Expr) (bool, error) {
 	case plan.ConditionalExpr, plan.SQLRoutineExpr, plan.RangeConstructorExpr,
 		plan.ExtensionPathsExpr, plan.MergeActionExpr,
 		plan.InstalledUUIDOsspExpr, plan.InstalledSSLInfoExpr,
-		plan.InstalledPgvisibilityExpr, plan.InstalledPgstattupleExpr,
+		plan.InstalledPgFreespaceExpr, plan.InstalledPgvisibilityExpr, plan.InstalledPgstattupleExpr,
 		plan.InstalledDblinkBuildSQLDeleteExpr,
 		plan.InstalledPgstattupleStatsExpr, plan.InstalledPageinspectExpr,
 		plan.InstalledAmcheckExpr, plan.InstalledEarthExpr, plan.InstalledCubeExpr:

@@ -107,6 +107,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"ltree":           {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
 					"moddatetime":     {"moddatetime", "1.0", nil, "functions for tracking last modification time"},
 					"pageinspect":     {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
+					"pg_freespacemap": {"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"},
 					"pg_visibility":   {"pg_visibility", "1.2", nil, "examine the visibility map (VM) and page-level visibility info"},
 					"pg_trgm":         {"pg_trgm", "1.6", nil, "text similarity measurement and index searching based on trigrams"},
 					"pgstattuple":     {"pgstattuple", "1.5", nil, "show tuple-level statistics"},
@@ -140,6 +141,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}
 					expected["moddatetime"] = []any{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}
 					expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
+					expected["pg_freespacemap"] = []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"}
 					expected["pg_visibility"] = []any{"pg_visibility", "1.2", false, true, false, true, nil, nil, "examine the visibility map (VM) and page-level visibility info"}
 					expected["pg_trgm"] = []any{"pg_trgm", "1.6", false, true, true, true, nil, nil, "text similarity measurement and index searching based on trigrams"}
 					expected["pgstattuple"] = []any{"pgstattuple", "1.5", false, true, false, true, nil, nil, "show tuple-level statistics"}

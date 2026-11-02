@@ -59,6 +59,9 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
   `Host.ReacquireOwnerEngine` takes the transaction owner's mutex, then
   `Engine.Mu`, and `Host.ReleaseOwnerEngineLocked` releases both. The host
   methods and functions named …Locked run inside those windows.
+  Within those windows, callers use the already-locked catalog projection;
+  `Engine.CatalogRead` is an unlocked entry point that acquires Engine.Mu itself
+  and must not be called recursively.
 - `LockHeapStatisticsCohort` takes every live owner's mutex in session-token
   order, then `Engine.Mu`. Lock waits, nested SQL, the maintenance-owner check
   and every model computation run with nothing held; each temporary relation
@@ -126,6 +129,26 @@ outputs; no index archive is prepared, stamped, published or transported.
 Physical estimates can shrink immediately after logical DELETE, unlike
 PostgreSQL's retained on-page items. Heap logical history is unchanged.
 
+
+### pg_freespacemap
+
+`pgfreespace_capture.go` uses the caller's ordinary data view and CaptureSource,
+not the all-owner physical tuple cohort. Scoped AccessShare waits outside locks;
+Owner then Engine readmission fences descriptors, parent, store, generator and
+provider authority. Sizing and producer iteration run outside both mutexes.
+Invocation-local routine carriers use the admitted current descriptor and epoch;
+retained source descriptors and their original lifetime proof remain unchanged.
+Destination DEFAULT/CHECK demand joins the statement's initial dynamic-root
+retention, not its outer routine-authority manifest.
+Catalog heaps use their actual producer; genuine indexes borrow shared allocation
+roots/private outputs. No target SELECT/ownership gate is added. Relation/kind
+errors precede block bounds. Authorized wrapper domains are empty for missing
+numeric OIDs and no-storage kinds. Inner scalar EXECUTE is required for non-NULL
+input and for NULL when generic SQL-body parameter demand is preserved. The
+identity-only validator admits that latter route without opening a relation.
+Final identity/authority/cancellation fences precede results;
+every path releases local views and only its own lock contribution. No physical
+TEMP buffer policy is imported into a function that reads no physical buffers.
 
 ### pg_visibility
 

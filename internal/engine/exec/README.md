@@ -123,6 +123,12 @@ typmods; naming is captured only on failure and is never retained in result tupl
   authority a held cursor keeps) and `LockContext`. `SelectQuerySource` takes
   resolved `visibility.HeapOperations`; the row loop calls them, never a catalog
   lookup, callback or alternate visibility algorithm.
+  `Authority.PreserveParameterDemand` is immutable command-invocation metadata,
+  captured from the preparation evaluator before executor source publication.
+  `State.Evaluation` restores it when constructing fresh statement frames;
+  without a source authority, nested frames inherit their lexical outer policy.
+  Derived/frozen sources share that same slot, and held-source Host detachment
+  or reattachment does not resample settings or change the captured policy.
   Query identity demand retains source-occurrence lineage for virtual recipes
   and ordinary `tableoid` alike. A tableoid leaf follows its lexical frame and
   actual physical source reference; outer absence is typed NULL, not inferred
@@ -709,6 +715,19 @@ Closed literal-NULL array random defaults retain their original nextval leaves
 for stored rendering and lifetime validation, not as executable demand. This
 does not admit nonNULL volatile array defaults or fold nonNULL volatile calls.
 
+`pgfreespace.go` authenticates the current declaration and schema/routine authority
+before evaluating children once in written order. Runtime scalar NULL returns typed
+INT2 NULL after admission; known-NULL simplification uses the shared strict planner.
+The non-STRICT wrapper checks outer authority even for NULL (typed empty output).
+A custom body can eliminate its STRICT scalar call for known NULL; preserved
+generic body-parameter demand still checks that genuine scalar's EXECUTE. Every
+non-NULL input checks it too, including empty, absent and no-storage targets.
+Inner denial uses shared SQL-function Context with current scalar/wrapper names.
+The current invocation descriptor/epoch never overwrites its retained source
+carrier or repairs a missing original lifetime proof. Its detached layout becomes
+an arithmetic SourceCursor with owned typed rows, no per-page scalar invocation,
+page vector, closure or retained host.
+
 `pgvisibility.go` admits current sealed identity and routine/schema ACLs before
 evaluating lexical children once into formal slots. It obtains one detached
 capture from `ContribRuntime`, then constructs typed records or an owned source.
@@ -899,6 +918,8 @@ Execution-only XML provider composition through enclosing planning frontiers use
 
 Type inquiry datum identity, ordinary cancellation and detached-authority units
 use `RUN='^TestTypeDescribeExecutionOwnership$'` in `enginetests`.
+Freespace layout, released identity and composed capture ownership use
+`RUN='^TestPgFreespace'`.
 Installed visibility runtime and composed capture ownership use
 `RUN='^TestPgvisibility'`.
 

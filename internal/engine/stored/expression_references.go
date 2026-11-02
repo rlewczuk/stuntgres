@@ -149,6 +149,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		}
 	case plan.InstalledAutoincExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledPgFreespaceExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgvisibilityExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledDblinkBuildSQLDeleteExpr:

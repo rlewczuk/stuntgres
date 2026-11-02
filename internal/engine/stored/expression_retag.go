@@ -488,6 +488,22 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.InstalledPgFreespaceExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgFreespaceProviderOf(proc) != extension.StockPgFreespace {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pg_freespace function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgFreespace(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledPgvisibilityExpr:
 		n.Args = children(n.Args)
 		if err != nil {

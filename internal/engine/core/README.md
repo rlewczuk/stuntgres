@@ -511,13 +511,14 @@ envelope (`invokeNativeTrigger`, `native_trigger.go`) and implements
 `nativetrig.Host` on `statementHost` (`nativetrig_statement_host.go`).
 
 
-Trigger-bearing admitted mutation targets also retain dynamic source roots at
-the calling command's initial data-view capture: lazy trigger-body reads are
-not outer expression dependencies. The actual DML executor admits target-root
-retention at its snapshot boundary, including ordinary direct/prepared commands
-without CTE/rule mutation syntax scratch. STABLE/IMMUTABLE trigger commands borrow
-those fixed roots and frontier without recapturing after firing. Trigger-free
-DML does not retain an additional dynamic-root map.
+Admitted mutation targets retain dynamic source roots when their trigger bodies
+or destination-owned DEFAULT/CHECK manifests contain lazy relation inquiries.
+Those manifests remain separate from outer expression dependencies. The actual
+DML executor admits target-root retention at its snapshot boundary, including
+ordinary direct/prepared commands without CTE/rule mutation syntax scratch.
+Lazy reads extend the fixed command roots and frontier, never recapture newer
+roots to fill a missing target. DML without dynamic demand retains no additional
+dynamic-root map.
 
 View INSTEAD OF mutations admit an exact logical endpoint with its lifecycle
 RowExclusive lock and no storage or leaf replacement grant. The shared immediate
@@ -851,6 +852,11 @@ adapters and `PageinspectNotice`, and these host pieces:
   immutable catalog/RoleRead producer capture with zero Keep, not SQL or
   fabricated version headers. Exact tuple-maintenance sampling happens only after
   releasing the cohort and Engine mutexes.
+- freespace capture uses the caller's ordinary retained data view rather than the
+  dirty-statistics cohort. Existing catalog producer sizing and genuine index
+  Allocation roots are shared through the leaf host, with no new store or global
+  relation_size cutover. Owner/Engine fences protect identity capture, never row
+  arithmetic, producer iteration or callbacks.
 - `WithMaintenanceOwner` (`maintenance_environment.go`), the serial
   operation-local table-owner frame that amcheck (`CheckBtreeAsOwner`) and
   CLUSTER and FULL index rebuilding share, and `refreshRestrictedPresentation`
@@ -2545,6 +2551,21 @@ Visibility owner, snapshot, lock-admission and declaration units use
 `RUN='^TestPgvisibility'`, with `RACE=1` for concurrent capture lifetimes.
 Installed record-source fixtures use `BindFunctionSource` with the ordinary
 `FROM` clause and query namespace, preserving scalar/set admission checks.
+
+`TestPgFreespaceWrapperParameterDemand` separates command-policy transport from
+retained-declaration admission. It executes the genuine renamed wrapper with an
+imported NULL parameter, then borrows its still-live command authority through
+the existing source-capture seam before `Finish`; eager finalized output has
+already detached that authority. Separate private retained-call cases initialize
+their original binder manifest/catalog and current principal admission under
+Owner → Engine locks, following `TestPgFreespaceAdmittedIdentity`. A `SELECT 1`
+snapshot supplies command policy only: patching scope dependencies after source
+capture neither creates a frozen recipe nor admits an old descriptor as fresh
+SQL. Keep the ordinary fresh-binding revision conflict intact. Source/cursor
+cleanup and scope/operation release precede reporting any assertion failure.
+Use `make check RUN='^TestPgFreespaceWrapperParameterDemand$'`, adding `RACE=1`
+for the same ownership cases; public NULL planning/ACL outcomes remain in
+`TestReferencePgFreespacePermissions` in both modes.
 
 
 

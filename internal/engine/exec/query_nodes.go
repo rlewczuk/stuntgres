@@ -215,6 +215,11 @@ func (s *State) Evaluation(ctx context.Context) Context {
 		frame = 1
 	}
 	evaluation := Context{EvalFrame: EvalFrame{Scope: 1, Frame: frame, Outer: s.Outer, Query: s}, EvalStatement: EvalStatement{Parameters: s.Parameters, Input: s.Input, Output: s.Output, ClosedEvaluation: s.ClosedEvaluation}}
+	if s.Source != nil && s.Source.Authority != nil {
+		evaluation.PreserveParameterDemand = s.Source.Authority.PreserveParameterDemand
+	} else if s.Outer != nil {
+		evaluation.PreserveParameterDemand = s.Outer.PreserveParameterDemand
+	}
 	if s.Outer != nil {
 		evaluation.Catalog = s.Outer.Catalog
 	}

@@ -67,6 +67,8 @@ type Host[A Authority] interface {
 	JournalStorageLocked(changes *session.Journal, address ids.ObjectAddress) *storage.Relation
 	EngineStorageLocked() *storage.Store
 	SequenceGeneratorLocked(address ids.ObjectAddress) *storage.SequenceGenerator
+	// RelationAllocationLocked borrows the existing genuine index allocation roots.
+	RelationAllocationLocked(view catalog.Read, relation *catalog.Relation) storage.Allocation
 	CommitSequenceLocked() ids.CommitSeq
 	// ColumnProjectionRoots is the statement's own private writes and deletes
 	// of the relation.

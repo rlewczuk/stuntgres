@@ -450,7 +450,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 	}
-	scope.installExportDemandFor(&b,stmt)
+	scope.installExportDemandFor(&b, stmt)
 	scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.VisibilitySnapshot
 	if b.Query != nil {
 		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.Query.VisibilitySnapshot
@@ -516,6 +516,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	// derived provider, or runtime conditional invocation.
 	evaluation.PlanStaticOperators = false
 	evaluation.SpecializeRuleParameters = false
+	if scope.authority != nil {
+		// Preparation owns this command's source admission slot. Publish the
+		// same parameter-demand policy used by preflight before any source
+		// evaluator is reconstructed or retained by a portal.
+		scope.authority.PreserveParameterDemand = evaluation.PreserveParameterDemand
+	}
 	execution.evaluation, execution.queryRoot, execution.expressions = evaluation, queryRoot, expressions
 	if prepared != nil {
 		execution.primaryTag = prepared.primaryTag
