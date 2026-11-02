@@ -30,8 +30,12 @@ ordinary assignments to an unreserved `security` variable.
   behavior remain unchanged; this entry grants no executable admission or
   provider authority. The proc owner privately retains its syntax behind an
   immutable structural carrier rather than submitting it for execution.
-- `type_input.go`: `ParseTypeName` for standalone type input;
-  `regclass.go`, `regprocedure.go`, `regoperator.go`: reg* input splitters.
+- `type_input.go`: `ParseTypeName` for standalone declaration input. Final
+  normalization adds implicit length 1 only to bare unquoted char/character/bit,
+  preserving explicit modifiers and array bounds before alias canonicalization.
+  Early alias admission and ordinary SQL annotation ASTs remain unchanged;
+  generic, quoted and qualified types receive no keyword default.
+  `regclass.go`, `regprocedure.go`, `regoperator.go` own reg* input splitters.
 - `ast.go`: statement and expression nodes; feature-specific nodes live in
   files named after the feature.
 - `lexer.go`: the scanner and lexer state; `keywords.go`: the PostgreSQL 18
@@ -545,6 +549,8 @@ CHECKPOINT complete syntax, identifiers and positions use `RUN='^TestCheckpointS
 Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSParser'`.
 Publication utility AST, source positions and complete-input units use
 `RUN='^TestPublicationGrammar$'`.
+Standalone declaration normalization, keyword defaults and ordinary annotation
+isolation use `RUN='^TestRegLookupRelTypeDeclarationDefaults$'`.
 
 Trigger declaration/lifecycle AST, positions and full-input units use
 `RUN='^TestParseTrigger'`.

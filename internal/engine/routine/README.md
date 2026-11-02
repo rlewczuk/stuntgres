@@ -20,13 +20,16 @@ name; no named formal or pretty overload is declared.
 
 The executable nullable registry lookups are routines 4195 (`to_regcollation`,
 result 4191), 4093 (`to_regrole`, result 4096), 3494 (`to_regproc`, result 24),
-3479 (`to_regprocedure`, result 2202), 3492 (`to_regoper`, result 2203) and
-3476 (`to_regoperator`, result 2204). All six have one unnamed TEXT formal,
-strict STABLE/parallel-safe scalar declarations and ordinary catalog provider
-membership. Successful provider/formal association, display facts and seeded
-descriptors share these declarations; the fixed identity ledger alone never
-grants execution. The callable family uses the existing RegLookup expression
-owner and alias codecs, not a second catalog or execution family.
+3479 (`to_regprocedure`, result 2202), 3492 (`to_regoper`, result 2203),
+3476 (`to_regoperator`, result 2204), 3495 (`to_regclass`, result 2205),
+4086 (`to_regnamespace`, result 4089), 3493 (`to_regtype`, result 2206) and
+6317 (`to_regtypemod`, result 23). All ten have one unnamed TEXT formal,
+strict STABLE/parallel-safe scalar declarations, internal source equal to the
+SQL name, cost 1 and ordinary catalog provider membership. Successful
+provider/formal association, display facts and seeded descriptors share these
+declarations; the fixed identity ledger alone never grants execution.
+The family uses the existing RegLookup expression owner, alias codecs and
+declaration usage resolver, not a second catalog or execution family.
 
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
@@ -679,10 +682,9 @@ and strict calls belong to the statistics family in `reference/catalogs`.
 Settings/options declaration, display and complete seed materialization use
 `RUN='^TestSettingsOptionsRoutineDeclarations$'`.
 Nullable registry lookup declaration, display, successful association and complete
-seed materialization use `RUN='^TestRegLookupCallableDeclarations$'` and the
-preserved `RUN='^TestRegLookupCollRoleDeclarations$'`; public SQL/catalog
-assertions belong to `TestReferenceRegLookupCallableBinding` in
-`reference/type_resolution`.
+seed materialization use
+`RUN='^TestRegLookup(RelType|Callable|CollRole)Declarations$'`; public SQL/catalog
+assertions belong to the registry lookup families in `reference/type_resolution`.
 XML row-mapping declaration/display/input-name ownership uses
 `RUN='^TestXMLMapRowsRoutineDeclarations$'`.
 

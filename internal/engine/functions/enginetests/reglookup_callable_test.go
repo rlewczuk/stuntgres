@@ -80,7 +80,7 @@ func TestRegLookupCallableBinding(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range []string{"To_Regproc", "To_Regprocedure", "To_Regoper", "To_Regoperator", "to_regnamespace"} {
+	for _, name := range []string{"To_Regproc", "To_Regprocedure", "To_Regoper", "To_Regoperator", "pg_get_function_arg_default"} {
 		if _, ok := functions.Lookup(name); ok {
 			t.Fatal("unrelated or wrong-case signature admitted", name)
 		}

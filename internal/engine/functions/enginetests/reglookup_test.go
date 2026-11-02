@@ -106,7 +106,7 @@ func TestRegLookupCollRoleBinding(t *testing.T) {
 			t.Fatal("ordinary exact registry admission", name)
 		}
 	}
-	for _, name := range []string{"To_Regrole", "To_Regcollation", "to_regnamespace"} {
+	for _, name := range []string{"To_Regrole", "To_Regcollation", "pg_get_function_arg_default"} {
 		if _, ok := functions.Lookup(name); ok {
 			t.Fatal("lookup admitted an unrelated or wrong-case spelling", name)
 		}

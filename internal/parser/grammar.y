@@ -1068,8 +1068,8 @@ package parser
 %type <row> execute_arguments execute_argument_list
 %%
 script: separators optional_statements
- | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneType($2) }
- | TYPE_INPUT SETOF_TYPE standalone_type { typ:=standaloneType($3);typ.Setof=true;sqllex.(*lexer).typeInputResult=typ }
+ | TYPE_INPUT standalone_type { sqllex.(*lexer).typeInputResult = standaloneDeclaration($2) }
+ | TYPE_INPUT SETOF_TYPE standalone_type { typ:=standaloneDeclaration($3);typ.Setof=true;sqllex.(*lexer).typeInputResult=typ }
  | PL_ENTRY pl_block pl_final_semicolon { sqllex.(*lexer).plResult = $2 }
  | PL_TARGETS_ENTRY pl_cursor_targets { sqllex.(*lexer).plTargetsResult = $2 } ;
 standalone_type: type { $$=$1 }

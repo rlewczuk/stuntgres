@@ -36,6 +36,10 @@ func TestInputValidityDeclarationUsage(t *testing.T) {
 		{"numeric(7,4)", sqltype.Numeric, 458760, false}, {"numeric(8,4)", sqltype.Numeric, 524296, false},
 		{"varchar(3)", sqltype.VarChar, 7, false}, {"varchar(3)[]", 1015, 7, true},
 		{"numeric(7,4)[]", 1231, 458760, true},
+		{"char", sqltype.BPChar, 5, false}, {"character", sqltype.BPChar, 5, false},
+		{"char[]", 1014, 5, true}, {"bit", sqltype.Bit, 1, false},
+		{"bit[]", 1561, 1, true}, {"pg_catalog.bit", sqltype.Bit, -1, false},
+		{"bpchar", sqltype.BPChar, -1, false}, {"\"char\"", sqltype.Char, -1, false},
 	} {
 		usage, err := resolver.ResolveInputUsage(context.Background(), f.declaration)
 		if err != nil {

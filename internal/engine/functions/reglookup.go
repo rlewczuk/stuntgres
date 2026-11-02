@@ -18,6 +18,10 @@ const (
 	RegLookupProcedure
 	RegLookupOper
 	RegLookupOperator
+	RegLookupClass
+	RegLookupNamespace
+	RegLookupType
+	RegLookupTypemod
 )
 
 // RegLookup retains a typed TEXT operand and routine provenance, never a
@@ -42,6 +46,14 @@ func (n RegLookup) signature() (string, sqltype.ID, uint32) {
 		return "to_regoper", sqltype.Regoper, 3492
 	case RegLookupOperator:
 		return "to_regoperator", sqltype.Regoperator, 3476
+	case RegLookupClass:
+		return "to_regclass", sqltype.Regclass, 3495
+	case RegLookupNamespace:
+		return "to_regnamespace", sqltype.Regnamespace, 4086
+	case RegLookupType:
+		return "to_regtype", sqltype.Regtype, 3493
+	case RegLookupTypemod:
+		return "to_regtypemod", sqltype.Int4, 6317
 	default:
 		return "", 0, 0
 	}
@@ -103,6 +115,14 @@ func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		n.Kind = RegLookupOper
 	case "to_regoperator":
 		n.Kind = RegLookupOperator
+	case "to_regclass":
+		n.Kind = RegLookupClass
+	case "to_regnamespace":
+		n.Kind = RegLookupNamespace
+	case "to_regtype":
+		n.Kind = RegLookupType
+	case "to_regtypemod":
+		n.Kind = RegLookupTypemod
 	default:
 		return nil, missing()
 	}
@@ -120,6 +140,12 @@ func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	usage := b.Type(result).Usage()
 	if err := b.CaptureTypeInput(usage.Type); err != nil {
 		return nil, err
+	}
+	if n.Kind == RegLookupTypemod {
+		// The INT4 result does not itself demand catalog-dependent input.
+		if err := b.CaptureTypeInput(b.Type(sqltype.Regtype)); err != nil {
+			return nil, err
+		}
 	}
 	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Stable}, n.Arg.Properties())
 	n.Info, err = b.BuiltinRoutineInfo(b.Info(usage, raw.Pos, properties), CatalogRoutineProvider, name, sqltype.Text)
@@ -162,9 +188,24 @@ func (n RegLookup) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	// Only the destination codec owns soft failures. Child, context and input
-	// setup errors never pass through this recovery boundary.
-	value, err = n.Usage.Type.InputWithEnvironment(ctx, text, -1, c.FunctionInput())
+	input := c.FunctionInput()
+	// Only the destination operation owns soft failures. Child, context and
+	// input setup errors never pass through this recovery boundary.
+	if n.Kind == RegLookupTypemod {
+		resolver, ok := input.Regtype.(sqltype.RegtypeUsageResolver)
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: registry typmod lookup requires declaration input authority")
+		}
+		usage, err := resolver.ResolveInputUsage(ctx, text)
+		if err != nil {
+			if sqltype.InputSoftError(err) {
+				return sqltype.Null(n.Usage.Type), nil
+			}
+			return sqltype.Value{}, err
+		}
+		return sqltype.Integer(n.Usage.Type, int64(usage.Typmod))
+	}
+	value, err = n.Usage.Type.InputWithEnvironment(ctx, text, -1, input)
 	if err != nil && sqltype.InputSoftError(err) {
 		return sqltype.Null(n.Usage.Type), nil
 	}

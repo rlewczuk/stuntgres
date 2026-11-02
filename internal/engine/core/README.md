@@ -2706,6 +2706,13 @@ Type-path backing and COPY predicate/retained-recipe demand units use
 `RUN='^TestTypeDescribe(CapturedTypePath|CopySnapshotDemand|RetainedSnapshotDemand)$'`.
 These inspect the real authorized capture and preflight boundary; public SQL
 TEMP qualification and COPY rows/errors remain in the reference definitions.
+Nullable registry lookup prepared-definition ownership and retained INT4
+destination capture use
+`RUN='^TestRegLookupRelType(PreparedOwnership|StoredInputCapture)$'`.
+These inspect actual definition/provider generations, accepted private graphs
+and immutable fold backing, plus current catalog/path/principal input without
+rebinding catalog-owned defaults. Public lifecycle and replay remain in
+`reference/type_resolution`.
 
 Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'`.
 Control ownership witnesses admit ordinary transfers across intervening directives,

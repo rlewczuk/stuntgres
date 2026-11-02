@@ -21700,12 +21700,12 @@ sqldefault:
 	case 2:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).typeInputResult = standaloneType(sqlDollar[2].typ)
+			sqllex.(*lexer).typeInputResult = standaloneDeclaration(sqlDollar[2].typ)
 		}
 	case 3:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			typ := standaloneType(sqlDollar[3].typ)
+			typ := standaloneDeclaration(sqlDollar[3].typ)
 			typ.Setof = true
 			sqllex.(*lexer).typeInputResult = typ
 		}

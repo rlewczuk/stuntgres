@@ -88,3 +88,7 @@
 3479	to_regprocedure	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2202	25	\N	\N	\N	false	\N	to_regprocedure	\N	false	\N
 3492	to_regoper	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2203	25	\N	\N	\N	false	\N	to_regoper	\N	false	\N
 3494	to_regproc	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	24	25	\N	\N	\N	false	\N	to_regproc	\N	false	\N
+3495	to_regclass	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2205	25	\N	\N	\N	false	\N	to_regclass	\N	false	\N
+4086	to_regnamespace	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	4089	25	\N	\N	\N	false	\N	to_regnamespace	\N	false	\N
+3493	to_regtype	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2206	25	\N	\N	\N	false	\N	to_regtype	\N	false	\N
+6317	to_regtypemod	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	25	\N	\N	\N	false	\N	to_regtypemod	\N	false	\N

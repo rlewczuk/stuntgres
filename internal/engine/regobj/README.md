@@ -111,9 +111,14 @@ import it.
   and ordinary operation notice delivery remain live and unchanged.
   `TypeInput.ResolveInputUsage` parses a SQL declaration and returns the actual
   catalog descriptor plus encoded typmod (including array element typmods).
-  It shares resolution/modifier validation with OID-facing REGTYPE and parsed
-  callers, but intentionally rejects REGTYPE's numeric-OID/dash value shortcuts.
-  Its setup errors stay outside data-validity conversion recovery.
+  It implements `sqltype.RegtypeUsageResolver` for nullable typmod lookup and
+  data-validity declaration setup, sharing resolution/modifier validation with
+  OID-facing REGTYPE and parsed callers. It intentionally rejects REGTYPE's
+  numeric-OID/dash value shortcuts. Keyword char/character/bit defaults survive
+  alias normalization and arrays; generic, quoted and qualified names do not
+  acquire those defaults. Domains retain their own declaration typmod, not a
+  base constraint. Setup errors stay outside data-validity conversion recovery;
+  nullable lookup recovers only direct producer-soft destination failures.
   `ClassInput.ResolveRelationName` shares qualified relation parsing, captured
   paths and schema USAGE checks with regclass input, but numeric strings and
   `-` remain names. Installed autoinc demands this path only for NULL/zero keys;
@@ -319,6 +324,10 @@ groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 Raw type formatting and immediate-base traversal units live in `enginetests`
 and use `RUN='^TestTypeDescribe(Formatter|BaseType)$'`; shared public scenarios
 live in `reference/domain_types`.
+Declaration usage and modifier ownership units use
+`RUN='^TestRegLookupRelTypeInputUsage$'`.
+These units capture statement authority through `enginetest.ExpressionBinder`;
+catalog-only formatter fixtures cannot perform qualified-name USAGE checks.
 Composed named-only sequence resolution units use
 `RUN='^TestAutoincTextSequenceNames$'` in `enginetests`.
 Qualified-versus-unqualified TEMP routine selection uses the real session/catalog

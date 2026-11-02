@@ -65,6 +65,12 @@ admission and removes it before nested binding.
   Server Bind, row output, FunctionCall and COPY reuse these methods; there is
   no conversion registry and no second integer parser (`ParseInt8` serves COPY
   options).
+- `RegtypeResolver` supplies catalog-dependent REGTYPE identity input.
+  Its optional `RegtypeUsageResolver` capability supplies declaration usages,
+  including exact encoded typmods, without OID/dash value shortcuts. Both
+  borrow the current captured input environment; neither belongs to a value
+  or retained expression. Destination consumers alone classify directly
+  returned producer soft errors; missing capabilities are setup errors.
 - `ClientEncodingPolicy` owns a copied immutable inbound/outbound conversion
   pair, with scalar identity only. Core supplies actual default providers;
   missing providers never fall back to a built-in kernel lookup. Conversion

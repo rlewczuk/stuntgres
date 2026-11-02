@@ -83,6 +83,19 @@ func appendStandalonePart(raw TypeName, tok lexeme) TypeName {
 	return raw
 }
 
+// standaloneDeclaration runs only after the complete private type grammar.
+// Keyword defaults must not affect early alias admission or qualified names.
+func standaloneDeclaration(raw TypeName) TypeName {
+	if raw.Schema == nil && len(raw.Parts) <= 1 && !raw.Quoted && len(raw.Modifiers) == 0 {
+		switch raw.Name {
+		case "char", "character", "bit":
+			one := int32(1)
+			raw.Modifiers = []TypeModifier{{Integer: &one, Pos: raw.Pos}}
+		}
+	}
+	return standaloneType(raw)
+}
+
 func standaloneType(raw TypeName) TypeName {
 	if raw.Schema != nil || len(raw.Parts) > 1 || raw.Quoted {
 		return raw

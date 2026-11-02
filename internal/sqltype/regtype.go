@@ -9,6 +9,13 @@ import (
 type RegtypeResolver interface {
 	ResolveRegtype(context.Context, string) (uint32, error)
 }
+
+// RegtypeUsageResolver optionally supplies SQL declaration input, including its
+// encoded typmod, without the numeric OID and dash shortcuts of REGTYPE I/O.
+type RegtypeUsageResolver interface {
+	ResolveInputUsage(context.Context, string) (Usage, error)
+}
+
 type RegtypeFormatter interface{ FormatRegtype(uint32) (string, error) }
 
 func RegtypeValue(d *Descriptor, id uint32) (Value, error) {

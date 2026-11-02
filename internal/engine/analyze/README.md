@@ -541,9 +541,10 @@ library, and never the root engine or `session`. The engine, the root driver
   bit through ordinary analysis, set arms and modifying CTE scopes; the same
   retained walk sees children even when an outer inquiry discards their values.
   Retained read/write input capture recognizes `RegLookup` as a destination
-  codec consumer even though its child is TEXT. It uses the existing element
-  input callback for the current statement, not a result-type heuristic or
-  authority retained by the recipe.
+  consumer even though its child is TEXT and typmod lookup's result is INT4.
+  Fresh typmod binding explicitly demands REGTYPE input. Retained recipes use
+  the existing element input callback for the current statement, not a
+  result-type heuristic or authority retained by the recipe.
 
 ## Invariants
 
@@ -693,7 +694,7 @@ Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
 Installed visibility binding, remap and retained definition ownership use
 `RUN='^TestPgvisibility'`.
 Retained registry lookup destination-input demand and unchanged capture-error
-propagation use `RUN='^TestRegLookupCollRoleRetainedInput$'`.
+propagation use `RUN='^TestRegLookup(RelType|CollRole)RetainedInput$'`.
 
 
 Pure selected aggregate-mode invariants use `RUN='^TestAggregateMovingSelection$'`;
