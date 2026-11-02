@@ -545,7 +545,10 @@ neither owns catalog authority.
 - **Derived name indexes** (`operator_index.go`, `procedure_index.go`).
   `OperatorNameIndex` and `ProcedureNameIndex` map names to addresses; they are
   membership, not callable or ACL authority. Edits (`OperatorIndexEdit`,
-  `ProcedureIndexEdit`) detach the touched buckets once. The seeded indexes are
+  `ProcedureIndexEdit`) detach the touched buckets once. Procedure buckets are a
+  persistent map, so an edit copies only the changed paths, not every builtin
+  name; its small dynamic-name and override maps are copied when first written.
+  The seeded indexes are
   shared read-only by every engine in the process, so an index is never written
   in place. Reset clears them and wholesale import/remap rebuilds them before
   binders run. Binder definition readers enumerate the indexed bucket plus staged

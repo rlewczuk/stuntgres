@@ -17,8 +17,8 @@ import (
 // database binding may differ between the stores seeded with it.
 type SeedShare struct {
 	// procedureNames is the procedure-name index of the seeded procedures.
-	// ProcedureIndexEdit copies its maps and buckets before the first change,
-	// as for routine.SeededOperatorNames.
+	// ProcedureIndexEdit never writes it: it copies the maps and buckets it
+	// changes, as OperatorIndexEdit does for routine.SeededOperatorNames.
 	procedureNames struct {
 		once  sync.Once
 		index *ProcedureNameIndex

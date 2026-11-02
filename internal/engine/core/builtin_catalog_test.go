@@ -43,12 +43,12 @@ func TestBuiltinProcedureNamesMatchSeed(t *testing.T) {
 	for range 2 {
 		e := engine.New()
 		got, want := e.Catalog.State.ProcedureNames(), catalog.RebuildProcedureNames(e.Catalog.State.Descriptors())
-		if len(got.Buckets) != len(want.Buckets) || !maps.Equal(got.DynamicNames, want.DynamicNames) {
-			t.Fatalf("procedure index has %d buckets, seed has %d", len(got.Buckets), len(want.Buckets))
+		if got.Buckets.Len() != want.Buckets.Len() || !maps.Equal(got.DynamicNames, want.DynamicNames) {
+			t.Fatalf("procedure index has %d buckets, seed has %d", got.Buckets.Len(), want.Buckets.Len())
 		}
-		for key, addresses := range want.Buckets {
-			if !sameAddresses(got.Buckets[key], addresses) {
-				t.Fatalf("procedure bucket %v = %v, want %v", key, got.Buckets[key], addresses)
+		for key, addresses := range want.Buckets.All() {
+			if !sameAddresses(got.Named(key), addresses) {
+				t.Fatalf("procedure bucket %v = %v, want %v", key, got.Named(key), addresses)
 			}
 		}
 	}
@@ -65,7 +65,7 @@ func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	key := catalog.ProcedureNameKey{Namespace: public, Name: "seed_copy"}
 	builtin := catalog.ProcedureNameKey{Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "abs"}
-	builtinBucket := slices.Clone(shared.Buckets[builtin])
+	builtinBucket := slices.Clone(shared.Named(builtin))
 	if len(builtinBucket) == 0 {
 		t.Fatal("precondition: missing built-in abs overloads")
 	}
@@ -107,7 +107,7 @@ func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 			t.Fatalf("engine %d kept a moved procedure in its old bucket", i)
 		}
 	}
-	if shared.Buckets[key] != nil || shared.Buckets[catalog.ProcedureNameKey{Namespace: public, Name: builtin.Name}] != nil || !slices.Equal(shared.Buckets[builtin], builtinBucket) {
+	if shared.Named(key) != nil || shared.Named(catalog.ProcedureNameKey{Namespace: public, Name: builtin.Name}) != nil || !slices.Equal(shared.Named(builtin), builtinBucket) {
 		t.Fatal("a staged procedure change wrote the shared seed index")
 	}
 }

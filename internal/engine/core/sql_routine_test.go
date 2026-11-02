@@ -35,7 +35,7 @@ func sqlRoutineIndexIsolation(t *testing.T, e *core.Engine) {
 	index := catalog.RebuildProcedureNames(view.Descriptors())
 	bucket := make([]ids.ObjectAddress, 2, 4)
 	copy(bucket, addresses)
-	index.Buckets[key] = bucket
+	index.Buckets = index.Buckets.Set(key, bucket)
 	metadata := *old
 	metadata.ObjectRevision++
 	edit := catalog.ProcedureIndexEdit{Index: index}
@@ -46,7 +46,7 @@ func sqlRoutineIndexIsolation(t *testing.T, e *core.Engine) {
 	renamed := *old
 	renamed.ObjectName = "routine_renamed"
 	edit.Replace(old, &renamed)
-	if len(index.Buckets[key]) != 2 || len(edit.Index.Buckets[key]) != 1 || edit.Index.DynamicNames[renamed.Name()] != 1 {
+	if len(index.Named(key)) != 2 || len(edit.Index.Named(key)) != 1 || edit.Index.DynamicNames[renamed.Name()] != 1 {
 		t.Fatal("routine rename corrupted catalog index")
 	}
 	edit.Replace(&renamed, nil)

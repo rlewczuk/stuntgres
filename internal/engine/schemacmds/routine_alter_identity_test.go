@@ -121,7 +121,7 @@ func TestRoutineAlterProviderOverrideIndex(t *testing.T) {
 	if base.State().HasProviderProcedureOverride(original.Name()) || base.State().HasProviderProcedureOverride(renamed.Name()) || base.Get(original.Address()) != original {
 		t.Fatal("COW index changed retained root")
 	}
-	for _, address := range edit.Index.Buckets[catalog.ProcedureNameKey{Namespace: original.Namespace(), Name: original.Name()}] {
+	for _, address := range edit.Index.Named(catalog.ProcedureNameKey{Namespace: original.Namespace(), Name: original.Name()}) {
 		if address == original.Address() {
 			t.Fatal("vacated signature remains discoverable")
 		}
