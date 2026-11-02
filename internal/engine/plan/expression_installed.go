@@ -17,8 +17,30 @@ import (
 // mutable default dictionary selection.
 type InstalledTextExpr struct {
 	functions.InstalledText
-	Procedure *catalog.Procedure
-	Ref       ids.ObjectRef
+	Procedure                            *catalog.Procedure
+	Ref                                  ids.ObjectRef
+	textType, dictionaryType, resultType *sqltype.Descriptor
+}
+
+// CaptureTypes takes formal/result authority from the owning catalog, never
+// from the children being validated. Ordinary child reconstruction preserves
+// these pointers; catalog replacement explicitly recaptures destination types.
+func (n InstalledTextExpr) CaptureTypes(view catalog.Read) InstalledTextExpr {
+	n.textType, _ = view.LookupType(sqltype.Text)
+	n.resultType, _ = view.LookupType(sqltype.ID(n.Procedure.Result))
+	n.dictionaryType = nil
+	if n.Dictionary != nil {
+		n.dictionaryType, _ = view.LookupType(sqltype.Regdictionary)
+	}
+	return n
+}
+
+// ValidTypes rejects same-number descriptors from another catalog generation.
+func (n InstalledTextExpr) ValidTypes() bool {
+	return n.textType != nil && n.resultType != nil && n.Arg != nil &&
+		n.Arg.ResultUsage().Type == n.textType && n.Usage.Type == n.resultType &&
+		(n.Dictionary == nil && n.dictionaryType == nil ||
+			n.Dictionary != nil && n.dictionaryType != nil && n.Dictionary.ResultUsage().Type == n.dictionaryType)
 }
 
 // Eval runs in the engine, which checks the captured provider first.

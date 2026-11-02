@@ -296,8 +296,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
   Ordered immutable options and genuine simple/synonym/unaccent/dict_int/Snowball/thesaurus/ispell runtime state publish in
-  the existing catalog journal. ALTER removes matching options before appending
-  supplied replacements. Standalone dictionaries depend on their real namespace
+  the existing catalog journal. Unaccent initializes each Rules resource at its
+  ordered option occurrence, so an earlier resource failure precedes later
+  duplicate or unknown options without publishing partial runtime state.
+  ALTER removes matching options before appending supplied replacements; the last
+  replacement wins without borrowing or modifying the caller's option backing.
+  Standalone dictionaries depend on their real namespace
   and template, without fabricated extension membership. `DictionaryDumpStatement`
   serializes qualified template/options and owner metadata, never runtime pointers.
   Snowball CREATE validates each Language/StopWords option as encountered, then
@@ -341,7 +345,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   remains in dicttemplate without fabricated physical pg_depend rows.
   The one-argument unaccent function independently resolves literal `unaccent` in
   its current function schema at execution; the original member slot is provider
-  provenance, not a permanent default-dictionary binding.
+  provenance, not a permanent default-dictionary binding. The explicit overload
+  retains the genuine `3769,25` procedure and invokes the supplied dictionary's
+  actual runtime, irrespective of template family. Both wrappers remain members
+  of the existing six-object installation.
 - **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
   `cube_spatial_call.go`): one atomic installation validates its 48 typed recipe declarations plus genuine generated companion membership.
   The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate

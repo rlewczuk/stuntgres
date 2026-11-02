@@ -281,11 +281,20 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		return e, changed, nil
 	case plan.InstalledTextExpr:
+		dictionaryChanged := false
+		if e.Dictionary != nil {
+			dictionary, changed, err := PreflightCoercionsWithPolicy(c, e.Dictionary, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			e.Dictionary = dictionary
+			dictionaryChanged = changed
+		}
 		arg, changed, err := PreflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if changed {
 			e.Arg = arg
 		}
-		return e, changed, err
+		return e, changed || dictionaryChanged, err
 	case plan.ViewQualificationExpr:
 		return MapViewQualification(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			return PreflightCoercionsWithPolicy(c, child, decisiveDefaults)

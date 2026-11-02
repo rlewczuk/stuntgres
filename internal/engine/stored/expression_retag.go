@@ -711,6 +711,12 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 		rebound = n
 	case plan.InstalledTextExpr:
+		if !n.ValidTypes() {
+			return nil, false, fmt.Errorf("stuntgres: invalid installed function type capture")
+		}
+		if n.Dictionary != nil {
+			n.Dictionary = child(n.Dictionary)
+		}
 		n.Arg = child(n.Arg)
 		proc, ok := originalProcedure(n.Procedure)
 		if !ok {
@@ -719,6 +725,7 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		changed = changed || n.Procedure != proc
 		n.Procedure = proc
 		n.Info = info
+		n = n.CaptureTypes(view)
 		if ValidateInstalledText(n, view) != nil {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}

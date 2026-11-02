@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -490,7 +491,7 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case plan.InstalledCubeSpatialExpr:
 		return merge(n.Procedure.Volatility, children(n.Args[:]...))
 	case plan.InstalledTextExpr:
-		return merge(n.Procedure.Volatility, children(n.Arg))
+		return merge(n.Procedure.Volatility, children(n.Dictionary, n.Arg))
 	case plan.CaseExpr:
 		v := children(n.Test, n.Otherwise)
 		for _, arm := range n.Arms {
@@ -521,24 +522,60 @@ func (c *Context) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, er
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
 	}
 	if n.Function == "unaccent" {
+		if err := c.validateUnaccent(n); err != nil {
+			return sqltype.Value{}, err
+		}
+		var dictionary sqltype.Value
+		if n.Dictionary != nil {
+			var err error
+			dictionary, err = n.Dictionary.Eval(c)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
 		value, err := n.Arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if value.IsNull() {
+		if value.IsNull() || n.Dictionary != nil && dictionary.IsNull() {
 			return sqltype.Null(n.Usage.Type), nil
 		}
 		input, err := value.Text()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		host := c.LiveHost()
-		if host == nil {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: unaccent lacks statement authority")
-		}
-		return host.TextSearch().UnaccentText(n.Ref, input, n.Usage.Type)
+		return c.LiveHost().TextSearch().UnaccentText(n.Ref, dictionary, input, n.Usage.Type)
 	}
 	return n.InstalledText.Eval(c)
+}
+
+// A captured shape is not current statement authority, including on NULL calls.
+func (c *Context) validateUnaccent(n plan.InstalledTextExpr) error {
+	if c.LiveHost() == nil {
+		return fmt.Errorf("stuntgres: unaccent lacks statement authority")
+	}
+	view := preparation.DomainCatalog(c)
+	if !preparation.StoredReferenceValid(view, c.RoutineConsumer, n.Ref) {
+		return fmt.Errorf("stuntgres: invalid installed unaccent reference")
+	}
+	current, err := ValidateStoredRoutineDescriptor(view, n.Procedure)
+	if err != nil {
+		return err
+	}
+	if _, err := extension.ProcedureSymbol(view, current); err != nil {
+		return err
+	}
+	text, ok := view.LookupType(sqltype.Text)
+	if !ok || n.Arg.ResultUsage().Type != text || n.Usage.Type != text {
+		return fmt.Errorf("stuntgres: invalid installed unaccent types")
+	}
+	if n.Dictionary != nil {
+		dictionary, ok := view.LookupType(sqltype.Regdictionary)
+		if !ok || n.Dictionary.ResultUsage().Type != dictionary {
+			return fmt.Errorf("stuntgres: invalid installed unaccent dictionary type")
+		}
+	}
+	return nil
 }
 
 // OpenExtensionPaths lists every ordered version pair of the named extension

@@ -546,6 +546,15 @@ surviving invocation, after common routine admission and strict operand handling
 Its bridge carries only kind, two typed values and the result descriptor; neither
 prepared recipes nor contexts retain a second origin store or captured actor.
 
+Installed text execution authenticates captured provider/signature, exact formal
+and result generations, and the current unaccent declaration/reference before
+strict NULL can return. The optional REGDICTIONARY child precedes TEXT in
+evaluation and planning; known strict NULL may discard runtime-only casts only
+after ordinary input and constant planning. STABLE unaccent results are never
+constant-folded. `TextSearchHost.UnaccentText` forwards a typed optional selector
+to the existing acquisition owner; daitch_mokotoff retains unary host-free
+immutable execution and its canonical TEXT[] element generation.
+
 
 ## Preparation
 

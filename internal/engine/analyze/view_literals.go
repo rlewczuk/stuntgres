@@ -878,6 +878,9 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledTextExpr); ok {
+			if n.Dictionary != nil {
+				return children(r.Args, []expr.Expr{n.Dictionary, n.Arg})
+			}
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(plan.FieldExpr); ok && len(r.Args) == 1 {

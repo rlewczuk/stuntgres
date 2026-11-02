@@ -10,15 +10,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Unaccent follows the installed function's current schema, not the original
-// member dictionary address. PostgreSQL's wrapper returns the first recognized
-// lexeme, or the original token when the selected dictionary returns none.
-func Unaccent[A Authority[A]](h Host[A], procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+// Unaccent invokes the exact selected dictionary, or resolves the default in
+// the installed function's current schema. It returns the first recognized
+// lexeme, or the original token when the callback returns none.
+func Unaccent[A Authority[A]](h Host[A], procedure ids.ObjectRef, dictionary sqltype.Value, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	ctx := h.Operation().Context()
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	runtime, err := defaultUnaccentDictionary(h, procedure)
+	var runtime catalog.DictionaryRuntime
+	var err error
+	if dictionary.Type() == nil {
+		runtime, err = defaultUnaccentDictionary(h, procedure)
+	} else {
+		oid, inputErr := dictionary.RegTSOID()
+		if inputErr != nil {
+			return sqltype.Value{}, inputErr
+		}
+		runtime, err = acquireDictionary(h, ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)})
+	}
 	if err != nil {
 		return sqltype.Value{}, err
 	}

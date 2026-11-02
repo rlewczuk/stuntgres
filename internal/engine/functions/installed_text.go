@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// InstalledText is a call of an installed one-TEXT-argument routine:
-// unaccent(text) or fuzzystrmatch's daitch_mokotoff(text). The engine wraps it
-// with the installed procedure identity and supplies unaccent's catalog-dependent
-// execution. It is not a protocol node, so the wrapper's switch cases apply.
+// InstalledText is an installed unaccent or daitch_mokotoff call. Dictionary
+// is present only for unaccent(regdictionary,text). The engine wrapper owns
+// installed authority and catalog-dependent execution; this is not a protocol
+// node, so every wrapper switch must preserve both children in source order.
 type InstalledText struct {
 	expr.Info
-	Arg expr.Expr
+	Dictionary expr.Expr
+	Arg        expr.Expr
 	// Function is "unaccent" or "daitch_mokotoff".
 	Function string
 }

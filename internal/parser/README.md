@@ -368,6 +368,8 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
 - Type/function-name keywords (`authorization`, `join`, `like`, ...) use the
   ordinary call grammar without becoming table or column identifiers; binding,
   not spelling, selects a provider.
+  Installed unaccent calls likewise use ordinary function/decorations grammar,
+  without a name-specific scalar token or stored-expression admission exception.
 - Non-VARIADIC named argument right-hand sides use the ordinary predicate
   grammar, retaining comparison/logical trees and labels in both scalar and
   FROM calls. Positional and VARIADIC argument grammar remains operand-only.

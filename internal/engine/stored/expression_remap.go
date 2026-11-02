@@ -613,6 +613,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		next = n
 	case plan.InstalledTextExpr:
+		if n.Dictionary != nil {
+			n.Dictionary = child(n.Dictionary)
+		}
 		n.Arg = child(n.Arg)
 		if ref != nil {
 			n.Ref = ref(n.Ref)

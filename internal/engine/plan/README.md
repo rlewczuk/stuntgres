@@ -296,9 +296,13 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   including strict NULL calls. Spatial and point wrappers retain Procedure/Ref
   through reconstruction; stored remap/retag rebuilds their checked plans against
   destination descriptors.
-  Unaccent retains only Procedure/Ref; non-NULL execution selects literal
-  `unaccent` in the current procedure namespace through the live host. No stored
-  dictionary/template/matcher capture overrides later dictionary DDL.
+  `InstalledTextExpr` retains canonical formal/result descriptor pointers beside
+  Procedure/Ref; ordinary reconstruction preserves them, while authorized
+  catalog retagging recaptures destination descriptors. Its optional dictionary
+  child precedes TEXT in every traversal, dependency, rendering and remap path.
+  Unary unaccent selects literal `unaccent` in the current procedure namespace;
+  binary unaccent selects the typed child's exact OID through the live host.
+  Neither captures a dictionary runtime, matcher or session acquisition cache.
   `OpenExtensionPaths` reads version pairs from the live catalog. Provider
   checks and catalog reads stay in the engine behind `exec`'s runtime seam.
 

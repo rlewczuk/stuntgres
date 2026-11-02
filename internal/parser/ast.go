@@ -76,7 +76,6 @@ type Load struct {
 
 func (*Load) statement() {}
 
-
 // Checkpoint requests a physical checkpoint without operands.
 type Checkpoint struct {
 	Pos Position
@@ -373,9 +372,9 @@ type TypeName struct {
 	Modifiers   []TypeModifier
 	ArrayBounds []int32
 	// Qualified calls and standalone regtype syntax retain identifier positions.
-	Parts  []Identifier
-	System bool
-	Setof  bool
+	Parts   []Identifier
+	System  bool
+	Setof   bool
 	PctType bool // Syntax-only column %TYPE reference in utility signatures.
 }
 
@@ -1749,7 +1748,11 @@ type queryTail struct {
 func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
 	case XMLConstructExpr:
-		for _,child:=range e.Children(){if !singletonArgument(child){return false}}
+		for _, child := range e.Children() {
+			if !singletonArgument(child) {
+				return false
+			}
+		}
 		return true
 	case XMLDocumentPredicateExpr:
 		return singletonArgument(e.Child)
@@ -1816,7 +1819,6 @@ func singletonArgument(expr Expr) bool {
 			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
 			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls":
 			case "generate_series", "generate_subscripts", "unnest":
-			case "unaccent":
 			case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
 			default:
@@ -1936,7 +1938,7 @@ type TransactionCharacteristics struct {
 	Modes   []TransactionMode
 	// Snapshot is a literal-only alternative to Modes, including the empty literal.
 	Snapshot *string
-	Pos     Position
+	Pos      Position
 }
 
 func (*TransactionCharacteristics) statement() {}

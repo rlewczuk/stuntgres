@@ -141,6 +141,12 @@ Dictionary execution captures and validates the current private descriptor under
 `Engine.Mu`, then runs immutable lexization after releasing it. Installed
 `unaccent(text)` resolves the dictionary named `unaccent` in the function's current
 schema; mutable member names are not a replacement for that lookup.
+`unaccent(regdictionary,text)` receives the evaluated typed selector and reuses
+`acquireDictionary`, including real generic callbacks and session thesaurus
+ownership. Both return the first lexeme, or the original input for empty or
+unrecognized output. Exec validates current installed authority even for NULL;
+strict NULL calls acquire no dictionary. Callback work and cancellation checks
+run outside the engine mutex; no runtime handle enters a stored recipe.
 
 ## Testing
 
@@ -148,7 +154,7 @@ schema; mutable member names are not a replacement for that lookup.
   them (`RUN='^Test(FTS|TS|Thesaurus|Dictionary|Ispell|TriggerBuiltins)'` over
   `./internal/engine/core`); census-owned text-search tests are in
   `core/enginetests/textsearch`. Public scenarios are
-  `RUN='^TestReference(FTS|Dictionary|Thesaurus|TextSearch|TriggerBuiltins)'`.
+  `RUN='^TestReference(FTS|Dictionary|UnaccentDictionary|Thesaurus|TextSearch|TriggerBuiltins)'`.
 - `thesaurus_demand_test.go` (core) reads the session's receipts by the field
   names `thesaurusMemos`, `runtime` and `normalizer`; renaming them changes it.
 - Under T7 this package has no `export_test.go`; engine tests that come here

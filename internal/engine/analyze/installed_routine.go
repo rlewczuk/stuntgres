@@ -495,7 +495,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	p := r.procedure
 	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p
-	node := plan.InstalledTextExpr{InstalledText: call, Procedure: p, Ref: ref}
+	node := (plan.InstalledTextExpr{InstalledText: call, Procedure: p, Ref: ref}).CaptureTypes(r.catalog)
 	if !ValidInstalledText(node) {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
 	}

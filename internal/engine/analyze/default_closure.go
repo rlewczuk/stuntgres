@@ -404,11 +404,22 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 // Validate provider-specific captured authority without assuming a dictionary.
 func ValidInstalledText(n plan.InstalledTextExpr) bool {
 	p := n.Procedure
-	if p == nil || n.RoutineReference != p || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != catalog.UnaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
+	if p == nil || n.RoutineReference != p || !n.ValidTypes() || n.Ref.Domain() == nil || n.Ref.Epoch == 0 || n.Ref.Address != p.Address() || n.Ref.Address.ClassID != ids.ProcedureClassID || n.Ref.Address.SubID != 0 || !p.Origin.Valid(p.Address()) || ids.OID(n.Usage.Type.ID()) != p.Result || p.Conversion.Name() != "" {
+		return false
+	}
+	if p.RoutineKind != catalog.FunctionRoutine || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.SecurityDefiner || p.Configuration != nil {
+		return false
+	}
+	canonical, ok := p.Origin.Installation.Declarations[p.Origin.Declaration].(*catalog.Procedure)
+	if !ok || canonical.Implementation != p.Implementation || canonical.Signature != p.Signature || canonical.Result != p.Result || canonical.Display != p.Display || canonical.Installed != p.Installed {
 		return false
 	}
 	if extension.FuzzystrmatchProviderOf(p) != nil {
-		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && n.Function == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+		return extension.FuzzystrmatchProviderOf(p) == extension.StockFuzzystrmatch && n.Function == "daitch_mokotoff" && n.Dictionary == nil && p.Signature == catalog.UnaccentTextSignature && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Dictionary == (ids.ObjectAddress{}) && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && n.Function == "unaccent" && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type
+	signature := catalog.UnaccentTextSignature
+	if n.Dictionary != nil {
+		signature = catalog.UnaccentDictionarySignature
+	}
+	return extension.UnaccentProviderOf(p) == extension.StockUnaccent && n.Function == "unaccent" && p.Signature == signature && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type
 }

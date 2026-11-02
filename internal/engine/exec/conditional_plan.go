@@ -462,6 +462,14 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 		}
 		expression = e
 	case plan.InstalledTextExpr:
+		if e.Dictionary != nil {
+			next, did, failure := SimplifyConditional(c, e.Dictionary, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			e.Dictionary = next
+			changed = changed || did
+		}
 		next, did, failure := SimplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -619,7 +627,7 @@ func ConditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case plan.InstalledTextExpr:
-		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable && literal(e.Arg)
+		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable && (e.Dictionary == nil || literal(e.Dictionary)) && literal(e.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		return compositeConstantInputs(e)

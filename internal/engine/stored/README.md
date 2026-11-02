@@ -214,6 +214,15 @@ borrow trigger activation. Trigger replay uses the helper's current identity
 and escaped literal arguments, with no column/sequence name dependency. Triggers
 remain post-data so manually retained and generated keys are not processed twice.
 
+Installed unaccent recipes retain the genuine unary or binary procedure,
+canonical formal/result descriptor captures and optional typed dictionary child.
+Rendering uses the current qualified routine label and both operands in source
+order. Remap/retag walks the ordinary REGDICTIONARY child, including its value and
+dependency identity, rather than maintaining a second dictionary dependency list.
+Destination authority is recaptured only through catalog replacement; source
+expressions, descriptors and installation recipes remain immutable. No matcher,
+initialized callback or session memo is serialized or retained by the recipe.
+
 Installed crosstab consumers retain their selected procedure and genuine named
 result generation, or their completed anonymous record definition. Reference,
 remap, retag and rendering walkers preserve those captures and resolve current

@@ -65,7 +65,7 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 	}
 	if capability == 2 {
 		rules := false
-		var resource string
+		var runtime catalog.DictionaryRuntime
 		for _, o := range options {
 			if o.Name != "rules" {
 				return nil, dictionaryError("22023", fmt.Sprintf(`unrecognized Unaccent parameter: "%s"`, o.Name))
@@ -77,12 +77,16 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 			if !o.Supplied {
 				return nil, dictionaryError("42601", "rules requires a parameter")
 			}
-			resource = o.Value
+			var err error
+			runtime, err = functions.CompileUnaccentDictionary(ctx, o.Value)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if !rules {
 			return nil, dictionaryError("22023", "missing Rules parameter")
 		}
-		return functions.CompileUnaccentDictionary(ctx, resource)
+		return runtime, nil
 	}
 	return nil, dictionaryError("0A000", fmt.Sprintf(`native dictionary callback execution is not supported for text search template "%s"`, template.Name()))
 }

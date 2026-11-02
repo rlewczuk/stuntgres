@@ -324,7 +324,11 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		err = args(n.Args)
 	case InstalledTextExpr:
 		fmt.Fprintf(out, "InstalledFunction %d", n.Ref.Address.ObjectID)
-		err = args([]expr.Expr{n.Arg})
+		if n.Dictionary != nil {
+			err = args([]expr.Expr{n.Dictionary, n.Arg})
+		} else {
+			err = args([]expr.Expr{n.Arg})
+		}
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

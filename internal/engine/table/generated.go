@@ -374,7 +374,10 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		}
 		return args(n.Args[:])
 	case plan.InstalledTextExpr:
-		return args([]expr.Expr{n.Arg})
+		if err := stored.ValidateInstalledText(n, view); err != nil {
+			return err
+		}
+		return pair(n.Dictionary, n.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		stored, ok := n.(expr.StoredProvider)

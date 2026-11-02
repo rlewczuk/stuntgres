@@ -13,7 +13,7 @@ func ValidateInstalledText(n plan.InstalledTextExpr, v catalog.Read) error {
 	if err != nil {
 		return err
 	}
-	if symbol != n.Function || !analyze.ValidInstalledText(n) {
+	if symbol != n.Function || !analyze.ValidInstalledText(n) || !n.CaptureTypes(v).ValidTypes() {
 		return fmt.Errorf("stuntgres: invalid installed text capture")
 	}
 	return nil

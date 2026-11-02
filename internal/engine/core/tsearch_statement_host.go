@@ -87,8 +87,8 @@ func (h *textSearchHost) LexizeDictionary(value sqltype.Value, text string, resu
 	return tsearch.Lexize[AuthorizationView](h.host(), value, text, result)
 }
 
-func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return tsearch.Unaccent[AuthorizationView](h.host(), procedure, input, result)
+func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, dictionary sqltype.Value, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return tsearch.Unaccent[AuthorizationView](h.host(), procedure, dictionary, input, result)
 }
 
 func (h *textSearchHost) ResolveFTSParser(value sqltype.Value) (fts.ParserRuntime, error) {

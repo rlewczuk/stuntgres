@@ -123,6 +123,9 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case InstalledUUIDOsspExpr:
 		args(e.Args)
 	case InstalledTextExpr:
+		if e.Dictionary != nil {
+			walk(e.Dictionary)
+		}
 		walk(e.Arg)
 	case ExtensionPathsExpr:
 		walk(e.Arg)

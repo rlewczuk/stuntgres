@@ -1115,7 +1115,14 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), []expr.Expr{n.Arg}, true)
+		var operands [2]expr.Expr
+		args := operands[:1]
+		args[0] = n.Arg
+		if n.Dictionary != nil {
+			args = operands[:]
+			args[0], args[1] = n.Dictionary, n.Arg
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), args, true)
 	case plan.InstalledConnectbyExpr:
 		if err := ValidateInstalledConnectby(n, r.View); err != nil {
 			return "", err

@@ -101,7 +101,7 @@ func GenerationImmutable(node expr.Expr) bool {
 	case InstalledCubeSpatialExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args[:])
 	case InstalledTextExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && (n.Dictionary == nil || GenerationImmutable(n.Dictionary)) && GenerationImmutable(n.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
 		// provider is admitted by its own volatility and its children.
@@ -195,7 +195,7 @@ func GenerationHasTableOID(node expr.Expr) bool {
 	case InstalledCryptoExpr:
 		return args(n.Args)
 	case InstalledTextExpr:
-		return args([]expr.Expr{n.Arg})
+		return GenerationHasTableOID(n.Dictionary) || GenerationHasTableOID(n.Arg)
 	case expr.Composite:
 		return args(n.Children())
 	default:

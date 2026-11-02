@@ -407,7 +407,9 @@ No physical WAL position or flush guarantee is serialized.
   transfers to the actual owner without assuming schema CREATE grants or a named
   administrator. Restore executes the emitted SQL, recompiles real resources,
   and remaps dictionary/template links and stored regdictionary references,
-  defaults and views.
+  defaults, CHECKs and views, including both children of explicit unaccent calls.
+  Installed wrappers replay the same six-object cohort before their consumers;
+  stored calls retain neither initialized callback state nor session resources.
   Thesaurus normalizers add replay-only predecessors, not SQL dependencies.
   The committed host-authorized snapshot resolves current logical names and emits
   qualified Dictionary values without changing stored option spelling. Unqualified

@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -29,6 +30,16 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 	}
 	if node == nil {
 		return node, false, nil
+	}
+	if n, ok := node.(plan.InstalledTextExpr); ok {
+		if !preparation.ValidInstalledText(n) {
+			return nil, false, fmt.Errorf("stuntgres: invalid installed function expression")
+		}
+		if n.Function == "unaccent" && c != nil && c.LiveHost() != nil {
+			if err := c.validateUnaccent(n); err != nil {
+				return nil, false, err
+			}
+		}
 	}
 	switch node.(type) {
 	case functions.ReplicationSlot, plan.LiteralExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.ScalarArrayComparisonExpr, plan.RowComparisonExpr:

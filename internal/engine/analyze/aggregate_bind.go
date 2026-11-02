@@ -346,7 +346,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return true
 	case plan.InstalledTextExpr:
 		o, ok := other.(plan.InstalledTextExpr)
-		return ok && e.Ref == o.Ref && e.Procedure.Revision() == o.Procedure.Revision() && same(e.Arg, o.Arg)
+		return ok && e.Ref == o.Ref && e.Procedure.Revision() == o.Procedure.Revision() && same(e.Dictionary, o.Dictionary) && same(e.Arg, o.Arg)
 	case expr.GroupIdentity:
 		// Function nodes compare their own identity; installed-routine
 		// wrappers that embed one keep their explicit cases above.
@@ -635,6 +635,9 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		e.Info = info
 		bound = e
 	case plan.InstalledTextExpr:
+		if e.Dictionary != nil {
+			e.Dictionary = rewrite(e.Dictionary)
+		}
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
@@ -771,6 +774,9 @@ func AggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 			walk(arg)
 		}
 	case plan.InstalledTextExpr:
+		if e.Dictionary != nil {
+			walk(e.Dictionary)
+		}
 		walk(e.Arg)
 	case expr.Composite:
 		// Function nodes list their children in evaluation order.

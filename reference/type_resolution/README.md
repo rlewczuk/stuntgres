@@ -154,6 +154,9 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   and check its identity and lexization as imported rows/defaults/views relocate.
   Warmed all-constant lexize statements retain their accepted value independently
   of fresh constant plans and current parameterized-token calls.
+  Explicit unaccent scenarios additionally assert typed TEXT results, strict
+  input phases, exact dictionary callback selection and binary defaults/CHECKs/
+  views through native replacement and actual emitted PostgreSQL replay.
   Dictionary TEXT arguments retain the [shared typed-nil byte adapter contract](../strings/README.md):
   native typed-nil bytes become empty TEXT (`{}`), while lib/pq sends SQL NULL.
   Ordinary nil is SQL NULL on both; nonnil empty bytes and empty strings produce
@@ -381,6 +384,8 @@ Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
 `RUN='^TestReferenceDictionaryUnaccentCaller$'`.
+Explicit dictionary selection, rules, diagnostics and native ownership/replay:
+`RUN='^TestReferenceUnaccentDictionary'`.
 
 - Comparison shards (each alone): `RUN='^TestReferenceComparison{Matrix,Between,PredicateErrors}<Suffix>$'`
 - Distinct, null/truth, consumers: `RUN='^TestReferenceComparison(Distinct|Null|Consumer|BatchSelection)'`

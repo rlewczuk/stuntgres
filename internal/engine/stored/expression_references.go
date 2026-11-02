@@ -180,6 +180,9 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	case plan.InstalledCubeSpatialExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledTextExpr:
+		if r.Err = ValidateInstalledText(n, r.Catalog); r.Err != nil {
+			return
+		}
 		r.Add(n.Ref.Address)
 	case plan.InstalledConnectbyExpr:
 		r.Add(n.Ref.Address)

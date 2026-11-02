@@ -380,7 +380,14 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
+		var operands [2]expr.Expr
+		args := operands[:1]
+		args[0] = n.Arg
+		if n.Dictionary != nil {
+			args = operands[:]
+			args[0], args[1] = n.Dictionary, n.Arg
+		}
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), args)
 	case plan.InstalledConnectbyExpr:
 		if err := ValidateInstalledConnectby(n, view); err != nil {
 			return "", err

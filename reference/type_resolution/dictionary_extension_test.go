@@ -71,7 +71,20 @@ func TestReferenceDictionaryExtensionIdentity(t *testing.T) {
 }
 
 func TestReferenceDictionaryExtensionControls(t *testing.T) {
-	for _, mode := range []string{"options_only", "relabeled", "seed_cycle"} {
+	dictionaryExtensionControls(t, false)
+}
+
+func TestReferenceUnaccentDictionaryControls(t *testing.T) {
+	dictionaryExtensionControls(t, true)
+}
+
+func dictionaryExtensionControls(t *testing.T, binary bool) {
+	t.Helper()
+	modes := []string{"options_only", "relabeled", "seed_cycle"}
+	if binary {
+		modes = append(modes, "detached")
+	}
+	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			var emitted []byte
 			dictionaryScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -122,11 +135,53 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 					}
 				}
 				qualified := schema + "." + name
+				function := templateSchema + ".unaccent"
+				if binary && mode == "relabeled" {
+					for _, q := range []string{
+						"ALTER TEXT SEARCH TEMPLATE public.unaccent SET SCHEMA dictionary_right",
+						"ALTER FUNCTION public.unaccent(regdictionary,text) RENAME TO normalize_selected",
+						"ALTER FUNCTION public.normalize_selected(regdictionary,text) SET SCHEMA dictionary_right",
+						"ALTER FUNCTION public.unaccent_init(internal) RENAME TO dictionary_init",
+						"ALTER FUNCTION public.dictionary_init(internal) SET SCHEMA dictionary_right",
+						"ALTER FUNCTION public.unaccent_lexize(internal,internal,internal,internal) RENAME TO dictionary_lexize",
+						"ALTER FUNCTION public.dictionary_lexize(internal,internal,internal,internal) SET SCHEMA dictionary_right",
+						"CREATE TEXT SEARCH DICTIONARY public.unaccent (TEMPLATE=pg_catalog.simple,accept=false)",
+					} {
+						regtsExec(t, p, b, c, q, 0)
+					}
+					templateSchema, function = "dictionary_right", "dictionary_right.normalize_selected"
+				}
+				if binary && mode == "detached" {
+					regtsExec(t, p, b, c, "ALTER EXTENSION unaccent DROP FUNCTION public.unaccent(regdictionary,text)", 0)
+				}
 				dictionaryRejectMissingRules(t, p, b, c, qualified)
 				for _, q := range []string{"ALTER TEXT SEARCH DICTIONARY " + qualified + " (rules=unaccent)", "ALTER TEXT SEARCH DICTIONARY " + qualified + " OWNER TO dictionary_recipient", "CREATE TABLE dictionary_member_rows(id int,d regdictionary DEFAULT '" + qualified + "'::regdictionary)", "CREATE VIEW dictionary_member_view AS SELECT '" + qualified + "'::regdictionary AS d"} {
 					regtsExec(t, p, b, c, q, 0)
 				}
 				regtsExec(t, p, b, c, "INSERT INTO dictionary_member_rows(id) VALUES(1)", 1)
+				if binary {
+					for _, q := range []string{
+						"ALTER TABLE dictionary_member_rows ADD COLUMN v text DEFAULT " + function + "('" + qualified + "'::regdictionary,'Hôtel')",
+						"ALTER TABLE dictionary_member_rows ADD CONSTRAINT unaccent_binary_check CHECK (" + function + "(d,'Hôtel')='Hotel' AND v='Hotel')",
+						"CREATE VIEW unaccent_binary_view AS SELECT '" + qualified + "'::regdictionary AS d," + function + "('" + qualified + "'::regdictionary,'Hôtel') AS v",
+						"CREATE TEXT SEARCH CONFIGURATION unaccent_binary_config (COPY=pg_catalog.simple)",
+						"ALTER TEXT SEARCH CONFIGURATION unaccent_binary_config ALTER MAPPING FOR word WITH " + qualified + ",pg_catalog.simple",
+					} {
+						regtsExec(t, p, b, c, q, 0)
+					}
+				}
+				if binary && mode == "relabeled" {
+					// Capture first, then relabel and replace the original name.
+					// Stored consumers must keep the original OID and routine.
+					for _, q := range []string{
+						"ALTER TEXT SEARCH DICTIONARY dictionary_right.dictionary_member RENAME TO dictionary_saved_member",
+						"CREATE TEXT SEARCH DICTIONARY dictionary_right.dictionary_member (TEMPLATE=pg_catalog.simple,accept=false)",
+						"ALTER FUNCTION dictionary_right.normalize_selected(regdictionary,text) RENAME TO normalize_saved",
+					} {
+						regtsExec(t, p, b, c, q, 0)
+					}
+					name, qualified, function = "dictionary_saved_member", "dictionary_right.dictionary_saved_member", "dictionary_right.normalize_saved"
+				}
 				check := func() {
 					dictionaryExtensionState(t, p, b, c, schema, name, templateSchema, "dictionary_recipient", "rules = 'unaccent'")
 					regtsSelect(t, p, b, c, "SELECT d=$1::regdictionary AS same FROM dictionary_member_rows", []string{"same"}, []string{"BOOL"}, [][]any{{true}}, qualified)
@@ -134,15 +189,51 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 					regtsExec(t, p, b, c, "INSERT INTO dictionary_member_rows(id) VALUES(2)", 1)
 					regtsSelect(t, p, b, c, "SELECT d=$1::regdictionary AS same FROM dictionary_member_rows WHERE id=2", []string{"same"}, []string{"BOOL"}, [][]any{{true}}, qualified)
 					regtsExec(t, p, b, c, "DELETE FROM dictionary_member_rows WHERE id=2", 1)
+					if binary {
+						regtsSelect(t, p, b, c, "SELECT v,"+function+"(d,'Hôtel') AS selected FROM dictionary_member_rows ORDER BY id", []string{"v", "selected"}, []string{"TEXT", "TEXT"}, [][]any{{"Hotel", "Hotel"}})
+						rejected := fixture.CheckViolation("dictionary_member_rows", "unaccent_binary_check", "99, null, bad")
+						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError("INSERT INTO dictionary_member_rows(id,d,v) VALUES(99,NULL,'bad')", rejected))
+						regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM dictionary_member_rows", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}})
+						regtsSelect(t, p, b, c, "SELECT d=$1::regdictionary AS same,v FROM unaccent_binary_view", []string{"same", "v"}, []string{"BOOL", "TEXT"}, [][]any{{true, "Hotel"}}, qualified)
+						vector := "'hotel':1"
+						if mode == "seed_cycle" {
+							// The cycle renamed the unaccent filter to pg_catalog.simple,
+							// so this chain has no final recognizing dictionary.
+							vector = ""
+						}
+						regtsSelect(t, p, b, c, "SELECT to_tsvector('unaccent_binary_config','Hôtel') AS v", []string{"v"}, []string{"TSVECTOR"}, [][]any{{vector}})
+						regtsSelect(t, p, b, c, "SELECT mapdict=$1::regdictionary::oid AS same FROM pg_ts_config_map WHERE mapcfg='unaccent_binary_config'::regconfig AND maptokentype=2 AND mapseqno=1", []string{"same"}, []string{"BOOL"}, [][]any{{true}}, qualified)
+						members := int64(6)
+						if mode == "detached" {
+							members = 5
+						}
+						regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM pg_depend dep JOIN pg_extension e ON e.oid=dep.refobjid WHERE dep.refclassid=3079 AND dep.deptype='e' AND e.extname='unaccent'", []string{"n"}, []string{"INT8"}, [][]any{{members}})
+						if mode == "relabeled" {
+							unaccentDictionaryText(t, p, b, c, "SELECT "+function+"('public.unaccent'::regdictionary,'Hôtel') AS v", "Hôtel")
+							unaccentDictionaryText(t, p, b, c, "SELECT "+function+"('dictionary_right.dictionary_member'::regdictionary,'Hôtel') AS v", "Hôtel")
+							regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM pg_depend dep JOIN pg_attrdef a ON dep.classid=2604 AND dep.objid=a.oid JOIN pg_attribute att ON att.attrelid=a.adrelid AND att.attnum=a.adnum WHERE a.adrelid='dictionary_member_rows'::regclass AND att.attname='v' AND dep.deptype='n' AND ((dep.refclassid=3600 AND dep.refobjid=$1::regdictionary::oid) OR (dep.refclassid=1255 AND dep.refobjid=$2::regprocedure::oid))", []string{"n"}, []string{"INT8"}, [][]any{{int64(2)}}, qualified, function+"(regdictionary,text)")
+						}
+					}
 					if mode == "seed_cycle" {
 						dictionaryResult(t, p, b, c, "SELECT ts_lexize('pg_catalog.unaccent','The') AS lexemes", "{}")
 						regtsSelect(t, p, b, c, "SELECT oid::bigint AS id,dictinitoption FROM pg_ts_dict WHERE dictname='unaccent' AND dictnamespace='pg_catalog'::regnamespace", []string{"id", "dictinitoption"}, []string{"INT8", "TEXT"}, [][]any{{int64(3765), "stopwords = 'english'"}})
 					}
 				}
 				cleanup := func() {
+					if binary {
+						regtsExec(t, p, b, c, "DROP VIEW unaccent_binary_view", 0)
+						regtsExec(t, p, b, c, "DROP TEXT SEARCH CONFIGURATION unaccent_binary_config", 0)
+						if mode == "relabeled" {
+							regtsExec(t, p, b, c, "DROP TEXT SEARCH DICTIONARY public.unaccent", 0)
+							regtsExec(t, p, b, c, "DROP TEXT SEARCH DICTIONARY dictionary_right.dictionary_member", 0)
+						}
+					}
 					regtsExec(t, p, b, c, "DROP VIEW dictionary_member_view", 0)
 					regtsExec(t, p, b, c, "DROP TABLE dictionary_member_rows", 0)
 					regtsExec(t, p, b, c, "DROP EXTENSION unaccent CASCADE", 0)
+					if binary && mode == "detached" {
+						regtsExec(t, p, b, c, "DROP FUNCTION public.unaccent(regdictionary,text)", 0)
+					}
 					if mode == "seed_cycle" {
 						regtsExec(t, p, b, c, "ALTER TEXT SEARCH DICTIONARY pg_catalog.unaccent RENAME TO simple", 0)
 						regtsExec(t, p, b, c, "ALTER TEXT SEARCH DICTIONARY pg_catalog.simple (stopwords)", 0)
@@ -168,14 +259,23 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 				if err := c.QueryRowContext(p.Ctx, "SELECT $1::regdictionary::oid::bigint", qualified).Scan(&sourceOID); err != nil {
 					t.Fatal(err)
 				}
+				if binary {
+					regtsExec(t, p, b, c, "BEGIN", 0)
+					regtsExec(t, p, b, c, "INSERT INTO dictionary_member_rows(id) VALUES(77)", 1)
+				}
 				var dump bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 					t.Fatal(err)
 				}
 				emitted = bytes.Clone(dump.Bytes())
+				if binary {
+					regtsExec(t, p, b, c, "ROLLBACK", 0)
+					check()
+				}
 				owner := []byte("ALTER TEXT SEARCH DICTIONARY \"" + schema + "\".\"" + name + "\" OWNER TO \"dictionary_recipient\";")
 				installation, ownership, consumer := bytes.Index(emitted, []byte("CREATE EXTENSION \"unaccent\"")), bytes.Index(emitted, owner), bytes.Index(emitted, []byte("CREATE TABLE \"public\".\"dictionary_member_rows\""))
-				if bytes.Count(emitted, []byte("CREATE EXTENSION \"unaccent\"")) != 1 || bytes.Contains(emitted, []byte("CREATE TEXT SEARCH DICTIONARY")) || installation < 0 || ownership <= installation || consumer <= ownership {
+				standalone := bytes.Contains(emitted, []byte("CREATE TEXT SEARCH DICTIONARY"))
+				if bytes.Count(emitted, []byte("CREATE EXTENSION \"unaccent\"")) != 1 || standalone != (binary && mode == "relabeled") || installation < 0 || ownership <= installation || consumer <= ownership {
 					t.Fatal("member installation/owner/consumer ordering", string(emitted))
 				}
 				if mode == "seed_cycle" {
@@ -194,6 +294,23 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 				oldTypes, err := old.ColumnTypes()
 				if err != nil || len(oldTypes) != 1 || oldTypes[0].DatabaseTypeName() != "_TEXT" {
 					t.Fatal("retained member metadata", oldTypes, err)
+				}
+				var binaryRows *sql.Rows
+				var binaryTypes []*sql.ColumnType
+				if binary {
+					binaryRows, err = c.QueryContext(p.Ctx, "SELECT "+function+"(d,'Hôtel') AS v FROM dictionary_member_rows ORDER BY id")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer binaryRows.Close()
+					binaryTypes, err = binaryRows.ColumnTypes()
+					if err != nil || len(binaryTypes) != 1 || binaryTypes[0].DatabaseTypeName() != "TEXT" {
+						t.Fatal("retained binary metadata", binaryTypes, err)
+					}
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(emitted)); err != nil {
+						t.Fatal("same-engine binary roundtrip", err)
+					}
+					check()
 				}
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
@@ -235,9 +352,33 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 					t.Fatal("retained member rows", old.Err())
 				}
 				old.Close()
+				if binary {
+					columns, err := binaryRows.Columns()
+					if err != nil || len(columns) != 1 || columns[0] != "v" || binaryTypes[0].DatabaseTypeName() != "TEXT" || !binaryRows.Next() {
+						t.Fatal("retained binary columns/rows", columns, err)
+					}
+					var value string
+					if err := binaryRows.Scan(&value); err != nil || value != "Hotel" {
+						t.Fatal("retained binary value", value, err)
+					}
+					if binaryRows.Next() || binaryRows.Err() != nil {
+						t.Fatal(binaryRows.Err())
+					}
+					binaryRows.Close()
+				}
 				var redump bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil || !bytes.Equal(emitted, redump.Bytes()) {
 					t.Fatal("extension dictionary redump changed", err)
+				}
+				var failureRows *sql.Rows
+				if binary {
+					regtsExec(t, p, b, c, "CREATE TABLE unaccent_control_sentinel(v int)", 0)
+					regtsExec(t, p, b, c, "INSERT INTO unaccent_control_sentinel VALUES(42)", 1)
+					failureRows, err = c.QueryContext(p.Ctx, "SELECT "+function+"(d,'Hôtel') AS v FROM dictionary_member_rows ORDER BY id")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer failureRows.Close()
 				}
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString(string(emitted)+"ALTER TEXT SEARCH DICTIONARY "+qualified+" (rules=missing_dictionary);")); err == nil {
 					t.Fatal("invalid extension dictionary restore published")
@@ -251,6 +392,36 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 				}
 				check()
 				checkCollision()
+				if binary {
+					preserved := func() {
+						check()
+						checkCollision()
+						regtsSelect(t, p, b, c, "SELECT v FROM unaccent_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(42)}})
+					}
+					for _, suffix := range []string{
+						"SELECT (",
+						"ALTER TEXT SEARCH DICTIONARY " + qualified + " OWNER TO unaccent_missing_owner;",
+						"ALTER TEXT SEARCH DICTIONARY " + qualified + " SET SCHEMA unaccent_missing_schema;",
+						"ALTER TEXT SEARCH DICTIONARY " + qualified + " (rules=unaccent,bogus=1);",
+						"SET ROLE dictionary_recipient; ALTER TEXT SEARCH DICTIONARY " + qualified + " SET SCHEMA pg_catalog;",
+						"SET ROLE dictionary_recipient; ALTER TEXT SEARCH DICTIONARY " + qualified + " OWNER TO postgres;",
+					} {
+						if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString(string(emitted)+suffix)); err == nil {
+							t.Fatal("failed binary Restore published", suffix)
+						}
+						preserved()
+					}
+					reading, stopReading := context.WithCancel(p.Ctx)
+					interrupted := &fixture.EnumCancelReader{Reader: bytes.NewReader(emitted), Cancel: stopReading}
+					err := stuntgres.Restore(reading, p.Native, interrupted)
+					stopReading()
+					if !errors.Is(err, context.Canceled) {
+						t.Fatal("binary Restore reader cancellation", err)
+					}
+					fixture.LexicalOrdinary(t, err, context.Canceled)
+					preserved()
+					fixture.LexicalRows(t, false, failureRows, fixture.Select("", []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}), nil)
+				}
 				cleanup()
 			})
 		})

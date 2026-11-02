@@ -65,7 +65,8 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledTextExpr)
-	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: op, Owner: op.Session.Transactions})}}
+	evaluation, scope := unaccentDictionaryContext(t, e, op)
+	defer scope.Finish(context.Canceled)
 	value, err := node.Eval(evaluation)
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || exec.PlannedVolatility(node) != expr.Stable {
@@ -79,7 +80,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal("procedure dependency", refs, err)
 	}
 	n.Arg = plan.LiteralExpr{Info: expr.Info{Usage: node.ResultUsage()}, Value: sqltype.Null(node.ResultUsage().Type)}
-	value, err = n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	value, err = n.Eval(evaluation)
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)
 	}
@@ -101,6 +102,9 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if children != 1 {
 		t.Fatal("child traversal", children)
 	}
+	if err := scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
 	// An already bound call must not retain the original member's rules.
 	view := e.CatalogRead()
 	renamed := *view.MustTSDictionary(ext.Members[5])
@@ -112,7 +116,10 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	_, err = node.Eval(evaluation)
+	missingEvaluation, missingScope := unaccentDictionaryContext(t, e, op)
+	defer missingScope.Finish(context.Canceled)
+	_, err = node.Eval(missingEvaluation)
+	err = missingScope.Finish(err)
 	extensionUnitError(t, err, "42704")
 	replacement, err := schemacmds.StageDictionaryDetached(e, op, &parser.CreateDictionary{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}},
@@ -129,13 +136,18 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(replacement)
 	extensionUnitPublish(t, e, op, replacement)
-	value, err = node.Eval(evaluation)
+	replacementEvaluation, replacementScope := unaccentDictionaryContext(t, e, op)
+	defer replacementScope.Finish(context.Canceled)
+	value, err = node.Eval(replacementEvaluation)
 	text, _ = value.Text()
 	if err != nil || text != "hôtel" || value.Type() != node.ResultUsage().Type {
 		t.Fatal("current replacement dictionary provider", text, err)
 	}
 	if view.MustTSDictionary(ext.Members[5]).Name() != "unaccent" {
 		t.Fatal("renaming changed captured catalog state")
+	}
+	if err := replacementScope.Finish(nil); err != nil {
+		t.Fatal(err)
 	}
 }
 

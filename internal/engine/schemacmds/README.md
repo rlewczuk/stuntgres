@@ -240,6 +240,19 @@ the session IDs `enginetest` mints, so a test may use both. The extension
 provider units stage through the shared extension host
 (`schemacmds.ExtensionHost`, `StageExtensionLocked`); the type, domain and
 enum units stage through `StageSchemaLocked`.
+Unaccent expression, remap and rollback-survivor units evaluate with real
+`Engine.StartStatement` admission and `HostOf(scope)`. They finish each scope
+before publishing catalog mutations or starting the next statement, and defer
+an error unwind before releasing operations or sessions. Fresh contexts after
+dictionary CREATE/DROP, provider rename or replacement capture current catalog
+authority; cancellation cases finish while the canceled operation context is
+still installed. These fixtures do not retain protocol messages, so `Finish`
+alone releases statement admission; `FinishMessage` is not applicable.
+Dependency witnesses retain nonpinned installed procedure/dictionary edges and
+omit pinned builtins. Remap fixtures occupy the exact source dictionary identity
+with a real dictionary in a live session's TEMP namespace, assert that replacement
+retains that descriptor and callback, then distinguish imported execution and
+rendering from the retained collision.
 SSLInfo provider, expression-protocol and stored-identity units use
 `RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
 sealed authority, scalar source cardinality and destination remapping without
@@ -285,7 +298,7 @@ classes and families, access methods).
 make check RUN='^Test(Schema|Comment|Collation|Conversion|Tablespace|Load|Checkpoint|Transactional)'  # schema elements and physical utility boundaries
 make check RUN='^Test(Domain|Enum|Composite|TypeLifecycle|Geometry)'  # types and domains staged through the schema statements
 make check RUN='^Test(User|Operator|Routine|SQLRoutine|Cast|CreateAggregate|Aggregate|OrderedSet|Access)'  # routine, operator and access method DDL
-make check RUN='^Test(Extension|AvailableExtension|Citext|Cube|Earth|Isn|Intagg|Intarray|Lo|Pgcrypto|Pgrowlocks|UUIDOssp|Fuzzystrmatch|Levenshtein|Soundex|Metaphone|Daitch)'  # extensions and providers
+make check RUN='^Test(Extension|AvailableExtension|UnaccentDictionary|Citext|Cube|Earth|Isn|Intagg|Intarray|Lo|Pgcrypto|Pgrowlocks|UUIDOssp|Fuzzystrmatch|Levenshtein|Soundex|Metaphone|Daitch)'  # extensions and providers
 make check RUN='^Test(TriggerDDL|InfoRoutines|FDW)'      # trigger lifecycle, routine metadata, foreign-data DDL
 make check RUN='^Test(InfoRole|PG(Aggregate|Constraint|Depend|Enum)|Conditional|Array|TableLike|JSONB|CopyFilter|Reg|NetworkDomain|DumpPresenter)'  # catalog producers and runtime units whose fixtures stage schema elements
 make check RACE=1 RUN='^Test(ExtensionProviderPublication|ExtensionDropPublication|ExtensionVersionPublication|CommentLocks|TransactionalSchemaDropManifest|FDWLateDependencyPublication)'  # publication races

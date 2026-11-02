@@ -213,7 +213,13 @@ func JoinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 	case InstalledCryptoExpr:
 		children = e.Args
 	case InstalledTextExpr:
-		children = []expr.Expr{e.Arg}
+		if err := child(e.Dictionary); err != nil {
+			return 0, err
+		}
+		if err := child(e.Arg); err != nil {
+			return 0, err
+		}
+		return result, nil
 	case CaseExpr:
 		if err := child(e.Test); err != nil {
 			return 0, err

@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -129,7 +128,10 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			if restored.Get(bound.Procedure.Address()) != bound.Procedure || restored.Get(ext.Members[4]) != before.Get(ext.Members[4]) || restored.Get(ext.Members[5]) != before.Get(ext.Members[5]) {
 				t.Fatal("bound callable no longer authentic")
 			}
-			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: op.Session.Transactions.Ref})}})
+			evaluation, scope := unaccentDictionaryContext(t, e, op)
+			defer scope.Finish(context.Canceled)
+			value, err := node.Eval(evaluation)
+			err = scope.Finish(err)
 			text, _ := value.Text()
 			if err != nil || text != "Hotel" {
 				t.Fatal("retained callable", text, err)

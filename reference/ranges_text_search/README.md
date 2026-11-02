@@ -39,6 +39,10 @@ these are shared across families:
   source-preserving JSON traversal, lazy configuration demand and diagnostics;
   exact JSONB positions use arrays or single-key objects, never a portable
   multi-key object order. Select with `make check RUN='^TestReferenceFTSJSON'`.
+- Unaccent filtering reuses the configuration scenario and metadata helper:
+  real ordered chains distinguish changed/unrecognized tokens, stopwords,
+  terminal filters, positions and renamed dictionary identity on direct/held
+  routes. Select with `make check RUN='^TestReferenceUnaccentDictionaryFiltering$'`.
 - `range_helpers_test.go`: `rangeSelect` checks the public any-scan and the
   middleware stream before normalization (a nil nullable slice asserts unknown
   nullability, a non-nil one declared nullability) and maps multirange type names

@@ -1429,12 +1429,18 @@ publication and lock-manager tickets stay in the engine.
   plan, without domain/cube generations or SQL-body error wrapping.
   `InstalledEarthPointExpr` retains its selected procedure through the same
   reconstruction and lifecycle seams; no callable exists without installation.
-- **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
-  once into `StockUnaccent`, used by dictionary providers. Installed
-  `unaccent(text)` retains its routine identity, not a captured matcher: the live
-  engine resolves literal `unaccent` in the function's current schema and invokes
-  that dictionary's actual runtime. It returns the first lexeme or the original
-  token for an empty/unrecognized result; strict SQL NULL never demands lookup.
+- **unaccent**: `unaccent.rules` (PostgreSQL REL_18_6) is embedded and compiled
+  once into `StockUnaccent`. Installed `unaccent(text)` resolves literal
+  `unaccent` in the function's current schema; `unaccent(regdictionary,text)`
+  acquires the exact typed dictionary identity. Both invoke that dictionary's
+  actual callback and return its first lexeme or the original token for an
+  empty/unrecognized result. `InstalledText` carries the optional REGDICTIONARY
+  child before TEXT, retaining the unary daitch_mokotoff shape. Strict NULL
+  avoids dictionary acquisition, not constant or parameter input validation.
+  The engine resource is embedded `RULES=unaccent`; installing additional
+  PostgreSQL `$SHAREDIR/tsearch_data/*.rules` files is an external deployment
+  operation, not a driver filesystem or registration API. Filtering remains an
+  actual dictionary-chain operation, not a supported thesaurus normalizer.
 - **dmetaphone licence**: Single Metaphone retains its complete release
   PGDG/Schwern/Philips provenance. The Double Metaphone files retain the complete
   Maurice Aubrey/Text::DoubleMetaphone and North Carolina State Highway Patrol
