@@ -4,20 +4,20 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core/explain"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // ScopeEnlistForeign calls x.enlistForeign.
 func ScopeEnlistForeign(x *StatementScope, ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
-	return x.enlistForeign(ctx, wrapper, request, writing)
+	return x.enlistForeign(ctx, &exec.ForeignQuerySource{Wrapper: wrapper}, &request, writing)
 }
 
 // ScopeForeignTablesOrZero calls x.foreignTablesOrZero.
@@ -103,7 +103,9 @@ func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
 // renderer. Enter and leave with Mu held, as at the production command boundary.
 func ExplainBoundForTest(scope *StatementScope, auth AuthorizationView, statement parser.Statement, binding analyze.Binding) ([]string, error) {
 	r, err := newExplainRenderer(scope, auth, explain.Options{Verbose: true})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	_, exportValue, _ := scope.Engine().Foreign.Codecs()
 	r.SetForeignParameters(exportValue, nil, nil)
 	return r.Command(statement, explain.Bound{Binding: binding})

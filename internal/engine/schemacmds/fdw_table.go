@@ -8,6 +8,52 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// AlterTableColumnOptionsLocked preserves ordinary ALTER admission and ADD
+// semantics, then applies its column FDW options through the existing foreign
+// executor. Both phases belong to one statement journal, so a kind/validator
+// failure cannot publish the ordinary prefix. Called with Engine.Mu held;
+// every path releases it through AlterTableLocked before foreign callbacks.
+func AlterTableColumnOptionsLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, s *parser.AlterTable, count int) (core.Result, error) {
+	if count != 0 {
+		return tablecmds.AlterTableLocked(e, scope, scope.Op, auth, s, count, nil, nil)
+	}
+	hasOptions := false
+	for _, action := range s.Actions {
+		if action.Action == parser.AddColumn && action.Definition != nil && len(action.Definition.ForeignOptions) != 0 {
+			hasOptions = true
+			break
+		}
+	}
+	if !hasOptions {
+		return tablecmds.AlterTableLocked(e, scope, scope.Op, auth, s, count, nil, nil)
+	}
+	var admittedAdds []int
+	result, err := tablecmds.AlterTableLocked(e, scope, scope.Op, auth, s, count, nil, &admittedAdds)
+	if err != nil {
+		return result, err
+	}
+	// Only the phased executor knows whether an ADD survived its current-shape
+	// IF NOT EXISTS gate, including a DROP of the same name earlier in the pass.
+	var options []parser.ForeignTableAction
+	for _, actionIndex := range admittedAdds {
+		action := s.Actions[actionIndex]
+		if action.Definition != nil && len(action.Definition.ForeignOptions) != 0 {
+			options = append(options, parser.ForeignTableAction{Column: action.Column, Options: action.Definition.ForeignOptions})
+		}
+	}
+	if len(options) == 0 {
+		return result, nil
+	}
+	result, err = executeForeignTableAlter(e, scope, &parser.ForeignDDL{
+		Action: "alter", Kind: "table", Name: s.Name, IfExists: s.IfExists,
+		TableActions: options, Pos: s.Pos,
+	})
+	if err == nil {
+		scope.CompleteUtility()
+	}
+	return result, err
+}
+
 func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL) (core.Result, error) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
@@ -42,32 +88,41 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 		}
 	}
 	var ordinary []parser.AlterTableAction
-	var remaining []parser.ForeignTableAction
-	var addedColumns map[string]bool
+	hasColumnOptions := false
 	for _, action := range s.TableActions {
-		if action.Ordinary == nil {
-			remaining = append(remaining, action)
-			continue
-		}
-		a := action.Ordinary
-		ordinary = append(ordinary, *a)
-		if a.Action == parser.AddColumn {
-			_, existed := old.Index[a.Column.Text]
-			skipped := a.IfNotExists && (existed || addedColumns[a.Column.Text])
-			if addedColumns == nil {
-				addedColumns = make(map[string]bool)
-			}
-			addedColumns[a.Column.Text] = true
-			if !skipped && len(action.ColumnOptions) != 0 {
-				remaining = append(remaining, parser.ForeignTableAction{Column: a.Column, Options: action.ColumnOptions})
-			}
+		if action.Ordinary != nil {
+			ordinary = append(ordinary, *action.Ordinary)
+			hasColumnOptions = hasColumnOptions || len(action.ColumnOptions) != 0
 		}
 	}
 	if len(ordinary) != 0 {
 		command := &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Actions: ordinary, Pos: s.Pos}
-		result, err := tablecmds.AlterTableLocked(e, scope, scope.Op, auth, command, 0, nil)
-		if err != nil || len(remaining) == 0 {
+		var admittedAdds []int
+		var admittedSink *[]int
+		if hasColumnOptions {
+			admittedSink = &admittedAdds
+		}
+		result, err := tablecmds.AlterTableLocked(e, scope, scope.Op, auth, command, 0, nil, admittedSink)
+		if err != nil {
 			return result, err
+		}
+		var remaining []parser.ForeignTableAction
+		ordinaryIndex, admittedIndex := 0, 0
+		for _, action := range s.TableActions {
+			if action.Ordinary == nil {
+				remaining = append(remaining, action)
+				continue
+			}
+			if admittedIndex < len(admittedAdds) && admittedAdds[admittedIndex] == ordinaryIndex {
+				if len(action.ColumnOptions) != 0 {
+					remaining = append(remaining, parser.ForeignTableAction{Column: action.Ordinary.Column, Options: action.ColumnOptions})
+				}
+				admittedIndex++
+			}
+			ordinaryIndex++
+		}
+		if len(remaining) == 0 {
+			return result, nil
 		}
 		tail := *s
 		tail.TableActions = remaining

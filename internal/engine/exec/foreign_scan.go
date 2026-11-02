@@ -21,6 +21,7 @@ type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnv
 
 type ForeignQuerySource struct {
 	Wrapper        catalog.ForeignDataWrapper
+	Handler        *catalog.ForeignProcedure // Captured authentic installation, never name/OID rediscovery.
 	Request        catalog.ForeignRequest
 	Columns        []catalog.Column
 	ImportValue    ForeignValueImporter
@@ -324,6 +325,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			planning := CopyForeignRequest(request)
 			planning.Characteristics = nil
 			planning.Transaction = nil
+			planning.ExternalSQL = nil
 			if err = f.Plan(ctx, planning, execution); err != nil {
 				return err
 			}
@@ -332,7 +334,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			return err
 		}
 		if host := source.LiveHost(); host != nil {
-			request.Transaction, err = host.EnlistForeign(ctx, f.Wrapper, request, false)
+			request.Transaction, err = host.EnlistForeign(ctx, f, &request, false)
 			if err != nil {
 				return err
 			}
@@ -342,6 +344,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 				}
 			}
 		}
+		ctx = catalog.ExternalSQLExecutionContext(ctx, request.ExternalSQL)
 		execution.snapshotRequest(request)
 		if execution.Scan == nil {
 			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && f.Query == nil && request.RowMark == nil && !execution.async.capable && state.foreignParallelMaximum >= 2 {

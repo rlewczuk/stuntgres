@@ -25,7 +25,9 @@ import (
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds core.Engine.mu. Every return releases it before callbacks/scanning.
-func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int, physicalWork *[]AlterTablePhysical) (outcome core.Result, failure error) {
+// admittedAdds optionally collects successful ADD indexes in the caller's action
+// list. Callers must ignore the output on error; nil disables admission tracking.
+func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int, physicalWork *[]AlterTablePhysical, admittedAdds *[]int) (outcome core.Result, failure error) {
 	scope.RoutineAuth = auth
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -142,6 +144,15 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	}
 	recordParent = true
 	if len(work) != len(s.Actions) {
+		if admittedAdds != nil {
+			originalActions := s.Actions
+			first := len(*admittedAdds)
+			defer func() {
+				if failure == nil {
+					failure = remapAdmittedAdds((*admittedAdds)[first:], work, originalActions)
+				}
+			}()
+		}
 		command := *s
 		command.Actions = work
 		s = &command
@@ -193,7 +204,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 	}
 	if scope.Inheritance.Alter == nil && !table.ClusterActionsOnly(s.Actions) && !table.ReplicaIdentityOnly(s.Actions) && !access.RowSecurityActions(s.Actions) && !table.TriggerModesOnly(s.Actions) && !table.RuleModesOnly(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
-		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared, preparation.AccessMethod)
+		return alterInheritanceLocked(e, scope, op, auth, s, count, destination, prepared, preparation.AccessMethod, admittedAdds)
 	}
 	if scope.Inheritance.Alter == nil || !scope.Inheritance.Alter.Descendant {
 		if err := table.InheritanceAlterActionsGuard(auth.Catalog, old, s.Actions); err != nil {
@@ -382,12 +393,10 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				return core.Result{}, err
 			}
 			before := next
+			var added table.AddedColumn
 			cachedNext, cachedAdded, cached, cachedErr := consumeInheritancePreparedAction(scope, stage, definition, actionIndex, next, ref, changes)
 			if cached {
-				next, err = cachedNext, cachedErr
-				if err == nil && cachedAdded.Column != nil {
-					additions = append(additions, cachedAdded)
-				}
+				next, added, err = cachedNext, cachedAdded, cachedErr
 			} else if action.Action == parser.SetWithoutOIDs {
 				// Accepted compatibility syntax; no physical OID column exists.
 			} else if table.RelationOptionsAction(action.Action) {
@@ -410,11 +419,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				}
 				next, err = DropColumnCandidate(scope, stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
-				var added table.AddedColumn
 				next, added, err = AddColumnCandidate(e, scope, op, auth, next, action, nil)
-				if err == nil && added.Column != nil {
-					additions = append(additions, added)
-				}
 			} else if action.Action == parser.AlterColumnType {
 				var transformation index.ColumnTransformation
 				captured := prepared[typeIndex]
@@ -454,6 +459,12 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			if err != nil {
 				return core.Result{}, err
+			}
+			if added.Column != nil {
+				additions = append(additions, added)
+				if admittedAdds != nil {
+					*admittedAdds = append(*admittedAdds, actionIndex)
+				}
 			}
 			scope.RecordAlterDeletion(auth, before, next, action)
 			inheritancePlan(scope).RecordAction(before, next, action)

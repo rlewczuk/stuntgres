@@ -407,6 +407,17 @@ target's contents; it never merges. Empty input clears all user relations.
   Composite selected query paths and effective row-mark/identity requests are
   invocation-local planning products as well: replay never discovers paths,
   negotiates marks, explains a plan, enlists or begins a foreign scan.
+  External-bound handlers additionally carry a strict native prerequisite for
+  original handler registration, provider name and version. Missing, mismatched,
+  malformed or duplicate prerequisites fail atomically; a same-name unbound
+  handler is not an authentic substitute. Replay binds destination registrations,
+  never source callback pointers, and neither Dump nor Restore opens an external
+  connection. Mapping credential bytes remain sensitive host output.
+  Live remote sockets, PIDs, notifications, results and transactions are not
+  persistent data; later restored queries open actual destination-owned sessions
+  and see the external source's current data. Existing physical sessions survive
+  catalog replacement; obsolete cursor/transaction resources retire through
+  ordinary invalidation, and physical Close joins remaining external cleanup.
   Imported persistent identities need fresh ANALYZE. Failed/canceled replacement
   preserves existing statistics and saved results; genuine retained destination
   TEMP identities keep only their compatible existing metadata backing.

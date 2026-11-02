@@ -111,6 +111,38 @@ make check RUN='^(TestReferenceFDWSupportFunctions|TestReferenceFDWSQLValidator)
 These scenarios assert full diagnostics, typed argument witnesses and failed
 metadata/effect publication, rather than only comparing backend results.
 
+The external SQL provider family keeps its registration/catalog contracts
+Docker-free. Physical ownership, credentials, cancellation and notification
+phases require `REFERENCE=1`; that mode exercises both a native registered GO
+handler backed by genuine PostgreSQL and the stock postgres_fdw comparison, not
+an embedded substitute. The actual fixture pin remains PostgreSQL 18.6.
+
+```sh
+make check RUN='^TestExternalSQLProvider(Registration|Ownership|ResultValidation)$'
+make check RUN='^TestReferenceExternalSQLProvider(Contracts|Physical|Credentials|Transactions|Cancellation|DiagnosticsAndNotifications|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestExternalSQLProvider(Registration|Ownership|ResultValidation)$'
+make check REFERENCE=1 RUN='^TestReferenceExternalSQLProvider(Contracts|Physical|Credentials|Transactions|Cancellation|DiagnosticsAndNotifications|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceExternalSQLProvider(Cancellation|Transactions|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceExternalSQLProviderFeatureSmoke$'
+```
+
+The column-option admission regression uses the same public SQL/MED contract
+without opening a transport. Its DROP/re-add and unchanged-skip matrix asserts
+full execution diagnostics, schema/data atomicity and genuine SQL-validator
+rejection through direct/prepared calls and both foreign ALTER spellings:
+
+```sh
+make check RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'
+make check REFERENCE=1 RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'
+```
+
+For oracle-first discovery, the actual physical leaves are
+`TestReferenceExternalSQLProviderPhysical/postgres` then `/memory`. Endpoint
+error DETAIL and PL/pgSQL Context remain complete golden fields, resolved from
+the pinned oracle rather than removed for parity. Feature smoke performs real
+Open/rows/types/error/cancel/notification/control operations; it is not a suite
+alias. Quick mode intentionally does not exercise the network-only phases.
+
 During discovery only, filter the shared `p.Backends()` loop to `backend.PG`
 (`if !backend.PG { continue }`) so a missing native feature cannot block oracle
 observation. Remove it before quick-mode validation; never commit a backend filter.

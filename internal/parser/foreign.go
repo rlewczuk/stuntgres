@@ -19,39 +19,38 @@ type ForeignSupportOption struct {
 // ForeignDDL retains SQL/MED utility inputs without conflating executable
 // procedure identities, relation declarations, or local storage statements.
 type ForeignDDL struct {
-	Action, Kind             string
-	Name                     ObjectName
-	Names                    []ObjectName
-	IfExists, IfNotExists    bool
-	Mode                     DropMode
-	Pos                      Position
-	Support                  []ForeignSupportOption
-	Options                  []ForeignOption
-	Server                   Identifier
-	Role                     GrantGrantee
-	ServerType, Version      *string
-	VersionSet               bool
-	NewName                  Identifier
-	Owner                    *RoleSpec
-	Table                    *CreateTable
-	ColumnOptions            map[string][]ForeignOption
-	TableActions             []ForeignTableAction
-	Inner                    Statement
-	RemoteSchema             Identifier
-	LocalSchema              Identifier
-	ImportFilter             []Identifier
-	ImportExcept             bool
+	Action, Kind          string
+	Name                  ObjectName
+	Names                 []ObjectName
+	IfExists, IfNotExists bool
+	Mode                  DropMode
+	Pos                   Position
+	Support               []ForeignSupportOption
+	Options               []ForeignOption
+	Server                Identifier
+	Role                  GrantGrantee
+	ServerType, Version   *string
+	VersionSet            bool
+	NewName               Identifier
+	Owner                 *RoleSpec
+	Table                 *CreateTable
+	ColumnOptions         map[string][]ForeignOption
+	TableActions          []ForeignTableAction
+	Inner                 Statement
+	RemoteSchema          Identifier
+	LocalSchema           Identifier
+	ImportFilter          []Identifier
+	ImportExcept          bool
 }
 
 func (*ForeignDDL) statement() {}
 
 type ForeignTableAction struct {
-	Ordinary           *AlterTableAction
-	Column             Identifier
-	Options            []ForeignOption
-	ColumnOptions      []ForeignOption
-	columnOptionsToken lexeme // Retained only to reject OPTIONS in ordinary ADD.
-	Default            *AlterTableDefault
+	Ordinary      *AlterTableAction
+	Column        Identifier
+	Options       []ForeignOption
+	ColumnOptions []ForeignOption
+	Default       *AlterTableDefault
 }
 
 type foreignElements struct {

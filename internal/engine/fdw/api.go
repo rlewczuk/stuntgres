@@ -11,6 +11,10 @@ import (
 type WrapperDefinition struct {
 	HandlerName catalog.ForeignFunctionName
 	Wrapper     catalog.ForeignDataWrapper
+	// ExternalProvider binds an authentic Driver registration at installation.
+	// SQL options and same-name replacement routines cannot supply this binding.
+	ExternalProvider string
+	external         *catalog.ExternalSQLProviderDefinition
 }
 
 // ValidatorDefinition carries the same native Go declaration metadata contract.

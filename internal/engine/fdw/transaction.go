@@ -33,6 +33,7 @@ func CapabilityError() error {
 }
 
 func Rollback(ctx context.Context, participants []*Participant) error {
+	ctx = catalog.WithoutExternalSQLContext(ctx)
 	var first error
 	for _, p := range participants {
 		if p.Closed {
@@ -95,7 +96,7 @@ func BeginParticipant(ctx context.Context, provider catalog.ForeignTransactionPr
 // transaction: that participant closes and rolls back, once, and its error
 // becomes primary when primary is nil. Cancellation of ctx is ignored.
 func EndStatements(ctx context.Context, participants []*Participant, primary error) error {
-	ctx = context.WithoutCancel(ctx)
+	ctx = catalog.WithoutExternalSQLContext(context.WithoutCancel(ctx))
 	for _, p := range participants {
 		if p.Closed {
 			continue
@@ -143,6 +144,7 @@ func (f *Transaction) TakeCleanup() []*Participant {
 // Commit commits every open participant once. A failed Commit has an unknown
 // outcome: it is never retried or compensated, and the rest roll back.
 func (f *Transaction) Commit(ctx context.Context) error {
+	ctx = catalog.WithoutExternalSQLContext(ctx)
 	for _, p := range f.participants {
 		if p.Closed {
 			continue
@@ -168,6 +170,7 @@ func (f *Transaction) Pending() bool {
 // Savepoint sets (kind 0), rolls back to (1) or releases (2) mark id in every
 // participant; a failure rolls every participant back.
 func (f *Transaction) Savepoint(ctx context.Context, kind int, id uint64) error {
+	ctx = catalog.WithoutExternalSQLContext(ctx)
 	for _, p := range f.participants {
 		if p.Closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")

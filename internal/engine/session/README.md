@@ -77,6 +77,14 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   and membership, and `PublicationOperationLocked` adds the context check
   under `Session.Mu` for publication. Detached catalog ownership is rejected by
   these gates and by `TokenAttached`, independently of matching numeric IDs.
+  External SQL resources attach before real Open and drain after Transaction and
+  Cursors, before PreparedSQL/Temporary. SessionResource callbacks run outside
+  engine/session/transaction mutexes and may perform owned, joined terminal
+  cleanup I/O; they must not synchronously reenter lifecycle, acquire new commands
+  or leases, or perform catalog maintenance. Existing foreign rollback uses an
+  exact-owner private cleanup context to settle already-owned handles after
+  Ending; it never grants Open/publication authority. WaitEnd completes only after
+  these callbacks return and the physical registration/reservation is released.
   `Operation` carries contexts, command budgets, lock timeouts,
   notices, the copy-input context, the statement lease and the replay and
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,

@@ -42,6 +42,7 @@ type Driver struct {
 	config              DriverConfig
 	foreignWrappers     []fdw.WrapperDefinition
 	foreignValidators   []fdw.ValidatorDefinition
+	externalProviders   []ExternalSQLProviderDefinition
 	hostLanguages       []*host.Runtime
 	textSearchFiles     map[string]string
 	textSearchResources *functions.DictionaryFiles
@@ -77,8 +78,12 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	}
 	e := d.engines[name]
 	if e == nil {
+		wrappers, err := fdw.BindExternalProviders(d.foreignWrappers, d.externalProviders)
+		if err != nil {
+			return nil, err
+		}
 		e = engine.NewWithSettings(d.settings, name, d.config.TrackCommitTimestamp)
-		if err := e.InstallForeignDefinitions(d.foreignWrappers, d.foreignValidators, importParameter, exportValue); err != nil {
+		if err := e.InstallForeignDefinitions(wrappers, d.foreignValidators, importParameter, exportValue); err != nil {
 			return nil, err
 		}
 		if err := e.InstallHostDefinitions(d.hostLanguages); err != nil {

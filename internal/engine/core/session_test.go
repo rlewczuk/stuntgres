@@ -194,7 +194,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	cursor := core.PayloadOf(s).Cursors.Entries["terminal"]
 	var order []session.ResourceKind
 	var mu sync.Mutex
-	for _, kind := range []session.ResourceKind{session.Temporary, session.PreparedSQL} {
+	for _, kind := range []session.ResourceKind{session.Temporary, session.PreparedSQL, session.ExternalSQL} {
 		k := kind
 		owner := &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error {
 			if s.TransactionState() != session.TxIdle {
@@ -221,7 +221,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			t.Fatal("invalid owner")
 		}
 	}
-	if _, err = op.Attach(session.AdvisorySession+1, &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error { return nil }}); err == nil {
+	if _, err = op.Attach(session.ExternalSQL+1, &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error { return nil }}); err == nil {
 		t.Fatal("unknown kind")
 	}
 	copyOp := *op
@@ -247,7 +247,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(order, []session.ResourceKind{session.PreparedSQL, session.Temporary}) {
+	if !reflect.DeepEqual(order, []session.ResourceKind{session.ExternalSQL, session.PreparedSQL, session.Temporary}) {
 		t.Fatal(order)
 	}
 	lockState := e.Locks.Inspect()

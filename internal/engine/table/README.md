@@ -34,6 +34,10 @@ call live here.
   including column enforcement-attribute transformation before plain CREATE's
   duplicate-name error. Existing IF NOT EXISTS targets skip that transformation.
   Attribute errors stay Execute-phase even for held statements.
+  Shared column FDW options on nonforeign CREATE are rejected with execution-time
+  42809 after the ordinary declaration stage, before publication; foreign-kind
+  consumers retain options for their own validators. Existing target skips and
+  name/authority/declaration errors still precede the queued kind check.
   `NewRelation`/`AssignDefinitionOIDs` work over a `ddl.Allocator`.
   The same stage serves permanent and TEMP creation in explicit transactions;
   transaction admission and shared catalog/storage publication belong to the

@@ -1732,6 +1732,58 @@ option change together with transactional validator writes. This does not supply
 a foreign handler: remote reads and writes still require a genuine compatible
 registered provider.
 
+### Host-owned external SQL
+
+`Driver.RegisterExternalSQLProvider(ExternalSQLProviderDefinition{Name, Version,
+Provider})` registers an actual host transport without opening it. Registrations
+are Driver-local, reject invalid/typed-nil/duplicate definitions and freeze at the
+first successful connector. Set `ForeignDataWrapperDefinition.ExternalProvider`
+to bind a handler to that authentic registration. Missing bindings fail connector
+initialization atomically with `*ExternalSQLUnavailableError`, an ordinary error
+without SQLSTATE. SQL names/options cannot supply executable provider authority.
+
+Only execution callbacks receive `ForeignRequest.ExternalSQL`; planning and
+Describe receive nil. Its `Open(ctx, ExternalSQLConnectRequest)` requires the
+supplied callback context or a derivative and the exact still-live operation.
+Another physical session's callback context or a retained completed opener fails
+before transport I/O. Trusted host code can explicitly delegate an original live
+bearer context; this API is not a sandbox. Caller role/server/mapping identities
+come from captured SQL authority, never callback-supplied identity fields.
+Use either opaque remote `Conninfo` or the captured ordered server/mapping options.
+The host transport interprets them and authenticates; the engine never parses
+root Driver DSNs as conninfo or concatenates credentials. Requests are sensitive.
+
+`ExternalSQLConnection.Execute` materializes actual command/tuple results, owned
+column names/OIDs/typmods/text formats and flat row-major `ExternalSQLCell` values.
+NULL is independent of empty text; empty tuple results retain their descriptors.
+`RowCount * len(Columns)` must equal cell count, including zero-width tuples.
+The provider transfers owned results/diagnostics; subsequent commands and Close
+must not mutate them. Ordinary FDW import supplies native type coercion.
+`Info` reports actual remote PID/user/database, registered provider version and
+truthful credential evidence (`unknown` is allowed, not inferred from a password).
+
+Cancel may run concurrently with Execute. Successful dispatch does not imply
+cancellation: consume/join the original result and preserve its genuine error.
+Remote logical diagnostic fields survive unchanged; stock SQL consumers may
+apply their own projection. `ErrBadConn`/`ErrSkip` cannot trigger native replay.
+Remote notifications carry their actual sender int4 PID and have a separate
+consuming queue from native `Notification`/`WaitForNotification`.
+
+Open publishes only after authentication and owner revalidation. A nonnil return
+transfers cleanup even alongside an error. Commands serialize per connection;
+Close cancels/joins active work, is sticky/idempotent and releases membership.
+The physical session owns remaining handles. Its Close joins transaction/cursor
+cleanup and then external resource cleanup outside runtime locks. Existing FDW
+transaction/savepoint participants coordinate their actual remote transaction;
+raw external BEGIN/COMMIT/ROLLBACK are not silently enlisted. No transport,
+socket, result, listener or live PID is serialized by native controls.
+
+The genuine pgconn-backed host fixture in `reference/tables/external_sql_provider_*`
+is test-only. Production remains standard-library/module-only; libpq-compatible
+network/TLS/authentication mechanics remain the host's responsibility.
+
+### Registered foreign callbacks
+
 - **Scans.** `ForeignDataWrapper` mirrors PostgreSQL's FDW callbacks
   (`GetForeignRelSize`, `GetForeignPaths`, `GetForeignPlan`, `BeginForeignScan`), and
   `ForeignScan` provides `IterateForeignScan`, `ReScanForeignScan` and

@@ -113,7 +113,7 @@ func PlanForeignQuery(ctx context.Context, input ForeignPlanningInput, node plan
 	}
 	for i := range request.Sources {
 		request.Sources[i].Request.Parameters = catalog.ForeignScanParameters{
-			Values: CopyForeignCells(request.Parameters.Values),
+			Values:      CopyForeignCells(request.Parameters.Values),
 			Correlation: CopyForeignCells(request.Parameters.Correlation),
 		}
 	}
@@ -180,7 +180,7 @@ func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Sta
 	}
 	first := selected.Source
 	request := selected.Request
-	f := &ForeignQuerySource{Wrapper: first.Wrapper, Request: CopyForeignRequest(first.Request), Columns: selected.Columns, ImportValue: first.ImportValue, ExportValue: first.ExportValue, Query: &foreignComposite{request: request, path: selected.Path, width: selected.Width, cache: selected.Cache}}
+	f := &ForeignQuerySource{Wrapper: first.Wrapper, Handler: first.Handler, Request: CopyForeignRequest(first.Request), Columns: selected.Columns, ImportValue: first.ImportValue, ExportValue: first.ExportValue, Query: &foreignComposite{request: request, path: selected.Path, width: selected.Width, cache: selected.Cache}}
 	first.lifetimeOwner.Add(f)
 	source := &Source{Foreign: f, Materialized: true, FlatWidth: selected.Width, Anonymous: [][]sqltype.Value{}, Authority: state.Source.Authority, Host: state.Source.Host}
 	for _, slot := range request.Stage.Slots {
@@ -205,6 +205,7 @@ func (q *foreignComposite) executionRequest(request catalog.ForeignRequest) cata
 	for i := range r.Sources {
 		r.Sources[i].Request.Parameters = request.Parameters
 		r.Sources[i].Request.Transaction = request.Transaction
+		r.Sources[i].Request.ExternalSQL = request.ExternalSQL
 		if request.Characteristics != nil {
 			modes := *request.Characteristics
 			r.Sources[i].Request.Characteristics = &modes

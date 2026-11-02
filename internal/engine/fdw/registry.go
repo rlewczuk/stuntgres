@@ -77,7 +77,7 @@ func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorD
 	r.validators = append([]ValidatorDefinition(nil), validators...)
 	r.procedures = make([]*catalog.ForeignProcedure, 0, len(wrappers)+len(validators))
 	for _, definition := range wrappers {
-		r.procedures = append(r.procedures, &catalog.ForeignProcedure{Name: definition.HandlerName, Wrapper: definition.Wrapper})
+		r.procedures = append(r.procedures, &catalog.ForeignProcedure{Name: definition.HandlerName, Wrapper: definition.Wrapper, ExternalProvider: definition.external})
 	}
 	for _, definition := range validators {
 		r.procedures = append(r.procedures, &catalog.ForeignProcedure{Name: definition.Name, Validator: definition.Validate})
@@ -129,4 +129,34 @@ func (r *Registry) NamespaceEntries() iter.Seq2[ids.ObjectAddress, string] {
 // Codecs returns the driver value codecs; ok is false until both are installed.
 func (r *Registry) Codecs() (exec.ForeignValueImporter, exec.ForeignValueExporter, bool) {
 	return r.importValue, r.exportValue, r.importValue != nil && r.exportValue != nil
+}
+
+// BindExternalProviders resolves definitions before engine publication. The
+// copied immutable token is retained by reset/restore staging definitions.
+func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.ExternalSQLProviderDefinition) ([]WrapperDefinition, error) {
+	var bound []WrapperDefinition
+	for i, wrapper := range wrappers {
+		if wrapper.ExternalProvider == "" {
+			continue
+		}
+		if bound == nil {
+			bound = append([]WrapperDefinition(nil), wrappers...)
+		}
+		var token *catalog.ExternalSQLProviderDefinition
+		for _, provider := range providers {
+			if provider.Name == wrapper.ExternalProvider {
+				copy := provider
+				token = &copy
+				break
+			}
+		}
+		if token == nil {
+			return nil, &catalog.ExternalSQLUnavailableError{Capability: wrapper.ExternalProvider}
+		}
+		bound[i].external = token
+	}
+	if bound == nil {
+		return wrappers, nil
+	}
+	return bound, nil
 }

@@ -84,8 +84,8 @@ func (h *statementHost) CTEInvocation() *exec.CTEInvocation { return h.cteInvoca
 func (h *statementHost) QueryLocks() *exec.LockContext { return h.QueryLockContext }
 
 func (h *statementHost) ReleaseReplacementRead() { h.scope().foreignUnlocked() }
-func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
-	return h.scope().enlistForeign(ctx, wrapper, request, writing)
+func (h *statementHost) EnlistForeign(ctx context.Context, source *exec.ForeignQuerySource, request *catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
+	return h.scope().enlistForeign(ctx, source, request, writing)
 }
 
 // Detached/internal evaluation can borrow a host without command admission.

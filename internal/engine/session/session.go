@@ -40,6 +40,7 @@ const (
 	Transaction
 	Notifications
 	AdvisorySession
+	ExternalSQL
 	resourceKinds
 )
 
@@ -49,8 +50,9 @@ type ResourceHandle struct {
 	serial  uint64
 }
 
-// SessionResource callbacks release in-process resources outside lifecycle locks.
-// They must not synchronously reenter lifecycle operations or perform external I/O.
+// SessionResource callbacks release owned resources outside runtime locks. Joined
+// terminal cleanup may perform I/O, but must not acquire new commands/leases,
+// synchronously reenter lifecycle operations or perform catalog maintenance.
 type SessionResource interface {
 	EndSession(ids.SessionToken, EndReason) error
 }
@@ -438,7 +440,7 @@ func (s *Session) end() {
 	for s.Leases != 0 || s.detaching {
 		s.Cond.Wait()
 	}
-	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
+	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, ExternalSQL, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
 		entry := s.Resources[kind]
 		if entry == nil {
 			continue

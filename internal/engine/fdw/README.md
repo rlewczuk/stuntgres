@@ -44,6 +44,17 @@ assumptions into remote validation scans.
   Replacement rebinds imported tokens (`RebindReplacementProviders`) before
   the single strict source-principal graph memo is constructed. Historical original carriers use that same scoped
   source-to-destination token map; retained destination TEMP authority stays separate.
+  An optional `ExternalProvider` binding resolves to an immutable authentic
+  Driver registration before engine publication. Captured ForeignQuerySource
+  handler tokens carry this binding through base/composite execution; no current
+  OID/name or wrapper-interface equality grants it. EnlistForeign populates the
+  execution-only opener after planning, even for nontransactional scans.
+  External-bound callback contexts carry exact operation/physical-owner authority;
+  planning requests remain nil. Staging definitions retain the binding without
+  opening it. Native replay uses strict original-handler/provider/version
+  prerequisites and rejects missing or same-name unbound destination capability.
+  Physical handle ownership belongs to `remote`, below existing SQL transaction
+  and cursor settlement, not this registry or catalog descriptors.
 - **Options** (`options.go`): `TransformOptions` applies ordered ADD/SET/DROP
   operations to a private copy, then validates surviving names.
 - **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of

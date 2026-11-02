@@ -211,7 +211,7 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	op := scope.Op
 	switch s := stmt.(type) {
 	case *parser.AlterTable:
-		return dispatched(tablecmds.AlterTableLocked(e, scope, op, auth, s, count, nil))
+		return dispatched(schemacmds.AlterTableColumnOptionsLocked(e, scope, auth, s, count))
 	case *parser.AlterTableDefault:
 		return dispatched(tablecmds.AlterDefaultLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAllInTablespace:

@@ -399,7 +399,7 @@ var keywords = [...]keyword{
 	{"only", Reserved, true, ONLY},
 	{"operator", Unreserved, true, 0},
 	{"option", Unreserved, true, OPTION},
-	{"options", Unreserved, true, 0},
+	{"options", Unreserved, true, FDW_OPTIONS},
 	{"or", Reserved, true, OR},
 	{"order", Reserved, false, ORDER},
 	{"ordinality", Unreserved, true, 0},

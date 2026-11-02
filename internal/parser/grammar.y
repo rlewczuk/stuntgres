@@ -394,7 +394,7 @@ package parser
 %token <tok> EXCLUDE
 %token <tok> POLICY
 %token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD CHECKPOINT
-%token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
+%token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT FDW_OPTIONS
 %token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
 %token <tok> TS_CONFIGURATION TS_TEMPLATE TS_PARSER
 %token <tok> SUBSCRIPTION PUBLICATION
@@ -430,6 +430,9 @@ package parser
 /* Attribute dependency modes terminate a complete type, including generic
  * names such as smallint, rather than extending a two-word type spelling. */
 %nonassoc CASCADE RESTRICT
+/* Column OPTIONS terminates a generic declaration type. Keep other unreserved
+ * words at their existing invalid-type-tail precedence. */
+%nonassoc FDW_OPTIONS
 %nonassoc TYPE_NAME
 /* Retain contextual type-tail shifts instead of relying on yacc defaults. */
 %nonassoc INDEX CONCURRENTLY
@@ -1872,7 +1875,7 @@ typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=&TableElement{Column:
  | typed_element NOT_DEFERRABLE_LA DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,false){return 1};$$=$1}
  | typed_element DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,true){return 1};$$=$1}
  | typed_element INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).elementTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
-options_word: KW_U {if $1.text!="options" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+options_word: FDW_OPTIONS {$$=$1} ;
 query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
  | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
  | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
@@ -2797,7 +2800,7 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetReplicaIdentity && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression && a.Action!=SetColumnStatistics && a.Action!=SetColumnOptions && a.Action!=ResetColumnOptions {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && !(a.Action==AddColumn && a.Definition!=nil && len(a.Definition.ForeignOptions)!=0) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetReplicaIdentity && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression && a.Action!=SetColumnStatistics && a.Action!=SetColumnOptions && a.Action!=ResetColumnOptions {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | ALTER MATERIALIZED VIEW ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$7.text,Pos:$7.pos},Destination:Identifier{Text:$11.text,Pos:$11.pos},Owners:$8,Nowait:$12,Materialized:true,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
@@ -2837,11 +2840,9 @@ alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
  | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
 ordinary_alter_action: alter_selected_action {$$=$1}
- | alter_column_add {if $1.ColumnOptions!=nil {sqllex.(*lexer).syntax($1.columnOptionsToken);return 1};sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos:$1.Ordinary.Pos},$1.Ordinary.Definition);$$=$1.Ordinary} ;
-alter_column_add: ADD optional_column column {c:=$3;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
- | ADD optional_column IF NOT EXISTS column {c:=$6;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
- | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
- | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
+ | alter_column_add {sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos:$1.Ordinary.Pos},$1.Ordinary.Definition);$$=$1.Ordinary} ;
+alter_column_add: ADD optional_column column {c:=$3;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}}
+ | ADD optional_column IF NOT EXISTS column {c:=$6;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
  | KW_U IDENTITY DEFAULT {if $1.text!="replica" {sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:SetReplicaIdentity,ReplicaIdentity:ReplicaIdentityDefault,Pos:$1.pos}}
  | KW_U IDENTITY FULL {if $1.text!="replica" {sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:SetReplicaIdentity,ReplicaIdentity:ReplicaIdentityFull,Pos:$1.pos}}
@@ -2934,7 +2935,7 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
 /* EXISTS cannot start an ALTER action: retain it for IF EXISTS lookahead,
  * rather than competing with an unqualified relation literally named if. */
 alter_action: generic_word_without_exists | SET ;
-column: name type column_collation nullability { $$ = &Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
+column: name type foreign_options column_collation nullability { $$ = &Column{Name:$1.text, TypeName:$2, ForeignOptions:$3, Collation:$4, Constraints:$5, Pos:$1.pos} } ;
 /* Signatures reuse valid declaration builders, never the broad two-word
  * column diagnostic guard. Parameter names and generic type names reduce
  * through the same type_name category, avoiding duplicate name derivations. */
@@ -3997,7 +3998,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | ENFORCED | CLUSTER | REFERENCING
- | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT | FDW_OPTIONS
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
  | SUBSCRIPTION | PUBLICATION
@@ -4062,7 +4063,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | ENFORCED
  | PL_SLICE
  | EXPLAIN
- | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT | FDW_OPTIONS
  | TRIGGER | EVENT | REFERENCING
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
@@ -4110,7 +4111,7 @@ generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE
 generic_word_without_frame: generic_word_base_without_vacuum_frame | STATISTICS | VACUUM | EXPLAIN | ANALYZE | CLUSTER | WITH | EXISTS ;
 generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | STATISTICS | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT | FDW_OPTIONS
  | TRIGGER | EVENT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
@@ -4536,7 +4537,7 @@ foreign_table_head: CREATE FOREIGN TABLE relation_name '(' foreign_optional_elem
 } ;
 foreign_optional_elements: /* empty */ {$$=foreignElements{}} | foreign_elements {$$=$1} ;
 foreign_elements: foreign_element {$$=$1} | foreign_elements ',' foreign_element {$$=appendForeignElements($1,$3)} ;
-foreign_element: name type foreign_options column_collation nullability {$$=foreignColumn(&Column{Name:$1.text,TypeName:$2,Collation:$4,Constraints:$5,Pos:$1.pos},$3)}
+foreign_element: column {$$=foreignColumn($1,$1.ForeignOptions)}
  | LIKE relation_name like_options {$$=foreignElements{elements:[]TableElement{{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos}}}}
  | check_constraint {$$=foreignElements{elements:[]TableElement{{Check:$1,Pos:$1.Pos}}}}
  | create_not_null {$$=foreignElements{elements:[]TableElement{{NotNull:$1,Pos:$1.Pos}}}}

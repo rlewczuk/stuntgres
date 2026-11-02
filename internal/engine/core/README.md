@@ -53,6 +53,14 @@ diagnostic copy. The canonical physical fatal stays positionless for later API
 use; cached-execution and COPY admission keep their existing location fences.
 Query cancellation `57014` continues to bypass that relation-position callback.
 
+`external_sql.go` binds the captured genuine foreign-procedure token to its
+registered external provider only at the unlocked execution gateway. The
+physical session payload lazily attaches `remote.Owner` before first Open.
+Callback contexts identify the exact executing operation; no opener enters
+planning or persistent catalogs. Existing transaction/cursor owners settle their
+actual remote work first; exact-owner terminal cleanup strips opener authority,
+then the external resource closes/joins every remaining physical handle.
+
 
 Application-provisioned scalar host routines use the same typed frame, invocation
 depth, EXECUTE admission, security/settings environment, volatility policy and

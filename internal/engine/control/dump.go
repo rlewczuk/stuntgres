@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
@@ -114,6 +115,11 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 	}
 	for _, runtime := range capture.CatalogView.Owner().HostRuntimes {
 		if err := w.emit(runtime.ReplayComment()); err != nil {
+			return err
+		}
+	}
+	for _, required := range fdw.ExternalRequirements(capture.CatalogView) {
+		if err := w.emit(required.Comment()); err != nil {
 			return err
 		}
 	}

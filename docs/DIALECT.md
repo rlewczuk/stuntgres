@@ -1,8 +1,8 @@
 # SQL dialect boundaries
 
-This document records the tablespace lifecycle boundary. Other feature contracts
-remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md) and the owning
-reference package documentation.
+This document records logical SQL versus external-mechanism ownership boundaries.
+Other feature contracts remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md)
+and the owning reference package documentation.
 
 ## Tablespaces
 
@@ -89,3 +89,30 @@ See [reference selectors](../reference/catalog_privileges/README.md#testing) for
 `TestTablespaceLifecycle` units. Run changed reference definitions in both modes.
 Native Dump/Reset/Restore semantics and the safe PG builtin rollback phases are
 documented in [FIXTURES.md](FIXTURES.md).
+
+## External SQL provider ownership
+
+The native engine consumes a host-registered external SQL capability through its
+existing GO foreign-handler and transaction contracts. Registration, captured SQL
+caller/mapping authority, result/error ownership, cancellation and joined physical
+session cleanup are engine responsibilities. Remote authentication, conninfo
+interpretation, sockets, PostgreSQL wire/libpq behavior, TLS, SCRAM/GSS delegation
+and native ABI/process resources are host mechanisms, not embedded equivalents.
+An absent capability is an ordinary typed unavailable error, never a successful
+empty query or an in-process remote substitute.
+
+Root Driver DSNs remain exact opaque engine keys. External endpoint/credential
+requests are separate data; no root DSN becomes a PostgreSQL connection string.
+The reference host uses actual pinned PostgreSQL and pgconn only in explicit
+physical phases. Its PostgreSQL comparison consumer is the server's stock
+`postgres_fdw`; its native consumer is a genuinely registered GO handler using
+the owned external capability. This boundary does not install stock
+postgres_fdw handler/validator implementations or add dblink connection/query/
+async/cursor SQL routines. Current installed dblink constructor/pkey identities
+remain ordinary persistent extension objects.
+
+Persistent wrapper/server/mapping/table/view identities and local data use native
+Dump/Restore; remote rows and live connections/listeners/transactions do not.
+Remote notifications retain real PostgreSQL sender PIDs separately from native
+logical session IDs. Raw external transactions are independent unless an actual
+FDW participant enlists through the existing local transaction owner.

@@ -63,6 +63,10 @@ The root keeps Dump's `Engine.Mu` window and Collect inputs
 (`captureDumpLocked`, `dump_capture.go`), the restore stage, and `restoreRun`
 with every `restoreHooks` entry (`restore_hooks.go`; an entry's position
 fixes when it runs within its phase).
+External SQL binding prerequisites use this same decode/Finish table: source
+registration names/versions select genuine destination tokens, never source
+callback pointers or executable SQL-name fallbacks. Remote physical resources
+remain with core's session owner and are never reconstructed by replay.
 
 Generated partition scratch teardown stays in `restoreRun`'s one private capture
 map. Admission captures real pre-detach identities; the After hook records

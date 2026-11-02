@@ -40,12 +40,12 @@ func (c *conn) check(ctx context.Context) error {
 	return c.terminalError(c.session.Check(ctx))
 }
 
-// An accepted fatal is never ErrBadConn (database/sql could replay it). Only
-// subsequent pre-admission use of this already-reported dead owner gets that
-// sentinel; pool Validator/ResetSession can discard it without any SQL replay.
+// An accepted native fatal is never ErrBadConn (database/sql could replay it).
+// Only an actually dead local owner is marked terminal; a genuine external
+// FATAL diagnostic does not terminate its otherwise-live consuming session.
 func (c *conn) terminalError(err error) error {
 	var diagnostic *Error
-	if errors.As(err, &diagnostic) && diagnostic.Severity == "FATAL" {
+	if errors.As(err, &diagnostic) && diagnostic.Severity == "FATAL" && !c.session.IsLive() {
 		c.terminalReported.Store(true)
 	}
 	return err

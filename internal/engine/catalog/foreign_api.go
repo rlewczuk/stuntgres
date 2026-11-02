@@ -46,6 +46,7 @@ type ForeignRequest struct {
 	ServerOID, MappingOID, HandlerOID uint32
 	// Execution-only; planning requests never contain a provider transaction.
 	Transaction     ForeignTransaction
+	ExternalSQL     ExternalSQLSession
 	Identity        *ForeignUpdateTargets
 	RowMark         *ForeignRowMarkPlan
 	Characteristics *ForeignTransactionCharacteristics

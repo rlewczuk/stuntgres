@@ -292,7 +292,21 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 		tag = "CREATE FOREIGN TABLE"
 	}
 	ddl.RecordCommand(h.Stage(), tag, d.Address())
-	return StageCreateForeignKeys(h, auth, d, s, foreignTargets)
+	if err := StageCreateForeignKeys(h, auth, d, s, foreignTargets); err != nil {
+		return err
+	}
+	// PostgreSQL applies column FDW options after ordinary creation work,
+	// through a queued ALTER FOREIGN TABLE. Preserve the execution-time kind
+	// error after normal name, authority and declaration admission, while
+	// everything is still private to this statement's discarded-on-error stage.
+	if kind != catalog.ForeignRelation {
+		for _, element := range s.Elements {
+			if element.Column != nil && len(element.Column.ForeignOptions) != 0 {
+				return sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, name))
+			}
+		}
+	}
+	return nil
 }
 
 // CreateCheckSyntax collects the table and column CHECK constraints of

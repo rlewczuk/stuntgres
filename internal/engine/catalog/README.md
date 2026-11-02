@@ -33,6 +33,12 @@ neither owns catalog authority.
   mapping; its sampler receives full owner mapping authority.
   ForeignSample owns actual required-attribute rows and separate live/dead/page
   estimates. No callback, private plan or sample is persistent catalog data.
+  `external_sql_api.go` defines host external connection/result/notification
+  records with standard Go values only. An authentic ForeignProcedure can bind
+  an immutable registered provider token; ForeignRequest carries its opener only
+  during execution. Private callback-context tagging grants no catalog/session
+  authority by itself; remote/core revalidate the genuine operation and token.
+  Flat text cells preserve NULL and empty descriptors without codec duplication.
 
 - **Descriptors.** `Descriptor` is the identity contract (`Address`, `Revision`,
   `Namespace`, `Name`, `Kind`) of every kind (namespaces, relations, types,

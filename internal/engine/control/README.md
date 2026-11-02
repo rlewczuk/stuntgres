@@ -894,6 +894,14 @@ This is private atomic replay sequencing, not public CREATE admission relaxation
 registration purity relabeling, fabricated history or non-host callback admission.
 The prerequisite/absence envelopes and strict source owner imports are unchanged.
 
+External-bound GO handlers use `fdw.ExternalRequirement` comments in the same
+native prerequisite preamble. Canonical original handler identity, provider name
+and version are checked against authentic destination tokens by Restore's decode
+and Finish hooks. Missing, duplicate, malformed or mismatched requirements abort
+the private stage without replacing its target. No external Open, query,
+cancellation or notification callback runs during capture/replay, and no live
+handle or remote row is represented by these registration prerequisites.
+
 ### Host contract
 
 `Host` is the engine's side of one Restore (root `restoreHost`):

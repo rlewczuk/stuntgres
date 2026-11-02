@@ -97,7 +97,7 @@ func (*rowMarkHostProbe) Environments() (sqltype.InputEnvironment, sqltype.Outpu
 func (*rowMarkHostProbe) CTEInvocation() *CTEInvocation                               { return nil }
 func (*rowMarkHostProbe) ReleaseReplacementRead()                                     {}
 func (*rowMarkHostProbe) TouchForeignScan(context.Context, *ForeignQuerySource) error { return nil }
-func (h *rowMarkHostProbe) EnlistForeign(context.Context, catalog.ForeignDataWrapper, catalog.ForeignRequest, bool) (catalog.ForeignTransaction, error) {
+func (h *rowMarkHostProbe) EnlistForeign(context.Context, *ForeignQuerySource, *catalog.ForeignRequest, bool) (catalog.ForeignTransaction, error) {
 	return h.tx, nil
 }
 func (*rowMarkHostProbe) ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error) {
@@ -147,26 +147,44 @@ func TestForeignRowMarkPlanningOwnership(t *testing.T) {
 		p := &rowMarkProbe{selected: catalog.ForeignRowMarkPlan{Type: kind, Identity: catalog.ForeignUpdateTargets{Names: []string{"rid"}}}}
 		input := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{1}, Characteristics: &catalog.ForeignTransactionCharacteristics{Isolation: "serializable"}, Transaction: &rowMarkTransactionProbe{}}
 		mark := plan.RowMark{}
-		if kind == catalog.ForeignRowMarkUpdate { mark.Mode = lock.ForUpdate }
+		if kind == catalog.ForeignRowMarkUpdate {
+			mark.Mode = lock.ForUpdate
+		}
 		selected, err := PlanForeignRowMark(ctx, p, input, mark)
-		if err != nil { t.Fatal(err) }
-		if selected.Transaction != nil || selected.Characteristics != nil || p.seen.Transaction != nil || p.seen.Characteristics != nil || !reflect.DeepEqual(selected.RequiredAttributes, []int32{1, 3}) { t.Fatal("runtime state or narrowed tuple in planning", selected, p.seen) }
+		if err != nil {
+			t.Fatal(err)
+		}
+		if selected.Transaction != nil || selected.Characteristics != nil || p.seen.Transaction != nil || p.seen.Characteristics != nil || !reflect.DeepEqual(selected.RequiredAttributes, []int32{1, 3}) {
+			t.Fatal("runtime state or narrowed tuple in planning", selected, p.seen)
+		}
 		execution := &ForeignExecution{}
 		source := &ForeignQuerySource{Wrapper: p}
-		if err := source.Plan(ctx, selected, execution); err != nil { t.Fatal(err) }
+		if err := source.Plan(ctx, selected, execution); err != nil {
+			t.Fatal(err)
+		}
 		for _, request := range p.planning {
-			if request.RowMark == nil || request.RowMark.Type != kind || request.Transaction != nil || request.Characteristics != nil || !reflect.DeepEqual(request.RequiredAttributes, []int32{1,3}) { t.Fatal("planning callbacks disagree",request) }
+			if request.RowMark == nil || request.RowMark.Type != kind || request.Transaction != nil || request.Characteristics != nil || !reflect.DeepEqual(request.RequiredAttributes, []int32{1, 3}) {
+				t.Fatal("planning callbacks disagree", request)
+			}
 			request.RequiredAttributes[0] = 99
 			request.RowMark.Identity.Names[0] = "callback"
 		}
-		if selected.RequiredAttributes[0] != 1 || selected.RowMark.Identity.Names[0] != "rid" || input.RequiredAttributes[0] != 1 || p.selected.Identity.Names[0] != "rid" { t.Fatal("planning backing aliases callback or caller") }
+		if selected.RequiredAttributes[0] != 1 || selected.RowMark.Identity.Names[0] != "rid" || input.RequiredAttributes[0] != 1 || p.selected.Identity.Names[0] != "rid" {
+			t.Fatal("planning backing aliases callback or caller")
+		}
 		if kind == catalog.ForeignRowMarkCopy {
-			if selected.Identity != nil { t.Fatal("COPY acquired identity") }
+			if selected.Identity != nil {
+				t.Fatal("COPY acquired identity")
+			}
 		} else {
 			selected.Identity.Names[0] = "identity-only"
-			if selected.RowMark.Identity.Names[0] != "rid" { t.Fatal("identity aliases selected rowmark") }
+			if selected.RowMark.Identity.Names[0] != "rid" {
+				t.Fatal("identity aliases selected rowmark")
+			}
 		}
-		if p.refetches != 0 || p.begin.RowMark != nil { t.Fatal("planning entered runtime") }
+		if p.refetches != 0 || p.begin.RowMark != nil {
+			t.Fatal("planning entered runtime")
+		}
 	}
 }
 

@@ -84,6 +84,16 @@ ordinary assignments to an unreserved `security` variable.
   FOREIGN KEY and EXCLUDE clauses retain their CONSTRAINT position separately
   from the ordinary clause keyword position. Foreign ADD COLUMN reaches semantic
   declaration admission rather than ordinary-table capability deferrals.
+  OPTIONS has its own nonreserved terminal so it ends a complete generic
+  column type before column options, including BYTEA/custom/array declarations
+  and ADD COLUMN. It keeps ordinary identifier/type/function-name membership;
+  other generic invalid-type tails retain their existing precedence and
+  diagnostics. Shared `Column.ForeignOptions` retains ordered option syntax
+  without resolving relation kind. Ordinary CREATE/ALTER reach execution-time
+  kind admission; foreign declarations derive their existing option maps/actions
+  from the same positioned column rather than discarding or reparsing options.
+  The existing ALTER IF EXISTS action guard admits option-bearing ADD COLUMN
+  through that same semantic path without broadening unrelated action guards.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
   Ordinary UNLOGGED table declarations remain distinct from query-derived

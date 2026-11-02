@@ -16,7 +16,7 @@ import (
 // participant enlistment, modification tracking for statement end, and the
 // value environments. The engine's statementHost implements it.
 type WriteRuntime interface {
-	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+	EnlistForeign(ctx context.Context, source *exec.ForeignQuerySource, request *catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
 	ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error)
 	TrackForeignModification(m *Modification)
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
@@ -75,11 +75,12 @@ func (m *Modification) Begin(ctx context.Context, rt WriteRuntime) error {
 		return err
 	}
 	m.Request.Characteristics = characteristics
-	tx, err := rt.EnlistForeign(ctx, m.Source.Wrapper, m.Request.ForeignRequest, true)
+	tx, err := rt.EnlistForeign(ctx, m.Source, &m.Request.ForeignRequest, true)
 	if err != nil {
 		return err
 	}
 	m.Request.Transaction = tx
+	ctx = catalog.ExternalSQLExecutionContext(ctx, m.Request.ExternalSQL)
 	m.entered = true
 	rt.TrackForeignModification(m)
 	if m.Copy {
@@ -100,6 +101,7 @@ func (m *Modification) CallbackRequest() catalog.ForeignModifyRequest {
 }
 
 func (m *Modification) End(ctx context.Context) error {
+	ctx = catalog.ExternalSQLExecutionContext(ctx, m.Request.ExternalSQL)
 	if m.ended || !m.entered {
 		return m.endError
 	}
@@ -138,6 +140,7 @@ func (m *Modification) Returned(ctx context.Context, row catalog.ForeignRow, rt 
 }
 
 func (m *Modification) InsertRows(ctx context.Context, rt WriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
+	ctx = catalog.ExternalSQLExecutionContext(ctx, m.Request.ExternalSQL)
 	batch, hasBatch := m.Source.Wrapper.(catalog.ForeignBatchInserter)
 	sizer, hasSize := m.Source.Wrapper.(catalog.ForeignBatchSizer)
 	size := 1

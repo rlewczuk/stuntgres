@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/remote"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -677,6 +678,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 }
 
 func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
+	if PayloadOf(t.Session).externalSQL != nil {
+		ctx = remote.CleanupContext(ctx, t.Session.Token())
+	}
 	t.Mu.Lock()
 	x := ownerExtensionOf(t)
 	cursors, participants := x.cursorCleanup, x.foreign.TakeCleanup()

@@ -51,6 +51,43 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   Repeated-invocation scenarios release the external gate and inspect live
   resource high-water bounds, distinguishing optional async requests from
   synchronous HTTP reads and live cursors from cumulative ReScan generations.
+- Genuine external PostgreSQL ownership uses
+  `external_sql_provider_*_test.go`, not the in-process reader or HTTP source.
+  Contract/registration phases are Docker-free; physical phases run only with
+  `REFERENCE=1` and use the pinned fixture for both native GO-handler and stock
+  postgres_fdw consumers. Every native scan opens through its injected execution
+  capability and genuine transaction participant. Caller/mapping credentials,
+  actual PID admission/exit, owned text descriptors/results/errors, cancellation,
+  remote notifications and native destination prerequisites have independent
+  assertions. Close joins workers before fixture/schema/role cleanup.
+  The pgconn adapter copies each live result descriptor before row iteration or
+  reader close, and copies each text/NULL cell before advancing; `ReadAll` in
+  the pinned pgconn version omits descriptors for empty tuples. Physical/smoke
+  witnesses retain both full and empty four-column results plus an empty,
+  differently named varchar(7) result across later activity. Assertions inside
+  active GO callbacks return errors to unwind the SQL request; never call
+  `testing.T.Fatal`/`FailNow` there or capture a parent T for callback failure.
+  Raw bytea cells remain PostgreSQL output text; the genuine fixture handler
+  decodes them once through pgx's ByteaCodec when exporting ForeignRow driver
+  values, keeping NULL distinct from non-NULL empty bytes.
+  The shared Contracts phase also preserves unqualified BYTEA/custom/array column
+  OPTIONS, NOT NULL ordering and quoted/unreserved names through CREATE, ADD and
+  native dump replay; ordinary-table column OPTIONS specifies the released
+  semantic 42809 kind rejection, not guessed parser syntax failure. Malformed
+  type tails retain their separate full syntax diagnostics.
+  CREATE/ALTER kind failures must occur at execution, including prepared calls,
+  and leave no created relation, added column or changed sentinel. Multi-action
+  failure rolls back the earlier ADD. Ordinary ALTER of a genuine foreign table
+  applies new-column options, but skipped ADD IF NOT EXISTS leaves existing
+  options unchanged despite the written extra option; ordinary targets skip
+  their unused column option clause as well.
+  Focused `TestReferenceExternalSQLProviderColumnOptionsDropAddOrdinary`,
+  `TestReferenceExternalSQLProviderColumnOptionsDropAddForeign` and
+  `TestReferenceExternalSQLProviderColumnOptionsSkippedAdd` distinguish actual
+  phased DROP/re-add admission from unchanged-column skips, direct/prepared and
+  through both foreign ALTER spellings. They check full execution diagnostics,
+  original ordinary rows/schema, replacement options and real public SQL
+  validator rejection with atomic original-schema preservation.
 - Native-control phases replay their actual Dump output, unmodified, on
   PostgreSQL. Roles named by the dump must already exist there: Dump serializes
   their object/schema ACLs, not role definitions or memberships. Register
@@ -121,6 +158,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   sequence also detects duplicate evaluations surviving rollback. PostgreSQL's
   independently established early-lock RR snapshot instead raises `40001`
   before projection, with exact remote Context and zero sequence invocations.
+- External SQL provider family: `RUN='^(TestReferenceExternalSQLProvider|TestExternalSQLProvider)'`.
+- External column-option DROP/re-add regressions:
+  `RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'`.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - Foreign explain and sampled analysis: `RUN='^TestReferenceFDW(Explain|Analyze)'`.
   The real SQL reader uses reservoir sampling with separate population estimates;

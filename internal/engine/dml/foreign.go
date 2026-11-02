@@ -222,10 +222,12 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 	planning := exec.CopyForeignRequest(r)
 	planning.Transaction = nil
 	planning.Characteristics = nil
+	planning.ExternalSQL = nil
 	if err := f.Plan(ctx, planning, execution); err != nil {
 		return nil, err
 	}
 	f.Executions = append(f.Executions, execution)
+	ctx = catalog.ExternalSQLExecutionContext(ctx, r.ExternalSQL)
 	scan, err := f.Wrapper.BeginForeignScan(ctx, exec.CopyForeignRequest(r), execution.Plan)
 	execution.Scan = scan
 	if err != nil {
@@ -278,6 +280,7 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 	if err != nil {
 		return Outcome{}, err
 	}
+	ctx = catalog.ExternalSQLExecutionContext(ctx, m.Request.ExternalSQL)
 	var from plan.Node
 	predicate := b.Predicate
 	sourceWidth := b.Delete.SourceWidth

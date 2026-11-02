@@ -15,6 +15,7 @@ import (
 var restoreHooks = []control.Hook[*restoreRun]{
 	// Line comment decoders.
 	{Name: "host runtime prerequisites", Decode: decodeRestoreHostRequirement},
+	{Name: "external SQL prerequisites", Decode: decodeRestoreExternalRequirement, Finish: finishRestoreExternalRequirements},
 	{Name: "host pair absence boundary", Decode: decodeRestoreHostAbsences},
 	{Name: "typedef: domain replay records", Decode: decodeRestoreDomainReplay},
 	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},

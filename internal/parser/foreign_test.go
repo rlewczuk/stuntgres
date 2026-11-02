@@ -138,8 +138,6 @@ func TestFDWParser(t *testing.T) {
 		"DROP USER MAPPING FOR PUBLIC SERVER s CASCADE",
 		"CREATE USER MAPPING FOR SESSION_USER SERVER s",
 		"ALTER FOREIGN TABLE f OPTIONS(DROP a 'value')",
-		"ALTER TABLE child ADD COLUMN note text OPTIONS(column_name 'remote')",
-		"ALTER TABLE child ADD COLUMN IF NOT EXISTS note text OPTIONS(column_name 'remote')",
 		"ALTER FOREIGN TABLE f RENAME CONSTRAINT old TO renamed",
 	} {
 		if _, err := Parse(q); err == nil {
@@ -154,6 +152,8 @@ func TestFDWParser(t *testing.T) {
 		"CREATE TABLE child(id integer REFERENCES parent(id),FOREIGN KEY(id) REFERENCES parent(id))",
 		"ALTER TABLE child ADD COLUMN note text",
 		"ALTER TABLE child ADD COLUMN IF NOT EXISTS note text",
+		"ALTER TABLE child ADD COLUMN note text OPTIONS(column_name 'remote')",
+		"ALTER TABLE child ADD COLUMN IF NOT EXISTS note text OPTIONS(column_name 'remote')",
 		"GRANT USAGE ON FOREIGN SERVER s TO reader",
 		"GRANT USAGE ON FOREIGN DATA WRAPPER w TO reader",
 	} {

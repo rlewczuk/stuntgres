@@ -90,6 +90,12 @@ A later phase cannot upgrade an already fixed pair with current roots.
   metadata is installed privately before any rewrite callback or heap work.
   Physical work retains its original source layout and storage fences, and
   merges only into the latest private journal.
+  Its optional admitted-ADD collector reports original action indexes only for
+  successful, non-skipped ADDs in the evolving phased relation, including cached
+  inheritance actions. Inheritance forwards it only to the named root, never
+  descendants. Column-option routing consumes it only after a successful prefix
+  in the same statement journal; unrelated callers pass nil and allocate no
+  admission tracking.
   Parent DEFAULT runtime preflight precedes a later inherited-action selection
   diagnostic. The prewalk retains that semantic diagnostic on its prepared
   descendant and replays it only at the actual sole-stage visit; grants,

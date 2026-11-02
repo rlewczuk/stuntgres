@@ -53,7 +53,7 @@ func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.Forei
 			return nil
 		}
 	}
-	_, err := s.enlistForeign(ctx, source.Wrapper, r, false)
+	_, err := s.enlistForeign(ctx, source, &r, false)
 	return err
 }
 func (s *StatementScope) foreignUnlocked() {
@@ -65,8 +65,13 @@ func (s *StatementScope) foreignUnlocked() {
 
 // Owner admission serializes this slice; mutexes protect only state capture and
 // fences, never application I/O. No registry or context outlives this owner.
-func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
+func (s *StatementScope) enlistForeign(ctx context.Context, source *exec.ForeignQuerySource, request *catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
 	s.foreignUnlocked()
+	if err := s.externalSQLCapability(source.Handler, request); err != nil {
+		return nil, err
+	}
+	wrapper := source.Wrapper
+	ctx = catalog.ExternalSQLExecutionContext(ctx, request.ExternalSQL)
 	characteristics, err := s.foreignCharacteristics()
 	if err != nil {
 		return nil, err
@@ -92,7 +97,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	t.Mu.Unlock()
 	if participant == nil {
 		var err error
-		participant, err = fdw.BeginParticipant(ctx, provider, key, request, marks)
+		participant, err = fdw.BeginParticipant(ctx, provider, key, *request, marks)
 		if err != nil {
 			return nil, err
 		}

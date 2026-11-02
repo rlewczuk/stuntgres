@@ -545,11 +545,12 @@ type Identifier struct {
 }
 type ObjectName struct{ Parts []Identifier }
 type Column struct {
-	Name        string
-	TypeName    TypeName
-	Constraints []ColumnConstraint
-	Collation   *ObjectName
-	Pos         Position
+	Name           string
+	TypeName       TypeName
+	Constraints    []ColumnConstraint
+	Collation      *ObjectName
+	ForeignOptions []ForeignOption
+	Pos            Position
 }
 
 type IdentityMode uint8

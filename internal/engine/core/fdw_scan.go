@@ -31,7 +31,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
-	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: importer, ExportValue: exporter}
+	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Handler: handler, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: importer, ExportValue: exporter}
 	scope.ownForeignSource(f)
 	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
 }

@@ -27,6 +27,9 @@ type foreignCapturedRow struct {
 // Callback requests are copied separately; a rescan replaces, never mutates,
 // this snapshot so earlier captures retain their parameters and selected mark.
 func (execution *ForeignExecution) snapshotRequest(request catalog.ForeignRequest) {
+	// Captured rows/cursors may outlive this operation. The transaction and
+	// owned connection persist under their owners, never its Open capability.
+	request.ExternalSQL = nil
 	if request.RowMark == nil {
 		execution.request = CopyForeignRequest(request)
 		execution.markRequest = nil
@@ -86,6 +89,7 @@ func validateForeignMark(wrapper catalog.ForeignDataWrapper, request catalog.For
 	}
 	return nil
 }
+
 // PlanForeignRowMark negotiates scan metadata without starting a scan or transaction.
 func PlanForeignRowMark(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, mark plan.RowMark) (catalog.ForeignRequest, error) {
 	request = CopyForeignRequest(request)

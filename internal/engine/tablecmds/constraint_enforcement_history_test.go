@@ -83,7 +83,7 @@ func TestConstraintEnforcementHistoryOrdering(t *testing.T) {
 			t.Cleanup(func() { scope.Inheritance.Alter = nil; e.DiscardCatalogStage(stage) })
 			var physical []tablecmds.AlterTablePhysical
 			e.Mu.Lock()
-			_, err = tablecmds.AlterTableLocked(e, scope, op, auth, raw, 0, &physical)
+			_, err = tablecmds.AlterTableLocked(e, scope, op, auth, raw, 0, &physical, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

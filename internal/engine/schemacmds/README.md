@@ -146,6 +146,18 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   RENAME and SET SCHEMA to the shared relation executors. Ordinary descriptor
   actions use tablecmds' hierarchy/identity stage with no foreign heap phase;
   option-bearing actions retain ordered unlocked validator jobs.
+  `AlterTableColumnOptionsLocked` serves ordinary ALTER TABLE column OPTIONS:
+  tablecmds first performs genuine target/owner/existence/ADD admission, then the
+  same statement journal runs the existing foreign option tail and validators.
+  A nonforeign target fails 42809 without publishing the ordinary prefix.
+  IF EXISTS missing targets skip the tail. Both ALTER spellings select ADD-option
+  tails from tablecmds' actual admitted ADD action indexes, including cached
+  inheritance execution, not from the original relation's column names. DROP
+  precedes ADD, so dropping and re-adding an existing column applies its new
+  options and validates them; a truly skipped IF NOT EXISTS ADD leaves its
+  options unapplied on either ordinary or foreign targets. Kind and validator
+  failures roll back the prefix in the same statement journal. Prepared ASTs
+  are never mutated.
   Foreign PARTITION OF uses the shared pending partition definition and completes
   bounds/parent dependencies before entering the same CREATE validator phases.
   DROP uses the shared expression closure followed by owned-sequence retirement,

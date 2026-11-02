@@ -59,6 +59,12 @@ Each ReScan instead re-exports the current typed frame and output environment
 under its current demand context through the existing scan owner, without
 rediscovery, another import or expression evaluation. The explained selection
 and its private token remain unchanged.
+External-bound sources retain only their authentic installation token through
+planning. Enlistment injects an operation-bound opener into actual execution
+callbacks with a private matching context; planning/Describe receive nil.
+Captured row-mark/rescan request snapshots discard the opener, retaining no
+completed operation through a live cursor. Owned external connections and existing
+transaction participants have their separate physical-session lifetime.
 Modification planning checks observation presence before making its optional
 defensive callback request; ordinary unobserved execution makes no unused copy.
 

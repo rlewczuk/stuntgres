@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/remote"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
@@ -22,6 +23,7 @@ type sessionPayload struct {
 	sqlRoutines    map[ids.ObjectAddress]sqlRoutineAnalysis
 	Sequences      sequence.SessionMemory
 	notifications  session.NotificationListener
+	externalSQL    *remote.Owner          // Physical command admission serializes initial attachment.
 	thesaurusMemos tsearch.ThesaurusMemos // Engine.Mu; this session's successful initializations.
 	statsWriter    statistics.Writer      // Transaction admission serializes collection and drains.
 	statsReader    statistics.Reader      // Cleared at every transaction terminal boundary.

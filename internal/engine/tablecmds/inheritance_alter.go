@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation, method table.AccessMethodPreparation) (result core.Result, err error) {
+func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation, method table.AccessMethodPreparation, admittedAdds *[]int) (result core.Result, err error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)
 	if err != nil {
@@ -132,9 +132,22 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		childAuth := auth
 		childAuth.Catalog = e.StageRead(stage)
 		childAuth.Recapture(childAuth.Catalog)
+		var admittedSink *[]int
+		first := 0
+		if index == 0 {
+			admittedSink = admittedAdds
+			if admittedSink != nil {
+				first = len(*admittedSink)
+			}
+		}
 		e.Mu.Lock()
-		if _, err := AlterTableLocked(e, scope, op, childAuth, &command, count, &physicalWork); err != nil {
+		if _, err := AlterTableLocked(e, scope, op, childAuth, &command, count, &physicalWork, admittedSink); err != nil {
 			return core.Result{}, err
+		}
+		if admittedSink != nil && len(planned) != len(raw.Actions) {
+			if err := remapAdmittedAdds((*admittedSink)[first:], planned, raw.Actions); err != nil {
+				return core.Result{}, err
+			}
 		}
 	}
 	scope.StatementMutation = original
