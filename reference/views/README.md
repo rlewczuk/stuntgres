@@ -39,6 +39,13 @@ allowing peers to read the old committed result.
   `held` flag: direct Query and a held prepared Query can expose different result
   descriptions for rule actions, so keep both routes and never relabel a
   repeated direct Query as prepared.
+- `materializedStorageRoutes` / `materializedStorageRoutesMode` give each direct
+  and held route its own scenario. The retained Conn-owned statement map and
+  assertions share the actual scenario subtest owner. Storage metadata, row bags,
+  transaction visibility and lock/cancellation witnesses use the common fixture;
+  native controls retain genuine snapshots and replay the actual emitted SQL on
+  PostgreSQL. Bulk fixtures use genuine server tablespaces for physical movement
+  and explicit native builtin-boundary phases, never a synthetic placement store.
 - `transactionalRulesRoutes` gives each autocommit/SQL BEGIN/Go BeginTx and
   direct/held cell its own fixture. `transactionalRulesHandles` prepares actual
   Conn-owned utility and DML handles before BEGIN, including utility targets

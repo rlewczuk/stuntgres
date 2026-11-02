@@ -358,8 +358,10 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	hasColumnStorage := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.ColumnStorageAction(a.Action) })
 	hasColumnStatistics := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return table.ColumnStatisticsAction(a.Action) })
 	hasReplicaIdentity := slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetReplicaIdentity })
+	materializedOptions := false
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
+		materializedOptions = materializedOptions || old.RelationKind == catalog.MaterializedViewRelation && table.RelationOptionsAction(action.Action)
 	}
 	// Keep shape/generated/identity phases. Index metadata precedes other
 	// constraint bindings; historical row checks run only after index builds.
@@ -368,6 +370,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		attachmentIndex := 0
 		for actionIndex, action := range s.Actions {
 			selected := table.AlterActionPhase(action.Action) == pass
+			if selected && materializedOptions && table.RelationOptionsAction(action.Action) {
+				// MV storage properties share source-ordered misc validation,
+				// regardless of which ALTER spelling addressed the relation.
+				selected = false
+			}
 			if !selected {
 				continue
 			}
@@ -546,7 +553,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		stage.UpdateDescriptor(next)
 		return core.Result{}, nil
 	}
-	if finish.NoOp && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed && !hasCluster {
+	if finish.NoOp && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed && !hasCluster && !materializedOptions {
 		return core.Result{}, nil
 	}
 	// The actual identity-AS validation/cache prephase has already run. Keep
@@ -652,6 +659,15 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	for _, action := range s.Actions {
 		if err := op.Context().Err(); err != nil {
 			return core.Result{}, err
+		}
+		if materializedOptions && table.RelationOptionsAction(action.Action) {
+			before := next
+			next, err = table.RelationOptionsCandidate(next, action)
+			if err != nil {
+				return core.Result{}, err
+			}
+			inheritancePlan(scope).RecordAction(before, next, action)
+			continue
 		}
 		if action.Action == parser.ClusterOn || action.Action == parser.SetWithoutCluster {
 			next, err = table.ClusterCandidate(core.DDLHost{E: e, CatalogStage: stage}, old, next, action)
@@ -817,13 +833,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		scope.Catalog = previousCatalog
 		return core.Result{}, nil
 	}
-	if hasCluster && finish.NoOp && next == old && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
-		// Deferred clustering validated against the candidate without changing it.
-		// Keep the private analysis environment's exact journal identity as well.
+	if (hasCluster || materializedOptions) && finish.NoOp && next == old && !preparation.Persistence.Changed && !preparation.AccessMethod.Changed {
+		// Deferred metadata validated without changing the candidate.
+		// Keep the private analysis environment's exact journal identity too.
 		scope.Catalog = previousCatalog
 		return core.Result{}, nil
 	}
-	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasColumnStatistics || hasReplicaIdentity) && next != old {
+	if (hasValidations || hasRuleModes || hasTriggerModes || hasColumnStorage || hasColumnStatistics || hasReplicaIdentity || materializedOptions) && next != old {
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}

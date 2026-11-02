@@ -754,6 +754,7 @@ func (j *StatementJumble) utilityStatementFields(node any, anchor *int) bool {
 		j.utilitySyntax(&n.Destination, anchor)
 		utilitySlice(j, n.Owners, anchor)
 		j.flag(n.Nowait)
+		j.flag(n.Materialized)
 	case parser.AlterTableAllInTablespace:
 		return j.utilityStatementFields(&n, anchor)
 	case *parser.AlterTableDefault:

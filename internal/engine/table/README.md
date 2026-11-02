@@ -85,6 +85,11 @@ call live here.
   accumulates default/generated and checked TYPE causes without collapsing
   combinations or confusing native row copies with semantic events. The command
   owner adds actual persistence/method changes only for stored relation kinds.
+  Materialized-view storage ALTER uses these same column statistics, column
+  storage, relation-option, cluster and access-method providers. Candidates keep
+  the stored recipe, population, row type and row backing; only Finish publishes
+  their immutable metadata and index-preference changes. Exact MV spelling
+  admission and owner checks belong to the statement executor, not another binder.
   The row passes take no lock, but expressions may reach host methods that take
   `Engine.Mu`, so callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
@@ -494,6 +499,11 @@ recaptures exact identities after waits before publishing their candidates.
   Column statistics candidates run in misc against the completed shape, without
   heap work. Targets recurse unless ONLY; column option SET/RESET never recurse.
   Whole option transformations validate privately before descriptor publication.
+  On an actual materialized view, relation-option SET/RESET joins the same
+  source-ordered misc loop as its column/storage/cluster properties, for either
+  ALTER spelling. Ordinary TABLE phase order is unchanged. Method and tablespace
+  preparation still precede these candidates; all properties use the existing
+  private stage and sole Finish publication, with no duplicate preflight.
   Column options reuse relation-option semantic text coercion: scanner INT4
   values become decimal text, while quoted strings and Float-node spellings
   remain intact. SET completes source-ordered namespace and structural-name

@@ -5,8 +5,8 @@ The schema-object statement executors
 ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGURATION, TEXT SEARCH TEMPLATE and TEXT SEARCH DICTIONARY; CREATE
 LANGUAGE and ALTER/DROP LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
-class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
-TABLESPACE; LOAD and CHECKPOINT; CREATE, ALTER and DROP EXTENSION; the
+class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE /
+MATERIALIZED VIEW ALL IN TABLESPACE; LOAD and CHECKPOINT; CREATE, ALTER and DROP EXTENSION; the
 foreign-data DDL (wrappers, servers, user mappings, foreign tables, IMPORT
 FOREIGN SCHEMA) and its GRANT and REVOKE; the extension owner import of a
 native Restore; and the family hosts `RoutineHost`, `SchemaHost` and
@@ -155,9 +155,11 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   journal's catalog changes, emits the grant warnings and installs each
   change.
 
-Dispatch (`core.Statements.ExecuteLocked`): `AlterAllTablespaceLocked` is a
-lock-domain continuation: entered with `Engine.Mu` held, it releases it on
-return.
+Dispatch (`core.Statements.ExecuteLocked`): `AlterAllTablespaceLocked` is the
+shared TABLE/MATERIALIZED VIEW bulk continuation over `ddl.AlterAllTablespace`.
+Entered with `Engine.Mu` held, it releases it on return. The AST kind remains
+available to completion/event classification; this continuation adds no
+placement inventory or independent publication.
 
 Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`.
 The private SQL-body directive defers catalog-dependent quoted SQL analysis to

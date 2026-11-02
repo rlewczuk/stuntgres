@@ -7,8 +7,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// AlterAllTablespaceLocked runs ALTER TABLE ALL IN TABLESPACE, entered with
-// Engine.Mu held.
+// AlterAllTablespaceLocked runs either TABLE or MATERIALIZED VIEW ALL IN
+// TABLESPACE with Engine.Mu held.
 //
 // The decision is ddl.AlterAllTablespace; the engine keeps the argument count
 // and releases the mutex the dispatcher took.

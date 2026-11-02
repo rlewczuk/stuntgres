@@ -227,7 +227,7 @@ func ddlCommandsSameTablespace(t *testing.T) {
 		for _, kind := range []string{"TABLE", "INDEX", "MATERIALIZED VIEW"} {
 			for _, prepared := range []bool{false, true} {
 				s := fixture.Exec("ALTER "+kind+" ALL IN TABLESPACE pg_default OWNED BY CURRENT_USER SET TABLESPACE pg_default NOWAIT", 0)
-				if !d.b.PG && kind != "TABLE" {
+				if !d.b.PG && kind == "INDEX" {
 					diagnostic := eventTriggerDiagnostic("42601", `syntax error at or near "ALL"`)
 					diagnostic.Position = strconv.Itoa(len("ALTER "+kind+" ") + 1)
 					s = fixture.ErrorDiagnostic(s.Query, diagnostic)

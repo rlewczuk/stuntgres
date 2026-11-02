@@ -31,9 +31,6 @@ func TestAlterAccessMethodGrammar(t *testing.T) {
 		if !ok || !alter.Materialized || len(alter.Actions) != 2 { t.Fatal(q, statements) }
 	}
 	for _, q := range []string{
-		"ALTER MATERIALIZED VIEW t SET TABLESPACE pg_default",
-		"ALTER MATERIALIZED VIEW t SET (fillfactor=80)",
-		"ALTER MATERIALIZED VIEW t RESET (fillfactor)",
 		"ALTER MATERIALIZED VIEW t SET ACCESS METHOD heap2, ADD COLUMN a int",
 	} {
 		if _, err := Parse(q); err == nil { t.Fatal("expanded unrelated materialized grammar", q) }

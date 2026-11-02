@@ -253,7 +253,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "ALTER OPERATOR CLASS"
 	case *parser.DropOperatorClass:
 		return "DROP OPERATOR CLASS"
-	case *parser.AlterTableAllInTablespace, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
+	case *parser.AlterTable, *parser.AlterTableAllInTablespace:
+		tag, _, _, _ := ClassifyCommandTag(stmt, TxIdle)
+		return tag
+	case *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault:
 		return "ALTER TABLE"
 	case *parser.CreateExtension:
 		return "CREATE EXTENSION"

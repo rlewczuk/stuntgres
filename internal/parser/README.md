@@ -165,6 +165,13 @@ ordinary assignments to an unreserved `security` variable.
   token while retaining ordinary name, setting, type, typed-literal and PL-name
   uses; unrelated unsupported commands keep their existing fallback diagnostics.
   ALTER preference actions retain their existing execution identity.
+- Materialized-view storage ALTER lists reuse `AlterTable` with its exact-kind
+  discriminator: column statistics/options/storage/compression, relation options,
+  cluster preference, access method and tablespace only. Shape changes remain
+  excluded; identity/dependency operations retain their separate productions.
+  Standalone TABLE and MATERIALIZED VIEW ALL IN TABLESPACE share
+  `AlterTableAllInTablespace`, retaining target kind, positioned endpoints,
+  ordered owner role identities and NOWAIT without resolving any operand.
 - Text-search template utilities retain qualified names and ordered positioned
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong

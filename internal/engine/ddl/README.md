@@ -150,9 +150,11 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   SET TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`),
   and `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation
   kinds without their own storage (42809). `AlterAllTablespace(view, env, s)`
-  decides ALTER ... ALL IN TABLESPACE (owner membership, both references,
+  decides both TABLE and MATERIALIZED VIEW ALL IN TABLESPACE spellings over
+  the same live role/endpoints authority (owner membership, both references,
   `pg_global` rejection 22023, destination CREATE, success for the same
-  tablespace, 0A000 otherwise); it never selects or locks a relation.
+  tablespace, 0A000 otherwise). The builtin-only placement catalog does not
+  create a relation-selection or locking phase for an equal-space assignment.
 - **Tablespace inquiries** (`tablespace_info.go`): `TablespaceLocation` and
   `TablespaceDatabase` compute `pg_tablespace_location` and one
   `pg_tablespace_databases` row over the statement's retained `catalog.Read`.

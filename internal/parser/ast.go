@@ -1244,6 +1244,7 @@ type AlterTableAllInTablespace struct {
 	Source, Destination Identifier
 	Owners              []RoleSpec
 	Nowait              bool
+	Materialized        bool
 	Pos                 Position
 }
 

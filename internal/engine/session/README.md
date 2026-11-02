@@ -418,6 +418,10 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`), including all non-counted ALTER STATISTICS
   forms with effect-free utility Describe and ordinary event/transaction admission;
+  Named storage ALTER and standalone ALL IN TABLESPACE preserve the
+  `AlterTable` / `AlterTableAllInTablespace` materialized discriminator in
+  modifying, read-only refusal, completion and event tags: non-counted
+  ALTER MATERIALIZED VIEW, while ordinary TABLE keeps ALTER TABLE.
   ALTER DATABASE defaults are modifying, non-counted transactional utilities,
   excluded from event-trigger dispatch independently of their completion tag.
   SECURITY LABEL is modifying and non-counted, with DescribeOperation before
