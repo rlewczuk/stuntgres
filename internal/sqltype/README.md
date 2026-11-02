@@ -306,12 +306,18 @@ admission and removes it before nested binding.
   exclusion predicates reuse their scalar owners; catalog class membership
   does not supply an otherwise missing scalar operation.
   GIN classes retain a separate capability, actual anyarray admission and
-  narrowly binary-compatible bit/varbit, CIDR/INET and OID inputs. Authenticated
-  scalar extraction covers bit/varbit/enum/money and inet/cidr/macaddr/macaddr8/
-  uuid/oid. `GinBinding` retains concrete generations and shared typed comparison;
-  selected oid_ops reinterprets admitted INT4 as unsigned without changing its
-  source datum or SQL integer comparison semantics. Each non-NULL scalar is one ordinary key;
-  empty varbit and the least money datum are ordinary values, not sentinels.
+  narrowly binary-compatible bit/varbit, CIDR/INET, OID and character inputs.
+  Authenticated scalar extraction covers bit/varbit/enum/money, network/UUID/OID,
+  integer/float/boolean, temporal, text/varchar/bpchar, internal char, name and
+  bytea. `GinBinding` retains concrete generations and shared typed comparison.
+  Selected oid_ops reinterprets admitted INT4 as unsigned. Text and varchar
+  inputs admit either class and bpchar_ops; the converse bpchar-to-text/varchar
+  conversion is functional and not index admission. Selected bpchar_ops ignores
+  trailing ASCII spaces using the captured collation and the same primitive as
+  B-tree comparison, without modifying source bytes, typmods or SQL predicates.
+  Name clipping, unsigned internal-char/bytea comparison and binary carriers
+  remain type-owned. Each non-NULL scalar, including empty/zero values, is one
+  whole ordinary key; duplicate source rows retain distinct physical postings.
   Empty/NULL-item/NULL-element categories cannot alias ordinary keys. Captured
   support includes the sealed installation's opaque `IndexAuthority`; selected
   search stamps retain member/operator/routine generations without changing

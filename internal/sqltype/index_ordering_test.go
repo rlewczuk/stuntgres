@@ -93,6 +93,8 @@ func TestIndexClausesProviderSemantics(t *testing.T) {
 	}{
 		{Int4, "oid_ops", "1", "-1", -1}, {Int4, "int4_ops", "1", "-1", 1},
 		{Text, "bpchar_ops", "a", "a ", 0}, {VarChar, "bpchar_pattern_ops", "a ", "a", 0},
+		{Text, "bpchar_ops", "a\t", "a ", 1}, {VarChar, "bpchar_ops", "a\n ", "a\n", 0},
+		{BPChar, "bpchar_ops", "", "   ", 0}, {VarChar, "text_ops", "a", "a ", -1},
 		{Text, "text_ops", "a", "a ", -1}, {Text, "varchar_pattern_ops", "a", "a ", -1},
 		{Regclass, "oid_ops", "1", "4294967295", -1},
 	} {

@@ -100,7 +100,7 @@ func TestBtreeGINTemporalBinding(t *testing.T) {
 	ginFamilyBindingProof(t, e, idx, root, foreign, other, temporalPrivateCases)
 	view := e.CatalogRead()
 	installed, _ := view.OperatorClass(ids.OID(idx.SQLIndex.Keys[0].Class.OID()))
-	if installed.Origin == nil || len(installed.Origin.Installation.Members) != 112 {
+	if installed.Origin == nil || len(installed.Origin.Installation.Members) != 139 {
 		t.Fatal("bounded installed recipe inventory")
 	}
 	// This is the implemented native recipe, not PostgreSQL's wider stock module.
@@ -108,7 +108,7 @@ func TestBtreeGINTemporalBinding(t *testing.T) {
 	for _, member := range installed.Origin.Installation.Members {
 		counts[member.ClassID]++
 	}
-	if counts[ids.ProcedureClassID] != 68 || counts[ids.OperatorFamilyClassID] != 22 || counts[ids.OperatorClassCatalogID] != 22 {
+	if counts[ids.ProcedureClassID] != 83 || counts[ids.OperatorFamilyClassID] != 28 || counts[ids.OperatorClassCatalogID] != 28 {
 		t.Fatal("installed declaration kinds", counts)
 	}
 	for col, tc := range temporalPrivateCases {

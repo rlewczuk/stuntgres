@@ -352,6 +352,8 @@ func (c IndexClass) AcceptsID(id ID) bool {
 		return id == Cidr
 	case Text:
 		return id == VarChar
+	case VarChar:
+		return id == Text
 	case BPChar:
 		return id == Text || id == VarChar
 	case Oid:
@@ -587,9 +589,15 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 		return compareIndexOIDInt4(a, b), nil
 	}
 	if p.input == BPChar {
-		return p.comparison.inputCollation.CompareText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
+		return compareIndexBPChar(ctx, p.comparison.inputCollation, a, b)
 	}
 	return p.comparison.Compare(ctx, a, b, input)
+}
+
+// compareIndexBPChar applies the selected class's space-insensitive semantics
+// to lawful source datums without changing their generations or stored bytes.
+func compareIndexBPChar(ctx context.Context, collation CollationRef, a, b Value) (int, error) {
+	return collation.CompareText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 }
 
 // compareIndexOIDInt4 applies OID's unsigned interpretation to lawful INT4

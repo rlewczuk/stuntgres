@@ -53,12 +53,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   exact native support1. Neither alias nor class acquires stock origin by name.
   Btree_gin stages bit, varbit, enum, money, inet, cidr, macaddr, macaddr8, uuid,
   oid, int2, int4, int8, float4, float8, bool, date, time, timetz, timestamp,
-  timestamptz and interval families with five search and five support slots through
-  the same installation owner. Network, numeric/boolean and temporal recipes retain
-  AUTO family ownership for search/optional supports and INTERNAL class ownership
-  for extraction slots2/3; incumbent compound dependency ownership is unchanged.
-  CIDR support association remains650 while its actual search/comparator operands
-  are869; the stage and authenticator use these distinct identities explicitly.
+  timestamptz, interval, text, varchar, bpchar, internal char, name and bytea
+  families with five search and five support slots through the same installation
+  owner. Network, numeric/boolean, temporal and text recipes retain AUTO family
+  ownership for search/optional supports and INTERNAL class ownership for
+  extraction slots2/3; incumbent compound dependency ownership is unchanged.
+  One explicit helper-triplet group per class drives both staging and original
+  graph authentication. Text and varchar share the same text-formal triplet;
+  varchar support associations remain1043 while search/comparator operands are25.
+  CIDR support association remains650 while search/comparator operands are869.
+  These distinctions never grant execution by mutable names or copied routines.
   Internal-ABI declarations are index capabilities, not C pointers or scalar emulation.
   The genuine `gin_enum_cmp` declaration is separately SQL-callable through the
   concrete enum comparator. Class/helper authority follows original sealed

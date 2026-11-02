@@ -85,6 +85,11 @@ builds a binder.
   equality. Interval uses the shared wide span comparison: month/day/hour peers
   share one dictionary key while source components remain distinct. NULL and
   reserved interval infinity tuples remain separate from finite extrema.
+  Text/varchar/bpchar/name and unsigned internal-char/bytea scalar classes retain
+  whole source datums, including non-NULL empty/zero keys. Selected bpchar_ops
+  groups trailing-ASCII-space peers without altering source values, padding,
+  clipping, result metadata or ordinary SQL text predicates. Shared text/varchar
+  helper identities retain distinct class-associated members and captures.
   Only strategies1–5 are scalar GIN probes; SQL not-equal remains ordinary
   predicate evaluation and does not authorize a GiST/distance member.
   Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
@@ -101,9 +106,11 @@ builds a binder.
   predecessor captures before selecting current target support. Search transport
   follows the bound member IDs and complete search stamps, never inferred class
   input types or duplicated strategy counts; full member/owner/operator authority
-  remains identical even when CIDR support and search operands differ. The catalog
-  stage copies affected live index keys; ordinary/private publication copies
+  remains identical even when CIDR or varchar support and search operands differ.
+  The catalog stage copies affected live index keys; ordinary/private publication copies
   only root/binding wrappers and shares actual entries, dictionaries and postings.
+  A shared text helper presentation change refreshes both text and varchar
+  dependent wrappers while retaining the same physical dictionary/posting backing.
   Mapped construction history retains prior recipe debt. Private own-write keys
   travel with the certified descriptor mapping without executing SQL again;
   retained routine-source fences remain required. Detached stale support still
@@ -623,6 +630,11 @@ builds genuine 256/2048-key money roots, checks all broad ranges and exact
 physical identities, equality backing, source immutability and nil-on-cancel.
 Only probe work is measured: at most eight allocations and `192*N+8192` bytes
 per call, with large-case growth at most twelve times small plus 8192 bytes.
+Text-family owner fixtures independently specify whole ordinary empty/zero keys,
+bpchar trailing-space equivalence without source mutation, unsigned character
+and bytea boundaries, exact row/version/slot candidates, shared text/varchar
+helper authority, immutable publication and destination-owned transport.
+They inspect real payloads; public scan agreement is not index-use evidence.
 
 **Frame names matched by tests.** `TestHashIndexMergeCancellation` matches
 `.MergeHashIndexRoot` and `TestSerializablePublicationRealChangedPredecessorRetry`
@@ -641,6 +653,7 @@ make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestG
 make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and immutable lifecycle
 make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings and transport
 make check RUN='^TestBtreeGINTemporal' # typed temporal equivalence, exact postings and sealed lifecycle
+make check RUN='^TestBtreeGINText' # text-family typed equivalence, posting triples and ownership
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

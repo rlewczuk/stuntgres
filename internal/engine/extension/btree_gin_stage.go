@@ -60,10 +60,7 @@ func (p *BtreeGinProvider) Stage(stage Stage, e *catalog.Extension, owner author
 		if err := stage.Create(class); err != nil {
 			return err
 		}
-		routines := [5]ids.OID{spec.comparator, e.Members[2+column*3].ObjectID, e.Members[3+column*3].ObjectID, e.Members[0].ObjectID, e.Members[4+column*3].ObjectID}
-		if spec.comparator == 0 {
-			routines[0] = e.Members[1].ObjectID
-		}
+		routines := spec.supportRoutines(e.Members)
 		for number, operator := range spec.operators {
 			oid, err := stage.AllocateOID()
 			if err != nil {

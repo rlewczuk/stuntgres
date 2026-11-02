@@ -496,7 +496,9 @@ package or the engine.
   Builtin array/vector support uses ten genuine `catalog.ValidateGinSupport`
   operations; installed scalar support authenticates the original btree_gin
   recipe, signatures, mapped helpers and exact per-slot dependency owners.
-  Support-associated operands and actual search operands remain distinct for CIDR.
+  Support associations, routine formals and search operands remain distinct:
+  CIDR associates650 with search/comparator869; varchar associates1043 while
+  sharing text's actual helper IDs, text formals and search operands25.
   Captures include effective class,
   family, support, search-member, operator and backing-routine revisions plus
   the original installation's opaque index authority. The array family has no

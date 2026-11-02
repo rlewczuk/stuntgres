@@ -116,6 +116,21 @@ var btreeGinRoutines = [...]struct {
 	{"gin_extract_value_interval", "1186,2281", 2281},
 	{"gin_extract_query_interval", "1186,2281,21,2281,2281", 2281},
 	{"gin_compare_prefix_interval", "1186,1186,21,2281", 23},
+	{"gin_extract_value_text", "25,2281", 2281},
+	{"gin_extract_query_text", "25,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_text", "25,25,21,2281", 23},
+	{"gin_extract_value_bpchar", "1042,2281", 2281},
+	{"gin_extract_query_bpchar", "1042,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_bpchar", "1042,1042,21,2281", 23},
+	{"gin_extract_value_char", "18,2281", 2281},
+	{"gin_extract_query_char", "18,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_char", "18,18,21,2281", 23},
+	{"gin_extract_value_name", "19,2281", 2281},
+	{"gin_extract_query_name", "19,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_name", "19,19,21,2281", 23},
+	{"gin_extract_value_bytea", "17,2281", 2281},
+	{"gin_extract_query_bytea", "17,2281,21,2281,2281", 2281},
+	{"gin_compare_prefix_bytea", "17,17,21,2281", 23},
 }
 
 // BtreeGinRoutineName is a discovery hint only. Executable selection still
@@ -133,32 +148,50 @@ type btreeGinClass struct {
 	name                      string
 	input, search, comparator ids.OID
 	operators                 [5]ids.OID
+	helperGroup               int
 	releasedDependencies      bool
 }
 
 var btreeGinClasses = [...]btreeGinClass{
-	{"bit_ops", 1560, 1560, 1596, [5]ids.OID{1786, 1788, 1784, 1789, 1787}, false},
-	{"varbit_ops", 1562, 1562, 1672, [5]ids.OID{1806, 1808, 1804, 1809, 1807}, false},
-	{"enum_ops", 3500, 3500, 0, [5]ids.OID{3518, 3520, 3516, 3521, 3519}, false},
-	{"money_ops", 790, 790, 377, [5]ids.OID{902, 904, 900, 905, 903}, false},
-	{"inet_ops", 869, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, true},
-	{"cidr_ops", 650, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, true},
-	{"macaddr_ops", 829, 829, 836, [5]ids.OID{1222, 1223, 1220, 1225, 1224}, true},
-	{"macaddr8_ops", 774, 774, 4119, [5]ids.OID{3364, 3365, 3362, 3367, 3366}, true},
-	{"uuid_ops", 2950, 2950, 2960, [5]ids.OID{2974, 2976, 2972, 2977, 2975}, true},
-	{"oid_ops", 26, 26, 356, [5]ids.OID{609, 611, 607, 612, 610}, true},
-	{"int2_ops", 21, 21, 350, [5]ids.OID{95, 522, 94, 524, 520}, true},
-	{"int4_ops", 23, 23, 351, [5]ids.OID{97, 523, 96, 525, 521}, true},
-	{"int8_ops", 20, 20, 842, [5]ids.OID{412, 414, 410, 415, 413}, true},
-	{"float4_ops", 700, 700, 354, [5]ids.OID{622, 624, 620, 625, 623}, true},
-	{"float8_ops", 701, 701, 355, [5]ids.OID{672, 673, 670, 675, 674}, true},
-	{"bool_ops", 16, 16, 1693, [5]ids.OID{58, 1694, 91, 1695, 59}, true},
-	{"date_ops", 1082, 1082, 1092, [5]ids.OID{1095, 1096, 1093, 1098, 1097}, true},
-	{"time_ops", 1083, 1083, 1107, [5]ids.OID{1110, 1111, 1108, 1113, 1112}, true},
-	{"timetz_ops", 1266, 1266, 1358, [5]ids.OID{1552, 1553, 1550, 1555, 1554}, true},
-	{"timestamp_ops", 1114, 1114, 2045, [5]ids.OID{2062, 2063, 2060, 2065, 2064}, true},
-	{"timestamptz_ops", 1184, 1184, 1314, [5]ids.OID{1322, 1323, 1320, 1325, 1324}, true},
-	{"interval_ops", 1186, 1186, 1315, [5]ids.OID{1332, 1333, 1330, 1335, 1334}, true},
+	{"bit_ops", 1560, 1560, 1596, [5]ids.OID{1786, 1788, 1784, 1789, 1787}, 0, false},
+	{"varbit_ops", 1562, 1562, 1672, [5]ids.OID{1806, 1808, 1804, 1809, 1807}, 1, false},
+	{"enum_ops", 3500, 3500, 0, [5]ids.OID{3518, 3520, 3516, 3521, 3519}, 2, false},
+	{"money_ops", 790, 790, 377, [5]ids.OID{902, 904, 900, 905, 903}, 3, false},
+	{"inet_ops", 869, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, 4, true},
+	{"cidr_ops", 650, 869, 926, [5]ids.OID{1203, 1204, 1201, 1206, 1205}, 5, true},
+	{"macaddr_ops", 829, 829, 836, [5]ids.OID{1222, 1223, 1220, 1225, 1224}, 6, true},
+	{"macaddr8_ops", 774, 774, 4119, [5]ids.OID{3364, 3365, 3362, 3367, 3366}, 7, true},
+	{"uuid_ops", 2950, 2950, 2960, [5]ids.OID{2974, 2976, 2972, 2977, 2975}, 8, true},
+	{"oid_ops", 26, 26, 356, [5]ids.OID{609, 611, 607, 612, 610}, 9, true},
+	{"int2_ops", 21, 21, 350, [5]ids.OID{95, 522, 94, 524, 520}, 10, true},
+	{"int4_ops", 23, 23, 351, [5]ids.OID{97, 523, 96, 525, 521}, 11, true},
+	{"int8_ops", 20, 20, 842, [5]ids.OID{412, 414, 410, 415, 413}, 12, true},
+	{"float4_ops", 700, 700, 354, [5]ids.OID{622, 624, 620, 625, 623}, 13, true},
+	{"float8_ops", 701, 701, 355, [5]ids.OID{672, 673, 670, 675, 674}, 14, true},
+	{"bool_ops", 16, 16, 1693, [5]ids.OID{58, 1694, 91, 1695, 59}, 15, true},
+	{"date_ops", 1082, 1082, 1092, [5]ids.OID{1095, 1096, 1093, 1098, 1097}, 16, true},
+	{"time_ops", 1083, 1083, 1107, [5]ids.OID{1110, 1111, 1108, 1113, 1112}, 17, true},
+	{"timetz_ops", 1266, 1266, 1358, [5]ids.OID{1552, 1553, 1550, 1555, 1554}, 18, true},
+	{"timestamp_ops", 1114, 1114, 2045, [5]ids.OID{2062, 2063, 2060, 2065, 2064}, 19, true},
+	{"timestamptz_ops", 1184, 1184, 1314, [5]ids.OID{1322, 1323, 1320, 1325, 1324}, 20, true},
+	{"interval_ops", 1186, 1186, 1315, [5]ids.OID{1332, 1333, 1330, 1335, 1334}, 21, true},
+	{"text_ops", 25, 25, 360, [5]ids.OID{664, 665, 98, 667, 666}, 22, true},
+	{"varchar_ops", 1043, 25, 360, [5]ids.OID{664, 665, 98, 667, 666}, 22, true},
+	{"bpchar_ops", 1042, 1042, 1078, [5]ids.OID{1058, 1059, 1054, 1061, 1060}, 23, true},
+	{"char_ops", 18, 18, 358, [5]ids.OID{631, 632, 92, 634, 633}, 24, true},
+	{"name_ops", 19, 19, 359, [5]ids.OID{660, 661, 93, 663, 662}, 25, true},
+	{"bytea_ops", 17, 17, 1954, [5]ids.OID{1957, 1958, 1955, 1960, 1959}, 26, true},
+}
+
+// Both installation and authentication use the recipe's helper group. Class
+// ordinals cannot select helpers: varchar and text share one released triplet.
+func (spec btreeGinClass) supportRoutines(members []ids.ObjectAddress) [5]ids.OID {
+	first := 2 + spec.helperGroup*3
+	routines := [5]ids.OID{spec.comparator, members[first].ObjectID, members[first+1].ObjectID, members[0].ObjectID, members[first+2].ObjectID}
+	if spec.comparator == 0 {
+		routines[0] = members[1].ObjectID
+	}
+	return routines
 }
 
 // Zero InternalOwner means AUTO dependency on the actual family. Preserve the
@@ -201,10 +234,7 @@ func BtreeGinClassBindings(v catalog.Read, c *catalog.OperatorClass) (BtreeGinBi
 	if !ok || family.Method != c.Method || !catalog.SameInstallation(family, installation) || catalog.ValidateInstalledClassOrigin(v, family) != nil {
 		return invalid()
 	}
-	routines := [5]ids.OID{spec.comparator, installation.Members[2+column*3].ObjectID, installation.Members[3+column*3].ObjectID, installation.Members[0].ObjectID, installation.Members[4+column*3].ObjectID}
-	if spec.comparator == 0 {
-		routines[0] = installation.Members[1].ObjectID
-	}
+	routines := spec.supportRoutines(installation.Members)
 	for i, expected := range routines {
 		support, ok := v.FamilySupport(c.Family, c.InputType, c.InputType, int16(i+1))
 		if !ok || support.Function != expected || support.InternalOwner != spec.memberOwner(c.Address(), i+1, true) || support.Revision() == 0 || !support.CatalogVisible {

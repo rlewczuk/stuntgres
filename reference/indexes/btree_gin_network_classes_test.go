@@ -61,6 +61,20 @@ func networkGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Co
 	ginInstalledGraph(t, p, b, conn, schema, networkCases, "(869,650,829,774,2950,26)", presentation...)
 }
 
+// Helpers have their own stem/formal type: varchar shares text's routines,
+// while its support associations remain varchar/varchar.
+type ginGraphHelpers struct {
+	stem   string
+	formal int64
+}
+
+func ginGraphHelperTypes(tc networkCase) ginGraphHelpers {
+	if tc.typ == "varchar" {
+		return ginGraphHelpers{"text", 25}
+	}
+	return ginGraphHelpers{tc.typ, tc.input}
+}
+
 // The case table is independently specified by each family, never the provider.
 func ginInstalledGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, schema string, cases []networkCase, inputs string, presentation ...map[string]string) {
 	t.Helper()
@@ -85,12 +99,16 @@ func ginInstalledGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *s
 		if tc.typ == "cidr" {
 			formal = 869
 		}
+		helper := ginGraphHelperTypes(tc)
+		if tc.typ == "varchar" {
+			formal = 25
+		}
 		supports := [][]any{
 			{int64(1), tc.input, tc.input, tc.comparator, int64(23), fmt.Sprintf("%d %d", formal, formal)},
-			{int64(2), tc.input, tc.input, "gin_extract_value_" + tc.typ, int64(2281), fmt.Sprintf("%d 2281", tc.input)},
-			{int64(3), tc.input, tc.input, "gin_extract_query_" + tc.typ, int64(2281), fmt.Sprintf("%d 2281 21 2281 2281", tc.input)},
+			{int64(2), tc.input, tc.input, "gin_extract_value_" + helper.stem, int64(2281), fmt.Sprintf("%d 2281", helper.formal)},
+			{int64(3), tc.input, tc.input, "gin_extract_query_" + helper.stem, int64(2281), fmt.Sprintf("%d 2281 21 2281 2281", helper.formal)},
 			{int64(4), tc.input, tc.input, "gin_btree_consistent", int64(16), "2281 21 2283 23 2281 2281"},
-			{int64(5), tc.input, tc.input, "gin_compare_prefix_" + tc.typ, int64(23), fmt.Sprintf("%d %d 21 2281", tc.input, tc.input)},
+			{int64(5), tc.input, tc.input, "gin_compare_prefix_" + helper.stem, int64(23), fmt.Sprintf("%d %d 21 2281", helper.formal, helper.formal)},
 		}
 		run(fixture.Select("SELECT a.amprocnum,a.amproclefttype::bigint,a.amprocrighttype::bigint,p.proname,p.prorettype::bigint,p.proargtypes::text FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_proc p ON p.oid=a.amproc WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcname=$2 ORDER BY a.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "proname", "prorettype", "proargtypes"}, []string{"INT2", "INT8", "INT8", "NAME", "INT8", "TEXT"}, supports, schema, name))
 		run(fixture.Select("SELECT a.amproc::oid::bigint FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcname=$2 AND a.amprocnum=1", []string{"amproc"}, []string{"INT8"}, [][]any{{tc.comparatorOID}}, schema, name))
@@ -116,13 +134,17 @@ func ginInstalledGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *s
 		run(fixture.Select("SELECT a.amopstrategy,d.deptype,d.refobjid=c.opcfamily AS owner_link FROM pg_amop a JOIN pg_opclass c ON c.opcfamily=a.amopfamily JOIN pg_depend d ON d.objid=a.oid AND d.classid='pg_amop'::regclass WHERE d.refclassid IN('pg_opclass'::regclass,'pg_opfamily'::regclass) AND c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcname=$2 ORDER BY a.amopstrategy", []string{"amopstrategy", "deptype", "owner_link"}, []string{"INT2", "CHAR", "BOOL"}, searchDependencies, schema, name))
 		run(fixture.Select("SELECT a.amprocnum,d.deptype,CASE WHEN d.refclassid='pg_opclass'::regclass THEN 'class' ELSE 'family' END AS owner_kind,CASE WHEN d.refclassid='pg_opclass'::regclass THEN d.refobjid=c.oid ELSE d.refobjid=c.opcfamily END AS owner_link FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=a.oid AND d.classid='pg_amproc'::regclass WHERE d.refclassid IN('pg_opclass'::regclass,'pg_opfamily'::regclass) AND c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcname=$2 ORDER BY a.amprocnum", []string{"amprocnum", "deptype", "owner_kind", "owner_link"}, []string{"INT2", "CHAR", "TEXT", "BOOL"}, supportDependencies, schema, name))
 	}
-	var names []string
+	nameSet := map[string]bool{"gin_btree_consistent": true}
 	for _, tc := range cases {
+		helper := ginGraphHelperTypes(tc)
 		for _, prefix := range []string{"gin_extract_value_", "gin_extract_query_", "gin_compare_prefix_"} {
-			names = append(names, prefix+tc.typ)
+			nameSet[prefix+helper.stem] = true
 		}
 	}
-	names = append(names, "gin_btree_consistent")
+	var names []string
+	for name := range nameSet {
+		names = append(names, name)
+	}
 	sort.Strings(names)
 	var helpers [][]any
 	for _, name := range names {
@@ -130,5 +152,5 @@ func ginInstalledGraph(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *s
 	}
 	run(fixture.Select("SELECT DISTINCT p.proname,l.lanname,p.probin,p.prosrc=p.proname::text AS source_link,p.provolatile,p.proisstrict,p.proparallel,p.pronamespace=$1::regnamespace AS schema_link FROM pg_opclass c JOIN pg_amproc a ON a.amprocfamily=c.opcfamily JOIN pg_proc p ON p.oid=a.amproc JOIN pg_language l ON l.oid=p.prolang WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN"+inputs+" AND a.amprocnum<>1 ORDER BY p.proname", []string{"proname", "lanname", "probin", "source_link", "provolatile", "proisstrict", "proparallel", "schema_link"}, []string{"NAME", "NAME", "TEXT", "BOOL", "CHAR", "BOOL", "CHAR", "BOOL"}, helpers, schema))
 	run(amCount("SELECT count(DISTINCT a.amproc::oid) FROM pg_amproc a JOIN pg_opclass c ON c.opcfamily=a.amprocfamily WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND (c.opcintype IN"+inputs+" OR c.opcintype IN(1560,1562,3500,790)) AND a.amprocnum=4", 1, schema))
-	run(amCount("SELECT count(DISTINCT p.oid) FROM pg_proc p JOIN pg_amproc a ON a.amproc=p.oid JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=p.oid AND d.classid='pg_proc'::regclass WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN"+inputs+" AND d.refclassid='pg_extension'::regclass AND d.refobjid=(SELECT oid FROM pg_extension WHERE extname='btree_gin') AND d.deptype='e'", int64(3*len(cases)+1), schema))
+	run(amCount("SELECT count(DISTINCT p.oid) FROM pg_proc p JOIN pg_amproc a ON a.amproc=p.oid JOIN pg_opclass c ON c.opcfamily=a.amprocfamily JOIN pg_depend d ON d.objid=p.oid AND d.classid='pg_proc'::regclass WHERE c.opcmethod=2742 AND c.opcnamespace=$1::regnamespace AND c.opcintype IN"+inputs+" AND d.refclassid='pg_extension'::regclass AND d.refobjid=(SELECT oid FROM pg_extension WHERE extname='btree_gin') AND d.deptype='e'", int64(len(names)), schema))
 }

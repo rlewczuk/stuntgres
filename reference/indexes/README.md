@@ -165,6 +165,15 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   selective posting triples, immutable publication/presentation and independent
   destination generations and sealed authority; public SQL alone is not index-use
   evidence.
+  Text/varchar/bpchar/internal-char/name/bytea fixtures use
+  `RUN='^TestReferenceBtreeGINText'`: independently expected five-strategy
+  boundaries, empty/NULL/raw values and metadata, directional binary-compatible
+  admission, full diagnostics/atomicity, shared text/varchar helper graphs,
+  presentation and actual native emitted SQL replay. `TestBtreeGINText` owner
+  proofs assert real typed dictionaries and selective posting triples rather
+  than inferring index execution from SQL scan parity. Native controls replay
+  logical objects/data, never C shared-library ABI, disk pages/WAL/pending lists,
+  network/server planner state or live session resources.
   Native controls distinguish successful builtin-signature/datum held rebinding
   from the ordinary lifetime fence of a captured enum literal and the exact
   `0A000` concrete-enum parameter/result fences. Fresh enum-literal preparation
