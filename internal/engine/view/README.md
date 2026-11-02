@@ -292,7 +292,14 @@ imports `view`.
   shared descendants retain their actual diagnostic parent and retire once.
   Column roots never widen to the containing relation or row type. Mixed
   containing-owner/member roots retain their owner's traversal; contained
-  procedures never change extension/schema retirement ordering.
+  procedures never change extension/schema retirement ordering. Roots that are
+  only extensions, their members and relations retired with them use the same
+  order, as PostgreSQL walks them from each extension: an unexpanded member
+  root is expanded where first reached (a member of another unexpanded target
+  extension expands that extension), so the newest member reaching a shared
+  dependent claims it. Such walks also follow installed routines' signature
+  types, views' output-column types, and reach a view through a selected
+  column rather than that column's type.
   `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
   root's expression-dependency pass, `DropRoots` adds the relations the drop
   already removed, `PlanDrop` classifies the closure into targets, surviving

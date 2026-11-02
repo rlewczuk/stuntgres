@@ -120,6 +120,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	for _, a := range targets {
 		seen[a] = true
 	}
+	// Roots stay distinct from seen, which grows with the walk.
+	extensionOrder := extensionRootOrder(r, targets)
+	var roots map[ids.ObjectAddress]bool
+	if extensionOrder {
+		roots = make(map[ids.ObjectAddress]bool, len(targets))
+		for _, a := range targets {
+			roots[a] = true
+		}
+	}
 	var result []table.DomainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
 	// One local address state retains early provenance even if its effect is
@@ -358,14 +367,29 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if owner := catalog.RangeConstructorOwner(d); owner == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
+				depends := false
 				catalog.VisitProcedureDefinitionDependencies(base, d, func(address ids.ObjectAddress) bool {
 					if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 						direct[len(direct)-1].Normal = true
+						depends = true
 						return false
 					}
 					return true
 				})
+				// pg_depend also records an installed routine's signature types;
+				// an extension-order walk reaches member routines through them.
+				if extensionOrder && !depends && d.Implementation != nil && target.ClassID == ids.TypeClassID {
+					if err := catalog.VisitInstalledProcedureTypes(d, func(address ids.ObjectAddress) bool {
+						depends = address == target
+						return !depends
+					}); err != nil {
+						return err
+					}
+					if depends {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path), Normal: true})
+					}
+				}
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
@@ -537,9 +561,9 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if d.View != nil {
 					if ViewDepends(d, target) {
 						passive := false
-						if compositeDefaultOrder || domainRootOrder {
+						if compositeDefaultOrder || domainRootOrder || extensionOrder {
 							var err error
-							passive, err = PassiveTypeDependency(r, d, target)
+							passive, err = PassiveTypeDependency(r, d, target, extensionOrder)
 							if err != nil {
 								return err
 							}
@@ -564,7 +588,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					// like table columns. Visiting them can reach another view's
 					// _RETURN owner before that owner's source table is visited.
 					// Do not flatten these paths into a whole-view type edge.
-					if domainRootOrder {
+					if domainRootOrder || extensionOrder {
 						for i, c := range d.Columns {
 							if typedef.UsageDependsOn(c.Usage, target) {
 								column := a
@@ -689,7 +713,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			edge.Relation, edge.Column, edge.Ordinal = nil, "", 0
 			edge.Label = stored.DependencyObject(base, owner, path)
 		}
-		reverse := columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder
+		reverse := columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder || extensionOrder
 		sort.Slice(direct, func(i, j int) bool {
 			a, b := direct[i].Address, direct[j].Address
 			if a.ObjectID != b.ObjectID {
@@ -738,6 +762,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				// A seeded root expands at its own root-loop turn. Reaching it
 				// here still merges flags, but must not steal diagnostic parents
 				// or move its consumers ahead of the incumbent root order.
+				// Extension members are instead dependents of their extension,
+				// walked depth first where reached, as PostgreSQL does.
+				if extensionOrder {
+					if expand, ok := extensionRootExpansion(r, roots, func(a ids.ObjectAddress) bool { return visits[a].expanded }, edge.Address); ok {
+						if err := visit(expand, expand); err != nil {
+							return err
+						}
+					}
+				}
 				continue
 			}
 			owner := edge.Address
@@ -769,7 +802,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					return err
 				}
 			}
-			if slot >= 0 && (columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder) {
+			if slot >= 0 && (columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder || extensionOrder) {
 				postorder = append(postorder, slot)
 			}
 		}
@@ -802,7 +835,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			}
 		}
 	}
-	if columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder {
+	if columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder || extensionOrder {
 		// Keep original slots throughout DFS so repeated/automatic edges use
 		// the same authority. Then apply reverse postorder in place, without
 		// a second dependency graph or duplicate descriptor/edge buffers.
@@ -955,13 +988,16 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 // passive capture into a direct type-to-view edge. Domain-root and
 // composite-default walks instead reach such a view through its genuine
 // retiring columns; explicit SQL datatype references remain direct.
-func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.ObjectAddress) (bool, error) {
+// anyType extends this from domains to every type, for extension-order walks,
+// and classifies every view by its SQL-recorded references: a type reached only
+// through a function or operator result is passive too.
+func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.ObjectAddress, anyType bool) (bool, error) {
 	base := r.BaseRead()
 	if target.ClassID != ids.TypeClassID {
 		return false, nil
 	}
 	domain, ok := r.RetirementDescriptor(target).(*catalog.Type)
-	if !ok || !domain.SQLType.IsDomain() {
+	if !ok || !anyType && !domain.SQLType.IsDomain() {
 		return false, nil
 	}
 	storedView := stored.ViewOf(relation)
@@ -986,7 +1022,7 @@ func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.
 			break
 		}
 	}
-	if !column {
+	if !column && !anyType {
 		return false, nil
 	}
 	reader := r.DefinitionInput()

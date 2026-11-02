@@ -41,7 +41,7 @@ func TestDropClosureRetainedQueryAuthority(t *testing.T) {
 			}
 			reader := core.StageDropProvider(context.Background(), stage, nil, nil, nil)
 			before := stage.RemovalCount()
-			passive, err := view.PassiveTypeDependency(reader, dependent, domain)
+			passive, err := view.PassiveTypeDependency(reader, dependent, domain, false)
 			if err != nil || !passive {
 				t.Fatal("retained passive query lost entering authority", passive, err)
 			}

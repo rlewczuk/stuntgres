@@ -83,7 +83,7 @@ func TestDropClosurePassiveViewGuard(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	reader := core.StageDropProvider(context.Background(), stage, nil, nil, nil)
 	for _, relation := range []*catalog.Relation{passive, explicit} {
-		got, err := view.PassiveTypeDependency(reader, relation, domain)
+		got, err := view.PassiveTypeDependency(reader, relation, domain, false)
 		if err != nil || got != (relation == passive) {
 			t.Fatal("actual view dependency classification", relation.Name(), got, err)
 		}
@@ -108,7 +108,7 @@ func TestDropClosurePassiveViewGuard(t *testing.T) {
 		if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), relation.Address())); err != nil {
 			t.Fatal(err)
 		}
-		got, err := view.PassiveTypeDependency(reader, relation, domain)
+		got, err := view.PassiveTypeDependency(reader, relation, domain, false)
 		if err != nil || got != (relation == passive) {
 			t.Fatal("retirement bypassed passive-type classification", got, err)
 		}

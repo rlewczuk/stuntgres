@@ -2,6 +2,7 @@ package role
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -145,6 +146,12 @@ func PlanOwned(view access.View, stmt parser.Statement, describe func(ids.Object
 				d := view.Catalog.MustExtension(extension)
 				return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + d.Name() + " requires it", Hint: "You can drop extension " + d.Name() + " instead."}
 			}
+		}
+		// PostgreSQL deletes owned objects newest first (pg_shdepend.c's
+		// sort_object_addresses). Only an extension-only set is walked in
+		// root order; mixed sets keep their ascending traversal.
+		if len(roots) > 1 && !slices.ContainsFunc(roots, func(a ids.ObjectAddress) bool { return a.ClassID != ids.ExtensionClassID }) {
+			slices.Reverse(roots)
 		}
 		roots = extension.RemovalRoots(view.Catalog, roots)
 	}

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"iter"
 	"strconv"
 	"strings"
@@ -57,6 +58,27 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 			}
 		}
 	}
+}
+
+// VisitInstalledProcedureTypes visits an installed extension routine's declared
+// result and argument types, NORMAL declaration edges as for any routine. A
+// malformed signature fails; yield returning false stops visitation.
+func VisitInstalledProcedureTypes(d *Procedure, yield func(ids.ObjectAddress) bool) error {
+	if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
+		return nil
+	}
+	for arguments := string(d.Signature); arguments != ""; {
+		argument, rest, _ := strings.Cut(arguments, ",")
+		id, err := strconv.ParseUint(argument, 10, 32)
+		if err != nil {
+			return fmt.Errorf("stuntgres: invalid installed codec signature")
+		}
+		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}) {
+			return nil
+		}
+		arguments = rest
+	}
+	return nil
 }
 
 // VisitProcedureDeclarationDependencies visits namespace, language, support and

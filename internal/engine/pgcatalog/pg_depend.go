@@ -3,8 +3,6 @@ package pgcatalog
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -149,15 +147,8 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				if !d.Origin.Valid(d.Address()) || d.Implementation == nil || d.Origin.Installation.Implementation != d.Implementation {
 					return nil, fmt.Errorf("stuntgres: missing installed codec authority")
 				}
-				declaration(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result})
-				for arguments := string(d.Signature); arguments != ""; {
-					argument, rest, _ := strings.Cut(arguments, ",")
-					id, err := strconv.ParseUint(argument, 10, 32)
-					if err != nil {
-						return nil, fmt.Errorf("stuntgres: invalid installed codec signature")
-					}
-					declaration(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-					arguments = rest
+				if err := catalog.VisitInstalledProcedureTypes(d, declaration); err != nil {
+					return nil, err
 				}
 			}
 		case *catalog.TSTemplate:

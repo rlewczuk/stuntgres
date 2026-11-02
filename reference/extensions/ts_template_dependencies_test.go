@@ -64,6 +64,12 @@ func TestReferenceTSTemplateDependencies(t *testing.T) {
 		run(edges)
 		run(fixture.Prepared(edges))
 		run(fixture.Exec("CREATE TEXT SEARCH DICTIONARY public.template_helper_dict (TEMPLATE=public.template_helper_dep,RULES=unaccent)", 0))
+		// With both callbacks, the newer member (LEXIZE) is reached first.
+		for _, prepared := range []bool{false, true} {
+			s := fixture.ImplicitError("DROP EXTENSION unaccent", fixture.Diagnostic{Code: "2BP01", Message: "cannot drop extension unaccent because other objects depend on it", Detail: "text search template template_helper_dep depends on function ext_addon.unaccent_lexize(internal,internal,internal,internal)\ntext search dictionary template_helper_dict depends on text search template template_helper_dep", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
+			s.Prepared, s.ErrorStage = prepared, "execute"
+			run(s)
+		}
 		fixture.TSTemplateRestrict(t, p, c, r, "template_helper_dep", "template_helper_dict")
 		fixture.TSTemplateLexemes(t, p, c, r, pg, "SELECT ts_lexize('public.template_helper_dict','Hôtel') AS lexemes", "{Hotel}")
 		run(fixture.Exec("DROP EXTENSION unaccent CASCADE", 0))
