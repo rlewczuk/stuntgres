@@ -35,6 +35,36 @@ admission, rejected-start no-publication and complete read-only diagnostics.
 The package oracle retains pg_stat_statements and enables logical WAL through
 the existing fixture options so populated scenarios use genuine logical slots.
 
+Replication monitoring uses
+`RUN='^TestReferencePGStatReplication(Shape|ReadOnly|Privileges|Lifecycle|FeatureSmoke)$'`
+with `make check` and then `make check REFERENCE=1`. It covers the exact twenty
+nullable columns on direct, fresh and retained prepared empty results, catalog
+type/array links and symbolic view display, full read-only diagnostics,
+ordinary activity/settings invariance, current reader roles, native cancellation
+and Dump/Reset/Restore. The native provider has no real WAL sender: the view is
+empty, never a fictitious zero-progress or all-NULL worker. Neither inactive
+slots nor receivers/configuration imply a sender; physical replication is not
+implemented. There is no portable unordered row sequence.
+
+PostgreSQL's two independent gates must not be conflated: `pid`, `usesysid`,
+`usename`, `application_name` and `backend_xmin` are unredacted general fields,
+subject to genuine absence. `client_addr`, `client_hostname`, `client_port`
+and `backend_start` require superuser, effective `pg_read_all_stats` privileges
+**or privileges of the sender's authenticated role**. All eleven fields
+`state` through `reply_time` require **only superuser or effective
+`pg_read_all_stats` privileges**, remaining NULL even for sender-role readers.
+Unavailable IP/hostname, xmin, LSN, lag and reply time remain NULL rather than
+fabricated values; Unix sockets have NULL address and port -1. Invalid LSNs
+are not `0/0`, unavailable lag is not zero, and idle measured lag may briefly
+persist before NULL. Native empty role results prove access/absence, **not
+positive-row masking**; no genuine native sender exists for that evidence.
+
+The existing `RUN='^TestReferenceServerProtocol$'` also runs in both modes:
+native `replication=database` startup remains FATAL/0A000 with
+`replication connections are not supported`, while a separate ordinary
+observer sees count0 before/after. Genuine PostgreSQL superuser replication
+startup remains successful and its connection is closed as before.
+
 The full 22-column monitoring view uses
 `RUN='^TestReferencePGStatActivity(Metadata|Lifecycle|Privileges|RoleIdentity|WaitsAndSignals|Snapshots|IdentityAndTracking|ReadOnly|FeatureSmoke)$'`
 with `make check`, then the same selector with `REFERENCE=1`. Expectations cover

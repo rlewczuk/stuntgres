@@ -274,6 +274,14 @@ modes; see [reference/session_state](reference/session_state/README.md) for the
 complete metadata, lifecycle, current joined-role identity, privilege, snapshot
 ownership and signal proof inventory.
 
+Replication monitoring exposes the typed, read-only `pg_stat_replication` view.
+With no actual native WAL senders it is empty, not a simulated worker; physical
+replication and replication startup remain unsupported. The smoke selector is
+`RUN='^TestReferencePGStatReplicationFeatureSmoke$'` in native and `REFERENCE=1`
+modes. See the same session-state guide for metadata, lifecycle, read-only and
+rejected-startup coverage and the distinct PostgreSQL privilege gates; empty
+native results do not constitute positive sender-field filtering evidence.
+
 Most tests are *reference tests*: one test body runs against stuntgres and against
 real PostgreSQL 18, and both must give the same results. New features and bug
 fixes start with such a test whose expectations come from PostgreSQL; then the

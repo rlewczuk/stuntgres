@@ -260,6 +260,36 @@ diagnostics; retained rows own their original immutable typed backing.
   cannot poison the source or erase valid super/stats privilege; strict observer
   and foreign/zero principal validation remains intact.
 
+- `pg_stat_replication` (12231, row type 12233, array 12232) is a read-only,
+  twenty-column nullable view on the common registered source/capture path.
+  The shared provider has no actual WAL senders, so validated capture returns
+  nonnil empty rows, not a fictitious worker or zero-progress LSN. Ordinary
+  clients, inactive slots, receivers, origins and standby configuration are not
+  senders. Physical replication and replication startup remain unavailable;
+  rejected wire startup cannot register a sender. The symbolic display retains
+  PostgreSQL 18.6's activity/sender join, complete function output alias lists,
+  literal `NULL::integer` cast and role LEFT JOIN without installing callable
+  backing functions. No row order is promised without ORDER BY.
+
+  The PostgreSQL 18.6 view composes **two distinct privilege gates**:
+  `pid`, `usesysid`, `usename`, `application_name` and `backend_xmin` are general
+  identity/horizon fields (genuine absence can still be NULL).
+  `client_addr`, `client_hostname`, `client_port` and `backend_start` are visible
+  to superusers, holders of effective `pg_read_all_stats` privileges, or callers
+  possessing privileges of the sender's authenticated role; otherwise NULL.
+  All eleven fields from `state` through `reply_time` require superuser or
+  effective `pg_read_all_stats` privileges; otherwise **all eleven are NULL,
+  even for a sender-role reader**. Do not reuse activity's own-role allowance
+  for sender state, LSNs, lags, priority, sync state or reply time.
+  No positive native sender exists to exercise these masks: empty role tests
+  establish visibility and absence, not positive filtering evidence.
+
+  Genuine unavailable peer address/hostname, feedback xmin, individual LSNs,
+  lag and reply time remain NULL, never guessed IPs, timestamps, `0/0` progress
+  or zero lag. Unix-socket peers have NULL address and port -1; hostname is not
+  inferred. Idle measured lag may persist briefly before becoming NULL.
+  Cardinality is one row per actual WAL sender, not per slot or receiver.
+
 - `pg_matviews` (12006) projects captured materialized descriptors and paired
   roles, using the runtime's current definition presentation. Population is
   independent of stored row count; index presence follows sticky publication
@@ -1906,6 +1936,13 @@ Detached archiver projection, typed absence and source authority use
 Subscription identity/absence, authenticated source rejection and retained
 type-generation ownership use `make check RUN='^TestPGStatSubscriptionSource$'`
 in `enginetests/`; composed provider lifetime witnesses live with core.
+
+Replication capture/ownership units use
+`make check RUN='^TestPGStatReplication(Capture|Ownership)$'`: exact twenty-field
+owned metadata, nonnil empty rows, malformed/foreign/stale authority rejection,
+cancellation-first publication and retained Reset generations. Public SQL proof
+belongs to `reference/session_state` under `TestReferencePGStatReplication`;
+the existing `TestReferenceServerProtocol` owns rejected replication startup.
 
 Build-configuration capture/ownership units in `enginetests/` use
 `make check RUN='^TestPGConfig'`. They retain real catalog/type generations,
