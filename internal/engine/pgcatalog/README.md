@@ -1085,9 +1085,10 @@ I/U/D errors to ALL, not utility errors. Core captures current authorization
 and effective settings alongside catalog/role roots so the shared session
 statistics Reader, including snapshot/cache policy, remains authoritative.
 
-`pg_statio_all_tables` (12174) and `pg_statio_sys_tables` (12179) are registered
-between the table-statistics and index-statistics producers in numeric lookup
-order. Their descriptors reuse row/array pairs12176/12175 and12181/12180.
+`pg_statio_all_tables` (12174), `pg_statio_sys_tables` (12179) and
+`pg_statio_user_tables` (12183) are registered between the table-statistics and
+index-statistics producers in numeric lookup order. Their descriptors reuse
+row/array pairs12176/12175,12181/12180 and12185/12184.
 The shared producer walks actual Relations, captures SQLIndex parent relationships once,
 admits only ClassKind r/t/m, and rejects identity/schema/name keys before any
 Reader demand. Eleven nullable attributes retain exact released types,
@@ -1100,8 +1101,12 @@ synthesis or underlying ACL filter.
 Structured released view metadata supplies definitions and read-only behavior.
 SYS applies exact `pg_catalog`/`information_schema` equality or case-sensitive
 `pg_toast` prefix membership before identity allocation and heap/index demand.
-The named USER companion remains separately coordinated. Own-view SELECT is
-checked live, including held prepared execution; underlying ACLs do not redact.
+USER applies the exact case-sensitive complement of SYS before identity
+allocation, Keep and Reader demand. Named ALL/USER rows have identical eleven
+cells under one snapshot; SYS excludes those user identities. Both wrappers'
+I/U/D diagnostics name underlying ALL; TRUNCATE/COPY retain the selected name.
+Own-view SELECT is checked live, including held prepared execution;
+underlying ACLs do not redact.
 
 `pg_policy` (3256) is a physical eight-column source over immutable
 `Relation.Security.Policies`. Capture validates the exact source, captured type
@@ -1871,9 +1876,9 @@ a hash root alone does not select that access method.
   (`core/enginetests/pgcatalog`): `RUN='^TestPGStatioSysSequences'`.
   Shared provider/runtime units use `RUN='^TestStatsSequence'`; public scenarios
   use `RUN='^TestReferencePGStatio(All|Sys)Sequences'`.
-- Table-I/O producer units: `RUN='^TestStatio(All|Sys)Tables'`; composed
-  classification/Reader units: `RUN='^TestPGStatioSysTables'`; public scenarios:
-  `RUN='^TestReferencePGStatio(All|Sys)Tables'`, also with `REFERENCE=1`.
+- Table-I/O producer units: `RUN='^TestStatio(All|Sys|User)Tables'`; composed
+  classification/Reader units: `RUN='^TestPGStatio(Sys|User)Tables'`; public scenarios:
+  `RUN='^TestReferencePGStatio(All|Sys|User)Tables'`, also with `REFERENCE=1`.
 - Column ACL producer, ownership and frontier units (`enginetests/`):
   `RUN='^TestInfo(ColumnPrivileges|RoleColumnGrants)'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`

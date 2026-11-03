@@ -1762,9 +1762,9 @@ escapes in a row.
 
 `catalogRuntime.TableBlockStatistics` reads the qualified relation Fact once
 through the existing transaction Reader and returns `(BlocksFetched-BlocksHit,
-BlocksHit)`. `pg_statio_all_tables` shares current authorization/settings capture
-with the other monitoring sources, not prepared evaluated rows. No collector,
-cache, pending-write readback, forced flush or source-specific snapshot is added.
+BlocksHit)`. The ALL/SYS/USER table-I/O sources share current authorization and
+effective-settings capture, not prepared evaluated rows. No collector, cache,
+pending-write readback, forced flush or source-specific snapshot is added.
 The existing actual-work sourceRead lease records one fetched and resident hit
 per reached nonempty invocation, including private/TEMP sources independently
 of shared-buffer eligibility. Thus N published requests give heap `(0,N)`,
@@ -1775,6 +1775,10 @@ TOAST relation, both direct toast and tidx counters are NULL; no fake descriptor
 are added. Zero defaults apply to valid relation identities without statistics.
 Counts gating, timing independence, idle throttle, physical-session drain,
 Reader clear/cache/snapshot and retirement remain their existing owners.
+Namespace and Keep rejection precede all Reader demand. SYS and USER partition
+the same real ALL identities; their own live ACLs remain independent of
+underlying schema/table privileges and RLS. Retained eager results own immutable
+typed cells across clear, descriptor changes and catalog replacement.
 `TestStatioAllTablesReader` composes real source Opens, publication, reader modes,
 clear, policy gating and private/TEMP identity lifetimes; it also supplies
 F7/H5 to independently prove heap subtraction is not hard-coded zero.

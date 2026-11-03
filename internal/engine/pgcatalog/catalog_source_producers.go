@@ -108,6 +108,7 @@ var producers = [...]Registration{
 	{StatAllTablesOID, captureTableStatistics},
 	{StatioAllTablesOID, captureStatioTables},
 	{StatioSysTablesOID, captureStatioTables},
+	{StatioUserTablesOID, captureStatioTables},
 	{StatAllIndexesOID, captureIndexStatistics},
 	{ProgressCopyOID, captureCopyProgress},
 	{ProgressCreateIndexOID, captureCreateIndexProgress},

@@ -34,14 +34,20 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
-Table-I/O scenarios use `make check RUN='^TestReferencePGStatio(All|Sys)Tables'`
-(also with `REFERENCE=1`). ALL and SYS share eleven-column metadata, exact
-identity/optional-counter NULL semantics, publication and transaction Readers.
-SYS independently checks positive catalog membership, the case-sensitive
-system namespace partition, current own-view ACLs without underlying redaction,
-read-only diagnostics and native replacement lifetimes. Full user-kind fixtures
-in ALL assert named SYS exclusion in both modes; final named USER equality is
-reserved for its separately coordinated companion part.
+Table-I/O scenarios use `make check RUN='^TestReferencePGStatio(All|Sys|User)Tables'`
+(also with `REFERENCE=1`). ALL, SYS and USER share eleven-column metadata,
+exact identity/optional-counter NULL semantics, publication and transaction
+Readers. Independent kind/namespace bags and nonzero arithmetic precede
+same-snapshot named ALL/USER eleven-cell equality and SYS exclusion. The family
+covers current own-view ACLs without underlying redaction, read-only diagnostics,
+held execution settings, actual retained eager Rows and native replacement
+lifetimes. Internal category-qualified fixtures distinguish heap/index facts
+from conflicting IO/generic-index decoys and prove rejected rows demand nothing.
+USER counter, privilege and Reader scenarios first publish setup tuples, then
+retire dedicated workload pools and await positive heap deltas through bounded,
+independent none-mode readers. They compare full current/retained vectors and
+nonzero admin/actor rows under stable cuts; PostgreSQL physical magnitudes are
+not compared with native exact logical counts.
 
 Replication-origin session scenarios use
 `make check RUN='^TestReferenceReplicationOriginSession'` (also with `REFERENCE=1`).

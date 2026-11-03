@@ -1,5 +1,17 @@
 # Changes
 
+- Add the eleven-column `pg_catalog.pg_statio_user_tables` on the existing
+  ALL/SYS producer, events and transaction Reader, with the exact complementary
+  namespace predicate before identity allocation or fact demand. Preserve typed
+  NULLs for absent indexes/TOAST, logical `(F-H,H)` heap and actual index sums,
+  live PUBLIC monitoring ACLs without underlying redaction, structured view
+  metadata and underlying-ALL DML diagnostics. Complete named ALL/USER equality,
+  SYS exclusion and information_schema inventories; cover independent category
+  arithmetic, Reader policy, privileges, retained Rows, native controls and smoke.
+  Public USER scenarios independently observe positive published PostgreSQL heap
+  deltas, full fresh/retained vectors and unredacted nonzero actor/admin equality,
+  while retaining exact native logical counts without physical-magnitude parity.
+
 - Add the seven-column `pg_catalog.pg_statio_user_indexes` view using ALL's
   existing producer, row/array identities and shared transaction statistics
   Reader. Exclude exact released system parent namespaces before fact demand,

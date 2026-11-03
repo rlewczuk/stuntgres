@@ -56,7 +56,7 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		// The simple sys/user views rewrite to the non-updatable all view.
 		name = "pg_statio_all_sequences"
 	}
-	if d.Address().ObjectID == StatioSysTablesOID {
+	if d.Address().ObjectID == StatioSysTablesOID || d.Address().ObjectID == StatioUserTablesOID {
 		name = "pg_statio_all_tables"
 	}
 	if d.Address().ObjectID == StatioUserIndexesOID {

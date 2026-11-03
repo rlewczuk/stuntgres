@@ -60,10 +60,8 @@ func TestReferencePGStatioAllTablesMembership(t *testing.T) {
 			statioSequenceExec(t,p,b,peer,"SET LOCAL stats_fetch_consistency=snapshot")
 			for oid:=range want {
 				all:=statioTableOne(t,p,b,peer,oid)
-				if b.PG {
-					user:=statioTableRows(t,p,b,peer,"SELECT * FROM pg_statio_user_tables WHERE relid=$1::oid",oid)
-					if len(user)!=1 || user[0]!=all {t.Fatal("released companion same snapshot",all,user)}
-				}
+				user:=statioTableRows(t,p,b,peer,"SELECT * FROM pg_statio_user_tables WHERE relid=$1::oid",oid)
+				if len(user)!=1 || user[0]!=all {t.Fatal("named companion same snapshot",all,user)}
 				if sys:=statioTableRows(t,p,b,peer,"SELECT * FROM pg_statio_sys_tables WHERE relid=$1::oid",oid);len(sys)!=0 {t.Fatal("user in system companion",sys)}
 			}
 			statioSequenceExec(t,p,b,peer,"ROLLBACK")

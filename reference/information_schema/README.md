@@ -156,10 +156,10 @@ The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and
 `pg_statio_user_sequences` each contribute exactly five ordered columns
 (`relid`, `schemaname`, `relname`, `blks_read`, `blks_hit`) and view classification
 to the same direct/prepared inventory and complete native bag.
-`pg_statio_all_tables` and `pg_statio_sys_tables` each contribute their eleven
-release-ordered identity and heap/index/TOAST counter columns, with view
-classification, to this complete native bag and both direct/prepared attribute
-inventories; no selected provider is filtered out.
+`pg_statio_all_tables`, `pg_statio_sys_tables` and `pg_statio_user_tables` each
+contribute their eleven release-ordered identity and heap/index/TOAST counter
+columns, with view classification, to this complete native bag and both
+direct/prepared attribute inventories; no selected provider is filtered out.
 The PUBLIC-readable `constraint_table_usage` inventory has exactly six nullable
 `sql_identifier` columns (NAME base), in documented table/constraint order,
 ordinals1–6 and view classification. `TestReferenceInfoColumnsPopulation/providers`

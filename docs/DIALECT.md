@@ -97,9 +97,9 @@ corruption or live session/transaction resources.
 
 ## Table block monitoring
 
-`pg_catalog.pg_statio_all_tables` and `pg_catalog.pg_statio_sys_tables` have
-exactly the eleven released PostgreSQL 18 columns, typed OID/NAME/NAME followed
-by eight INT8 counters, with nullable
+`pg_catalog.pg_statio_all_tables`, `pg_catalog.pg_statio_sys_tables` and
+`pg_catalog.pg_statio_user_tables` have exactly the eleven released PostgreSQL
+18 columns, typed OID/NAME/NAME followed by eight INT8 counters, with nullable
 attribute metadata. Membership and identities are exact represented r/t/m
 relations, not a guessed physical bootstrap inventory; ordinary partition leaves,
 unlogged, materialized and other-session TEMP objects are included. The view is
@@ -117,9 +117,12 @@ sizing, WAL and TOAST storage are not implemented by this monitoring projection.
 Shared counts policy, publication and transaction Reader modes remain unchanged.
 SYS selects exact `pg_catalog`, exact `information_schema`, or case-sensitive
 `pg_toast` prefixes from ALL with identical values and NULLs under one Reader.
-Own-view SELECT is live for held statements; denied underlying objects remain
-visible without redaction. SYS DML names underlying ALL; TRUNCATE/COPY name SYS.
-The named USER companion and final named ALL/USER equality are staged separately.
+USER selects the exact case-sensitive complement, including TEMP namespaces
+and quoted `PG_TOAST`/`Pg_Catalog`, but excluding every lowercase `pg_toast`
+prefix. Named ALL/USER rows agree in all eleven cells under one snapshot;
+SYS excludes those user identities. Own-view SELECT is live for held statements;
+denied underlying objects remain visible without redaction. SYS/USER I/U/D names
+underlying ALL; TRUNCATE/COPY retain the selected view name.
 
 ## Index monitoring
 

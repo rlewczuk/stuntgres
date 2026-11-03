@@ -569,9 +569,9 @@ invalidates that seal, requires ordinary historical FK validation and atomically
 rejects invalid replay. No killed TID authority, private/prepared writes, GIDs,
 locks, waiters or executable handles are serialized.
 
-`pg_catalog.pg_statio_all_tables` and `pg_catalog.pg_statio_sys_tables` are
-PUBLIC-readable, read-only PostgreSQL 18.6 eleven-column views: `relid oid`,
-`schemaname name`, `relname name`, then
+`pg_catalog.pg_statio_all_tables`, `pg_catalog.pg_statio_sys_tables` and
+`pg_catalog.pg_statio_user_tables` are PUBLIC-readable, read-only PostgreSQL
+18.6 eleven-column views: `relid oid`, `schemaname name`, `relname name`, then
 `heap_blks_read`, `heap_blks_hit`, `idx_blks_read`, `idx_blks_hit`,
 `toast_blks_read`, `toast_blks_hit`, `tidx_blks_read`, `tidx_blks_hit` (all bigint).
 All attributes have nullable metadata; actual identities and heap counters are
@@ -604,17 +604,17 @@ Rename/schema movement preserves history, drop/recreate does not, and native
 Dump/Reset/Restore does not serialize monitoring history. SYS selects actual
 ALL identities in exact `pg_catalog`, exact `information_schema`, or namespaces
 with case-sensitive prefix `pg_toast`; all eleven cells share the same Reader
-and NULL semantics. Its DML errors name the underlying `pg_statio_all_tables`,
-while TRUNCATE/COPY name SYS. The named USER counterpart and final named
-ALL/USER equality remain a separately coordinated part, not an alias or stub.
-Selected public proof:
-`make check RUN='^TestReferencePGStatioAllTables(Shape|Membership|Counters|Snapshots|Privileges|Lifecycle|Diagnostics|FeatureSmoke)$'`
+and NULL semantics. USER selects the exact case-sensitive complement:
+`schemaname NOT IN ('pg_catalog','information_schema') AND schemaname !~ '^pg_toast'`.
+It includes quoted `PG_TOAST`/`Pg_Catalog`, `information_schema_extra`,
+`xpg_toast` and TEMP namespaces, but excludes every lowercase `pg_toast` prefix.
+Named ALL/USER rows agree in all eleven cells under one snapshot, and SYS
+excludes the same user identities. Both wrappers' I/U/D errors name underlying
+`pg_statio_all_tables`; TRUNCATE/COPY name the selected SYS or USER view.
+Public proof uses `make check RUN='^TestReferencePGStatio(All|Sys|User)Tables'`
 (also `REFERENCE=1` for the pinned PostgreSQL 18.6 fixture). The executable quiet
-smoke is `make check RUN='^TestReferencePGStatioAllTablesFeatureSmoke$'` in both modes.
-System-table proof and quiet executable smoke use
-`make check RUN='^TestReferencePGStatioSysTables'` and
-`make check RUN='^TestReferencePGStatioSysTablesFeatureSmoke$'`, respectively,
-each also with `REFERENCE=1`.
+USER smoke is `make check RUN='^TestReferencePGStatioUserTablesFeatureSmoke$'`
+in both modes.
 
 `pg_catalog.pg_statio_all_indexes` exposes exactly seven PostgreSQL 18.6 columns:
 `relid oid`, `indexrelid oid`, `schemaname name`, `relname name`,

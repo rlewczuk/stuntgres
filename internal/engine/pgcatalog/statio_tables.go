@@ -14,6 +14,9 @@ const StatioAllTablesOID ids.OID = 12174
 // StatioSysTablesOID reuses the builtin system-table view's row identities.
 const StatioSysTablesOID ids.OID = 12179
 
+// StatioUserTablesOID reuses the builtin user-table view's row identities.
+const StatioUserTablesOID ids.OID = 12183
+
 var statioTableColumns = []ColumnSpec{
 	{"relid", sqltype.Oid, true, 0, 0, -1},
 	{"schemaname", sqltype.Name, true, 950, 0, -1},
@@ -56,10 +59,12 @@ func captureStatioTables(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing table block statistics namespace")
 		}
-		if in.Source.Address().ObjectID == StatioSysTablesOID &&
-			namespace.Name() != "pg_catalog" && namespace.Name() != "information_schema" &&
-			!strings.HasPrefix(namespace.Name(), "pg_toast") {
-			continue
+		if oid := in.Source.Address().ObjectID; oid == StatioSysTablesOID || oid == StatioUserTablesOID {
+			system := namespace.Name() == "pg_catalog" || namespace.Name() == "information_schema" ||
+				strings.HasPrefix(namespace.Name(), "pg_toast")
+			if (oid == StatioSysTablesOID && !system) || (oid == StatioUserTablesOID && system) {
+				continue
+			}
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(address.ObjectID))
 		if err != nil {
