@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -10,6 +11,9 @@ import (
 
 // StatioAllSequencesOID is a native identity, not an initdb-assigned view OID.
 const StatioAllSequencesOID ids.OID = 12213
+
+// StatioSysSequencesOID shares its producer and statistics with the all view.
+const StatioSysSequencesOID ids.OID = 12218
 
 var statioSequencesColumns = []ColumnSpec{
 	{"relid", sqltype.Oid, true, 0, 0, -1},
@@ -24,6 +28,7 @@ func captureStatioSequences(in Input) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
+	systemOnly := in.Source.Address().ObjectID == StatioSysSequencesOID
 	for _, descriptor := range in.Catalog.Descriptors() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
@@ -35,6 +40,9 @@ func captureStatioSequences(in Input) ([][]sqltype.Value, error) {
 		ns, ok := in.Catalog.Namespace(d.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing sequence statistics namespace")
+		}
+		if systemOnly && ns.Name() != "pg_catalog" && ns.Name() != "information_schema" && !strings.HasPrefix(ns.Name(), "pg_toast") {
+			continue
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))
 		if err != nil {

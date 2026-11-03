@@ -51,14 +51,19 @@ func captureTimezoneSource(in Input) ([][]sqltype.Value, error) {
 }
 
 func nonUpdatableViewError(d *catalog.Relation, operation string) error {
-	message := fmt.Sprintf(`cannot update view "%s"`, d.Name())
+	name := d.Name()
+	if d.Address().ObjectID == StatioSysSequencesOID {
+		// The simple sys view rewrites to the non-updatable all view.
+		name = "pg_statio_all_sequences"
+	}
+	message := fmt.Sprintf(`cannot update view "%s"`, name)
 	action := "updating the view"
 	switch operation {
 	case "insert":
-		message = fmt.Sprintf(`cannot insert into view "%s"`, d.Name())
+		message = fmt.Sprintf(`cannot insert into view "%s"`, name)
 		action = "inserting into the view"
 	case "delete":
-		message = fmt.Sprintf(`cannot delete from view "%s"`, d.Name())
+		message = fmt.Sprintf(`cannot delete from view "%s"`, name)
 		action = "deleting from the view"
 	}
 	detail := "Views that do not select from a single table or view are not automatically updatable."

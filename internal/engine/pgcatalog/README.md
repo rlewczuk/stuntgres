@@ -1223,20 +1223,23 @@ catalog writes or bypass a provider's independent backing-source checks.
   Tuple prefixes and completed rebuilt roots are genuine logical work; absent
   physical block work reports zero. `pg_class.relfilenode` projects the catalog's
   current logical storage incarnation without adding physical file inquiries.
-- `pg_statio_all_sequences` is one PUBLIC-readable, read-only five-column source:
-  OID/NAME/NAME/INT8/INT8, all nullable metadata, five non-NULL cells per row.
-  It enumerates actual sequence descriptors, including private and other-session
-  TEMP identities, without schema-USAGE, sequence-ACL or activity filtering.
-  Missing activity is zero, not privilege-redacted NULL. Identity/name rejection
-  precedes the transaction reader. With published tracked encounters N, its
-  simulated one-page projection is (0,0) for N=0 and (1,N-1) otherwise; this is
-  cumulative logical residency, not physical storage or sequence CACHE size.
-  The canonical released five-column join/function definition owns presentation
-  and non-updatability; it grants no executable block-getter capability.
-  No sys/user counterpart source is registered here. Classification over this
-  source uses system schemas `pg_catalog`, `information_schema` or the
-  case-sensitive `^pg_toast` prefix, with the complementary user predicate;
-  `pg_temp_N` and `PG_TOAST` are user schemas. Rows have no implicit SQL ordering.
+- `pg_statio_all_sequences` and `pg_statio_sys_sequences` are PUBLIC-readable,
+  read-only five-column sources: OID/NAME/NAME/INT8/INT8, all nullable metadata,
+  five non-NULL cells per row. The shared producer enumerates actual sequence
+  descriptors, including private and other-session TEMP identities, without
+  schema-USAGE, sequence-ACL or activity filtering. Missing activity is zero,
+  not privilege-redacted NULL. The sys slice includes exactly `pg_catalog`,
+  `information_schema` and the case-sensitive `pg_toast` prefix; `pg_toasty`
+  qualifies, while `pg_temp_N` and `PG_TOAST` do not. System classification and
+  identity/name rejection precede the transaction reader, so excluded identities
+  cannot initialize its cache or snapshot. With published tracked encounters N,
+  both sources share the simulated one-page projection (0,0) for N=0 and
+  (1,N-1) otherwise: cumulative logical residency, not physical storage or
+  sequence CACHE size. Current descriptors own membership and names, not retained
+  statistics keys. Released definitions own presentation and non-updatability;
+  sys DML reports its underlying non-updatable all view. No executable
+  block-getter capability or named user counterpart is registered. Rows have no
+  implicit SQL ordering.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.
@@ -1687,6 +1690,10 @@ a hash root alone does not select that access method.
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`
+- Sequence-I/O descriptor classification and real-reader exclusion units
+  (`core/enginetests/pgcatalog`): `RUN='^TestPGStatioSysSequences'`.
+  Shared provider/runtime units use `RUN='^TestStatsSequence'`; public scenarios
+  use `RUN='^TestReferencePGStatio(All|Sys)Sequences'`.
 - Column ACL producer, ownership and frontier units (`enginetests/`):
   `RUN='^TestInfo(ColumnPrivileges|RoleColumnGrants)'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`
