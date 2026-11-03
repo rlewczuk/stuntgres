@@ -18,6 +18,9 @@ import (
 // eligible OIDs use the same immutable registry and common row wrapper.
 func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep) (*exec.Source, error) {
 	oid := source.Address().ObjectID
+	if oid == pgcatalog.StatActivityOID {
+		return e.capturePGStatActivityLocked(scope, ref, source, keep)
+	}
 	// These two sources own multi-stage capture/completion, not row producers.
 	if oid == pgcatalog.LocksOID {
 		return e.capturePGLocksLocked(scope.Op.Context(), ref, source)

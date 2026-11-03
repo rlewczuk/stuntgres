@@ -98,6 +98,7 @@ type StatementScope struct {
 	QueryLockContext            *exec.LockContext
 	TxRef                       ids.TxRef
 	CommandID                   ids.CommandID
+	activityCommand             ids.CommandIdentity // Top-level publication, never nested lexical scratch.
 	OwnWrites                   map[ids.ObjectAddress][]storage.RowVersion
 	OwnDeletes                  map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Expected                    *Description

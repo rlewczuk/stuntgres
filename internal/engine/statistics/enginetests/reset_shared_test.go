@@ -42,7 +42,9 @@ func TestStatsProviderResetShared(t *testing.T) {
 			}
 			w.SLRU(&p, statistics.Transaction, sharedVector(66))
 			w.Flush(&p, t0, true)
-			p.Command(ids.SessionToken{}, ids.CommandIdentity{}, "activity control", t0, true)
+			token := (&ids.Domain{}).Session(1)
+			p.RegisterActivity(token, statistics.Activity{})
+			p.Command(token, ids.CommandIdentity{}, "activity control", t0, true)
 			var ar statistics.Reader
 			beforeActivity := ar.Activities(&p)
 			var before [statistics.SharedKindCount]statistics.SharedFact

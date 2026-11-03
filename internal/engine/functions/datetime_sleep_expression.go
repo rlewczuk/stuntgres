@@ -164,6 +164,13 @@ func datetimeSleepStopTimer(timer **time.Timer) {
 func datetimeSleepWaitRemaining(c expr.Context, remaining datetimeSleepRemaining) error {
 	ctx := c.FunctionContext()
 	var timer *time.Timer
+	wait, monitored := c.(interface{ FunctionActivitySleep(bool) })
+	entered := false
+	defer func() {
+		if entered {
+			wait.FunctionActivitySleep(false)
+		}
+	}()
 	defer datetimeSleepStopTimer(&timer)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -175,6 +182,10 @@ func datetimeSleepWaitRemaining(c expr.Context, remaining datetimeSleepRemaining
 		}
 		if !(seconds > 0) {
 			return nil
+		}
+		if monitored && !entered {
+			wait.FunctionActivitySleep(true)
+			entered = true
 		}
 		chunk := datetimeSleepChunk(seconds)
 		if timer == nil {

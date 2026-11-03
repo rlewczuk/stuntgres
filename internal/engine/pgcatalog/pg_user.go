@@ -64,7 +64,7 @@ func VirtualViewWriteError(d *catalog.Relation, operation string, targets []int)
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}
 	if d.Address().ObjectID != 12014 && d.Address().ObjectID != ShadowOID {
-		return timezoneViewWriteError(d, operation)
+		return nonUpdatableViewError(d, operation)
 	}
 	verb, action := "update", "updating"
 	switch operation {

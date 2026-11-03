@@ -172,12 +172,14 @@ func TestStatsProviderCollection(t *testing.T) {
 		t.Fatal("function matrix", f)
 	}
 	token := (&ids.Domain{}).Session(1)
+	p.RegisterActivity(token, statistics.Activity{})
 	p.Command(token, ids.CommandIdentity{Command: 1}, "SELECT secret", now, true)
 	var r statistics.Reader
 	if !r.Activities(&p)[token].Active {
 		t.Fatal("missing active command")
 	}
 	p.Command(token, ids.CommandIdentity{Command: 2}, "secret disabled", now, false)
+	p.ReportIdle(token, "", "idle", ids.TxRef{}, time.Time{}, now)
 	if !r.Activities(&p)[token].Active {
 		t.Fatal("activity snapshot changed")
 	}

@@ -13,9 +13,10 @@ import (
 // order incarnations globally; CommitSeq continues to own data views.
 type Entry struct {
 	XID, Xmin             uint64
-	ExportXmin uint64 // Oldest retained export, independent of the active command.
-	ExportFullXmin uint64 // Public full-XID horizon, not writer order or CommitSeq.
-	ImportedFullXmin uint64 // Imported public full-XID horizon, not an ordinary immutable read.
+	ExportXmin            uint64 // Oldest retained export, independent of the active command.
+	ExportFullXmin        uint64 // Public full-XID horizon, not writer order or CommitSeq.
+	ImportedFullXmin      uint64 // Imported public full-XID horizon, not an ordinary immutable read.
+	ActivityFullXmin      uint64 // Accepted public snapshot horizon; monitoring only.
 	AssignedXID           uint32
 	FullXID               uint64
 	AgeAnchor             uint32
@@ -172,6 +173,7 @@ func (reg *Registry) WithdrawSnapshotLocked(ref ids.TxRef) {
 func (reg *Registry) DropSnapshotLocked(ref ids.TxRef) {
 	if v, ok := reg.Entries[ref]; ok {
 		v.ImportedFullXmin = 0
+		v.ActivityFullXmin = 0
 		v.Xmin, v.Snapshot, v.SafeBuilder = 0, false, false
 		if v.XID == 0 && v.AssignedXID == 0 && v.Ticket == nil && v.ExportXmin == 0 {
 			delete(reg.Entries, ref)

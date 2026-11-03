@@ -131,6 +131,12 @@ even though the native runtime has no parsed file assignments.
 The same inventory includes `pg_ident_file_mappings` as a view with its seven
 release-ordered mapping/provenance/error columns, independently checking both
 the complete native provider-name bag and direct/prepared attribute metadata.
+`pg_stat_activity` is likewise in the complete provider bag and view-kind
+classification, with all 22 release-ordered column names and ordinals checked
+through direct and prepared information_schema.columns reads. Its addition is
+an inventory extension, not a filter that discards newly supported providers.
+Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
+command with `REFERENCE=1` for this migrated complete-inventory witness.
 The PUBLIC-readable `constraint_table_usage` inventory has exactly six nullable
 `sql_identifier` columns (NAME base), in documented table/constraint order,
 ordinals1–6 and view classification. `TestReferenceInfoColumnsPopulation/providers`

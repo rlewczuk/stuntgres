@@ -255,6 +255,12 @@ make quickcheck                    # full suite without Docker
 make generate                      # regenerate the parser and Unicode tables
 ```
 
+The durable activity-monitoring smoke selector is
+`RUN='^TestReferencePGStatActivityFeatureSmoke$'` in both native and `REFERENCE=1`
+modes; see [reference/session_state](reference/session_state/README.md) for the
+complete metadata, lifecycle, current joined-role identity, privilege, snapshot
+ownership and signal proof inventory.
+
 Most tests are *reference tests*: one test body runs against stuntgres and against
 real PostgreSQL 18, and both must give the same results. New features and bug
 fixes start with such a test whose expectations come from PostgreSQL; then the

@@ -31,7 +31,6 @@ func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "COPY server files are unsupported"}, false, "prepare")
 	}
 	predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
-	predefinedFailure(s, "SELECT query FROM pg_stat_activity", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_stat_activity" does not exist`, Position: "19"}, true, "prepare")
 	predefinedSelect(s, "SHOW reserved_connections", []string{"reserved_connections"}, []string{"TEXT"}, [][]any{{"0"}})
 }
 
@@ -41,6 +40,29 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.Run(fixture.Exec("INSERT INTO t VALUES(7)", 1))
 		s.Exec("CREATE SCHEMA pdef_ad")
 		s.Run(fixture.Exec("CREATE MATERIALIZED VIEW pdef_ad.mv AS SELECT id FROM t", 1))
+		peer, err := db.Conn(s.P.Ctx)
+		if err != nil {
+			s.T.Fatal(err)
+		}
+		defer peer.Close()
+		var activityPID int64
+		if err := peer.QueryRowContext(s.P.Ctx, "SELECT pg_backend_pid()").Scan(&activityPID); err != nil || activityPID <= 0 {
+			s.T.Fatal(activityPID, err)
+		}
+		fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Exec("SET application_name='pdef_activity_scope'", 0))
+		const activitySource = "SELECT 7 AS pdef_activity_scope"
+		fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Select(activitySource, []string{"pdef_activity_scope"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		checkActivity := func(visible bool) {
+			var state, backend any
+			query := "<insufficient privilege>"
+			if visible {
+				query, state, backend = activitySource, "idle", "client backend"
+			}
+			s.Run(fixture.Select("SELECT pid,application_name,query,state,backend_type FROM pg_catalog.pg_stat_activity WHERE pid=$1",
+				[]string{"pid", "application_name", "query", "state", "backend_type"},
+				[]string{"INT4", "TEXT", "TEXT", "TEXT", "TEXT"},
+				[][]any{{activityPID, "pdef_activity_scope", query, state, backend}}, activityPID))
+		}
 		s.Actor("pdef_actor")
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		predefinedFailure(s, "SELECT pg_read_file('/nonexistent')", fixture.Diagnostic{Code: "42501", Message: "permission denied for function pg_read_file"}, true, "execute")
@@ -54,6 +76,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedSubscriptionAbsent(s)
 		predefinedFailure(s, "CHECKPOINT", checkpointDenied, false, "execute")
 		predefinedSessionSignals(s)
+		checkActivity(false)
 		predefinedDenied(s, "CLUSTER t", "permission denied for table t", false)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
@@ -95,6 +118,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedSubscriptionCapability(s)
 		checkpointRun(s, true)
 		predefinedSessionSignals(s)
+		checkActivity(true)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {

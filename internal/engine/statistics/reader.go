@@ -149,16 +149,21 @@ func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time)
 }
 func (r *Reader) Activities(p *Provider) map[ids.SessionToken]Activity {
 	if r.activity == nil {
-		p.mu.Lock()
-		r.activity = make(map[ids.SessionToken]Activity, len(p.activities))
-		for k, a := range p.activities {
-			r.activity[k] = a
-		}
-		p.mu.Unlock()
+		r.activity = p.CaptureActivities()
 	}
 	result := make(map[ids.SessionToken]Activity, len(r.activity))
 	for k, a := range r.activity {
 		result[k] = a
 	}
 	return result
+}
+
+// ActivityCaptured is independent of cumulative mode and timestamp.
+func (r *Reader) ActivityCaptured() bool { return r.activity != nil }
+
+// InstallActivities takes ownership of a complete unmasked, enriched cut.
+func (r *Reader) InstallActivities(activities map[ids.SessionToken]Activity) {
+	if r.activity == nil {
+		r.activity = activities
+	}
 }

@@ -184,7 +184,7 @@ func TestStatsResetSharedBackendLifetime(t *testing.T) {
 	// A caller in database A resolves the actual PID registered in database B,
 	// and clears that token's retained partitions in both databases.
 	var activity statistics.Reader
-	activityBefore := activity.Activities(&peer.Statistics)[ps.Token()]
+	activityBefore := activity.Activities(&e.Statistics)[ps.Token()]
 	resetStatsExec(t, s, fmt.Sprintf("SELECT pg_stat_reset_backend_stats(%d)", ps.Token().ID()))
 	for _, p := range []*statistics.Provider{&e.Statistics, &peer.Statistics} {
 		f, ok := p.ReadBackend(ps.Token())
@@ -196,7 +196,7 @@ func TestStatsResetSharedBackendLifetime(t *testing.T) {
 		t.Fatal("backend reset changed peer/shared")
 	}
 	var currentActivity statistics.Reader
-	if got := currentActivity.Activities(&peer.Statistics)[ps.Token()]; got != activityBefore {
+	if got := currentActivity.Activities(&e.Statistics)[ps.Token()]; got != activityBefore {
 		t.Fatal("backend reset changed target activity", got, activityBefore)
 	}
 	for _, pid := range []int64{0, -1, 2147483647} {

@@ -41,6 +41,7 @@ func (h *sessionHost) DrainStatistics(s *session.Session) {
 	registered := e.sessions[token] == s
 	e.sessionMu.Unlock()
 	if registered {
+		e.activityProvider().End(token)
 		e.Statistics.End(token)
 		if e.Cluster != nil {
 			for _, peer := range e.Cluster.Targets {

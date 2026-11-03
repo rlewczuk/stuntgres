@@ -207,6 +207,9 @@ func (s *StatementScope) beginStatementStatsLocked(statement parser.Statement, b
 	now := time.Now()
 	key := frame.key
 	key.QueryID = jumble.QueryID()
+	if s.statementStatsDepth == 0 && s.Op.CommandAdmission {
+		s.Engine().activityProvider().ActivityQueryID(s.Op.Session.SessionToken, s.activityCommandIdentity(), key.QueryID)
+	}
 	prospective := key
 	if frame.prospective != (authorization.PrincipalRef{}) {
 		prospective.UserID = uint32(frame.prospective.ID())

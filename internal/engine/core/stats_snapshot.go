@@ -76,7 +76,7 @@ func statsIdle(s *session.Session, force bool) {
 	if !force && s.Settings != nil {
 		_, _, policy := s.Settings.StatsConfiguration()
 		if !policy.Activities {
-			e.Statistics.Command(s.SessionToken, ids.CommandIdentity{}, "", time.Time{}, false)
+			e.activityProvider().Command(s.SessionToken, ids.CommandIdentity{}, "", time.Time{}, false)
 		}
 	}
 	if force {
@@ -96,12 +96,30 @@ func statsIdle(s *session.Session, force bool) {
 		}
 		s.Mu.Unlock()
 	}
-	e.Statistics.Idle(s.SessionToken)
+	if !force {
+		activityIdle(s)
+	}
 }
 func (s *StatementScope) statsCommand() {
 	if s.Op == nil || s.Op.Session == nil || s.Op.EffectiveSettings() == nil || s.Engine() == nil {
 		return
 	}
 	_, _, policy := s.Op.EffectiveSettings().StatsConfiguration()
-	s.Engine().Statistics.Command(s.Op.Session.SessionToken, ids.CommandIdentity{Transaction: s.TxRef, Command: s.CommandID}, s.Op.OriginalSQL, s.statementStart, policy.Activities)
+	if !s.Op.CommandAdmission {
+		return
+	}
+	provider := s.Engine().activityProvider()
+	if s.statementStatsDepth == 0 {
+		s.activityCommand = ids.CommandIdentity{Transaction: s.TxRef, Command: s.CommandID}
+	} else if s.TxRef == (ids.TxRef{}) || s.activityCommand.Transaction == s.TxRef {
+		return
+	} else {
+		// A real nested transaction-control successor changes association,
+		// not the frontend source, start or computed top-level identifier.
+		s.activityCommand.Transaction = s.TxRef
+	}
+	provider.Command(s.Op.Session.SessionToken, s.activityCommandIdentity(), s.Op.OriginalSQL, s.statementStart, policy.Activities)
+	if s.TxRef != (ids.TxRef{}) {
+		provider.ActivityTransaction(s.Op.Session.SessionToken, s.activityCommandIdentity(), s.Owner.Start)
+	}
 }

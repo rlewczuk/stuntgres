@@ -4,6 +4,26 @@ This document records logical SQL versus external-mechanism ownership boundaries
 Other feature contracts remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md)
 and the owning reference package documentation.
 
+## Activity monitoring
+
+`pg_catalog.pg_stat_activity` is a typed, read-only 22-column system view of real
+logical sessions across one Driver cluster. All columns are nullable; native
+endpoint/leader values stay NULL without corresponding physical endpoints/workers.
+No OS identities, background rows or socket ClientRead waits are simulated.
+The current-role INHERIT mask leaves identity/application and XID/xmin public;
+other fields are NULL except the exact `<insufficient privilege>` query text.
+Login OIDs are immutable, but `usename` is joined from the current role catalog:
+renames are visible through retained activity cuts and a dropped role has a NULL
+name without erasing the cached backend or failing unrelated rows. Superuser and
+inherited stats-reader authority survive that absence; ordinary observers stay masked.
+Activity membership/state/query/times/XIDs retain an independent transaction cut,
+but actual lock/sleep waits are live on each execution. Cancellation unwinds waits;
+physical termination removes fresh membership. Original source is UTF8-byte
+clipped to 1023 bytes, query IDs come only from genuine existing computation,
+and source-less native transaction controls invent no SQL source. See the full
+[Driver activity contract](DRIVER.md#session-activity-monitoring), including
+disabled tracking, canonical horizons and complete mutation diagnostics.
+
 ## Passwordcheck activation
 
 `Driver.RegisterPasswordCheck` enables the stock role-password hook and

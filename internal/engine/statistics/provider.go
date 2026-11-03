@@ -2,9 +2,11 @@
 package statistics
 
 import (
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 type Key struct {
@@ -246,32 +248,123 @@ func (w *Writer) IO(p *Provider, k Key, policy Policy, operations int64, elapsed
 	w.Add(p, k, Fact{Operations: operations, TotalTime: elapsed})
 }
 
+// Activity is detached publication, never permission to inspect a live session.
 type Activity struct {
-	Command          ids.CommandIdentity
-	Query            string
-	Start            time.Time
-	Active, Disabled bool
+	Command                                            ids.CommandIdentity
+	Database                                           ids.OID
+	DatabaseName                                       string
+	Principal                                          authorization.PrincipalRef
+	Application, BackendType                           string
+	BackendStart, TransactionStart, Start, StateChange time.Time
+	Query, State                                       string
+	QueryID                                            int64 // Canonical signed INT8 bits, matching StatementJumble/StatementKey.
+	QueryAvailable                                     bool
+	XID, Xmin                                          uint32
+	Active, Disabled                                   bool // Active is actual command ownership, including disabled publication.
+	WaitType, Wait                                     string
 }
 
-func (p *Provider) Command(session ids.SessionToken, command ids.CommandIdentity, query string, at time.Time, enabled bool) {
+func (p *Provider) RegisterActivity(token ids.SessionToken, a Activity) {
+	if token.Private() != nil || token.ID() == 0 {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.activities == nil {
 		p.activities = make(map[ids.SessionToken]Activity)
 	}
-	a := Activity{Disabled: !enabled}
-	if enabled {
-		a = Activity{Command: command, Query: query, Start: at, Active: true}
-	}
-	p.activities[session] = a
+	p.activities[token] = a
 }
-func (p *Provider) Idle(session ids.SessionToken) {
+
+func (p *Provider) Command(token ids.SessionToken, command ids.CommandIdentity, query string, at time.Time, enabled bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if a, ok := p.activities[session]; ok {
-		a.Active = false
-		p.activities[session] = a
+	a, ok := p.activities[token]
+	if !ok {
+		return
+	} // Retirement cannot be undone by a delayed command.
+	a.QueryAvailable = true
+	if !enabled {
+		a.Disabled, a.Active, a.State = true, true, "disabled"
+		a.Query, a.WaitType, a.Wait = "", "", ""
+		a.Start, a.TransactionStart, a.StateChange = time.Time{}, time.Time{}, time.Time{}
+		a.QueryID = 0
+	} else if !a.Active || a.Start != at {
+		if len(query) > 1023 {
+			end := 1023
+			for end > 0 && !utf8.RuneStart(query[end]) {
+				end--
+			}
+			query = query[:end]
+		}
+		a.Disabled, a.Active, a.State = false, true, "active"
+		a.Query, a.Start, a.StateChange, a.QueryID = query, at, at, 0
+		a.WaitType, a.Wait = "", ""
 	}
+	a.Command = command
+	p.activities[token] = a
+}
+
+func (p *Provider) ReportIdle(token ids.SessionToken, application, state string, ref ids.TxRef, transactionStart, at time.Time) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a, ok := p.activities[token]
+	if !ok {
+		return
+	}
+	a.Application = application
+	a.Command.Transaction = ref
+	if !a.Disabled {
+		if a.State != state {
+			a.StateChange = at
+		}
+		a.State, a.TransactionStart = state, transactionStart
+	}
+	a.Active, a.WaitType, a.Wait = false, "", ""
+	p.activities[token] = a
+}
+
+func (p *Provider) ActivityTransaction(token ids.SessionToken, command ids.CommandIdentity, start time.Time) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a, ok := p.activities[token]
+	if ok && !a.Disabled && a.Command == command {
+		a.TransactionStart = start
+		p.activities[token] = a
+	}
+}
+
+func (p *Provider) ActivityQueryID(token ids.SessionToken, command ids.CommandIdentity, id int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a, ok := p.activities[token]
+	if ok && !a.Disabled && a.Active && a.Command == command {
+		a.QueryID = id
+		p.activities[token] = a
+	}
+}
+
+func (p *Provider) ActivityWait(token ids.SessionToken, command ids.CommandIdentity, enter bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a, ok := p.activities[token]
+	if ok && a.Active && a.Command == command {
+		a.WaitType, a.Wait = "", ""
+		if enter {
+			a.WaitType, a.Wait = "Timeout", "PgSleep"
+		}
+		p.activities[token] = a
+	}
+}
+
+func (p *Provider) CaptureActivities() map[ids.SessionToken]Activity {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	result := make(map[ids.SessionToken]Activity, len(p.activities))
+	for token, a := range p.activities {
+		result[token] = a
+	}
+	return result
 }
 func (p *Provider) End(session ids.SessionToken) {
 	p.mu.Lock()

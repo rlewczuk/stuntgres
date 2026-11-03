@@ -250,6 +250,15 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 		childCompletions := s.statementStatsCompletions
 		s.statementStats = nil
 		s.installSQLRoutineScratch(saved)
+		// Scratch-only activation has no live operation/publication authority.
+		// Restore its immutable frontiers normally without entering a runtime.
+		if s.Op != nil && s.Op.Session != nil && s.TxRef != (ids.TxRef{}) {
+			if e := s.Engine(); e != nil && !exec.InParallelOperation(s.executionContext()) {
+				e.Mu.Lock()
+				e.advertiseActivitySnapshotLocked(s.TxRef, s.currentSnapshot)
+				e.Mu.Unlock()
+			}
+		}
 		if policy.active && !exec.InParallelOperation(s.executionContext()) {
 			// A reached SET may escape this lexical command. Restoring query
 			// scratch must not restore its obsolete codecs, lookup inputs or

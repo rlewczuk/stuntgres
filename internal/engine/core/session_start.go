@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/sqltype"
 )
 
@@ -209,6 +210,15 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 			s.State = session.Live
 			e.sessions[s.SessionToken] = s
 			if !private {
+				born := activityTime()
+				owner.Mu.Lock()
+				application := owner.Value("application_name")
+				owner.Mu.Unlock()
+				e.activityProvider().RegisterActivity(s.SessionToken, statistics.Activity{
+					Database: e.Catalog.Owner.DatabaseAddress().ObjectID, DatabaseName: s.DatabaseName,
+					Principal: authenticated, Application: application,
+					BackendType: "client backend", BackendStart: born, State: "idle", StateChange: born,
+				})
 				e.Statistics.BeginBackend(s.SessionToken)
 				if e.Cluster != nil {
 					for _, target := range e.Cluster.Targets {

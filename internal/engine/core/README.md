@@ -411,6 +411,28 @@ discards imported/persistent/reminted planner metadata, but preserves compatible
 facts and counters for genuinely retained destination TEMP identities through
 the existing TEMP-retention authority, never address coincidence.
 
+`pg_stat_activity.go` routes activity to the default target's existing provider,
+without moving cumulative facts. Physical attachment owns backend birth and
+immutable login identity; real command/finish/settings boundaries publish source,
+state, transaction start and application name. Source-less native transaction
+controls preserve actual prior SQL rather than synthesizing command text.
+`pg_stat_activity_capture.go` consumes cluster Engine.Mu, captures provider values
+and canonical visibility associations, installs the independent unmasked Reader
+cut, then releases Engine.Mu before detached manager wait capture. It never takes
+peer admission or retains a live session pointer in results. Waits are live even
+against cached membership; inherited current-role masking is execution-local.
+Login identity is an immutable principal, not a stored usename spelling. The
+producer applies the current role-name join on each execution, including cached
+cuts after rename/drop; missing same-domain targets leave NAME NULL and preserve
+valid observer stats authority without weakening strict role APIs or provenance.
+The visibility Entry's monitoring-only ActivityFullXmin observes accepted public
+snapshots, restores outer routine horizons and withdraws at command/transaction
+retirement; it never participates in snapshot selection or XID allocation.
+Routine snapshot restoration publishes monitoring horizons only with an actual
+operation, session, engine and transaction reference. Detached scratch-only
+activations retain their exact immutable frontiers/journal without entering the
+live runtime or manufacturing publication authority.
+
 Cumulative monitoring statistics are distinct from those physical planner facts.
 The engine owns one `statistics.Provider`; physical session payloads own pending
 writers, and transaction termination clears their readers. Real row mutation
@@ -2477,8 +2499,9 @@ Producers, the OID registry and descriptor specs live in
 
 - `openCatalogSourceLocked` (`catalog_source_capture.go`) looks up
   `pgcatalog.ProducerFor` and chooses the per-OID catalog/role roots,
-  presentation and unlock timing; it is not a second dispatcher. Only `pg_locks`
-  and lazy `pg_sequences` bypass producers.
+  presentation and unlock timing; it is not a second dispatcher. `pg_locks`
+  owns its detached manager projection and lazy `pg_sequences` its sequence cut.
+  Activity uses multi-stage capture but still renders through the common producer.
   Information-schema domain and column inquiry sources use the statement's
   paired catalog and authorization roots, including `column_domain_usage`,
   `domain_udt_usage` and `information_schema_catalog_name`; source opening

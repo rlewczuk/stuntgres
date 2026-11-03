@@ -1124,6 +1124,12 @@ func (c *Context) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, error)
 
 func (c *Context) FunctionSleepArgumentPresent(arg expr.Expr) bool { return arg != nil }
 
+func (c *Context) FunctionActivitySleep(enter bool) {
+	if host, ok := c.LiveHost().(interface{ FunctionActivitySleep(bool) }); ok {
+		host.FunctionActivitySleep(enter)
+	}
+}
+
 func (c *Context) FunctionUUIDReady() error {
 	host := c.LiveHost()
 	if host == nil {

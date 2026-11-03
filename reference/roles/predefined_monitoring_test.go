@@ -38,51 +38,46 @@ func TestReferencePredefinedMonitoringSettings(t *testing.T) {
 		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		s.Actor("")
 		s.Exec("REVOKE pg_monitor FROM pdef_actor")
-		if !s.Backend.PG {
-			s.Exec("GRANT pg_monitor TO pdef_actor")
+		if s.Backend.PG {
+			// Independent PG protected-read provider. Native has no such represented GUC.
 			s.Actor("pdef_actor")
-			predefinedFailure(s, "SELECT query FROM pg_stat_activity", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_stat_activity" does not exist`, Position: "19"}, true, "prepare")
+			predefinedFailure(s, "SHOW data_directory", fixture.Diagnostic{Code: "42501", Message: `permission denied to examine "data_directory"`, Detail: `Only roles with privileges of the "pg_read_all_settings" role may examine this parameter.`}, true, "prepare")
 			s.Actor("")
-			return
+			s.Exec("GRANT pg_read_all_settings TO pdef_actor")
+			s.Actor("pdef_actor")
+			rows, err := s.C.QueryContext(s.P.Ctx, "SHOW data_directory")
+			if err != nil {
+				s.T.Fatal(err)
+			}
+			columns, err := rows.Columns()
+			if err != nil || len(columns) != 1 || columns[0] != "data_directory" {
+				rows.Close()
+				s.T.Fatal(columns, err)
+			}
+			types, err := rows.ColumnTypes()
+			if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "TEXT" {
+				rows.Close()
+				s.T.Fatal(types, err)
+			}
+			var directory string
+			if !rows.Next() {
+				rows.Close()
+				s.T.Fatal("missing protected setting")
+			}
+			if err := rows.Scan(&directory); err != nil || !filepath.IsAbs(directory) {
+				rows.Close()
+				s.T.Fatal(directory, err)
+			}
+			if rows.Next() || rows.Err() != nil {
+				rows.Close()
+				s.T.Fatal("protected setting multiplicity", rows.Err())
+			}
+			if err := rows.Close(); err != nil {
+				s.T.Fatal(err)
+			}
+			s.Actor("")
+			s.Exec("REVOKE pg_read_all_settings FROM pdef_actor")
 		}
-		// Independent PG protected-read provider. Native has no such represented GUC.
-		s.Actor("pdef_actor")
-		predefinedFailure(s, "SHOW data_directory", fixture.Diagnostic{Code: "42501", Message: `permission denied to examine "data_directory"`, Detail: `Only roles with privileges of the "pg_read_all_settings" role may examine this parameter.`}, true, "prepare")
-		s.Actor("")
-		s.Exec("GRANT pg_read_all_settings TO pdef_actor")
-		s.Actor("pdef_actor")
-		rows, err := s.C.QueryContext(s.P.Ctx, "SHOW data_directory")
-		if err != nil {
-			s.T.Fatal(err)
-		}
-		columns, err := rows.Columns()
-		if err != nil || len(columns) != 1 || columns[0] != "data_directory" {
-			rows.Close()
-			s.T.Fatal(columns, err)
-		}
-		types, err := rows.ColumnTypes()
-		if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "TEXT" {
-			rows.Close()
-			s.T.Fatal(types, err)
-		}
-		var directory string
-		if !rows.Next() {
-			rows.Close()
-			s.T.Fatal("missing protected setting")
-		}
-		if err := rows.Scan(&directory); err != nil || !filepath.IsAbs(directory) {
-			rows.Close()
-			s.T.Fatal(directory, err)
-		}
-		if rows.Next() || rows.Err() != nil {
-			rows.Close()
-			s.T.Fatal("protected setting multiplicity", rows.Err())
-		}
-		if err := rows.Close(); err != nil {
-			s.T.Fatal(err)
-		}
-		s.Actor("")
-		s.Exec("REVOKE pg_read_all_settings FROM pdef_actor")
 		peer, err := db.Conn(s.P.Ctx)
 		if err != nil {
 			s.T.Fatal(err)

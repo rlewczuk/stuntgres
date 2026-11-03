@@ -1,6 +1,7 @@
 package pgcatalog
 
 var pgBuiltinViews = [...]builtinView{
+	{oid: StatActivityOID, parts: activityViewDefinitionParts, prettyParts: activityViewDefinitionParts},
 	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},
 	{oid: PoliciesOID, parts: policiesViewParts(false), prettyParts: policiesViewParts(true)},
 	{oid: StatsOID, parts: statisticsViewParts(false), prettyParts: statisticsViewParts(true)},

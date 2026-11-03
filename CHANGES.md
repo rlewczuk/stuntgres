@@ -1,5 +1,27 @@
 # Changes
 
+- Add the 22-column, fully nullable `pg_catalog.pg_stat_activity` monitoring view
+  on the existing shared provider. Report real cluster sessions, original query
+  text, application/settings restoration, transaction/state clocks through the
+  shared UTC timestamp codec, canonical XID horizons and genuinely computed
+  signed INT8 query IDs without reinterpreting their bits. Retain activity cuts
+  independently of cumulative modes while overlaying actual live lock/sleep waits,
+  including genuine waits while activity source/timestamp tracking is disabled.
+  Apply inherited current-role activity privileges at each execution, keeping
+  XID/xmin public and the exact `<insufficient privilege>` query replacement.
+  Join current role names by immutable login OID, reflecting rename through cached
+  cuts and yielding NULL names for dropped targets without failing the relation
+  or suppressing valid superuser/stats-reader access. Keep foreign/zero principal
+  validation and complete ordinary masking. Add independent query-shape ID
+  association, rendered high-epoch horizons, safe/nested snapshot ownership and
+  concurrent drained-retirement/successor proofs.
+  Preserve logical PID semantics, NULL in-process endpoints/leader, cancellation
+  cleanup, physical retirement and exact read-only view diagnostics. COPY uses
+  common catalog-view kind classification and the released view-specific Hint.
+  Preserve detached routine scratch restoration without live monitoring authority;
+  extend complete provider metadata inventories and migrate obsolete unsupported
+  activity checks to bounded predefined-role visibility witnesses.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual

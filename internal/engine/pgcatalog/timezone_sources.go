@@ -50,7 +50,7 @@ func captureTimezoneSource(in Input) ([][]sqltype.Value, error) {
 	return rows, nil
 }
 
-func timezoneViewWriteError(d *catalog.Relation, operation string) error {
+func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	message := fmt.Sprintf(`cannot update view "%s"`, d.Name())
 	action := "updating the view"
 	switch operation {

@@ -66,9 +66,22 @@ type Input struct {
     Keep    Keep // {Column int; Test func(sqltype.Value) bool}
     RoleSettings RoleSettingsProjection
     SharedDependencies []SharedDependency // core-classified immutable facts
+    Activities map[ids.SessionToken]statistics.Activity
+    ActivityObserver authorization.PrincipalRef
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
+
+- `pg_stat_activity` (12226) projects one detached unmasked cluster activity cut
+  with exactly 22 nullable fields and independently live actual wait ownership.
+  Core samples canonical XID/xmin and releases metadata locks before manager
+  capture; the producer has no live session pointer or provider callback.
+  Current observer INHERIT/stats privilege is reapplied at every execution;
+  XID/xmin remain public and protected query uses the literal redaction.
+  Login OID is immutable, while the current role-name LEFT JOIN reflects rename
+  and produces typed NAME NULL after role drop. Missing same-domain targets
+  cannot poison the source or erase valid super/stats privilege; strict observer
+  and foreign/zero principal validation remains intact.
 
 - `pg_matviews` (12006) projects captured materialized descriptors and paired
   roles, using the runtime's current definition presentation. Population is

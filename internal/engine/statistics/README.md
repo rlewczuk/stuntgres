@@ -116,8 +116,29 @@ access. Timestamp inspection never constructs a capture. Clear removes cumulativ
 and independently cached activity information without changing counters, reset
 state, pending work or the publication throttle. Effective setting generations
 invalidate even a mode round trip between accesses. Returned facts/maps are owned
-copies. Session activity has separate active/idle/disabled command state and does
-not change `current_query()` command authority.
+copies. Session activity has separate active/idle/disabled publication state and
+does not change `current_query()` command authority. The Active flag owns actual
+command execution even when Disabled hides source/timestamps/ID; genuine live
+lock/sleep wait publication is independent of the activity tracking switch.
+
+The default database's existing provider owns the sole cluster activity map;
+other providers retain their existing cumulative/backend facts only. Successful
+physical public attachment registers detached birth/database/login principal identity.
+Command, transaction, setting-restoration and drained-retirement owners publish
+actual facts, with exact command guards for query IDs and sleep wait callbacks.
+Reset/Replace never remint backend birth or erase live activity.
+Core enriches one complete unmasked cut with canonical assigned low32 XID and
+accepted public full-XID horizons under cluster authority, then installs it in
+Reader independently of cumulative modes/stamp. Each execution overlays detached
+manager waits and live sleep ownership after releasing cluster synchronization;
+current inherited-role masking happens only in the pure catalog producer.
+The provider does not cache a role spelling: the producer joins the current role
+name by immutable principal identity, with typed NULL for an absent role. A
+dropped cached target does not invalidate unrelated rows or legitimate observer
+stats privilege; foreign/zero principals remain invalid.
+No peer admission, callback, setting read or clock runs under Provider.mu.
+Query text is UTF8-safe byte-clipped separately from current_query authority.
+
 
 `Statements` is a separate cluster-owned bounded statement accumulator. Its leaf
 mutex protects owned entries and scalar active admissions, never a session,

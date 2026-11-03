@@ -50,6 +50,15 @@ CLUSTER is an admitted MAINTAIN consumer on both backends: predefined-role
 scenarios assert full table/schema denial diagnostics, actual index selection
 after `pg_maintain`, preserved rows, and held-statement denial after revocation.
 It is not part of the remaining native unsupported-command inventory.
+`pg_stat_activity` is supported, not a remaining unavailable-capability boundary.
+The predefined scenarios now query a known real peer PID with typed metadata,
+public identity/application values and exact protected query/state redaction
+before monitoring grants, then the peer's known source under inherited pg_monitor.
+The existing settings scenario exercises this path on both native and PostgreSQL;
+only its genuine PG data_directory setting remains backend-specific.
+Selected migration proof uses
+`make check RUN='^TestReferencePredefined(UnavailableCapabilities|MonitoringSettings)$'`
+and the same command with `REFERENCE=1`; all other capability diagnostics remain.
 
 
 WAL summary scenarios own default PUBLIC execution, live held-statement ACL

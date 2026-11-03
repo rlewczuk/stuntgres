@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/sqltype"
 	"time"
 )
@@ -27,6 +28,8 @@ type Input struct {
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
 	SharedDependencies []SharedDependency
+	Activities         map[ids.SessionToken]statistics.Activity
+	ActivityObserver   authorization.PrincipalRef
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress

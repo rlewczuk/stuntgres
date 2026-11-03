@@ -165,7 +165,9 @@ func (s *StatementScope) snapshotDataPhaseForUtility(statement parser.Statement)
 	}
 	sess := s.Op.Session
 	e.Mu.Lock()
-	if refresh, ok := statement.(*parser.RefreshMaterializedView); ok { s.installRefreshExportDemandLocked(refresh) }
+	if refresh, ok := statement.(*parser.RefreshMaterializedView); ok {
+		s.installRefreshExportDemandLocked(refresh)
+	}
 	s.installUtilityEventExportDemandLocked(statement)
 	sess.Mu.Lock()
 	check := func() error {
@@ -242,6 +244,7 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 			return SQLError("55000", "no active transaction snapshot")
 		}
 		s.currentSnapshot, s.snapshotFrontier = t.CurrentSnapshot, t.Frontier
+		e.advertiseActivitySnapshotLocked(t.Ref, s.currentSnapshot)
 		if s.exportRootDemand {
 			s.exportCapture = &exportedSnapshot{roots: t.Roots, catalog: t.SequenceCatalog, frontier: t.Frontier, snapshot: t.CurrentSnapshot, xmin: e.Visibility.Entries[t.Ref].Xmin}
 		}
@@ -252,9 +255,12 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 		return err
 	}
 	s.currentSnapshot, s.snapshotFrontier = snapshot, e.Visibility.CommitSeq()
+	e.advertiseActivitySnapshotLocked(t.Ref, snapshot)
 	if s.exportRootDemand {
 		xmin, err := e.Visibility.SnapshotLocked(t.Ref, false)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		s.exportCapture = &exportedSnapshot{roots: session.CommittedRoots(e.Catalog.State, &e.Storage), catalog: e.Catalog.State, frontier: s.snapshotFrontier, snapshot: snapshot, xmin: xmin}
 	}
 	s.retainSnapshotTargetRootsLocked(e)

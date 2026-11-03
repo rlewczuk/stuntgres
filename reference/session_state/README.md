@@ -29,6 +29,77 @@ transaction and routine lifetimes, list selection and the physical boundary.
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+The full 22-column monitoring view uses
+`RUN='^TestReferencePGStatActivity(Metadata|Lifecycle|Privileges|RoleIdentity|WaitsAndSignals|Snapshots|IdentityAndTracking|ReadOnly|FeatureSmoke)$'`
+with `make check`, then the same selector with `REFERENCE=1`. Expectations cover
+all nullable metadata, real state/transaction/application/source lifecycles,
+the entire inherited current-role redaction mask (XID/xmin stay public), canonical
+identity/horizons, exact read-only diagnostics and actual lock/advisory/sleep
+cancellation/termination. Cached activity cuts retain membership/state but not
+live waits. Native endpoints/absent leaders are NULL and no background rows or
+portable unordered row sequence is expected. After joined cancellation the native
+idle wait is NULL/NULL; the real TCP oracle reports Client/ClientRead instead of
+the removed Lock/Timeout wait. Completed termination clears live waits in both.
+`RoleIdentity` retains the same prepared cuts across connected-target rename,
+physical retirement and role drop: OID stays public, current name changes then
+becomes NULL, super/stats readers keep captured protected facts, unrelated roles
+stay masked, and an unaffected PID remains readable without clearing any cut.
+Disabled tracking likewise preserves actual waits: a positive disabled command
+must report its genuine Lock/relation wait while query/timestamps/ID remain
+hidden. Native driver transaction controls preserve prior SQL; lib/pq's actual
+default BeginTx source is exactly `BEGIN READ WRITE`. Driver Tx rollback is
+registered immediately so assertion failures cannot retain the borrowed Conn.
+Both Commit and Rollback also run actual table-dependent SQL through `*sql.Tx`;
+native terminal controls retain that last exact query/start/signed query ID.
+Disabled and ordinary SQL cancellation independently prove queue count1→0,
+empty blocking owners and the holder's still-live grant before release. The
+disabled successful grant/completion case remains separate.
+Grant/revoke witnesses independently check the committed inherited edge in
+pg_auth_members and the observer's current_user/session_user, read-committed
+isolation and pg_has_role USAGE. A direct, zero-parameter pg_roles query receives
+PostgreSQL shared catalog invalidations before the held SELECT checks its mask.
+The observer transaction, cached activity cut and prepared handle remain the same:
+no stats clear, transaction end, reprepare or retry hides stale masked rows.
+This uses the released relation_openrv_extended invalidation boundary, not a
+production authorization-cache workaround or extra synchronization tables.
+
+`TestMain` uses the existing `fixture.WithPgStatStatements()` option: the same
+pinned PostgreSQL18.6 oracle genuinely preloads pg_stat_statements with
+compute_query_id=on. SQL objects are installed explicitly by the identity
+scenario. Its uncomputed witness turns compute_query_id off on that PG target,
+or the existing startup-active native module's track policy to none, then
+executes a subsequent known query. Originals, startup defaults and the fixture
+image are preserved.
+Its positive ID lookup selects a unique real relation/query shape by prescribed
+normalized SQL and independently resolved database/user identities, never by the
+activity ID under test. A distinct same-owner historical shape is a nonzero,
+different-ID distractor; no global reset or empty-history assumption is used.
+Recheck affected existing definitions with
+`RUN='^TestReference(StatisticsSettingsUnsupportedCollectors|SessionActivitySessionsAndTimes|SessionActivityNativeControls|StatsSnapshotLifecycle|StatsSnapshotModes|StatsSnapshotInvalidation)$'`
+in both modes.
+
+Durable quiet feature smoke:
+`make check RUN='^TestReferencePGStatActivityFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferencePGStatActivityFeatureSmoke$'`.
+Expected observations: three real sessions, exact metadata, idle→active
+Lock/relation with actual blocker→idle in transaction→aborted, unrelated-role
+literal redaction, cancel removing the live wait, termination removing fresh
+membership, and a complete 55000 mutation diagnostic. All async operations join.
+Apply an external 900-second deadline to each selected command; success is quiet
+ordinary package summaries, never a skipped oracle. Internal ownership selectors
+are `RUN='^TestPGStatActivity(DescriptorAndMask|Publication|XIDAuthority|ConcurrentCapture)$'`;
+selected native race proof uses `RUN='^TestPGStatActivity(XIDAuthority|ConcurrentCapture)$'`.
+XIDAuthority consumes actual typed high-epoch XID/xmin rows, actual accepted and
+rejected safe candidates (including cancellation/epoch cleanup), and distinct
+nested child/outer horizon restoration on success/error unwind. Publication adds
+strict present/missing/foreign principal authority. ConcurrentCapture races real
+view reads with reset/cancel, actual successor wait callbacks and drained physical
+retirement/new identity, while preserving a detached old cut. Public waits,
+snapshots and identity/tracking scenarios also use their selected `RACE=1` modes.
+The migrated internal activity-registration/routing units additionally use
+`RUN='^(TestStatsProvider(Collection|ResetShared|TargetedReset)|TestStatsResetSharedBackendLifetime)$'`.
+
+
 Replication statistics reset scalar metadata, diagnostics, mutable EXECUTE,
 cross-database subscription identities and native ACL controls use
 `RUN='^TestReferenceStatsResetReplication'` in both fixture modes.

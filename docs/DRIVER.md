@@ -315,6 +315,86 @@ it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
 
+### Session activity monitoring
+
+`pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is
+one read-only system view with exactly 22 nullable columns, in release order:
+`datid oid`, `datname name`, `pid integer`, `leader_pid integer`, `usesysid oid`,
+`usename name`, `application_name text`, `client_addr inet`, `client_hostname text`,
+`client_port integer`, `backend_start timestamptz`, `xact_start timestamptz`,
+`query_start timestamptz`, `state_change timestamptz`, `wait_event_type text`,
+`wait_event text`, `state text`, `backend_xid xid`, `backend_xmin xid`,
+`query_id bigint`, `query text`, `backend_type text`. Native driver metadata
+reports known nullable=true for every column, even normally populated identities.
+Prepared projections, parameters and empty results retain these ordinary types.
+
+Rows describe actual physical logical sessions across databases in this Driver's
+cluster, not OS processes or threads. `pid` is the same identity as
+`pg_backend_pid()`, `backend_type` is `client backend`, and backend birth survives
+pool return/reborrow, transactions and native catalog replacement. No background
+process rows are fabricated. Native client address/hostname/port and an absent
+real parallel leader are NULL; an idle native session has no invented ClientRead.
+There is no portable row order without ORDER BY.
+
+The public fields are `datid`, `datname`, `pid`, `usesysid`, `usename`,
+`application_name`, **`backend_xid` and `backend_xmin`**. Protected fields require
+inherited privileges of the logged-in target role or `pg_read_all_stats`, using
+the observer's current_user (including superuser). Mere non-INHERIT, SET-only or
+ADMIN-only membership does not suffice. Target SET ROLE never changes login
+identity: `usesysid` remains the authenticated principal's OID. `usename` is its
+current role-catalog joined name, not a connection-time or activity-cut spelling;
+a rename is visible even through a retained prepared activity cut. If the target
+physically retires and its role is dropped, a retained row keeps its public OID
+and captured facts with typed NAME NULL for `usename`. The missing target grants
+no ordinary target-role privilege; valid superusers and inherited stats readers
+retain their authority. Malformed principal provenance and invalid current
+observers still fail normally. Every other field is NULL for an unauthorized
+observer, except `query`,
+which is exactly `<insufficient privilege>`. Authorization is reapplied to each
+execution, including retained prepared SELECTs and cached activity cuts.
+Reference grant/revoke witnesses first receive committed catalog authority through
+a directly parsed pg_roles read and independently assert pg_auth_members and
+pg_has_role, then execute the same retained SELECT against the same activity cut.
+They do not confuse queued PostgreSQL catalog invalidations with activity caching.
+
+The first activity access retains an unmasked detached transaction cut, including
+membership, query/state/clocks and sampled XID/xmin, independently of cumulative
+none/cache/snapshot mode. `pg_stat_clear_snapshot()` and transaction end release
+it. Activity-only access does not construct a cumulative snapshot timestamp.
+Waits are live on every execution: a cached active row can lose its wait after
+cancellation, or retain old membership after termination until clear/end.
+Returned Rows itself is detached. Actual blocking locks report Lock/relation,
+Lock/advisory or the admitted dependency type; actual sleep reports Timeout/PgSleep.
+Blockers belong to pg_blocking_pids/pg_locks, never leader_pid.
+
+Query text is the real top-level source, including comments/placeholders, clipped
+to at most 1023 UTF8 bytes without splitting a character; current_query() keeps
+its separate full-source contract. Idle retains the last query/start/ID.
+Source-less native driver BeginTx/Commit/Rollback change real state/transaction
+clocks but retain the last actual SQL source/start/ID; they invent no SQL, and
+before the first actual SQL those query fields remain NULL.
+Top-level abort clears xact_start even in an aborted SQL block; a live parent
+savepoint transaction retains its start. Application name follows actual
+SET/RESET/LOCAL/rollback values, including the empty string.
+
+XID is assigned canonical low32 only, never allocated by monitoring; xmin is the
+accepted advertised public snapshot horizon, not writer order. Missing values
+are NULL. Query ID is NULL when no genuine computing path is active. The existing
+native startup-active pg_stat_statements module computes analyzed top-level IDs
+under its actual tracking policy; SQL installation does not activate it. No raw
+text hash or neighboring compute_query_id implementation fills missing IDs.
+With track_activities=off, state is disabled, query is empty, query/transaction/
+state timestamps and query ID are NULL; genuine identity/application/backend
+birth remain. Actual live waits are independent of that tracking switch:
+disabled native commands still expose their real lock/sleep waits, while native
+idle has no socket wait. The TCP oracle can report Client/ClientRead even while
+disabled. Reenable resumes source/timestamps at a real command.
+
+INSERT/UPDATE/DELETE reject with 55000 and the released non-updatable-view
+Detail/INSTEAD OF trigger-or-rule Hint, even for zero matching rows. TRUNCATE
+rejects with 42809 (`"pg_stat_activity" is not a table`); COPY FROM rejects with
+42809 (`cannot copy to view "pg_stat_activity"`) and its INSTEAD OF INSERT Hint.
+
 The native built-in logical pg_stat_statements module is available at cluster
 startup; `CREATE EXTENSION ... VERSION '1.12'` installs its genuine functions and
 ordinary views in the selected database. Histories are bounded and shared across

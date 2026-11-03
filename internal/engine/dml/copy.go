@@ -13,14 +13,18 @@ import (
 )
 
 func CopyRelationKind(relation *catalog.Relation, from bool) error {
+	kindOfRelation := relation.RelationKind
+	if kindOfRelation == catalog.CatalogRelation && relation.CatalogView {
+		kindOfRelation = catalog.ViewRelation
+	}
 	if !from && relation.RelationKind == catalog.MaterializedViewRelation && !relation.Populated {
 		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
 		return d
 	}
-	if relation.RelationKind != catalog.TableRelation && !(from && (relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ForeignRelation)) && !(!from && relation.RelationKind == catalog.MaterializedViewRelation) {
+	if kindOfRelation != catalog.TableRelation && !(from && (kindOfRelation == catalog.PartitionedRelation || kindOfRelation == catalog.ForeignRelation)) && !(!from && kindOfRelation == catalog.MaterializedViewRelation) {
 		kind := "non-table relation"
-		switch relation.RelationKind {
+		switch kindOfRelation {
 		case catalog.ViewRelation:
 			kind = "view"
 		case catalog.PartitionedRelation:
@@ -35,10 +39,10 @@ func CopyRelationKind(relation *catalog.Relation, from bool) error {
 			direction = "to"
 		}
 		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
-		if !from && (relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.PartitionedRelation) {
+		if !from && (kindOfRelation == catalog.ViewRelation || kindOfRelation == catalog.PartitionedRelation) {
 			d.Hint = "Try the COPY (SELECT ...) TO variant."
 		}
-		if from && relation.RelationKind == catalog.ViewRelation {
+		if from && kindOfRelation == catalog.ViewRelation {
 			d.Hint = "To enable copying to a view, provide an INSTEAD OF INSERT trigger."
 		}
 		return d
