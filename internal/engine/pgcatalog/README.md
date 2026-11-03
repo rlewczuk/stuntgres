@@ -1292,6 +1292,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
 | `Maintenance`, `TableStatistics`, `SequenceIOStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
+| `XactRelationStatistics` | copied physical-owner pending access facts plus live current tuple frames, independent of cumulative Reader cuts |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
@@ -1453,7 +1454,18 @@ catalog writes or bypass a provider's independent backing-source checks.
   estimates, live/dead are logical version estimates, and FLOAT8 elapsed totals
   are milliseconds. No automatic worker is synthesized. The released grouped
   definition remains authoritative for display and GROUP BY read-only diagnostics.
-  SYS/USER/XACT are separate catalog parts, not new surfaces delivered here.
+- `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152):
+  twelve nullable columns: OID relid, NAME schemaname/relname, then INT8
+  seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd,
+  n_tup_del, n_tup_hot_upd and n_tup_newpage_upd. Current r/t/m/p membership
+  and names have no parent ACL filter or field redaction; the view's own
+  SELECT ACL is enforced normally. Identity/schema/name Keep rejection
+  precedes table and attached-index inquiries. Index SUMs are NULL without
+  attached indexes and zero for attached untouched indexes; fetches combine
+  index simple fetches and table bitmap fetches. HOT/newpage are deterministic
+  zero physical optimization estimates. Rows are detached values with no
+  portable order absent ORDER BY. The grouped released display owns read-only
+  GROUP BY diagnostics; only this named xact view is registered.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership

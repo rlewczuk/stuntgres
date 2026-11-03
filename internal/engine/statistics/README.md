@@ -35,6 +35,15 @@ not tuple-ledger attempts: savepoint/statement rollback does not undo them.
 Successful publication clears pending; a throttled batch may cross COMMIT or
 ROLLBACK. Reader clear and published-only resets do not flush or clear it.
 
+`Writer.PendingRelation` copies the physical owner's full-key relation fact
+under that same generation/retirement fence. Core combines its access events
+and settled tuple attempts with `Ledger.CurrentCounts` from the admitted live
+owner and statement suffix, exactly once. This inquiry never initializes or
+consumes a cumulative Reader, publishes work, or changes the throttle/stop
+frontiers. Current collection policy gates events, not visibility of an already
+collected batch. Aborted-child attempts remain reportable; committed physical
+rows and cumulative publication are separate authorities.
+
 `Relation` facts include additive `SequencePageAccesses`, independent of tuple,
 maintenance and IO-operation fields. It counts successful generator encounters,
 not sequence values: a real nextval cache reservation, successful setval, an
@@ -395,6 +404,8 @@ Sequence encounter merging, reader snapshots and identity/reset fencing use
 `make check RUN='^TestStatsSequence'`, also with `RACE=1`.
 Pending block arithmetic, generation/retirement fences and allocation-free lookup
 use `make check RUN='^TestStatsXactBlocksProvider$'`, also with `RACE=1`.
+Pending relation-value ownership, allocation-free inquiry and publication fences
+use `make check RUN='^TestPGStatXactAllTables'`, also with `RACE=1`.
 Nesting, truncate, COW and pending-prefix accounting uses
 `make check RUN='^TestStatsSnapshotTransactionAccounting$'`, also with `RACE=1`.
 Public SQL scenarios live in `reference/session_state`, using

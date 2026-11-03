@@ -79,7 +79,7 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		detail = "Views containing DISTINCT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignServerOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
 		detail = "Views that return set-returning functions are not automatically updatable."
-	} else if d.Address().ObjectID == StatAllTablesOID {
+	} else if d.Address().ObjectID == StatAllTablesOID || d.Address().ObjectID == StatXactAllTablesOID {
 		detail = "Views containing GROUP BY are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)

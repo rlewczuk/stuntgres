@@ -2,8 +2,8 @@
 
 This bounded feature package owns public SQL scenarios for the seven-column
 cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
-nine-column `pg_stat_all_indexes` and 30-column
-`pg_stat_all_tables` views. All Go tests are untagged external tests using public
+nine-column `pg_stat_all_indexes`, 30-column `pg_stat_all_tables` and twelve-column
+`pg_stat_xact_all_tables` views. All Go tests are untagged external tests using public
 stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
 native-only phases, not a simulated PostgreSQL Restore or Reset API.
@@ -156,8 +156,8 @@ no-index NULL versus untouched-index zero; source-specific completed maintenance
 none/cache/snapshot and predicate-before-reader ordering; qualified object
 lifetimes; genuine native controls; complete read-only diagnostics; and a
 standalone feature walkthrough. Public publication probes name ALL directly and
-use actual writer retirement, never a SQL force-flush hook. Internal current
-transaction Ledger/core tests cover unresolved ownership, not a new XACT view.
+use actual writer retirement. The xact consumer independently exercises the
+current physical writer and live tuple frames, rather than cumulative history.
 
 Native HOT/newpage estimates are zero because there are no corresponding
 physical optimizations. Live/dead use logical version estimates. Elapsed totals
@@ -215,3 +215,38 @@ and proves committed drop absence. These are expected assertions, not a recorded
 verification claim. The fixture remains pinned PostgreSQL 18.6; both selected
 modes and the existing index regression selectors above are required after
 changes. Whole-project Docker-free verification remains `make quickcheck`.
+
+## Transaction-local table statistics
+
+The xact family uses shared statistics setup, physical reporting connections,
+full diagnostic recording and independently specified direct/prepared outcomes.
+It distinguishes live owner/suffix counts and aborted-child attempts from
+cumulative publication and committed data. Reader modes and snapshot clear
+cannot freeze or publish local work; track_counts suppresses only new events.
+The same physical connection is inspected after synchronized transaction end:
+fresh native publication and PostgreSQL-only fixture force-next-flush make the
+zero-at-end witness independent of the ordinary cross-transaction throttle.
+No production flush builtin or unconditional terminal clearing is introduced.
+Failed-statement counters follow actual accepted row work, not validated
+proposals. Whole-batch validation and incremental RETURNING admission have
+separate independently specified witnesses; both preserve physical atomicity.
+
+Identity/name membership is current r/t/m/p without parent ACL filtering, while
+the view's own SELECT ACL remains current at execution. Index absence is typed
+NULL, distinct from untouched attached-index zero. Exact scans count reached
+sources and fetched occurrences before filters; bitmap candidates and index-only
+heap fetches are independently observed through actual EXPLAIN. Native HOT and
+new-page counts are deterministic zero physical estimates, not tuple-event
+approximations. Multirow assertions use bags or ORDER BY, never traversal order.
+Positive hash and bitmap pending facts are captured in the same implicit
+simple-query message as their actual accesses and EXPLAIN witnesses. Every
+result set is checked before the message's terminal publication; no wall-clock
+throttle assumption or new explicit-transaction index capability is required.
+Native replacement tests use public controls and preserve attached TEMP
+membership without importing old pending work or serializing history.
+
+The reusable family selector is `make check RUN='^TestReferencePGStatXactAllTables'`
+and the same command with `REFERENCE=1`; both use the existing PostgreSQL18.6
+fixture policy. Internal provider/core supplements use
+`make check RUN='^TestPGStatXactAllTables'`, with `RACE=1` for synchronized
+ownership coverage.

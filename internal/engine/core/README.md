@@ -670,6 +670,16 @@ owners; the shared database key is copied in its owning leaf-lock interval.
 `statsReader` only configures. Timestamp/clear and independent activity capture
 do not construct a cumulative snapshot; recovery-prefetch stays a fresh direct
 provider read. None/cache behavior and clear-without-publication are unchanged.
+
+`stats_xact_tables.go` supplies the owner-local `XactRelationStatistics` inquiry
+under current statement admission and Engine.Mu. It combines the physical
+session Writer's copied pending access/tuple facts with the live transaction
+Ledger and statement suffix's current I/U/D triples. It never demands a
+cumulative cut, applies collection settings at projection, or clears work at a
+transaction boundary. Settlement, publication throttle, retirement and provider
+replacement retain their existing owners. Captured catalog identities/names
+and current view SELECT authority remain independent of statistics history.
+
 `TestStatDatabaseSnapshotFirstAccess` exercises actual local index, archiver,
 bgwriter and SLRU `transaction` rows against positive distinct B/C writes,
 retained publication cuts, clear and both transaction terminals. Its clear call
@@ -3320,6 +3330,10 @@ use `RUN='^TestWALNamesMetadata$'`.
 Fixed-family view capture, cumulative Reader backing and cluster publication/
 replacement ownership use `make check RUN='^TestPGStat(Archiver|BGWriter|Checkpointer)'`;
 add `RACE=1` for the same families' synchronized ownership witnesses.
+
+Transaction-local statistics ownership and source capture use
+`make check RUN='^TestPGStatXactAllTables'`; add `RACE=1` for owner-local
+admission and generation-fence witnesses.
 
 Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and
 cancellation, statement pins, independent prepared protocol resources and retained

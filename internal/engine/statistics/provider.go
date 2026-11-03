@@ -596,6 +596,21 @@ func (w *Writer) PendingBlocks(p *Provider, k Key) (fetched, hit int64) {
 	return f.BlocksFetched, f.BlocksHit
 }
 
+// PendingRelation copies only this physical writer's unreported relation facts.
+// The caller serializes writer ownership; the provider mutex is a leaf fence
+// against replacement and retirement. Inquiry never changes publication policy.
+func (w *Writer) PendingRelation(p *Provider, k Key) Fact {
+	if k.Category != Relation {
+		return Fact{}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+		return Fact{}
+	}
+	return w.pending[k]
+}
+
 // ReportAnalyze is the source-specific immediate shared reporting boundary.
 // The caller reconciles sampled estimates with its unresolved/pending work.
 func (p *Provider) ReportAnalyze(k Key, policy Policy, at time.Time, elapsed time.Duration, live, dead int64, resetMods bool) {
