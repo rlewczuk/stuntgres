@@ -135,6 +135,8 @@ the complete native provider-name bag and direct/prepared attribute metadata.
 classification, with all 22 release-ordered column names and ordinals checked
 through direct and prepared information_schema.columns reads. Its addition is
 an inventory extension, not a filter that discards newly supported providers.
+The same complete bag classifies `pg_stat_recovery_prefetch` as a view with its
+ten release-ordered reset, counter and gauge columns in both execution routes.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and

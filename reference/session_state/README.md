@@ -121,6 +121,9 @@ diagnostics, live EXECUTE and native ACL controls use
 effects and retained reader/pending ownership are composed internal witnesses;
 these SQL scenarios do not manufacture physical work or use neighboring getters.
 
+Recovery-prefetch monitoring uses `RUN='^TestReferencePGStatRecoveryPrefetch'`
+with `make check` in native and `REFERENCE=1` modes.
+
 Setting-flag metadata and option-array expansion use
 `RUN='^TestReferenceSettingsOptions'` in both modes. Shared physical-session and
 held-call helpers witness noncreating live placeholder recognition, independent

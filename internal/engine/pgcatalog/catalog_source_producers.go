@@ -115,6 +115,7 @@ var producers = [...]Registration{
 	{StatioSysSequencesOID, captureStatioSequences},
 	{StatioUserSequencesOID, captureStatioSequences},
 	{StatActivityOID, capturePGStatActivity},
+	{StatRecoveryPrefetchOID, capturePGStatRecoveryPrefetch},
 	{WaitEventsOID, capturePGWaitEvents},
 	{AIOSOID, captureAIOS},
 	{16200, captureTablePrivileges},

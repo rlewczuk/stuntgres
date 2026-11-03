@@ -342,6 +342,46 @@ may survive COMMIT/ROLLBACK when normal publication is throttled; it is not
 transferred to a prepared-transaction finisher. Native replacement and actual
 object retirement retain the ordinary generation and identity fences.
 
+### Recovery prefetch monitoring
+
+`pg_catalog.pg_stat_recovery_prefetch` (also unqualified on the ordinary catalog
+path) is a read-only singleton, including outside recovery. Its ten nullable
+attributes, in order, are `stats_reset timestamptz`, `prefetch bigint`,
+`hit bigint`, `skip_init bigint`, `skip_new bigint`, `skip_fpw bigint`,
+`skip_rep bigint`, `wal_distance integer`, `block_distance integer`,
+`io_depth integer`. Native metadata reports known nullable=true, including for
+empty results; the final three gauges are INT4, not bigint.
+
+The technical model is deterministic: the six counters project published genuine
+prefetch events in declaration order, and the three gauges project current
+published WAL distance, block distance and I/O depth. With no corresponding
+physical recovery-prefetch facility or event, all nine values are exactly zero.
+They are technical estimates, not physical WAL or worker measurements. Ordinary
+SQL, settings, pool churn and monitoring reads do not manufacture such events.
+
+Successful engine construction records initial `stats_reset` once, in UTC at
+microsecond precision. Reads and preparation never initialize or advance it;
+genuinely absent reset metadata projects typed NULL. Every execution reads
+current provider state, independently of none/cache/snapshot consistency, without
+constructing a cumulative snapshot timestamp. Returned Rows retain their own cut;
+a retained prepared statement obtains a fresh cut on its next execution.
+
+`pg_stat_reset_shared('recovery_prefetch')` and its NULL/no-argument all-family
+forms record genuine reset metadata and zero the six counters while preserving
+current gauges. Reset is immediate and survives transaction rollback; resetting
+another family leaves this row unchanged. Successful native Reset/Restore clears
+all nine values at accepted installation and replaces the reset timestamp.
+Failed or canceled controls leave the row unchanged; Dump excludes this history.
+
+PUBLIC SELECT uses ordinary current relation/column ACLs, with no field redaction
+for ordinary or monitoring roles. Reset EXECUTE is separate: monitoring membership
+alone does not grant it, and explicit grant/revoke affects retained statements.
+INSERT/UPDATE/DELETE reject with 55000 and the non-updatable-view Detail and
+INSTEAD OF trigger-or-rule Hint, including WHERE FALSE. TRUNCATE rejects with
+42809 (`"pg_stat_recovery_prefetch" is not a table`); COPY FROM rejects with 42809
+(`cannot copy to view "pg_stat_recovery_prefetch"`) and its INSTEAD OF INSERT Hint.
+There is no portable row order without ORDER BY.
+
 ### Session activity monitoring
 
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is

@@ -62,6 +62,11 @@ retain current live registrations and advance the existing pending-generation
 fence. New actual target publication inherits only positive registrations under
 cluster serialization, using separate provider lock acquisitions, never metrics
 or reset history. No monitoring history is serialized or activity manufactured.
+The provider remains zero-value-ready: reads do not initialize reset metadata.
+The completed engine owner records recovery-prefetch initialization once through
+targeted ResetShared, without resetting unrelated families or generation.
+Projection uses copied current facts; no corresponding physical event means
+zero technical counters/gauges, never query-derived activity or read-time clocks.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.

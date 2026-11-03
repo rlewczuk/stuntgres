@@ -10,8 +10,8 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `applicable_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `attributes`, `domains`, `user_defined_types`, `views`, `tables`, `routines`, `parameters`, `element_types`). Each producer is a pure
-function from a captured catalog, a paired role read and a narrow runtime
-capability to rows. Orchestration (per-OID catalog choice,
+function from a captured catalog, a paired role read and detached facts or a
+narrow runtime capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
 [engine README](../README.md).
 
@@ -68,9 +68,18 @@ type Input struct {
     SharedDependencies []SharedDependency // core-classified immutable facts
     Activities map[ids.SessionToken]statistics.Activity
     ActivityObserver authorization.PrincipalRef
+    RecoveryPrefetch statistics.SharedFact // detached current provider cut
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
+
+Current fixed-family projections consume detached value facts, never live provider
+or session pointers. Core captures recovery-prefetch under Engine.Mu before the
+leaf provider lock, then releases Engine.Mu before pure projection. Registration
+and exact source/type/attribute authority are checked before owned rows publish.
+Missing reset metadata remains typed NULL; integer gauges use checked INT4
+conversion. Projection neither initializes metadata nor creates cumulative
+reader snapshots, and ordinary SELECT ACLs do not imply activity-field redaction.
 
 - `pg_stat_activity` (12226) projects one detached unmasked cluster activity cut
   with exactly 22 nullable fields and independently live actual wait ownership.

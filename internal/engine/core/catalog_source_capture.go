@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
@@ -44,6 +45,18 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.StatRecoveryPrefetchOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		// Engine.Mu serializes reset/replacement before the leaf provider lock.
+		// Copy the current fact without constructing a cumulative snapshot.
+		in.RecoveryPrefetch = e.Statistics.ReadShared(statistics.RecoveryPrefetch)
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.ShdependOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		databases := scope.Inquiry.sharedDependencyDatabases
