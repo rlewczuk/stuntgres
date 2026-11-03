@@ -68,7 +68,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		{[]int64{3, 4}, []int64{3, 4}, 0, 1},
 		{[]int64{4, -999}, []int64{3, 999}, 1, 0},
 	} {
-		order, component, err := partition.CompareTuple(context.Background(), keys, rangePartitionIntegerTuple(t, keys, test.left...), rangePartitionIntegerTuple(t, keys, test.right...), sqltype.InputEnvironment{})
+		order, component, err := partition.CompareTuple(context.Background(), context.Context.Err, keys, rangePartitionIntegerTuple(t, keys, test.left...), rangePartitionIntegerTuple(t, keys, test.right...), sqltype.InputEnvironment{})
 		if err != nil || order != test.order || component != test.component {
 			t.Fatal(test, order, component, err)
 		}
@@ -81,7 +81,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		{[]int64{2, -999}, true}, {[]int64{3, 3}, true}, {[]int64{3, 4}, false},
 	} {
 		tuple := rangePartitionIntegerTuple(t, keys, test.values...)
-		inside, err := partition.RangeContains(context.Background(), keys, bounded.Membership, tuple, false, sqltype.InputEnvironment{})
+		inside, err := partition.RangeContains(context.Background(), context.Context.Err, keys, bounded.Membership, tuple, false, sqltype.InputEnvironment{})
 		if err != nil || inside != test.explicit {
 			t.Fatal(test, inside, err)
 		}
@@ -98,13 +98,13 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 	}
 	sentinels := []catalog.PartitionDatum{{Kind: -1}, {Kind: -1}}
 	finite := rangePartitionIntegerTuple(t, keys, -999, -999)
-	order, component, err := partition.CompareTuple(context.Background(), keys, sentinels, finite, sqltype.InputEnvironment{})
+	order, component, err := partition.CompareTuple(context.Background(), context.Context.Err, keys, sentinels, finite, sqltype.InputEnvironment{})
 	if err != nil || order != -1 || component != 0 {
 		t.Fatal(order, component, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := partition.CompareTuple(canceled, keys, finite, finite, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
+	if _, _, err := partition.CompareTuple(canceled, context.Context.Err, keys, finite, finite, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()

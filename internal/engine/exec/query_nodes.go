@@ -24,7 +24,9 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 		return Stage{}, err
 	}
 	defer func() {
-		if closeErr := child.Close(); err == nil && closeErr != nil {
+		closeErr := child.Close()
+		_, exhausted := err.(*sampleBudget)
+		if closeErr != nil && (err == nil || exhausted) {
 			out, err = Stage{}, closeErr
 		}
 	}()
@@ -61,14 +63,23 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 			if failure := ValidateProducedValue(value, n.Schema()[k].Usage); failure != nil {
 				return Stage{}, failure
 			}
+			if failure := sampleCheckpoint(ctx); failure != nil {
+				return Stage{}, failure
+			}
 			value, failure = n.Grouping[k].PrepareKey(ctx, value)
 			if failure != nil {
+				return Stage{}, failure
+			}
+			if failure := sampleCheckpoint(ctx); failure != nil {
 				return Stage{}, failure
 			}
 			scratch[k] = value
 			if !state.Methods.NoHashAgg {
 				h, failure := n.Grouping[k].Hash(ctx, value)
 				if failure != nil {
+					return Stage{}, failure
+				}
+				if failure := sampleCheckpoint(ctx); failure != nil {
 					return Stage{}, failure
 				}
 				hash = (hash ^ h) * 1099511628211
@@ -91,7 +102,7 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 			source.FlatCount++
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return Stage{}, err
 	}
 	return Stage{Source: source, Columns: n.Schema()}, nil
@@ -102,7 +113,7 @@ func FindDistinctTuple[G interface {
 	Equal(context.Context, sqltype.Value, sqltype.Value) (bool, error)
 }](ctx context.Context, grouping []G, tuple, flat []sqltype.Value, candidates []int) (int, error) {
 	for _, index := range candidates {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
 		}
 		row := flat[index*len(grouping) : (index+1)*len(grouping)]
@@ -112,16 +123,19 @@ func FindDistinctTuple[G interface {
 			if err != nil {
 				return -1, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return -1, err
+			}
 			if !match {
 				equal = false
 				break
 			}
 		}
 		if equal {
-			return index, ctx.Err()
+			return index, sampleCheckpoint(ctx)
 		}
 	}
-	return -1, ctx.Err()
+	return -1, sampleCheckpoint(ctx)
 }
 
 func findEqualityDistinctTuple(ctx context.Context, grouping []plan.Grouping, tuple, flat []sqltype.Value) (int, error) {
@@ -132,7 +146,7 @@ func findEqualityDistinctTuple(ctx context.Context, grouping []plan.Grouping, tu
 			return index, err
 		}
 	}
-	return -1, ctx.Err()
+	return -1, sampleCheckpoint(ctx)
 }
 
 func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNode) (out Stage, err error) {
@@ -149,7 +163,10 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 	}
 	defer func() {
 		if err != nil {
-			child.Close()
+			closeErr := child.Close()
+			if _, exhausted := err.(*sampleBudget); exhausted && closeErr != nil {
+				out, err = Stage{}, closeErr
+			}
 		}
 	}()
 	width := len(n.Expressions)
@@ -180,13 +197,22 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 			if failure = ValidateProducedValue(value, e.ResultUsage()); failure != nil {
 				return Stage{}, failure
 			}
+			if failure := sampleCheckpoint(ctx); failure != nil {
+				return Stage{}, failure
+			}
 			value, failure = n.Grouping[k].PrepareKey(ctx, value)
 			if failure != nil {
+				return Stage{}, failure
+			}
+			if failure := sampleCheckpoint(ctx); failure != nil {
 				return Stage{}, failure
 			}
 			scratch[k] = value
 			h, failure := n.Grouping[k].Hash(ctx, value)
 			if failure != nil {
+				return Stage{}, failure
+			}
+			if failure := sampleCheckpoint(ctx); failure != nil {
 				return Stage{}, failure
 			}
 			hash = (hash ^ h) * 1099511628211
@@ -201,7 +227,7 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 			RetainOccurrence(&out, &child, i)
 		}
 	}
-	if err = ctx.Err(); err != nil {
+	if err = sampleCheckpoint(ctx); err != nil {
 		return Stage{}, err
 	}
 	return out, nil
@@ -274,7 +300,7 @@ func queryBoundEvaluation(ctx context.Context, evaluation expr.Context, bound ex
 		}
 		return 0, false, sqlError(code, clause+" must not be negative")
 	}
-	return n, true, ctx.Err()
+	return n, true, sampleCheckpoint(ctx)
 }
 
 // Producers append only demanded occurrence identities. Blocking stages drain
@@ -286,11 +312,11 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 	if s.Closed {
 		return false, nil
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return false, s.fail(err)
 	}
 	for s.Produce != nil && !s.Done && i >= s.Count() {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, s.fail(err)
 		}
 		present, err := s.Produce(ctx, s)
@@ -301,7 +327,7 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 			s.Done = true
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return false, s.fail(err)
 	}
 	if i < s.Count() {
@@ -318,6 +344,9 @@ func (s *Stage) NextOccurrence(ctx context.Context) (int, bool, error) {
 	if len(s.observations) != 0 && !s.Closed && s.Terminal == nil {
 		s.observeStart()
 		defer s.observeEnd()
+	}
+	if err := sampleDemand(ctx, s); err != nil {
+		return 0, false, s.fail(err)
 	}
 	present, err := s.ensure(ctx, s.Position)
 	if err != nil || !present {
@@ -345,7 +374,7 @@ func (s *Stage) Drain(ctx context.Context) error {
 		defer s.observeEnd()
 	}
 	if s.Produce == nil {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return s.fail(err)
 		}
 		s.drainReadLeases()
@@ -357,7 +386,7 @@ func (s *Stage) Drain(ctx context.Context) error {
 			return err
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return s.fail(err)
 	}
 	s.observeDrained(s.Count())
@@ -419,11 +448,14 @@ func OpenEvaluationNode(ctx context.Context, state *State, n *plan.EvaluationNod
 			if err != nil {
 				return false, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, err
+			}
 			values[n.Base+j] = value
 		}
 		out.Source = child.Source
 		out.Selection = append(out.Selection, child.Index(i))
-		return true, ctx.Err()
+		return true, sampleCheckpoint(ctx)
 	}
 	return out, nil
 }
@@ -512,7 +544,7 @@ func OpenLimitNode(ctx context.Context, state *State, n *plan.LimitNode) (Stage,
 					CaptureQueryTiesBoundary(&child, i, n.PeerKeys, boundary)
 				}
 			}
-			return true, ctx.Err()
+			return true, sampleCheckpoint(ctx)
 		}
 	}
 	return out, nil
@@ -563,7 +595,7 @@ func WindowValueMember(mode parser.FrameExclusion, head, tail, current, peerStar
 }
 
 func evaluateWindowValue(ctx context.Context, evaluation *Context, child *Stage, call plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	usage := call.Expression.ResultUsage()
@@ -577,7 +609,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *Context, child *Stage,
 		if err := ValidateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {
@@ -596,7 +628,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *Context, child *Stage,
 	if !present {
 		return sqltype.Null(usage.Type), nil
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
@@ -609,5 +641,5 @@ func evaluateWindowValue(ctx context.Context, evaluation *Context, child *Stage,
 	}
 	// Value owns immutable payloads; retaining it in the output overlay neither
 	// aliases a reusable scan buffer nor reevaluates/caches the selected member.
-	return value, ctx.Err()
+	return value, sampleCheckpoint(ctx)
 }

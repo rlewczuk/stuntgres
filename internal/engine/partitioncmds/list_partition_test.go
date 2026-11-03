@@ -175,13 +175,13 @@ func TestListPartitionComparison(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := partition.Contains(context.Background(), root.Partition.Keys, bound, actualKey, sqltype.InputEnvironment{})
+				got, err := partition.Contains(context.Background(), context.Context.Err, root.Partition.Keys, bound, actualKey, sqltype.InputEnvironment{})
 				if err != nil || got != witness.want {
 					t.Fatal(witness, got, err)
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
-				if _, err := partition.Contains(ctx, root.Partition.Keys, bound, actualKey, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
+				if _, err := partition.Contains(ctx, context.Context.Err, root.Partition.Keys, bound, actualKey, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
 			}

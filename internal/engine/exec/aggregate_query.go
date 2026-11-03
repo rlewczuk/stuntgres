@@ -26,13 +26,22 @@ type AggregateDistinctState struct {
 func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value) (bool, error) {
 	hash := uint64(14695981039346656037)
 	for i, family := range grouping {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return false, err
+		}
 		value, err := family.PrepareKey(ctx, tuple[i])
 		if err != nil {
+			return false, err
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		tuple[i] = value
 		h, err := family.Hash(ctx, value)
 		if err != nil {
+			return false, err
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		hash = (hash ^ h) * 1099511628211
@@ -46,10 +55,10 @@ func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grou
 	}
 	s.Buckets[hash] = append(s.Buckets[hash], len(s.Tuples)/len(grouping))
 	s.Tuples = append(s.Tuples, tuple...)
-	return true, ctx.Err()
+	return true, sampleCheckpoint(ctx)
 }
 
-func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode) (Stage, error) {
+func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode) (out Stage, err error) {
 	if n.PresenceOnly {
 		return OpenNode(ctx, state, n.Child)
 	}
@@ -58,6 +67,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	}
 	evaluation := state.Evaluation(ctx)
 	for _, call := range n.Calls {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
+		}
 		if state.aggregatePartials == nil {
 			// Admit one aggregate support/input initialization, before the child
 			// is materialized. This is not admission for ordered-input sorting.
@@ -67,11 +79,17 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			if err := AdmitAggregateSupport(&evaluation, &call); err != nil {
 				return Stage{}, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return Stage{}, err
+			}
 		}
 		if provider, ok := call.Provider.(*TransitionAggregate); ok && state.aggregatePartials == nil {
 			if err := provider.Start(&evaluation); err != nil {
 				return Stage{}, err
 			}
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
 		}
 	}
 	child, err := OpenNode(ctx, state, n.Child)
@@ -82,7 +100,13 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	if err != nil {
 		return Stage{}, err
 	}
-	defer child.Close()
+	defer func() {
+		closeErr := child.Close()
+		_, exhausted := err.(*sampleBudget)
+		if closeErr != nil && (err == nil || exhausted) {
+			out, err = Stage{}, closeErr
+		}
+	}()
 	if err := child.Drain(ctx); err != nil {
 		return Stage{}, err
 	}
@@ -90,6 +114,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	if sets == nil {
 		keys := make([]int, len(n.Keys))
 		for i := range keys {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return Stage{}, err
+			}
 			keys[i] = i
 		}
 		sets = [][]int{keys}
@@ -101,6 +128,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	}
 	indices := make([]int, len(sets))
 	for i := range indices {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
+		}
 		indices[i] = -1
 	}
 	scratch := make([]sqltype.Value, len(n.Keys))
@@ -113,6 +143,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	directWidth := 0
 	argumentWidth := 0
 	for _, call := range n.Calls {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
+		}
 		hasDistinct = hasDistinct || len(call.Distinct) > 0
 		argumentWidth = max(argumentWidth, len(call.Arguments))
 		if len(call.Direct) > directWidth {
@@ -140,7 +173,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	output.Regcollation, output.Regnamespace = presentation, presentation
 	output.RegTS = presentation
 	newGroup := func(occurrence int) (int, error) {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return 0, err
 		}
 		group := QueryGroup{occurrence: occurrence, Keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.Calls))}
@@ -151,9 +184,15 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			group.distinct = make([]AggregateDistinctState, len(n.Calls))
 		}
 		for k, key := range n.Keys {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return 0, err
+			}
 			group.Keys[k] = sqltype.Null(key.ResultUsage().Type)
 		}
 		for _, k := range sets[occurrence] {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return 0, err
+			}
 			group.Keys[k] = scratch[k]
 		}
 		if slot := len(n.Keys) + len(n.Calls); slot < len(group.Keys) {
@@ -164,6 +203,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			group.Keys[slot] = value
 		}
 		for i, call := range n.Calls {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return 0, err
+			}
 			var err error
 			if provider, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
 				group.states[i], err = provider.InitWithContext(ctx, &evaluation)
@@ -175,7 +217,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			if err != nil {
 				return 0, err
 			}
-			if err = ctx.Err(); err != nil {
+			if err = sampleCheckpoint(ctx); err != nil {
 				return 0, err
 			}
 		}
@@ -183,6 +225,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		return len(groups) - 1, nil
 	}
 	for occurrence, set := range sets {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
+		}
 		if len(set) == 0 {
 			index, err := newGroup(occurrence)
 			if err != nil {
@@ -192,7 +237,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 		}
 	}
 	for i := range child.Count() {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return Stage{}, err
 		}
 		evaluation.BindQueryRow(child.Source, child.Index(i))
@@ -201,11 +246,14 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			if err != nil {
 				return Stage{}, err
 			}
-			if err = ctx.Err(); err != nil {
+			if err = sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			value, err = n.Grouping[k].PrepareKey(ctx, value)
 			if err != nil {
+				return Stage{}, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			scratch[k] = value
@@ -214,11 +262,14 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				if err != nil {
 					return Stage{}, err
 				}
+				if err := sampleCheckpoint(ctx); err != nil {
+					return Stage{}, err
+				}
 				hashes[k] = h
 			}
 		}
 		for occurrence, set := range sets {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			if len(set) == 0 {
@@ -231,6 +282,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				index, err = findEqualityQueryGroup(ctx, n.Grouping, scratch, set, groups, occurrence)
 			} else {
 				for _, k := range set {
+					if err := sampleCheckpoint(ctx); err != nil {
+						return Stage{}, err
+					}
 					hash = (hash ^ hashes[k]) * 1099511628211
 				}
 				index, err = FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
@@ -253,7 +307,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			indices[occurrence] = index
 		}
 		for p, call := range n.Calls {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			if call.Filter != nil {
@@ -261,7 +315,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				if err != nil {
 					return Stage{}, err
 				}
-				if err := ctx.Err(); err != nil {
+				if err := sampleCheckpoint(ctx); err != nil {
 					return Stage{}, err
 				}
 				if filter.IsNull() {
@@ -281,7 +335,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				if err != nil {
 					return Stage{}, err
 				}
-				if err = ctx.Err(); err != nil {
+				if err = sampleCheckpoint(ctx); err != nil {
 					return Stage{}, err
 				}
 			}
@@ -298,13 +352,13 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					if key.Slot < 0 && tuple[key.Cache].Type() != key.Expression.ResultUsage().Type {
 						return Stage{}, fmt.Errorf("stuntgres: invalid aggregate ordering value")
 					}
-					if err := ctx.Err(); err != nil {
+					if err := sampleCheckpoint(ctx); err != nil {
 						return Stage{}, err
 					}
 				}
 			}
 			for _, index := range indices {
-				if err := ctx.Err(); err != nil {
+				if err := sampleCheckpoint(ctx); err != nil {
 					return Stage{}, err
 				}
 				if len(call.Distinct) > 0 {
@@ -329,7 +383,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				if err := call.Provider.Advance(ctx, groups[index].states[p], values, &evaluation); err != nil {
 					return Stage{}, err
 				}
-				if err := ctx.Err(); err != nil {
+				if err := sampleCheckpoint(ctx); err != nil {
 					return Stage{}, err
 				}
 			}
@@ -337,24 +391,27 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	}
 	if state.aggregatePartials != nil {
 		*state.aggregatePartials = groups
-		return Stage{}, ctx.Err()
+		return Stage{}, sampleCheckpoint(ctx)
 	}
 	rows := make([][]sqltype.Value, len(groups))
 	for i, group := range groups {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return Stage{}, err
 		}
 		row := group.Keys
 		// Direct arguments use the final group-key frame, never an input row.
 		evaluation.Row = row
 		for p, call := range n.Calls {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return Stage{}, err
+			}
 			var value sqltype.Value
 			var err error
 			direct := directValues[2 : 2+len(call.Direct)]
 			for j, expression := range call.Direct {
 				direct[j], err = expression.Eval(&evaluation)
 				if err == nil {
-					err = ctx.Err()
+					err = sampleCheckpoint(ctx)
 				}
 				if err != nil {
 					return Stage{}, err
@@ -363,6 +420,9 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			if provider, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 				var prepared functions.OrderedPreparation
 				prepared, err = provider.PrepareOrdered(ctx, direct, len(group.ordered[p])/call.StageWidth)
+				if err == nil {
+					err = sampleCheckpoint(ctx)
+				}
 				if err == nil {
 					if prepared.Terminal {
 						value = prepared.Value
@@ -389,7 +449,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			if err != nil {
 				return Stage{}, err
 			}
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			if value.Type() != call.Provider.ResultUsage().Type {
@@ -410,7 +470,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 
 func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, candidates []int) (int, error) {
 	for _, candidate := range candidates {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
 		}
 		equal := true
@@ -419,23 +479,29 @@ func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltyp
 			if err != nil {
 				return -1, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return -1, err
+			}
 			if !same {
 				equal = false
 				break
 			}
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
 		}
 		if equal {
 			return candidate, nil
 		}
 	}
-	return -1, ctx.Err()
+	return -1, sampleCheckpoint(ctx)
 }
 
 func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, occurrence int) (int, error) {
 	for candidate := range groups {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return -1, err
+		}
 		if groups[candidate].occurrence != occurrence {
 			continue
 		}
@@ -445,7 +511,7 @@ func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys 
 			return index, err
 		}
 	}
-	return -1, ctx.Err()
+	return -1, sampleCheckpoint(ctx)
 }
 
 // OrderedAggregateInput is the sorted view of one call's staged group input;
@@ -471,6 +537,9 @@ func sortOrderedAggregate(ctx context.Context, state *State, call plan.Aggregate
 	width := call.StageWidth
 	indices := make([]int, len(tuples)/width)
 	for i := range indices {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return OrderedAggregateInput{}, err
+		}
 		indices[i] = i
 	}
 	if err := MergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
@@ -485,14 +554,14 @@ func sortOrderedAggregate(ctx context.Context, state *State, call plan.Aggregate
 	}); err != nil {
 		return OrderedAggregateInput{}, err
 	}
-	return OrderedAggregateInput{Values: tuples, Indices: indices, Width: width, Order: call.Order}, ctx.Err()
+	return OrderedAggregateInput{Values: tuples, Indices: indices, Width: width, Order: call.Order}, sampleCheckpoint(ctx)
 }
 
 // Sorting, hypothetical placement and peer equality share exactly one typed
 // ordering implementation. Values and key metadata are borrowed, never copied.
 func CompareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
 	for _, key := range order {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return 0, err
 		}
 		a, b := left[key.Cache], right[key.Cache]
@@ -509,7 +578,7 @@ func CompareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, lef
 		if err != nil {
 			return 0, err
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return 0, err
 		}
 		if sign != 0 {
@@ -519,7 +588,7 @@ func CompareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, lef
 			return sign, nil
 		}
 	}
-	return 0, ctx.Err()
+	return 0, sampleCheckpoint(ctx)
 }
 
 func replayOrderedAggregate(ctx context.Context, state *State, call plan.AggregateCall, aggregateState any, tuples []sqltype.Value) error {
@@ -530,14 +599,14 @@ func replayOrderedAggregate(ctx context.Context, state *State, call plan.Aggrega
 	width := input.Width
 	evaluation := state.Evaluation(ctx)
 	for _, index := range input.Indices {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return err
 		}
 		if err := call.Provider.Advance(ctx, aggregateState, tuples[index*width:index*width+len(call.Arguments)], &evaluation); err != nil {
 			return err
 		}
 	}
-	return ctx.Err()
+	return sampleCheckpoint(ctx)
 }
 
 func ownedOrderedAggregate(provider functions.AggregateProvider) bool {

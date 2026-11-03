@@ -40,25 +40,6 @@ func (p *SystemRowsProvider) validateRecipe(v catalog.Read, e *catalog.Extension
 	return p.ValidateProcedure(v, procedure)
 }
 
-// SystemRowsCapability authenticates the current installed declaration, not its
-// mutable SQL name, result shape, or a claimed extension membership.
-func SystemRowsCapability(v catalog.Read, procedure *catalog.Procedure) error {
-	if procedure == nil || procedure.Implementation != StockSystemRows {
-		return fmt.Errorf("stuntgres: invalid sampling handler capability")
-	}
-	if err := StockSystemRows.ValidateProcedure(v, procedure); err != nil {
-		return err
-	}
-	symbol, err := ProcedureSymbol(v, procedure)
-	if err != nil {
-		return err
-	}
-	if symbol != "tsm_system_rows_handler" {
-		return fmt.Errorf("stuntgres: invalid sampling recipe")
-	}
-	return nil
-}
-
 func (p *SystemRowsProvider) Stage(stage Stage, e *catalog.Extension, owner authorization.PrincipalRef) error {
 	oid, err := stage.AllocateOID()
 	if err != nil {

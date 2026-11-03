@@ -25,11 +25,11 @@ func TestSystemRowsVisibleSelection(t *testing.T) {
 	check := func(source *exec.Source, allowed map[int64]bool, count int64) {
 		t.Helper()
 		node, sample := *leaf, *original
-		value, err := sqltype.Integer(original.Count.ResultUsage().Type, count)
+		value, err := sqltype.Integer(original.Argument.ResultUsage().Type, count)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sample.Count = plan.LiteralExpr{Info: expr.Info{Usage: original.Count.ResultUsage()}, Value: value}
+		sample.Argument = plan.LiteralExpr{Info: expr.Info{Usage: original.Argument.ResultUsage()}, Value: value}
 		node.Sample = &sample
 		node.Ref = source.Ref
 		visible := slices.Clone(source.Visible)

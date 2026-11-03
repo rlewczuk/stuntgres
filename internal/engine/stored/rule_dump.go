@@ -297,7 +297,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 			if !ok {
 				return "", ids.ErrCatalogReplaced
 			}
-			count, err := ruleExpressionSQL(ctx, view, n.Sample.Count, action, root)
+			count, err := ruleExpressionSQL(ctx, view, n.Sample.Argument, action, root)
 			if err != nil {
 				return "", err
 			}

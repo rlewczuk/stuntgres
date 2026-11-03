@@ -179,7 +179,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		if !ok || n.Ref != o.Ref || !c.PairOccurrence(n.Occurrence, o.Occurrence) || (n.Sample == nil) != (o.Sample == nil) {
 			return false
 		}
-		return n.Sample == nil || n.Sample.Handler == o.Sample.Handler && same(n.Sample.Count, o.Sample.Count)
+		return n.Sample == nil || n.Sample.Handler == o.Sample.Handler && same(n.Sample.Argument, o.Sample.Argument)
 	case *plan.SingletonNode:
 		_, ok := d.(*plan.SingletonNode)
 		return ok

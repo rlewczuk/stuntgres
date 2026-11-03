@@ -56,6 +56,16 @@ type pruneProof struct {
 func newPruneProof(ctx context.Context, evaluation *exec.Context, view catalog.Read, named *catalog.Relation, ref ids.ObjectRef) pruneProof {
 	return pruneProof{ctx: ctx, evaluation: evaluation, view: view, named: named, ref: ref, nodes: []pruneNode{{op: "true"}, {op: "false"}}, remaining: pruneSearchLimit}
 }
+
+// The proof's ordinary context remains cancellation-only. Reuse the executor
+// expression seam for the enclosing sampler; never turn its private unwind
+// into a context error or the conservative search-limit fallback.
+func (p *pruneProof) checkpoint(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return exec.EvaluationContext(p.evaluation)
+}
 func (p *pruneProof) join(op string, a, b int) int {
 	if op == "and" {
 		if a == 1 || b == 1 {
@@ -164,6 +174,9 @@ func (p *pruneProof) normalize(node expr.Expr, check bool) (int, error) {
 	if err := p.ctx.Err(); err != nil {
 		return 0, err
 	}
+	if err := exec.EvaluationContext(p.evaluation); err != nil {
+		return 0, err
+	}
 	if logical, ok := node.(plan.LogicalExpr); ok && (logical.Op == parser.LogicalAnd || logical.Op == parser.LogicalOr) {
 		a, err := p.normalize(logical.Left, check)
 		if err != nil {
@@ -193,11 +206,17 @@ func (p *pruneProof) normalize(node expr.Expr, check bool) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return 0, err
+		}
 		if !known {
 			key, probe = comparison.Right, comparison.Left
 			operator = reversedPruneOperator(operator)
 			value, known, err = plan.QueryPredicateProofValue(p.evaluation, probe)
 			if err != nil {
+				return 0, err
+			}
+			if err := exec.EvaluationContext(p.evaluation); err != nil {
 				return 0, err
 			}
 		}
@@ -238,6 +257,9 @@ func (p *pruneProof) normalize(node expr.Expr, check bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if err := exec.EvaluationContext(p.evaluation); err != nil {
+		return 0, err
+	}
 	if known && value.Type() != nil && value.Type().ID() == sqltype.Bool {
 		truth, err := plan.TruthOf(value)
 		if err != nil {
@@ -252,7 +274,14 @@ func (p *pruneProof) normalize(node expr.Expr, check bool) (int, error) {
 }
 
 func (p *pruneProof) compare(term int, a, b sqltype.Value) (int, error) {
-	return p.terms[term].ordering.Compare(p.ctx, a, b, p.evaluation.Input)
+	if err := exec.EvaluationContext(p.evaluation); err != nil {
+		return 0, err
+	}
+	sign, err := p.terms[term].ordering.Compare(p.ctx, a, b, p.evaluation.Input)
+	if err != nil {
+		return 0, err
+	}
+	return sign, exec.EvaluationContext(p.evaluation)
 }
 func (p *pruneProof) constrain(domains []pruneDomain, atom pruneAtom) (bool, error) {
 	d := &domains[atom.term]
@@ -319,6 +348,9 @@ type pruneTask struct {
 
 func (p *pruneProof) possible(task *pruneTask, domains []pruneDomain, finish func([]pruneDomain) (bool, error)) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
+		return false, err
+	}
+	if err := exec.EvaluationContext(p.evaluation); err != nil {
 		return false, err
 	}
 	if p.remaining == 0 {

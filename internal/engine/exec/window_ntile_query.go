@@ -47,7 +47,7 @@ func (s *WindowNtileState) Next() int64 {
 }
 
 func (s *WindowNtileState) evaluate(ctx context.Context, evaluation *Context, child *Stage, call plan.WindowCall, rows []int, current int) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	usage := call.Expression.ResultUsage()
@@ -60,7 +60,7 @@ func (s *WindowNtileState) evaluate(ctx context.Context, evaluation *Context, ch
 		if err := ValidateProducedValue(value, call.Argument.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {

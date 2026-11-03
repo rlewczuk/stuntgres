@@ -12,9 +12,9 @@ import (
 
 // LIST equality is the admitted key comparator's equality, with a separate
 // typed NULL owner. Neither routing nor normalization renders or hashes values.
-func listContains(ctx context.Context, key *catalog.PartitionKeyEntry, values []catalog.PartitionDatum, value sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
+func listContains(ctx context.Context, checkpoint func(context.Context) error, key *catalog.PartitionKeyEntry, values []catalog.PartitionDatum, value sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for i := range values {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return false, err
 		}
 		candidate := &values[i].Value
@@ -25,11 +25,17 @@ func listContains(ctx context.Context, key *catalog.PartitionKeyEntry, values []
 			continue
 		}
 		order, err := key.Comparison.Compare(ctx, *candidate, value, input)
-		if err != nil || order == 0 {
-			return order == 0, err
+		if err != nil {
+			return false, err
+		}
+		if err := checkpoint(ctx); err != nil {
+			return false, err
+		}
+		if order == 0 {
+			return true, nil
 		}
 	}
-	return false, ctx.Err()
+	return false, checkpoint(ctx)
 }
 
 func evaluateListBounds(ctx context.Context, d *Definition, binder BoundBinder, evaluation *exec.Context) error {
@@ -46,7 +52,7 @@ func evaluateListBounds(ctx context.Context, d *Definition, binder BoundBinder, 
 		if err != nil {
 			return err
 		}
-		duplicate, err := listContains(ctx, key, d.Bound.Values, value, evaluation.Input)
+		duplicate, err := listContains(ctx, context.Context.Err, key, d.Bound.Values, value, evaluation.Input)
 		if err != nil {
 			return err
 		}
@@ -75,7 +81,7 @@ func validateListBound(ctx context.Context, key *catalog.PartitionKeyEntry, boun
 		if datum.Kind != 0 || datum.Value.Type() != key.Usage.Type {
 			return invalid()
 		}
-		duplicate, err := listContains(ctx, key, bound.Values[:i], datum.Value, sqltype.InputEnvironment{})
+		duplicate, err := listContains(ctx, context.Context.Err, key, bound.Values[:i], datum.Value, sqltype.InputEnvironment{})
 		if err != nil {
 			return err
 		}
@@ -95,7 +101,7 @@ func checkListOverlap(ctx context.Context, input sqltype.InputEnvironment, view 
 			if sibling.Membership.DefaultBound {
 				continue
 			}
-			overlap, err := listContains(ctx, &d.Parent.Partition.Keys[0], sibling.Membership.Values, datum.Value, input)
+			overlap, err := listContains(ctx, context.Context.Err, &d.Parent.Partition.Keys[0], sibling.Membership.Values, datum.Value, input)
 			if err != nil {
 				return err
 			}

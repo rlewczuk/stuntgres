@@ -211,7 +211,7 @@ func EvaluationContext(c *Context) error {
 	if c.DomainValueActive {
 		c.Input.DomainChecks = c
 	}
-	return c.Context.Err()
+	return sampleCheckpoint(c.Context)
 }
 
 // frameRow runs the node prologue and returns the evaluation frame that owns
@@ -398,5 +398,10 @@ func (c *Context) setContext(ctx context.Context) {
 	}
 	if c.Context != nil {
 		c.Context = workadmission.Rebase(c.Context, runtime)
+		if runtime != nil {
+			if budget, _ := runtime.Value(sampleBudgetKey{}).(*sampleBudget); budget != nil && c.Context.Value(sampleBudgetKey{}) != budget {
+				c.Context = context.WithValue(c.Context, sampleBudgetKey{}, budget)
+			}
+		}
 	}
 }

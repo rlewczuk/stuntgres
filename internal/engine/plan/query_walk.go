@@ -143,10 +143,10 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 		return node, nil
 	case *SourceNode:
 		if n.Sample != nil {
-			count := expression(n.Sample.Count)
+			count := expression(n.Sample.Argument)
 			if changed && err == nil {
 				copy, sample := *n, *n.Sample
-				sample.Count = count
+				sample.Argument = count
 				copy.Sample = &sample
 				out = &copy
 			}
@@ -533,7 +533,7 @@ func QueryExpressions(node Node, visit func(expr.Expr)) {
 	switch n := node.(type) {
 	case *SourceNode:
 		if n.Sample != nil {
-			visit(n.Sample.Count)
+			visit(n.Sample.Argument)
 		}
 	case *FunctionFromNode:
 		for _, call := range n.Calls {

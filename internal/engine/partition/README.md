@@ -145,6 +145,14 @@ not change when membership pruning is disabled.
   across one entire Select, not per branch. Exhaustion retains the current and
   later branches; earlier proven omissions stay valid. Cancellation is checked
   before fallback; proof-provider errors propagate unchanged.
+  This conservative search cap is distinct from an enclosing SYSTEM_TIME scan
+  budget: unlocked normalization, comparison/hash support, containment and
+  physical traversal consult exec's existing EvaluationContext seam before
+  advancing after success. Genuine support errors win; host cancellation wins
+  over elapsed EOF. Private owner-specific exhaustion propagates unchanged,
+  never becoming a proof fallback or a context error. Containment's explicit
+  invocation checkpoint is not retained in catalog recipes; ordinary routing
+  and DDL callers retain cancellation-only behavior.
 - **Ownership.** The engine owns admission (lock manifests include the whole
   hierarchy) and capture lifetime; exec owns interval skipping and residual
   evaluation. Selection is never cached in prepared analysis, retained

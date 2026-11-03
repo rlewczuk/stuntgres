@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -13,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -325,11 +327,11 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 		capture.close(t)
 		bufferUnitFact(t, e, observer, low, 1, 0)
 	})
-	t.Run("sampling_read_frontier", func(t *testing.T) {
+	samplingReadFrontier := func(t *testing.T, extension, method, positiveArgument string) {
 		for _, kind := range []string{"heap", "hierarchy"} {
 			t.Run(kind, func(t *testing.T) {
 				e := bufferUnitEngine(t)
-				enginetest.Run(t, e, "CREATE EXTENSION tsm_system_rows")
+				enginetest.Run(t, e, "CREATE EXTENSION "+extension)
 				enginetest.Run(t, e, "CREATE TABLE buffer_sample(k integer)")
 				enginetest.Run(t, e, "INSERT INTO buffer_sample VALUES(1)")
 				nodes := []ids.OID{bufferUnitNode(t, e, "buffer_sample")}
@@ -345,9 +347,9 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 						bufferUnitFact(t, e, observer, node, usage, pins)
 					}
 				}
-				open := func(count string) (*bufferCapture, *exec.State, *exec.Stage) {
+				open := func(argument, failure string) (*bufferCapture, *exec.State, *exec.Stage) {
 					t.Helper()
-					capture := bufferUnitCapture(t, e, owner, "SELECT k FROM buffer_sample TABLESAMPLE system_rows("+count+")")
+					capture := bufferUnitCapture(t, e, owner, "SELECT k FROM buffer_sample TABLESAMPLE "+method+"("+argument+")")
 					if err := exec.SelectQuerySources(capture.op.Ctx, capture.source); err != nil {
 						t.Fatal(err)
 					}
@@ -373,7 +375,12 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 					exec.AdmitScan(capture.root, capture.source)
 					state := &exec.State{Source: capture.source, SourceMode: exec.SourceBorrowed, Retain: true}
 					stage, err := exec.OpenNode(capture.op.Ctx, state, source)
-					if err != nil {
+					if failure != "" {
+						var diagnostic *sqlstate.Error
+						if !errors.As(err, &diagnostic) || diagnostic.Code != "2202H" || diagnostic.Message != failure {
+							t.Fatal("invalid sample argument diagnostic", err, failure)
+						}
+					} else if err != nil {
 						t.Fatal(err)
 					}
 					t.Cleanup(func() {
@@ -406,7 +413,29 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 					}
 				}
 
-				cold, coldState, zero := open("0")
+				if method == "system_time" {
+					for _, invalid := range []struct {
+						argument, message string
+					}{
+						{"NULL", "TABLESAMPLE parameter cannot be null"},
+						{"-1", "sample collection time must not be negative"},
+						{"'NaN'::float8", "sample collection time must not be negative"},
+						{"'-Infinity'::float8", "sample collection time must not be negative"},
+					} {
+						capture, state, stage := open(invalid.argument, invalid.message)
+						facts(0, 0) // Rejected arguments never consume physical storage.
+						if err := stage.Close(); err != nil {
+							t.Fatal(err)
+						}
+						if err := state.FinishSources(nil); err != nil {
+							t.Fatal(err)
+						}
+						capture.close(t)
+						facts(0, 0)
+					}
+				}
+
+				cold, coldState, zero := open("0", "")
 				facts(0, 0) // Initializing a zero sample must not open a read lease.
 				rows(cold, zero, 0)
 				if _, err := zero.Rewind(cold.op.Ctx); err != nil {
@@ -423,7 +452,7 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 				cold.close(t)
 				facts(0, 0)
 
-				positive, positiveState, sampled := open("1")
+				positive, positiveState, sampled := open(positiveArgument, "")
 				facts(1, 1) // Positive sampling actually consumes each physical heap.
 				rows(positive, sampled, len(nodes))
 				if _, err := sampled.Rewind(positive.op.Ctx); err != nil {
@@ -456,7 +485,7 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 				positive.close(t)
 				facts(2, 0)
 
-				warm, warmState, warmZero := open("0")
+				warm, warmState, warmZero := open("0", "")
 				facts(2, 0) // Warm zero sampling must not increment usage or acquire a pin.
 				rows(warm, warmZero, 0)
 				if _, err := warmZero.Rewind(warm.op.Ctx); err != nil {
@@ -473,7 +502,7 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 				warm.close(t)
 				facts(2, 0)
 
-				later, laterState, laterPositive := open("1")
+				later, laterState, laterPositive := open(positiveArgument, "")
 				rows(later, laterPositive, len(nodes))
 				facts(3, 1)
 				if err := laterPositive.Close(); err != nil {
@@ -486,5 +515,11 @@ func TestPgBuffercacheReadAttribution(t *testing.T) {
 				facts(3, 0)
 			})
 		}
+	}
+	t.Run("sampling_read_frontier", func(t *testing.T) {
+		samplingReadFrontier(t, "tsm_system_rows", "system_rows", "1")
+	})
+	t.Run("time_sampling_read_frontier", func(t *testing.T) {
+		samplingReadFrontier(t, "tsm_system_time", "system_time", "'Infinity'::float8")
 	})
 }

@@ -178,7 +178,7 @@ func TestViewWriteSampleShape(t *testing.T) {
 		}
 		project := *stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 		source := *project.Child.(*plan.SourceNode)
-		source.Sample = &plan.TableSample{Count: plan.LiteralExpr{Info: expr.Info{Usage: bigint.Usage()}, Value: value}}
+		source.Sample = &plan.TableSample{Argument: plan.LiteralExpr{Info: expr.Info{Usage: bigint.Usage()}, Value: value}}
 		project.Child = &source
 		for _, shape := range []struct {
 			name, reason string

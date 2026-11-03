@@ -18,6 +18,10 @@ import (
 
 // Query and catalog replacement share one physical-to-live head selection.
 func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes, heap visibility.HeapOperations) (*Source, error) {
+	if err := ctx.Err(); err != nil {
+		source.Close()
+		return nil, err
+	}
 	if source.RlsDenied {
 		return source, ctx.Err()
 	}
@@ -26,6 +30,10 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 	}
 	replacements, single := 0, 0
 	for i, row := range source.Own {
+		if err := ctx.Err(); err != nil {
+			source.Close()
+			return nil, err
+		}
 		if row.Base != 0 {
 			replacements++
 			single = i
@@ -41,6 +49,10 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 	if replacements > 1 {
 		heads = make(map[ids.VersionID]int, replacements)
 		for i, row := range source.Own {
+			if err := ctx.Err(); err != nil {
+				source.Close()
+				return nil, err
+			}
 			if row.Base != 0 {
 				heads[row.Base] = len(source.Committed) + i
 			}

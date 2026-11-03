@@ -936,7 +936,7 @@ func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, fra
 		if n.Sample == nil {
 			return root, nil
 		}
-		count, _, err := host.MapBoundQueryExpression(view, n.Sample.Count, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+		count, _, err := host.MapBoundQueryExpression(view, n.Sample.Argument, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Frame != frame {
 				return node, false, nil
@@ -951,7 +951,7 @@ func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, fra
 			return nil, err
 		}
 		copy, sample := *n, *n.Sample
-		sample.Count, sample.Captures = count, rebased
+		sample.Argument, sample.Captures = count, rebased
 		copy.Sample = &sample
 		return &copy, nil
 	case *plan.JoinNode:

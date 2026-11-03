@@ -85,6 +85,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_surgery' AND version='1.0'", true, [][]any{{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_buffercache'", false, [][]any{{"pg_buffercache", "1.6", nil, "examine the shared buffer cache"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_buffercache' AND version='1.6'", true, [][]any{{"pg_buffercache", "1.6", false, true, false, true, nil, nil, "examine the shared buffer cache"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tsm_system_time'", false, [][]any{{"tsm_system_time", "1.0", nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tsm_system_time' AND version='1.0'", true, [][]any{{"tsm_system_time", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"}}, pg))
 			if !pg {
 				// Native availability is its embedded registry, including the genuine
 				// installed bootstrap plpgsql extension.
@@ -157,6 +159,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"tsm_system_rows", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts number of rows as a limit"})
 				wantAvailable = append(wantAvailable, []any{"pg_surgery", "1.0", nil, "extension to perform surgery on a damaged relation"})
 				wantVersions = append(wantVersions, []any{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"})
+				wantAvailable = append(wantAvailable, []any{"tsm_system_time", "1.0", nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"})
+				wantVersions = append(wantVersions, []any{"tsm_system_time", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

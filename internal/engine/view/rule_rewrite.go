@@ -210,7 +210,7 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 					if source.Sample != nil {
 						sample := *source.Sample
 						var err error
-						sample.Count, _, err = mapper(sample.Count)
+						sample.Argument, _, err = mapper(sample.Argument)
 						if err != nil {
 							return nil, err
 						}

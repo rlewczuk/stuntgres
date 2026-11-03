@@ -1,21 +1,31 @@
 package exec
 
 // FinishSources closes reached nested producers at the actual capture-owner
-// boundary. Successful borrowed invocations retain them; a primary failure
-// aborts them even when it arose outside Stage.Next. Data pins still belong to
-// Source.Close, and cleanup failure never replaces an existing primary error.
+// boundary. Borrowed invocations retain them on success or cooperative budget
+// unwind; genuine failures abort them even outside Stage.Next. Data pins still
+// belong to Source.Close, and cleanup never replaces a genuine primary error.
 func (s *State) FinishSources(primary error) error {
-	if primary == nil && s.SourceMode == SourceBorrowed {
-		return nil
+	_, exhausted := primary.(*sampleBudget)
+	if s.SourceMode == SourceBorrowed && (primary == nil || exhausted) {
+		return primary
+	}
+	if exhausted {
+		if err := s.Source.finishProducers(nil); err != nil {
+			return err
+		}
+		return primary
 	}
 	return s.Source.finishProducers(primary)
 }
 
 func (s *State) finishInvocation(stage *Stage, primary error) error {
 	if primary != nil {
-		_ = s.FinishSources(primary)
+		primary = s.FinishSources(primary)
 	}
 	closeErr := stage.Close()
+	if _, exhausted := primary.(*sampleBudget); exhausted && closeErr != nil {
+		return s.FinishSources(closeErr)
+	}
 	if primary != nil {
 		return primary
 	}
@@ -29,6 +39,7 @@ func (s *Source) finishProducers(primary error) error {
 	if s == nil {
 		return primary
 	}
+	s.discardProjection()
 	s.finishReadLeases()
 	failure := primary
 	if stage := s.NestedStage; stage != nil {

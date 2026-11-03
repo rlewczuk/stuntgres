@@ -69,8 +69,18 @@ func OpenDerivedNode(ctx context.Context, state *State, n *plan.DerivedNode) (St
 		inner.Evaluation.OrderValues = inner.OrderRow(i)
 		start := len(source.Flat)
 		source.Flat = append(source.Flat, make([]sqltype.Value, len(n.Schema()))...)
+		committed := false
+		defer func() {
+			if !committed {
+				clear(source.Flat[start:])
+				source.Flat = source.Flat[:start]
+			}
+		}()
 		row := source.Flat[start:]
 		for j, expr := range inner.Expressions {
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, err
+			}
 			if n.CTE != nil && !n.Demand[j] {
 				row[j] = sqltype.ResultNull(n.Schema()[j].Usage)
 				continue
@@ -82,7 +92,13 @@ func OpenDerivedNode(ctx context.Context, state *State, n *plan.DerivedNode) (St
 			if err := ValidateProducedValue(value, n.Schema()[j].Usage); err != nil {
 				return false, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, err
+			}
 			row[j] = value
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return false, err
 		}
 		if source.Lineage != nil {
 			lineage := source.Lineage
@@ -95,7 +111,8 @@ func OpenDerivedNode(ctx context.Context, state *State, n *plan.DerivedNode) (St
 		}
 		out.Selection = append(out.Selection, source.FlatCount)
 		source.FlatCount++
-		return true, ctx.Err()
+		committed = true
+		return true, nil
 	}
 	return out, nil
 }

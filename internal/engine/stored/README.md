@@ -922,9 +922,13 @@ host methods.
   before qualification; hidden own-TEMP sources use `pg_temp`, while foreign
   or zero-owner requests retain physical namespaces, including quote-all.
   Naming neither allocates a TEMP namespace nor changes executable replay.
-  Sampled sources retain separate handler and count occurrence captures. Handler
+  Sampled sources retain separate handler and argument occurrence captures. Handler
   rendering follows authenticated current identity across rename/relocation;
   TABLESAMPLE follows the final relation alias, never an unsampled replay or LIMIT.
+  Validation authenticates each executable sampled leaf against its frozen handler
+  occurrence and requires the selected provider's argument type (bigint for
+  SYSTEM_ROWS, float8 for SYSTEM_TIME). A retained presentation frame cannot grant
+  authority to a differently typed or differently bound replacement query leaf.
 - **Rule and policy dumps.** `RuleDumpGroups`/`RuleActionSQL`,
   `PolicyDumpGroups` and `RowSecurityDumpGroups`.
 - **Rule display.** `RuleDefinitionSQL` reconstructs current event, attribute
@@ -1024,7 +1028,7 @@ host methods.
   relation revisions as stored-definition tokens. Frozen `DefinitionRevision`
   identifies a defining expansion separately from mutable presentation metadata.
   Source remaps preserve sampling handler references/declarations and rewrite
-  bound counts and correlation metadata without retaining selection state.
+  bound arguments and correlation metadata without retaining selection state.
 - **The remap protocol.** `ReownExpressions` (`expression_reown.go`) remaps and
   retags every stored expression of a catalog state after a renumbering
   (Restore, extension owner import, DROP OWNED, TEMP preservation) or after type

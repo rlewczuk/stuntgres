@@ -290,6 +290,9 @@ func (c *Context) subqueryJSONArray(e plan.SubqueryExpr, state *State, stage *St
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	if err := sampleCheckpoint(c.Context); err != nil {
+		return sqltype.Value{}, err
+	}
 	var row [1]sqltype.Value
 	for {
 		present, err := stage.Next(c.Context, row[:])
@@ -297,7 +300,11 @@ func (c *Context) subqueryJSONArray(e plan.SubqueryExpr, state *State, stage *St
 			return sqltype.Value{}, err
 		}
 		if !present {
-			return p.Plan.Finalize(c.Context, aggregate)
+			value, err := p.Plan.Finalize(c.Context, aggregate)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			return value, sampleCheckpoint(c.Context)
 		}
 		inner := state.Evaluation(c.Context)
 		inner.Frame = e.QueryPlan.Root.(*plan.ProjectNode).Frame
@@ -306,7 +313,13 @@ func (c *Context) subqueryJSONArray(e plan.SubqueryExpr, state *State, stage *St
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
 		if err = p.Plan.Advance(c.Context, aggregate, value); err != nil {
+			return sqltype.Value{}, err
+		}
+		if err := sampleCheckpoint(c.Context); err != nil {
 			return sqltype.Value{}, err
 		}
 	}

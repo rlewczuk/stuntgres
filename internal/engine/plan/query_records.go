@@ -65,50 +65,71 @@ type CycleRecipe struct {
 	Inequality     sqltype.ComparisonPredicate
 }
 
-func (c *CycleRecipe) equalRecord(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) equalRecord(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
 	if a.Type() != c.Record || b.Type() != c.Record || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle record")
 	}
+	if err := checkpoint(ctx); err != nil {
+		return false, err
+	}
 	for i, g := range c.Grouping {
+		if err := checkpoint(ctx); err != nil {
+			return false, err
+		}
 		equal, err := g.Equal(ctx, a.CompositeField(i), b.CompositeField(i))
-		if err != nil || !equal {
-			return equal, err
+		if err != nil {
+			return false, err
+		}
+		if err := checkpoint(ctx); err != nil {
+			return false, err
+		}
+		if !equal {
+			return false, nil
 		}
 	}
-	return true, ctx.Err()
+	return true, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) EqualPath(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) EqualPath(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
 	if a.Type() != c.Path || b.Type() != c.Path || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle path")
 	}
+	if err := checkpoint(ctx); err != nil {
+		return false, err
+	}
 	if a.ArrayLen() != b.ArrayLen() {
-		return false, ctx.Err()
+		return false, checkpoint(ctx)
 	}
 	if a.ArrayRank() != b.ArrayRank() {
-		return false, ctx.Err()
+		return false, checkpoint(ctx)
 	}
 	for i := range a.ArrayRank() {
+		if err := checkpoint(ctx); err != nil {
+			return false, err
+		}
 		if a.ArrayDimension(i) != b.ArrayDimension(i) {
-			return false, ctx.Err()
+			return false, checkpoint(ctx)
 		}
 	}
 	for i := range a.ArrayLen() {
-		equal, err := c.equalRecord(ctx, a.ArrayElement(i), b.ArrayElement(i))
+		equal, err := c.equalRecord(ctx, checkpoint, a.ArrayElement(i), b.ArrayElement(i))
 		if err != nil || !equal {
 			return equal, err
 		}
 	}
-	return true, ctx.Err()
+	return true, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) HashPath(ctx context.Context, path sqltype.Value) (uint64, error) {
+func (c *CycleRecipe) HashPath(ctx context.Context, checkpoint func(context.Context) error, path sqltype.Value) (uint64, error) {
 	if path.Type() != c.Path || path.IsNull() {
 		return 0, fmt.Errorf("stuntgres: foreign cycle path")
 	}
+	if err := checkpoint(ctx); err != nil {
+		return 0, err
+	}
 	hash := uint64(14695981039346656037)
 	for i := range path.ArrayRank() {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return 0, err
 		}
 		dim := path.ArrayDimension(i)
@@ -116,23 +137,41 @@ func (c *CycleRecipe) HashPath(ctx context.Context, path sqltype.Value) (uint64,
 		hash = (hash ^ uint64(uint32(dim.Length))) * 1099511628211
 	}
 	for i := range path.ArrayLen() {
+		if err := checkpoint(ctx); err != nil {
+			return 0, err
+		}
 		record := path.ArrayElement(i)
 		for j, g := range c.Grouping {
+			if err := checkpoint(ctx); err != nil {
+				return 0, err
+			}
 			part, err := g.Hash(ctx, record.CompositeField(j))
 			if err != nil {
+				return 0, err
+			}
+			if err := checkpoint(ctx); err != nil {
 				return 0, err
 			}
 			hash = (hash ^ part) * 1099511628211
 		}
 	}
-	return hash, ctx.Err()
+	return hash, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value) ([]sqltype.Value, error) {
+func (c *CycleRecipe) Augment(ctx context.Context, checkpoint func(context.Context) error, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value) ([]sqltype.Value, error) {
+	if err := checkpoint(ctx); err != nil {
+		return nil, err
+	}
 	fields := make([]sqltype.Value, len(c.Keys))
 	for i, key := range c.Keys {
+		if err := checkpoint(ctx); err != nil {
+			return nil, err
+		}
 		value, err := c.Grouping[i].PrepareKey(ctx, row[key])
 		if err != nil {
+			return nil, err
+		}
+		if err := checkpoint(ctx); err != nil {
 			return nil, err
 		}
 		fields[i] = value
@@ -152,12 +191,12 @@ func (c *CycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent s
 	value := fallback
 	detected := false
 	for i := range length {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return nil, err
 		}
 		elements[i] = parent.ArrayElement(i)
 		if !detected {
-			equal, err := c.equalRecord(ctx, record, elements[i])
+			equal, err := c.equalRecord(ctx, checkpoint, record, elements[i])
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +211,7 @@ func (c *CycleRecipe) Augment(ctx context.Context, row []sqltype.Value, parent s
 	if err != nil {
 		return nil, err
 	}
-	return append(row[:c.MarkSlot], value, path), ctx.Err()
+	return append(row[:c.MarkSlot], value, path), checkpoint(ctx)
 }
 
 // A caller-checked query consumer owns its selected equality identity beside

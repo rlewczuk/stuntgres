@@ -203,7 +203,7 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		copy.Ref = b.QuerySources[slot].Ref
 		if source.Sample != nil {
 			sample := *source.Sample
-			sample.Count, _, err = mapExpression(sample.Count)
+			sample.Argument, _, err = mapExpression(sample.Argument)
 			if err != nil {
 				return nil, err
 			}

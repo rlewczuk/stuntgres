@@ -177,6 +177,9 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 			if err := ValidateProducedValue(value, n.Schema()[n.LeftWidth+n.RightWidth+k].Usage); err != nil {
 				return false, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, err
+			}
 			frame[n.LeftWidth+n.RightWidth+k] = value
 		}
 		maxInt := int(^uint(0) >> 1)
@@ -208,7 +211,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 			correlation.Context = nil
 		}()
 		for {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return false, err
 			}
 			if !tail && leftOccurrence < 0 {
@@ -272,7 +275,10 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 						}
 					}
 					if hash != nil && hash.ready {
-						candidates, scan = hash.candidates(ctx, &evaluation)
+						candidates, scan, err = hash.candidates(ctx, &evaluation)
+						if err != nil {
+							return false, err
+						}
 						candidate = 0
 					}
 				}

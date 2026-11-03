@@ -40,12 +40,12 @@ type SourceNode struct {
 	Sample        *TableSample
 }
 
-// TableSample is immutable selected handler authority and a bound bigint count.
-// Selection, cursors and randomness belong exclusively to an execution Stage.
+// TableSample is immutable selected handler authority and its typed argument.
+// Selection, clocks, cursors and randomness belong exclusively to execution.
 type TableSample struct {
 	Handler   ids.ObjectRef
 	Procedure *catalog.Procedure
-	Count     expr.Expr
+	Argument  expr.Expr
 	Captures  []FunctionCorrelation
 }
 

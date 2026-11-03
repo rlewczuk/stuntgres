@@ -27,7 +27,7 @@ func TestSystemRowsProviderIdentity(t *testing.T) {
 		return read, read.MustProcedure(installation.Members[0])
 	}
 	read, procedure := create()
-	if err := extension.SystemRowsCapability(read, procedure); err != nil {
+	if typ, err := extension.SamplingArgumentType(read, procedure); err != nil || typ != sqltype.Int8 {
 		t.Fatal(err)
 	}
 	if name, err := extension.ProcedureInstallationName(read, procedure); err != nil || name != "system_rows" {
@@ -50,13 +50,13 @@ func TestSystemRowsProviderIdentity(t *testing.T) {
 		forged := *procedure
 		change(&forged)
 		read.State().SetDescriptor(procedure.Address(), &forged)
-		if err := extension.SystemRowsCapability(read, &forged); err == nil {
+		if _, err := extension.SamplingArgumentType(read, &forged); err == nil {
 			t.Fatal("forged sampling capability admitted", forged)
 		}
 		read.State().SetDescriptor(procedure.Address(), procedure)
 	}
 	foreign, _ := create()
-	if err := extension.SystemRowsCapability(foreign, procedure); err == nil {
+	if _, err := extension.SamplingArgumentType(foreign, procedure); err == nil {
 		t.Fatal("foreign catalog authority admitted")
 	}
 	moved := *procedure
@@ -65,10 +65,10 @@ func TestSystemRowsProviderIdentity(t *testing.T) {
 	read.State().UnbindName(catalog.DescriptorNameKey(procedure))
 	read.State().SetDescriptor(procedure.Address(), &moved)
 	read.State().BindName(catalog.DescriptorNameKey(&moved), moved.Address())
-	if err := extension.SystemRowsCapability(read, &moved); err != nil {
+	if typ, err := extension.SamplingArgumentType(read, &moved); err != nil || typ != sqltype.Int8 {
 		t.Fatal("genuine rename/relocation lost capability", err)
 	}
-	if err := extension.SystemRowsCapability(read, procedure); err == nil {
+	if _, err := extension.SamplingArgumentType(read, procedure); err == nil {
 		t.Fatal("stale original descriptor admitted")
 	}
 }

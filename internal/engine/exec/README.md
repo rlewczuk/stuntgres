@@ -25,12 +25,56 @@ bound allocation even for max-bigint requests, and all-row samples borrow the
 existing stage mapping and physical-layout identities.
 Candidate, branch/catalog prefilter, direct-cursor and parallel-split shortcuts
 cannot cross this sampling barrier. Constant WHERE rejection may avoid startup;
-an ordinarily demanded empty source still checks NULL and negative counts.
+an ordinarily demanded empty source still checks NULL and invalid arguments.
 Unchanged rescans reuse selection; changed correlated inputs reopen/rebuild it.
 Close/error/cancellation release the child, selection and evaluator through the
 existing statement pin owner without changing accepted plans or returned rows.
 Physical PostgreSQL heap blocks and their clustering distribution are external
 storage mechanisms; no block layout or portable selected-row order is invented.
+
+SYSTEM_TIME evaluates its assignment-float8 millisecond argument once per
+demanded invocation. Zero (including negative zero) is empty; positive infinity
+and max-finite budgets are accepted without duration conversion/overflow.
+Selection traverses actual NextOccurrence demand, retaining original source and
+cache identities rather than draining first or deriving a row count from time.
+Each physical inheritance/partition source receives its own monotonic budget.
+Private context-carried budgets reach nested demand and RLS rejection loops.
+The common expression prologue, cached/raw stage demand and drain, and nested
+aggregate, sort, DISTINCT, window, membership, set and recursive executors share
+cooperative checkpoints. These cover repeated fields/arguments/support calls,
+NULL-sensitive cached membership candidates, set-output multiplicities,
+SEARCH/CYCLE keys and paths, hash-join keys, WITH TIES comparisons, SRF cursors
+and records, JSON-array providers, and nested SYSTEM_ROWS reservoir work.
+Unlocked partition proofs use the same evaluation seam during normalization,
+support calls, containment and physical-branch traversal, not a fresh clock.
+A successful expression/support callback is checked before the next unit of
+work; its genuine returned error stays primary. Host cancellation is checked
+before budgets, and expired ancestors propagate unchanged to their owner.
+Only that owner converts its private budget pointer into normal EOF, preserving
+accepted prefixes and source/cache backing until Close. Borrowed subquery
+unwind closes local stages/scratch, not the capture owner's reached producers.
+CTE and producing-source budget unwind is nonterminal: the owner retains the
+original unpublished occurrence and its validated whole-field prefix in a
+reserved, hidden Flat tail. Live uncaptured demand rebinds the row/context/order
+frame and evaluates only the remaining fields, saving successful values before
+post-success checkpoints. Complete tuples and lineage publish together; captured
+prefix replay does not eagerly finish pending work. This is whole-field
+continuation, not arbitrary incomplete-expression subexpression replay safety.
+Unchanged rewind and borrowed reader close retain that frontier. Changed rewind
+(including a new volatile invocation), genuine failure/cancellation, actual
+owner close and detach clear abandoned value backing. Ordinary derived/VALUES
+partial projections remain unpublished. Window scratch disposal does not traverse
+borrowed input edges. Genuine cleanup failure remains an error when no genuine
+primary already exists. Invocation evaluation contexts are cleared on every
+exit. No timer goroutine or mutable clock is retained in accepted plans.
+
+The scan clock begins after source/snapshot preparation and excludes lock waits,
+eager MVCC visibility-prefix construction, outer final sort/projection/aggregation
+after sampling and client consumption. Nested SQL demanded while traversing the
+sampled source (including an RLS scalar aggregate or window query) remains timed
+scan work. Excluded phases still obey ordinary cancellation/statement timeout.
+Cooperative checkpoints do not hard-preempt an indivisible policy/codec/provider
+callback and do not impose a whole-query millisecond deadline.
 
 The pg_stat_statements bridge authenticates the installed typed carrier and
 borrows the live statement runtime for owned record rows. It owns no parallel
@@ -157,9 +201,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   `Source.ReadLease` is captured eligibility, not a preparation-time read.
   An ordinary SourceNode opening activates one invocation. Relation-source
   initialization alone does not: TABLESAMPLE initializes through the same
-  identity/security/dispatch path, but activates only when positive sampling
-  consumes its child. Zero sampling never opens a read lease, and an empty
-  source has no representative. Hierarchy stages activate only reached physical
+  identity/security/dispatch path, but activates only when nonzero valid sampling
+  consumes its child (including SYSTEM_TIME positive infinity). Zero and rejected
+  arguments never open a read lease, and an empty source has no representative.
+  These are native logical read-attribution counters, not PostgreSQL physical
+  buffer-count parity. Hierarchy stages activate only reached physical
   segments, and index consumers activate their selected index. Stage-local read
   and segment frontiers survive rewind but not fresh invocation.
   Capture-owned pins survive successful borrowed invocations. Owner Finish,
@@ -294,8 +340,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   remains provider-owned. Explicit worker fixtures must request cheap costs.
 - **Stored-view producers** (`view_producer.go`). A stored-view `Source` owns its
   retained stage and lazy flat prefix; later readers replay the prefix, then
-  resume the one producer frontier. Failures stay terminal; `Source.Close`
-  disposes the producer once, and reopening a reader never recaptures it.
+  resume the same pending occurrence without replaying completed whole fields.
+  Stable reopen retains the next-unpublished frontier; changed/volatile rewind
+  clears stale output and pending backing for a new invocation. Failures stay
+  terminal; `Source.Close` disposes the producer once, and reopening a reader
+  never recaptures it.
   Frozen Input layout wrappers preserve the original actual `SourceNode` through
   recursive opening. A foreign input therefore still opens its genuine scan,
   with the same occurrence/async key and import diagnostics, below the layout
@@ -1048,7 +1097,17 @@ the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 ## Testing
 
 Sampling selection, visibility/layout preservation and lifecycle units use
-`RUN='^TestSystemRows'`, including composed statement-owner coverage in core.
+`RUN='^TestSystem(Rows|Time)'`, including composed statement-owner coverage in core.
+
+Window phase cancellation witnesses in core use
+`RUN='^(TestQueryWindow(Groups|Rows|Exclude)Cancellation|TestQueryWindowValueOutputPublicationCancellation)$'`.
+Their stack observers invoke an ordinary CancelFunc only at the selected real
+operation. Direct logical-caller matching skips exactly `exec.sampleCheckpoint`,
+not expression/coercion or aggregate/support frames: GROUPS/ROWS validation must
+reach the offset validator, and SUM output must return to the window opener
+after genuine finalization. These witnesses retain phase-entry, cancellation,
+no partial result, resource release, idempotent close and same-graph recovery
+assertions; checkpoint plumbing must not merge those phases.
 
 Runtime observation units use
 `RUN='^(TestExplainAnalyzeInstrumentation|TestExplainAnalyzeProjectionTimingOwnership|TestExplainAnalyzeForeignPlanIdentity)$'`

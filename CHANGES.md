@@ -28,6 +28,40 @@
   and defer every nontext literal-format diagnostic until the full authenticated
   structure validates, preserving generic corruption and no partial text on failure.
 
+- Implement sealed SYSTEM_TIME sampling with float8 millisecond arguments,
+  monotonic elapsed scan budgets, nested/RLS cooperative expiry, physical-source
+  budget isolation and cancellation precedence. Preserve source identity,
+  prepared invocation ownership and symbolic native replay; validate executable
+  stored sampling arguments against their authenticated handler type independently
+  of retained presentation frames. Migrate sampling descriptors to typed Argument
+  without changing SYSTEM_ROWS reservoirs.
+  Oracle-first fixtures cover boundaries, diagnostics, snapshots, metadata and
+  controls without timing-count or unordered-sequence goldens.
+  Bound SQL nested inside sampled-source policies across aggregate/window work,
+  cached NULL-sensitive membership, set multiplicities, recursive SEARCH/CYCLE,
+  hash-join support, projections, SRF cursors, WITH TIES, JSON arrays, nested
+  SYSTEM_ROWS reservoirs and unlocked captured partition proofs. Preserve
+  accepted prefixes and borrowed producer backing on nonterminal cooperative
+  EOF. Retain each unpublished CTE/producing-source occurrence and its validated
+  whole-field results, including a successful field crossing expiry, so live
+  same-owner demand resumes without omitted tuples or repeated completed effects.
+  Publish only complete tuples/lineage; clear abandoned hidden backing on changed
+  rewind, genuine error/cancel, detach or actual owner close, not borrowed reader
+  close. Preserve invocation scratch disposal, primary errors and exactly-once
+  cleanup. This is neither arbitrary subexpression continuation nor a whole-query
+  hard timeout.
+  Preserve exact window cancellation phase witnesses through the shared
+  checkpoint helper: observers skip only that plumbing frame when identifying
+  the direct logical caller, retaining validation/output phase admission,
+  ordinary cancellation, cleanup and recovery assertions.
+  Keep nested hash/recursive support witnesses at actual operation admission,
+  distinguishing one support call's entry/return context samples and post-success
+  checkpoints from later evaluator work without relaxing untouched-tail assertions.
+  Cover native Time read attribution on real heap/hierarchy captures: zero and
+  invalid arguments stay unread, Infinity consumes visible rows, same-stage rewind
+  reuses its read frontier, and fresh openings retain capture-owned pin cleanup.
+  Logical buffer counters do not promise PostgreSQL physical-counter parity.
+
 - Extend the intarray 1.5 provider with genuine intbig_gkey support identity,
   rejecting released I/O and typed NULL/empty/NULL-only shared arrays. Seal both
   type roles and all four I/O declarations through atomic installation, ownership

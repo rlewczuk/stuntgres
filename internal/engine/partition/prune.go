@@ -197,6 +197,9 @@ type pruneMembership struct {
 func (p *pruneProof) constraints(physical *catalog.Relation) (int, error) {
 	result := 0
 	for _, check := range physical.Constraints.Check {
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return 0, err
+		}
 		if check.NotValid || exec.PlannedVolatility(check.Expression) != expr.Immutable || check.Expression.Properties().DomainDependent {
 			continue
 		}
@@ -214,6 +217,9 @@ func (p *pruneProof) constraints(physical *catalog.Relation) (int, error) {
 		result = p.join("and", result, fact)
 	}
 	for _, constraint := range physical.Constraints.NotNull {
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return 0, err
+		}
 		if constraint.NotValid {
 			continue
 		}
@@ -254,7 +260,11 @@ func (p *pruneProof) exact(domains []pruneDomain, term int) (sqltype.Value, bool
 	return d.lower, order == 0, err
 }
 func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembership) (bool, error) {
+	checkpoint := p.checkpoint
 	for _, requirement := range requirements {
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return false, err
+		}
 		parent, bound := requirement.parent, requirement.bound
 		var datums [32]catalog.PartitionDatum
 		key := EvaluatedKey{Values: datums[:len(parent.Partition.Keys)]}
@@ -281,33 +291,54 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 				if err != nil {
 					return false, err
 				}
+				if err := exec.EvaluationContext(p.evaluation); err != nil {
+					return false, err
+				}
 			}
 		}
 		if !bound.DefaultBound {
-			contains, err := Contains(p.ctx, parent.Partition.Keys, bound, key, p.evaluation.Input)
-			if err != nil || !contains {
+			contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, bound, key, p.evaluation.Input)
+			if err != nil {
 				return false, err
+			}
+			if err := exec.EvaluationContext(p.evaluation); err != nil {
+				return false, err
+			}
+			if !contains {
+				return false, nil
 			}
 		} else {
 			// LIST DEFAULT can be excluded by exact equality/NULL ownership,
 			// never by inequalities or <> alone.
 			for _, address := range parent.Partition.Children {
+				if err := exec.EvaluationContext(p.evaluation); err != nil {
+					return false, err
+				}
 				child := p.view.MustRelation(address)
 				if child.Membership.DefaultBound {
 					continue
 				}
-				contains, err := Contains(p.ctx, parent.Partition.Keys, child.Membership, key, p.evaluation.Input)
-				if err != nil || contains {
+				contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, child.Membership, key, p.evaluation.Input)
+				if err != nil {
 					return false, err
+				}
+				if err := exec.EvaluationContext(p.evaluation); err != nil {
+					return false, err
+				}
+				if contains {
+					return false, nil
 				}
 			}
 		}
 	}
-	return true, p.ctx.Err()
+	return true, exec.EvaluationContext(p.evaluation)
 }
 
 func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints, membership bool) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
+		return false, err
+	}
+	if err := exec.EvaluationContext(p.evaluation); err != nil {
 		return false, err
 	}
 	if p.remaining == 0 {
@@ -324,6 +355,9 @@ func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints, 
 	root := p.join("and", query, facts)
 	p.requirements = p.requirements[:0]
 	for child := physical; membership && child.Membership != nil; {
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return false, err
+		}
 		parent, ok := p.view.Relation(child.Membership.Parent)
 		if !ok {
 			return false, ids.ErrCatalogReplaced
@@ -342,6 +376,9 @@ func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints, 
 			} else {
 				members := 1
 				for _, datum := range bound.Values {
+					if err := exec.EvaluationContext(p.evaluation); err != nil {
+						return false, err
+					}
 					value := datum.Value
 					op := "="
 					if value.IsNull() {
@@ -362,6 +399,9 @@ func (p *pruneProof) branch(query int, physical *catalog.Relation, constraints, 
 		p.domains = p.domains[:len(p.terms)]
 	}
 	for i := range p.domains {
+		if err := exec.EvaluationContext(p.evaluation); err != nil {
+			return false, err
+		}
 		p.domains[i] = pruneDomain{null: true, nonnull: true}
 	}
 	return p.possible(&pruneTask{node: root}, p.domains, func(domains []pruneDomain) (bool, error) { return p.finish(domains, p.requirements) })
@@ -371,8 +411,14 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 	if err := ctx.Err(); err != nil {
 		return exec.QueryBranchSelection{}, err
 	}
+	if err := exec.EvaluationContext(evaluation); err != nil {
+		return exec.QueryBranchSelection{}, err
+	}
 	proof, err := NewBranchProof(ctx, evaluation, c.view, c.named, c.source.Ref, predicate, c.mode, c.source.Inheritance != nil)
 	if err != nil {
+		return exec.QueryBranchSelection{}, err
+	}
+	if err := exec.EvaluationContext(evaluation); err != nil {
 		return exec.QueryBranchSelection{}, err
 	}
 	if proof.query == 0 {
@@ -385,6 +431,9 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 		count = 1
 	}
 	for i := range count {
+		if err := exec.EvaluationContext(evaluation); err != nil {
+			return exec.QueryBranchSelection{}, err
+		}
 		physical, end := c.named, c.source.Count()
 		if c.source.Inheritance != nil {
 			physical = c.source.Inheritance[i].Leaf.Relation
@@ -392,6 +441,9 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 		}
 		possible, err := proof.Possible(physical, membership)
 		if err != nil {
+			return exec.QueryBranchSelection{}, err
+		}
+		if err := exec.EvaluationContext(evaluation); err != nil {
 			return exec.QueryBranchSelection{}, err
 		}
 		if !possible && !result.Applied {
@@ -410,5 +462,5 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 		}
 		start = end
 	}
-	return result, ctx.Err()
+	return result, exec.EvaluationContext(evaluation)
 }

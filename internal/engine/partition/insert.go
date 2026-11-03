@@ -142,7 +142,7 @@ func (state *InsertState) Route(evaluation *exec.Context, row []sqltype.Value, i
 			if child.Membership.DefaultBound {
 				continue
 			}
-			contains, err := Contains(evaluation.Context, destination.Partition.Keys, child.Membership, key, input)
+			contains, err := Contains(evaluation.Context, context.Context.Err, destination.Partition.Keys, child.Membership, key, input)
 			if err != nil {
 				return nil, err
 			}

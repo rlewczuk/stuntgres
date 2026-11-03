@@ -95,7 +95,13 @@ func (c *RLSRuntimeClause) evaluate(parent *Context, row []sqltype.Value) (bool,
 		return false, err
 	}
 	truth, err := plan.TruthOf(value)
-	return truth == plan.True, err
+	if err != nil {
+		return false, err
+	}
+	if err := sampleCheckpoint(local.Context); err != nil {
+		return false, err
+	}
+	return truth == plan.True, nil
 }
 
 // EvaluateRowSecurity is the sole USING / WITH CHECK Boolean engine. The empty

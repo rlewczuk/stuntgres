@@ -7,6 +7,7 @@ func detachQuerySource(source *Source) {
 	if source == nil {
 		return
 	}
+	source.discardProjection()
 	for _, child := range source.Sources {
 		if child != source {
 			detachQuerySource(child)

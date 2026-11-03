@@ -21,9 +21,18 @@ type BranchProof struct {
 }
 
 func NewBranchProof(ctx context.Context, evaluation *exec.Context, view catalog.Read, named *catalog.Relation, ref ids.ObjectRef, predicate expr.Expr, mode string, inherited bool) (BranchProof, error) {
+	if err := ctx.Err(); err != nil {
+		return BranchProof{}, err
+	}
+	if err := exec.EvaluationContext(evaluation); err != nil {
+		return BranchProof{}, err
+	}
 	p := BranchProof{proof: newPruneProof(ctx, evaluation, view, named, ref), mode: mode, inherited: inherited}
 	var err error
 	p.query, err = p.proof.normalize(predicate, false)
+	if err == nil {
+		err = exec.EvaluationContext(evaluation)
+	}
 	p.queryNodes = len(p.proof.nodes)
 	return p, err
 }

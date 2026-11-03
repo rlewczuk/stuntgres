@@ -24,7 +24,7 @@ func TestSystemRowsLifecycle(t *testing.T) {
 			query, input := enginetest.QueryFixture(t, e, "SELECT * FROM t TABLESAMPLE system_rows(2)")
 			project := query.Root.(*plan.ProjectNode)
 			leaf := project.Child.(*plan.SourceNode)
-			acceptedSample, acceptedCount := leaf.Sample, leaf.Sample.Count
+			acceptedSample, acceptedCount := leaf.Sample, leaf.Sample.Argument
 			acceptedColumns := &leaf.QuerySchema[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			failure, cleanup := errors.New("sampling child failure"), errors.New("sampling child cleanup")
@@ -52,7 +52,7 @@ func TestSystemRowsLifecycle(t *testing.T) {
 			if bridge.NestedStage != nil || input.View != nil || inner.Source != nil || inner.Selection != nil || inner.Expressions != nil || inner.Finish != nil || inner.Produce != nil || inner.Reset != nil {
 				t.Fatal("failed sample retained graph, selection or pin")
 			}
-			if leaf.Sample != acceptedSample || !reflect.DeepEqual(leaf.Sample.Count, acceptedCount) || &leaf.QuerySchema[0] != acceptedColumns {
+			if leaf.Sample != acceptedSample || !reflect.DeepEqual(leaf.Sample.Argument, acceptedCount) || &leaf.QuerySchema[0] != acceptedColumns {
 				t.Fatal("terminal cleanup mutated accepted plan backing")
 			}
 		}
@@ -100,7 +100,7 @@ func TestSystemRowsLifecycle(t *testing.T) {
 		if sample == nil {
 			t.Fatal("prepared graph lost sampling")
 		}
-		count := sample.Count
+		count := sample.Argument
 		captured := false
 		for _, dep := range analysis.Dependencies {
 			if dep.Ref == sample.Handler {
@@ -122,14 +122,14 @@ func TestSystemRowsLifecycle(t *testing.T) {
 		if secondResource.Root != nil || second.Folds != nil || !second.Retired {
 			t.Fatal("second portal retained live graph/group")
 		}
-		if !reflect.DeepEqual(sample.Count, count) || !reflect.DeepEqual(firstFolds.Entries, secondFolds.Entries) || !reflect.DeepEqual(firstFolds.Entries, accepted.Entries) {
+		if !reflect.DeepEqual(sample.Argument, count) || !reflect.DeepEqual(firstFolds.Entries, secondFolds.Entries) || !reflect.DeepEqual(firstFolds.Entries, accepted.Entries) {
 			t.Fatal("close mutated immutable accepted backing")
 		}
 		enginetest.SessionSQL(t, s, "ROLLBACK")
 		if err := engine.Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(sample.Count, count) || firstRoot.Schema()[0].Usage.Type.ID() != sqltype.Text {
+		if !reflect.DeepEqual(sample.Argument, count) || firstRoot.Schema()[0].Usage.Type.ID() != sqltype.Text {
 			t.Fatal("Reset mutated retained accepted graph/schema")
 		}
 	})

@@ -46,6 +46,21 @@ remains exact in both modes, complemented by native capability-owner tests.
 This is a caller-support boundary, not a physical/external mechanism exception
 or a claim that the builtin is implemented.
 
+The `system_time_*_test.go` family exercises floating-point millisecond budgets
+through direct and held prepared public calls. Zero and positive infinity have
+exact empty/exhaustive expectations; finite samples are occurrence-bounded
+members of independently established visible bags, never timing-count or
+unordered-sequence goldens. Metadata and complete logical diagnostics remain
+exact. Backend subtests precede feature setup for oracle-first `/postgres`
+selection. Snapshot, post-sample pipeline, inheritance, observed lock and nested
+RLS cancellation, and native-only symbolic control phases share the same SQL
+contract. The generous elapsed-query guard is liveness evidence, not a precise
+whole-query millisecond deadline. Native production-stage units separately
+exercise real nested elapsed work, rejected-tail expiry and ownership cleanup.
+Physical heap-block distribution, cache/clustering and PostgreSQL shared-library
+C ABI execution are external mechanisms, not portable sample-count promises.
+The internal-signature wrong-result declaration is explicitly PostgreSQL-only.
+
 ## pgstattuple: pgstatindex ownership
 
 `pgstatindex_*_test.go` owns the public acceptance for the installed
@@ -170,6 +185,8 @@ maintenance retires its aborted peer insertion; rollback itself is not a
 physical pruning operation. The retained Rows still outlive Reset unchanged.
 
 ## Testing
+
+- Elapsed-time table sampling: `RUN='^TestReferenceSystemTime'`.
 
 Password-strength scenarios use `RUN='^TestReferencePasswordCheck'` and the
 ordinary public fixture with genuine oracle `WithPasswordCheck()` startup.

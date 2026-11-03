@@ -294,8 +294,11 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 				return fmt.Errorf("stuntgres: duplicate view source occurrence")
 			}
 			seen[n.Occurrence] = n
-			if n.Sample != nil && (n.Sample.Count == nil || n.Sample.Count.ResultUsage().Type == nil || n.Sample.Count.ResultUsage().Type.ID() != sqltype.Int8 || n.Sample.Handler.Address.ClassID != ids.ProcedureClassID || n.Sample.Handler.Address.SubID != 0) {
-				return fmt.Errorf("stuntgres: invalid view sampling layout")
+			if n.Sample != nil {
+				path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewSampleHandler, Target: n.Occurrence}
+				if _, err := definition.sampleSourceProcedure(catalog, path, n); err != nil {
+					return err
+				}
 			}
 			leaf := definition.sources[n.Occurrence]
 			source, ok := catalog.Relation(leaf.Ref.Address)

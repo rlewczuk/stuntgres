@@ -133,12 +133,20 @@ func OpenFunctionCall(c *Context, n *plan.FunctionFromNode, i int) (expr.SourceC
 func OpenFunctionInvocation(c *Context, n *plan.FunctionFromNode) (FunctionSetInvocation, error) {
 	s := FunctionSetInvocation{Cursors: make([]expr.SourceCursor, len(n.Calls))}
 	for i := range n.Calls {
+		if err := EvaluationContext(c); err != nil {
+			s.Close()
+			return FunctionSetInvocation{}, err
+		}
 		cursor, err := OpenFunctionCall(c, n, i)
 		if err != nil {
 			s.Close()
 			return FunctionSetInvocation{}, err
 		}
 		s.Cursors[i] = cursor
+		if err := EvaluationContext(c); err != nil {
+			s.Close()
+			return FunctionSetInvocation{}, err
+		}
 	}
 	return s, nil
 }
@@ -151,7 +159,18 @@ func OpenFunctionSource(c *Context, expression expr.Expr) (expr.SourceCursor, er
 	if !ok {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 	}
-	return opening.OpenSource(c)
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	cursor, err := opening.OpenSource(c)
+	if err != nil {
+		return cursor, err
+	}
+	if err := EvaluationContext(c); err != nil {
+		cursor.Close()
+		return expr.SourceCursor{}, err
+	}
+	return cursor, nil
 }
 
 func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFromNode) (Stage, error) {
@@ -227,7 +246,7 @@ func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFro
 }
 
 func appendFunctionStageRow(ctx context.Context, out *Stage, schema []catalog.Column, row []sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return err
 	}
 	source := out.Source
@@ -239,18 +258,20 @@ func appendFunctionStageRow(ctx context.Context, out *Stage, schema []catalog.Co
 		return fmt.Errorf("stuntgres: function result is too large")
 	}
 	for i, v := range row {
-		if i&255 == 0 {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return err
 		}
 		if err := ValidateProducedValue(v, schema[i].Usage); err != nil {
+			return err
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
 			return err
 		}
 	}
 	start := len(source.Flat)
 	source.Flat = append(source.Flat, row...)
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
+		clear(source.Flat[start:])
 		source.Flat = source.Flat[:start]
 		return err
 	}
@@ -347,9 +368,15 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 			}
 			present := len(n.Calls) == 0 // Zero-depth groups have one scalar attempt.
 			for _, step := range n.Steps {
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				if step.Kind == QuerySetScalarStep {
 					value, err := n.Scalars[step.Index].Eval(&evaluation)
 					if err != nil {
+						return false, err
+					}
+					if err := sampleCheckpoint(ctx); err != nil {
 						return false, err
 					}
 					frame[base+callWidth+QuerySetScalarSlot(n.ScalarSlots, step.Index)] = value
@@ -366,6 +393,9 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 				}
 				value, field, err := cursor.Next(ctx)
 				if err != nil {
+					return false, err
+				}
+				if err := sampleCheckpoint(ctx); err != nil {
 					return false, err
 				}
 				frame[base+n.CallSlots[step.Index]] = value
@@ -391,7 +421,7 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 			if len(n.Calls) == 0 {
 				input = -1
 			}
-			return true, ctx.Err()
+			return true, sampleCheckpoint(ctx)
 		}
 	}
 	return out, nil
@@ -455,9 +485,15 @@ func ValidateFunctionFromLayout(n *plan.FunctionFromNode) error {
 func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr, row []sqltype.Value) (bool, error) {
 	present, offset := false, 0
 	for i := range s.Cursors {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return false, err
+		}
 		typ := calls[i].ResultUsage().Type
 		value, ok, err := s.Cursors[i].Next(ctx)
 		if err != nil {
+			return false, err
+		}
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		width := FunctionFromCallWidth(calls[i])
@@ -466,6 +502,9 @@ func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr,
 				return false, fmt.Errorf("stuntgres: invalid function record")
 			}
 			for j := range width {
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				if ok && !value.IsNull() {
 					row[offset+j] = value.CompositeField(j)
 				} else {
@@ -479,5 +518,5 @@ func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr,
 		// Row presence comes from the cursor, even when a composite has no fields.
 		present = present || ok
 	}
-	return present, ctx.Err()
+	return present, sampleCheckpoint(ctx)
 }

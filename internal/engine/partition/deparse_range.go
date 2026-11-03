@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"context"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
@@ -149,7 +150,7 @@ func (q qualDeparser) rangeDefault() ([]qualification, error) {
 			return 0
 		}
 		var order int
-		order, _, comparisonError = CompareTuple(q.ctx, q.parent.Partition.Keys, a.Lower, b.Lower, sqltype.InputEnvironment{})
+		order, _, comparisonError = CompareTuple(q.ctx, context.Context.Err, q.parent.Partition.Keys, a.Lower, b.Lower, sqltype.InputEnvironment{})
 		return order
 	})
 	if comparisonError != nil {

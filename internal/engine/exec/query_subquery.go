@@ -227,6 +227,9 @@ func (c *Context) evalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err er
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
 	}
 	state := State{Source: c.Query.Source, SourceMode: c.Query.subquerySourceMode(), Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
 	state.inheritAsyncAdmission(c.Query)
@@ -300,6 +303,9 @@ func (c *Context) evalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err er
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
 		if e.Kind == parser.SubqueryRow {
 			extra, failure := stage.NextProjected(c.Context, nil)
 			if failure != nil {
@@ -352,7 +358,7 @@ func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryM
 	defer func() {
 		err = state.finishInvocation(&stage, err)
 		if err == nil {
-			err = c.Context.Err()
+			err = sampleCheckpoint(c.Context)
 			if err != nil {
 				_ = state.FinishSources(err)
 			}
@@ -374,7 +380,7 @@ func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryM
 			return nil, failure
 		}
 		if !present {
-			return membership, c.Context.Err()
+			return membership, sampleCheckpoint(c.Context)
 		}
 		if membership.Scratch == nil {
 			membership.Scratch = make([]sqltype.Value, width)
@@ -389,14 +395,23 @@ func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryM
 			if failure != nil {
 				return nil, failure
 			}
+			if failure := sampleCheckpoint(c.Context); failure != nil {
+				return nil, failure
+			}
 			value, failure = e.Membership[i].PrepareKey(c.Context, value)
 			if failure != nil {
+				return nil, failure
+			}
+			if failure := sampleCheckpoint(c.Context); failure != nil {
 				return nil, failure
 			}
 			membership.Scratch[i] = value
 			hasNull = hasNull || value.IsNull()
 			h, failure := e.Membership[i].Hash(c.Context, value)
 			if failure != nil {
+				return nil, failure
+			}
+			if failure := sampleCheckpoint(c.Context); failure != nil {
 				return nil, failure
 			}
 			hash = (hash ^ h) * 1099511628211
@@ -429,6 +444,9 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
 		if owner.Memberships == nil {
 			owner.Memberships = make(map[SubqueryMembershipKey]*subqueryMembership)
 		}
@@ -445,8 +463,14 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
 		left[i], err = e.Membership[i].PrepareKey(c.Context, value)
 		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if err := sampleCheckpoint(c.Context); err != nil {
 			return sqltype.Value{}, err
 		}
 		leftNull = leftNull || left[i].IsNull()
@@ -456,6 +480,9 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		for i, value := range left {
 			h, err := e.Membership[i].Hash(c.Context, value)
 			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if err := sampleCheckpoint(c.Context); err != nil {
 				return sqltype.Value{}, err
 			}
 			hash = (hash ^ h) * 1099511628211
@@ -476,7 +503,7 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		candidates = len(membership.Flat) / width
 	}
 	for candidate := 0; candidate < candidates; candidate++ {
-		if err := c.Context.Err(); err != nil {
+		if err := sampleCheckpoint(c.Context); err != nil {
 			return sqltype.Value{}, err
 		}
 		index := candidate
@@ -488,6 +515,9 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		for i, comparison := range e.Comparisons {
 			value, err := comparison.Predicate.Evaluate(c.Context, left[i], right[i], c.Input)
 			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if err := sampleCheckpoint(c.Context); err != nil {
 				return sqltype.Value{}, err
 			}
 			if value.IsNull() {
@@ -506,6 +536,9 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 		if unknown && !unequal {
 			return sqltype.Null(e.Usage.Type), nil
 		}
+	}
+	if err := sampleCheckpoint(c.Context); err != nil {
+		return sqltype.Value{}, err
 	}
 	return sqltype.Boolean(e.Usage.Type, e.Negate), nil
 }

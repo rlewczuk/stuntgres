@@ -84,6 +84,9 @@ func (s *recursiveUnionStage) close() error {
 func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, error) {
 	defer func() { s.Arm.Inner.Evaluation.Context = nil }()
 	for s.Phase < 2 {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return false, err
+		}
 		if err := util.ExecutionCheckpoint(ctx, "query.recursive"); err != nil {
 			return false, err
 		}
@@ -109,8 +112,14 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				if err != nil {
 					return false, err
 				}
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				s.fallback, err = c.Fallback.Eval(evaluation)
 				if err != nil {
+					return false, err
+				}
+				if err := sampleCheckpoint(ctx); err != nil {
 					return false, err
 				}
 				s.marksReady = true
@@ -147,15 +156,21 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 			}
 		}
 		if search != nil {
-			value, failure := search.Value(ctx, row, parentSearch)
+			value, failure := search.Value(ctx, sampleCheckpoint, row, parentSearch)
 			if failure != nil {
 				return false, failure
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, err
 			}
 			row[search.Slot] = value
 		}
 		if cycle != nil {
-			row, err = cycle.Augment(ctx, row, parentCycle, s.mark, s.fallback)
+			row, err = cycle.Augment(ctx, sampleCheckpoint, row, parentCycle, s.mark, s.fallback)
 			if err != nil {
+				return false, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return false, err
 			}
 		}
@@ -167,23 +182,35 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				if err != nil {
 					return false, err
 				}
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				row[slot] = value
 				part, err := family.Hash(ctx, value)
 				if err != nil {
 					return false, err
 				}
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				hash = (hash ^ part) * 1099511628211
 			}
 			if search != nil {
-				part, err := search.Hash(ctx, row[search.Slot])
+				part, err := search.Hash(ctx, sampleCheckpoint, row[search.Slot])
 				if err != nil {
+					return false, err
+				}
+				if err := sampleCheckpoint(ctx); err != nil {
 					return false, err
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
 			if cycle != nil {
-				part, err := cycle.HashPath(ctx, row[cycle.MarkSlot+1])
+				part, err := cycle.HashPath(ctx, sampleCheckpoint, row[cycle.MarkSlot+1])
 				if err != nil {
+					return false, err
+				}
+				if err := sampleCheckpoint(ctx); err != nil {
 					return false, err
 				}
 				hash = (hash ^ part) * 1099511628211
@@ -196,19 +223,16 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				continue
 			}
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
-		}
-		index := s.Source.FlatCount
-		s.Source.Flat = append(s.Source.Flat, row...)
-		s.Source.FlatCount++
-		if s.Seen != nil {
-			s.Seen[hash] = append(s.Seen[hash], index)
 		}
 		expand := true
 		if cycle != nil {
 			value, err := cycle.Inequality.Evaluate(ctx, row[cycle.MarkSlot], s.mark, s.state.Input)
 			if err != nil {
+				return false, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return false, err
 			}
 			expand = false
@@ -218,6 +242,12 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 					return false, err
 				}
 			}
+		}
+		index := s.Source.FlatCount
+		s.Source.Flat = append(s.Source.Flat, row...)
+		s.Source.FlatCount++
+		if s.Seen != nil {
+			s.Seen[hash] = append(s.Seen[hash], index)
 		}
 		if expand {
 			if s.Phase == 0 {
@@ -229,7 +259,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 		out.Selection = append(out.Selection, index)
 		return true, nil
 	}
-	return false, ctx.Err()
+	return false, sampleCheckpoint(ctx)
 }
 
 func openWorktableScan(ctx context.Context, state *State, n *plan.WorktableScanNode) (Stage, error) {
@@ -261,6 +291,9 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 	}
 	width := len(s.Node.Schema())
 	for _, index := range candidates {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return -1, err
+		}
 		other := s.Source.Flat[index*width : (index+1)*width]
 		equal := true
 		for i, g := range s.Node.Grouping {
@@ -269,21 +302,30 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 			if err != nil {
 				return -1, err
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return -1, err
+			}
 			if !same {
 				equal = false
 				break
 			}
 		}
 		if equal && search != nil {
-			same, err := search.Equal(ctx, row[search.Slot], other[search.Slot])
+			same, err := search.Equal(ctx, sampleCheckpoint, row[search.Slot], other[search.Slot])
 			if err != nil {
+				return -1, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return -1, err
 			}
 			equal = same
 		}
 		if equal && c != nil {
-			same, err := c.EqualPath(ctx, row[c.MarkSlot+1], other[c.MarkSlot+1])
+			same, err := c.EqualPath(ctx, sampleCheckpoint, row[c.MarkSlot+1], other[c.MarkSlot+1])
 			if err != nil {
+				return -1, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return -1, err
 			}
 			equal = same
@@ -292,7 +334,7 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 			return index, nil
 		}
 	}
-	return -1, ctx.Err()
+	return -1, sampleCheckpoint(ctx)
 }
 
 func SetMultiplicity(operation string, all bool, left, right int) int {
@@ -363,7 +405,7 @@ func (a *SetArm) Next(ctx context.Context) ([]sqltype.Value, bool, error) {
 	a.Inner.Evaluation.BindQueryRow(a.Inner.Source, a.Inner.Index(i))
 	a.Inner.Evaluation.OrderValues = a.Inner.OrderRow(i)
 	for j, expression := range a.expressions {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return nil, false, err
 		}
 		value, err := expression.Eval(&a.Inner.Evaluation)
@@ -373,9 +415,12 @@ func (a *SetArm) Next(ctx context.Context) ([]sqltype.Value, bool, error) {
 		if err := ValidateProducedValue(value, a.schema[j].Usage); err != nil {
 			return nil, false, err
 		}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return nil, false, err
+		}
 		a.row[j] = value
 	}
-	return a.row, true, ctx.Err()
+	return a.row, true, sampleCheckpoint(ctx)
 }
 
 func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage, err error) {
@@ -399,8 +444,10 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 		}
 		failure = func() (failure error) {
 			defer func() {
-				if closeErr := child.Close(); failure == nil {
-					failure = closeErr
+				if closeErr := child.Close(); closeErr != nil {
+					if _, exhausted := failure.(*sampleBudget); failure == nil || exhausted {
+						failure = closeErr
+					}
 				}
 			}()
 			for {
@@ -417,9 +464,15 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 					if err != nil {
 						return err
 					}
+					if err := sampleCheckpoint(ctx); err != nil {
+						return err
+					}
 					row[j] = value
 					h, err := family.Hash(ctx, value)
 					if err != nil {
+						return err
+					}
+					if err := sampleCheckpoint(ctx); err != nil {
 						return err
 					}
 					hash = (hash ^ h) * 1099511628211
@@ -436,11 +489,11 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 					counts = append(counts, [2]int{})
 				}
 				counts[index][side]++
-				if err := ctx.Err(); err != nil {
+				if err := sampleCheckpoint(ctx); err != nil {
 					return err
 				}
 			}
-			return ctx.Err()
+			return sampleCheckpoint(ctx)
 		}()
 		if failure != nil {
 			return Stage{}, failure
@@ -448,14 +501,17 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 	}
 	out = Stage{Source: source, Columns: n.Schema(), Selection: []int{}}
 	for i, count := range counts {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return Stage{}, err
+		}
 		for copies := SetMultiplicity(n.Operation, n.All, count[0], count[1]); copies > 0; copies-- {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return Stage{}, err
 			}
 			out.Selection = append(out.Selection, i)
 		}
 	}
-	return out, ctx.Err()
+	return out, sampleCheckpoint(ctx)
 }
 
 func openUnionAll(ctx context.Context, state *State, n *plan.SetNode) (Stage, error) {
@@ -508,9 +564,9 @@ func openSerialUnionAll(ctx context.Context, state *State, n *plan.SetNode) (Sta
 			out.Source.Flat = append(out.Source.Flat, row...)
 			out.Selection = append(out.Selection, out.Source.FlatCount)
 			out.Source.FlatCount++
-			return true, ctx.Err()
+			return true, sampleCheckpoint(ctx)
 		}
-		return false, ctx.Err()
+		return false, sampleCheckpoint(ctx)
 	}
 	return out, nil
 }

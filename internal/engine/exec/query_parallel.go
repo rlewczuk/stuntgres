@@ -432,7 +432,7 @@ func (r QuerySortRow) value(key plan.SortKey) sqltype.Value {
 
 func CompareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.InputEnvironment, a, b QuerySortRow) (int, error) {
 	for _, key := range keys {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return 0, err
 		}
 		// Preserve borrowed-source ordering: capture left before asking for right.
@@ -441,7 +441,7 @@ func CompareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.I
 			continue
 		}
 		if left.IsNull() || right.IsNull() {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return 0, err
 			}
 			if left.IsNull() == key.NullsFirst {
@@ -453,7 +453,7 @@ func CompareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.I
 		if err != nil {
 			return 0, err
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return 0, err
 		}
 		if sign != 0 {
@@ -463,5 +463,5 @@ func CompareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.I
 			return sign, nil
 		}
 	}
-	return 0, ctx.Err()
+	return 0, sampleCheckpoint(ctx)
 }

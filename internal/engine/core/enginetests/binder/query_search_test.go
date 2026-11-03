@@ -37,7 +37,7 @@ func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, disti
 }
 func searchUnitValue(t *testing.T, s *plan.SearchRecipe, parent sqltype.Value, key sqltype.Value) sqltype.Value {
 	t.Helper()
-	value, err := s.Value(context.Background(), []sqltype.Value{key}, parent)
+	value, err := s.Value(context.Background(), context.Context.Err, []sqltype.Value{key}, parent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,15 +140,15 @@ func TestQuerySearchIdentity(t *testing.T) {
 		s := d.Search
 		anchor := searchUnitValue(t, s, sqltype.Value{}, one)
 		child := searchUnitValue(t, s, anchor, one)
-		if same, err := s.Equal(ctx, anchor, child); err != nil || same {
+		if same, err := s.Equal(ctx, context.Context.Err, anchor, child); err != nil || same {
 			t.Fatal("generated identity omitted", same, err)
 		}
 		copy := searchUnitValue(t, s, sqltype.Value{}, one)
-		ha, err := s.Hash(ctx, anchor)
+		ha, err := s.Hash(ctx, context.Context.Err, anchor)
 		if err != nil {
 			t.Fatal(err)
 		}
-		hb, err := s.Hash(ctx, copy)
+		hb, err := s.Hash(ctx, context.Context.Err, copy)
 		if err != nil || ha != hb {
 			t.Fatal("equal hashes", ha, hb, err)
 		}
@@ -237,9 +237,9 @@ func TestQuerySearchCancellation(t *testing.T) {
 		value = searchUnitValue(t, s, value, one)
 	}
 	for _, operation := range []func(context.Context) error{
-		func(ctx context.Context) error { _, err := s.Value(ctx, []sqltype.Value{one}, value); return err },
-		func(ctx context.Context) error { _, err := s.Hash(ctx, value); return err },
-		func(ctx context.Context) error { _, err := s.Equal(ctx, value, value); return err },
+		func(ctx context.Context) error { _, err := s.Value(ctx, context.Context.Err, []sqltype.Value{one}, value); return err },
+		func(ctx context.Context) error { _, err := s.Hash(ctx, context.Context.Err, value); return err },
+		func(ctx context.Context) error { _, err := s.Equal(ctx, context.Context.Err, value, value); return err },
 	} {
 		ctx := &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
 		if err := operation(ctx); !errors.Is(err, context.Canceled) {
@@ -344,7 +344,7 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 func cycleUnitAugment(t *testing.T, c *plan.CycleRecipe, parent sqltype.Value, fields ...sqltype.Value) []sqltype.Value {
 	t.Helper()
 	boolean := c.Mark.ResultUsage().Type
-	row, err := c.Augment(context.Background(), fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
+	row, err := c.Augment(context.Background(), context.Context.Err, fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
 	if err != nil {
 		t.Fatal(err)
 	}

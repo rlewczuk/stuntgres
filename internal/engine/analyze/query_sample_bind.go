@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func (b *Binder) bindTableSample(raw *parser.TableSample, occurrence int) (*plan.TableSample, error) {
@@ -32,7 +31,8 @@ func (b *Binder) bindTableSample(raw *parser.TableSample, occurrence int) (*plan
 	if procedure.Result != 3310 {
 		return nil, expr.ErrorAt("42809", fmt.Sprintf("function %s must return type tsm_handler", name), pos)
 	}
-	if err := extension.SystemRowsCapability(read, procedure); err != nil {
+	argumentType, err := extension.SamplingArgumentType(read, procedure)
+	if err != nil {
 		return nil, err
 	}
 	if len(raw.Arguments) != 1 {
@@ -40,7 +40,7 @@ func (b *Binder) bindTableSample(raw *parser.TableSample, occurrence int) (*plan
 	}
 	argument := raw.Arguments[0]
 	policy := ExpressionPolicy{Context: ProjectionContext}
-	usage := b.Type(sqltype.Int8).Usage()
+	usage := b.Type(argumentType).Usage()
 	switch value := argument.(type) {
 	case parser.LiteralExpr:
 		if value.Value.Kind == parser.NullValue || value.Value.Kind == parser.StringValue {
@@ -75,7 +75,7 @@ func (b *Binder) bindTableSample(raw *parser.TableSample, occurrence int) (*plan
 			return nil, err
 		}
 	}
-	return &plan.TableSample{Handler: ref, Procedure: procedure, Count: count, Captures: b.queryCaptures([]expr.Expr{count}, false)}, nil
+	return &plan.TableSample{Handler: ref, Procedure: procedure, Argument: count, Captures: b.queryCaptures([]expr.Expr{count}, false)}, nil
 }
 
 func sampleRelationError(name parser.ObjectName) error {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/sqltype"
 )
 
 // Owners form an invocation chain. A correlated query gets a new local owner;
@@ -65,6 +64,9 @@ func (o *CTEInvocation) CloseResources() error {
 }
 func (p *CTEProducer) close() error {
 	p.StartMutation, p.CompleteMutation = nil, nil
+	if p.Source != nil {
+		p.Source.discardProjection()
+	}
 	if p.Closed {
 		return p.failure
 	}
@@ -78,6 +80,11 @@ func (p *CTEProducer) close() error {
 	return p.failure
 }
 func (p *CTEProducer) Fail(err error) error {
+	// A borrowed reader may exhaust an enclosing sampler without failing or
+	// closing this invocation's append-only producer.
+	if _, exhausted := err.(*sampleBudget); exhausted {
+		return err
+	}
 	if p.failure == nil {
 		p.failure = err
 	}
@@ -90,7 +97,7 @@ func (p *CTEProducer) Ensure(ctx context.Context, index int) (bool, error) {
 	if p.failure != nil {
 		return false, p.failure
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return false, p.Fail(err)
 	}
 	if p.StartMutation != nil {
@@ -119,47 +126,33 @@ func (p *CTEProducer) Ensure(ctx context.Context, index int) (bool, error) {
 			return false, p.Fail(err)
 		}
 		p.Inner, p.Opened = inner, true
+		p.Inner.projectionOutput = p.Source
 	}
 	p.Inner.beginProjectionWork()
 	defer p.Inner.endProjectionWork()
 	for index >= p.Source.FlatCount && !p.Done {
-		i, present, err := p.Inner.NextOccurrence(ctx)
-		if err != nil {
-			return false, p.Fail(err)
-		}
-		if !present {
-			p.Done = true
-			if err := p.close(); err != nil {
-				return false, err
-			}
-			break
-		}
-		// Recursive output and worktable generations already borrow this
-		// producer's append-only tuples; do not evaluate or copy them again.
-		if p.Recursion != nil {
-			continue
-		}
-		p.Inner.Evaluation.setContext(ctx)
-		p.Inner.Evaluation.BindQueryRow(p.Inner.Source, p.Inner.Index(i))
-		p.Inner.Evaluation.OrderValues = p.Inner.OrderRow(i)
-		start := len(p.Source.Flat)
-		p.Source.Flat = append(p.Source.Flat, make([]sqltype.Value, len(p.project.Schema()))...)
-		for j, expr := range p.Inner.Expressions {
-			value, err := expr.Eval(&p.Inner.Evaluation)
-			if err == nil {
-				err = ValidateProducedValue(value, p.project.Schema()[j].Usage)
-			}
+		if !p.Source.projectionPending {
+			i, present, err := p.Inner.NextOccurrence(ctx)
 			if err != nil {
-				p.Source.Flat = p.Source.Flat[:start]
 				return false, p.Fail(err)
 			}
-			p.Source.Flat[start+j] = value
+			if !present {
+				p.Done = true
+				if err := p.close(); err != nil {
+					return false, err
+				}
+				break
+			}
+			// Recursive worktables already borrow the append-only tuples.
+			if p.Recursion != nil {
+				continue
+			}
+			p.Source.beginProjection(i)
 		}
-		if err := ctx.Err(); err != nil {
-			p.Source.Flat = p.Source.Flat[:start]
+		if err := p.Source.projectPending(ctx, &p.Inner, p.project.Schema()); err != nil {
 			return false, p.Fail(err)
 		}
-		p.Source.FlatCount++
+		p.Source.publishProjection()
 	}
 	return index < p.Source.FlatCount, nil
 }

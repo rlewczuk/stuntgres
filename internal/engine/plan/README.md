@@ -47,10 +47,14 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   Structural copies and stored remaps share that immutable label backing;
   labels never change schemas, expression slots, provenance or execution authority.
   A source's optional sampling descriptor retains the authenticated handler
-  reference/declaration, bound bigint count and free correlation captures.
-  Expression walks, structural identity, copy-on-write rewrites and stored
-  remapping include that count and handler identity. It contains no execution
-  selection, cursor, RNG or source pin.
+  reference/declaration, typed Argument (bigint row count or float8 milliseconds)
+  and free correlation captures. Expression walks, structural identity,
+  copy-on-write rewrites and stored remapping include that argument and handler
+  identity. It contains no execution selection, cursor, RNG, clock or source pin.
+  SEARCH/CYCLE execution methods accept an explicit caller-owned checkpoint for
+  repeated key, field and ancestry support. Execution supplies the sampler's
+  private checkpoint; ordinary callers use context.Context.Err. The callback is
+  never stored in the immutable recipe or used to override context cancellation.
   `JoinNode.Comma` retains written FROM-list versus explicit join structure for
   statement fingerprinting. Rebuild/remap preserve it; it supplies no execution
   policy or semantic-equality/EXPLAIN/deparse distinction.
@@ -441,7 +445,7 @@ without aliases.
 ## Testing
 
 Sampling structural identity, immutable rewrites, stored capture and replay units
-use `RUN='^TestSystemRows'`.
+use `RUN='^TestSystem(Rows|Time)'`.
 
 Logical EXPLAIN arithmetic and closed-node units use `RUN='^TestExplain'`.
 Expectations are independently authored over actual logical nodes; estimates

@@ -19,8 +19,8 @@ type SearchRecipe struct {
 	Grouping       []sqltype.Grouping // DISTINCT only, in record-field order.
 }
 
-func (s *SearchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sqltype.Value) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
+func (s *SearchRecipe) Value(ctx context.Context, checkpoint func(context.Context) error, row []sqltype.Value, parent sqltype.Value) (sqltype.Value, error) {
+	if err := checkpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	offset := 0
@@ -47,7 +47,7 @@ func (s *SearchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sq
 		}
 	}
 	for i, key := range s.Keys {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return sqltype.Value{}, err
 		}
 		fields[i+offset] = row[key]
@@ -65,7 +65,7 @@ func (s *SearchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sq
 	}
 	elements := make([]sqltype.Value, length+1)
 	for i := range length {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return sqltype.Value{}, err
 		}
 		elements[i] = parent.ArrayElement(i)
@@ -74,31 +74,37 @@ func (s *SearchRecipe) Value(ctx context.Context, row []sqltype.Value, parent sq
 	return sqltype.OwnedArrayValue(s.Result, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func (s *SearchRecipe) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
+func (s *SearchRecipe) Equal(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
 	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if s.Syntax.Breadth {
-		return c.equalRecord(ctx, a, b)
+		return c.equalRecord(ctx, checkpoint, a, b)
 	}
-	return c.EqualPath(ctx, a, b)
+	return c.EqualPath(ctx, checkpoint, a, b)
 }
-func (s *SearchRecipe) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
+func (s *SearchRecipe) Hash(ctx context.Context, checkpoint func(context.Context) error, value sqltype.Value) (uint64, error) {
 	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if !s.Syntax.Breadth {
-		return c.HashPath(ctx, value)
+		return c.HashPath(ctx, checkpoint, value)
 	}
 	if value.Type() != s.Result || value.IsNull() {
 		return 0, fmt.Errorf("stuntgres: foreign search record")
 	}
+	if err := checkpoint(ctx); err != nil {
+		return 0, err
+	}
 	hash := uint64(14695981039346656037)
 	for i, g := range s.Grouping {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return 0, err
 		}
 		part, err := g.Hash(ctx, value.CompositeField(i))
 		if err != nil {
 			return 0, err
 		}
+		if err := checkpoint(ctx); err != nil {
+			return 0, err
+		}
 		hash = (hash ^ part) * 1099511628211
 	}
-	return hash, ctx.Err()
+	return hash, checkpoint(ctx)
 }

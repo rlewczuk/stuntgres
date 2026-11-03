@@ -128,6 +128,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"sslinfo":            {"sslinfo", "1.2", nil, "information about SSL certificates"},
 					"xml2":               {"xml2", "1.2", nil, "XPath querying and XSLT"},
 					"tsm_system_rows":    {"tsm_system_rows", "1.0", nil, "TABLESAMPLE method which accepts number of rows as a limit"},
+					"tsm_system_time":    {"tsm_system_time", "1.0", nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"},
 				}
 				if oid == 12085 {
 					expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
@@ -169,6 +170,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["sslinfo"] = []any{"sslinfo", "1.2", false, true, false, true, nil, nil, "information about SSL certificates"}
 					expected["xml2"] = []any{"xml2", "1.2", false, true, false, false, nil, nil, "XPath querying and XSLT"}
 					expected["tsm_system_rows"] = []any{"tsm_system_rows", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts number of rows as a limit"}
+					expected["tsm_system_time"] = []any{"tsm_system_time", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"}
 					versions := make(map[string][]any, len(expected)+1)
 					for name, row := range expected {
 						versions[name+"\x00"+row[1].(string)] = row

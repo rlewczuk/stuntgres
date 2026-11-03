@@ -27,7 +27,7 @@ func WindowOffsetTarget(size, current int, offset int32, reverse bool) (int, boo
 }
 
 func evaluateWindowOffset(ctx context.Context, evaluation *Context, child *Stage, call plan.WindowCall, rows []int, current int) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	usage := call.Expression.ResultUsage()
@@ -41,7 +41,7 @@ func evaluateWindowOffset(ctx context.Context, evaluation *Context, child *Stage
 		if err := ValidateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {
@@ -61,7 +61,7 @@ func evaluateWindowOffset(ctx context.Context, evaluation *Context, child *Stage
 	if expression == nil {
 		return sqltype.Null(usage.Type), nil
 	}
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	value, err := expression.Eval(evaluation)
@@ -71,5 +71,5 @@ func evaluateWindowOffset(ctx context.Context, evaluation *Context, child *Stage
 	if err := ValidateProducedValue(value, usage); err != nil {
 		return sqltype.Value{}, err
 	}
-	return value, ctx.Err()
+	return value, sampleCheckpoint(ctx)
 }

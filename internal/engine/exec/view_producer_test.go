@@ -3,11 +3,13 @@ package exec
 import (
 	"context"
 	"errors"
+	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
+	"time"
 )
 
 type viewProducerProbe struct {
@@ -350,5 +352,280 @@ func TestViewProducerScalarOnlyOwnerClose(t *testing.T) {
 	parent.Close()
 	if closes != 1 {
 		t.Fatal("duplicate scalar helper disposal", closes)
+	}
+}
+
+// The helper can finish all fields before the final publication checkpoint
+// expires. Reenter through the real CTE owner to publish without another Eval.
+func TestViewProducerPendingPublication(t *testing.T) {
+	for _, width := range []int{0, 1} {
+		name := "zero_width"
+		if width != 0 {
+			name = "typed_null"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture, _, probe := viewProducerFixture(t, false)
+			defer fixture.Close()
+			schema := fixture.NestedRoot.Schema()[:width]
+			input := fixture.NestedInputs
+			var expressions []expr.Expr
+			if width == 0 {
+				input = &Source{Anonymous: [][]sqltype.Value{{}, {}}}
+			} else {
+				input.Anonymous[0][0] = sqltype.Null(schema[0].Usage.Type)
+				expressions = []expr.Expr{probe}
+			}
+			output := &Source{Materialized: true, FlatWidth: width}
+			producer := CTEProducer{
+				Opened: true, Source: output, project: &plan.ProjectNode{QuerySchema: schema},
+				Inner: Stage{Source: input, Columns: schema, Expressions: expressions,
+					Evaluation: Context{EvalFrame: EvalFrame{Scope: 1, Frame: 1}}, projectionOutput: output},
+			}
+			defer producer.close()
+			live := context.Background()
+			i, present, err := producer.Inner.NextOccurrence(live)
+			if err != nil || !present {
+				t.Fatal("missing original occurrence", present, err)
+			}
+			output.beginProjection(i)
+			if err := output.projectPending(live, &producer.Inner, schema); err != nil {
+				t.Fatal(err)
+			}
+			if probe.calls != width || output.projectionFields != width {
+				t.Fatal("whole fields did not complete once", probe.calls, output.projectionFields)
+			}
+			// Only the final checkpoint remains. Use a real already-expired
+			// budget, without a production clock or inspection hook.
+			budget := &sampleBudget{start: time.Now(), millis: 0}
+			expired := context.WithValue(live, sampleBudgetKey{}, budget)
+			if err := output.projectPending(expired, &producer.Inner, schema); err != budget {
+				t.Fatal("final publication checkpoint lost its owner", err)
+			}
+			if !output.projectionPending || output.FlatCount != 0 || len(output.Flat) != 0 || probe.calls != width {
+				t.Fatal("final expiry published or replayed the completed row")
+			}
+			if present, err := producer.Ensure(live, 0); err != nil || !present {
+				t.Fatal("live owner did not publish its saved row", present, err)
+			}
+			if output.projectionPending || output.FlatCount != 1 || len(output.Flat) != width || probe.calls != width {
+				t.Fatal("saved row publication replayed fields or lost zero-width count")
+			}
+			if width != 0 && !reflect.DeepEqual(output.Row(0), input.Row(0)) {
+				t.Fatal("saved typed NULL or zero-width tuple changed")
+			}
+			if present, err := producer.Ensure(live, 1); err != nil || !present {
+				t.Fatal("owner did not advance after publication", present, err)
+			}
+			if output.FlatCount != 2 || probe.calls != 2*width || width != 0 && !reflect.DeepEqual(output.Row(1), input.Row(1)) {
+				t.Fatal("next original occurrence skipped or replayed", output.FlatCount, probe.calls)
+			}
+		})
+	}
+}
+
+func TestViewProducerPendingFrame(t *testing.T) {
+	fixture, _, probe := viewProducerFixture(t, false)
+	defer fixture.Close()
+	schema := fixture.NestedRoot.Schema()
+	input := fixture.NestedInputs
+	output := &Source{Materialized: true, FlatWidth: 1}
+	inner := Stage{
+		Source: input, Columns: schema, Expressions: []expr.Expr{probe},
+		Selection: []int{1, 0}, CacheWidth: 1, CacheOccurrences: []int{0, 1},
+		OrderValues: []sqltype.Value{input.Row(1)[0], input.Row(0)[0]},
+		Evaluation: Context{EvalFrame: EvalFrame{Scope: 1, Frame: 1}},
+	}
+	output.beginProjection(1) // Ordinal 1 is physical row 0, cache occurrence 1.
+	expired, stop := context.WithCancel(context.Background())
+	stop()
+	inner.Evaluation.setContext(expired)
+	inner.Evaluation.Row, inner.Evaluation.OrderValues = input.Row(1), inner.OrderRow(0)
+	live, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := output.projectPending(live, &inner, schema); err != nil {
+		t.Fatal("pending projection reused the expired context", err)
+	}
+	if inner.Evaluation.Context != live || !reflect.DeepEqual(inner.Evaluation.Row, input.Row(0)) ||
+		!reflect.DeepEqual(inner.Evaluation.OrderValues, inner.OrderRow(1)) || probe.calls != 1 {
+		t.Fatal("resume failed to rebind the live row/context/order frame")
+	}
+	output.publishProjection()
+	if !reflect.DeepEqual(output.Row(0), input.Row(0)) {
+		t.Fatal("resume confused occurrence ordinal with physical row")
+	}
+}
+
+func TestViewProducerPendingRewind(t *testing.T) {
+	for _, volatile := range []bool{false, true} {
+		name := "unchanged"
+		if volatile {
+			name = "changed_volatile"
+		}
+		t.Run(name, func(t *testing.T) {
+			source, state, probe := viewProducerFixture(t, volatile)
+			defer source.Close()
+			schema := source.NestedRoot.Schema()
+			reader, err := OpenSourceStage(context.Background(), state, source, schema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			viewProducerPull(t, &reader, 1)
+			inner := source.NestedStage
+			i, present, err := inner.NextOccurrence(context.Background())
+			if err != nil || !present {
+				t.Fatal("missing pending original occurrence", present, err)
+			}
+			source.beginProjection(i)
+			if err := source.projectPending(context.Background(), inner, schema); err != nil {
+				t.Fatal(err)
+			}
+			backing := source.Flat[:cap(source.Flat)]
+			saved := backing[1]
+			prefix := source.Flat[0]
+			if err := reader.Close(); err != nil || !source.projectionPending || !reflect.DeepEqual(backing[1], saved) {
+				t.Fatal("borrowed close discarded pending output", err)
+			}
+			reopened, err := OpenSourceStage(context.Background(), state, source, schema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reopened.Close()
+			if volatile {
+				if source.projectionPending || source.projectionFields != 0 || source.FlatCount != 0 || len(source.Flat) != 0 ||
+					!reflect.DeepEqual(backing[0], sqltype.Value{}) || !reflect.DeepEqual(backing[1], sqltype.Value{}) ||
+					len(source.Lineage.Selection) != 0 {
+					t.Fatal("changed rewind retained abandoned published/pending backing")
+				}
+				viewProducerPull(t, &reopened, 1)
+				viewProducerPull(t, &reopened, 3)
+				if probe.calls != 4 {
+					t.Fatal("new volatile invocation did not reevaluate demanded fields", probe.calls)
+				}
+			} else {
+				if !source.projectionPending || source.projectionOrdinal != i || source.projectionFields != 1 ||
+					inner.Position != 2 || !reflect.DeepEqual(backing[1], saved) || !reflect.DeepEqual(backing[0], prefix) {
+					t.Fatal("unchanged rewind lost the unpublished frontier or backing")
+				}
+				viewProducerPull(t, &reopened, 1)
+				if !source.projectionPending || probe.calls != 2 {
+					t.Fatal("prefix replay eagerly completed pending work")
+				}
+				viewProducerPull(t, &reopened, 3)
+				if source.projectionPending || probe.calls != 2 || len(source.Lineage.Selection) != 2 {
+					t.Fatal("unchanged continuation replayed fields or duplicated lineage")
+				}
+			}
+		})
+	}
+}
+
+func TestViewProducerPendingAbandonment(t *testing.T) {
+	for _, mode := range []string{"entry_cancel", "inner_failure", "finish_closed_inner", "detach"} {
+		t.Run(mode, func(t *testing.T) {
+			source, state, _ := viewProducerFixture(t, false)
+			defer source.Close()
+			reader, err := OpenSourceStage(context.Background(), state, source, source.NestedRoot.Schema())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			viewProducerPull(t, &reader, 1)
+			inner := source.NestedStage
+			i, present, err := inner.NextOccurrence(context.Background())
+			if err != nil || !present {
+				t.Fatal("missing pending occurrence", present, err)
+			}
+			source.beginProjection(i)
+			if err := source.projectPending(context.Background(), inner, source.NestedRoot.Schema()); err != nil {
+				t.Fatal(err)
+			}
+			backing := source.Flat[:cap(source.Flat)]
+			prefix := source.Flat[0]
+			closes := 0
+			cleanup := errors.New("secondary pending cleanup")
+			finish := inner.Finish
+			inner.Finish = func() error {
+				closes++
+				if finish != nil {
+					_ = finish()
+				}
+				return cleanup
+			}
+			switch mode {
+			case "entry_cancel":
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				if _, _, err := reader.NextOccurrence(ctx); err != context.Canceled {
+					t.Fatal("entry cancel lost its primary cause", err)
+				}
+			case "inner_failure":
+				primary := errors.New("direct inner failure")
+				if err := inner.fail(primary); err != primary {
+					t.Fatal("direct inner failure lost its primary cause", err)
+				}
+			case "finish_closed_inner":
+				if err := inner.Close(); err != cleanup {
+					t.Fatal("actual producer close lost its veto", err)
+				}
+				owner := State{Source: source, SourceMode: SourceOwned}
+				if err := owner.FinishSources(nil); err != nil {
+					t.Fatal("already closed owner cleanup repeated", err)
+				}
+			case "detach":
+				detachQuerySource(source)
+			}
+			if source.projectionPending || source.projectionFields != 0 || !reflect.DeepEqual(backing[1], sqltype.Value{}) ||
+				!reflect.DeepEqual(backing[0], prefix) || len(source.Flat) != 1 || source.FlatCount != 1 ||
+				closes != 1 || inner.Evaluation.Context != nil || inner.Source != nil {
+				t.Fatal("actual owner abandonment retained values/scratch, lost prefix or repeated cleanup", closes)
+			}
+		})
+	}
+}
+
+func TestViewProducerPendingChildExpiry(t *testing.T) {
+	for _, cte := range []bool{false, true} {
+		name := "source"
+		if cte {
+			name = "cte"
+		}
+		t.Run(name, func(t *testing.T) {
+			source, state, probe := viewProducerFixture(t, false)
+			defer source.Close()
+			schema := source.NestedRoot.Schema()
+			budget := &sampleBudget{start: time.Now(), millis: 0}
+			inner := Stage{
+				Source: &Source{Materialized: true}, Columns: schema, Expressions: []expr.Expr{probe},
+				Produce: func(context.Context, *Stage) (bool, error) { return false, budget },
+			}
+			if cte {
+				producer := CTEProducer{Opened: true, Source: source,
+					project: source.NestedRoot.(*plan.ProjectNode), Inner: inner}
+				defer producer.close()
+				if present, err := producer.Ensure(context.Background(), 0); present || err != budget {
+					t.Fatal("CTE child private owner changed", present, err)
+				}
+				if producer.Closed || producer.Inner.Position != 0 {
+					t.Fatal("CTE child expiry consumed a nonexistent occurrence")
+				}
+			} else {
+				source.NestedStage = &inner
+				reader, err := OpenSourceStage(context.Background(), state, source, schema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer reader.Close()
+				if _, present, err := reader.NextOccurrence(context.Background()); present || err != budget {
+					t.Fatal("source child private owner changed", present, err)
+				}
+				if inner.Closed || inner.Position != 0 {
+					t.Fatal("source child expiry consumed a nonexistent occurrence")
+				}
+			}
+			if source.projectionPending || source.projectionFields != 0 || source.FlatCount != 0 || len(source.Flat) != 0 || probe.calls != 0 {
+				t.Fatal("child expiry invented a pending projected occurrence")
+			}
+		})
 	}
 }

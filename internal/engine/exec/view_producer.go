@@ -9,6 +9,59 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Reserve the eventual output row once. Flat exposes only complete published
+// tuples, even while Eval runs or a private budget unwinds the caller.
+func (s *Source) beginProjection(ordinal int) {
+	start := len(s.Flat)
+	s.Flat = append(s.Flat, make([]sqltype.Value, s.FlatWidth)...)
+	s.Flat = s.Flat[:start]
+	s.projectionPending, s.projectionOrdinal, s.projectionFields = true, ordinal, 0
+}
+
+func (s *Source) projectPending(ctx context.Context, inner *Stage, schema []catalog.Column) error {
+	i := s.projectionOrdinal
+	inner.Evaluation.setContext(ctx)
+	inner.Evaluation.BindQueryRow(inner.Source, inner.Index(i))
+	inner.Evaluation.OrderValues = inner.OrderRow(i)
+	start := len(s.Flat)
+	row := s.Flat[:start+s.FlatWidth][start:]
+	for s.projectionFields < len(inner.Expressions) {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return err
+		}
+		j := s.projectionFields
+		value, err := inner.Expressions[j].Eval(&inner.Evaluation)
+		if err != nil {
+			return err
+		}
+		if err := ValidateProducedValue(value, schema[j].Usage); err != nil {
+			return err
+		}
+		// A successful whole field, including typed NULL, must survive the
+		// checkpoint following its effects. An Eval error completes no field.
+		row[j] = value
+		s.projectionFields++
+		if err := sampleCheckpoint(ctx); err != nil {
+			return err
+		}
+	}
+	return sampleCheckpoint(ctx)
+}
+
+func (s *Source) publishProjection() {
+	s.Flat = s.Flat[:len(s.Flat)+s.FlatWidth]
+	s.FlatCount++
+	s.projectionPending, s.projectionOrdinal, s.projectionFields = false, 0, 0
+}
+
+func (s *Source) discardProjection() {
+	if s.projectionPending {
+		start := len(s.Flat)
+		clear(s.Flat[:start+s.FlatWidth][start:])
+		s.projectionPending, s.projectionOrdinal, s.projectionFields = false, 0, 0
+	}
+}
+
 func QueryTreeOccurrences(node plan.Node, inputs *Source, dst []int) []int {
 	switch n := node.(type) {
 	case *plan.SourceNode:
@@ -89,6 +142,7 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 	out := Stage{Source: source, Columns: schema, scanRange: true, scanEnd: source.FlatCount, Pending: pendingSourceMarks(source, nil)}
 	if state.SourceMode != SourceBorrowed {
 		out.Finish = func() error {
+			source.discardProjection()
 			if source.NestedStage != nil {
 				return source.NestedStage.Close()
 			}
@@ -112,6 +166,8 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 			source.NestedStage.Position = position
 			return false, nil
 		}
+		source.discardProjection()
+		clear(source.Flat)
 		source.Flat, source.FlatCount = source.Flat[:0], 0
 		out.scanEnd, out.Done = 0, false
 		if source.Lineage != nil {
@@ -121,6 +177,7 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 		return true, nil
 	}
 	out.onFailure = func(err error) error {
+		source.discardProjection()
 		if source.NestedStage != nil {
 			return source.NestedStage.fail(err)
 		}
@@ -129,6 +186,7 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 	// A borrowed short-circuiting reader replays stable captured rows, resuming
 	// only the next-uncaptured frontier until its actual owner completes.
 	if source.NestedStage != nil {
+		source.NestedStage.projectionOutput = source
 		if source.NestedStage.Terminal != nil {
 			return Stage{}, source.NestedStage.Terminal
 		}
@@ -180,32 +238,25 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 				break
 			}
 			source.NestedStage = &inner
+			inner.projectionOutput = source
 			if source.Lineage != nil {
 				source.Lineage.Stage = inner.Source
 				source.Lineage.state = innerState
 			}
 		}
 		inner := source.NestedStage
-		i, present, err := inner.NextOccurrence(ctx)
-		if err != nil || !present {
-			return present, err
-		}
-		inner.Evaluation.setContext(ctx)
-		inner.Evaluation.BindQueryRow(inner.Source, inner.Index(i))
-		inner.Evaluation.OrderValues = inner.OrderRow(i)
-		start := len(source.Flat)
-		source.Flat = append(source.Flat, make([]sqltype.Value, len(producedSchema))...)
-		row := source.Flat[start:]
-		for j, expr := range inner.Expressions {
-			value, err := expr.Eval(&inner.Evaluation)
-			if err != nil {
-				return false, err
+		defer func() { inner.Evaluation.Context = nil }()
+		if !source.projectionPending {
+			i, present, err := inner.NextOccurrence(ctx)
+			if err != nil || !present {
+				return present, err
 			}
-			if err := ValidateProducedValue(value, producedSchema[j].Usage); err != nil {
-				return false, err
-			}
-			row[j] = value
+			source.beginProjection(i)
 		}
+		if err := source.projectPending(ctx, inner, producedSchema); err != nil {
+			return false, err
+		}
+		i := source.projectionOrdinal
 		if source.Lineage != nil {
 			lineage := source.Lineage
 			lineage.Stage = inner.Source
@@ -215,8 +266,8 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 				lineage.cacheOccurrences = append(lineage.cacheOccurrences, inner.orderOccurrence(i))
 			}
 		}
-		out.scanEnd = source.FlatCount + 1
-		source.FlatCount++
+		source.publishProjection()
+		out.scanEnd = source.FlatCount
 		return true, ctx.Err()
 	}
 	return out, nil

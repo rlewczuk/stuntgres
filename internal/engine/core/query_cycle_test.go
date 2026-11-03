@@ -45,7 +45,7 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 func cycleUnitAugment(t *testing.T, c *plan.CycleRecipe, parent sqltype.Value, fields ...sqltype.Value) []sqltype.Value {
 	t.Helper()
 	boolean := c.Mark.ResultUsage().Type
-	row, err := c.Augment(context.Background(), fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
+	row, err := c.Augment(context.Background(), context.Context.Err, fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,20 +75,20 @@ func TestQueryCycleEquality(t *testing.T) {
 		}
 		pa := cycleUnitAugment(t, c, sqltype.Value{}, a)[c.MarkSlot+1]
 		pb := cycleUnitAugment(t, c, sqltype.Value{}, b)[c.MarkSlot+1]
-		equal, err := c.EqualPath(ctx, pa, pb)
+		equal, err := c.EqualPath(ctx, context.Context.Err, pa, pb)
 		if err != nil || !equal {
 			t.Fatal(tc, equal, err)
 		}
-		ha, err := c.HashPath(ctx, pa)
+		ha, err := c.HashPath(ctx, context.Context.Err, pa)
 		if err != nil {
 			t.Fatal(err)
 		}
-		hb, err := c.HashPath(ctx, pb)
+		hb, err := c.HashPath(ctx, context.Context.Err, pb)
 		if err != nil || ha != hb {
 			t.Fatal(tc, ha, hb, err)
 		}
 		null := cycleUnitAugment(t, c, sqltype.Value{}, sqltype.Null(typ))[c.MarkSlot+1]
-		equal, err = c.EqualPath(ctx, null, null)
+		equal, err = c.EqualPath(ctx, context.Context.Err, null, null)
 		if err != nil || !equal || null.ArrayElement(0).IsNull() {
 			t.Fatal("NULL field must remain a non-NULL record", err)
 		}
@@ -98,7 +98,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	one, two := cteUnitValue(t, integer, 1), cteUnitValue(t, integer, 2)
 	a := cycleUnitAugment(t, c, sqltype.Value{}, one, two)
 	b := cycleUnitAugment(t, c, sqltype.Value{}, two, one)
-	if equal, err := c.EqualPath(ctx, a[3], b[3]); err != nil || equal {
+	if equal, err := c.EqualPath(ctx, context.Context.Err, a[3], b[3]); err != nil || equal {
 		t.Fatal("ordered keys collapsed", equal, err)
 	}
 	grouping := make([]plan.Grouping, 3)
@@ -283,16 +283,16 @@ func TestQueryCycleLifecycle(t *testing.T) {
 		row = cycleUnitAugment(t, c, row[2], one)
 	}
 	ctx := &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
-	if _, err := c.HashPath(ctx, row[2]); !errors.Is(err, context.Canceled) {
+	if _, err := c.HashPath(ctx, context.Context.Err, row[2]); !errors.Is(err, context.Canceled) {
 		t.Fatal("hash ignored cancellation", err)
 	}
 	ctx = &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
-	if _, err := c.EqualPath(ctx, row[2], row[2]); !errors.Is(err, context.Canceled) {
+	if _, err := c.EqualPath(ctx, context.Context.Err, row[2], row[2]); !errors.Is(err, context.Canceled) {
 		t.Fatal("comparison ignored cancellation", err)
 	}
 	boolean, _ := engine.New().CatalogRead().LookupType(sqltype.Bool)
 	ctx = &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
-	if _, err := c.Augment(ctx, []sqltype.Value{one}, row[2], sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false)); !errors.Is(err, context.Canceled) {
+	if _, err := c.Augment(ctx, context.Context.Err, []sqltype.Value{one}, row[2], sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false)); !errors.Is(err, context.Canceled) {
 		t.Fatal("append ignored cancellation", err)
 	}
 	owner, state, node := cteUnitScan(nil, nil, 1)

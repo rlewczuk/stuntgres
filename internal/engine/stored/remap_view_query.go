@@ -231,7 +231,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		copy.QuerySchema, copy.Ref = schema, ref(n.Ref)
 		if n.Sample != nil {
 			sample := *n.Sample
-			sample.Handler, sample.Count = ref(sample.Handler), expression(sample.Count)
+			sample.Handler, sample.Argument = ref(sample.Handler), expression(sample.Argument)
 			if err == nil {
 				sample.Procedure, err = m.procedure(sample.Procedure)
 			}

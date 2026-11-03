@@ -28,15 +28,15 @@ func TestSystemRowsPlanIdentity(t *testing.T) {
 		t.Fatal("missing selected handler", source)
 	}
 	original := source.Sample
-	usage := original.Count.ResultUsage()
+	usage := original.Argument.ResultUsage()
 	value, err := sqltype.Integer(usage.Type, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	replacement := plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: original.Count.SourcePosition()}, Value: value}
+	replacement := plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: original.Argument.SourcePosition()}, Value: value}
 	visits := 0
 	mapped, err := plan.RewriteQueryExpressions(source, func(bound expr.Expr) (expr.Expr, bool, error) { visits++; return replacement, true, nil })
-	if err != nil || visits != 1 || mapped == source || !reflect.DeepEqual(mapped.(*plan.SourceNode).Sample.Count, replacement) || source.Sample != original {
+	if err != nil || visits != 1 || mapped == source || !reflect.DeepEqual(mapped.(*plan.SourceNode).Sample.Argument, replacement) || source.Sample != original {
 		t.Fatal("count rewrite lost source identity or mutated backing", visits, mapped, err)
 	}
 	tree := func(root plan.Node) string {
@@ -57,7 +57,7 @@ func TestSystemRowsPlanIdentity(t *testing.T) {
 	}
 	seen := 0
 	plan.QueryExpressions(source, func(bound expr.Expr) {
-		if !reflect.DeepEqual(bound, original.Count) {
+		if !reflect.DeepEqual(bound, original.Argument) {
 			t.Fatal("wrong source operand")
 		}
 		seen++
@@ -66,7 +66,7 @@ func TestSystemRowsPlanIdentity(t *testing.T) {
 		t.Fatal("sample count omitted from expression walks", seen)
 	}
 	remapped, err := stored.RemapViewQuery(e.CatalogRead(), source, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
-	if err != nil || tree(remapped) != tree(source) || remapped.(*plan.SourceNode).Sample == original || !reflect.DeepEqual(original.Count, source.Sample.Count) {
+	if err != nil || tree(remapped) != tree(source) || remapped.(*plan.SourceNode).Sample == original || !reflect.DeepEqual(original.Argument, source.Sample.Argument) {
 		t.Fatal("stored remap lost or mutated sample", remapped, err)
 	}
 	t.Run("stored_occurrences", func(t *testing.T) {

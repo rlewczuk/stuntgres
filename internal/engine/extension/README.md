@@ -4,7 +4,7 @@ The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_buffercache, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
-sslinfo, tsm_system_rows, unaccent, uuid-ossp, xml2 and seeded plpgsql),
+sslinfo, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, xml2 and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -95,12 +95,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   enters the shared routine environment. Native C loading, SPI ABI/shared-library
   files and PostgreSQL backend processes are external mechanisms, not alternate
   execution paths for this embedded stock body.
-  Tsm_system_rows installs exactly the released strict volatile
-  `system_rows(internal) RETURNS tsm_handler` C declaration. Its authenticated
-  capability selects the logical visible-row sampler independently of handler
-  rename, relocation or current membership. Names and return shape alone grant
-  no authority. The internal ABI is neither invoked as a scalar nor represented
-  by a C pointer; native replay reinstalls the ordinary sealed provider recipe.
+  Tsm_system_rows and tsm_system_time each install their single released strict
+  volatile `(internal) RETURNS tsm_handler` C declaration. `SamplingArgumentType`
+  authenticates the complete current sealed declaration before selecting the
+  closed bigint rows or float8 elapsed-time recipe, independently of rename or
+  relocation. Names, return shape and copied membership grant no authority.
+  Native replay reinstalls ordinary sealed declarations and symbolic callers,
+  never clocks, sample selections, session resources or C pointers. Physical
+  heap blocks, buffer/cache clustering and shared-library ABI execution remain
+  external mechanisms, not portable timing-count or selected-order contracts.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
@@ -933,7 +936,7 @@ and view recipe methods.
 
 ## Testing
 
-Sampling provider units use `RUN='^TestSystemRows'` over genuine installations,
+Sampling provider units use `RUN='^TestSystem(Rows|Time)'` over genuine installations,
 cross-catalog authority, declaration forgeries and authentic rename/relocation.
 
 `TestRegisterAddsOnlyValidImplementations` pins `Register` (nil registry

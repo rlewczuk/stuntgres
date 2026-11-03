@@ -14,16 +14,22 @@ import (
 )
 
 func (v *View) sampleProcedure(read catalog.Read, path analyze.ViewLiteralPath) (*catalog.Procedure, error) {
-	ref, exists := v.routineRefs[path]
-	consumer, _ := read.Relation(v.consumer)
-	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !ViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || ViewOf(consumer) != v) {
-		return nil, fmt.Errorf("stuntgres: missing or stale frozen sampling reference")
-	}
 	project := v.frames[path.Query]
 	if project == nil {
 		return nil, fmt.Errorf("stuntgres: missing sampling frame")
 	}
 	source := viewSourceAt(analyze.ViewFromRoot(project), path.Target)
+	return v.sampleSourceProcedure(read, path, source)
+}
+
+// Validate executable leaves as well as retained presentation frames: a query
+// rewrite can replace the former without replacing the latter.
+func (v *View) sampleSourceProcedure(read catalog.Read, path analyze.ViewLiteralPath, source *plan.SourceNode) (*catalog.Procedure, error) {
+	ref, exists := v.routineRefs[path]
+	consumer, _ := read.Relation(v.consumer)
+	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !ViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || ViewOf(consumer) != v) {
+		return nil, fmt.Errorf("stuntgres: missing or stale frozen sampling reference")
+	}
 	if source == nil || source.Sample == nil || source.Sample.Handler != ref || source.Sample.Procedure == nil || source.Sample.Procedure.Address() != ref.Address {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen sampling occurrence")
 	}
@@ -31,8 +37,12 @@ func (v *View) sampleProcedure(read catalog.Read, path analyze.ViewLiteralPath) 
 	if !ok || !exec.SameRoutineDeclaration(procedure, source.Sample.Procedure) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if err := extension.SystemRowsCapability(read, procedure); err != nil {
+	argumentType, err := extension.SamplingArgumentType(read, procedure)
+	if err != nil {
 		return nil, err
+	}
+	if source.Sample.Argument == nil || source.Sample.Argument.ResultUsage().Type == nil || source.Sample.Argument.ResultUsage().Type.ID() != argumentType {
+		return nil, fmt.Errorf("stuntgres: mismatched frozen sampling argument")
 	}
 	for _, dependency := range v.dependencies {
 		if dependency.Ref == ref && dependency.Revision != 0 && dependency.Purpose == catalog.DefinitionDependency {

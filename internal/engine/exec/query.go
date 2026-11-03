@@ -97,6 +97,11 @@ type Source struct {
 	NestedInputs         *Source
 	NestedStage          *Stage
 	Inherited            plan.RowMark // Execution-only mark crossing this view boundary.
+	// Pending projection values occupy the reserved Flat tail, never its
+	// published length. The child has already returned this occurrence.
+	projectionPending bool
+	projectionOrdinal int
+	projectionFields  int
 	// Locking and lazy virtual reads retain physical SQL occurrence identity.
 	Occurrence               int
 	Occurrences              []int
@@ -236,6 +241,7 @@ func (s *Source) VersionAt(i int) storage.RowVersion {
 }
 
 func (s *Source) Close() {
+	s.discardProjection()
 	s.finishReadLeases()
 	s.ReadLease = nil
 	s.RLS = nil // The statement, not this borrowed occurrence, owns the program.
@@ -409,6 +415,7 @@ type Stage struct {
 	Closed             bool
 	observations       []*stageObservation
 	projection         *stageObservation
+	projectionOutput   *Source // Only the actual retained projection owner.
 	readSegments       []bool // Per-opened-stage activation, unchanged by rewind.
 	readSource         bool   // Pending ordinary read, or reached-segment tracking for a hierarchy.
 	Produce            func(context.Context, *Stage) (bool, error)
@@ -540,6 +547,9 @@ func (s *Stage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.V
 			if !value.ValidResult(s.Columns[i].Usage) {
 				return false, s.fail(fmt.Errorf("stuntgres: invalid finalized query value"))
 			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return false, s.fail(err)
+			}
 			if dst != nil {
 				dst[i] = value
 			}
@@ -550,6 +560,10 @@ func (s *Stage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.V
 
 func (s *Stage) release() {
 	// The query execution owner, not this borrowed stage, owns the view pin.
+	if s.projectionOutput != nil {
+		s.projectionOutput.discardProjection()
+		s.projectionOutput = nil
+	}
 	s.Source = nil
 	s.Selection = nil
 	s.HashCandidates = nil
@@ -584,6 +598,11 @@ func (s *Stage) Close() error {
 
 func (s *Stage) fail(err error) error {
 	if err == errForeignPending {
+		return err
+	}
+	if _, exhausted := err.(*sampleBudget); exhausted {
+		// Cooperative unwind must not release previously retained occurrences.
+		// Only the sampler owning this budget converts it to successful EOF.
 		return err
 	}
 	if s.onFailure != nil {
@@ -706,7 +725,18 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				return false, nil
 			}
 			evaluation.setContext(ctx)
+			start := len(source.Flat)
+			committed := false
+			defer func() {
+				if !committed {
+					clear(source.Flat[start:])
+					source.Flat = source.Flat[:start]
+				}
+			}()
 			for j, expr := range n.Rows[i] {
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -714,11 +744,15 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				if err := ValidateProducedValue(value, n.Schema()[j].Usage); err != nil {
 					return false, err
 				}
+				if err := sampleCheckpoint(ctx); err != nil {
+					return false, err
+				}
 				source.Flat = append(source.Flat, value)
 			}
 			out.Selection = append(out.Selection, i)
 			source.FlatCount++
-			return true, ctx.Err()
+			committed = true
+			return true, nil
 		}
 		return out, nil
 	case *plan.SingletonNode:
@@ -886,7 +920,8 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if n.PresenceOnly {
 			return OpenNode(ctx, state, n.Child)
 		}
-		child, err := OpenNode(ctx, state, n.Child)
+		var child Stage
+		child, err = OpenNode(ctx, state, n.Child)
 		if err != nil {
 			return Stage{}, err
 		}
@@ -897,7 +932,11 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		transferred := false
 		defer func() {
 			if !transferred {
-				child.Close()
+				closeErr := child.Close()
+				_, exhausted := err.(*sampleBudget)
+				if closeErr != nil && (err == nil || exhausted) {
+					out, err = Stage{}, closeErr
+				}
 			}
 		}()
 		if err := child.Drain(ctx); err != nil {
@@ -906,6 +945,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if child.Selection == nil {
 			child.Selection = make([]int, child.Count())
 			for i := range child.Selection {
+				if err := sampleCheckpoint(ctx); err != nil {
+					return Stage{}, err
+				}
 				child.Selection[i] = i
 				if child.scanRange {
 					child.Selection[i] += child.scanStart
@@ -919,10 +961,13 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			child.Permutation = make([]int, child.Count())
 			evaluation := state.Evaluation(ctx)
 			for i := range child.Count() {
+				if err := sampleCheckpoint(ctx); err != nil {
+					return Stage{}, err
+				}
 				child.Permutation[i] = i
 				evaluation.BindQueryRow(child.Source, child.Selection[i])
 				for _, key := range n.Keys {
-					if err := ctx.Err(); err != nil {
+					if err := sampleCheckpoint(ctx); err != nil {
 						return Stage{}, err
 					}
 					if key.Cache < 0 || child.OrderValues[i*n.CacheWidth+key.Cache].Type() != nil {
@@ -936,7 +981,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 						return Stage{}, fmt.Errorf("stuntgres: invalid ordering value")
 					}
 					child.OrderValues[i*n.CacheWidth+key.Cache] = value
-					if err := ctx.Err(); err != nil {
+					if err := sampleCheckpoint(ctx); err != nil {
 						return Stage{}, err
 					}
 				}
@@ -946,6 +991,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				for j, expr := range n.Outputs {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
+						return Stage{}, err
+					}
+					if err := sampleCheckpoint(ctx); err != nil {
 						return Stage{}, err
 					}
 					child.OrderValues[i*n.CacheWidth+n.CacheWidth-len(n.Outputs)+j] = value
@@ -1031,7 +1079,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 // Unlike a bool sort callback, every comparison can stop production with its
 // original error. One scratch buffer serves every merge level.
 func MergeQueryIndices(ctx context.Context, indices []int, compare func(int, int) (int, error)) error {
-	if err := ctx.Err(); err != nil {
+	if err := sampleCheckpoint(ctx); err != nil {
 		return err
 	}
 	if len(indices) < 2 {
@@ -1040,7 +1088,7 @@ func MergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 	scratch := make([]int, len(indices))
 	var merge func(int, int) error
 	merge = func(lo, hi int) error {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return err
 		}
 		if hi-lo < 2 {
@@ -1055,11 +1103,14 @@ func MergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 		}
 		i, j, k := lo, mid, lo
 		for i < mid && j < hi {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return err
 			}
 			order, err := compare(indices[i], indices[j])
 			if err != nil {
+				return err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return err
 			}
 			if order <= 0 {
@@ -1071,10 +1122,13 @@ func MergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 			}
 			k++
 		}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return err
+		}
 		k += copy(scratch[k:hi], indices[i:mid])
 		copy(scratch[k:hi], indices[j:hi])
 		copy(indices[lo:hi], scratch[lo:hi])
-		return ctx.Err()
+		return sampleCheckpoint(ctx)
 	}
 	return merge(0, len(indices))
 }

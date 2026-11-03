@@ -36,7 +36,11 @@ func openRowSecurityStage(ctx context.Context, state *State, child Stage) Stage 
 			evaluation.BindQueryRow(child.Source, child.Index(i))
 			evaluation.PhysicalTable = child.Source.PhysicalRef(child.Index(i))
 			pass, _, err := EvaluateRowSecurity(program, &evaluation, evaluation.Row)
+			evaluation.Context = nil
 			if err != nil {
+				return false, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
 				return false, err
 			}
 			if pass {

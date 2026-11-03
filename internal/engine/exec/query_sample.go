@@ -2,10 +2,12 @@ package exec
 
 import (
 	"context"
+	"math"
 	"math/rand/v2"
 	"sort"
 
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqltype"
 )
 
 func sampledSource(node plan.Node) bool {
@@ -14,29 +16,36 @@ func sampledSource(node plan.Node) bool {
 }
 
 func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Stage, error) {
-	evaluation := state.Evaluation(ctx)
-	value, err := n.Sample.Count.Eval(&evaluation)
-	evaluation.Context = nil
+	value, err := sampleArgument(ctx, state, n.Sample)
 	if err != nil {
 		return Stage{}, err
-	}
-	if value.IsNull() {
-		return Stage{}, sqlError("2202H", "TABLESAMPLE parameter cannot be null")
-	}
-	count, err := value.Integer()
-	if err != nil {
-		return Stage{}, err
-	}
-	if count < 0 {
-		return Stage{}, sqlError("2202H", "sample size must not be negative")
 	}
 	child, err := initializeRelationSource(ctx, state, n)
 	if err != nil {
 		return Stage{}, err
 	}
 	out := Stage{Source: child.Source, Columns: n.Schema(), Finish: child.Close, Pending: child.Pending}
-	if err := selectSampleRows(ctx, &out, &child, count); err != nil {
-		child.Close()
+	selectRows := func(ctx context.Context, out *Stage, value sqltype.Value) error {
+		if value.Type().ID() == sqltype.Float8 {
+			millis, err := value.Float()
+			if err != nil {
+				return err
+			}
+			// Like positive row sampling, only a nonzero time sample consumes
+			// the initialized child and activates its physical read lease.
+			if millis != 0 {
+				child.beginRead()
+			}
+			return selectSampleTime(ctx, out, &child, millis)
+		}
+		count, err := value.Integer()
+		if err != nil {
+			return err
+		}
+		return selectSampleRows(ctx, out, &child, count)
+	}
+	if err := selectRows(ctx, &out, value); err != nil {
+		_ = out.Close()
 		return Stage{}, err
 	}
 	out.Reset = func(ctx context.Context, out *Stage) (bool, error) {
@@ -44,27 +53,46 @@ func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Sta
 		if err != nil || !changed {
 			return changed, err
 		}
-		// A changed child is a new invocation. The accepted expression and
-		// source stay immutable; only this stage's visible identities change.
-		evaluation := state.Evaluation(ctx)
-		value, err := n.Sample.Count.Eval(&evaluation)
-		evaluation.Context = nil
+		// A changed child alone starts a new invocation. No execution state
+		// is written into the accepted expression, procedure or schema.
+		value, err := sampleArgument(ctx, state, n.Sample)
 		if err != nil {
 			return false, err
 		}
-		if value.IsNull() {
-			return false, sqlError("2202H", "TABLESAMPLE parameter cannot be null")
-		}
-		count, err := value.Integer()
-		if err != nil {
-			return false, err
-		}
-		if count < 0 {
-			return false, sqlError("2202H", "sample size must not be negative")
-		}
-		return true, selectSampleRows(ctx, out, &child, count)
+		out.Done = false
+		return true, selectRows(ctx, out, value)
 	}
 	return out, nil
+}
+
+func sampleArgument(ctx context.Context, state *State, sample *plan.TableSample) (sqltype.Value, error) {
+	evaluation := state.Evaluation(ctx)
+	value, err := sample.Argument.Eval(&evaluation)
+	evaluation.Context = nil
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if value.IsNull() {
+		return sqltype.Value{}, sqlError("2202H", "TABLESAMPLE parameter cannot be null")
+	}
+	if value.Type().ID() == sqltype.Float8 {
+		millis, err := value.Float()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if millis < 0 || math.IsNaN(millis) {
+			return sqltype.Value{}, sqlError("2202H", "sample collection time must not be negative")
+		}
+	} else {
+		count, err := value.Integer()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if count < 0 {
+			return sqltype.Value{}, sqlError("2202H", "sample size must not be negative")
+		}
+	}
+	return value, sampleCheckpoint(ctx)
 }
 
 // Reservoir entries are visible Stage occurrences, never raw version offsets.
@@ -76,7 +104,7 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 	out.scanRange, out.scanStart, out.scanEnd = false, 0, 0
 	if count == 0 {
 		out.Selection = []int{}
-		return ctx.Err()
+		return sampleCheckpoint(ctx)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -88,20 +116,23 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 	if err := child.Drain(ctx); err != nil {
 		return err
 	}
+	if err := sampleCheckpoint(ctx); err != nil {
+		return err
+	}
 	out.Source, out.CacheWidth, out.OrderValues = child.Source, child.CacheWidth, child.OrderValues
 	population := child.Count()
 	if count >= int64(population) {
 		out.Selection, out.Permutation = child.Selection, child.Permutation
 		out.CacheOccurrences = child.CacheOccurrences
 		out.scanRange, out.scanStart, out.scanEnd = child.scanRange, child.scanStart, child.scanEnd
-		return ctx.Err()
+		return sampleCheckpoint(ctx)
 	}
 	// A hierarchy represents separately sampled physical RTEs, not one
 	// reservoir over their concatenation. Security-filtered occurrences still
 	// retain their original physical references and contiguous source groups.
 	size := 0
 	for start := 0; start < population; {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return err
 		}
 		end := sampleGroupEnd(child, start)
@@ -112,7 +143,7 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 		out.Selection, out.Permutation = child.Selection, child.Permutation
 		out.CacheOccurrences = child.CacheOccurrences
 		out.scanRange, out.scanStart, out.scanEnd = child.scanRange, child.scanStart, child.scanEnd
-		return ctx.Err()
+		return sampleCheckpoint(ctx)
 	}
 	out.Selection = make([]int, size)
 	if child.CacheWidth != 0 {
@@ -120,10 +151,13 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 	}
 	base := 0
 	for start := 0; start < population; {
+		if err := sampleCheckpoint(ctx); err != nil {
+			return err
+		}
 		end := sampleGroupEnd(child, start)
 		kept := int(min(count, int64(end-start)))
 		for i := start; i < end; i++ {
-			if err := ctx.Err(); err != nil {
+			if err := sampleCheckpoint(ctx); err != nil {
 				return err
 			}
 			slot := i - start
@@ -140,7 +174,7 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 		base += kept
 		start = end
 	}
-	return ctx.Err()
+	return sampleCheckpoint(ctx)
 }
 
 // Source opening and row security preserve physical-source order. Find group

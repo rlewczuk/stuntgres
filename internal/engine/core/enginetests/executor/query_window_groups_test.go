@@ -185,7 +185,9 @@ func (c *windowCancelContext) Err() error {
 		for {
 			frame, more := frames.Next()
 			name := frame.Function
-			if caller == "" {
+			// Only the shared checkpoint is transparent; Eval/coercion frames
+			// must remain the direct caller rather than the offset validator.
+			if caller == "" && name != "stuntgres/internal/engine/exec.sampleCheckpoint" {
 				caller = name
 			}
 			window = window || strings.HasSuffix(name, ".openWindowNode")

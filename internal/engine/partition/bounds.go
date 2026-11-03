@@ -122,7 +122,7 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 					for _, earlier := range p.Children[:i] {
 						previous := view.MustRelation(earlier).Membership
 						for _, datum := range previous.Values {
-							overlap, err := listContains(context.Background(), &p.Keys[0], child.Membership.Values, datum.Value, sqltype.InputEnvironment{})
+							overlap, err := listContains(context.Background(), context.Context.Err, &p.Keys[0], child.Membership.Values, datum.Value, sqltype.InputEnvironment{})
 							if err != nil {
 								return err
 							}
@@ -146,14 +146,14 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 					if previous.DefaultBound {
 						continue
 					}
-					left, _, err := CompareTuple(context.Background(), p.Keys, previous.Lower, child.Membership.Upper, sqltype.InputEnvironment{})
+					left, _, err := CompareTuple(context.Background(), context.Context.Err, p.Keys, previous.Lower, child.Membership.Upper, sqltype.InputEnvironment{})
 					if err != nil {
 						return err
 					}
 					if left >= 0 {
 						continue
 					}
-					right, _, err := CompareTuple(context.Background(), p.Keys, child.Membership.Lower, previous.Upper, sqltype.InputEnvironment{})
+					right, _, err := CompareTuple(context.Background(), context.Context.Err, p.Keys, child.Membership.Lower, previous.Upper, sqltype.InputEnvironment{})
 					if err != nil {
 						return err
 					}
@@ -232,7 +232,7 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 					}
 				}
 			}
-			order, _, err := CompareTuple(context.Background(), parent.Partition.Keys, membership.Lower, membership.Upper, sqltype.InputEnvironment{})
+			order, _, err := CompareTuple(context.Background(), context.Context.Err, parent.Partition.Keys, membership.Lower, membership.Upper, sqltype.InputEnvironment{})
 			if err != nil {
 				return err
 			}
@@ -264,9 +264,9 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 // datums terminate comparison there; equal finite tuples terminate at the last
 // component. Callers needing PostgreSQL's equal-lower overlap position explicitly
 // select the first component instead.
-func CompareTuple(ctx context.Context, keys []catalog.PartitionKeyEntry, a, b []catalog.PartitionDatum, input sqltype.InputEnvironment) (int, int, error) {
+func CompareTuple(ctx context.Context, checkpoint func(context.Context) error, keys []catalog.PartitionKeyEntry, a, b []catalog.PartitionDatum, input sqltype.InputEnvironment) (int, int, error) {
 	for i, key := range keys {
-		if err := ctx.Err(); err != nil {
+		if err := checkpoint(ctx); err != nil {
 			return 0, i, err
 		}
 		if a[i].Kind != b[i].Kind {
@@ -279,11 +279,17 @@ func CompareTuple(ctx context.Context, keys []catalog.PartitionKeyEntry, a, b []
 			return 0, i, nil
 		}
 		order, err := key.Comparison.Compare(ctx, a[i].Value, b[i].Value, input)
-		if err != nil || order != 0 {
-			return order, i, err
+		if err != nil {
+			return 0, i, err
+		}
+		if err := checkpoint(ctx); err != nil {
+			return 0, i, err
+		}
+		if order != 0 {
+			return order, i, nil
 		}
 	}
-	return 0, len(keys) - 1, nil
+	return 0, len(keys) - 1, checkpoint(ctx)
 }
 
 type EvaluatedKey struct {
@@ -337,26 +343,32 @@ func RowKey(d *catalog.Relation, row []sqltype.Value, evaluation *exec.Context, 
 	return result, nil
 }
 
-func RangeContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, values []catalog.PartitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
+func RangeContains(ctx context.Context, checkpoint func(context.Context) error, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, values []catalog.PartitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
+	if err := checkpoint(ctx); err != nil {
+		return false, err
+	}
 	if anyNull {
 		return false, nil
 	}
-	lower, _, err := CompareTuple(ctx, keys, values, bound.Lower, input)
+	lower, _, err := CompareTuple(ctx, checkpoint, keys, values, bound.Lower, input)
 	if err != nil || lower < 0 {
 		return false, err
 	}
-	upper, _, err := CompareTuple(ctx, keys, values, bound.Upper, input)
+	upper, _, err := CompareTuple(ctx, checkpoint, keys, values, bound.Upper, input)
 	return upper < 0, err
 }
 
-func Contains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, key EvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
+func Contains(ctx context.Context, checkpoint func(context.Context) error, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, key EvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
+	if err := checkpoint(ctx); err != nil {
+		return false, err
+	}
 	if bound.Strategy == parser.PartitionHash {
-		return key.Hash%uint64(bound.Modulus) == uint64(bound.Remainder), ctx.Err()
+		return key.Hash%uint64(bound.Modulus) == uint64(bound.Remainder), nil
 	}
 	if bound.Strategy == parser.PartitionList {
-		return listContains(ctx, &keys[0], bound.Values, key.Values[0].Value, input)
+		return listContains(ctx, checkpoint, &keys[0], bound.Values, key.Values[0].Value, input)
 	}
-	return RangeContains(ctx, keys, bound, key.Values, key.anyNull, input)
+	return RangeContains(ctx, checkpoint, keys, bound, key.Values, key.anyNull, input)
 }
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
@@ -368,14 +380,14 @@ func Accepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relatio
 		return false, err
 	}
 	if !child.Membership.DefaultBound {
-		return Contains(evaluation.Context, parent.Partition.Keys, child.Membership, key, evaluation.Input)
+		return Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, child.Membership, key, evaluation.Input)
 	}
 	for _, a := range parent.Partition.Children {
 		sibling := view.MustRelation(a)
 		if sibling.Membership.DefaultBound {
 			continue
 		}
-		contains, err := Contains(evaluation.Context, parent.Partition.Keys, sibling.Membership, key, evaluation.Input)
+		contains, err := Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, sibling.Membership, key, evaluation.Input)
 		if err != nil || contains {
 			return false, err
 		}
@@ -470,7 +482,7 @@ func ValidateBounds(ctx context.Context, input sqltype.InputEnvironment, d *Defi
 	if d.Bound.Strategy == parser.PartitionList {
 		return validateListBound(ctx, &d.Parent.Partition.Keys[0], d.Bound)
 	}
-	order, deciding, err := CompareTuple(ctx, d.Parent.Partition.Keys, d.Bound.Lower, d.Bound.Upper, input)
+	order, deciding, err := CompareTuple(ctx, context.Context.Err, d.Parent.Partition.Keys, d.Bound.Lower, d.Bound.Upper, input)
 	if err != nil {
 		return err
 	}
@@ -523,7 +535,7 @@ func CheckOverlap(ctx context.Context, input sqltype.InputEnvironment, base cata
 			Boundary{Tuple: sibling.Membership.Upper, Relation: sibling})
 	}
 	compare := func(a, b Boundary) (int, int, error) {
-		order, component, err := CompareTuple(ctx, d.Parent.Partition.Keys, a.Tuple, b.Tuple, input)
+		order, component, err := CompareTuple(ctx, context.Context.Err, d.Parent.Partition.Keys, a.Tuple, b.Tuple, input)
 		if err == nil && order == 0 && a.Lower != b.Lower {
 			order = -1
 			if a.Lower {
@@ -550,7 +562,7 @@ func CheckOverlap(ctx context.Context, input sqltype.InputEnvironment, base cata
 	unique := bounds[:0]
 	for _, bound := range bounds {
 		if len(unique) != 0 {
-			order, _, err := CompareTuple(ctx, d.Parent.Partition.Keys, unique[len(unique)-1].Tuple, bound.Tuple, input)
+			order, _, err := CompareTuple(ctx, context.Context.Err, d.Parent.Partition.Keys, unique[len(unique)-1].Tuple, bound.Tuple, input)
 			if err != nil {
 				return err
 			}
@@ -653,7 +665,7 @@ func CheckDefaultRows(ctx context.Context, evaluation *exec.Context, rows *visib
 				source.Close()
 				return err
 			}
-			contains, err := Contains(ctx, d.Parent.Partition.Keys, d.Bound, key, evaluation.Input)
+			contains, err := Contains(ctx, context.Context.Err, d.Parent.Partition.Keys, d.Bound, key, evaluation.Input)
 			if err != nil {
 				source.Close()
 				return err

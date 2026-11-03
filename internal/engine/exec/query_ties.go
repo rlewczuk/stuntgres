@@ -23,7 +23,7 @@ func CaptureQueryTiesBoundary(child *Stage, occurrence int, keys []plan.SortKey,
 
 func QueryTiesPeer(ctx context.Context, child *Stage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for i, key := range keys {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		value, last := queryTiesValue(child, occurrence, key), boundary[i]
@@ -37,9 +37,12 @@ func QueryTiesPeer(ctx context.Context, child *Stage, occurrence int, keys []pla
 		if err != nil {
 			return false, err
 		}
+		if err := sampleCheckpoint(ctx); err != nil {
+			return false, err
+		}
 		if sign != 0 {
 			return false, nil
 		}
 	}
-	return true, ctx.Err()
+	return true, sampleCheckpoint(ctx)
 }

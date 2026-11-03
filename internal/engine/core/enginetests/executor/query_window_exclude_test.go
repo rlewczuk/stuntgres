@@ -109,7 +109,9 @@ func (c *excludeCancelContext) Err() error {
 		caller := ""
 		for {
 			frame, more := frames.Next()
-			if caller == "" {
+			// Skip only checkpoint plumbing, not aggregate/support frames:
+			// sum-output must observe openWindowNode after real finalization.
+			if caller == "" && frame.Function != "stuntgres/internal/engine/exec.sampleCheckpoint" {
 				caller = frame.Function
 			}
 			window = window || strings.HasSuffix(frame.Function, ".openWindowNode")

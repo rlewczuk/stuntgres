@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -125,8 +126,14 @@ func (h *joinHash) key(evaluation *Context, keys []expr.Expr) (hash uint64, null
 		if err != nil {
 			return 0, false, err
 		}
+		if err := EvaluationContext(evaluation); err != nil {
+			return 0, false, err
+		}
 		value, err = h.groupings[i].PrepareKey(evaluation.Context, value)
 		if err != nil {
+			return 0, false, err
+		}
+		if err := EvaluationContext(evaluation); err != nil {
 			return 0, false, err
 		}
 		if value.IsNull() {
@@ -134,6 +141,9 @@ func (h *joinHash) key(evaluation *Context, keys []expr.Expr) (hash uint64, null
 		}
 		part, err := h.groupings[i].Hash(evaluation.Context, value)
 		if err != nil {
+			return 0, false, err
+		}
+		if err := EvaluationContext(evaluation); err != nil {
 			return 0, false, err
 		}
 		hash = (hash ^ part) * 1099511628211
@@ -148,13 +158,19 @@ func (h *joinHash) build(ctx context.Context, evaluation *Context, frame []sqlty
 	evaluation.setContext(ctx)
 	h.buckets = make(map[uint64][]int)
 	for j := range count {
-		if err := ctx.Err(); err != nil {
+		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		copy(frame[leftWidth:], right.Source.Row(right.Index(j)))
 		hash, null, err := h.key(evaluation, h.right)
 		if err != nil {
 			h.buckets = nil
+			if _, exhausted := err.(*sampleBudget); exhausted {
+				return false, err
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+				return false, err
+			}
 			return false, nil
 		}
 		if !null {
@@ -167,14 +183,20 @@ func (h *joinHash) build(ctx context.Context, evaluation *Context, frame []sqlty
 
 // candidates returns the right occurrences the left row in evaluation's frame
 // can match; scan reports a failed key, so every right row must be visited.
-func (h *joinHash) candidates(ctx context.Context, evaluation *Context) (matches []int, scan bool) {
+func (h *joinHash) candidates(ctx context.Context, evaluation *Context) (matches []int, scan bool, err error) {
 	evaluation.setContext(ctx)
 	hash, null, err := h.key(evaluation, h.left)
 	if err != nil {
-		return nil, true
+		if _, exhausted := err.(*sampleBudget); exhausted {
+			return nil, false, err
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+			return nil, false, err
+		}
+		return nil, true, nil
 	}
 	if null {
-		return nil, false
+		return nil, false, nil
 	}
-	return h.buckets[hash], false
+	return h.buckets[hash], false, nil
 }
