@@ -325,6 +325,7 @@ type candidateSelection struct {
 	Position    int
 	Index       ids.ObjectRef
 	Access      statistics.IndexAccess
+	HeapAccess  statistics.RelationAccess
 	Simple      bool // Hash heap fetch ownership; bulk bloom deliberately leaves false.
 	Fetched     int  // Retained candidate replay is not another physical heap fetch.
 }

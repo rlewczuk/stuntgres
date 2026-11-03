@@ -29,6 +29,19 @@ Native Dump/Restore preserves installed identities, stored packet bytes and
 ordinary SQL consumers; live cryptographic scratch and entropy sources are not
 serialized. See [OpenPGP ownership boundaries](docs/DIALECT.md#pgcrypto-openpgp).
 
+`pg_catalog.pg_stat_all_tables` exposes the 30 PostgreSQL 18 typed fields through
+the shared cumulative statistics provider. Sequential counters follow actual
+source demand before filtering; attached indexes aggregate scans, last scan and
+heap fetches, preserving no-index NULL versus untouched-index zero. Cumulative
+tuple attempts can include rolled-back inserts, while ANALYZE/VACUUM counts and
+times change only on completed work. Parent privileges do not redact these
+statistics; the view retains its own SELECT ACL and is read-only.
+HOT/newpage are zero logical optimization estimates, live/dead are logical
+version estimates, and elapsed totals are milliseconds; no automatic worker or
+physical HOT/page engine is implied. Runtime history is not serialized by Dump.
+See [statistics scenarios](reference/statistics/README.md#all-table-statistics)
+for the independent acceptance definitions and feature smoke commands.
+
 ## Installation
 
 The module path is `stuntgres`. Until it is published under a public path,

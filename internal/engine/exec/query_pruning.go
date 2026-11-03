@@ -13,6 +13,7 @@ type QueryBranchInterval struct{ Start, End int }
 type QueryBranchSelection struct {
 	Applied   bool
 	Intervals []QueryBranchInterval
+	EmptySegments []int // Selected empty physical leaves, lost by ordinal intervals.
 }
 
 // QueryBranchPruner is optional captured metadata authority. Selection is made
@@ -24,6 +25,7 @@ type QueryBranchPruner interface {
 type queryBranchCursor struct {
 	selection QueryBranchSelection
 	position  int
+	emptyPosition int
 }
 
 func selectQueryBranches(ctx context.Context, state *State, filter *plan.FilterNode, child *Stage) (queryBranchCursor, error) {
@@ -35,6 +37,9 @@ func selectQueryBranches(ctx context.Context, state *State, filter *plan.FilterN
 	}
 	evaluation := state.Evaluation(ctx)
 	selection, err := child.Source.BranchPruner.Select(ctx, &evaluation, filter.Predicate, !state.Methods.NoPartitionPruning)
+	if selection.Applied && child.scan != nil {
+		child.scan.pruned = true
+	}
 	return queryBranchCursor{selection: selection}, err
 }
 
@@ -56,9 +61,24 @@ func (c *queryBranchCursor) next(ctx context.Context, child *Stage) (int, bool, 
 			child.Position = lo - start
 		}
 		if child.Position+start < hi {
+			c.crossEmpty(child, child.Position+start)
 			return child.NextOccurrence(ctx)
 		}
 		c.position++
 	}
+	c.crossEmpty(child, child.Source.Count())
 	return 0, false, ctx.Err()
+}
+
+func (c *queryBranchCursor) crossEmpty(child *Stage, ordinal int) {
+	for c.emptyPosition < len(c.selection.EmptySegments) {
+		index := c.selection.EmptySegments[c.emptyPosition]
+		start := 0
+		if index > 0 { start = child.Source.InheritanceEnds[index-1] }
+		if start > ordinal { break }
+		if child.scan != nil && (!child.scanRange || start >= child.scanStart && start <= child.scanEnd) {
+			child.scan.CrossEmpty(index)
+		}
+		c.emptyPosition++
+	}
 }

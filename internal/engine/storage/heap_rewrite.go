@@ -9,7 +9,7 @@ import (
 // RewriteHeapVacuum preserves the incumbent rewrite identity contract while
 // carrying every visible repaired version into the new incarnation. Old captured
 // roots are never modified. Physical history is not exported to native controls.
-func RewriteHeapVacuum(ctx context.Context, source Relation, frontier ids.CommitSeq, cutoff uint64, retire bool, progress func(int, int64)) (VacuumCandidate, error) {
+func RewriteHeapVacuum(ctx context.Context, source Relation, frontier ids.CommitSeq, cutoff uint64, retire bool, progress VacuumProgress) (VacuumCandidate, error) {
 	rows := EffectiveHeapRows(source.Versions, source.Headers)
 	c, err := RewriteVacuum(ctx, rows, source.Ends, nil, frontier, cutoff, retire, progress)
 	if err != nil {

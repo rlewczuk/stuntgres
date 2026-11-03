@@ -56,11 +56,18 @@ func TestReferencePGStatioSysSequencesMembership(t *testing.T) {
 				"CREATE SCHEMA statio_sys_private", `CREATE SCHEMA "PG_TOAST"`,
 				"CREATE SEQUENCE public.statio_sys_same CACHE 3", "CREATE SEQUENCE statio_sys_private.statio_sys_same CACHE 3",
 				`CREATE SEQUENCE "PG_TOAST"."Quoted Sequence" CACHE 3`, "CREATE TEMP SEQUENCE statio_sys_temp CACHE 3",
-				"CREATE TABLE statio_sys_private.ordinary(id integer)", "CREATE INDEX statio_sys_index ON statio_sys_private.ordinary(id)",
+				"CREATE TABLE statio_sys_private.ordinary(id integer)",
 				"CREATE VIEW statio_sys_private.not_sequence AS SELECT id FROM statio_sys_private.ordinary",
 			} {
 				statioSequenceExec(t, p, b, producer, q)
 			}
+			// Keep setup's genuine heap-build report off the TEMP sequence
+			// owner's physical writer, whose first encounter must be fresh.
+			ddl,err:=b.DB.Conn(p.Ctx)
+			if err!=nil {t.Fatal(err)}
+			defer ddl.Close()
+			statioSequenceExec(t,p,b,ddl,"CREATE INDEX statio_sys_index ON statio_sys_private.ordinary(id)")
+			statioSequenceRetire(t,ddl)
 			stmt, err := observer.PrepareContext(p.Ctx, statioSysSequenceProbe)
 			if err != nil {
 				t.Fatal(err)

@@ -73,6 +73,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 	e.ClusterProgress[s.TxRef] = core.ClusterProgress{Fact: pgcatalog.ClusterProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: d.Address().ObjectID, Phase: "initializing"}, Owner: auth.State.Authenticated}
 	e.Mu.Unlock()
 	defer func() { e.Mu.Lock(); delete(e.ClusterProgress, s.TxRef); e.Mu.Unlock() }()
+	ctx := s.ActivateRuntime(s.Op.Context())
 	progress := func(phase string, scanned, written, indexes int64) {
 		e.Mu.Lock()
 		if p, ok := e.ClusterProgress[s.TxRef]; ok && s.TxRef.Epoch() == e.Catalog.State.Epoch() {
@@ -99,7 +100,15 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			nextMetadata = &next
 		}
 		progress("seq scanning heap", 0, 0, 0)
-		candidate, err := storage.RewriteHeapVacuum(s.Op.Context(), storage.Relation{Versions: capture.Rows, Ends: capture.Ends, Retained: capture.Retained, Discarded: capture.Discarded, Headers: capture.Headers}, capture.Frontier, capture.Cutoff, capture.Retire, func(scanned int, written int64) { progress("seq scanning heap", int64(scanned), written, 0) })
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		access := s.WriteHost().CaptureRelationAccess(selected.Ref)
+		access.Record(1, 0, 0)
+		candidate, err := storage.RewriteHeapVacuum(ctx, storage.Relation{Versions: capture.Rows, Ends: capture.Ends, Retained: capture.Retained, Discarded: capture.Discarded, Headers: capture.Headers}, capture.Frontier, capture.Cutoff, capture.Retire, storage.VacuumProgress{
+			Fetched: func() { access.Record(0, 1, 0) },
+			Completed: func(scanned int, written int64) { progress("seq scanning heap", int64(scanned), written, 0) },
+		})
 		if err != nil {
 			return false, err
 		}

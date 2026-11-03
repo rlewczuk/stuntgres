@@ -63,6 +63,18 @@ func indexStatsRows(t *testing.T, s *session.Session, q string) [][]any {
 					t.Fatal(q, err)
 				}
 				row[i] = instant
+			case sqltype.Char:
+				text, err := value.Text()
+				if err != nil {
+					t.Fatal(q, err)
+				}
+				row[i] = text
+			case sqltype.Float8:
+				number, err := value.Float()
+				if err != nil {
+					t.Fatal(q, err)
+				}
+				row[i] = number
 			default:
 				row[i] = enginetest.Export(value)
 			}

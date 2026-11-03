@@ -37,7 +37,7 @@ func TestPgsurgeryFreezeMaintenance(t *testing.T) {
 	if !storage.SameVersionRoot(effective, store.Versions) {
 		t.Fatal("untargeted head vector copied")
 	}
-	candidate, err := storage.InspectVacuum(ctx, effective, nil, 2, 3, true, nil)
+	candidate, err := storage.InspectVacuum(ctx, effective, nil, 2, 3, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestPgsurgeryFreezeMaintenance(t *testing.T) {
 	if candidate.Live != 3 || candidate.Removed != 0 || candidate.Headers != headers || candidate.Retained != predecessor || candidate.Discarded != discarded {
 		t.Fatal("vacuum retired live repaired versions", candidate)
 	}
-	rewritten, err := storage.RewriteHeapVacuum(ctx, store, 2, 3, true, nil)
+	rewritten, err := storage.RewriteHeapVacuum(ctx, store, 2, 3, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestPgsurgeryFreezeMaintenanceRawXmin(t *testing.T) {
 			t.Fatalf("initial raw xmin for version %d = %d, want %d", row.Version, row.HeapXmin(), wantXmin[i])
 		}
 	}
-	inspected, err := storage.InspectVacuum(ctx, rows, nil, 3, epoch+33, true, nil)
+	inspected, err := storage.InspectVacuum(ctx, rows, nil, 3, epoch+33, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestPgsurgeryFreezeMaintenanceRawXmin(t *testing.T) {
 		!candidate.Versions[2].ImportFrozen || candidate.Versions[2].InsertFullXID != 0 {
 		t.Fatal("repair mutated its old ordinary/imported header captures")
 	}
-	again, err := storage.InspectVacuum(ctx, candidate.Versions, nil, 3, epoch+33, true, nil)
+	again, err := storage.InspectVacuum(ctx, candidate.Versions, nil, 3, epoch+33, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestPgsurgeryFreezeMaintenanceSlots(t *testing.T) {
 				store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2, EndFullXID: 4}}}
 			}
 			capturedHeaders := store.Headers
-			c, err := storage.InspectVacuum(ctx, store.Versions, store.Ends, 2, 3, true, nil)
+			c, err := storage.InspectVacuum(ctx, store.Versions, store.Ends, 2, 3, true, storage.VacuumProgress{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -225,7 +225,7 @@ func TestPgsurgeryFreezeMaintenanceLaterEnd(t *testing.T) {
 	ended := storage.CommitHeapEnds(headers, []storage.RowVersion{captured}, 7, 3)
 	store := storage.Relation{Versions: []storage.RowVersion{row}, Headers: ended}
 	rows := storage.EffectiveHeapRows(store.Versions, ended)
-	c, err := storage.InspectVacuum(ctx, rows, nil, 3, 3, true, nil)
+	c, err := storage.InspectVacuum(ctx, rows, nil, 3, 3, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestPgsurgeryFreezeMaintenanceSuccessor(t *testing.T) {
 	priorB := storage.RetainHeapPredecessor(b)
 	priorB.End, priorB.EndFullXID, priorB.Next = 3, 5, priorA
 	source := storage.Relation{Versions: []storage.RowVersion{c}, Retained: priorB, Headers: headers}
-	candidate, err := storage.InspectVacuum(ctx, source.Versions, nil, 3, 3, true, nil)
+	candidate, err := storage.InspectVacuum(ctx, source.Versions, nil, 3, 3, true, storage.VacuumProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}

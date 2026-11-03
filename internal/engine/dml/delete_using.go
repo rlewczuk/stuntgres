@@ -40,7 +40,13 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 		targetCount = source.Count()
 	}
 	var candidates []DeleteUsingCandidate
+	scan := exec.NewRelationScan(source)
+	if err := ctx.Err(); err != nil { return Outcome{}, err }
+	if sourceCount != 0 { scan.Reach(0) }
 	for i := range targetCount {
+		if err := ctx.Err(); err != nil { return Outcome{}, err }
+		scan.Reach(i)
+		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
 		version := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
@@ -74,6 +80,7 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 			}
 		}
 	}
+	if sourceCount != 0 { scan.Reach(source.Count()) }
 	var deletedIDs map[MutationRowIdentity]bool
 	if len(candidates) != 0 {
 		deletedIDs = make(map[MutationRowIdentity]bool, min(len(candidates), source.Count()))

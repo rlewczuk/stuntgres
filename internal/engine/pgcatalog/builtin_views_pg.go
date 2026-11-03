@@ -151,7 +151,7 @@ var pgBuiltinViews = [...]builtinView{
 	// pg_catalog.pg_stat_all_indexes — REL_18_6 system_views.sql.
 	{oid: StatAllIndexesOID, parts: indexStatisticsViewParts(false), prettyParts: indexStatisticsViewParts(true)},
 	// pg_catalog.pg_stat_all_tables — REL_18_6 system_views.sql; pinned 18.6 display.
-	{oid: 12009, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+	{oid: StatAllTablesOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("relid"), viewText(",\n"),
 		viewText("    "), viewIdentifier("n"), viewText("."), viewIdentifier("nspname"), viewText(" AS "), viewIdentifier("schemaname"), viewText(",\n"),
 		viewText("    "), viewIdentifier("c"), viewText("."), viewIdentifier("relname"), viewText(",\n"),

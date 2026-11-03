@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-// Native source identities follow the existing 120xx relation convention.
-// Released system_views CREATE VIEW OIDs are initdb-generated, not fixed IDs.
+// ALL follows the repository's PG18 inventory; adjacent source IDs are retained.
+// PostgreSQL initdb-generated view OIDs are not portable fixed identities.
 const (
-	StatAllTablesOID  ids.OID = 12009
+	StatAllTablesOID  ids.OID = 12146
 	StatSysTablesOID  ids.OID = 12010
 	StatUserTablesOID ids.OID = 12011
 	ProgressVacuumOID ids.OID = 12012
@@ -37,6 +37,8 @@ type MaintenanceFact struct {
 	ForeignAnalyzed                                        bool
 	ForeignRows, ForeignDeadRows, ForeignPages             float64
 	VacuumTime, AnalyzeTime                                time.Duration
+	SeqScans, SeqTuples, TableIndexFetches int64
+	LastSeqScan time.Time
 }
 type VacuumProgressFact struct {
 	PID                                                                 int64
@@ -124,8 +126,12 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 	}
 	rows := make([][]sqltype.Value, 0)
 	var descriptors []*catalog.Relation
+	indexes := make(map[ids.ObjectAddress][]ids.ObjectAddress)
 	for _, descriptor := range in.Catalog.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok {
+			if d.SQLIndex != nil {
+				indexes[d.SQLIndex.Parent] = append(indexes[d.SQLIndex.Parent], d.Address())
+			}
 			kind := ClassKind(in.Catalog, d)
 			if kind == "r" || kind == "t" || kind == "m" || kind == "p" {
 				descriptors = append(descriptors, d)
@@ -161,17 +167,49 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 		row[0] = oid
 		row[1] = sqltype.String(in.Source.Columns[1].Usage.Type, ns.Name())
 		row[2] = sqltype.String(in.Source.Columns[2].Usage.Type, d.Name())
-		if in.Keep.Rejects(0, func() (sqltype.Value, error) { return row[0], nil }) || in.Keep.Rejects(2, func() (sqltype.Value, error) { return row[2], nil }) {
+		if in.Keep.Rejects(0, func() (sqltype.Value, error) { return row[0], nil }) || in.Keep.Rejects(1, func() (sqltype.Value, error) { return row[1], nil }) || in.Keep.Rejects(2, func() (sqltype.Value, error) { return row[2], nil }) {
 			continue
 		}
 		fact := in.Runtime.TableStatistics(d.Address())
 		counters := [...]struct {
 			column int
 			value  int64
-		}{{9, fact.Inserts}, {10, fact.Updates}, {11, fact.Deletes}, {12, 0}, {13, 0}, {14, fact.Live}, {15, fact.Dead}, {16, fact.Modifications}, {17, fact.InsertsSince}, {22, fact.VacuumCount}, {23, 0}, {24, fact.AnalyzeCount}, {25, 0}}
+		}{{3, fact.SeqScans}, {5, fact.SeqTuples}, {9, fact.Inserts}, {10, fact.Updates}, {11, fact.Deletes}, {12, 0}, {13, 0}, {14, fact.Live}, {15, fact.Dead}, {16, fact.Modifications}, {17, fact.InsertsSince}, {22, fact.VacuumCount}, {23, 0}, {24, fact.AnalyzeCount}, {25, 0}}
 		for _, counter := range counters {
 			if err := integer(counter.column, counter.value); err != nil {
 				return nil, err
+			}
+		}
+		if !fact.LastSeqScan.IsZero() {
+			row[4], err = sqltype.TimestampFromTime(in.Source.Columns[4].Usage.Type, fact.LastSeqScan)
+			if err != nil {
+				return nil, err
+			}
+		}
+		// Released SUM/MAX preserve NULL for an empty attached-index set.
+		// Bitmap heap fetches belong to the table, simple fetches to indexes.
+		if attached := indexes[d.Address()]; len(attached) != 0 {
+			var scans, fetches int64
+			var last time.Time
+			for _, address := range attached {
+				index := in.Runtime.IndexStatistics(address)
+				scans += index.Scans
+				fetches += index.Fetches
+				if index.LastScan.After(last) {
+					last = index.LastScan
+				}
+			}
+			if err := integer(6, scans); err != nil {
+				return nil, err
+			}
+			if err := integer(8, fact.TableIndexFetches + fetches); err != nil {
+				return nil, err
+			}
+			if !last.IsZero() {
+				row[7], err = sqltype.TimestampFromTime(in.Source.Columns[7].Usage.Type, last)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		if !fact.LastVacuum.IsZero() {

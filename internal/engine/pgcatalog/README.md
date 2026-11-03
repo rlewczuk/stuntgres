@@ -990,8 +990,10 @@ owns its row/cell buffers and publishes no prefix on cancellation or error.
 a copy for coverage checks. `pg_locks` (`LocksOID`) and `pg_sequences` are not
 registered: the engine handles those two itself.
 Concurrent source additions must retain strict numeric ordering when combined:
-backend memory (12142) precedes all-index statistics (12187). Registration
-presence alone is insufficient for binary-search reachability.
+backend memory (12142) precedes all-table statistics (12146), which precedes
+all-index statistics (12187). Identity cutovers must reposition the existing
+producer: registration presence alone is insufficient for binary-search
+reachability, including for unrelated sources between the old and new IDs.
 
 `catalog_source_specs.go` holds `Specs`, the ordered descriptor metadata for
 every system relation (OID, namespace, name, columns with type, typmod,
@@ -1222,6 +1224,25 @@ catalog writes or bypass a provider's independent backing-source checks.
   Sys/user are complementary schema predicates over this one unordered view,
   including the entire `^pg_toast` prefix, not neighboring registered views.
   Canonical display and read-only event classification share builtinViews.
+- `pg_stat_all_tables` (registry relation12146, rowtype12148, array12147):
+  exactly 30 nullable typed columns in PostgreSQL 18 order. The current catalog
+  supplies r/t/m/p membership and names, including inaccessible schemas/tables;
+  there is no parent ACL filter or per-field redaction. The view's own SELECT
+  ACL remains ordinary, including prepared and WHERE FALSE reads. Identity,
+  schema and relation-name Keep rejection precedes every table/index Reader
+  access. An attached-index grouping from SQLIndex.Parent supplies SUM scans,
+  MAX last scan and table bitmap fetches plus SUM simple index fetches.
+  No attached indexes means all three index outputs are NULL; untouched indexes
+  instead give numeric zero counters and NULL time. Missing activity gives
+  numeric zero and NULL event times, not an all-NULL row. Retained results remain
+  immutable across clear, rename, drop and replacement.
+  Sequential counters follow real demand before filtering; tuple attempts can
+  include rolled-back operations. Completed manual maintenance is immediate,
+  not manufactured by reads. HOT/newpage are declared zero logical optimization
+  estimates, live/dead are logical version estimates, and FLOAT8 elapsed totals
+  are milliseconds. No automatic worker is synthesized. The released grouped
+  definition remains authoritative for display and GROUP BY read-only diagnostics.
+  SYS/USER/XACT are separate catalog parts, not new surfaces delivered here.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership
@@ -1245,10 +1266,10 @@ catalog writes or bypass a provider's independent backing-source checks.
   provider again. The producer owns its enum-array buffers and never publishes
   partial canceled rows; empty captures retain the same 17-column carrier.
 - Table-statistics views read the shared cumulative provider through the current
-  transaction reader, separately from physical `Maintenance`. `relid`/`relname`
-  safe-key rejection precedes any fact fetch, preserving per-object cache
-  semantics. These dynamic rows never enter the shared catalog capture slots.
-  Uncollected fields retain typed zero/NULL values; scan fields are unavailable.
+  transaction reader, separately from physical `Maintenance`. ALL's
+  `relid`/`schemaname`/`relname` safe-key rejection precedes any fact fetch,
+  preserving per-object cache semantics. These dynamic rows never enter the
+  shared catalog capture slots.
   Completed ANALYZE/VACUUM publish directly into that same shared provider,
   independently of the ordinary tuple writer's outside-transaction gate.
   `none` sees the report immediately; cached/snapshot facts still require clear
@@ -1666,7 +1687,7 @@ units in `enginetests/` use
 `RUN='^Test(PGShdepend|RoleDependencyVisitor|DefaultACLDependencyAddress)'`.
 
 Producer registry ordering and exhaustive binary-search reachability use
-`RUN='^TestCatalogProducerLookup$'`. Adding a source must preserve existing OID
+`RUN='^Test(ProducerRegistryLookup|CatalogProducerLookup)$'`. Adding a source must preserve existing OID
 identities and lookup reachability, independently of descriptor installation order.
 
 Package units here run without an engine. Producer behavior tests need an

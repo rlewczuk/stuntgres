@@ -30,6 +30,7 @@ type DeleteInput struct {
 // staged for deletion.
 func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
+	source.Host = h
 	if err := BeforeStatement(h, b, stored.TriggerDelete); err != nil {
 		if inputs != nil {
 			inputs.Close()
@@ -99,11 +100,16 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 			}
 		}()
 	}
+	scan := exec.NewRelationScan(source)
+	if err := ctx.Err(); err != nil { return Outcome{}, err }
+	scan.Reach(0)
 deleteCandidate:
 	for i := range source.Count() {
 		if err := ctx.Err(); err != nil {
 			return Outcome{}, err
 		}
+		scan.Reach(i)
+		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
 		version := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
@@ -210,6 +216,7 @@ deleteCandidate:
 			break
 		}
 	}
+	scan.Reach(source.Count())
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := h.CaptureRegclassOutput(rows); err != nil {
 			return Outcome{}, err

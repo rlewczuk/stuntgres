@@ -80,9 +80,16 @@ it imports core and lower packages, and nothing imports it except tests.
 | `ExtensionUnitExecute`, `WithPublicSchemaUnitOwner`, `AssertTemporaryNamespacePair` | an admitted extension command, a temporary public-schema owner, and a session's temporary namespace pair |
 | `RuleUnitRef`, `RuleUnitInt`, `RuleUnitInsert` | rule references and stored rule actions |
 | `StatisticsUnitCreate`, `StatisticsUnitStage`, `StatisticsUnitDescriptor`, `AnalyzeFacts`, `VacuumStore` | extended statistics stages, relation statistics and a table's storage |
-| `DeleteCount`, `UniqueClaimsEmpty`, `UniqueKeyBucketsEmpty`, `BtreeKeys`, `HashCaptureQuery`, `PlannerCostCommand` | write counts, unique-claim and B-tree key inspection, a captured hash query, and an admitted planner command |
+| `DeleteCount`, `UniqueClaimsEmpty`, `UniqueKeyBucketsEmpty`, `BtreeKeys`, `HashCaptureQuery`, `PlannerCostCommand` | write counts, unique-claim and B-tree key inspection, a live bound query capture, and an admitted planner command |
 | `PreparedUnitStatement`, `PreparedBoundaryName`, `PreparedBoundaryInteger`, `PreparedFoldProtocolTry`, `PreparedFoldProtocolRows`, `FoldRootsReusable` | prepared statements and boundaries, protocol fold commands and their rows, and fold-root reuse |
 | `CaptureHeapAbort`, `AssertHeapAbort`, `AssertJournalDiscards` | immutable committed heap roots and exact created-version disposal; journal comparisons preserve every non-disposal field |
+
+`HashCaptureQuery` retains its real statement owner until release/cleanup. Before
+capturing sources it installs the actual `core.Describe` authorization and
+dependency manifest on that scope, matching bound execution. Parallel aggregate
+support therefore crosses ordinary live routine admission and privilege gates;
+an empty or fabricated authority is not a substitute. Source and scope cleanup
+remain owned by the existing release handle.
 
 ## Stages
 

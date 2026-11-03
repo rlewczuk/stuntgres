@@ -100,10 +100,10 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 	state := VacuumProgress{Phase: "scanning heap", Capacity: int64(len(c.Rows)) * 8}
 	progress(state)
 	rows := storage.EffectiveHeapRows(c.Rows, c.Headers)
-	candidate, err := storage.InspectVacuum(ctx, rows, c.Ends, c.Frontier, c.Cutoff, c.Retire, func(completed int, dead int64) {
+	candidate, err := storage.InspectVacuum(ctx, rows, c.Ends, c.Frontier, c.Cutoff, c.Retire, storage.VacuumProgress{Completed: func(completed int, dead int64) {
 		state.Scanned, state.DeadItems = completed, dead
 		progress(state)
-	})
+	}})
 	if err != nil {
 		return VacuumPass{}, err
 	}

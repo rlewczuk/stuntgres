@@ -112,7 +112,7 @@ func TestDeletionRootVacuumSiblingTransport(t *testing.T) {
 	root.Set(second.Row, storage.RowEnd{Version: second.Version, End: 6, Moved: true})
 	store.Ends = root
 	captured := *store
-	inspected, err := storage.InspectVacuum(context.Background(), store.Versions, root, 4, 0, true, nil)
+	inspected, err := storage.InspectVacuum(context.Background(), store.Versions, root, 4, 0, true, storage.VacuumProgress{})
 	if err != nil || inspected.Removed != 1 {
 		t.Fatal("vacuum did not discriminate sibling end frontiers", inspected, err)
 	}
@@ -124,7 +124,7 @@ func TestDeletionRootVacuumSiblingTransport(t *testing.T) {
 		t.Fatal("compaction dropped supplementary same-row end")
 	}
 	for _, retire := range []bool{false, true} {
-		rewritten, err := storage.RewriteVacuum(context.Background(), store.Versions, root, nil, 4, 0, retire, nil)
+		rewritten, err := storage.RewriteVacuum(context.Background(), store.Versions, root, nil, 4, 0, retire, storage.VacuumProgress{})
 		want := 2
 		if retire {
 			want = 1

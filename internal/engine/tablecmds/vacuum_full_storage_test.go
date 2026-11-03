@@ -20,7 +20,7 @@ func TestVacuumFullStorage(t *testing.T) {
 	ends := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 11, End: 2}}}
 	original := slices.Clone(rows)
 	for _, retire := range []bool{false, true} {
-		c, err := storage.RewriteVacuum(context.Background(), rows, ends, nil, 2, 5, retire, nil)
+		c, err := storage.RewriteVacuum(context.Background(), rows, ends, nil, 2, 5, retire, storage.VacuumProgress{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestVacuumFullStorage(t *testing.T) {
 		}
 	}
 	for _, input := range [][]storage.RowVersion{nil, {}, rows[1:]} {
-		c, err := storage.RewriteVacuum(context.Background(), input, nil, nil, 2, 3, true, nil)
+		c, err := storage.RewriteVacuum(context.Background(), input, nil, nil, 2, 3, true, storage.VacuumProgress{})
 		if err != nil || c.Ends == nil || c.Versions == nil {
 			t.Fatal("empty/clean rewrite must own roots", c, err)
 		}
@@ -68,7 +68,7 @@ func TestVacuumFullStorage(t *testing.T) {
 		}
 	}
 	allEnds := &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 11, End: 3}, 2: {Version: 22, End: 3}, 3: {Version: 33, End: 3}}}
-	all, err := storage.RewriteVacuum(context.Background(), rows, allEnds, nil, 3, 9, true, nil)
+	all, err := storage.RewriteVacuum(context.Background(), rows, allEnds, nil, 3, 9, true, storage.VacuumProgress{})
 	if err != nil || all.Removed != 3 || len(all.Versions) != 0 || all.Ends.Len() != 0 || allEnds.Len() != 3 {
 		t.Fatal("all-dead rewrite", all, err)
 	}
@@ -76,13 +76,13 @@ func TestVacuumFullStorage(t *testing.T) {
 	for i := range frozen {
 		frozen[i].Frozen = true
 	}
-	clean, err := storage.RewriteVacuum(context.Background(), frozen, nil, nil, 3, 9, true, nil)
+	clean, err := storage.RewriteVacuum(context.Background(), frozen, nil, nil, 3, 9, true, storage.VacuumProgress{})
 	if err != nil || clean.Frozen != 0 || &clean.Versions[0] == &frozen[0] {
 		t.Fatal("already-frozen heap reused header backing", clean, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := storage.RewriteVacuum(canceled, rows, ends, nil, 2, 9, true, nil); err != context.Canceled {
+	if _, err := storage.RewriteVacuum(canceled, rows, ends, nil, 2, 9, true, storage.VacuumProgress{}); err != context.Canceled {
 		t.Fatal(err)
 	}
 	if _, err := storage.NewRewriteRelation(storage.VacuumCandidate{}, ^uint64(0), storage.Maintenance{}); err == nil {
@@ -93,7 +93,7 @@ func TestVacuumFullStorage(t *testing.T) {
 	}
 	history := &storage.HeapPredecessor{Version: rows[0], End: 2, EndFullXID: 7, Next: &storage.HeapPredecessor{Version: rows[1], End: 2, EndFullXID: 7}}
 	for _, retire := range []bool{false, true} {
-		candidate, err := storage.RewriteVacuum(context.Background(), rows[2:], nil, history, 2, 3, retire, nil)
+		candidate, err := storage.RewriteVacuum(context.Background(), rows[2:], nil, history, 2, 3, retire, storage.VacuumProgress{})
 		dead, removed, root := int64(2), int64(0), history
 		if retire {
 			dead, removed, root = 0, 2, nil
@@ -107,13 +107,13 @@ func TestVacuumFullStorage(t *testing.T) {
 		}
 	}
 	for _, invalid := range []*storage.HeapPredecessor{{Version: rows[0]}, {Version: rows[0], End: 3}, {End: 2}} {
-		if _, err := storage.RewriteVacuum(context.Background(), rows, ends, invalid, 2, 3, true, nil); err == nil {
+		if _, err := storage.RewriteVacuum(context.Background(), rows, ends, invalid, 2, 3, true, storage.VacuumProgress{}); err == nil {
 			t.Fatal("invalid committed physical history accepted")
 		}
 	}
 	retainedContext, retainedCancel := context.WithCancel(context.Background())
 	defer retainedCancel()
-	if _, err := storage.RewriteVacuum(retainedContext, rows, ends, history, 2, 3, true, func(int, int64) { retainedCancel() }); err != context.Canceled {
+	if _, err := storage.RewriteVacuum(retainedContext, rows, ends, history, 2, 3, true, storage.VacuumProgress{Completed: func(int, int64) { retainedCancel() }}); err != context.Canceled {
 		t.Fatal("retained inspection ignored cancellation after current copy", err)
 	}
 	if history.End != 2 || history.EndFullXID != 7 || history.Next.End != 2 || !reflect.DeepEqual(history.Version, rows[0]) || !reflect.DeepEqual(history.Next.Version, rows[1]) {

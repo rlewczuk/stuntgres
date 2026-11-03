@@ -83,7 +83,7 @@ func TestVacuumFullRetention(t *testing.T) {
 					t.Fatal("invalid committed UPDATE predecessor", node)
 				}
 			}
-			guarded, err := storage.RewriteVacuum(context.Background(), before.rows, before.ends, before.predecessors, e.Visibility.CommitSeq(), 3, false, nil)
+			guarded, err := storage.RewriteVacuum(context.Background(), before.rows, before.ends, before.predecessors, e.Visibility.CommitSeq(), 3, false, storage.VacuumProgress{})
 			if err != nil || guarded.Live != 1 || guarded.Dead != 2 || guarded.Removed != 0 || guarded.Retained != before.predecessors || len(guarded.Versions) != 1 || guarded.Positions[0] != 0 {
 				t.Fatal("guarded actual predecessor accounting/current-copy sizing", guarded, err)
 			}
@@ -91,7 +91,7 @@ func TestVacuumFullRetention(t *testing.T) {
 			if report := table.VacuumFullReport(read, before.descriptor, guarded, 1); report != `rewriting "public"."full_history" (native logical storage): 1 live rows, 2 retained dead versions, 0 dead versions removed, 0 versions frozen, 1 indexes rebuilt` {
 				t.Fatal("guarded physical history VERBOSE counts", report)
 			}
-			physical, err := storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, false, nil)
+			physical, err := storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, false, storage.VacuumProgress{})
 			if err != nil || physical.Live != 1 || physical.Dead != 3 || physical.Removed != 0 || physical.Retained != before.predecessors || physical.Discarded != discarded || len(physical.Versions) != 1 {
 				t.Fatal("guarded canonical rewrite lost committed or discarded physical versions", physical, err)
 			}
@@ -108,14 +108,14 @@ func TestVacuumFullRetention(t *testing.T) {
 			}
 			sessionSQL(t, reader, "ROLLBACK")
 			before = captureFullOwned(t, e, "full_history")
-			retired, err := storage.RewriteVacuum(context.Background(), before.rows, before.ends, before.predecessors, e.Visibility.CommitSeq(), 3, true, nil)
+			retired, err := storage.RewriteVacuum(context.Background(), before.rows, before.ends, before.predecessors, e.Visibility.CommitSeq(), 3, true, storage.VacuumProgress{})
 			if err != nil || retired.Live != 1 || retired.Dead != 0 || retired.Removed != 2 || retired.Retained != nil || len(retired.Versions) != 1 || retired.Positions[0] != 0 {
 				t.Fatal("quiescent actual predecessor accounting/current-copy sizing", retired, err)
 			}
 			if report := table.VacuumFullReport(read, before.descriptor, retired, 1); report != `rewriting "public"."full_history" (native logical storage): 1 live rows, 0 retained dead versions, 2 dead versions removed, 0 versions frozen, 1 indexes rebuilt` {
 				t.Fatal("retired physical history VERBOSE counts", report)
 			}
-			physical, err = storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, true, nil)
+			physical, err = storage.RewriteHeapVacuum(context.Background(), *before.store, e.Visibility.CommitSeq(), 3, true, storage.VacuumProgress{})
 			if err != nil || physical.Live != 1 || physical.Dead != 0 || physical.Removed != 3 || physical.Retained != nil || physical.Discarded != nil || len(physical.Versions) != 1 {
 				t.Fatal("quiescent canonical rewrite did not retire exact committed and discarded versions", physical, err)
 			}

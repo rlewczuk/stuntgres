@@ -498,16 +498,20 @@ inserted versions to since-vacuum, and never publishes private live rows.
 Completed ANALYZE/VACUUM reports instead update the same shared provider
 immediately, including inside an open transaction. They neither drain ordinary
 pending deltas nor change their throttle/retry or existing reader snapshots.
-`stats_indexes.go` captures a narrow execution capability with operation-effective
-`track_counts`, retaining the exact index ref and the physical writer's generation.
-Actual search/entry/fetch work is nontransactional read accounting, never tuple
-ledger settlement. Top-level clear, actual failed-block abort and successful
+`stats_indexes.go` captures narrow index and relation execution capabilities with
+operation-effective `track_counts`, retaining exact qualified refs and the
+physical writer's generation. Sequential starts/fetched tuples, bitmap table
+fetches and index search/entry/simple-fetch work are nontransactional read
+accounting, never tuple ledger settlement. Top-level clear, actual failed-block
+abort and successful
 PREPARE record one UTC-microsecond stop marker before owner identity disappears.
 A physical payload remembers the stopped TxRef so a later no-op failed-block
 ROLLBACK cannot overwrite that terminal clock; savepoints/PL exceptions do not
 stamp top-level stops. Prepared completion never transfers/replays read events.
-The catalog runtime projects index facts through the same physical-session Reader
-as table facts. The replacement baseline additionally preserves already-published
+The catalog runtime projects sequential/table-bitmap and index facts through the
+same physical-session Reader as tuple/maintenance facts. ALL aggregates attached
+index SUM/MAX only after identity predicates admit the parent. The replacement
+baseline additionally preserves already-published
 attached destination TEMP SQLIndex facts (which have no row store), remapping only
 their retained qualified epoch. Imported persistent indexes and stale pending
 writers do not inherit that history.

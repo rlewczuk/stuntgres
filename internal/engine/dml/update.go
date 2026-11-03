@@ -147,7 +147,13 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	// The candidate set is frozen before the first row wait. Rechecks can remove
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []UpdateCandidate
+	scan := exec.NewRelationScan(source)
+	if err := ctx.Err(); err != nil { return Outcome{}, err }
+	scan.Reach(0)
 	for i := range source.Count() {
+		if err := ctx.Err(); err != nil { return Outcome{}, err }
+		scan.Reach(i)
+		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
 		old := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
@@ -186,6 +192,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			}
 		}
 	}
+	scan.Reach(source.Count())
 	type physicalBatch struct {
 		ref    ids.ObjectRef
 		old    []storage.RowVersion

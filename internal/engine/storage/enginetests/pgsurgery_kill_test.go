@@ -80,7 +80,7 @@ func TestPgsurgeryKillMaintenance(t *testing.T) {
 	if &rows[0] == &source.Versions[0] || !rows[0].HeapKilled || source.Versions[0].HeapKilled {
 		t.Fatal("effective rows borrowed mutable death projection")
 	}
-	candidate, err := storage.InspectVacuum(t.Context(), rows, nil, 2, 3, true, nil)
+	candidate, err := storage.InspectVacuum(t.Context(), rows, nil, 2, 3, true, storage.VacuumProgress{})
 	if err != nil || candidate.Live != 1 || candidate.Removed != 1 {
 		t.Fatal("vacuum counted killed tuple as live", candidate, err)
 	}

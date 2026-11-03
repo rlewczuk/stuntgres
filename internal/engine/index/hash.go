@@ -107,6 +107,10 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 	if store == nil {
 		return nil, fmt.Errorf("stuntgres: missing hash index storage")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	heapAccess := capture.beginHeapScan(evaluation, parent)
 	var root *storage.HashRoot
 	if materialize {
 		root = &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
@@ -125,6 +129,7 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		heapAccess.Record(0, 1, 0)
 		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			if progress != nil {
 				progress.ScanDone(position + 1)

@@ -353,6 +353,10 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 	if store == nil {
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	heapAccess := capture.beginHeapScan(evaluation, parent)
 	entries := make([]storage.IndexEntry, 0, len(store.Versions))
 	var progress BuildProgress
 	if capture != nil {
@@ -367,6 +371,9 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		// The utility's fetched SnapshotAny version precedes index membership,
+		// key NULL handling and build visibility filtering.
+		heapAccess.Record(0, 1, 0)
 		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			matches, err := preparation.PredicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {

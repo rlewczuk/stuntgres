@@ -58,7 +58,7 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 						}
 					}
 				}
-				go func() { _, err := InspectVacuum(ctx, rows, ends, 2, 4, true, progress); done <- err }()
+				go func() { _, err := InspectVacuum(ctx, rows, ends, 2, 4, true, VacuumProgress{Completed: progress}); done <- err }()
 				if n == 0 {
 					if err := <-done; err != nil {
 						t.Fatal(err)
@@ -126,7 +126,7 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 			if mode != "inert" {
 				ctx = util.ActivateExecutionPause(ctx)
 			}
-			if _, err := InspectVacuum(ctx, []RowVersion{{Born: 1, InsertFullXID: 3}}, nil, 1, 4, false, nil); err != nil {
+			if _, err := InspectVacuum(ctx, []RowVersion{{Born: 1, InsertFullXID: 3}}, nil, 1, 4, false, VacuumProgress{}); err != nil {
 				t.Fatal(err)
 			}
 			if mode == "early" {
@@ -170,11 +170,11 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 		})
 		var prefixes []int
 		go func() {
-			_, err := InspectVacuum(ctx, make([]RowVersion, 129), nil, 1, 4, false, func(prefix int, _ int64) { prefixes = append(prefixes, prefix) })
+			_, err := InspectVacuum(ctx, make([]RowVersion, 129), nil, 1, 4, false, VacuumProgress{Completed: func(prefix int, _ int64) { prefixes = append(prefixes, prefix) }})
 			done <- err
 		}()
 		go func() {
-			_, err := InspectVacuum(otherCtx, []RowVersion{{Born: 1}}, nil, 1, 4, false, nil)
+			_, err := InspectVacuum(otherCtx, []RowVersion{{Born: 1}}, nil, 1, 4, false, VacuumProgress{})
 			doneOther <- err
 		}()
 		wait, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -233,7 +233,7 @@ func TestVacuumInspectExecutionPause(t *testing.T) {
 			util.ActivateExecutionPause(util.WithExecutionPause(context.Background(), nil)),
 		} {
 			if allocs := testing.AllocsPerRun(100, func() {
-				if _, err := InspectVacuum(ctx, rows, nil, 1, 4, false, nil); err != nil {
+				if _, err := InspectVacuum(ctx, rows, nil, 1, 4, false, VacuumProgress{}); err != nil {
 					panic(err)
 				}
 			}); allocs != 0 {

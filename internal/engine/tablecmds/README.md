@@ -349,6 +349,21 @@ FULL progress belongs only to the actual `pg_stat_progress_cluster` worker;
 ordinary VACUUM counters and progress remain separate. Disk shrinking and file
 paths are external, not effects of the native logical rewrite.
 
+The actual FULL old-heap rewrite also owns a sequential relation-access
+capability: scan start includes an empty source, and the primary storage
+inspection charges each fetched version before rewrite filtering. The
+`storage.VacuumProgress` Fetched callback is independent of batched completed
+progress and the later copy/history passes. Errors/cancellation preserve the
+reached prefix and a genuine restarted rewrite starts a new invocation.
+Index-root reconstruction during FULL has no admitted CREATE INDEX scan
+authority. This adds no ordinary vacuum count/timestamp/duration. ANALYZE's
+distinct source and lazy ordinary VACUUM remain outside sequential collection.
+Like ordinary VACUUM, FULL activates the existing serial statement runtime
+after capture locks are released and passes that effective context to the
+detached rewrite. Binding's masked pause request is not execution permission.
+The original operation still owns cancellation/deadlines and publication fences;
+no capture or state mutex spans admission or an execution pause.
+
 FULL preserves the predecessor's grounded `RetainedOrigin`/`TruncateBoundary`
 pair and genuine materialized-refresh/TRUNCATE tokens, without modifying that
 published predecessor. Genuine concurrent materialized refresh propagates the

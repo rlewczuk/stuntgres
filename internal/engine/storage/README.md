@@ -396,6 +396,12 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   BRIN compaction dispatches through the index owner's
   conservative destination-range reconstruction, never generic entry remapping.
   No-change passes retain roots; no row/version IDs are minted.
+  `VacuumProgress` separates an optional per-fetched-source callback from the
+  existing batched Completed callback. Actual FULL supplies source read authority
+  only to the primary inspection loop, after cancellation admission and before
+  dead/retention filtering; copy and history reconciliation never refetch it.
+  Ordinary vacuum and reconstruction leave Fetched nil. Storage owns no statistics
+  provider and does not infer access events from survivor or completion totals.
   `MaintainHeapHistory` applies that gate to actual committed predecessors and
   discarded versions using the captured exact-version `HeapHeaderRoot`. A repaired
   live version survives maintenance, including a version absent from the head

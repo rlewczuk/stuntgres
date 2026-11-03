@@ -37,12 +37,22 @@ func vacuumFreeze(row RowVersion, frontier ids.CommitSeq, cutoff uint64) bool {
 	return !row.HeapKilled && row.Born != 0 && row.Born <= frontier && !row.Frozen && row.InsertFullXID >= 3 && row.InsertFullXID < cutoff
 }
 
-// progress reports completed prefixes, batched at logical block boundaries.
-func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool, progress func(int, int64)) (VacuumCandidate, error) {
+// VacuumProgress separates actual source fetching from batched completed work.
+// Only an admitted source consumer supplies Fetched; copy/history passes do not.
+type VacuumProgress struct {
+	Fetched func()
+	Completed func(int, int64)
+}
+
+// Completed reports inspected prefixes, batched at logical block boundaries.
+func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool, progress VacuumProgress) (VacuumCandidate, error) {
 	c := VacuumCandidate{Versions: rows, Ends: ends, Horizon: cutoff}
 	for i, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return VacuumCandidate{}, err
+		}
+		if progress.Fetched != nil {
+			progress.Fetched()
 		}
 		dead := vacuumEnded(row, ends, frontier)
 		if dead && retire {
@@ -64,8 +74,8 @@ func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, f
 			}
 		}
 		if (i+1)%128 == 0 || i+1 == len(rows) {
-			if progress != nil {
-				progress(i+1, c.Removed)
+			if progress.Completed != nil {
+				progress.Completed(i+1, c.Removed)
 			}
 			if err := util.ExecutionCheckpoint(ctx, "vacuum.inspect"); err != nil {
 				return VacuumCandidate{}, err

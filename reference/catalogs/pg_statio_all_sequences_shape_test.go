@@ -190,9 +190,16 @@ func TestReferencePGStatioAllSequencesMembership(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-			for _, q := range []string{"CREATE SCHEMA statio_a", "CREATE SCHEMA statio_b", `CREATE SCHEMA "PG_TOAST"`, "CREATE SEQUENCE statio_a.same", "CREATE SEQUENCE statio_b.same", `CREATE SEQUENCE statio_a."Quoted Sequence"`, `CREATE SEQUENCE "PG_TOAST".statio_upper`, "CREATE TABLE statio_a.ordinary(id integer)", "CREATE INDEX statio_index ON statio_a.ordinary(id)", "CREATE VIEW statio_a.not_sequence AS SELECT id FROM statio_a.ordinary", "CREATE TABLE statio_a.serial_owner(id serial)", "CREATE TABLE statio_b.identity_owner(id bigint GENERATED ALWAYS AS IDENTITY)", "CREATE TEMP SEQUENCE statio_temp"} {
+			for _, q := range []string{"CREATE SCHEMA statio_a", "CREATE SCHEMA statio_b", `CREATE SCHEMA "PG_TOAST"`, "CREATE SEQUENCE statio_a.same", "CREATE SEQUENCE statio_b.same", `CREATE SEQUENCE statio_a."Quoted Sequence"`, `CREATE SEQUENCE "PG_TOAST".statio_upper`, "CREATE TABLE statio_a.ordinary(id integer)", "CREATE VIEW statio_a.not_sequence AS SELECT id FROM statio_a.ordinary", "CREATE TABLE statio_a.serial_owner(id serial)", "CREATE TABLE statio_b.identity_owner(id bigint GENERATED ALWAYS AS IDENTITY)", "CREATE TEMP SEQUENCE statio_temp"} {
 				statioSequenceExec(t, p, b, a, q)
 			}
+			// A real index build publishes heap activity. Isolate its writer
+			// rather than consuming the sequence producer's first report.
+			ddl,err:=b.DB.Conn(p.Ctx)
+			if err!=nil {t.Fatal(err)}
+			defer ddl.Close()
+			statioSequenceExec(t,p,b,ddl,"CREATE INDEX statio_index ON statio_a.ordinary(id)")
+			statioSequenceRetire(t,ddl)
 			q := "SELECT * FROM pg_catalog.pg_statio_all_sequences WHERE schemaname IN ('statio_a','statio_b','PG_TOAST') OR relname='statio_temp' ORDER BY schemaname,relname"
 			want := map[string]int64{}
 			for _, name := range []string{"statio_a.same", "statio_b.same", `statio_a."Quoted Sequence"`, `"PG_TOAST".statio_upper`, "statio_a.serial_owner_id_seq", "statio_b.identity_owner_id_seq", "pg_temp.statio_temp"} {

@@ -10,8 +10,8 @@ import (
 // predecessor. Immutable datum backing and logical insertion identity survive.
 // The canonical retirement guard, not AX alone, authorizes removing dead heads
 // and the captured genuine UPDATE predecessors.
-func RewriteVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, retained *HeapPredecessor, frontier ids.CommitSeq, cutoff uint64, retire bool, progress func(int, int64)) (VacuumCandidate, error) {
-	c, err := InspectVacuum(ctx, rows, ends, frontier, cutoff, retire, nil)
+func RewriteVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, retained *HeapPredecessor, frontier ids.CommitSeq, cutoff uint64, retire bool, progress VacuumProgress) (VacuumCandidate, error) {
+	c, err := InspectVacuum(ctx, rows, ends, frontier, cutoff, retire, VacuumProgress{Fetched: progress.Fetched})
 	if err != nil {
 		return VacuumCandidate{}, err
 	}
@@ -36,8 +36,8 @@ func RewriteVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, r
 				}
 			}
 		}
-		if progress != nil && ((i+1)%128 == 0 || i+1 == len(rows)) {
-			progress(i+1, int64(len(c.Versions)))
+		if progress.Completed != nil && ((i+1)%128 == 0 || i+1 == len(rows)) {
+			progress.Completed(i+1, int64(len(c.Versions)))
 		}
 	}
 	var dead, removed int64

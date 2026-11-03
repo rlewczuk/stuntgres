@@ -102,6 +102,7 @@ func bloomFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode
 		selection.Index = source.Ref.Domain().Ref(source.Ref.Epoch, capture.Address)
 		if host := state.Source.LiveHost(); host != nil {
 			selection.Access = host.CaptureIndexAccess(selection.Index)
+			selection.HeapAccess = host.CaptureRelationAccess(source.Ref)
 		}
 		selection.Access.Record(1, 0, 0)
 		if len(root.Entries) != 0 && capture.ReadLease != nil {

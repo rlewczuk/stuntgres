@@ -10,6 +10,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -93,6 +95,11 @@ type rowMarkHostProbe struct {
 
 func (*rowMarkHostProbe) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
 	return sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}
+}
+
+// This protocol-only host has no engine statistics writer.
+func (*rowMarkHostProbe) CaptureRelationAccess(ids.ObjectRef) statistics.RelationAccess {
+	return statistics.RelationAccess{}
 }
 func (*rowMarkHostProbe) CTEInvocation() *CTEInvocation                               { return nil }
 func (*rowMarkHostProbe) ReleaseReplacementRead()                                     {}

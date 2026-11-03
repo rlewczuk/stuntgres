@@ -343,6 +343,35 @@ typmods; naming is captured only on failure and is never retained in result tupl
   private and historical fallbacks produce no native index events. B-tree
   presence and covering projections imply no new access method or index-only
   accounting.
+  `RelationScan` owns one actual physical sequential invocation across Stage
+  copies, projections and security wrappers. Demand starts even an empty heap;
+  live fetched occurrences are charged before predicates/RLS, with a shared
+  high-water frontier preventing retained replay or repeated ensure from
+  refetching. Contiguous Drain charges only its newly reached span, including
+  worker-local range boundaries. LIMIT/EXISTS retain their demanded prefix,
+  LIMIT0 and unopened sources do not start, and real reopened sources start
+  independently. DML candidate loops borrow this same heap authority.
+  Physical parallel query/aggregate lanes keep private start/tuple scalars at
+  this same demand frontier. Workers never capture a relation capability or
+  touch the physical session Writer. The serial leader captures that authority
+  before fanout and reduces all lane prefixes after joining, before returning
+  any worker error/cancellation or gathering output. Failed projected output
+  cannot discard already fetched work; merely launching an unopened lane adds
+  nothing. No provider lock, shared pending map or new statistics map is used
+  per row, and parallel eligibility/results are unchanged.
+  Inheritance/partition branches charge each reached physical relation, not
+  an invented parent aggregate. The existing pruner additionally carries selected
+  empty segment identities when ordinal intervals cannot represent them; the
+  branch cursor reaches them lazily, without counting excluded/unreached leaves.
+  This is distinct from ReadLease's nonempty buffer-representative contract.
+  In mixed local/foreign hierarchies, each actually opened local child owns this
+  same capability, borrowing statement authority from its enclosing capture
+  without mutating the shared Source. A reached empty local prefix still starts
+  a scan; unopened later children and foreign handlers never acquire local heap
+  events. Retained hierarchy output replay is not a new local invocation.
+  Actual bloom heap candidates charge the table's bitmap fetch subtotal before
+  recheck, once per fetch, while index simple fetches remain zero. Neither
+  preparation nor output replay nor public database/sql Next creates read work.
   Sources and stages release retained roots on close, invalidate stale selection
   on reset, and preserve terminal cancellation rather than returning partial
   success. Cursors/portals retain their opening decision; prepared execution

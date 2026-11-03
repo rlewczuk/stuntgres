@@ -330,6 +330,15 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 	if err := sampleCheckpoint(ctx); err != nil {
 		return false, s.fail(err)
 	}
+	if s.Produce == nil && s.scan != nil {
+		ordinal := s.Source.Count()
+		if s.scanRange { ordinal = s.scanEnd }
+		if i < s.Count() { ordinal = s.Index(i) }
+		s.scan.Reach(ordinal)
+		if i < s.Count() {
+			s.scan.Fetch(s.Index(i))
+		}
+	}
 	if i < s.Count() {
 		s.readOrdinal(s.Index(i))
 	}
@@ -378,6 +387,11 @@ func (s *Stage) Drain(ctx context.Context) error {
 			return s.fail(err)
 		}
 		s.drainReadLeases()
+		if s.scan != nil {
+			start := 0
+			if s.scanRange { start = s.scanStart }
+			s.scan.Drain(start, start+s.Count())
+		}
 		s.observeDrained(s.Count())
 		return nil
 	}

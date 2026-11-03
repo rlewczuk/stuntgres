@@ -60,6 +60,20 @@ builds a binder.
   Signatures select lossy candidates, never exact equality: the executor must
   evaluate the original predicate on each captured visible stored row.
   No PostgreSQL C AM ABI, physical pages, WAL or durable signature format is used.
+  Actual admitted SQL CREATE INDEX/REINDEX heap builds use the same cumulative
+  RelationAccess capability as query heaps. The selected BuildCapture.Progress
+  binding plus a live statement host grants scan authority at collector start;
+  generic reconstruction, validation, reused roots and Restore have no such
+  authority. Empty real builds count scan1/read0. Each fetched build version is
+  counted before build visibility, partial predicates and NULL-key exclusion,
+  never inferred from final entries. Cancellation retains only fetched work.
+  Composed build proofs respect method admission: HASH uses an ordinary build
+  with a skipped NULL key, while B-tree/bloom/BRIN also witness actual partial
+  predicate exclusion. This does not expand HASH's supported SQL clauses.
+  Generic/Gin/Bloom share the entry collector; hash and BRIN retain their
+  specialized row frontiers. These are not index search/simple-fetch events.
+  Ordinary ANALYZE uses a distinct analyze source and ordinary VACUUM scans
+  maintenance blocks, so neither becomes a generic sequential utility event.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.

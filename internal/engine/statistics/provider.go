@@ -30,6 +30,8 @@ type Fact struct {
 	LastVacuum, LastAnalyze                                                                        time.Time
 	IndexScans, IndexEntries, IndexFetches                                                         int64
 	LastIndexScan                                                                                  time.Time
+	SeqScans, SeqTuples, TableIndexFetches int64
+	LastSeqScan time.Time
 	Truncated                                                                                      bool
 	VacuumTime, AnalyzeTime                                                                        time.Duration
 	Calls, Operations                                                                              int64
@@ -111,6 +113,12 @@ func merge(a, b Fact) Fact {
 	a.IndexFetches += b.IndexFetches
 	if b.LastIndexScan.After(a.LastIndexScan) {
 		a.LastIndexScan = b.LastIndexScan
+	}
+	a.SeqScans += b.SeqScans
+	a.SeqTuples += b.SeqTuples
+	a.TableIndexFetches += b.TableIndexFetches
+	if b.LastSeqScan.After(a.LastSeqScan) {
+		a.LastSeqScan = b.LastSeqScan
 	}
 	a.Calls += b.Calls
 	a.Operations += b.Operations
@@ -213,6 +221,37 @@ func (a *IndexAccess) Record(searches, entries, fetches int64) {
 	f.IndexFetches += fetches
 	a.writer.pending[a.key] = f
 }
+
+// RelationAccess owns reached heap work, independently of tuple settlement.
+// Like IndexAccess it is captured once and only touches serialized local state.
+type RelationAccess struct {
+	writer *Writer
+	key Key
+	generation uint64
+}
+
+func (w *Writer) CaptureRelationAccess(p *Provider, k Key, policy Policy) RelationAccess {
+	if !policy.Counts {
+		return RelationAccess{}
+	}
+	w.Add(p, k, Fact{})
+	if _, ok := w.pending[k]; !ok {
+		return RelationAccess{}
+	}
+	return RelationAccess{writer: w, key: k, generation: w.generation}
+}
+
+func (a *RelationAccess) Record(scans, tuples, bitmapFetches int64) {
+	if a.writer == nil || a.writer.generation != a.generation {
+		return
+	}
+	f, present := a.writer.pending[a.key]
+	if !present { return }
+	f.SeqScans += scans
+	f.SeqTuples += tuples
+	f.TableIndexFetches += bitmapFetches
+	a.writer.pending[a.key] = f
+}
 func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 	if !w.Pending() || !force && !w.last.IsZero() && now.Sub(w.last) < time.Second {
 		return false
@@ -235,6 +274,13 @@ func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 				f.LastIndexScan = w.stopped
 				if f.LastIndexScan.IsZero() {
 					f.LastIndexScan = now
+				}
+			}
+			f.LastSeqScan = time.Time{}
+			if f.SeqScans > 0 {
+				f.LastSeqScan = w.stopped
+				if f.LastSeqScan.IsZero() {
+					f.LastSeqScan = now
 				}
 			}
 			next := mergeCategory(k.Category, p.facts[k], f)

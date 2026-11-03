@@ -72,3 +72,31 @@ func TestQueryBranchPruning(t *testing.T) {
 		})
 	}
 }
+
+// This owns cursor/frontier mechanics only. Positive provider events are proved
+// independently by the composed engine-backed PGStatAllTablesScanDemand cases.
+func TestQueryBranchPruningEmptyDemand(t *testing.T) {
+	source:=&Source{Anonymous:make([][]sqltype.Value,4),InheritanceEnds:[]int{0,2,2,4,4},Inheritance:make([]InheritanceQuerySegment,5)}
+	for i:=range source.Inheritance {source.Inheritance[i].Prefix=&Source{}}
+	scan:=NewRelationScan(source)
+	scan.pruned=true
+	child:=Stage{Source:source,scan:&scan}
+	defer child.Close()
+	cursor:=queryBranchCursor{selection:QueryBranchSelection{Applied:true,Intervals:[]QueryBranchInterval{{Start:0,End:4}},EmptySegments:[]int{0,2,4}}}
+	started:=func(want []bool) {
+		t.Helper()
+		got:=make([]bool,5)
+		for i:=range scan.segments {got[i]=scan.segments[i].started}
+		if !reflect.DeepEqual(got,want) {t.Fatal("demanded physical segment frontier",got,want)}
+	}
+	started([]bool{false,false,false,false,false})
+	if _,ok,err:=cursor.next(context.Background(),&child);err!=nil||!ok {t.Fatal(ok,err)}
+	started([]bool{true,true,false,false,false})
+	ctx,cancel:=context.WithCancel(context.Background());cancel()
+	if _,_,err:=cursor.next(ctx,&child);!errors.Is(err,context.Canceled) {t.Fatal(err)}
+	started([]bool{true,true,false,false,false})
+	for range 3 {if _,ok,err:=cursor.next(context.Background(),&child);err!=nil||!ok {t.Fatal(ok,err)}}
+	started([]bool{true,true,true,true,false})
+	if _,ok,err:=cursor.next(context.Background(),&child);err!=nil||ok {t.Fatal(ok,err)}
+	started([]bool{true,true,true,true,true})
+}

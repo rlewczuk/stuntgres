@@ -52,6 +52,7 @@ type Host interface {
 	AdmittedPlannerMethods() plan.PlannerMethods
 	// Capture once at a reached search; row events touch only owner-local state.
 	CaptureIndexAccess(ids.ObjectRef) statistics.IndexAccess
+	CaptureRelationAccess(ids.ObjectRef) statistics.RelationAccess
 
 	// Admission: the statement's routine admission authority and its
 	// original dependency manifest. Reads statement-owned fields only; fails

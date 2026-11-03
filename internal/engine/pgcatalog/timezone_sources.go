@@ -73,6 +73,8 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		detail = "Views containing DISTINCT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignServerOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
 		detail = "Views that return set-returning functions are not automatically updatable."
+	} else if d.Address().ObjectID == StatAllTablesOID {
+		detail = "Views containing GROUP BY are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: message, Detail: detail,

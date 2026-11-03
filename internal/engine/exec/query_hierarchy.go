@@ -22,6 +22,7 @@ func openForeignHierarchy(ctx context.Context, state *State, source *Source, nod
 	out := Stage{Source: source, Columns: node.Schema(), Selection: []int{}}
 	resetOutput(&out)
 	var child Stage
+	var childScan RelationScan
 	var row []sqltype.Value
 	position, opened := 0, false
 	closeChild := func() error {
@@ -54,6 +55,11 @@ func openForeignHierarchy(ctx context.Context, state *State, source *Source, nod
 				} else {
 					out.readSegment(position)
 					child = Stage{Source: segment.Prefix, Columns: segment.Leaf.Relation.Columns}
+					if source.LiveHost() != nil {
+						childScan = NewRelationScan(segment.Prefix)
+						childScan.admission = source
+						child.scan = &childScan
+					}
 				}
 				width := len(segment.Leaf.Relation.Columns)
 				if cap(row) < width {

@@ -115,6 +115,10 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 	if width < 1 || width > 131072 {
 		return nil, fmt.Errorf("stuntgres: invalid BRIN build width")
 	}
+	if err := evaluation.Context.Err(); err != nil {
+		return nil, err
+	}
+	heapAccess := capture.beginHeapScan(evaluation, parent)
 	var root *storage.BrinRoot
 	if materialize {
 		root = &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends, Ranges: make([]storage.BrinRange, (len(store.Versions)+width-1)/width)}
@@ -133,6 +137,7 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, err
 		}
+		heapAccess.Record(0, 1, 0)
 		ordinal := position / width
 		if materialize && !root.Ranges[ordinal].Summarized {
 			root.Ranges[ordinal] = storage.BrinRange{Summarized: true, Keys: make([]storage.BrinSummary, len(bindings))}

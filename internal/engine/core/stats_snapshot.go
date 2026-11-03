@@ -50,7 +50,7 @@ func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.Ma
 		now = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	f := reader.Read(&r.engine.Statistics, key, now)
-	return pgcatalog.MaintenanceFact{Inserts: f.Inserts, Updates: f.Updates, Deletes: f.Deletes, Live: f.Live, Dead: f.Dead, Modifications: f.Modifications, InsertsSince: f.InsertsSince, VacuumCount: f.VacuumCount, LastVacuum: f.LastVacuum, AnalyzeCount: f.AnalyzeCount, LastAnalyze: f.LastAnalyze, VacuumTime: f.VacuumTime, AnalyzeTime: f.AnalyzeTime}
+	return pgcatalog.MaintenanceFact{SeqScans: f.SeqScans, SeqTuples: f.SeqTuples, LastSeqScan: f.LastSeqScan, TableIndexFetches: f.TableIndexFetches, Inserts: f.Inserts, Updates: f.Updates, Deletes: f.Deletes, Live: f.Live, Dead: f.Dead, Modifications: f.Modifications, InsertsSince: f.InsertsSince, VacuumCount: f.VacuumCount, LastVacuum: f.LastVacuum, AnalyzeCount: f.AnalyzeCount, LastAnalyze: f.LastAnalyze, VacuumTime: f.VacuumTime, AnalyzeTime: f.AnalyzeTime}
 }
 
 func (r *catalogRuntime) SequenceIOStatistics(address ids.ObjectAddress) int64 {

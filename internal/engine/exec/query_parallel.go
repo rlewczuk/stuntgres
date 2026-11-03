@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/sqltype"
 )
 
@@ -188,6 +189,7 @@ type QueryParallelRun struct {
 	cacheWidth  int
 	count       int
 	start       int // Allocation-free contiguous run when indices is nil.
+	scanCounts  relationScanCounts
 }
 
 func (r *QueryParallelRun) index(ordinal int) int {
@@ -233,6 +235,7 @@ func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *So
 	}
 	defer worker.Close()
 	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
+	state.scanCounts = &run.scanCounts
 	defer state.ReleaseMemberships()
 	stage, err := OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
@@ -259,10 +262,10 @@ func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *So
 		var present bool
 		present, err = stage.ProjectOrdinal(ctx, i, dst)
 		if err != nil {
-			return QueryParallelRun{}, err
+			return run, err
 		}
 		if !present {
-			return QueryParallelRun{}, fmt.Errorf("stuntgres: early parallel projection EOF")
+			return run, fmt.Errorf("stuntgres: early parallel projection EOF")
 		}
 	}
 	// Reuse sorted physical selections when possible; cache permutations retain
@@ -291,6 +294,10 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	}
 	methods := sourcePlannerMethods(source)
 	slots, direct := parallelProjectionSlots(project)
+	var access statistics.RelationAccess
+	if host := source.LiveHost(); host != nil {
+		access = host.CaptureRelationAccess(source.Ref)
+	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	runs := make([]QueryParallelRun, workers)
@@ -303,6 +310,7 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		go func(i int) {
 			defer joined.Done()
 			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct, methods)
+			runs[i] = run // Failed output still owns its actual fetched prefix.
 			if err != nil {
 				errorMu.Lock()
 				if first == nil {
@@ -312,10 +320,15 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 				errorMu.Unlock()
 				return
 			}
-			runs[i] = run
 		}(i)
 	}
 	joined.Wait() // No authority or input pin can outlive statement finalization.
+	var counts relationScanCounts
+	for i := range runs {
+		counts.starts += runs[i].scanCounts.starts
+		counts.tuples += runs[i].scanCounts.tuples
+	}
+	access.Record(counts.starts, counts.tuples, 0)
 	if first != nil {
 		return nil, 0, first
 	}

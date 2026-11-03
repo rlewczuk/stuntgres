@@ -85,6 +85,9 @@ func HashCaptureQuery(t testing.TB, e *core.Engine, op *session.Operation, q str
 	}
 	var source *exec.Source
 	if err == nil {
+		// Match executeBoundCommandLocked: retained sources borrow the real
+		// bound routine authority, not a statement scope with an empty view.
+		scope.RoutineAuth, scope.RoutineDependencies = auth, bound.Dependencies
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
 		source, err = e.CaptureQuerySourcesForInvokerLocked(scope, bound.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.QueryLockContext)

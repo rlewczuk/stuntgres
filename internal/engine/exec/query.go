@@ -365,6 +365,7 @@ type State struct {
 	// Only the positive SELECT coordinator activates these on a physical leaf.
 	ExecutionContext   context.Context
 	ScanRange          bool
+	scanCounts         *relationScanCounts // Non-nil only in a physical worker.
 	ScanStart, scanEnd int
 	aggregatePartials  *[]QueryGroup // Non-nil only inside the partial coordinator.
 	aggregateAdmission *parallelAggregateAdmission
@@ -418,6 +419,7 @@ type Stage struct {
 	projectionOutput   *Source // Only the actual retained projection owner.
 	readSegments       []bool  // Per-opened-stage activation, unchanged by rewind.
 	readSource         bool    // Pending ordinary read, or reached-segment tracking for a hierarchy.
+	scan               *RelationScan // Shared physical invocation; copied wrappers never own another.
 	Produce            func(context.Context, *Stage) (bool, error)
 	Finish             func() error
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
@@ -572,6 +574,7 @@ func (s *Stage) release() {
 	s.OrderValues = nil
 	s.CacheOccurrences = nil
 	s.readSegments = nil
+	s.scan = nil
 	s.Pending = nil
 	s.Evaluation = Context{}
 }
@@ -887,6 +890,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 					child.observeIndexedRead()
 					if candidates.Simple && candidates.Position > candidates.Fetched {
 						candidates.Access.Record(0, 0, 1)
+						candidates.Fetched = candidates.Position
+					} else if !candidates.Simple && candidates.Bloom != nil && candidates.Position > candidates.Fetched {
+						candidates.HeapAccess.Record(0, 0, 1)
 						candidates.Fetched = candidates.Position
 					}
 				} else {
@@ -1541,6 +1547,15 @@ func initializeRelationSource(ctx context.Context, state *State, n *plan.SourceN
 		}
 	}
 	child := Stage{Source: source, Columns: n.Schema(), readSource: true, scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
+	if source.Anonymous == nil && source.LiveHost() != nil {
+		scan := NewRelationScan(source)
+		scan.local = state.scanCounts
+		if state.ScanRange {
+			scan.rangeStart = state.ScanStart
+			scan.ordinary.fetched = state.ScanStart
+		}
+		child.scan = &scan
+	}
 	if source.RLS != nil {
 		child = openRowSecurityStage(ctx, state, child)
 		// The wrapper retains the same physical source. Hierarchy activation

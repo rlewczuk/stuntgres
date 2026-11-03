@@ -446,10 +446,25 @@ func (c *CapturedPruner) Select(ctx context.Context, evaluation *exec.Context, p
 		if err := exec.EvaluationContext(evaluation); err != nil {
 			return exec.QueryBranchSelection{}, err
 		}
+		if possible && result.Applied && start == end && c.source.Inheritance != nil {
+			result.EmptySegments = append(result.EmptySegments, i)
+		}
 		if !possible && !result.Applied {
 			result.Applied = true
 			if start > 0 {
 				result.Intervals = append(result.Intervals, exec.QueryBranchInterval{Start: 0, End: start})
+			}
+			// Before the first exclusion every prior branch was possible.
+			// Retain their missing empty identities only once pruning applies;
+			// an unpruned selection remains allocation-free and zero-valued.
+			if c.source.Inheritance != nil {
+				previousEnd := 0
+				for j, end := range c.source.InheritanceEnds[:i] {
+					if end == previousEnd {
+						result.EmptySegments = append(result.EmptySegments, j)
+					}
+					previousEnd = end
+				}
 			}
 		}
 		if possible && result.Applied && end > start {

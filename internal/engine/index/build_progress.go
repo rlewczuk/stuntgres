@@ -3,6 +3,8 @@ package index
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/statistics"
 )
 
 // BuildProgress observes completed real work. Implementations must not call back
@@ -47,4 +49,21 @@ func (b ProgressBinding) ObserverFor(address ids.ObjectAddress) BuildProgress {
 		return nil
 	}
 	return b.Observer
+}
+
+// Only the selected admitted SQL utility build carries Progress. Validation,
+// reconstruction and native Restore do not acquire heap-read authority merely
+// because they use the same key builder. Capture once at the actual scan start.
+func (b *BuildCapture) beginHeapScan(evaluation *exec.Context, parent *catalog.Relation) statistics.RelationAccess {
+	if b == nil || b.Progress == nil {
+		return statistics.RelationAccess{}
+	}
+	host := evaluation.LiveHost()
+	if host == nil {
+		return statistics.RelationAccess{}
+	}
+	ref := evaluation.Catalog.Owner().Domain.Ref(evaluation.Catalog.Epoch(), parent.Address())
+	access := host.CaptureRelationAccess(ref)
+	access.Record(1, 0, 0)
+	return access
 }

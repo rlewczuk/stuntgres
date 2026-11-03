@@ -34,6 +34,21 @@ func (h *statementHost) CaptureIndexAccess(ref ids.ObjectRef) statistics.IndexAc
 	return p.statsWriter.CaptureIndexAccess(&h.scope().Engine().Statistics, statistics.Key{Object: ref, Category: statistics.Relation}, policy)
 }
 
+func (h *statementHost) CaptureRelationAccess(ref ids.ObjectRef) statistics.RelationAccess {
+	if h == nil || h.Op == nil || h.Op.Session == nil {
+		return statistics.RelationAccess{}
+	}
+	p := PayloadOf(h.Op.Session)
+	if p == nil {
+		return statistics.RelationAccess{}
+	}
+	_, _, policy := h.Op.EffectiveSettings().StatsConfiguration()
+	if !policy.Counts {
+		return statistics.RelationAccess{}
+	}
+	return p.statsWriter.CaptureRelationAccess(&h.scope().Engine().Statistics, statistics.Key{Object: ref, Category: statistics.Relation}, policy)
+}
+
 func (r *catalogRuntime) IndexStatistics(address ids.ObjectAddress) pgcatalog.IndexStatisticsFact {
 	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
 		return pgcatalog.IndexStatisticsFact{}

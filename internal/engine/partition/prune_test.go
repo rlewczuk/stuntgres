@@ -306,3 +306,39 @@ func TestPlannerSettingsPruningSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestPartitionPruningEmptySegments(t *testing.T) {
+	for _,tc:=range []struct{
+		name,mode string
+		excluded []int
+		want exec.QueryBranchSelection
+	}{
+		{"before_and_after_first_exclusion","on",[]int{3,5},exec.QueryBranchSelection{Applied:true,Intervals:[]exec.QueryBranchInterval{{Start:0,End:2},{Start:4,End:6}},EmptySegments:[]int{0,2,4,7}}},
+		{"unpruned_zero_value","on",nil,exec.QueryBranchSelection{}},
+		{"off_zero_value","off",[]int{3,5},exec.QueryBranchSelection{}},
+		{"first_exclusion_empty","on",[]int{0},exec.QueryBranchSelection{Applied:true,Intervals:[]exec.QueryBranchInterval{{Start:0,End:6}},EmptySegments:[]int{2,4,5,7}}},
+		{"only_selected_empty","on",[]int{1,3,6},exec.QueryBranchSelection{Applied:true,EmptySegments:[]int{0,2,4,5,7}}},
+	} {
+		t.Run(tc.name,func(t *testing.T) {
+			p,column,boolean:=pruningProofFixture(t)
+			source:=&exec.Source{Ref:p.ref,Anonymous:make([][]sqltype.Value,6),InheritanceEnds:[]int{0,2,2,4,4,4,6,6}}
+			for i:=range source.InheritanceEnds {
+				physical:=*p.named
+				physical.ObjectAddress.ObjectID+=ids.OID(i+1)
+				physical.Inheritance=&catalog.TableInheritance{Parents:[]catalog.InheritanceParent{{Relation:p.named.Address(),Seqno:1}}}
+				for _,excluded:=range tc.excluded {
+					if i==excluded {
+						checkColumn:=column
+						checkColumn.Origin.Address=physical.Address()
+						checkColumn.Origin.Address.SubID=1
+						physical.Constraints.Check=[]catalog.CheckConstraint{{Expression:pruningComparison(t,checkColumn,boolean,">=",10)}}
+					}
+				}
+				source.Inheritance=append(source.Inheritance,exec.InheritanceQuerySegment{Leaf:exec.Leaf{Relation:&physical}})
+			}
+			pruner:=CapturedPruner{view:p.view,named:p.named,source:source,mode:tc.mode}
+			got,err:=pruner.Select(context.Background(),p.evaluation,pruningComparison(t,column,boolean,"=",1),false)
+			if err!=nil||!reflect.DeepEqual(got,tc.want) {t.Fatalf("selected physical empties %+v want %+v: %v",got,tc.want,err)}
+		})
+	}
+}

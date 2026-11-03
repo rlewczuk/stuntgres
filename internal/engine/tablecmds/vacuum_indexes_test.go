@@ -16,7 +16,7 @@ import (
 // vacuumScan is one VACUUM heap pass over rows: inspection, then
 // materialization when it removes or freezes a version.
 func vacuumScan(ctx context.Context, rows []storage.RowVersion, ends *storage.DeletionRoot, frontier ids.CommitSeq, cutoff uint64, retire bool) (storage.VacuumCandidate, error) {
-	c, err := storage.InspectVacuum(ctx, rows, ends, frontier, cutoff, retire, nil)
+	c, err := storage.InspectVacuum(ctx, rows, ends, frontier, cutoff, retire, storage.VacuumProgress{})
 	if err != nil {
 		return c, err
 	}

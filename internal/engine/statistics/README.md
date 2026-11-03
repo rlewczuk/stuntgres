@@ -92,6 +92,35 @@ pending state does not erase the stop marker; a later no-index transaction can
 therefore date an earlier throttled batch. Reset/Replace clear index facts using
 the same generation authority, not another event provider.
 
+Heap accesses use the same Relation category, under the exact table identity.
+`RelationAccess` captures Counts and generation at reached admission; sequential
+starts, fetched live tuples and bitmap heap fetches update only writer-local
+pending facts. These read events bypass the tuple Ledger and survive rollback.
+`SeqScans` includes a reached empty heap, while `SeqTuples` counts actual fetched
+occurrences before SQL/RLS filters, not result rows. Bitmap heap fetches belong
+to `TableIndexFetches`, never the index's simple `IndexFetches`. Positive
+sequential batches stamp `LastSeqScan` from the same latest transaction-stop
+marker and max merge as index scans; tuples-only/bitmap-only batches cannot
+change it. Reader clear does not publish, and all generation/retirement fences
+apply to these fields without a second statistics store.
+Actual admitted SQL index builds also own sequential heap work, including empty
+builds and fetched versions rejected later by index membership or NULL keys.
+Generic index-root reconstruction has no utility-scan authority. Maintenance
+reporting remains source-specific, not a blanket count of every utility loop.
+
+The ALL table view's HOT and newpage update estimates are explicitly zero:
+native replacement has no HOT-chain or physical page-placement optimization.
+Live/dead are the existing nonnegative logical version estimates; completed
+maintenance reconciles them. The four elapsed totals are technical elapsed
+estimates expressed as FLOAT8 milliseconds. No automatic worker exists, so its
+counts/totals are zero and completion timestamps NULL, not invented activity.
+
+Parallel physical readers do not share that serialized Writer: each lane owns
+only start/tuple scalars at actual demand. The serial coordinator captures the
+same qualified relation capability before fanout and merges every reached lane
+after join, including failed/canceled prefixes before returning their error.
+Workers never capture capabilities, touch pending maps or publish batches.
+
 A physical session owns one `Writer`, serialized by transaction admission. Policy
 is captured when events occur. Tuple attempts remain unresolved in a write-owned
 `Ledger` until their reporting boundary, separate from the writer's pending batch.
