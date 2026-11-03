@@ -21,7 +21,7 @@ func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 8 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 9 {
 		t.Fatal("lost sealed release")
 	}
 	for i, a := range recipe.Members {

@@ -166,7 +166,7 @@ var definitions = [...]Definition{
 	{Names: []string{DblinkGetPkeyName}, Installed: DblinkExtension, Bind: bindDblinkGetPkey},
 	{Names: []string{"pg_stat_statements", "pg_stat_statements_info"}, Installed: PgStatStatementsExtension, Bind: bindPgStatStatements, NamedCall: namedPgStatStatements},
 	{Names: []string{"pgp_armor_headers"}, Installed: PgcryptoExtension, Bind: bindPgpArmorHeaders},
-	{Names: []string{"pgstatindex", "pgstathashindex"}, Installed: PgstattupleExtension, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
+	{Names: []string{"pgstatindex", "pgstathashindex", "pgstatginindex"}, Installed: PgstattupleExtension, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
 	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Installed: PgstattupleExtension, Bind: bindPgstattuple, NamedCall: namedPgstattuple},
 	{Names: []string{DblinkDeleteName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLDelete},
 	{Names: []string{DblinkInsertName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLInsert},

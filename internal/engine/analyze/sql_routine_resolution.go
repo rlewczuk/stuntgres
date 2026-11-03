@@ -116,7 +116,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		providerOverride = true
 	}
 	// Installed statistics calls use catalog overload selection before binding.
-	if name == "pgstatindex" || name == "pgstathashindex" || name == "pgstattuple" || name == "pgstattuple_approx" || name == "pg_relpages" || name == "pg_visibility_map" || name == "pg_visibility" || name == "pg_visibility_map_summary" {
+	if name == "pgstatindex" || name == "pgstathashindex" || name == "pgstatginindex" || name == "pgstattuple" || name == "pgstattuple_approx" || name == "pg_relpages" || name == "pg_visibility_map" || name == "pg_visibility" || name == "pg_visibility_map_summary" {
 		providerOverride = true
 	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))

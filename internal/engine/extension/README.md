@@ -580,9 +580,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   kill leaves actual index membership and constraint/trigger state untouched.
   Physical pages, WAL and unreadable payload recovery are not implemented here.
 - **pgstattuple** (`pgstattuple_provider.go`): the superuser, untrusted,
-  relocatable 1.5 provider installs eight declarations: `pgstatindex(text/regclass)`,
+  relocatable 1.5 provider installs nine declarations: `pgstatindex(text/regclass)`,
   `pgstathashindex(regclass)`, `pgstattuple(text/regclass)`,
-  `pgstattuple_approx(regclass)` and `pg_relpages(text/regclass)`.
+  `pgstattuple_approx(regclass)`, `pg_relpages(text/regclass)` and the appended
+  `pgstatginindex(regclass)` with INT4/INT4/INT8 version/pending outputs.
   Per-member immutable declarations own their input
   name/type, scalar bigint or fixed OUT record result, and STRICT VOLATILE
   PARALLEL SAFE C identity. The sealed declaration slot

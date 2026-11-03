@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-
 func pgstatindexUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -27,7 +26,7 @@ func TestPgstatindexProvider(t *testing.T) {
 	ext := pgstatindexUnitInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgstattuple.Control()
-	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 8 {
+	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 9 {
 		t.Fatal(control, ext)
 	}
 	if err := extension.StockPgstattuple.ValidateExtension(view, ext); err != nil {
@@ -119,7 +118,7 @@ func TestPgstatindexProvider(t *testing.T) {
 		}
 	}
 	// Early and late signature collisions roll back every staged member.
-	for _, signature := range []string{"pgstatindex(text)", "pgstatindex(regclass)", "pgstathashindex(regclass)"} {
+	for _, signature := range []string{"pgstatindex(text)", "pgstatindex(regclass)", "pgstathashindex(regclass)", "pgstatginindex(regclass)"} {
 		t.Run(signature, func(t *testing.T) {
 			x := engine.New()
 			op, finish := enginetest.RoleOperation(t, x, "postgres")
@@ -159,13 +158,17 @@ func TestPgstathashindexProvider(t *testing.T) {
 	if err := extension.ValidatePgstattupleIdentity(view, p, refForeign); err == nil {
 		t.Fatal("foreign domain accepted")
 	}
-	if err := extension.ValidatePgstattupleIdentity(view, p, ref); err != nil { t.Fatal(err) }
+	if err := extension.ValidatePgstattupleIdentity(view, p, ref); err != nil {
+		t.Fatal(err)
+	}
 	for _, slot := range []int{0, 1, 3} {
 		state := catalog.CloneState(view.State())
 		bad, origin := *p, *p.Origin
 		origin.Declaration = slot
 		bad.Origin = &origin
 		state.SetDescriptor(p.Address(), &bad)
-		if err := extension.StockPgstattuple.ValidateProcedure(e.Catalog.Read(state), &bad); err == nil { t.Fatal("forged hash slot accepted", slot) }
+		if err := extension.StockPgstattuple.ValidateProcedure(e.Catalog.Read(state), &bad); err == nil {
+			t.Fatal("forged hash slot accepted", slot)
+		}
 	}
 }

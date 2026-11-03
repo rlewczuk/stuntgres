@@ -20,7 +20,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 ## Contract
 
 - `Amcheck`, `VerifyHeapam`, `Pageinspect`, `PageinspectHeap`, `Pgrowlocks`,
-  `PgstattupleStats` (pgstatindex, pgstathashindex), `Pgstattuple`, `Pgvisibility`,
+  `PgstattupleStats` (pgstatindex, pgstathashindex, pgstatginindex), `Pgstattuple`, `Pgvisibility`,
   `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert`, `DblinkBuildSQLUpdate`, `DblinkGetPkey`, `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
@@ -130,7 +130,7 @@ source keys are used only to select the local row.
 ### pgstattuple
 
 `pgstatindex_capture.go` authenticates the two pgstatindex declarations and
-the pgstathashindex declaration, and
+the regclass-only pgstathashindex and pgstatginindex declarations, and
 checks ordinary EXECUTE before child evaluation/STRICT NULL and again after
 index AccessShare admission. Table ownership or SELECT is not authority. Text
 resolves a relation name at invocation; regclass carries supplied OID identity.
@@ -138,10 +138,15 @@ Admission releases replacement reads around waits, rejoins them, and fences
 catalog domain/epoch, descriptors, parent storage and candidate roots. Capture
 borrows the effective root under Owner.Mu then Engine.Mu. B-tree captures also
 borrow immutable versions/ends and exact private outputs; hash statistics only
-sample bucket lengths, without private projection traversal. Model computation
-runs outside mutexes, without callbacks, parent ownership switching or parent
-Share locking. Exact selected AM (403 or 405) and ordinary index kind precede
-foreign TEMP and validity checks. Every exit releases its supplied-index lock;
+sample bucket lengths, while GIN samples coherent root metadata for its
+deterministic `(2,0,0)` physical approximation, independent of genuine logical
+main/pending inversion and cleanup. Pending token-posting incidences and cleanup
+estimates are not PostgreSQL pending heap-tuple/page counts. Neither captures
+parent projections or scans heap rows. Model computation runs outside mutexes,
+without callbacks, parent ownership switching or parent Share locking.
+Exact selected AM (403, 405 or 2742) and ordinary index kind precede foreign TEMP
+and validity checks. A GIN index on an ordinary leaf is admitted, while a
+partitioned-index parent is not. Every exit releases its supplied-index lock;
 final descriptor/storage lifetime and cancellation fences precede results.
 
 `pgstattuple_capture.go` owns exact/approximate tuple and page inquiries. It

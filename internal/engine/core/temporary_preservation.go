@@ -121,6 +121,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := index.RebindImportedExclusions(next); err != nil {
 		return err
 	}
+	if err := index.RebindImportedGinKeys(ctx, candidate); err != nil {
+		return err
+	}
 	installedStage, err := e.repairRemappedGenerationsLocked(ctx, next, relations, sequences, mapping, restoreOp, indexes)
 	if err != nil {
 		return err

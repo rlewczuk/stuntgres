@@ -657,13 +657,19 @@ runtime history. Exactly this one statio index view is installed: native
 predicates over all rows use schema `pg_catalog`, `information_schema` or prefix
 `pg_toast` for system and the complement for user, with identical shared facts.
 
-Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
+Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads
+and regclass-only pgstathashindex and pgstatginindex members.
 Their real function ACLs, fixed RECORD shapes and selected identities survive
 native controls; EXECUTE is checked even for NULL, independently of parent
-SELECT/ownership. Logical index membership and live/dead accounting are exact.
-Page/byte/tree/density metrics use the deterministic compact model in
-[the index owner contract](../internal/engine/index/README.md), not physical
-PostgreSQL page inspection.
+SELECT/ownership. Actual logical index membership remains exact. B-tree
+page/byte/tree/density and hash layout metrics use deterministic compact models.
+GIN returns exactly `version,pending_pages,pending_tuples` as the deterministic
+physical approximation `(2,0,0)`; it has no logical live/dead output fields.
+This model is independent of genuine native main/pending inversion and cleanup:
+pending token-posting incidences and cleanup estimates are not PostgreSQL pending
+heap-tuple/page counts. PostgreSQL fastupdate counters can therefore differ.
+See [the index owner contract](../internal/engine/index/README.md);
+none of these physical metrics inspect PostgreSQL pages.
 Installed amcheck members share one portable nine-member installation:
 `verify_heapam` retains its record-set result; the seven B-tree overloads and
 `gin_index_check(regclass)` return scalar VOID. Native controls

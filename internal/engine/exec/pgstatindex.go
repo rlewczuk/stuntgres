@@ -60,9 +60,16 @@ func (c *Context) EvalPgstattupleStats(n plan.InstalledPgstattupleStatsExpr) (sq
 		return sqltype.Value{}, err
 	}
 	d := n.Usage.Type
-	integerCount, floatCount := 8, 2
-	if n.Operation == functions.HashStats {
+	var integerCount, floatCount int
+	switch n.Operation {
+	case functions.BtreeStats:
+		integerCount, floatCount = 8, 2
+	case functions.HashStats:
 		integerCount, floatCount = 7, 1
+	case functions.GinStats:
+		integerCount, floatCount = 3, 0
+	default:
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid pgstattuple statistics operation")
 	}
 	fields := make([]sqltype.Value, integerCount+floatCount)
 	for i, v := range integers[:integerCount] {

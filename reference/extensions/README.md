@@ -61,14 +61,16 @@ Physical heap-block distribution, cache/clustering and PostgreSQL shared-library
 C ABI execution are external mechanisms, not portable sample-count promises.
 The internal-signature wrong-result declaration is explicitly PostgreSQL-only.
 
-## pgstattuple: pgstatindex ownership
+## pgstattuple: index statistics ownership
 
 `pgstatindex_*_test.go` owns the public acceptance for the installed
 `pgstatindex(text)` and `pgstatindex(regclass)` overloads.
-`pgstathashindex_*_test.go` owns `pgstathashindex(regclass)`.
+`pgstathashindex_*_test.go` owns `pgstathashindex(regclass)` and
+`pgstatginindex_*_test.go` owns `pgstatginindex(regclass)`.
 Heap tuple and page inquiries have their own shared scenarios below.
-The shared fixture installs in `ps_part`; all scenarios use public SQL,
-`reference/fixture`, and public native controls, never internal packages.
+The B-tree fixture installs in `ps_part`, hash in `ph_part` and GIN in `gg_part`;
+all scenarios use public SQL, `reference/fixture`, and public native controls,
+never internal packages.
 
 - `Metadata`, `Values`, `Diagnostics`, and `Permissions` fix the released
   signatures, ten OUT names/types, fresh-empty composite, strict NULL source
@@ -135,6 +137,38 @@ body in both modes. Native hash statistics sample effective-root bucket lengths,
 report dead zero and apply the compact model documented by `index`; private DML
 phases assert callability, shape and lifecycle rather than forced private counts.
 PostgreSQL physical values are independently invariant-checked, not model parity.
+
+GIN has exactly three OUT fields: `version INT4`, `pending_pages INT4`,
+`pending_tuples INT8`. Native uses the deterministic physical approximation
+`(2,0,0)`, independent of genuine logical main/pending inversion and `CleanGin`,
+not metapage inspection or logical live/dead accounting. Pending token-posting
+incidences and cleanup estimates are not PostgreSQL pending heap-tuple/page
+counts. Fresh builds, prepopulated builds and fastupdate-off insertion have
+independently specified zero pending counters in PostgreSQL 18.6 too. A separate
+default-fastupdate trajectory expects positive PostgreSQL pending pages and one
+pending heap tuple after inserting one nonempty tuple; native still expects
+`(2,0,0)`.
+Sorted array/vector query results, real DML and transaction rollback independently
+prove logical contents and distinct index identities. Metadata, strict NULL,
+binding, permissions, errors, held statements, cancellation and actual native
+dump replay reuse the shared installed statistics interfaces. Public diagnostics
+retain partitioned-table rejection and ordinary leaf GIN success. Owning units
+cover partitioned-index relkind and differing custom-AM OID without unsupported
+partitioned GIN or custom-opclass creation prerequisites.
+
+Selected GIN proof (each public selector both natively and with `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferencePgstatginindex(Metadata|Binding|Values)$'
+make check RUN='^TestReferencePgstatginindex(Diagnostics|Permissions)$'
+make check RUN='^TestReferencePgstatginindex(Contents|Transactions|Identity)$'
+make check RUN='^TestReferencePgstatginindex(Controls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestPgstatginindex(Provider|Capture|CaptureCost|CaptureTargetChecks|Expression)$'
+```
+
+The standalone GIN `FeatureSmoke` exercises real array/vector indexes and query
+changes, typed outputs/NULL/wrong-kind errors, held parameters and stored-view
+native controls with actual SQL replay into PostgreSQL; it is not inventory-only.
 
 ## Heap tuple statistics scenarios
 

@@ -30,6 +30,7 @@ func PgstattupleProviderOf(p *catalog.Procedure) *PgstattupleProvider {
 
 var pgstatindexOutputs = catalog.NewRoutineOutputs([]ids.OID{23, 23, 20, 20, 20, 20, 20, 20, 701, 701}, "relname", "version", "tree_level", "index_size", "root_block_no", "internal_pages", "leaf_pages", "empty_pages", "deleted_pages", "avg_leaf_density", "leaf_fragmentation")
 var pgstathashindexOutputs = catalog.NewRoutineOutputs([]ids.OID{23, 20, 20, 20, 20, 20, 20, 701}, "relname", "version", "bucket_pages", "overflow_pages", "bitmap_pages", "unused_pages", "live_items", "dead_items", "free_percent")
+var pgstatginindexOutputs = catalog.NewRoutineOutputs([]ids.OID{23, 23, 20}, "relname", "version", "pending_pages", "pending_tuples")
 var pgstattupleOutputs = catalog.NewRoutineOutputs([]ids.OID{20, 20, 20, 701, 20, 20, 701, 20, 701}, "relname", "table_len", "tuple_count", "tuple_len", "tuple_percent", "dead_tuple_count", "dead_tuple_len", "dead_tuple_percent", "free_space", "free_percent")
 var pgstattupleByIDOutputs = catalog.NewRoutineOutputs([]ids.OID{20, 20, 20, 701, 20, 20, 701, 20, 701}, "reloid", "table_len", "tuple_count", "tuple_len", "tuple_percent", "dead_tuple_count", "dead_tuple_len", "dead_tuple_percent", "free_space", "free_percent")
 var pgstattupleApproxOutputs = catalog.NewRoutineOutputs([]ids.OID{20, 701, 20, 20, 701, 20, 20, 701, 20, 701}, "reloid", "table_len", "scanned_percent", "approx_tuple_count", "approx_tuple_len", "approx_tuple_percent", "dead_tuple_count", "dead_tuple_len", "dead_tuple_percent", "approx_free_space", "approx_free_percent")
@@ -49,7 +50,9 @@ var PgstattupleMembers = [...]struct {
 	{"pgstattuple_approx", "2205", 2249, "pgstattuple_approx_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstattupleApproxOutputs}},
 	{"pg_relpages", "25", 20, "pg_relpages_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"relname"}}},
 	{"pg_relpages", "2205", 20, "pg_relpagesbyid_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"relname"}}},
+	{"pgstatginindex", "2205", 2249, "pgstatginindex_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstatginindexOutputs}},
 }
+
 func (p *PgstattupleProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	if p != StockPgstattuple || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "pgstattuple" || ext.Version != "1.5" || len(ext.Members) != len(PgstattupleMembers) {
 		return fmt.Errorf("stuntgres: invalid pgstattuple manifest")

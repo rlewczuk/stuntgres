@@ -13,7 +13,7 @@ import (
 
 // PgstattupleStatsCapture borrows an effective immutable root. B-tree captures
 // also borrow coherent parent versions/ends and private outputs; hash uses only
-// bucket lengths. Neither path evaluates predicates or expressions.
+// bucket lengths and GIN only root metadata. No path evaluates recipes.
 type PgstattupleStatsCapture struct {
 	Index, Parent *catalog.Relation
 	Root          *storage.IndexRoot
@@ -28,6 +28,7 @@ type PgstattupleStatsResult struct {
 	LiveItems, DeadItems, Weight                                 int64
 	Buckets, Overflow, Bitmap, Unused                            int64
 	FreePercent                                                  float64
+	PendingPages, PendingTuples                                  int64
 }
 
 // CompactBtreeLayout is a stateless aggregate-packing model, not a PostgreSQL
@@ -92,6 +93,26 @@ func CapturePgstattupleStats(ctx context.Context, c PgstattupleStatsCapture) (Pg
 	}
 	if c.Index == nil || c.Parent == nil || c.Index.SQLIndex == nil || c.Index.SQLIndex.Parent != c.Parent.Address() || c.Root == nil || c.Root.Brin != nil {
 		return fail()
+	}
+	if c.Index.SQLIndex.MethodIdentity() == catalog.GinMethod.OID() {
+		if c.Index.SQLIndex.Method != catalog.GinMethod || c.Root.Gin == nil || c.Root.Hash != nil || c.Root.Bloom != nil || len(c.Index.SQLIndex.Keys) == 0 || len(c.Root.Gin.Columns) != len(c.Index.SQLIndex.Keys) {
+			return fail()
+		}
+		for ordinal, key := range c.Index.SQLIndex.Keys {
+			if err := ctx.Err(); err != nil {
+				return PgstattupleStatsResult{}, err
+			}
+			usage, err := KeyUsage(c.Parent, key)
+			binding := c.Root.Gin.Columns[ordinal].Binding
+			if err != nil || binding.Class != key.Class || binding.Usage != usage {
+				return fail()
+			}
+		}
+		// The deterministic physical model (2,0,0) is independent of genuine
+		// logical main/pending inversion and CleanGin. Token-posting incidences
+		// and cleanup estimates are not PostgreSQL pending heap tuples/pages.
+		// Keep capture O(keys), without parent projections or posting scans.
+		return PgstattupleStatsResult{Version: 2}, ctx.Err()
 	}
 	if c.Index.SQLIndex.MethodIdentity() == catalog.HashMethod.OID() {
 		if c.Root.Hash == nil {

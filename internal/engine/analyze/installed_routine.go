@@ -240,6 +240,8 @@ func (r installedExtensionRoutine) PgstattupleOperation() functions.PgstattupleO
 			return functions.BtreeStats
 		case "pgstathashindex":
 			return functions.HashStats
+		case "pgstatginindex":
+			return functions.GinStats
 		}
 	}
 	return functions.PgstattupleOperation(255)

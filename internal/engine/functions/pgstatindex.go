@@ -11,8 +11,8 @@ import (
 // Operation, not routine spelling, selects the released shape and capture.
 type PgstattupleStats struct {
 	expr.Info
-	Args  []expr.Expr
-	Input sqltype.ID
+	Args      []expr.Expr
+	Input     sqltype.ID
 	Operation PgstattupleOperation
 }
 
@@ -21,6 +21,7 @@ type PgstattupleOperation uint8
 const (
 	BtreeStats PgstattupleOperation = iota
 	HashStats
+	GinStats
 )
 
 func (o PgstattupleOperation) Name() string {
@@ -29,6 +30,8 @@ func (o PgstattupleOperation) Name() string {
 		return "pgstatindex"
 	case HashStats:
 		return "pgstathashindex"
+	case GinStats:
+		return "pgstatginindex"
 	default:
 		return ""
 	}
@@ -63,7 +66,7 @@ func bindPgstattupleStats(b Binder, raw parser.FunctionExpr) (expr.Expr, error) 
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	authority, ok := routine.(interface{
+	authority, ok := routine.(interface {
 		PgstattupleStatsInput() sqltype.ID
 		PgstattupleOperation() PgstattupleOperation
 	})
@@ -88,10 +91,15 @@ func bindPgstattupleStats(b Binder, raw parser.FunctionExpr) (expr.Expr, error) 
 		return nil, err
 	}
 	names, types := pgstatindexOutputNames[:], pgstatindexOutputTypes[:]
-	if operation == HashStats {
+	switch operation {
+	case BtreeStats:
+	case HashStats:
 		names = []string{"version", "bucket_pages", "overflow_pages", "bitmap_pages", "unused_pages", "live_items", "dead_items", "free_percent"}
 		types = []sqltype.ID{sqltype.Int4, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Int8, sqltype.Float8}
-	} else if operation != BtreeStats {
+	case GinStats:
+		names = []string{"version", "pending_pages", "pending_tuples"}
+		types = []sqltype.ID{sqltype.Int4, sqltype.Int4, sqltype.Int8}
+	default:
 		return nil, fmt.Errorf("stuntgres: invalid pgstattuple statistics operation")
 	}
 	members := make([]sqltype.CompositeMember, len(names))
@@ -118,7 +126,7 @@ func (PgstattupleStats) Eval(expr.Context) (sqltype.Value, error) {
 }
 func (n PgstattupleStats) Children() []expr.Expr { return n.Args }
 func (n PgstattupleStats) ValidateArguments(children []expr.Expr) error {
-	if n.Operation.Name() == "" || n.Operation == HashStats && n.Input != sqltype.Regclass || n.Input != sqltype.Text && n.Input != sqltype.Regclass || len(children) != 1 || children[0] == nil || children[0].ResultUsage().Type == nil || children[0].ResultUsage().Type.BaseType().ID() != n.Input {
+	if n.Operation.Name() == "" || n.Operation != BtreeStats && n.Input != sqltype.Regclass || n.Input != sqltype.Text && n.Input != sqltype.Regclass || len(children) != 1 || children[0] == nil || children[0].ResultUsage().Type == nil || children[0].ResultUsage().Type.BaseType().ID() != n.Input {
 		return fmt.Errorf("stuntgres: invalid pgstatindex argument")
 	}
 	return nil
@@ -142,4 +150,4 @@ func (n PgstattupleStats) Capture(kind expr.CaptureKind) (expr.CaptureOperands, 
 	return expr.CaptureOperands{Args: n.Args, Count: 1}, kind == expr.CaptureFunction, nil
 }
 func (PgstattupleStats) SourceAdmission() (bool, bool) { return true, false }
-func (n PgstattupleStats) ScalarSourceOutName() string   { return n.Operation.Name() }
+func (n PgstattupleStats) ScalarSourceOutName() string { return n.Operation.Name() }

@@ -20,64 +20,100 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 func TestPgstattupleHeapExpressionIdentity(t *testing.T) {
-	e:=engine.New()
-	ext:=pgstatindexUnitInstalled(t,e)
-	view:=e.CatalogRead()
-	// The eight-member inventory is independently asserted in public SQL; this
+	e := engine.New()
+	ext := pgstatindexUnitInstalled(t, e)
+	view := e.CatalogRead()
+	// The nine-member inventory is independently asserted in public SQL; this
 	// supplement proves genuine sealed heap declarations and retained expression roots.
-	for _,address:=range ext.Members[3:] {
-		p:=view.MustProcedure(address)
-		if err:=extension.StockPgstattuple.ValidateProcedure(view,p); err!=nil {t.Fatal(err)}
-		for _,mutate:=range []func(*catalog.Procedure){
-			func(p *catalog.Procedure){p.Strict=false},
-			func(p *catalog.Procedure){p.Result=25},
-			func(p *catalog.Procedure){p.Installed.Parallel='r'},
-			func(p *catalog.Procedure){p.Display.Source="pgstatindex_v1_5"},
+	for _, address := range ext.Members[3:8] {
+		p := view.MustProcedure(address)
+		if err := extension.StockPgstattuple.ValidateProcedure(view, p); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*catalog.Procedure){
+			func(p *catalog.Procedure) { p.Strict = false },
+			func(p *catalog.Procedure) { p.Result = 25 },
+			func(p *catalog.Procedure) { p.Installed.Parallel = 'r' },
+			func(p *catalog.Procedure) { p.Display.Source = "pgstatindex_v1_5" },
 		} {
-			state:=catalog.CloneState(view.State())
-			bad:=*p
+			state := catalog.CloneState(view.State())
+			bad := *p
 			mutate(&bad)
-			state.SetDescriptor(address,&bad)
-			if extension.StockPgstattuple.ValidateProcedure(e.Catalog.Read(state),&bad)==nil {t.Fatal("forged installed member accepted")}
+			state.SetDescriptor(address, &bad)
+			if extension.StockPgstattuple.ValidateProcedure(e.Catalog.Read(state), &bad) == nil {
+				t.Fatal("forged installed member accepted")
+			}
 		}
 	}
-	for _,name:=range []string{"pgstattuple","pgstattuple_approx","pg_relpages"} {
-		n:=pgstattupleHeapUnitExpression(t,e,name,"-")
-		if n.Properties().Volatility!=expr.Volatile || !n.Properties().StageDependent || n.CallRoutineReference()!=n.Procedure {t.Fatal(n)}
-		rebuilt,err:=n.Rebuild(expr.InfoOf(n),n.Children())
-		if err!=nil {t.Fatal(err)}
-		copy:=rebuilt.(plan.InstalledPgstattupleExpr)
-		if copy.Ref!=n.Ref || copy.Procedure!=n.Procedure || copy.Kind!=n.Kind || copy.Input!=n.Input || &copy.Args[0]==&n.Args[0] {t.Fatal("rebuild lost identity or borrowed mutable operand vector")}
-		if err:=stored.ValidateInstalledPgstattuple(copy,view); err!=nil {t.Fatal(err)}
-		for _,mutate:=range []func(*plan.InstalledPgstattupleExpr){
-			func(n *plan.InstalledPgstattupleExpr){n.RoutineReference=nil},
-			func(n *plan.InstalledPgstattupleExpr){n.Ref.Address.ObjectID++},
-			func(n *plan.InstalledPgstattupleExpr){n.Input=sqltype.Int4},
-			func(n *plan.InstalledPgstattupleExpr){n.Kind=functions.HeapStatisticsKind(255)},
-		} {
-			bad:=n
-			mutate(&bad)
-			if stored.ValidateInstalledPgstattuple(bad,view)==nil {t.Fatal("forged call authority accepted")}
+	for _, name := range []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"} {
+		n := pgstattupleHeapUnitExpression(t, e, name, "-")
+		if n.Properties().Volatility != expr.Volatile || !n.Properties().StageDependent || n.CallRoutineReference() != n.Procedure {
+			t.Fatal(n)
 		}
-		text,err:=(stored.Deparser{View:view}).SQL(context.Background(),n,stored.DeparseParent{})
-		if err!=nil || text=="" {t.Fatal(text,err)}
-		mapping:=map[ids.ObjectAddress]ids.ObjectAddress{ext.Address():{ClassID:ids.ExtensionClassID,ObjectID:910000}}
-		for i,address:=range ext.Members {mapping[address]=ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:ids.OID(910001+i)}}
-		state:=catalog.CloneState(view.State())
-		descriptor:=extension.DescriptorRemapper(mapping)
-		for old:=range mapping {state.UnbindName(catalog.DescriptorNameKey(view.Get(old)));state.RemoveDescriptor(old)}
-		for old,destination:=range mapping {d:=descriptor(view.Get(old));state.SetDescriptor(destination,d);state.BindName(catalog.DescriptorNameKey(d),destination)}
-		state.SetEpoch(state.Epoch()+1)
-		remap:=func(ref ids.ObjectRef) ids.ObjectRef {ref.Epoch=state.Epoch();if address,ok:=mapping[ref.Address];ok {ref.Address=address};return ref}
-		mapper:=stored.ViewQueryRemapper{Catalog:e.Catalog.Read(state),Ref:remap,Type:func(d *sqltype.Descriptor)*sqltype.Descriptor{return d},Procedure:extension.ProcedureRemapper(descriptor,nil,nil)}
-		query:=&plan.ProjectNode{QuerySchema:plan.QuerySchema{{Name:"s",Usage:n.ResultUsage()}},Child:&plan.ValuesNode{Rows:[][]expr.Expr{{}}},Expressions:[]expr.Expr{n}}
-		mappedQuery,err:=mapper.Query(query)
-		if err!=nil {t.Fatal(err)}
-		mapped:=mappedQuery.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgstattupleExpr)
-		if mapped.Ref!=remap(n.Ref) || mapped.Procedure.Address()!=mapping[n.Procedure.Address()] || mapped.CallRoutineReference()!=mapped.Procedure || n.Procedure!=view.Get(n.Ref.Address) {t.Fatal("replacement remap lost selected immutable provider identity")}
-		if err:=stored.ValidateInstalledPgstattuple(mapped,e.Catalog.Read(state));err!=nil {t.Fatal(err)}
+		rebuilt, err := n.Rebuild(expr.InfoOf(n), n.Children())
+		if err != nil {
+			t.Fatal(err)
+		}
+		copy := rebuilt.(plan.InstalledPgstattupleExpr)
+		if copy.Ref != n.Ref || copy.Procedure != n.Procedure || copy.Kind != n.Kind || copy.Input != n.Input || &copy.Args[0] == &n.Args[0] {
+			t.Fatal("rebuild lost identity or borrowed mutable operand vector")
+		}
+		if err := stored.ValidateInstalledPgstattuple(copy, view); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*plan.InstalledPgstattupleExpr){
+			func(n *plan.InstalledPgstattupleExpr) { n.RoutineReference = nil },
+			func(n *plan.InstalledPgstattupleExpr) { n.Ref.Address.ObjectID++ },
+			func(n *plan.InstalledPgstattupleExpr) { n.Input = sqltype.Int4 },
+			func(n *plan.InstalledPgstattupleExpr) { n.Kind = functions.HeapStatisticsKind(255) },
+		} {
+			bad := n
+			mutate(&bad)
+			if stored.ValidateInstalledPgstattuple(bad, view) == nil {
+				t.Fatal("forged call authority accepted")
+			}
+		}
+		text, err := (stored.Deparser{View: view}).SQL(context.Background(), n, stored.DeparseParent{})
+		if err != nil || text == "" {
+			t.Fatal(text, err)
+		}
+		mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 910000}}
+		for i, address := range ext.Members {
+			mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
+		}
+		state := catalog.CloneState(view.State())
+		descriptor := extension.DescriptorRemapper(mapping)
+		for old := range mapping {
+			state.UnbindName(catalog.DescriptorNameKey(view.Get(old)))
+			state.RemoveDescriptor(old)
+		}
+		for old, destination := range mapping {
+			d := descriptor(view.Get(old))
+			state.SetDescriptor(destination, d)
+			state.BindName(catalog.DescriptorNameKey(d), destination)
+		}
+		state.SetEpoch(state.Epoch() + 1)
+		remap := func(ref ids.ObjectRef) ids.ObjectRef {
+			ref.Epoch = state.Epoch()
+			if address, ok := mapping[ref.Address]; ok {
+				ref.Address = address
+			}
+			return ref
+		}
+		mapper := stored.ViewQueryRemapper{Catalog: e.Catalog.Read(state), Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(descriptor, nil, nil)}
+		query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "s", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}
+		mappedQuery, err := mapper.Query(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mapped := mappedQuery.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgstattupleExpr)
+		if mapped.Ref != remap(n.Ref) || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || n.Procedure != view.Get(n.Ref.Address) {
+			t.Fatal("replacement remap lost selected immutable provider identity")
+		}
+		if err := stored.ValidateInstalledPgstattuple(mapped, e.Catalog.Read(state)); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -235,12 +271,13 @@ func TestPgstattupleHeapScalarNullSource(t *testing.T) {
 	}
 }
 
-
-func pgstattupleHeapUnitExpression(t *testing.T,e *core.Engine,name,target string) plan.InstalledPgstattupleExpr {
+func pgstattupleHeapUnitExpression(t *testing.T, e *core.Engine, name, target string) plan.InstalledPgstattupleExpr {
 	t.Helper()
-	binder:=enginetest.ExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil)
-	raw:=parser.FunctionExpr{Name:parser.ObjectName{Parts:[]parser.Identifier{{Text:name}}},Args:[]parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind:parser.StringValue,Text:target}}}}
-	node,err:=binder.BindFunctionProvider(raw)
-	if err!=nil { t.Fatal(err) }
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: target}}}}
+	node, err := binder.BindFunctionProvider(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return node.(plan.InstalledPgstattupleExpr)
 }

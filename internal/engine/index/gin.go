@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -37,6 +38,43 @@ func BindGinIndex(view catalog.Read, parent *catalog.Relation, d *catalog.IndexD
 		}
 	}
 	return bindings, nil
+}
+
+// RebindImportedGinKeys retains destination support/search captures in the
+// private replacement catalog after identity and expression remapping. Source
+// captures were deliberately discarded; binding only a rebuilt root would leave
+// its owning descriptor with different authority. Retained TEMP consumers are
+// grafted afterward and are not part of this imported cohort.
+func RebindImportedGinKeys(ctx context.Context, view catalog.Read) error {
+	for _, descriptor := range view.Relations() {
+		if descriptor.SQLIndex == nil || descriptor.SQLIndex.Method != catalog.GinMethod {
+			continue
+		}
+		var replacement *catalog.Relation
+		for ordinal, key := range descriptor.SQLIndex.Keys {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			class, err := routine.BindClassSupport(view, key.Class)
+			if err != nil {
+				return err
+			}
+			if class == key.Class {
+				continue
+			}
+			if replacement == nil {
+				copy, definition := *descriptor, *descriptor.SQLIndex
+				definition.Keys = slices.Clone(definition.Keys)
+				copy.SQLIndex = &definition
+				replacement = &copy
+			}
+			replacement.SQLIndex.Keys[ordinal].Class = class
+		}
+		if replacement != nil {
+			view.State().SetDescriptor(replacement.Address(), replacement)
+		}
+	}
+	return ctx.Err()
 }
 
 func ginRoot(ctx context.Context, view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition, entries []storage.IndexEntry, history any, input sqltype.InputEnvironment) (*storage.IndexRoot, error) {

@@ -264,7 +264,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 		{PageinspectExtension, "brin_page_type brin_metapage_info brin_revmap_data brin_page_items bt_page_items fsm_page_contents gin_metapage_info gin_page_opaque_info gin_leafpage_items page_header page_checksum hash_page_type hash_page_stats hash_page_items hash_metapage_info heap_page_items heap_tuple_infomask_flags tuple_data_split heap_page_item_attrs"},
 		{TcnExtension, "triggered_change_notification"},
 		{AutoincExtension, "autoinc"},
-		{PgstattupleExtension, "pgstatindex pgstathashindex pgstattuple pgstattuple_approx pg_relpages"},
+		{PgstattupleExtension, "pgstatindex pgstathashindex pgstatginindex pgstattuple pgstattuple_approx pg_relpages"},
 		{PgvisibilityExtension, "pg_visibility_map pg_visibility pg_visibility_map_summary"},
 		{DblinkExtension, "dblink_get_pkey dblink_build_sql_delete dblink_build_sql_insert dblink_build_sql_update"},
 		{PgFreespaceExtension, "pg_freespace"},

@@ -10,13 +10,14 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
 
 func pgstatindexUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgstattupleStatsExpr {
 	return pgstattupleUnitExpression(t, e, "pgstatindex")
@@ -25,7 +26,9 @@ func pgstattupleUnitExpression(t *testing.T, e *core.Engine, name string) plan.I
 	t.Helper()
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	value := parser.Value{Kind: parser.StringValue, Text: "i"}
-	if name == "pgstathashindex" { value = parser.Value{Kind: parser.NullValue} }
+	if name == "pgstathashindex" || name == "pgstatginindex" {
+		value = parser.Value{Kind: parser.NullValue}
+	}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: value}}}
 	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
@@ -104,6 +107,107 @@ func TestPgstatindexExpressionIdentity(t *testing.T) {
 func TestPgstathashindexExpressionIdentity(t *testing.T) {
 	pgstattupleExpressionIdentity(t, "pgstathashindex")
 }
+func TestPgstatginindexExpression(t *testing.T) {
+	pgstattupleExpressionIdentity(t, "pgstatginindex")
+	e := engine.New()
+	pgstatindexUnitInstalled(t, e)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pgstatginindex"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}
+	node, handled, err := b.BindSQLCallable(raw)
+	if err != nil || !handled {
+		t.Fatalf("GIN callable gateway: handled=%v err=%v", handled, err)
+	}
+	n, ok := node.(plan.InstalledPgstattupleStatsExpr)
+	if !ok || n.Operation != functions.GinStats || n.Input != sqltype.Regclass || n.Procedure.Signature != "2205" {
+		t.Fatal("GIN selected declaration", node)
+	}
+	fields := []struct {
+		name string
+		typ  sqltype.ID
+	}{{"version", sqltype.Int4}, {"pending_pages", sqltype.Int4}, {"pending_tuples", sqltype.Int8}}
+	for i, want := range fields {
+		member := n.ResultUsage().Type.CompositeMember(i)
+		if member.Name != want.name || member.Attribute != int32(i+1) || member.Usage.Type.ID() != want.typ {
+			t.Fatal("GIN owned output attribute", i, member)
+		}
+	}
+	if _, err := n.Rebuild(expr.InfoOf(n), nil); err == nil {
+		t.Fatal("missing child accepted")
+	}
+	info := expr.InfoOf(n)
+	info.RoutineReference = nil
+	if _, err := n.Rebuild(info, n.Children()); err == nil {
+		t.Fatal("missing procedure authority accepted")
+	}
+	// Retag against real destination-owned generations. Detached Builtins
+	// descriptors cannot satisfy the installed provider's exact OUT usages.
+	view := e.CatalogRead()
+	typedState := catalog.CloneState(view.State())
+	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Int8, sqltype.Regclass} {
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}
+		owner := *view.MustType(address)
+		generation := *owner.SQLType
+		owner.SQLType = &generation
+		typedState.SetDescriptor(address, &owner)
+	}
+	if changed, err := typedef.ReownDomainTypes(typedState, nil, false, nil, nil); err != nil || !changed {
+		t.Fatal("new generations did not rebuild dependent types", changed, err)
+	}
+	typedView := e.Catalog.Read(typedState)
+	oldShape, oldChildType, oldArgs := n.ResultUsage().Type, n.Args[0].ResultUsage().Type, &n.Args[0]
+	retagged, changed, err := stored.RetagTypes(typedView, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		if d == nil {
+			return nil
+		}
+		current, _ := typedView.LookupType(d.ID())
+		return current
+	})
+	if err != nil || !changed {
+		t.Fatalf("GIN retag: changed=%v err=%v", changed, err)
+	}
+	next := retagged.(plan.InstalledPgstattupleStatsExpr)
+	if next.Operation != n.Operation || next.Input != n.Input || next.Procedure != n.Procedure || next.Ref != n.Ref || next.CallRoutineReference() != n.Procedure || next.ResultUsage().Type == oldShape {
+		t.Fatal("GIN retag lost authority or retained old shape", next)
+	}
+	for i, want := range fields {
+		member := next.ResultUsage().Type.CompositeMember(i)
+		current, ok := typedView.LookupType(want.typ)
+		if !ok || member.Name != want.name || member.Attribute != int32(i+1) || member.Usage != current.Usage() || member.Usage.Type == oldShape.CompositeMember(i).Usage.Type {
+			t.Fatal("GIN retag lost destination OUT authority", i, member)
+		}
+	}
+	currentInput, _ := typedView.LookupType(sqltype.Regclass)
+	literal, ok := next.Args[0].(plan.LiteralExpr)
+	if !ok || next.Args[0].ResultUsage().Type != currentInput || literal.Value.Type() != currentInput || &next.Args[0] == oldArgs {
+		t.Fatal("GIN retag lost destination operand authority or shared source backing")
+	}
+	if err := stored.ValidateInstalledPgstattupleStats(next, typedView); err != nil {
+		t.Fatal("GIN retag lost installed provider authority", err)
+	}
+	if n.ResultUsage().Type != oldShape || n.Args[0].ResultUsage().Type != oldChildType || &n.Args[0] != oldArgs {
+		t.Fatal("GIN retag mutated original artifact")
+	}
+	if _, err := n.Rebuild(expr.InfoOf(n), []expr.Expr{n.Args[0], n.Args[0]}); err == nil {
+		t.Fatal("extra child accepted")
+	}
+	boolean := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
+	childInfo := expr.InfoOf(n.Args[0])
+	childInfo.Usage = boolean.Usage()
+	wrongChild := plan.LiteralExpr{Info: childInfo, Value: sqltype.Null(boolean)}
+	if _, err := n.Rebuild(expr.InfoOf(n), []expr.Expr{wrongChild}); err == nil {
+		t.Fatal("boolean child accepted for regclass-only declaration")
+	}
+	badOperation := n
+	badOperation.Operation = functions.HashStats
+	if err := stored.ValidateInstalledPgstattupleStats(badOperation, e.CatalogRead()); err == nil {
+		t.Fatal("GIN authority admitted hash operation")
+	}
+	badInput := n
+	badInput.Input = sqltype.Text
+	if err := badInput.ValidateArguments(n.Children()); err == nil {
+		t.Fatal("GIN operation admitted text input")
+	}
+}
 func pgstattupleExpressionIdentity(t *testing.T, name string) {
 	e := engine.New()
 	pgstatindexUnitInstalled(t, e)
@@ -112,8 +216,15 @@ func pgstattupleExpressionIdentity(t *testing.T, name string) {
 		t.Fatal(n)
 	}
 	wantFields := 10
-	if name == "pgstathashindex" { wantFields = 8 }
-	if n.ResultUsage().Type.CompositeLen() != wantFields { t.Fatal("owned shape", n.ResultUsage()) }
+	if name == "pgstathashindex" {
+		wantFields = 8
+	}
+	if name == "pgstatginindex" {
+		wantFields = 3
+	}
+	if n.ResultUsage().Type.CompositeLen() != wantFields {
+		t.Fatal("owned shape", n.ResultUsage())
+	}
 	rebuilt, err := n.Rebuild(expr.InfoOf(n), n.Children())
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +238,11 @@ func pgstattupleExpressionIdentity(t *testing.T, name string) {
 	}
 	for _, mutate := range []func(*plan.InstalledPgstattupleStatsExpr){
 		func(n *plan.InstalledPgstattupleStatsExpr) {
-			if n.Input == sqltype.Text { n.Input = sqltype.Regclass } else { n.Input = sqltype.Text }
+			if n.Input == sqltype.Text {
+				n.Input = sqltype.Regclass
+			} else {
+				n.Input = sqltype.Text
+			}
 		},
 		func(n *plan.InstalledPgstattupleStatsExpr) { n.RoutineReference = nil },
 		func(n *plan.InstalledPgstattupleStatsExpr) { n.Ref.Address.ObjectID++ },
@@ -180,7 +295,7 @@ func pgstattupleExpressionIdentity(t *testing.T, name string) {
 		t.Fatal(err)
 	}
 	mapped := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgstattupleStatsExpr)
-	if mapped.Ref != remap(n.Ref) || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || n.Procedure != view.Get(n.Ref.Address) {
+	if mapped.Ref != remap(n.Ref) || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || mapped.Operation != n.Operation || mapped.Input != n.Input || mapped.ResultUsage().Type.CompositeLen() != n.ResultUsage().Type.CompositeLen() || n.Procedure != view.Get(n.Ref.Address) {
 		t.Fatal("remap lost or mutated identity", mapped)
 	}
 	if err := stored.ValidateInstalledPgstattupleStats(mapped, e.Catalog.Read(state)); err != nil {

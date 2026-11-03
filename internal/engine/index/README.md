@@ -155,6 +155,10 @@ builds a binder.
   destination generations, split placement and exact physical ownership from
   transported produced keys, retaining construction history. Empty roots retain
   actual column bindings.
+  Replacement first retains destination-bound support/search metadata in the
+  imported GIN descriptors after identity/expression remapping, then repairs and
+  remints roots against those same captures. Source support is not transplanted;
+  certified live TEMP consumers are grafted afterward without rebinding.
   Exact retained TEMP indexes have a separate replacement-owner certificate
   (`gin_replacement.go`). Strict old bindings authenticate the live source;
   fresh destination classes require the same native method, sealed callable
@@ -260,6 +264,20 @@ builds a binder.
   With N items, P=max(4,ceil(N/407)); overflow=P-4 and free percent is
   100*(8152*P-20*N)/(8152*P). Checked arithmetic and bounded bucket cancellation
   require no per-entry allocation or physical page/split history.
+- **Deterministic GIN statistics** (`pgstatindex.go`): shared capture requires a
+  coherent genuine GIN root, matching current retained key bindings and parent
+  identity, and exact catalog GIN AM. `pgstatginindex(regclass)` returns `version=2`,
+  `pending_pages=0`, `pending_tuples=0`, a deterministic physical approximation
+  independent of genuine logical main/pending inversion and `CleanGin`.
+  `GinPendingIncidences` counts token-posting incidences, not pending heap tuples;
+  cleanup's technical page estimate is not PostgreSQL physical pending pages.
+  Capture remains O(keys), borrowing root metadata only: no parent projection,
+  heap/entry/token/posting scan, recipe evaluation or row-proportional allocation.
+  Capture tests cover immutable contents/backing and zero-allocation empty/populated
+  roots with both fastupdate-off main postings and default-fastupdate pending postings.
+  Private DML remains callable without publishing roots. These fields are not
+  logical live/dead counts; PostgreSQL fastupdate inserts may produce nonzero
+  pending heap-tuple/page counters.
 - **Logical verification** (`amcheck*.go`): `CheckBtree` consumes an immutable
   `AmcheckCapture`, validates actual stored order/identity/positions and parent
   maps, searches the real baseline root independently, and checks demanded heap

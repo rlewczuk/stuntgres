@@ -16,8 +16,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// PgstattupleStats is pgstatindex and pgstathashindex. Only the supplied
-// index is locked. Parent storage is borrowed coherently under Owner.Mu then
+// PgstattupleStats captures installed B-tree, hash and GIN statistics. Only the
+// supplied index is locked. Root identity is captured under Owner.Mu then
 // Engine.Mu, without owner switching or recipe callbacks.
 func PgstattupleStats[A Authority](h Host[A], n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
 	if err = h.Active(); err != nil {
@@ -107,7 +107,7 @@ func PgstattupleStats[A Authority](h Host[A], n plan.InstalledPgstattupleStatsEx
 			}
 		}
 		capture = index.PgstattupleStatsCapture{Index: target, Parent: parent, Root: root}
-		if n.Operation != functions.HashStats {
+		if n.Operation == functions.BtreeStats {
 			writes, deletes := h.ColumnProjectionRoots(parent.Address())
 			capture.Store, capture.Writes, capture.Deletes, capture.Frontier = *store, writes, deletes, h.CommitSequenceLocked()
 			capture.Store.IndexSource = store.IndexIdentity()
@@ -132,12 +132,17 @@ func PgstattupleStats[A Authority](h Host[A], n plan.InstalledPgstattupleStatsEx
 	if err = h.Operation().Context().Err(); err != nil {
 		return
 	}
-	if n.Operation == functions.HashStats {
+	switch n.Operation {
+	case functions.HashStats:
 		integers = [8]int64{stats.Version, stats.Buckets, stats.Overflow, stats.Bitmap, stats.Unused, stats.LiveItems, stats.DeadItems}
 		floats[0] = stats.FreePercent
-	} else {
+	case functions.GinStats:
+		integers = [8]int64{stats.Version, stats.PendingPages, stats.PendingTuples}
+	case functions.BtreeStats:
 		integers = [8]int64{stats.Version, stats.Level, stats.Size, stats.Root, stats.Internal, stats.Leaves, stats.Empty, stats.Deleted}
 		floats = [2]float64{stats.Density, stats.Fragmentation}
+	default:
+		err = fmt.Errorf("stuntgres: invalid pgstattuple statistics operation")
 	}
 	return
 }
@@ -148,10 +153,18 @@ func pgstattupleStatsTargetCheckable(v catalog.Read, target *catalog.Relation, t
 			parentPartitioned = parent.Partition != nil
 		}
 	}
-	method, kind, temporary := catalog.BtreeMethod.OID(), "btree", "tables"
-	if operation == functions.HashStats {
+	var method ids.OID
+	var kind, temporary string
+	switch operation {
+	case functions.BtreeStats:
+		method, kind, temporary = catalog.BtreeMethod.OID(), "btree", "tables"
+	case functions.HashStats:
 		method, kind, temporary = catalog.HashMethod.OID(), "hash", "indexes"
 		parentPartitioned = false
+	case functions.GinStats:
+		method, kind, temporary = catalog.GinMethod.OID(), "GIN", "indexes"
+	default:
+		return fmt.Errorf("stuntgres: invalid pgstattuple statistics operation")
 	}
 	if target.RelationKind != catalog.IndexRelation || target.SQLIndex == nil || target.SQLIndex.MethodIdentity() != method || parentPartitioned {
 		return sqlError("42809", fmt.Sprintf("relation \"%s\" is not a %s index", target.Name(), kind))
