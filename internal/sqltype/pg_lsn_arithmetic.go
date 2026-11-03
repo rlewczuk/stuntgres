@@ -3,25 +3,17 @@ package sqltype
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"stuntgres/internal/sqlstate"
 )
-
-func pgLSNNumeric(d *Descriptor, n uint64, negative bool) Value {
-	if n == 0 {
-		return Value{typ: d}
-	}
-	return normalizeNumeric(Value{typ: d, text: strconv.FormatUint(n, 10), negative: negative})
-}
 
 func (p Arithmetic) pgLSNBinary(ctx context.Context, a, b Value) (Value, error) {
 	if p.left.id == PgLSN && p.right.id == PgLSN {
 		x, y := uint64(a.integer), uint64(b.integer)
 		if x < y {
-			return pgLSNNumeric(p.result, y-x, true), nil
+			return unsignedNumeric(p.result, y-x, true), nil
 		}
-		return pgLSNNumeric(p.result, x-y, false), nil
+		return unsignedNumeric(p.result, x-y, false), nil
 	}
 	// The released numeric-left operator is an SQL wrapper. Preserve its
 	// provenance by signature, independently of SQL spelling or parameter route.
@@ -55,7 +47,7 @@ func (p Arithmetic) pgLSNOffset(ctx context.Context, lsn, offset Value) (Value, 
 	if offset.special != numericFinite {
 		return Value{}, failure("0A000", "cannot convert infinity to pg_lsn")
 	}
-	number := pgLSNNumeric(offset.typ, uint64(lsn.integer), false)
+	number := unsignedNumeric(offset.typ, uint64(lsn.integer), false)
 	completed, err := numericArithmetic(ctx, p.operator, number, offset)
 	if err != nil {
 		return Value{}, err

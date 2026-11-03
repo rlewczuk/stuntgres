@@ -193,9 +193,9 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   input phases, exact dictionary callback selection and binary defaults/CHECKs/
   views through native replacement and actual emitted PostgreSQL replay.
   Dictionary TEXT arguments retain the [shared typed-nil byte adapter contract](../strings/README.md):
-  native typed-nil bytes become empty TEXT (`{}`), while lib/pq sends SQL NULL.
-  Ordinary nil is SQL NULL on both; nonnil empty bytes and empty strings produce
-  genuine empty arrays on both. This boundary never changes function selection.
+  typed-nil bytes and ordinary nil are SQL NULL on both backends. Nonnil empty
+  bytes and empty strings produce genuine empty arrays on both. This boundary
+  never changes function selection; direct and held routes retain each contrast.
   Snowball cancellation retains native ordinary-context DDL/direct/prepared
   rejection and full Dump preservation. Shared direct/held routes gate on the
   actual parameterized Snowball result, observe the exact advisory waiter and

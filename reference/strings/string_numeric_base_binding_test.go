@@ -83,13 +83,8 @@ func TestReferenceStringNumericBaseMD5Binding(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 			stringNumericBaseBoth(t, p, b, c, s)
 		}
-		// pq sends typed nil bytes as SQL NULL. The inherited native text-input
-		// boundary instead imports them as empty TEXT, without selecting BYTEA.
-		var nilBytesDigest any = "d41d8cd98f00b204e9800998ecf8427e"
-		if b.PG {
-			nilBytesDigest = nil
-		}
-		nilBytes := stringNumericBaseText(q, []string{"md5"}, [][]any{{nilBytesDigest}}, []byte(nil))
+		// Typed nil bytes are SQL NULL; nonnil empty bytes above remain empty TEXT.
+		nilBytes := stringNumericBaseText(q, []string{"md5"}, [][]any{{nil}}, []byte(nil))
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, nilBytes)
 		stringNumericBaseBoth(t, p, b, c, nilBytes)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, valid)

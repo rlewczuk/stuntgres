@@ -130,9 +130,6 @@ func TestReferenceDictionaryBinding(t *testing.T) {
 					}
 				}
 			}
-			if token, ok := args[1].([]byte); ok && token == nil && !b.PG {
-				want = "{}"
-			}
 			dictionaryResult(t, p, b, c, q, want, args...)
 			dictionaryResult(t, p, b, held, q, want, args...)
 		}

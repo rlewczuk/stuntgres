@@ -26,10 +26,7 @@ func TestReferenceSwedishSnowballMetadata(t *testing.T) {
 					dictionaryResult(t, p, b, e, q, tc.want, tc.args...)
 				}
 			}
-			var want any = "{}"
-			if b.PG {
-				want = nil
-			}
+			var want any
 			for _, e := range []fixture.Executor{c, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}} {
 				dictionaryResult(t, p, b, e, q, want, "swedish_stem", []byte(nil))
 			}

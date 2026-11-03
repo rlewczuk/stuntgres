@@ -25,7 +25,7 @@ func TestReferenceIsnValidationValues(t *testing.T) {
 						expression = "$1::text::" + role.name
 					}
 					for _, tc := range []struct {
-						input any
+						input        any
 						marked, null bool
 					}{
 						{validInput, false, false}, {[]byte(validInput), false, false},
@@ -35,13 +35,14 @@ func TestReferenceIsnValidationValues(t *testing.T) {
 						{nil, false, true}, {[]byte(nil), false, true},
 					} {
 						step := isnValidationValueStep(b, i, expression, tc.input, tc.marked, tc.null)
-						if bytes, typedBytes := tc.input.([]byte); runtime && !b.PG && typedBytes && bytes == nil {
-							// The established native TEXT adapter imports typed-nil
-							// bytes as empty text; pq instead sends SQL NULL. Keep
-							// actual empty ISN input erroneous, with no portal context.
-							step = isnValidationQueryError(step.Query, isnConversionDiagnostic("22P02", `invalid input syntax for `+isnConversionInputFamily(role.name)+` number: ""`), tc.input)
-						}
 						isnConversionRoutes(t, p, b, c, step)
+					}
+					if runtime {
+						for _, empty := range []any{"", []byte{}} {
+							step := isnValidationValueStep(b, i, expression, empty, false, false)
+							diagnostic := isnConversionDiagnostic("22P02", `invalid input syntax for `+isnConversionInputFamily(role.name)+` number: ""`)
+							isnConversionRoutes(t, p, b, c, isnValidationQueryError(step.Query, diagnostic, empty))
+						}
 					}
 				}
 				q := "SELECT is_valid(NULL::" + role.name + ") AS valid,make_valid(NULL::" + role.name + ") AS repaired"

@@ -24,9 +24,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   case per constraint) give every case its own serial `NewScenario`. The case
   keeps that scenario's 30-second context from table creation through native
   Dump/Reset/Restore and cleanup, and cleanup finishes before the next case starts.
-- A typed nil `[]byte` bound to a parameter inferred as TEXT is empty input
-  natively but NULL through lib/pq (for example, `md5` of it). Encode both
-  expectations; never select signatures by Go kind.
+- A typed-nil `[]byte` bound to a TEXT parameter is SQL NULL on both backends;
+  nonnil empty bytes remain empty TEXT. Assert both through direct and held
+  calls without selecting signatures by Go kind.
 - Bare unresolved-parameter diagnostics use explicit Prepare. An argument-free
   `database/sql` call is not a PostgreSQL simple-query protocol witness; retain
   the adapter's ordinary inference and missing-argument contract separately.

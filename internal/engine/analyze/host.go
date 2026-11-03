@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -22,6 +23,8 @@ import (
 // Engine.mu held; every method is called with Engine.mu held and never takes
 // or releases it.
 type Host interface {
+	// Immutable startup arithmetic input, returned by value under the binding lock.
+	WALNameMetadata() functions.WALNameMetadata
 	// Authority. Binding authorities read the stored authority through the
 	// operation's definition reader (analysis_authority.go).
 	BindingAuthority(base Authority) (Authority, error)

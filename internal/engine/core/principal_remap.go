@@ -99,6 +99,7 @@ func (e *Engine) RestoreStage() *Engine {
 	if err != nil {
 		panic(err)
 	}
+	stage.WALNames = e.WALNames
 	if err := stage.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		panic(err)
 	}

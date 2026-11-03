@@ -163,6 +163,10 @@ unrestricted reads and a fixed native effective default:
 | wal_block_size | 8192 | simulated WAL block |
 | wal_segment_size | 16MB | raw/boot/reset16777216 bytes, bounds1MB..1GB |
 
+The immutable `wal_segment_size` boot value also supplies pure WAL-name
+arithmetic at engine construction; SQL cannot tune it. SHOW/current_setting
+retain formatted `16MB`, while `pg_settings` exposes raw byte metadata.
+
 These physical values are explicitly authorized **setting-only simulations**,
 not the technical-statistics approximation exception. They do not create files,
 chmod directories, checksum pages, generate WAL, map shared memory, allocate huge

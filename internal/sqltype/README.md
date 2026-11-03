@@ -264,6 +264,9 @@ admission and removes it before nested binding.
   does not grant executable arrays or index hash support. Grouping hashes the
   unsigned bits; INET/CIDR grouping hashes family, prefix and address consistently
   with their existing typed equality.
+  `NumericUint64Value` checks concrete NUMERIC authority and constructs exact
+  nonnegative integers using the same normalized unsigned decimal helper as LSN
+  differences; callers never narrow through int64 or round-trip numeric text.
 - `Composite` freezes catalog members and rejects pseudo-type storage attributes.
   `RecordShape` freezes an anonymous expression/query-result occurrence and
   retains VOID members, including their exact typed NULLs for empty results.

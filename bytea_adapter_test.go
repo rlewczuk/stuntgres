@@ -63,10 +63,10 @@ func TestByteaAdapterOwnership(t *testing.T) {
 	}
 	args, _ := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: []byte(nil)}})
 	tv, err := importParameter(ctx, args[0], text.Usage(), sqltype.InputEnvironment{})
-	if err != nil || tv.IsNull() {
+	if err != nil || !tv.IsNull() || tv.Type() != text {
 		t.Fatal(tv, err)
 	}
-	if raw, err := tv.Text(); err != nil || raw != "" {
+	if raw, err := exportValue(ctx, tv, sqltype.OutputEnvironment{}); err != nil || raw != nil {
 		t.Fatal(raw, err)
 	}
 	if scanType(d) != reflect.TypeFor[[]byte]() {

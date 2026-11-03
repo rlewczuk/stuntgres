@@ -97,6 +97,9 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3577, "pg_logical_emit_message", "pg_logical_emit_message_text", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3578, "pg_logical_emit_message", "pg_logical_emit_message_bytea", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6344, "pg_sync_replication_slots", "pg_sync_replication_slots", "INTERNAL", "INVOKER"},
+		irBuiltinFact{2851, "pg_walfile_name", "pg_walfile_name", "INTERNAL", "INVOKER"},
+		irBuiltinFact{2850, "pg_walfile_name_offset", "pg_walfile_name_offset", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6213, "pg_split_walfile_name", "pg_split_walfile_name", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6003, "pg_replication_origin_create", "pg_replication_origin_create", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6004, "pg_replication_origin_drop", "pg_replication_origin_drop", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6005, "pg_replication_origin_oid", "pg_replication_origin_oid", "INTERNAL", "INVOKER"},
@@ -140,8 +143,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3171, "lo_tell64", "be_lo_tell64", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2282, "pg_get_backend_memory_contexts", "pg_get_backend_memory_contexts", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1821 {
-		t.Fatalf("released represented inventory: got %d, want 1821", len(facts))
+	if len(facts) != 1824 {
+		t.Fatalf("released represented inventory: got %d, want 1824", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

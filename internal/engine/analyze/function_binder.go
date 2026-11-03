@@ -20,6 +20,8 @@ import (
 // binder's existing private services; they add no state of their own.
 var _ functions.AggregateBinder = (*Binder)(nil)
 
+func (b *Binder) WALNameMetadata() functions.WALNameMetadata { return b.Host.WALNameMetadata() }
+
 // OriginalArgument recovers syntax only through the same private slot that
 // supplies an already-analyzed operand. It never binds or matches source keys.
 func (b *Binder) OriginalArgument(raw parser.Expr) (parser.Expr, bool) {

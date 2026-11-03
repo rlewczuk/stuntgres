@@ -111,10 +111,7 @@ func TestReferenceSnowballMetadata(t *testing.T) {
 			dictionaryResult(t, p, b, c, q, tc.want, tc.args...)
 			dictionaryResult(t, p, b, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, q, tc.want, tc.args...)
 		}
-		var want any = "{}"
-		if b.PG {
-			want = nil
-		}
+		var want any
 		dictionaryResult(t, p, b, c, q, want, "english_stem", []byte(nil))
 		dictionaryResult(t, p, b, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, q, want, "english_stem", []byte(nil))
 		for _, prepared := range []bool{false, true} {

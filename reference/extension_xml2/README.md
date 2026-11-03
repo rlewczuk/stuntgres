@@ -35,7 +35,6 @@ Use the reusable family selector `^TestReferenceXML2` with `make check` under th
 shared [testing policy](../../docs/TESTING.md). `TestMain` delegates oracle and
 scenario lifecycle ownership to `fixture.Main`.
 
-Client-byte witnesses distinguish genuine SQL NULL from the shared fixture's
-typed-nil TEXT representation: native empty input versus lib/pq SQL NULL.
-Nonnil empty bytes, full compile diagnostics and healthy held reuse remain
-independently asserted on both routes.
+Client-byte witnesses distinguish typed-nil TEXT bytes (SQL NULL on both
+backends) from nonnil empty input. Full compile diagnostics and healthy held
+reuse remain independently asserted on both routes.

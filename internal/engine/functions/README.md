@@ -281,6 +281,18 @@ non-NULL calls reject unavailable physical WAL with explicit `0A000`: no current
 progress, switch, restore marker or standby snapshot is invented. Stock PostgreSQL
 instead reads or writes genuine WAL and returns its physical LSN.
 
+`WALName` owns the three pure WAL filename calculations. Binding copies
+`WALNameMetadata` by value through the analyzer host under its existing lock;
+expressions retain no engine, settings or physical WAL authority. The checked
+unsigned kernel accepts immutable power-of-two segment sizes from 1 MiB to
+1 GiB and all uint32 timelines. Filename/offset calls are immutable, split is
+stable, and strict scalar RECORD results share ordinary field and FROM paths.
+Exact boundaries select the new segment at offset zero. Rendering retains the
+typed call recipe, so native replay uses destination startup metadata.
+Reconstruction installs the supplied Info unchanged: ordinary rewrites preserve
+their copied provenance, while replacement retains destination-remapped routine
+and recipe descriptors rather than reinstalling source principal ownership.
+
 `ReplicationMessages` retains immutable PG_LSN/VOID scalar recipes and supplied
 operands in written order, with checked formal destinations. Text and bytea keep
 distinct routine identities; omitted `flush` denotes the declaration's false
@@ -1787,6 +1799,8 @@ Replication-message declarations, binding, strict evaluation and immutable
 protocols use `RUN='^TestReplicationMessages'`; public SQL is in `reference/sessions`.
 WAL-position typed recipes, reconstruction and ACL seeds use
 `RUN='^TestWALPositions'`; public SQL scenarios live in `reference/sessions`.
+WAL-name arithmetic, metadata ownership, declarations and shared protocols use
+`RUN='^TestWALNames'`; public scenarios live in `reference/sessions`.
 WAL summary declarations, typed shapes, evaluation and owned reconstruction use
 `RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
 Control-file declaration, shape, cancellation and immutable protocol units use

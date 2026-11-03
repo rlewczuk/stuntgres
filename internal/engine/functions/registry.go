@@ -121,6 +121,7 @@ var definitions = [...]Definition{
 	{Names: recoveryControlNames[:], ExactSpelling: true, Bind: bindRecoveryControl, NamedCall: namedRecoveryControl},
 	{Names: replicationMessagesNames[:], ExactSpelling: true, Bind: bindReplicationMessages, NamedCall: namedReplicationMessages},
 	{Names: walPositionNames[:], ExactSpelling: true, Bind: bindWALPosition},
+	{Names: walNameNames[:], ExactSpelling: true, Bind: bindWALName, NamedCall: namedWALName},
 	{Names: serverSignalNames[:], ExactSpelling: true, Bind: bindServerSignal},
 	{Names: replicationOriginNames[:], ExactSpelling: true, Bind: bindReplicationOrigin},
 	{Names: sessionSignalNames[:], ExactSpelling: true, Bind: bindSessionSignal, NamedCall: namedSessionSignal},

@@ -34,8 +34,9 @@ Client quirks:
   strings. Assert raw cells before normalization.
 - Unbounded VARCHAR-based columns report Length `(MaxInt64,true)` natively and
   `(-5,true)` through lib/pq.
-- A typed-nil `[]byte` bound to FLOAT8 or to an inferred TEXT parameter is empty
-  input natively but NULL through lib/pq; do not use it as a shared NULL witness.
+- A typed-nil `[]byte` bound to TEXT is SQL NULL on both backends; nonnil empty
+  bytes remain empty input. FLOAT8 retains its separate native empty-input
+  versus lib/pq NULL transport policy.
 - lib/pq fails on an oversized ErrorResponse; obtain such a server diagnostic on
   PostgreSQL with `pg_input_error_info`.
 - A pre-canceled lib/pq read can race database/sql's cancellation watcher: check

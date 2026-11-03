@@ -127,3 +127,6 @@
 1672	varbitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1562 1562	\N	\N	\N	false	\N	bitcmp	\N	false	\N
 4119	macaddr8_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	774 774	\N	\N	\N	false	\N	macaddr8_cmp	\N	false	\N
 2282	pg_get_backend_memory_contexts	11	12	1	100	0	0	f	false	false	true	true	v	r	0	0	2249		{25,25,25,23,1007,20,20,20,20,20}	{o,o,o,o,o,o,o,o,o,o}	{name,ident,type,level,path,total_bytes,total_nblocks,free_bytes,free_chunks,used_bytes}	false	\N	pg_get_backend_memory_contexts	\N	false	\N
+2851	pg_walfile_name	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	3220	\N	\N	\N	false	\N	pg_walfile_name	\N	false	\N
+2850	pg_walfile_name_offset	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2249	3220	{3220,25,23}	{i,o,o}	{lsn,file_name,file_offset}	false	\N	pg_walfile_name_offset	\N	false	\N
+6213	pg_split_walfile_name	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2249	25	{25,1700,20}	{i,o,o}	{file_name,segment_number,timeline_id}	false	\N	pg_split_walfile_name	\N	false	\N

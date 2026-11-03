@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
@@ -37,6 +38,8 @@ type BindingHost struct {
 var _ analyze.Host = (*BindingHost)(nil)
 
 func (*BindingHost) AnalysisSlot() {}
+
+func (h *BindingHost) WALNameMetadata() functions.WALNameMetadata { return h.Engine.WALNames }
 
 // AnalysisHost returns the binding host for op. A session operation carries
 // its own host, allocated with it (sessionHost.NewOperation), and the engine one for

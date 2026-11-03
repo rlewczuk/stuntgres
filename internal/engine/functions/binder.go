@@ -14,6 +14,9 @@ import (
 // decision recorded in this package's README; prefer passing values to adding
 // methods.
 type Binder interface {
+	// WALNameMetadata returns binding-time immutable startup arithmetic input.
+	// Binding already holds the engine lock; this method never acquires it.
+	WALNameMetadata() WALNameMetadata
 	ArgumentAnalyzer
 	ArgumentCoercer
 	// CanCoerce is an effect-free catalog-aware feasibility probe.

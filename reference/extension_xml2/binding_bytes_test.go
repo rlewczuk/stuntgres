@@ -7,9 +7,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// The shared TEXT importer preserves the existing native empty-input versus pq
-// SQL-NULL interpretation of typed-nil bytes. This does not select SQL signatures
-// by Go kind or change the installed routines' strict SQL-NULL contract.
+// Typed-nil TEXT bytes are SQL NULL on both routes; nonnil empty bytes retain
+// genuine empty-input behavior. Go kind never selects the SQL signature.
 func xml2ByteRepresentations(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
 	q := xml2Scalars(nil, nil, nil, nil, nil).Query
@@ -27,7 +26,7 @@ func xml2ByteRepresentations(t *testing.T, p *fixture.Pair, b fixture.Backend, c
 	healthy := xml2Scalars("<r>12</r>", ".", "12", float64(12), true)
 	for _, bytes := range [][]byte{nil, {}} {
 		var boolean any = false
-		if bytes == nil && b.PG {
+		if bytes == nil {
 			boolean = nil
 		}
 		for _, s := range []fixture.Step{
@@ -67,11 +66,11 @@ func xml2ByteRepresentations(t *testing.T, p *fixture.Pair, b fixture.Backend, c
 				typedNil bool
 			}{{[]byte(nil), true}, {[]byte{}, false}, {"", false}} {
 				var value any = fn.valid
-				if path.typedNil && b.PG {
+				if path.typedNil {
 					value = nil
 				}
 				s := fixture.Select(q, []string{"value"}, []string{fn.typ}, [][]any{{value}}, "<r>12</r>", path.value)
-				if fn.name != "xpath_string" && !(path.typedNil && b.PG) {
+				if fn.name != "xpath_string" && !path.typedNil {
 					s = fixture.ErrorDiagnostic(q, xml2Compile("Invalid expression"), "<r>12</r>", path.value)
 					s.SelectRows, s.ErrorStage = true, "execute"
 				}
@@ -105,7 +104,7 @@ func xml2ValidationBytes(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 		for _, input := range []struct {
 			value any
 			null  bool
-		}{{[]byte(nil), b.PG}, {[]byte{}, false}, {"", false}, {nil, true}} {
+		}{{[]byte(nil), true}, {[]byte{}, false}, {"", false}, {nil, true}} {
 			var want any = mode == "CONTENT"
 			if input.null {
 				want = nil

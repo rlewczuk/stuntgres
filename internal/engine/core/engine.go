@@ -57,8 +57,9 @@ type Engine struct {
 	Storage                         storage.Store
 	sessionMu                       sync.Mutex
 	sessions                        map[ids.SessionToken]*session.Session
-	Settings                        settings.Registry // Immutable, initialized once before publication.
-	Authority                       AuthorityInputs   // Points at settings and storage; shared by engine-built views.
+	Settings                        settings.Registry         // Immutable, initialized once before publication.
+	WALNames                        functions.WALNameMetadata // Immutable destination startup input; copied before binding.
+	Authority                       AuthorityInputs           // Points at settings and storage; shared by engine-built views.
 	Visibility                      visibility.Registry
 	IndexWaits                      index.WaitRegistry
 	Exclusions                      index.ExclusionRegistry
@@ -120,6 +121,14 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.Mu.Unlock()
 	e.RoleStore.Initialize()
 	e.Settings = settings.NewRegistry(definitions, e.Visibility.TracksCommitTimestamps())
+	walSize, err := e.Settings.Lookup("wal_segment_size")
+	if err != nil {
+		return nil, err
+	}
+	e.WALNames = functions.WALNameMetadata{SegmentSize: uint32(walSize.BootValue().Number), Timeline: 1}
+	if err := e.WALNames.Validate(); err != nil {
+		return nil, err
+	}
 	cluster.ConfigLoadedAt = time.Now().UnixMicro() - activityEpochUnixMicros
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {

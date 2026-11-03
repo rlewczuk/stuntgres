@@ -1951,6 +1951,18 @@ returns actual file metadata. On-disk encoding validation is unreachable
 natively; ordinary typed text/argument validation remains enforced. No host
 files, timestamps, directory entries or physical state enter Dump/Restore.
 
+## Pure WAL filename calculations
+
+`pg_walfile_name(pg_lsn)` returns TEXT; `pg_walfile_name_offset(pg_lsn)` returns
+a scalar RECORD with TEXT/INT4 fields, and `pg_split_walfile_name(text)` returns
+NUMERIC/INT8 fields. They use immutable startup segment-size/timeline metadata,
+not physical WAL access. Exact boundaries select the new segment with offset
+zero. Strict NULL records expand in FROM to one all-NULL row. Native TEXT,
+NUMERIC and scalar RECORD values scan as strings; INT4/INT8 scan as int64.
+Prepared parameters infer the released pg_lsn/pg_lsn/text formals. Stored
+consumer recipes replay against destination metadata through ordinary
+Dump/Restore, with no serialized builtin state.
+
 ## Control-file information boundary
 
 `pg_control_checkpoint()`, `pg_control_system()`, `pg_control_init()` and

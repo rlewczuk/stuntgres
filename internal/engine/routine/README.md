@@ -18,6 +18,12 @@ formal and nullable TEXT result, strict STABLE and parallel-safe under the
 ordinary catalog inquiry provider. Its internal display source matches its SQL
 name; no named formal or pretty overload is declared.
 
+The three pure WAL-name declarations use fixed identities 2851, 2850 and 6213
+under the catalog provider. Offset and split retain complete IN/OUT names in
+`RoutineOutputs`; filename-only has a genuinely unnamed PG_LSN input. Display
+facts and executable declarations share these identities, with ordinary default
+PUBLIC EXECUTE and no physical-WAL privilege seed.
+
 The executable `gin_clean_pending_list` declaration is routine 3789, one
 unnamed REGCLASS formal (2205), scalar INT8 result (20), STRICT VOLATILE and
 parallel-unsafe. Internal language/source `gin_clean_pending_list`, cost 1 and

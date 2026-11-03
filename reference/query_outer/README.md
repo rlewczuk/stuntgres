@@ -99,6 +99,9 @@ parallel-safety declarations; snapshot member expansion has row estimate 50.
 The four zero-input control-data functions retain scalar RECORD results and
 their exact ordered OUT types/names (18/4/5/12 members for
 checkpoint/system/recovery/init), without inventing input or set-returning slots.
+The three pure WAL-name declarations retain fixed OIDs2850/2851/6213, their
+strict parallel-safe scalar signatures, exact OUT order/names and immutable/
+stable volatility in complete membership and all 28 property projections.
 The two input-validity declarations add released OIDs6210/6211 with exact
 strict/STABLE/parallel-safe scalar metadata. Only error-info has named inputs
 and four TEXT OUT fields; the boolean formals are unnamed. Membership and all

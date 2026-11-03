@@ -14,6 +14,8 @@ func RestoreFunctionRecipe(r parser.FunctionExpr) bool {
 	}
 	name := r.Name.Parts[len(r.Name.Parts)-1].Text
 	switch name {
+	case "pg_walfile_name", "pg_walfile_name_offset", "pg_split_walfile_name":
+		return len(r.Args) == 1 && !r.Variadic && (len(r.Name.Parts) == 1 || r.Name.Parts[0].Text == "pg_catalog")
 	case "circle":
 		return functions.CircleConstructorReplay(r)
 	case "split_part", "string_to_array", "parse_ident":

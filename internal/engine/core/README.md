@@ -2371,6 +2371,11 @@ identities use the same admission, capture and immutable fold owners as simple.
 DDL capture retains that same capability before releasing `Engine.Mu` for
 compilation. Logical databases, the private template seed, Restore stages and
 Reset retain it explicitly; destination Restore never borrows source bytes.
+`Engine.WALNames` is immutable arithmetic metadata, initialized from the exact
+`wal_segment_size` registry boot value with embedded timeline 1. Binding reads
+it by value without acquiring a lock. New logical databases copy the originating
+runtime's value before binding; Restore stages copy the destination's value
+before replay. Reset and catalog replacement neither serialize nor replace it.
 
 ## Read-only utility execution
 
@@ -3149,6 +3154,9 @@ Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
+
+WAL-name startup propagation, destination rebinding and accepted-fold ownership
+use `RUN='^TestWALNamesMetadata$'`.
 
 Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and
 cancellation, statement pins, independent prepared protocol resources and retained

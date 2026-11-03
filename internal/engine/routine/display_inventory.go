@@ -18,6 +18,9 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	2851: {Language: catalog.InternalRoutineLanguage, Source: "pg_walfile_name"},
+	2850: {Language: catalog.InternalRoutineLanguage, Source: "pg_walfile_name_offset"},
+	6213: {Language: catalog.InternalRoutineLanguage, Source: "pg_split_walfile_name"},
 	101:  {Language: catalog.InternalRoutineLanguage, Source: "eqsel"},
 	102:  {Language: catalog.InternalRoutineLanguage, Source: "neqsel"},
 	103:  {Language: catalog.InternalRoutineLanguage, Source: "scalarltsel"},

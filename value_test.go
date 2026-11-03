@@ -89,7 +89,7 @@ func TestBitstringParameterNullBoundary(t *testing.T) {
 			}
 			value, err := importParameter(ctx, normalized[0], target.Usage(), sqltype.InputEnvironment{})
 			bytes, typedBytes := raw.([]byte)
-			wantNull := raw == nil || typedBytes && bytes == nil && id != sqltype.Name && id != sqltype.Text
+			wantNull := raw == nil || typedBytes && bytes == nil && id != sqltype.Name
 			if id == sqltype.JSON && !wantNull {
 				var diagnostic *Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" {

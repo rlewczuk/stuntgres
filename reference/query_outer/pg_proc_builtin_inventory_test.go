@@ -54,6 +54,9 @@ import (
 // parallel-restricted, query and cursor functions VOLATILE/parallel-unsafe.
 // The six WAL-position declarations retain strict VOLATILE/parallel-safe scalar
 // PG_LSN results, unnamed formals, no defaults and released internal symbols.
+// Pure WAL-name identities2850/2851/6213 retain strict, parallel-safe scalar
+// declarations: immutable PG_LSN filename helpers and stable TEXT split, with
+// complete ordered OUT metadata and a genuinely unnamed filename-only input.
 // The four large-object descriptor declarations retain strict VOLATILE/
 // parallel-unsafe scalar metadata, unnamed inputs and released be_lo* symbols.
 // The session-signal identities 2096/2171 retain strict VOLATILE/parallel-safe
@@ -235,8 +238,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Current-backend memory adds one callable ten-OUT-field record SRF.
 	// Current-backend fetched/hit inquiries add two strict VOLATILE/restricted
 	// unnamed OID-to-INT8 declarations3044/3045.
-	if len(facts) != 2247 {
-		t.Fatalf("released represented overloads: got %d, want 2247", len(facts))
+	if len(facts) != 2250 {
+		t.Fatalf("released represented overloads: got %d, want 2250", len(facts))
 	}
 	return facts
 }

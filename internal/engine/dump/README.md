@@ -55,6 +55,9 @@ standard library, and holds no state, no mutex and no engine callback.
     binder and destination input diagnostics during Restore INSERT replay.
     The syntax allowance grants no provider identity; nested parameters and
     unsupported child recipes remain rejected before execution.
+  - Single-input WAL-name recipes use this same whitelist and recursive operand
+    validation. Replay resolves the destination's genuine builtin declaration
+    and immutable startup metadata; no separate WAL state or dump record exists.
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the dump
     event that must precede its consumer, or 0.

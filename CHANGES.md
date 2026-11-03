@@ -87,6 +87,12 @@
   Keep selected IndexBlocksRead/IndexBlocksHit cache outcomes independent of
   generic BlocksFetched/BlocksHit requests on the existing integrated read lease.
 
+- Add typed pure WAL filename, offset and split calculations with exact unsigned
+  arithmetic, PostgreSQL 18 boundary/NULL behavior and released routine metadata.
+  Stored consumers replay using destination-owned immutable startup metadata.
+  Preserve destination routine provenance through reconstruction and typed-nil
+  byte arguments as SQL NULL for shared TEXT input.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual
