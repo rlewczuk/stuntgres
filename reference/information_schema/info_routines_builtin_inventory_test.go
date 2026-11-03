@@ -138,9 +138,10 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{958, "lo_tell", "be_lo_tell", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3170, "lo_lseek64", "be_lo_lseek64", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3171, "lo_tell64", "be_lo_tell64", "INTERNAL", "INVOKER"},
+		irBuiltinFact{2282, "pg_get_backend_memory_contexts", "pg_get_backend_memory_contexts", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1820 {
-		t.Fatalf("released represented inventory: got %d, want 1820", len(facts))
+	if len(facts) != 1821 {
+		t.Fatalf("released represented inventory: got %d, want 1821", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

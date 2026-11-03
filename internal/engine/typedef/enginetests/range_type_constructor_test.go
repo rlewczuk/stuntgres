@@ -214,7 +214,7 @@ func TestRangeTypeExactEndpoints(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := catalog.CloneState(view.State())
-		if _, err := typedef.ReownDomainTypes(next, nil, true, routine.RangeTypeRebinder(next, nil)); err != nil {
+		if _, err := typedef.ReownDomainTypes(next, nil, true, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 			t.Fatal(err)
 		}
 		for _, source := range []sqltype.Value{value, multi} {

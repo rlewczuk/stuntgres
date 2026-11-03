@@ -19,24 +19,29 @@ import (
 // its builtin generation peers (sqltype.BuiltinGenerationPeers) too, so bound
 // operations that check linked descriptors by identity see one generation.
 // Imported columns and values are reowned later, never temporary rows. It
-// reports whether it changed next.
+// reports candidate changes and exact current generations retained (including
+// already-identical candidate descriptors), for the importing type traversal.
 // This candidate-only phase precedes CheckTemporaryDependencies so full policy
 // runtime manifests can certify exact retained codec generations.
-func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) bool {
+func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) (bool, map[sqltype.ID]*sqltype.Descriptor) {
 	typesChanged := false
-	retained := make(map[sqltype.ID]bool)
+	retained := make(map[sqltype.ID]*sqltype.Descriptor)
 	var retainBuiltin func(*sqltype.Descriptor)
 	retainBuiltin = func(typ *sqltype.Descriptor) {
-		if typ == nil || typ.IsDomain() || typ.IsArray() && typ.Element().IsDomain() || retained[typ.ID()] {
+		if typ == nil || typ.IsDomain() || typ.IsArray() && typ.Element().IsDomain() || retained[typ.ID()] != nil {
 			return
 		}
-		retained[typ.ID()] = true
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		source, ok := current.State().Type(address)
 		if !ok || source.SQLType != typ {
 			return
 		}
-		if imported, ok := next.Type(address); ok && imported.SQLType != typ {
+		imported, ok := next.Type(address)
+		if !ok {
+			return
+		}
+		retained[typ.ID()] = typ
+		if imported.SQLType != typ {
 			copy := *imported
 			copy.SQLType = typ
 			next.SetDescriptor(address, &copy)
@@ -45,7 +50,7 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 		if typ.IsArray() {
 			retainBuiltin(typ.Element())
 		}
-		if typ.IsComposite() && typ.Usage().CatalogNullUsage() {
+		if typ.IsComposite() && (typ.IsBuiltin() || typ.Usage().CatalogNullUsage()) {
 			for i := range typ.CompositeLen() {
 				retainBuiltin(typ.CompositeMember(i).Usage.Type)
 			}
@@ -162,5 +167,5 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 			}
 		}
 	}
-	return typesChanged
+	return typesChanged, retained
 }

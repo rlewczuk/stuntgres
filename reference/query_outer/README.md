@@ -151,7 +151,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2226 rows, all backed
+supplements. The complete released inventory contains 2245 rows, all backed
 by actual descriptors, including GIN handler333, ten genuine internal
 extraction/consistency support declarations and callable strict volatile
 parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership
@@ -159,6 +159,8 @@ for internal support routines grants no scalar
 C ABI execution. The ten nullable lookup records retain one unnamed TEXT input,
 their exact alias or INT4 typmod results and strict STABLE/parallel-safe
 scalar declarations.
+The callable backend-memory record SRF2282 adds its ten named OUT fields,
+strict VOLATILE/parallel-restricted declaration, cost 1 and row estimate 100.
 The two builtin bit-string comparators (1596 `bitcmp`, 1672 `varbitcmp`)
 retain complete independent 28-field facts and shared routine-deparse coverage.
 Both use the released internal source `bitcmp`, cost 1, leakproof and strict

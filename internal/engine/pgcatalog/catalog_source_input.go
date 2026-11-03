@@ -25,6 +25,7 @@ type Input struct {
 	Runtime      Runtime
 	RoleSettings RoleSettingsProjection
 	IdentFile    *identfile.Source
+	BackendMemory BackendMemorySnapshot
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
 	SharedDependencies []SharedDependency

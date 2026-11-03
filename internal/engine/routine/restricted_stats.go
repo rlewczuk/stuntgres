@@ -54,3 +54,18 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 	}
 	return procedures
 }
+
+// SeedBackendMemoryACL modifies the canonical callable descriptor, never adds
+// a second metadata-only declaration. Subsequent admission uses ordinary ACLs.
+func SeedBackendMemoryACL(procedures []catalog.Procedure, owner, stats authorization.PrincipalRef) {
+	for i := range procedures {
+		p := &procedures[i]
+		if p.Address().ObjectID != 2282 {
+			continue
+		}
+		p.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege},
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.ExecutePrivilege},
+		}}
+	}
+}

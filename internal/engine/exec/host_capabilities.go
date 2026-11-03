@@ -102,6 +102,7 @@ type SessionInquiryRuntime interface {
 	OtherTempNamespace(oid uint32) (bool, error)
 	ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error)
 	NotificationQueueUsage() (float64, error)
+	BackendMemoryContexts(result *sqltype.Descriptor) ([]sqltype.Value, error)
 }
 
 // TransactionInquiryRuntime holds the bodies of

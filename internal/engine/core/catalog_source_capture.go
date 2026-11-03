@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -64,7 +65,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID:
+	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.BackendMemoryContextsOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -75,6 +76,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			procedure = 4100
 		} else if oid == pgcatalog.AIOSOID {
 			procedure = 6399
+		} else if oid == pgcatalog.BackendMemoryContextsOID {
+			procedure = 2282
 		} else if oid == pgcatalog.ConfigOID {
 			procedure = 3400
 		} else if oid == pgcatalog.FileSettingsOID {
@@ -90,6 +93,20 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			return nil, err
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		if oid == pgcatalog.BackendMemoryContextsOID {
+			in.Runtime = newCatalogRuntime(runtime)
+			e.Mu.Unlock()
+			// Operation validation may take Session.Mu. Admission to the view
+			// and backing routine is complete; never nest it under Engine.Mu.
+			if err := session.ValidateOperation(DomainOf(e), scope.Op); err != nil {
+				return nil, err
+			}
+			in.BackendMemory, err = captureBackendMemory(in.Context, scope.Op.Session)
+			if err != nil {
+				return nil, err
+			}
+			return catalogrt.CaptureRows(in, produce)
+		}
 		if oid == pgcatalog.IdentFileMappingsOID {
 			in.IdentFile = e.IdentFile
 			unlockBefore = true

@@ -129,7 +129,7 @@ func earthReownOperations(t *testing.T, operations []sqltype.EarthOperation) {
 					baseType := *next.MustType(baseAddress)
 					baseType.SQLType = fresh
 					next.SetDescriptor(baseAddress, &baseType)
-					if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
+					if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 						t.Fatal(err)
 					}
 					if !typesOnly {

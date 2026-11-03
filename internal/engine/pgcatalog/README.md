@@ -92,6 +92,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
   the catalog view; the producer neither scans materialized contents nor borrows
   current global state.
 
+- `pg_backend_memory_contexts` consumes detached current-session layout facts,
+  captured only after independent view SELECT and backing EXECUTE admission.
+  Three ownership groups retain own bytes, not descendant totals. Typed NULLs
+  represent unsupported allocator block/free-list counters; `GoObjectLayout`
+  identifies selected real Go layouts, excluding referenced storage and allocator
+  overhead. View rows and the callable SRF share `BackendMemoryRows`, using
+  current-generation descriptors and invocation-owned path arrays. Cancellation
+  publishes no partial row vector; producers never inspect a session registry.
+  Whole-view-row values use the completed builtin nominal row 12144 and array
+  12143, whose members reference the same current descriptors as source columns;
+  the callable routine continues to return its declared anonymous RECORD shape.
+
 - `pg_config` (12130) captures the immutable embedded distribution identity as
   the `VERSION` row, reusing `functions.EmbeddedVersionBanner`. Its two nullable
   TEXT columns retain captured descriptors, origins and ordinary TEXT collation.
@@ -968,6 +980,9 @@ owns its row/cell buffers and publishes no prefix on cancellation or error.
 `ProducerFor(oid)` finds a producer by binary search; `Registrations()` returns
 a copy for coverage checks. `pg_locks` (`LocksOID`) and `pg_sequences` are not
 registered: the engine handles those two itself.
+Concurrent source additions must retain strict numeric ordering when combined:
+backend memory (12142) precedes all-index statistics (12187). Registration
+presence alone is insufficient for binary-search reachability.
 
 `catalog_source_specs.go` holds `Specs`, the ordered descriptor metadata for
 every system relation (OID, namespace, name, columns with type, typmod,

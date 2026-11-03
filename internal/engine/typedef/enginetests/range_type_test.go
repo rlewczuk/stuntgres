@@ -195,7 +195,7 @@ func TestRangeTypeIdentityRemap(t *testing.T) {
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		mapping[address] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(910001 + i)}
 	}
-	changed, err := typedef.ReownDomainTypes(next, mapping, true, routine.RangeTypeRebinder(next, mapping))
+	changed, err := typedef.ReownDomainTypes(next, mapping, true, routine.RangeTypeRebinder(next, mapping), nil)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

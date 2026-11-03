@@ -38,6 +38,12 @@ declarations; the fixed identity ledger alone never grants execution.
 The family uses the existing RegLookup expression owner, alias codecs and
 declaration usage resolver, not a second catalog or execution family.
 
+`pg_get_backend_memory_contexts` (2282) is a canonical callable catalog-provider
+declaration, not a metadata-only restricted-statistics shadow. Its ten named OUT
+fields form strict VOLATILE/parallel-restricted SETOF record, cost 1 and rows 100.
+The fresh descriptor receives owner/pg_read_all_stats EXECUTE; subsequent grants
+and revokes use normal runtime authority independently of the view's SELECT.
+
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
 row estimate describe the backing view routine, not a callable SRF. Its explicit

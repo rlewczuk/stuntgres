@@ -9,6 +9,27 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Backend-memory capture borrows only the admitted operation's physical session,
+after view SELECT/backing EXECUTE or ordinary callable routine admission.
+Session validation and registry traversal run without `Engine.Mu`; physical
+statement admission serializes installed definitions. Detached fixed snapshots
+hold own-layout sizes of the actual combined session allocation, prepared registry
+and distinct definition objects, never owner pointers or referenced graphs.
+The view's `pgcatalog.Input` and the invocation-time `SessionInquiryRuntime`
+bridge share typed materialization; no live measurement enters Dump/Restore.
+Private bootstrap completes only the view's existing nominal row/array pair
+(12144/12143), after source installation and before seed validation. Exact
+catalog reciprocity and composite-kind checks precede descriptor copies that
+preserve builtin provenance and current-generation members. Reset/Restore and
+independent destination engines normally build their own pair; live destination
+TEMP consumers instead retain the exact pair and actual member/peer closure.
+Candidate-local retention evidence flows into importing reownership, which
+validates that closure without reminting or retagging TEMP values. Old eager
+values keep immutable descriptors. The callable SRF retains its RECORD shape.
+Staged/imported type reownership completes this builtin pair coherently through
+the shared typedef member traversal, preserving its effective builtin namespace,
+catalog metadata and legitimate relation mapping without user-type serialization.
+
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
 heaps from the current committed map without mutating captured maps or retained
@@ -3486,6 +3507,10 @@ with `RACE=1`.
 - UPDATE auxiliary-storage measurements preparse their fixed SQL before measuring
   bytes, then use real session acquisition and engine execution. Parser scratch
   pool retention is not an execution-memory invariant.
+
+Backend-memory private owner/layout, typed capture, real callable source and
+cancellation units use `RUN='^TestBackendMemory'`. Public SQL, ACL and native
+control scenarios live in `reference/catalogs` under `TestReferenceBackendMemory`.
 
 JSON conversion ownership and cancellation use `RUN='^TestFTSJSON'`, also with
 `RACE=1`; these inspect accepted backing and private acquisition publication.

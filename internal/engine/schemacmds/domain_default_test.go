@@ -181,7 +181,7 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	copy := *next.MustType(address)
 	copy.SQLType = target.CatalogRead().MustType(address).SQLType
 	next.SetDescriptor(address, &copy)
-	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := stored.ReownExpressions(source.Catalog.Read(next), next, nil, true, nil); err != nil {

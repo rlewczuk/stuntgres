@@ -26,6 +26,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		3566, 4568, // event-trigger inspection
 		6321, 6322, // physical WAL summaries
 		6399, // current asynchronous I/O handles
+		2282, // current backend memory contexts
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets
 		3955, 3957, 3958, 3959, 3961, 3969: // JSON sets
 		return 100

@@ -31,6 +31,10 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		seen[oid] = true
 	}
+	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
+	if !seen[2282] || memory.Builtin != routine.BuiltinRoutine(2282) || memory.Builtin.Providers == 0 || !memory.Builtin.ReturnsSet || memory.Result != 2249 || len(memory.ACL.Entries) != 2 {
+		t.Fatal("backend memory must own one callable restricted declaration", memory)
+	}
 	for _, d := range view.Descriptors() {
 		if p, ok := d.(*catalog.Procedure); ok {
 			if !p.Display.Valid() || p.SecurityDefiner {
@@ -51,6 +55,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
+		2282: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_backend_memory_contexts"},
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},

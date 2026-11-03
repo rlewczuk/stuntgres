@@ -172,7 +172,7 @@ func TestDblinkUpdateStoredCarrier(t *testing.T) {
 	textGeneration := *textOwner.SQLType
 	textOwner.SQLType = &textGeneration
 	typedState.SetDescriptor(textAddress, &textOwner)
-	if changed, err := typedef.ReownDomainTypes(typedState, nil, false, nil); err != nil || !changed {
+	if changed, err := typedef.ReownDomainTypes(typedState, nil, false, nil, nil); err != nil || !changed {
 		t.Fatal("new element generation did not rebuild dependent types", changed, err)
 	}
 	typedView := e.Catalog.Read(typedState)

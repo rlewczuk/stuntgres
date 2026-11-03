@@ -33,6 +33,28 @@ func Composite(id ID, name, declaration string, associatedArray ID, members []Co
 	return compositeDescriptor(id, name, declaration, associatedArray, members, 1600, true, false)
 }
 
+// CompleteBuiltinComposite completes one catalog-owned builtin row/array pair
+// without discarding immutable builtin provenance. The catalog caller must
+// establish the row's composite kind and reciprocal relation ownership first.
+// Existing descriptors and the process-wide builtin template remain unchanged.
+func CompleteBuiltinComposite(row, array *Descriptor, members []CompositeMember) (*Descriptor, *Descriptor, error) {
+	if row == nil || array == nil || !row.IsBuiltin() || !array.IsBuiltin() || !array.IsArray() ||
+		row.IsArray() || row.IsDomain() || IsPseudo(row.id) ||
+		row.Concrete() && !row.IsComposite() ||
+		row.associatedArray != array.id || array.element != row || array.namespace != row.namespace {
+		return nil, nil, fmt.Errorf("invalid builtin composite pair")
+	}
+	shape, err := Composite(row.id, row.name, row.sql, array.id, members)
+	if err != nil {
+		return nil, nil, err
+	}
+	completed := *row
+	completed.composite, completed.lookupOnly = shape.composite, false
+	companion := *array
+	companion.element, companion.lookupOnly = &completed, false
+	return &completed, &companion, nil
+}
+
 // RecordShape is an expression occurrence, never a catalog storage identity.
 // Query-result attributes may have type VOID; catalog composites may not.
 func RecordShape(members []CompositeMember) (*Descriptor, error) {

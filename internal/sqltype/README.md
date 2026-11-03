@@ -94,6 +94,14 @@ admission and removes it before nested binding.
   `descriptorPointers`. `BuiltinGenerationPeers` lists the builtin IDs linked
   to an ID in either direction; a catalog that keeps one generation's
   descriptor keeps its peers too.
+- `CompleteBuiltinComposite` freezes a catalog-validated builtin row/array pair
+  with coherent live members while preserving immutable builtin provenance.
+  It copies both descriptors and never promotes the process template. Core uses
+  it only for the executable backend-memory view pair (12144/12143), after source
+  installation; other metadata-only builtin rows keep their existing authority.
+  Members attached by completion are not part of the static template's peer
+  graph. TEMP preservation retains their actual closure and keeps an already
+  validated destination pair, rather than invoking completion again on import.
 - A `Usage` is descriptor + typmod + collation. `Value` is an immutable datum;
   shared payloads (arrays, composites, geometry, JSONB) are never mutated after
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,

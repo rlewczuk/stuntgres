@@ -17,16 +17,26 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 	owner, stats := domain.Principal(10), roles.LookupRef("pg_read_all_stats")
 	var descriptors []catalog.Descriptor
 	procedures := routine.RestrictedStatsProcedures(owner, stats)
+	callable := routine.BuiltinProcedures(owner)
+	routine.SeedBackendMemoryACL(callable, owner, stats)
+	for i := range callable {
+		if callable[i].Address().ObjectID == 2282 {
+			descriptors = append(descriptors, &callable[i])
+		}
+	}
 	for i := range procedures {
 		descriptors = append(descriptors, &procedures[i])
 	}
-	for i, name := range []string{"pg_shmem_allocations", "pg_shmem_allocations_numa", "pg_aios"} {
+	for i, name := range []string{"pg_shmem_allocations", "pg_shmem_allocations_numa", "pg_aios", "pg_backend_memory_contexts"} {
 		oid := ids.OID(12134)
 		if i == 1 {
 			oid = 12138
 		}
 		if i == 2 {
 			oid = 12355
+		}
+		if i == 3 {
+			oid = 12142
 		}
 		descriptors = append(descriptors, &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, ObjectName: name, Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},

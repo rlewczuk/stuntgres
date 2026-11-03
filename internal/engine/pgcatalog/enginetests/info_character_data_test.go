@@ -75,7 +75,7 @@ func TestInfoCharacterDataBuiltinBaseRebind(t *testing.T) {
 	base := *next.MustType(baseAddress)
 	base.SQLType, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.SetDescriptor(baseAddress, &base)
-	changed, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil))
+	changed, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil), nil)
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}

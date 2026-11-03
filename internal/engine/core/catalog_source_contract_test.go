@@ -119,6 +119,20 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			}
 		}
 		switch oid {
+		case pgcatalog.BackendMemoryContextsOID:
+			if len(source.Anonymous) != 3 {
+				t.Fatal("missing actual physical session ownership", source.Anonymous)
+			}
+			for _, row := range source.Anonymous {
+				if !row[6].IsNull() || !row[7].IsNull() || !row[8].IsNull() {
+					t.Fatal("unsupported allocator field fabricated", row)
+				}
+				total, _ := row[5].Integer()
+				used, _ := row[9].Integer()
+				if total != used || total < 0 {
+					t.Fatal("own layout counter inconsistency", row)
+				}
+			}
 		case pgcatalog.InfoTransformsOID:
 			if source.Anonymous == nil || len(source.Anonymous) != 0 || source.View != nil {
 				t.Fatal("transforms must be a typed empty source", source)

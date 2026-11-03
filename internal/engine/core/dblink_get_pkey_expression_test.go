@@ -113,7 +113,7 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 	generation := *textOwner.SQLType
 	textOwner.SQLType = &generation
 	state.SetDescriptor(textAddress, &textOwner)
-	if changed, err := typedef.ReownDomainTypes(state, nil, false, nil); err != nil || !changed {
+	if changed, err := typedef.ReownDomainTypes(state, nil, false, nil, nil); err != nil || !changed {
 		t.Fatal("new element generation did not rebuild nominal companions", changed, err)
 	}
 	// Production reowns scalar declarations after rebuilding nominal codecs

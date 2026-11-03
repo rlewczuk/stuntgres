@@ -51,7 +51,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	// Restore the exact live builtin codecs in this private candidate before
 	// checking the full TEMP policy runtime manifest. No allocator/publication
 	// work occurs before dependency compatibility is established.
-	typesChanged := control.RetainTemporaryBuiltinTypes(current, next, temporary)
+	typesChanged, retainedTypes := control.RetainTemporaryBuiltinTypes(current, next, temporary)
 	if err := control.CheckTemporaryDependencies(current, next, temporary); err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
-	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true, routine.RangeTypeRebinder(next, mapping))
+	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true, routine.RangeTypeRebinder(next, mapping), retainedTypes)
 	if err != nil {
 		return err
 	}

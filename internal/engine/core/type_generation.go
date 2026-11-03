@@ -16,7 +16,7 @@ import (
 func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.StageRead(stage)
 	next := view.State()
-	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 		return err
 	}
 	// Installed text codecs reject ordinary same-OID generation Retag.

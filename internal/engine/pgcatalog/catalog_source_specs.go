@@ -82,6 +82,7 @@ var Specs = [...]Spec{
 		{"size", sqltype.Int8, true, 0, 0, -1},
 	}, true, false, true, true, "stuntgres: missing shared-memory source type"},
 	{AIOSOID, ids.PGCatalogNamespaceOID, "pg_aios", aiosColumns, true, false, true, true, "stuntgres: missing AIO source type"},
+	{BackendMemoryContextsOID, ids.PGCatalogNamespaceOID, "pg_backend_memory_contexts", backendMemoryColumns, true, false, true, true, "stuntgres: missing backend memory source type"},
 	{ConfigOID, ids.PGCatalogNamespaceOID, "pg_config", configColumns, true, false, true, true, "stuntgres: missing configuration source type"},
 	{FileSettingsOID, ids.PGCatalogNamespaceOID, "pg_file_settings", fileSettingsColumns, true, false, true, true, "stuntgres: missing file settings source type"},
 	{IdentFileMappingsOID, ids.PGCatalogNamespaceOID, "pg_ident_file_mappings", identFileMappingsColumns, true, false, true, true, "stuntgres: missing identity mappings source type"},

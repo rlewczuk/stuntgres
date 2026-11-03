@@ -33,8 +33,8 @@ func ChooseAssociatedArrayName(name string, occupied func(string) bool) string {
 	return arrayName
 }
 
-// The executable projection shares one authority with named and supported user
-// rows; catalog/builtin row identities remain lookup-only.
+// CompositeMembers projects one ordered live-member authority for named rows
+// and explicitly completed builtin sources; it does not itself grant codecs.
 func CompositeMembers(relation *catalog.Relation) []sqltype.CompositeMember {
 	members := make([]sqltype.CompositeMember, len(relation.Columns))
 	for i, c := range relation.Columns {

@@ -49,6 +49,23 @@ Independent progress-allocation probes exercise the ten-slot boundary: nine fit
 beside a retained owner, while ten fit after the resumed DROP. A further probe
 must fail without allocation and succeeds only after freeing an occupied probe.
 
+Backend-memory scenarios use `make check RUN='^TestReferenceBackendMemory'`
+and the same selector with `REFERENCE=1`. Shared bodies independently assert
+PostgreSQL one-capture topology/allocator invariants and native selected-own-layout
+bytes with NULL unsupported counters. Real held statements, SQL and named/unnamed
+wire definitions, current-session ACLs, metadata, native controls, diagnostics
+and admitted cancellation exercise the view and genuinely callable record SRF.
+`TestReferenceBackendMemoryTemporaryControls` stores actual named view rows and
+arrays in populated TEMP columns, asserts the shared PostgreSQL/native storage
+contract, then exercises native Reset, repeated Restore and failed staged Restore
+while retaining old eager values/metadata. Select it independently with
+`RUN='^TestReferenceBackendMemoryTemporaryControls$'` (also with `REFERENCE=1`
+and `RACE=1`); it is included in the family prefix above.
+The standalone `TestReferenceBackendMemoryFeatureSmoke` reuses this populated
+TEMP setup/storage proof and performs its native edited-authority Restore while
+the same physical owner and row/array consumer remain live, checking unchanged
+stored values, nominal identities, fresh view/SRF captures and fixed root bytes.
+
 Materialized-view summary scenarios use `make check RUN='^TestReferencePGMatviews'`
 and the same selector with `REFERENCE=1` for pinned PostgreSQL. They assert full
 typed rows across index history, catalog admission, public metadata visibility

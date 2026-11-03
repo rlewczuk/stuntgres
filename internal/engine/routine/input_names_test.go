@@ -40,6 +40,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		1268: {"str", "strict"},
 		1686: {"word", "catcode", "barelabel", "catdesc", "baredesc"},
 		1689: {"acl", "grantor", "grantee", "privilege_type", "is_grantable"},
+		2282: {"name", "ident", "type", "level", "path", "total_bytes", "total_nblocks", "free_bytes", "free_chunks", "used_bytes"},
 		2284: {"string", "pattern", "replacement"},
 		2285: {"string", "pattern", "replacement", "flags"},
 		2289: {"options_array", "option_name", "option_value"},

@@ -114,6 +114,17 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `ReownDomainTypes` rebuilds custom range families after their subtype, invoking
   the engine's range-ordering rebinder for destination class/support identities.
   Generated companions are reconstructed with their range, not independently.
+  Concrete builtin relation rows retain their effective namespace and builtin
+  provenance, rather than entering user-composite reconstruction. Their
+  authenticated row/array pair is completed together after member traversal:
+  importing mints destination codecs except for exact live-destination TEMP
+  generations certified by the retention phase. Both retained pair pointers
+  and their current member/element/companion/peer closure must match; incomplete
+  or incompatible evidence fails rather than reminting stored TEMP values.
+  Unchanged ordinary staged traversal reuses codecs.
+  Builtin type/namespace remaps are rejected while legitimate owning-relation
+  mappings update both catalog descriptors. Companion-first traversal delegates
+  to the row and cannot overwrite its completed array.
   `CheckTemporaryTypedReplacementLocked` rejects a replacement while a live TEMP
   typed table has a persistent OF type. Detached template metadata is not a live
   attachment and cannot veto persistent replacement.
@@ -294,6 +305,13 @@ retained immutable graphs, publication fences and replay-name cycles.
 Family selector: `RUN='^TestTypeLifecycle'`. Range-type provider, bound,
 multirange, constructor, alias-capacity, allocator, dump-authority and remap
 tests run on a composed engine in `enginetests/`.
+
+Deterministically ordered component witnesses cover the backend-memory builtin
+pair's row-first/array-first no-op, changed-generation, true import, retained
+import and relation remap paths:
+`RUN='^TestBackendMemoryBuiltinPair(Reownership|RemapRejection)$'`.
+Actual live TEMP roots, retention evidence and the public importing traversal
+are exercised by `RUN='^TestBackendMemoryTemporaryBuiltinRetention$'` in core.
 
 ```sh
 make check RUN='^TestRangeType(Parser|Providers|Bounds|Multirange|Atomicity|IdentityRemap|DependencyClosure|Adapter|Constructors|ExactEndpoints)$'

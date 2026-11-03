@@ -128,7 +128,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	next := catalog.CloneState(e.CatalogRead().State())
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 60000}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}
-	changed, err := typedef.ReownDomainTypes(next, mapping, false, routine.RangeTypeRebinder(next, mapping))
+	changed, err := typedef.ReownDomainTypes(next, mapping, false, routine.RangeTypeRebinder(next, mapping), nil)
 	if err != nil || !changed {
 		t.Fatal(err)
 	}

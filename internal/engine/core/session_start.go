@@ -71,6 +71,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 	// One allocation holds the session, its root payload and the owner extension.
 	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
+	payload.allocation = allocation
 	s.Payload = payload
 	payload.admission = admission
 	if admission != nil {

@@ -36,7 +36,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*core.Engine, *catalog.Proc
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := typedef.ReownDomainTypes(next, nil, true, routine.RangeTypeRebinder(next, nil)); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, true, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 		t.Fatal(err)
 	}
 	view := target.Catalog.Read(next)

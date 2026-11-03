@@ -538,6 +538,44 @@ func (h *sessionInquiryHost) NotificationQueueUsage() (float64, error) {
 	return inquiry.NotificationQueueUsage(h.host())
 }
 
+func (h *sessionInquiryHost) BackendMemoryContexts(result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	s := h.host().scope()
+	if err := session.ValidateOperation(DomainOf(s.Engine()), s.Op); err != nil {
+		return nil, err
+	}
+	ctx := s.Op.Context()
+	snapshot, err := captureBackendMemory(ctx, s.Op.Session)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || !result.IsComposite() || result.ID() != 2249 || result.CompositeLen() != 10 {
+		return nil, fmt.Errorf("stuntgres: invalid backend memory result record")
+	}
+	var types [10]*sqltype.Descriptor
+	for i := range types {
+		types[i] = result.CompositeMember(i).Usage.Type
+	}
+	rows, err := pgcatalog.BackendMemoryRows(ctx, types, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	values := make([]sqltype.Value, len(rows))
+	for i, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		value, err := sqltype.OwnedCompositeValue(result, row)
+		if err != nil {
+			return nil, err
+		}
+		values[i] = value
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
 func (h *transactionInquiryHost) TransactionAge(xid uint32) (int32, error) {
 	return inquiry.TransactionAge(h.host(), xid)
 }

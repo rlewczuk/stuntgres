@@ -845,6 +845,14 @@ func (c *Context) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value
 	return host.SessionInquiry().ListeningChannels(result)
 }
 
+func (c *Context) BackendMemoryContexts(result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: backend memory inquiry lacks statement authority")
+	}
+	return host.SessionInquiry().BackendMemoryContexts(result)
+}
+
 func (c *Context) NotificationQueueUsage() (float64, error) {
 	host := c.LiveHost()
 	if host == nil {

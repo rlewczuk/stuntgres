@@ -276,6 +276,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	routine.SeedServerSignalACLs(procedures, bootstrap)
 	routine.SeedReplicationOriginACLs(procedures, bootstrap)
 	routine.SeedWALPositionACLs(procedures, bootstrap)
+	routine.SeedBackendMemoryACL(procedures, bootstrap, principals.LookupRef("pg_read_all_stats"))
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), procedures, routine.NativeAccessMethodProcedures(bootstrap), routine.RestrictedStatsProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
 	catalog.InstallBuiltinTSParsers(e.Catalog.State)
@@ -413,6 +414,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		return nil, err
 	}
 	if err := catalogrt.InitializeSources(&e.Catalog, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)); err != nil {
+		return nil, err
+	}
+	if err := e.initializeBackendMemoryRowType(); err != nil {
 		return nil, err
 	}
 	if err := e.Catalog.ValidateSeed(builtinSeed); err != nil {

@@ -60,7 +60,7 @@ func TestRLSPolicyTemporaryBuiltinDependencies(t *testing.T) {
 	imported := *next.MustType(typ)
 	imported.SQLType = engine.New().CatalogRead().MustType(typ).SQLType
 	next.SetDescriptor(typ, &imported)
-	if !control.RetainTemporaryBuiltinTypes(current, next, temporary) {
+	if changed, _ := control.RetainTemporaryBuiltinTypes(current, next, temporary); !changed {
 		t.Fatal("retained policy codec generation was not restored")
 	}
 	if err := control.CheckTemporaryDependencies(current, next, temporary); err != nil {

@@ -8,6 +8,13 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`BackendMemoryContexts` is the volatile, nonfolding zero-input RECORD SRF for
+`pg_get_backend_memory_contexts`. Its named output shape and ordinary routine
+provenance retain no session or permission decision. Source opening borrows
+`SessionInquiryRuntime` from the executing statement and returns detached typed
+composites; the ordinary source cursor releases pending values on cancellation.
+FROM, target-list records and member expansion use the existing source protocol.
+
 `StatsResetReplication` owns one immutable typed TEXT/OID operand and its ordinary
 catalog routine identity. Both kinds are nonstrict, volatile scalar VOID calls:
 NULL reaches current EXECUTE admission and reset-all runtime rather than folding

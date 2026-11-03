@@ -15,6 +15,7 @@ type SessionInquiryRuntime interface {
 	CurrentSchemas(bool, *sqltype.Descriptor) (sqltype.Value, error)
 	ListeningChannels(*sqltype.Descriptor) ([]sqltype.Value, error)
 	NotificationQueueUsage() (float64, error)
+	BackendMemoryContexts(*sqltype.Descriptor) ([]sqltype.Value, error)
 }
 
 func sessionInquiryRuntime(c expr.Context) (SessionInquiryRuntime, error) {

@@ -399,7 +399,7 @@ func TestLqueryProviderRemap(t *testing.T) {
 	if err := typedef.ImportScalarTypesLocked(candidate, mapping, func() (int64, error) { t.Fatal("lquery allocated enum member"); return 0, nil }); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := typedef.ReownDomainTypes(candidate, mapping, true, routine.RangeTypeRebinder(candidate, mapping)); err != nil {
+	if _, err := typedef.ReownDomainTypes(candidate, mapping, true, routine.RangeTypeRebinder(candidate, mapping), nil); err != nil {
 		t.Fatal(err)
 	}
 	typedef.RefreshScalarImportDestinations(candidate)

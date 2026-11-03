@@ -27,6 +27,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name = "pg_get_shmem_allocations_numa"
 		case 6399:
 			name = "pg_get_aios"
+		case 2282:
+			name = "pg_get_backend_memory_contexts"
 		case 3400:
 			name, entries = "pg_config", 1
 		case 3329:
@@ -47,6 +49,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name = "pg_shmem_allocations_numa"
 		case pgcatalog.AIOSOID:
 			name = "pg_aios"
+		case pgcatalog.BackendMemoryContextsOID:
+			name = "pg_backend_memory_contexts"
 		case pgcatalog.ConfigOID:
 			name, entries = "pg_config", 1
 		case pgcatalog.FileSettingsOID:

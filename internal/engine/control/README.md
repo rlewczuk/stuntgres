@@ -719,6 +719,8 @@ No physical WAL position or flush guarantee is serialized.
   Restricted statistics-view and backing-routine ACLs omit only the exact destination
   seed baseline: bootstrap owner, namespace/identity and ordered explicit
   bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
+  This includes `pg_backend_memory_contexts` and its canonical callable routine;
+  session layouts and installed prepared definitions themselves are never dumped.
   The `pg_config`, `pg_file_settings` and `pg_ident_file_mappings` views and their
   noncallable backing routines use the same exact comparison with their owner-only
   table/EXECUTE baseline, not a statistics-role grant. Relation, column and routine deviations
@@ -1004,9 +1006,14 @@ candidate, these owning operations retain the engine's error contracts:
    A retained builtin closes over its builtin generation peers
    (`sqltype.BuiltinGenerationPeers`), so the candidate publishes one generation
    for every descriptor link that bound operations check by identity.
-   A retained catalog-only NULL composite closes over its actual member types
-   and companion array. Otherwise type reownership rebuilds the fixed description
-   against the candidate's current member generations, preserving old captures.
+   Retained catalog-only NULL and executable builtin composites also close over
+   their actual member types and companion arrays, including members installed
+   after the process template. Retention returns candidate-local exact-pointer
+   evidence, including already-identical generations. Importing reownership
+   preserves a completed pair only with both exact pointers and a validated
+   current member/element/peer closure; partial or incompatible evidence fails.
+   Nonretained imported pairs receive fresh destination codecs. No retained TEMP
+   value is retagged, and no bookkeeping survives the replacement candidate.
    Index class remapping preserves every finite method capability, including
    GIN, while discarding source-bound support captures. Destination binding
    selects current members and generations; retained TEMP roots keep their

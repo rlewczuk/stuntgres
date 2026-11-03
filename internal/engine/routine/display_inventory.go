@@ -1949,6 +1949,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	6099: {Language: catalog.InternalRoutineLanguage, Source: "icu_unicode_version"},
 	6105: {Language: catalog.InternalRoutineLanguage, Source: "unicode_assigned"},
 	6159: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_catalog_foreign_keys", Cost: 10},
+	2282: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_backend_memory_contexts"},
 	6160: {Language: catalog.InternalRoutineLanguage, Source: "text_to_table"},
 	6161: {Language: catalog.InternalRoutineLanguage, Source: "text_to_table_null"},
 	6162: {Language: catalog.InternalRoutineLanguage, Source: "bit_bit_count"},

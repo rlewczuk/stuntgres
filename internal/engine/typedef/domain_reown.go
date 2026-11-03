@@ -2,16 +2,22 @@ package typedef
 
 import (
 	"fmt"
+	"iter"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-// Importing mints destination composite codecs even when logical identities and
-// members are unchanged. Visiting their children first then rebuilds dependent
-// domains and arrays against those codecs; staged evolution remains copy-on-change.
-func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool, rangeOrdering func(sqltype.RangeDefinition) (sqltype.RangeDefinition, error)) (bool, error) {
+// Importing mints destination composite codecs unless exact live destination
+// TEMP generations were retained. Visiting children first rebuilds dependents;
+// ordinary staged evolution remains copy-on-change. Retained evidence comes
+// directly from control.RetainTemporaryBuiltinTypes, never from OIDs alone.
+func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool, rangeOrdering func(sqltype.RangeDefinition) (sqltype.RangeDefinition, error), retained map[sqltype.ID]*sqltype.Descriptor) (bool, error) {
+	return reownDomainTypes(next, mapping, importing, rangeOrdering, retained, next.Descriptors())
+}
+
+func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool, rangeOrdering func(sqltype.RangeDefinition) (sqltype.RangeDefinition, error), retained map[sqltype.ID]*sqltype.Descriptor, roots iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) (bool, error) {
 	visited := make(map[ids.ObjectAddress]bool)
 	active := make(map[ids.ObjectAddress]bool)
 	changed := false
@@ -252,13 +258,22 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			visited[address] = true
 			return nil
 		}
+		if d.SQLType.IsBuiltin() && d.SQLType.IsArray() && d.SQLType.Element().IsBuiltin() && d.SQLType.Element().IsComposite() {
+			// The row owns completion of both builtin descriptors. In particular,
+			// companion-first traversal must not overwrite it with a user array.
+			return visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		}
 		if d.SQLType.IsComposite() {
 			active[address] = true
 			relation, ok := next.Relation(d.OwningRelation)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing composite backing relation")
 			}
-			identity, namespace, owner := address, d.ObjectNamespace, d.OwningRelation
+			originalNamespace := d.ObjectNamespace
+			if d.SQLType.IsBuiltin() {
+				originalNamespace = d.Namespace()
+			}
+			identity, namespace, owner := address, originalNamespace, d.OwningRelation
 			if to, ok := mapping[identity]; ok {
 				identity = to
 			}
@@ -272,12 +287,44 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
-			ns := next.Get(d.ObjectNamespace)
+			ns := next.Get(originalNamespace)
 			if ns == nil {
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
-			declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(relation.Name())
-			rebuild := importing || identity != address || namespace != d.ObjectNamespace || owner != d.OwningRelation || associated != d.Array || declaration != d.SQLType.SQLName() || d.SQLType.CompositeLen() != len(relation.Columns)
+			declaration := d.SQLType.SQLName()
+			var builtinArray *catalog.Type
+			retainedPair := false
+			if d.SQLType.IsBuiltin() {
+				arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
+				if identity != address || namespace != originalNamespace || associated != d.Array {
+					return fmt.Errorf("stuntgres: builtin composite identity cannot be remapped")
+				}
+				if to, ok := mapping[arrayAddress]; ok && to != arrayAddress {
+					return fmt.Errorf("stuntgres: builtin composite array identity cannot be remapped")
+				}
+				builtinArray, ok = next.Type(arrayAddress)
+				if !ok || !builtinArray.SQLType.IsBuiltin() || builtinArray.SQLType.Element() != d.SQLType ||
+					d.SQLType.AssociatedArray() != d.Array || builtinArray.Namespace() != originalNamespace ||
+					builtinArray.OwningRelation != d.OwningRelation || builtinArray.Owner != d.Owner ||
+					relation.RowType != d.SQLType.ID() || relation.Namespace() != originalNamespace || relation.Name() != d.Name() || relation.Owner != d.Owner {
+					return fmt.Errorf("stuntgres: invalid builtin composite catalog pair")
+				}
+				if retained[d.SQLType.ID()] != nil || retained[builtinArray.SQLType.ID()] != nil {
+					if retained[d.SQLType.ID()] != d.SQLType || retained[builtinArray.SQLType.ID()] != builtinArray.SQLType {
+						return fmt.Errorf("stuntgres: incomplete retained builtin composite pair")
+					}
+					if err := validateRetainedBuiltinTypes(next, mapping, retained); err != nil {
+						return err
+					}
+					retainedPair = true
+				}
+			} else {
+				declaration = catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(relation.Name())
+			}
+			if retainedPair && d.SQLType.CompositeLen() != len(relation.Columns) {
+				return fmt.Errorf("stuntgres: incompatible retained builtin composite shape")
+			}
+			rebuild := importing && !retainedPair || identity != address || namespace != originalNamespace || owner != d.OwningRelation || associated != d.Array || declaration != d.SQLType.SQLName() || d.SQLType.CompositeLen() != len(relation.Columns)
 			var members []sqltype.CompositeMember
 			for i, c := range relation.Columns {
 				child := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}
@@ -294,10 +341,13 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 					usage.Collation = mapped
 				}
 				member := sqltype.CompositeMember{Attribute: relation.Attributes[i], Name: c.Name, Usage: usage}
+				if retainedPair && d.SQLType.CompositeMember(i) != member {
+					return fmt.Errorf("stuntgres: incompatible retained builtin composite member")
+				}
 				if !rebuild && d.SQLType.CompositeMember(i) != member {
 					rebuild = true
 				}
-				if rebuild && members == nil {
+				if rebuild && !retainedPair && members == nil {
 					members = CompositeMembers(relation)
 					for j := range i {
 						members[j].Usage.Type = next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}).SQLType
@@ -315,17 +365,35 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 				}
 			}
 			if rebuild {
-				if members == nil {
+				if members == nil && !retainedPair {
 					members = CompositeMembers(relation)
 				}
-				typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.Name(), declaration, associated, members)
-				if err != nil {
-					return err
-				}
 				copy := *d
-				copy.SQLType, copy.ObjectNamespace, copy.OwningRelation, copy.Array = typ, namespace, owner, associated
+				if builtinArray != nil {
+					typ, companion := d.SQLType, builtinArray.SQLType
+					if !retainedPair {
+						var err error
+						typ, companion, err = sqltype.CompleteBuiltinComposite(d.SQLType, builtinArray.SQLType, members)
+						if err != nil {
+							return err
+						}
+					}
+					arrayCopy := *builtinArray
+					copy.SQLType, copy.OwningRelation = typ, owner
+					arrayCopy.SQLType, arrayCopy.OwningRelation = companion, owner
+					next.SetDescriptor(arrayCopy.Address(), &arrayCopy)
+				} else {
+					typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.Name(), declaration, associated, members)
+					if err != nil {
+						return err
+					}
+					copy.SQLType, copy.ObjectNamespace, copy.OwningRelation, copy.Array = typ, namespace, owner, associated
+				}
 				next.SetDescriptor(address, &copy)
 				changed = true
+			}
+			if builtinArray != nil {
+				visited[builtinArray.Address()] = true
 			}
 			delete(active, address)
 			visited[address] = true
@@ -446,7 +514,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		visited[address] = true
 		return nil
 	}
-	for address, d := range next.Descriptors() {
+	for address, d := range roots {
 		if t, ok := d.(*catalog.Type); ok && (t.SQLType.IsDomain() || t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.OwningRelation != (ids.ObjectAddress{})) {
 			if err := visit(address); err != nil {
 				return false, err

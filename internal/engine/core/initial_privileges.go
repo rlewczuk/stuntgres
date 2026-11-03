@@ -35,7 +35,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			capture(address, d.ACL)
 		case *catalog.Procedure:
 			// Restricted builtin declarations encode the released REVOKE/GRANTs.
-			if routine.RestrictedStatsResetRoutine(address.ObjectID) || routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 {
+			if routine.RestrictedStatsResetRoutine(address.ObjectID) || routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 2282 || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 {
 				capture(address, d.ACL)
 			}
 		case *catalog.Relation:
@@ -51,7 +51,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 				public = 0
 			case "pg_settings":
 				public |= authorization.UpdatePrivilege
-			case "pg_shmem_allocations", "pg_shmem_allocations_numa", "pg_aios":
+			case "pg_shmem_allocations", "pg_shmem_allocations_numa", "pg_aios", "pg_backend_memory_contexts":
 				public = 0
 				acl.Entries = append(acl.Entries, authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: roles.LookupRef("pg_read_all_stats")}, Privileges: authorization.SelectPrivilege})
 			}
@@ -93,7 +93,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}
-	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 5052, 4100, 6399, 3400, 3329, 6250} {
+	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 2282, 5052, 4100, 6399, 3400, 3329, 6250} {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}

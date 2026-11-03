@@ -10,6 +10,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
 	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},
+	{oid: BackendMemoryContextsOID, parts: backendMemoryViewParts, prettyParts: backendMemoryViewParts},
 	{oid: ConfigOID, parts: configViewParts, prettyParts: configViewParts},
 	{oid: FileSettingsOID, parts: fileSettingsViewParts, prettyParts: fileSettingsViewParts},
 	{oid: IdentFileMappingsOID, parts: identFileMappingsViewParts, prettyParts: identFileMappingsViewParts},

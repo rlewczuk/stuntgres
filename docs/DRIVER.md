@@ -895,6 +895,29 @@ fences. This host control has no PostgreSQL API counterpart.
   DISCARD PLANS, pool ResetSession and native Reset/Restore retain names and
   original provenance. Native catalog replacement gives newly observed values
   current type descriptors without mutating earlier eager rows.
+- **Backend memory inquiry.** `pg_backend_memory_contexts` and callable
+  `pg_get_backend_memory_contexts()` capture the executing physical session.
+  `TopMemoryContext`, `PreparedStatements` and `PreparedDefinitions` identify
+  selected ownership groups: the combined session allocation, registry struct,
+  and distinct installed SQL/named-or-unnamed wire definition structs.
+  `total_bytes` and `used_bytes` are their own Go object-layout bytes, including
+  padding, not inclusive subtree totals or complete heap/allocator occupancy.
+  Embedded owners are charged only through their enclosing allocation; referenced
+  strings, maps, slices, plans, descriptors, bindings, cursors and shared state
+  are excluded. `total_nblocks`, `free_bytes` and `free_chunks` are typed NULL;
+  `type` is `GoObjectLayout` and `ident` is NULL.
+  Definition ownership follows the session lifetime above, not Go `Stmt` handles
+  or a claim of immediate garbage collection. Captured rows remain detached.
+  View SELECT and routine EXECUTE are independent current grants, initially
+  owner plus `pg_read_all_stats`; reading the view requires both.
+  Whole-view-row values retain the builtin named row type (12144) and its array
+  (12143), including after native Reset/Restore. Their destination-owned member
+  descriptors do not retag earlier eager values; callable SRF results remain
+  anonymous RECORD values.
+  Populated TEMP columns of this named row or its array survive native
+  Reset/Restore with their exact live destination codec/member generations;
+  stored captures and earlier eager results are unchanged. TEMP observations
+  are not serialized, and fresh inquiries still measure the executing session.
 - Parameterless prepared definitions retain immutable typed constant results,
   not executable graphs or permission decisions. The first execution (wire
   Bind) computes demanded folds; Prepare/Parse/Describe do not. Current binding,

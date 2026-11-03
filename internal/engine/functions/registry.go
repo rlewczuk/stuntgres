@@ -115,6 +115,7 @@ var definitions = [...]Definition{
 	{Names: attributeStatisticsNames, ExactSpelling: true, Bind: bindAttributeStatistics, NamedCall: namedAttributeStatistics},
 	{Names: relationStatisticsNames, ExactSpelling: true, Bind: bindRelationStatistics, NamedCall: namedRelationStatistics},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
+	{Names: []string{"pg_get_backend_memory_contexts"}, ExactSpelling: true, Bind: bindBackendMemory},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: recoveryControlNames[:], ExactSpelling: true, Bind: bindRecoveryControl, NamedCall: namedRecoveryControl},
 	{Names: replicationMessagesNames[:], ExactSpelling: true, Bind: bindReplicationMessages, NamedCall: namedReplicationMessages},
