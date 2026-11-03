@@ -1,5 +1,15 @@
 # Changes
 
+- Add the seven-column `pg_catalog.pg_statio_user_indexes` view using ALL's
+  existing producer, row/array identities and shared transaction statistics
+  Reader. Exclude exact released system parent namespaces before fact demand,
+  preserve real index identities, nullable metadata/non-NULL absent-fact zeros,
+  live PUBLIC SELECT authorization and underlying-ALL DML diagnostics.
+  Document deterministic logical cache estimates, not physical page I/O; keep
+  other statistics NULLs unchanged and the named SYS counterpart separately
+  scheduled. Add native classification/Reader witnesses and independent public
+  dual-mode shape, membership, ACL, diagnostics, counters, lifecycle and smoke.
+
 - Add the eleven-column `pg_catalog.pg_statio_sys_tables` view on the existing
   table/index statistics Reader. Apply the released case-sensitive system
   namespace predicate before identity allocation or fact demand, retain exact

@@ -1040,9 +1040,15 @@ every system relation (OID, namespace, name, columns with type, typmod,
 dimensions, nullability and collation, flags). Spec order is the descriptor
 registration order and differs from the registry order.
 
-The `pg_statio_all_indexes` producer follows its relation OID's numeric position,
-not the adjacent table-statistics specs. Core captures its current authorization
-and effective settings alongside the catalog/role roots so the shared session
+The `pg_statio_all_indexes` (12358) and `pg_statio_user_indexes` (12359) entries
+share exactly one seven-column producer and follow numeric OID lookup order.
+USER excludes pg_catalog/information_schema/case-sensitive pg_toast-prefix parent
+namespaces before datum construction, Keep and Reader demand. Both use existing
+row/array type identities, real SQLIndex parents, zero-default selected facts,
+PUBLIC SELECT and live view ACL checks without target ACL filtering. USER's
+structured wrapper preserves definition/dependency introspection and redirects
+I/U/D errors to ALL, not utility errors. Core captures current authorization
+and effective settings alongside catalog/role roots so the shared session
 statistics Reader, including snapshot/cache policy, remains authoritative.
 
 `pg_statio_all_tables` (12174) and `pg_statio_sys_tables` (12179) are registered

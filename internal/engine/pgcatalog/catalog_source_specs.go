@@ -207,6 +207,7 @@ var Specs = [...]Spec{
 	{StatioUserSequencesOID, ids.PGCatalogNamespaceOID, "pg_statio_user_sequences", statioSequencesColumns, true, false, false, false, "stuntgres: missing sequence I/O source type"},
 	{StatAllIndexesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_indexes", indexStatisticsColumns, true, false, false, false, "stuntgres: missing index statistics source type"},
 	{StatioAllIndexesOID, ids.PGCatalogNamespaceOID, "pg_statio_all_indexes", statioIndexColumns, true, false, false, false, "stuntgres: missing index block statistics source type"},
+	{StatioUserIndexesOID, ids.PGCatalogNamespaceOID, "pg_statio_user_indexes", statioIndexColumns, true, false, false, false, "stuntgres: missing index block statistics source type"},
 	{StatioAllTablesOID, ids.PGCatalogNamespaceOID, "pg_statio_all_tables", statioTableColumns, true, false, false, false, "stuntgres: missing table block statistics source type"},
 	{StatioSysTablesOID, ids.PGCatalogNamespaceOID, "pg_statio_sys_tables", statioTableColumns, true, false, false, false, "stuntgres: missing table block statistics source type"},
 	{ProgressVacuumOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_vacuum", progressVacuumColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

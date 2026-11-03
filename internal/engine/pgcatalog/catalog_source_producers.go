@@ -124,6 +124,7 @@ var producers = [...]Registration{
 	{WaitEventsOID, capturePGWaitEvents},
 	{AIOSOID, captureAIOS},
 	{StatioAllIndexesOID, captureStatioIndexes},
+	{StatioUserIndexesOID, captureStatioIndexes},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},

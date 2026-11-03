@@ -129,8 +129,11 @@ func TestStatioAllIndexesMembership(t *testing.T) {
 	if len(seen) != len(expected) || all != user+system || system != 1 {
 		t.Fatal("disjoint represented union", len(seen), len(expected), all, user, system)
 	}
-	// Registration is exactly one selected SQL name, not aliases or fake objects.
-	for _, name := range []string{"pg_statio_user_indexes", "pg_statio_sys_indexes"} {
+	if a := read.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "pg_statio_user_indexes"}); a.ObjectID != pgcatalog.StatioUserIndexesOID {
+		t.Fatal("selected USER source missing", a)
+	}
+	// SYS remains owned by its separately scheduled part.
+	for _, name := range []string{"pg_statio_sys_indexes"} {
 		if a := read.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: name}); a != (ids.ObjectAddress{}) {
 			t.Fatal("out-of-scope sibling installed", name, a)
 		}

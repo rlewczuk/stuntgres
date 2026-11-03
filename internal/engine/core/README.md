@@ -1771,9 +1771,12 @@ The selected `pg_statio_all_indexes` source enumerates actual SQLIndex-parent
 relationships with parent relkind r/t/m, without underlying-object ACL or
 temporary-owner filtering. Its own view ACL remains ordinary SQL authority.
 Typed nullable catalog attributes yield actual non-NULL identities and two
-zero-default bigint facts; no fake bootstrap/TOAST descriptors or sibling statio
-SQL names are installed. System membership is the exact namespace-name predicate
-pg_catalog/information_schema/prefix pg_toast, not OID or ownership.
+zero-default bigint facts; no fake bootstrap/TOAST descriptors are installed.
+`pg_statio_user_indexes` uses that same authenticated capture and producer,
+excluding parent namespaces pg_catalog/information_schema/prefix pg_toast before
+Reader demand (case-sensitive, not OID or ownership). Its own live SELECT ACL
+does not redact underlying denied objects. The named SYS sibling remains absent;
+none/cache/snapshot authority and other views' absent-activity NULLs are unchanged.
 
 `logicalBufferRead.Open` on a genuine eligible index invocation records one
 representative-page outcome: resident-before-touch increments IndexBlocksHit,

@@ -228,14 +228,18 @@ func TestReferenceStatioAllIndexesMembership(t *testing.T) {
 				t.Fatal("category changed shared fact", rows, all)
 			}
 		}
+		user := statioRows(t, p, b, c, "SELECT * FROM pg_statio_user_indexes WHERE "+predicate+" ORDER BY indexrelname")
+		if len(user) != 1 || !reflect.DeepEqual(user[0], all[1]) {
+			t.Fatal("named USER must match ALL in both modes", user, all)
+		}
 		if b.PG {
 			for _, tc := range []struct {
 				view, name string
 				n          int64
-			}{{"pg_statio_user_indexes", "statio_user", 1}, {"pg_statio_sys_indexes", "statio_system", 1}, {"pg_statio_sys_indexes", "statio_user", 0}} {
+			}{{"pg_statio_sys_indexes", "statio_system", 1}, {"pg_statio_sys_indexes", "statio_user", 0}} {
 				vacuumRun(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM "+tc.view+" WHERE relname='"+tc.name+"'", []string{"n"}, []string{"INT8"}, [][]any{{tc.n}}))
 			}
-			for _, view := range []string{"pg_statio_user_indexes", "pg_statio_sys_indexes"} {
+			for _, view := range []string{"pg_statio_sys_indexes"} {
 				var mismatch int64
 				q := "SELECT count(*) FROM " + view + " s JOIN pg_statio_all_indexes a ON a.indexrelid=s.indexrelid WHERE a.relname IN ('statio_user','statio_system') AND (a.idx_blks_read<>s.idx_blks_read OR a.idx_blks_hit<>s.idx_blks_hit)"
 				if err := c.QueryRowContext(p.Ctx, q).Scan(&mismatch); err != nil || mismatch != 0 {

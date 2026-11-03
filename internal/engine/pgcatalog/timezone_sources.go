@@ -59,6 +59,9 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	if d.Address().ObjectID == StatioSysTablesOID {
 		name = "pg_statio_all_tables"
 	}
+	if d.Address().ObjectID == StatioUserIndexesOID {
+		name = "pg_statio_all_indexes"
+	}
 	message := fmt.Sprintf(`cannot update view "%s"`, name)
 	action := "updating the view"
 	switch operation {

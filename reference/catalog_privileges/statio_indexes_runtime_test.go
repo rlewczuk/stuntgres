@@ -83,19 +83,18 @@ func statioCounterSequence(t *testing.T, p *fixture.Pair, b fixture.Backend, tab
 			t.Fatal("Prepare/statistics read collected", got, before)
 		}
 	}
-	if b.PG {
-		statioExec(t, p, b, c, "SET stats_fetch_consistency='snapshot'", "BEGIN")
-		first := statioPair(t, p, c, table+"_hash")
-		statioTouch(t, p, b, table)
-		if got := statioPair(t, p, c, table+"_hash"); got != first {
-			t.Fatal("oracle snapshot changed", got, first)
-		}
-		var equal bool
-		if err := c.QueryRowContext(p.Ctx, "SELECT a.idx_blks_read=u.idx_blks_read AND a.idx_blks_hit=u.idx_blks_hit FROM pg_statio_all_indexes a JOIN pg_statio_user_indexes u ON a.indexrelid=u.indexrelid WHERE a.indexrelname=$1", table+"_hash").Scan(&equal); err != nil || !equal {
-			t.Fatal("oracle same-provider siblings", equal, err)
-		}
-		statioExec(t, p, b, c, "ROLLBACK")
-	} else {
+	statioExec(t, p, b, c, "SET stats_fetch_consistency='snapshot'", "BEGIN")
+	first := statioPair(t, p, c, table+"_hash")
+	statioTouch(t, p, b, table)
+	if got := statioPair(t, p, c, table+"_hash"); got != first {
+		t.Fatal("retained snapshot changed after peer publication", got, first)
+	}
+	var equal bool
+	if err := c.QueryRowContext(p.Ctx, "SELECT a.idx_blks_read=u.idx_blks_read AND a.idx_blks_hit=u.idx_blks_hit FROM pg_statio_all_indexes a JOIN pg_statio_user_indexes u ON a.indexrelid=u.indexrelid WHERE a.indexrelname=$1", table+"_hash").Scan(&equal); err != nil || !equal {
+		t.Fatal("named ALL/USER same-provider siblings", equal, err)
+	}
+	statioExec(t, p, b, c, "ROLLBACK", "SET stats_fetch_consistency='none'")
+	if !b.PG {
 		statioExec(t, p, b, c, "CREATE TABLE "+table+"_off(k integer)")
 		vacuumRun(t, p, b, c, fixture.Exec("INSERT INTO "+table+"_off VALUES(1)", 1))
 		statioExec(t, p, b, c, "CREATE INDEX "+table+"_off_hash ON "+table+"_off USING hash(k)")

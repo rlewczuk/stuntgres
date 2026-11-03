@@ -2,12 +2,17 @@ package pgcatalog
 
 import (
 	"fmt"
+	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 const StatioAllIndexesOID ids.OID = 12358
+
+// StatioUserIndexesOID shares ALL's producer and transaction statistics Reader.
+const StatioUserIndexesOID ids.OID = 12359
 
 type IndexBlockFact struct {
 	Read, Hit int64
@@ -55,6 +60,10 @@ func captureStatioIndexes(in Input) ([][]sqltype.Value, error) {
 		namespace, ok := in.Catalog.Namespace(parent.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index statistics namespace")
+		}
+		if in.Source.Address().ObjectID == StatioUserIndexesOID &&
+			(namespace.Name() == "pg_catalog" || namespace.Name() == "information_schema" || strings.HasPrefix(namespace.Name(), "pg_toast")) {
+			continue
 		}
 		parentID, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(parent.Address().ObjectID))
 		if err != nil {

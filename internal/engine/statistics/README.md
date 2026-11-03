@@ -198,8 +198,11 @@ retain the cache's existing exclusion, even though their real catalog identities
 can be visible. Missing facts project as zero. The additive merge, session
 pending publication, reset generation, exact retirement and whole-Fact Reader
 copies cover both fields without another provider or lifetime registry.
-`pg_statio_all_indexes` discloses cumulative identities/counts independently of
-underlying-object ACL; only the selected view's own SELECT ACL is checked.
+`pg_statio_all_indexes` and `pg_statio_user_indexes` disclose cumulative
+identities/counts independently of underlying-object ACL; only each view's own
+SELECT ACL is checked. USER's parent-schema exclusion runs before the same
+Reader lookup; it adds no provider, counter formula or physical I/O claim.
+Missing selected facts are zero, not a rewrite of another subsystem's NULLs.
 
 `pg_statio_all_tables` is a pure shared-provider consumer, not another event path.
 For the actual table's published BlocksFetched/BlocksHit F/H it returns heap

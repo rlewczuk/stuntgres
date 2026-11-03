@@ -652,10 +652,16 @@ Counters use the existing session writer's idle/throttle/drain publication and
 transaction Reader's none/cache/snapshot/clear semantics; reads never force a
 flush. Rename/move/ACL changes retain identity/history; committed drop retires
 the exact key, while rolled-back drops preserve it. Native controls do not dump
-runtime history. Exactly this one statio index view is installed: native
-`pg_statio_user_indexes`/`pg_statio_sys_indexes` are not added. Equivalent category
-predicates over all rows use schema `pg_catalog`, `information_schema` or prefix
-`pg_toast` for system and the complement for user, with identical shared facts.
+runtime history. `pg_statio_user_indexes` shares these seven columns, real index
+identities and the same transaction Reader/provider with ALL. Its parent-schema
+filter excludes exactly `pg_catalog`, `information_schema` and the case-sensitive
+prefix `pg_toast` before Reader demand; ordinary TEMP namespaces and `PG_TOAST`
+remain user. Its own PUBLIC SELECT ACL is checked live; parent ACLs do not redact
+rows. Nullable attributes still yield non-NULL zero counters for absent activity,
+without changing NULLs in other statistics views. USER I/U/D diagnostics name the
+underlying non-updatable ALL view; COPY/TRUNCATE name USER. Native named
+`pg_statio_sys_indexes` remains separately scheduled: the exact complementary
+category predicate over ALL supplies the current system witness, not a SQL alias.
 
 Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads
 and regclass-only pgstathashindex and pgstatginindex members.
