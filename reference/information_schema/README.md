@@ -137,10 +137,10 @@ through direct and prepared information_schema.columns reads. Its addition is
 an inventory extension, not a filter that discards newly supported providers.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
-The sequence-I/O views `pg_statio_all_sequences` and `pg_statio_sys_sequences`
-each contribute exactly five ordered columns (`relid`, `schemaname`, `relname`,
-`blks_read`, `blks_hit`) and view classification to the same direct/prepared
-inventory and complete native bag.
+The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and
+`pg_statio_user_sequences` each contribute exactly five ordered columns
+(`relid`, `schemaname`, `relname`, `blks_read`, `blks_hit`) and view classification
+to the same direct/prepared inventory and complete native bag.
 The PUBLIC-readable `constraint_table_usage` inventory has exactly six nullable
 `sql_identifier` columns (NAME base), in documented table/constraint order,
 ordinals1–6 and view classification. `TestReferenceInfoColumnsPopulation/providers`

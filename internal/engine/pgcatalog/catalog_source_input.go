@@ -89,7 +89,7 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{AttributeRelationColumn}
 	case ClassOID:
 		return []int{ClassOIDColumn, ClassNameColumn}
-	case StatAllTablesOID, StatSysTablesOID, StatUserTablesOID, StatioAllSequencesOID, StatioSysSequencesOID:
+	case StatAllTablesOID, StatSysTablesOID, StatUserTablesOID, StatioAllSequencesOID, StatioSysSequencesOID, StatioUserSequencesOID:
 		return []int{0, 2}
 	case StatAllIndexesOID:
 		return []int{0, 1, 2, 3, 4}

@@ -14,6 +14,14 @@
   and pinned-18.6 public reference scenarios; no fixture repin or fake bootstrap
   index rows.
 
+- Add the PUBLIC-readable, read-only five-column
+  `pg_catalog.pg_statio_user_sequences` view on the shared sequence statistics
+  provider. Classify actual sequence namespaces as the exact complement of the
+  sys view before statistics-reader capture, preserving current identities,
+  source-owned types, unredacted counters and the shared logical one-page
+  estimate. Expose the released view definition and underlying-all DML
+  diagnostics while retaining original-target TRUNCATE and streamed COPY errors.
+
 - Add the 22-column, fully nullable `pg_catalog.pg_stat_activity` monitoring view
   on the existing shared provider. Report real cluster sessions, original query
   text, application/settings restoration, transaction/state clocks through the

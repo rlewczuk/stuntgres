@@ -11,8 +11,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-const statioUserSequenceProbe = statioSequenceProbe + " AND schemaname NOT IN ('pg_catalog','information_schema') AND schemaname !~ '^pg_toast'"
-
 func statioSysSequenceEmpty(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor, oid int64) {
 	t.Helper()
 	if got := statioSequenceRows(t, p, b, e, statioSysSequenceProbe, oid); len(got) != 0 {
@@ -20,8 +18,7 @@ func statioSysSequenceEmpty(t *testing.T, p *fixture.Pair, b fixture.Backend, e 
 	}
 }
 
-// Both projections read the existing all provider in one stable reader boundary;
-// there is deliberately no registration or dependency on a named user view.
+// Named all/user projections read the shared provider in one stable boundary.
 func statioSysUserWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, oid int64, schema, name string, read, hit int64) {
 	t.Helper()
 	statioSequenceExec(t, p, b, conn, "BEGIN")
@@ -29,7 +26,7 @@ func statioSysUserWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, conn
 	all := statioSequenceRows(t, p, b, conn, statioSequenceProbe, oid)
 	user := statioSequenceRows(t, p, b, conn, statioUserSequenceProbe, oid)
 	if !reflect.DeepEqual(all, user) {
-		t.Fatal("all and complementary user predicate differ", all, user)
+		t.Fatal("named all and user views differ", all, user)
 	}
 	if name == "" {
 		if len(all) != 0 {

@@ -424,6 +424,16 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("   FROM "), viewClass("pg_statio_all_sequences"), viewText("\n"),
 		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR ("), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText("));"),
 	}},
+	// pg_catalog.pg_statio_user_sequences — REL_18_6 system_views.sql.
+	{oid: StatioUserSequencesOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("relid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("schemaname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("relname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("blks_read"), viewText(",\n"),
+		viewText("    "), viewIdentifier("blks_hit"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_statio_all_sequences"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" <> ALL (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) AND ("), viewIdentifier("schemaname"), viewText(" !~ '^pg_toast'::"), viewType("text"), viewText("));"),
+	}},
 	// pg_catalog.pg_locks — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: 12073, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("locktype"), viewText(",\n"),

@@ -1251,23 +1251,25 @@ catalog writes or bypass a provider's independent backing-source checks.
   Tuple prefixes and completed rebuilt roots are genuine logical work; absent
   physical block work reports zero. `pg_class.relfilenode` projects the catalog's
   current logical storage incarnation without adding physical file inquiries.
-- `pg_statio_all_sequences` and `pg_statio_sys_sequences` are PUBLIC-readable,
-  read-only five-column sources: OID/NAME/NAME/INT8/INT8, all nullable metadata,
-  five non-NULL cells per row. The shared producer enumerates actual sequence
-  descriptors, including private and other-session TEMP identities, without
-  schema-USAGE, sequence-ACL or activity filtering. Missing activity is zero,
-  not privilege-redacted NULL. The sys slice includes exactly `pg_catalog`,
-  `information_schema` and the case-sensitive `pg_toast` prefix; `pg_toasty`
-  qualifies, while `pg_temp_N` and `PG_TOAST` do not. System classification and
-  identity/name rejection precede the transaction reader, so excluded identities
-  cannot initialize its cache or snapshot. With published tracked encounters N,
-  both sources share the simulated one-page projection (0,0) for N=0 and
-  (1,N-1) otherwise: cumulative logical residency, not physical storage or
-  sequence CACHE size. Current descriptors own membership and names, not retained
-  statistics keys. Released definitions own presentation and non-updatability;
-  sys DML reports its underlying non-updatable all view. No executable
-  block-getter capability or named user counterpart is registered. Rows have no
-  implicit SQL ordering.
+- `pg_statio_all_sequences`, `pg_statio_sys_sequences` and
+  `pg_statio_user_sequences` are PUBLIC-readable, read-only five-column sources:
+  OID/NAME/NAME/INT8/INT8, all nullable metadata, five non-NULL cells per row.
+  The shared producer enumerates actual sequence descriptors, including private
+  and other-session TEMP identities, without schema-USAGE, sequence-ACL or
+  activity filtering. Missing activity is zero, not privilege-redacted NULL.
+  The sys slice includes exactly `pg_catalog`, `information_schema` and the
+  case-sensitive `pg_toast` prefix; `pg_toasty` qualifies, while `pg_temp_N` and
+  `PG_TOAST` do not. The user slice is its exact complement. Namespace
+  classification and identity/name rejection precede the transaction reader, so
+  excluded identities cannot initialize its cache or snapshot. With published
+  tracked encounters N, all three sources share the simulated one-page
+  projection (0,0) for N=0 and (1,N-1) otherwise: cumulative logical residency,
+  not physical storage or sequence CACHE size. Current descriptors own membership
+  and names, not retained statistics keys. Released definitions own presentation
+  and non-updatability; sys/user DML reports the underlying non-updatable all
+  view, while TRUNCATE and streamed COPY retain the original target name.
+  No executable block-getter capability is registered. Rows have no implicit SQL
+  ordering.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.

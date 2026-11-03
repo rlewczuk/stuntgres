@@ -52,8 +52,8 @@ func captureTimezoneSource(in Input) ([][]sqltype.Value, error) {
 
 func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	name := d.Name()
-	if d.Address().ObjectID == StatioSysSequencesOID {
-		// The simple sys view rewrites to the non-updatable all view.
+	if d.Address().ObjectID == StatioSysSequencesOID || d.Address().ObjectID == StatioUserSequencesOID {
+		// The simple sys/user views rewrite to the non-updatable all view.
 		name = "pg_statio_all_sequences"
 	}
 	message := fmt.Sprintf(`cannot update view "%s"`, name)
