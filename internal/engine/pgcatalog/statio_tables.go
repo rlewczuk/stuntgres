@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -9,6 +10,9 @@ import (
 
 // StatioAllTablesOID links the existing native composite and array identities.
 const StatioAllTablesOID ids.OID = 12174
+
+// StatioSysTablesOID reuses the builtin system-table view's row identities.
+const StatioSysTablesOID ids.OID = 12179
 
 var statioTableColumns = []ColumnSpec{
 	{"relid", sqltype.Oid, true, 0, 0, -1},
@@ -51,6 +55,11 @@ func captureStatioTables(in Input) ([][]sqltype.Value, error) {
 		namespace, ok := in.Catalog.Namespace(relation.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing table block statistics namespace")
+		}
+		if in.Source.Address().ObjectID == StatioSysTablesOID &&
+			namespace.Name() != "pg_catalog" && namespace.Name() != "information_schema" &&
+			!strings.HasPrefix(namespace.Name(), "pg_toast") {
+			continue
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(address.ObjectID))
 		if err != nil {

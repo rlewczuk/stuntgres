@@ -1045,10 +1045,10 @@ not the adjacent table-statistics specs. Core captures its current authorization
 and effective settings alongside the catalog/role roots so the shared session
 statistics Reader, including snapshot/cache policy, remains authoritative.
 
-`pg_statio_all_tables` (12174) is registered between the table-statistics and
-index-statistics producers in numeric lookup order. Its descriptor links the
-existing row type12176/array12175 rather than minting another pair. The pure
-producer walks actual Relations, captures SQLIndex parent relationships once,
+`pg_statio_all_tables` (12174) and `pg_statio_sys_tables` (12179) are registered
+between the table-statistics and index-statistics producers in numeric lookup
+order. Their descriptors reuse row/array pairs12176/12175 and12181/12180.
+The shared producer walks actual Relations, captures SQLIndex parent relationships once,
 admits only ClassKind r/t/m, and rejects identity/schema/name keys before any
 Reader demand. Eleven nullable attributes retain exact released types,
 collations, typmods and origins. Heap projection delegates to TableBlockStatistics;
@@ -1058,9 +1058,10 @@ TOAST identity reaches strict functions as NULL, unlike missing statistics for
 a valid relation, which default to numeric zero. There is no TOAST descriptor
 synthesis or underlying ACL filter.
 Structured released view metadata supplies definitions and read-only behavior.
-The all-view alone is installed; named table companions are separate parts.
-Unit arithmetic/membership/filter proof: `TestStatioAllTablesProjection`; core
-reader/source ownership proof: `TestStatioAllTablesReader`.
+SYS applies exact `pg_catalog`/`information_schema` equality or case-sensitive
+`pg_toast` prefix membership before identity allocation and heap/index demand.
+The named USER companion remains separately coordinated. Own-view SELECT is
+checked live, including held prepared execution; underlying ACLs do not redact.
 
 `pg_policy` (3256) is a physical eight-column source over immutable
 `Relation.Security.Policies`. Capture validates the exact source, captured type
@@ -1826,6 +1827,9 @@ a hash root alone does not select that access method.
   (`core/enginetests/pgcatalog`): `RUN='^TestPGStatioSysSequences'`.
   Shared provider/runtime units use `RUN='^TestStatsSequence'`; public scenarios
   use `RUN='^TestReferencePGStatio(All|Sys)Sequences'`.
+- Table-I/O producer units: `RUN='^TestStatio(All|Sys)Tables'`; composed
+  classification/Reader units: `RUN='^TestPGStatioSysTables'`; public scenarios:
+  `RUN='^TestReferencePGStatio(All|Sys)Tables'`, also with `REFERENCE=1`.
 - Column ACL producer, ownership and frontier units (`enginetests/`):
   `RUN='^TestInfo(ColumnPrivileges|RoleColumnGrants)'`
 - Column metadata producer units: `RUN='^TestInfoColumns'`

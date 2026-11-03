@@ -71,8 +71,9 @@ corruption or live session/transaction resources.
 
 ## Table block monitoring
 
-`pg_catalog.pg_statio_all_tables` has exactly the eleven released PostgreSQL 18
-columns, typed OID/NAME/NAME followed by eight INT8 counters, with nullable
+`pg_catalog.pg_statio_all_tables` and `pg_catalog.pg_statio_sys_tables` have
+exactly the eleven released PostgreSQL 18 columns, typed OID/NAME/NAME followed
+by eight INT8 counters, with nullable
 attribute metadata. Membership and identities are exact represented r/t/m
 relations, not a guessed physical bootstrap inventory; ordinary partition leaves,
 unlogged, materialized and other-session TEMP objects are included. The view is
@@ -88,8 +89,11 @@ and empty TOAST index sums, never invented storage identities. Only a valid
 relation with no statistics defaults to zero. Physical disk/cache, byte/page
 sizing, WAL and TOAST storage are not implemented by this monitoring projection.
 Shared counts policy, publication and transaction Reader modes remain unchanged.
-User/sys table-statio SQL companions are staged separately; this all-view uses
-the exact released namespace partition without creating aliases or stubs.
+SYS selects exact `pg_catalog`, exact `information_schema`, or case-sensitive
+`pg_toast` prefixes from ALL with identical values and NULLs under one Reader.
+Own-view SELECT is live for held statements; denied underlying objects remain
+visible without redaction. SYS DML names underlying ALL; TRUNCATE/COPY name SYS.
+The named USER companion and final named ALL/USER equality are staged separately.
 
 ## Index monitoring
 

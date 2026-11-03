@@ -294,6 +294,22 @@ var pgBuiltinViews = [...]builtinView{
 		viewText(" = ANY (ARRAY['r'::"), viewType("\"char\""), viewText(", 't'::"), viewType("\"char\""), viewText(", 'm'::"),
 		viewType("\"char\""), viewText("]));"),
 	}},
+	// pg_catalog.pg_statio_sys_tables — REL_18_6 system_views.sql.
+	{oid: StatioSysTablesOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("relid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("schemaname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("relname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("heap_blks_read"), viewText(",\n"),
+		viewText("    "), viewIdentifier("heap_blks_hit"), viewText(",\n"),
+		viewText("    "), viewIdentifier("idx_blks_read"), viewText(",\n"),
+		viewText("    "), viewIdentifier("idx_blks_hit"), viewText(",\n"),
+		viewText("    "), viewIdentifier("toast_blks_read"), viewText(",\n"),
+		viewText("    "), viewIdentifier("toast_blks_hit"), viewText(",\n"),
+		viewText("    "), viewIdentifier("tidx_blks_read"), viewText(",\n"),
+		viewText("    "), viewIdentifier("tidx_blks_hit"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_statio_all_tables"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR ("), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText("));"),
+	}},
 	// pg_catalog.pg_statio_all_indexes — REL_18_6 system_views.sql.
 	{oid: StatioAllIndexesOID, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("relid"), viewText(",\n"),

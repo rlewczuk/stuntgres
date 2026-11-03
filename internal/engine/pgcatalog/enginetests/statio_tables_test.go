@@ -76,6 +76,6 @@ func TestStatioAllTablesProjection(t *testing.T) {
 	if !reflect.DeepEqual(pgcatalog.KeyColumns(pgcatalog.StatioAllTablesOID),[]int{0,1,2}) {t.Fatal("identity pushdown")}
 	ctx,cancel:=context.WithCancel(t.Context());cancel();in.Context=ctx
 	if _,err:=produce(in);!errors.Is(err,context.Canceled) {t.Fatal("producer cancellation",err)}
-	for _,name:=range []string{"pg_statio_user_tables","pg_statio_sys_tables"} {if a:=view.NameAddress(ids.NameKey{ClassID:ids.RelationClassID,Namespace:ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:11},Name:name});a!=(ids.ObjectAddress{}) {t.Fatal("out-of-scope relation",name,a)}}
+	for _,name:=range []string{"pg_statio_user_tables"} {if a:=view.NameAddress(ids.NameKey{ClassID:ids.RelationClassID,Namespace:ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:11},Name:name});a!=(ids.ObjectAddress{}) {t.Fatal("out-of-scope relation",name,a)}}
 	for _,tc:=range []struct{name string;system bool}{{"pg_catalog",true},{"information_schema",true},{"pg_toastlike",true},{"pg_toast_temp_7",true},{"public",false},{"pg_temp_7",false},{"PG_TOAST",false},{"xpg_toast",false}} {if statioSystemNamespace(tc.name)!=tc.system {t.Fatal("released partition",tc)}}
 }

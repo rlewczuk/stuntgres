@@ -1,5 +1,15 @@
 # Changes
 
+- Add the eleven-column `pg_catalog.pg_statio_sys_tables` view on the existing
+  table/index statistics Reader. Apply the released case-sensitive system
+  namespace predicate before identity allocation or fact demand, retain exact
+  optional-counter NULLs and live view ACLs without underlying-object redaction,
+  and expose structured definitions and underlying-ALL DML diagnostics.
+  Cover positive system membership, simulated arithmetic, reader isolation,
+  privilege changes and native replacement in internal and dual-mode scenarios.
+  The named USER counterpart remains separately coordinated; no new provider,
+  event interface, TOAST storage or physical I/O is introduced.
+
 - Add exactly the eleven-column PostgreSQL 18 `pg_catalog.pg_statio_all_tables`
   view with existing row/array identities, PUBLIC SELECT, ordinary read-only
   diagnostics and exact represented r/t/m membership without parent privilege

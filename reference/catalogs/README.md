@@ -34,6 +34,15 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Table-I/O scenarios use `make check RUN='^TestReferencePGStatio(All|Sys)Tables'`
+(also with `REFERENCE=1`). ALL and SYS share eleven-column metadata, exact
+identity/optional-counter NULL semantics, publication and transaction Readers.
+SYS independently checks positive catalog membership, the case-sensitive
+system namespace partition, current own-view ACLs without underlying redaction,
+read-only diagnostics and native replacement lifetimes. Full user-kind fixtures
+in ALL assert named SYS exclusion in both modes; final named USER equality is
+reserved for its separately coordinated companion part.
+
 Replication-origin session scenarios use
 `make check RUN='^TestReferenceReplicationOriginSession'` (also with `REFERENCE=1`).
 Pinned actors retain physical ownership across transaction/savepoint boundaries;

@@ -56,6 +56,9 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		// The simple sys/user views rewrite to the non-updatable all view.
 		name = "pg_statio_all_sequences"
 	}
+	if d.Address().ObjectID == StatioSysTablesOID {
+		name = "pg_statio_all_tables"
+	}
 	message := fmt.Sprintf(`cannot update view "%s"`, name)
 	action := "updating the view"
 	switch operation {
