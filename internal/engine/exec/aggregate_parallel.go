@@ -225,17 +225,20 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	defer cancel()
 	runs := make([][]QueryGroup, workers)
 	scanCounts := make([]relationScanCounts, workers)
+	workerStatistics := make([]statistics.DatabaseFact, workers)
 	var joined sync.WaitGroup
 	var errorMu sync.Mutex
 	var first error
 	n := source.Count()
 	inheritedCTEs := leader.Ctes // Capture even nil before any support body can mutate host scratch.
 	methods := leader.Methods    // Capture before any sibling support changes lexical scope.
+	source.prepareDatabaseStatistics()
+	recordDatabaseWorkers(source, workers, workers)
 	for i := range workers {
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, captures[i], admission, inheritedCTEs, methods, &scanCounts[i])
+			groups, failure := runAggregatePartition(workerCtx, aggregate, source, parameters, i*n/workers, (i+1)*n/workers, captures[i], admission, inheritedCTEs, methods, &scanCounts[i], &workerStatistics[i])
 			if failure != nil {
 				errorMu.Lock()
 				if first == nil {
@@ -255,6 +258,9 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 		counts.tuples += scanCounts[i].tuples
 	}
 	access.Record(counts.starts, counts.tuples, 0)
+	for i := range workerStatistics {
+		mergeDatabaseWorker(source, workerStatistics[i])
+	}
 	if first != nil {
 		return nil, 0, first
 	}
@@ -285,7 +291,7 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	return result, count, nil
 }
 
-func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, capture *EvaluationCapture, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods, scanCounts *relationScanCounts) ([]QueryGroup, error) {
+func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, capture *EvaluationCapture, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods, scanCounts *relationScanCounts, facts *statistics.DatabaseFact) ([]QueryGroup, error) {
 	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil {
 		work := observer.stage(aggregate)
 		work.startWork()
@@ -296,6 +302,7 @@ func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, s
 		return nil, err
 	}
 	defer worker.Close()
+	defer func() { *facts = worker.databaseStatistics }()
 	var groups []QueryGroup
 	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: capture.Input, Output: capture.Output, ClosedEvaluation: capture, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end, aggregatePartials: &groups, aggregateAdmission: admission, Ctes: ctes, asyncCaptured: true}
 	state.scanCounts = scanCounts

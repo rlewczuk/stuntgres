@@ -116,6 +116,10 @@ admission. Native Reset/Restore are explicit control phases.
 Chosen-index witnesses retain the existing implicit-only access eligibility and
 project pending counters in the reached SELECT before ordinary publication;
 they do not depend on transaction-throttle timing or expand the optimizer.
+The block smoke retains its physical client after COMMIT and observes ordinary
+publication before expecting pending zero in the successor transaction. Session
+and database events share the same writer/throttle; transaction completion alone
+does not promise an immediate flush or erase an unflushed relation prefix.
 
 Replication statistics reset scalar metadata, diagnostics, mutable EXECUTE,
 cross-database subscription identities and native ACL controls use
@@ -402,3 +406,108 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Physical-session adapter: `RUN='^TestReferenceSession(PhysicalControls|DecimalInteger|Reset|AdapterCancellation|ShowCommand)'`
 - Direct-message batches: `RUN='^TestReferenceDriverBatch'`
 - Concurrent MV refresh in retained batches: `RUN='^TestReference(MaterializedRefreshConcurrentRetained|DriverBatchRefresh)'`
+
+- Database monitoring: untagged `stat_database_*_test.go` definitions use actual
+  other-database observers, physical session retirement and bounded ordinary
+  publication waits. Setup DDL can contribute PostgreSQL system-catalog tuples;
+  exact user-DML deltas start only after full setup publication, never assume a
+  database's setup total equals the user marker. TRUNCATE/DROP retain historical
+  work without assuming catalog U/D zero. Cumulative cache/snapshot/none cases
+  include B and C and a first read through existing table statistics.
+  `TestReferenceStatDatabaseSnapshotFirstAccess` adds fresh independent index,
+  archiver, bgwriter and SLRU vectors, each projecting a cumulative field from an
+  actual local row before any held B/C read. Exact published user-insert deltas +2/+3
+  establish distinct positive peers; +4/+5 remain hidden until clear, and +6/+7
+  remain hidden until transaction end. A separate none-mode observer proves
+  publication first; clear/end only discard read cuts. Timestamp inspection stays
+  lazy, captures retain their timestamp across peer publication, and clear/end
+  release it. Native backend admission/removal remains live despite retained
+  cumulative facts.
+  PostgreSQL's transaction-local backend-status snapshot instead retains the
+  old count in all three cumulative fetch modes; a separate outside-transaction
+  observer proves actual live admission and later publication without clearing
+  or weakening the held cumulative-cache assertions.
+  Idle SQL COMMIT/ROLLBACK and parsed empty simple queries have real backend
+  outcomes; idle physical cleanup does not. PREPARE transfers unresolved work
+  without reporting at preparing exit. Successful completion reports the original
+  prepared outcome once as well as the finisher's own commit: COMMIT PREPARED
+  C2/R0, ROLLBACK PREPARED C1/R1, as the released
+  [`FinishPreparedTransaction`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/access/transam/twophase.c#L1654-L1655)
+  callback specifies. Independent mixed commit/abort, truncate commit/abort and
+  prepared-finisher vectors each own a fresh complete scenario (both modes),
+  rather than exhausting a shared context across legitimate idle retries.
+  No assertion or shared fixture deadline is reduced/extended.
+  Parse/Describe plus Sync can itself
+  commit without Execute. PostgreSQL's
+  [`InitPostgres`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/init/postinit.c)
+  also commits a genuine startup catalog transaction; native public admission
+  has no such transaction owner and must not manufacture one.
+  Before retiring the setup writer, PostgreSQL scenarios explicitly ANALYZE
+  `pg_catalog.pg_database`, assert its manual analyze count advances and its
+  modification-since-analyze counter is zero, and await no target autovacuum
+  worker. Full-column
+  [`pgstat_report_analyze`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/activity/pgstat_relation.c#L279-L356)
+  resets shared analyze eligibility; worker exit drains predecessor statistics.
+  This places real catalog maintenance before the captured setup cut, without
+  accepting or subtracting extra updates later. Native virtual catalog sources
+  have no corresponding background maintenance; no pretend ANALYZE is issued.
+  Measured admission/outcome windows perform no database-inventory DDL.
+  Every exact SQL-outcome scenario establishes its baseline on the measured
+  live writer using one committed marker INSERT in the separate marker table,
+  awaiting normal publication (including the existing idle retry). Its known
+  marker, startup and earlier named preparation commits independently specify a
+  minimum published commit total. The observed baseline may include additional
+  PostgreSQL catalog/startup commits; marker tuples, session/live counts and every
+  other baseline field remain exact. Subsequent SQL outcomes are exact deltas
+  from that observed baseline, never relaxed commit minima. No forced flush,
+  reset or observer-clear substitutes for publication.
+  The smoke prepares one reusable parameterized INSERT on that same writer
+  before the marker baseline; its pre-admission lifecycle baseline stays separate.
+  Thus startup/preparation/marker work cannot contaminate commit+1/rollback+1/
+  insert+2 or hide the one new physical session. Empty SQL asserts successful
+  execution without demanding an affected-row count absent from pq's response.
+  DML read witnesses reject every UPDATE/DELETE/USING/FROM/MERGE candidate yet
+  require genuine target input. Native exact scan counts follow its actual
+  scanner (including MERGE rescans); the independent PostgreSQL plan must visit
+  the live target, without asserting planner identity or charging affected rows.
+  View-definition witnesses independently require the released expression in
+  default/pretty forms and identifier quoting/search-path masking, without
+  installing SQL getter routines. The definition parameter is explicitly boolean
+  to select the pretty-print overload rather than the integer wrap-column overload.
+  The shared-row witness uses existing `OidReferenceRows` family normalization:
+  native int64 and pq decimal-byte OIDs independently normalize to literal zero,
+  while preserving the actual OID declaration and raw adapter contracts.
+  Native parallel witnesses use actual projection and supported partial
+  `string_agg` execution, not an unsupported count(*) parallel recipe. The
+  PostgreSQL plan independently supplies its own actual planned/launched totals.
+  Deadlock admission uses the existing managed `LockOperation` worker, including
+  its strict scheduler barrier and cancellation/join cleanup.
+
+  ```sh
+  make check RUN='^TestReferenceStatDatabase(Schema|SharedBackendWitness|Inventory|Privileges|ReadOnly|Technical|Definition)$'
+  make check RUN='^TestReferenceStatDatabase(Transactions|Tuples|CommandOutcomes|PreparedOutcomes|DMLReads|CacheLive|SnapshotFirstAccess)$'
+  make check RUN='^TestReferenceStatDatabase(Sessions|Deadlocks|Parallel)$'
+  ```
+
+  Run each selected definition again with `REFERENCE=1` against the unchanged
+  pinned PostgreSQL18.6 fixture. These are independent expected outcomes, not
+  backend-only shadow tests. Select `SnapshotFirstAccess` with `RACE=1` in each
+  mode as well. The distinct feature smoke has its own argv and
+  expected observations:
+
+  ```sh
+  make check RUN='^TestReferenceStatDatabaseFeatureSmoke$'
+  make check REFERENCE=1 RUN='^TestReferenceStatDatabaseFeatureSmoke$'
+  ```
+
+  Each serial direct/prepared-DML smoke owns a fresh fixture/context and isolated
+  B/C. It proves B live+1, peer commit/rollback and both executed insert attempts
+  after physical retire, no abnormal disconnect count, initially unchanged C,
+  final B rows `[11]`, and the exact thirty-column schema. A's snapshot begins
+  through existing table statistics, retains both databases across a published C
+  insert and B admission/retirement, and independently distinguishes native live
+  backends from PostgreSQL's cached backend status. A separate none-mode reader
+  proves publication before clear exposes the new B/C facts. Both routes also
+  assert the literal shared row, setting-aware checksum NULLs and full 55000
+  read-only UPDATE diagnostic. Clear-snapshot is never used as a writer flush.
+

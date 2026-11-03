@@ -18,7 +18,7 @@ import (
 // Every case enters a real bound blocking executor through an RLS subquery.
 func TestSystemTimeNestedBlockingDeadline(t *testing.T) {
 	for _, mode := range []string{"sort", "distinct", "window"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			scalar := "SELECT f FROM t ORDER BY NOT f, id + 0 LIMIT 1"
 			if mode == "distinct" {
 				scalar = "SELECT DISTINCT NOT f FROM t"

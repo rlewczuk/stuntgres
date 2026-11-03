@@ -34,6 +34,15 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   supplement them. Absent/declined paths and unsafe semantic frontiers retain
   real base scans. Source cursor resources and fault/cancellation hooks reuse
   `fdwSQLScan`, rather than a canned composite-row implementation.
+  `TestReferenceStatDatabaseForeignWorkers` reuses this real independent SQL
+  provider and its production partition callbacks. It separately asserts admitted
+  requested maximum versus two actual partition starts, plus Begin/Partition
+  failure before launch and Iterate failure after launches. Retiring the actual
+  writer publishes events to a none-mode observer. PostgreSQL expectations come
+  from that backend's own executed EXPLAIN ANALYZE worker facts, not native
+  goroutine/configuration parity. Run
+  `make check RUN='^TestReferenceStatDatabaseForeignWorkers$'` in native and
+  `REFERENCE=1` modes.
   JSON plans use the same selected composite/fallback witnesses, preserving
   provider property order/duplicates and actual selected-node measurements.
   Canceled direct/prepared INSERT SELECT consumes an admitted composite source,

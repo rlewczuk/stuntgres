@@ -2,6 +2,7 @@ package core
 
 import (
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/statistics"
 )
 
 // Admission is held; evaluator/provider work never holds an owner/engine mutex.
@@ -59,6 +60,16 @@ func (e *Engine) checkTransactionConstraints(s *StatementScope) error {
 // lock ownership, including its completion resource. Neither Engine.mu nor
 // the manager mutex is held by the caller.
 func (e *Engine) EndLockOwner(ticket *lock.Ticket) {
+	if ticket != nil {
+		if count := ticket.TakeDeadlocks(); count != 0 {
+			e.sessionMu.Lock()
+			owner := e.sessions[ticket.Session()]
+			e.sessionMu.Unlock()
+			if owner != nil {
+				addDatabaseStats(e, owner, statistics.DatabaseFact{Deadlocks: count})
+			}
+		}
+	}
 	if ticket != nil && ticket.Ref().Domain() != nil {
 		e.removeExclusionOwner(ticket)
 	}

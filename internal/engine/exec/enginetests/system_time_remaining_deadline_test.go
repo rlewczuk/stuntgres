@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"stuntgres/internal/engine"
@@ -23,10 +24,10 @@ import (
 // the window phase observers. Input closures are NOT treated as output work.
 type timeLoopContext struct {
 	context.Context
-	ancestor string
-	observe func(caller string, membership bool)
+	ancestor     string
+	observe      func(caller string, membership bool)
 	observeStack func(stack []runtime.Frame, membership bool)
-	stack [48]runtime.Frame
+	stack        [48]runtime.Frame
 }
 
 func (c *timeLoopContext) Err() error {
@@ -78,14 +79,14 @@ func timeSupportAdmission(frame runtime.Frame, function string, entry *uintptr) 
 // Keep a genuine producing capture separate from the RLS relation. Its owner,
 // not a borrowed scalar invocation, is responsible for closing the producer.
 type timeLoopFixture struct {
-	project *plan.ProjectNode
-	leaf *plan.SourceNode
-	rows [][]sqltype.Value
+	project              *plan.ProjectNode
+	leaf                 *plan.SourceNode
+	rows                 [][]sqltype.Value
 	raw, input, inputRaw *exec.Source
-	producer exec.Stage
-	closes int
-	owner *exec.CTEInvocation
-	program *exec.RLSProgram
+	producer             exec.Stage
+	closes               int
+	owner                *exec.CTEInvocation
+	program              *exec.RLSProgram
 }
 
 func timeNewLoopFixture(t *testing.T, ctx context.Context, sql string) *timeLoopFixture {
@@ -196,7 +197,7 @@ func TestSystemTimeNestedMembershipDeadline(t *testing.T) {
 	for _, operator := range []string{"in", "any"} {
 		t.Run(operator, func(t *testing.T) {
 			for _, mode := range []string{"all_rejected", "accepted_prefix", "expired_cancel", "argument_failure", "infinity", "infinity_cancel"} {
-				t.Run(mode, func(t *testing.T) {
+				timeRunDeadline(t, mode, func(t *testing.T) {
 					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					ctx := &timeLoopContext{Context: base}
@@ -305,117 +306,122 @@ func TestSystemTimeNestedSetDeadline(t *testing.T) {
 		t.Run(operation, func(t *testing.T) {
 			for _, mode := range []string{"accepted_prefix", "expired_cancel", "infinity", "infinity_cancel", "argument_failure"} {
 				t.Run(mode, func(t *testing.T) {
-					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					ctx := &timeLoopContext{Context: base}
-					// Bound genuine SQL arm production before the observed output
-					// phase. QueryFixture's quartet is TRUE,NULL,FALSE,TRUE:
-					// INTERSECT ALL retains all four; EXCEPT ALL removes one TRUE.
-					left := "SELECT f FROM (SELECT * FROM t LIMIT 4) l"
-					op, right := " INTERSECT ALL ", "SELECT f FROM (SELECT * FROM t LIMIT 4) r"
-					wantLeft, wantRight, wantOutput := 4, 4, 4
-					wantCount := "4"
-					if operation == "except_all" {
-						op, right, wantRight, wantOutput = " EXCEPT ALL ", "SELECT f FROM (SELECT * FROM t LIMIT 4) r WHERE id = 1", 1, 3
-						wantCount = "3"
-					}
-					// The genuine scalar is FALSE only for the independently
-					// specified output multiplicity (and the known FALSE f).
-					// Infinity must therefore retain only the initial prefix.
-					f := timeNewLoopFixture(t, ctx, "SELECT *, (SELECT count(*) <> "+wantCount+" OR bool_and(f) FROM ("+left+op+right+") s) FROM t TABLESAMPLE system_time(100)")
-					policy := f.project.Expressions[3].(plan.SubqueryExpr)
-					f.install(policy, true)
-					defer f.program.Close()
-					outputChecks, sets, leftCalls, rightCalls := 0, 0, 0, 0
-					primary := errors.New("genuine nested set arm failure")
-					plan.VisitExecutableQuery(policy.QueryPlan.Root, func(node plan.Node) {
-						if n, ok := node.(*plan.SetNode); ok {
-							sets++
-							if !n.All || n.Operation != map[string]string{"intersect_all": "intersect", "except_all": "except"}[operation] {
-								t.Fatal("fixture did not retain blocking ALL set operation")
-							}
-							original := n.LeftExpressions[0]
-							n.LeftExpressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
-								value, err := original.Eval(c)
-								if err != nil {
-									return sqltype.Value{}, err
+					// Keep suite scheduling outside the sample's elapsed clock.
+					// The ordinary timer below advances virtual Go time only
+					// after genuine arm demand or the selected output checkpoint.
+					synctest.Test(t, func(t *testing.T) {
+						base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						ctx := &timeLoopContext{Context: base}
+						// Bound genuine SQL arm production before the observed output
+						// phase. QueryFixture's quartet is TRUE,NULL,FALSE,TRUE:
+						// INTERSECT ALL retains all four; EXCEPT ALL removes one TRUE.
+						left := "SELECT f FROM (SELECT * FROM t LIMIT 4) l"
+						op, right := " INTERSECT ALL ", "SELECT f FROM (SELECT * FROM t LIMIT 4) r"
+						wantLeft, wantRight, wantOutput := 4, 4, 4
+						wantCount := "4"
+						if operation == "except_all" {
+							op, right, wantRight, wantOutput = " EXCEPT ALL ", "SELECT f FROM (SELECT * FROM t LIMIT 4) r WHERE id = 1", 1, 3
+							wantCount = "3"
+						}
+						// The genuine scalar is FALSE only for the independently
+						// specified output multiplicity (and the known FALSE f).
+						// Infinity must therefore retain only the initial prefix.
+						f := timeNewLoopFixture(t, ctx, "SELECT *, (SELECT count(*) <> "+wantCount+" OR bool_and(f) FROM ("+left+op+right+") s) FROM t TABLESAMPLE system_time(100)")
+						policy := f.project.Expressions[3].(plan.SubqueryExpr)
+						f.install(policy, true)
+						defer f.program.Close()
+						outputChecks, sets, leftCalls, rightCalls := 0, 0, 0, 0
+						primary := errors.New("genuine nested set arm failure")
+						plan.VisitExecutableQuery(policy.QueryPlan.Root, func(node plan.Node) {
+							if n, ok := node.(*plan.SetNode); ok {
+								sets++
+								if !n.All || n.Operation != map[string]string{"intersect_all": "intersect", "except_all": "except"}[operation] {
+									t.Fatal("fixture did not retain blocking ALL set operation")
 								}
-								leftCalls++
-								if mode == "argument_failure" {
-									if err := timeWorkPastBudget(base); err != nil {
+								original := n.LeftExpressions[0]
+								n.LeftExpressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+									value, err := original.Eval(c)
+									if err != nil {
 										return sqltype.Value{}, err
 									}
-									return sqltype.Value{}, primary
-								}
-								return value, nil
-							})
-							rightExpression := n.RightExpressions[0]
-							n.RightExpressions[0] = enginetest.QueryProbe(rightExpression.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
-								value, err := rightExpression.Eval(c)
-								if err == nil {
-									rightCalls++
-								}
-								return value, err
-							})
+									leftCalls++
+									if mode == "argument_failure" {
+										if err := timeWorkPastBudget(base); err != nil {
+											return sqltype.Value{}, err
+										}
+										return sqltype.Value{}, primary
+									}
+									return value, nil
+								})
+								rightExpression := n.RightExpressions[0]
+								n.RightExpressions[0] = enginetest.QueryProbe(rightExpression.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+									value, err := rightExpression.Eval(c)
+									if err == nil {
+										rightCalls++
+									}
+									return value, err
+								})
+							}
+						}, func(_ expr.Expr) {})
+						if sets != 1 {
+							t.Fatal("fixture missed the genuine nested set executor", sets)
 						}
-					}, func(_ expr.Expr) {})
-					if sets != 1 {
-						t.Fatal("fixture missed the genuine nested set executor", sets)
-					}
-					ctx.observe = func(caller string, _ bool) {
-						if caller != "stuntgres/internal/engine/exec.OpenSetNode" || leftCalls != wantLeft || rightCalls != wantRight {
-							return
-						}
-						outputChecks++
-						if outputChecks == 3 {
-							// The TRUE bucket checkpoint and first copy checkpoint
-							// precede the first append. The third checkpoint is
-							// after that append, before the next copy or bucket.
-							_ = timeWorkPastBudget(base)
-							if mode == "expired_cancel" || mode == "infinity_cancel" {
-								cancel()
+						ctx.observe = func(caller string, _ bool) {
+							if caller != "stuntgres/internal/engine/exec.OpenSetNode" || leftCalls != wantLeft || rightCalls != wantRight {
+								return
+							}
+							outputChecks++
+							if outputChecks == 3 {
+								// The TRUE bucket checkpoint and first copy checkpoint
+								// precede the first append. The third checkpoint is
+								// after that append, before the next copy or bucket.
+								_ = timeWorkPastBudget(base)
+								if mode == "expired_cancel" || mode == "infinity_cancel" {
+									cancel()
+								}
 							}
 						}
-					}
-					leaf := f.leaf
-					if mode == "infinity" || mode == "infinity_cancel" {
-						leaf = timeArgument(t, leaf, math.Inf(1))
-					}
-					stage, err := exec.OpenNode(ctx, &exec.State{Source: f.raw}, leaf)
-					defer stage.Close()
-					if mode == "argument_failure" {
-						if !errors.Is(err, primary) || leftCalls != 1 || outputChecks != 0 || stage.Source != nil {
-							t.Error("set arm genuine failure lost priority", err, leftCalls, outputChecks)
+						leaf := f.leaf
+						if mode == "infinity" || mode == "infinity_cancel" {
+							leaf = timeArgument(t, leaf, math.Inf(1))
 						}
-					} else {
-						if leftCalls != wantLeft || rightCalls != wantRight || outputChecks < 3 {
-							t.Error("set fixture failed to enter post-input output expansion", leftCalls, rightCalls, outputChecks)
-						}
-						if mode == "expired_cancel" || mode == "infinity_cancel" {
-							if !errors.Is(err, context.Canceled) || outputChecks != 3 || stage.Source != nil || stage.Selection != nil {
-								t.Error("set output cancellation became elapsed EOF or consumed tail", err, outputChecks)
+						stage, err := exec.OpenNode(ctx, &exec.State{Source: f.raw}, leaf)
+						defer stage.Close()
+						if mode == "argument_failure" {
+							if !errors.Is(err, primary) || leftCalls != 1 || outputChecks != 0 || stage.Source != nil {
+								t.Error("set arm genuine failure lost priority", err, leftCalls, outputChecks)
 							}
 						} else {
-							if err != nil {
-								t.Fatal("nested set elapsed EOF escaped as an error", err)
+							if leftCalls != wantLeft || rightCalls != wantRight || outputChecks < 3 {
+								t.Error("set fixture failed to enter post-input output expansion", leftCalls, rightCalls, outputChecks)
 							}
-							if mode == "infinity" {
-								// Three distinct buckets, every output copy, then
-								// the final checkpoint must all be exhausted.
-								if outputChecks != wantOutput+4 {
-									t.Error("Infinity did not exhaust genuine set multiplicities", outputChecks, wantOutput+4)
+							if mode == "expired_cancel" || mode == "infinity_cancel" {
+								if !errors.Is(err, context.Canceled) || outputChecks != 3 || stage.Source != nil || stage.Selection != nil {
+									t.Error("set output cancellation became elapsed EOF or consumed tail", err, outputChecks)
 								}
-							} else if outputChecks != 3 {
-								t.Errorf("nested set advanced past the first appended output after real expiry: %d checkpoints", outputChecks)
+							} else {
+								if err != nil {
+									t.Fatal("nested set elapsed EOF escaped as an error", err)
+								}
+								if mode == "infinity" {
+									// Three distinct buckets, every output copy, then
+									// the final checkpoint must all be exhausted.
+									if outputChecks != wantOutput+4 {
+										t.Error("Infinity did not exhaust genuine set multiplicities", outputChecks, wantOutput+4)
+									}
+								} else if outputChecks != 3 {
+									t.Errorf("nested set advanced past the first appended output after real expiry: %d checkpoints", outputChecks)
+								}
+								f.assertRetained(t, &stage, true)
 							}
-							f.assertRetained(t, &stage, true)
 						}
-					}
-					clause := &f.program.Groups[0].Permissive[0]
-					if clause.Evaluation.Context != nil || clause.Evaluation.Query != nil {
-						t.Error("set unwind retained RLS invocation scratch")
-					}
-					f.close(t, &stage)
+						clause := &f.program.Groups[0].Permissive[0]
+						if clause.Evaluation.Context != nil || clause.Evaluation.Query != nil {
+							t.Error("set unwind retained RLS invocation scratch")
+						}
+						f.close(t, &stage)
+					})
 				})
 			}
 		})

@@ -77,11 +77,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		if (outputUses == nil || len(outputUses) != 0) && !suppressBGWriterRead {
 			reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
-			var now time.Time
-			if reader.NeedsSnapshot() {
-				now = time.Now().UTC().Truncate(time.Microsecond)
-			}
-			in.BGWriter = reader.ReadShared(&e.Statistics, statistics.BGWriter, now)
+			captureDatabaseStats(e, reader)
+			in.BGWriter = reader.ReadShared(&e.Statistics, statistics.BGWriter, time.Time{})
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
@@ -103,14 +100,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
-		var now time.Time
-		if reader.NeedsSnapshot() {
-			now = time.Now().UTC().Truncate(time.Microsecond)
-		}
+		captureDatabaseStats(e, reader)
 		if oid == pgcatalog.StatSLRUOID {
-			in.SLRU = reader.ReadSLRUs(&e.Statistics, now)
+			in.SLRU = reader.ReadSLRUs(&e.Statistics, time.Time{})
 		} else {
-			in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, now)
+			in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, time.Time{})
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
@@ -211,6 +205,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			unlockBefore = true
 		}
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
+		fallthrough
+	case pgcatalog.StatDatabaseOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()

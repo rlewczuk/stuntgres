@@ -89,6 +89,8 @@ type StatementScope struct {
 	Completed                   bool
 	sessionCompleted            bool // Successful session utilities have no private stage to merge.
 	controlOutcome              controlOutcome
+	statsIdleCommand            bool // Command admitted before any transaction owner.
+	statsCommandOutcome         bool // Once-only control/pre-owner completion authority.
 	ReplacementRead             bool
 	LockTicket                  *lock.Ticket
 	multiEvents                 []lock.MultiEvent

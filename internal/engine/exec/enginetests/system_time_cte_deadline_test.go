@@ -25,7 +25,7 @@ func TestSystemTimeNestedCTEDeadline(t *testing.T) {
 				modes = append(modes, "pending_close", "pending_error", "pending_cancel")
 			}
 			for _, mode := range modes {
-				t.Run(mode, func(t *testing.T) {
+				timeRunDeadline(t, mode, func(t *testing.T) {
 					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					body := "SELECT f, f FROM t"
@@ -263,4 +263,3 @@ func timeAssertAbandonedTail(t *testing.T, backing []sqltype.Value, published in
 		}
 	}
 }
-

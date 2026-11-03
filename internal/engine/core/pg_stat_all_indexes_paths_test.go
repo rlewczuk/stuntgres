@@ -320,7 +320,10 @@ func TestPGStatAllIndexesTransactionStop(t *testing.T) {
 				e, setup, key := indexStatsSetup(t)
 				statsFunctionRetire(t, setup)
 				s := enginetest.StartSession(t, e, nil)
-				statsFunctionExec(t, s, "SET enable_seqscan=off", "SELECT payload FROM stat_index_rows WHERE n=2")
+				statsFunctionExec(t, s, "SET enable_seqscan=off")
+				// Admission/SET already used the shared writer's first report.
+				time.Sleep(time.Second)
+				statsFunctionExec(t, s, "SELECT payload FROM stat_index_rows WHERE n=2")
 				indexStatsWant(t, e, key, 1, 2, 2)
 				// Genuine second implicit read remains throttled, then explicit work falls
 				// back. This is never presented as an indexed explicit transaction scan.
@@ -369,7 +372,9 @@ func TestPGStatAllIndexesTransactionStop(t *testing.T) {
 		e, s, key := indexStatsSetup(t)
 		statsFunctionRetire(t, s)
 		actor := enginetest.StartSession(t, e, nil)
-		statsFunctionExec(t, actor, "SET enable_seqscan=off", "SELECT payload FROM stat_index_rows WHERE n=2")
+		statsFunctionExec(t, actor, "SET enable_seqscan=off")
+		time.Sleep(time.Second)
+		statsFunctionExec(t, actor, "SELECT payload FROM stat_index_rows WHERE n=2")
 		first := e.Statistics.Read(key)
 		statsFunctionExec(t, actor, "SELECT payload FROM stat_index_rows WHERE n=2")
 		time.Sleep(100 * time.Millisecond)

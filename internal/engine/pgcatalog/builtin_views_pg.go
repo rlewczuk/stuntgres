@@ -13,6 +13,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatsOID, parts: statisticsViewParts(false), prettyParts: statisticsViewParts(true)},
 	{oid: ProgressCreateIndexOID, returnRule: ProgressCreateIndexRuleOID, parts: createIndexProgressViewParts(false), prettyParts: createIndexProgressViewParts(true)},
 	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts(false), prettyParts: clusterProgressViewParts(true)},
+	{oid: StatDatabaseOID, returnRule: StatDatabaseRuleOID, parts: databaseStatisticsViewParts(false), prettyParts: databaseStatisticsViewParts(true)},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
 	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},

@@ -26,8 +26,8 @@ func TestReferencePGStatioAllSequencesFeatureSmoke(t *testing.T) {
 					t.Fatal("smoke membership", got)
 				}
 			}
-			// Fresh explicit transaction, first encounter batch, one genuine idle
-			// publication. Returning a pooled Conn is not a terminal boundary.
+			// Await real ordinary publication of this explicit encounter batch.
+			// Returning a pooled Conn is not a terminal boundary.
 			statioSequenceExec(t, p, b, producer, "BEGIN")
 			for n := int64(1); n <= 4; n++ {
 				pgSequencesScalar(t, p, b, producer, "SELECT nextval('statio_smoke')", "nextval", n)

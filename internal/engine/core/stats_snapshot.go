@@ -45,11 +45,8 @@ func (r *catalogRuntime) relationStatistics(address ids.ObjectAddress) statistic
 	}
 	reader := statsReader(r.auth.Session, settings)
 	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}
-	var now time.Time
-	if reader.NeedsSnapshot() {
-		now = time.Now().UTC().Truncate(time.Microsecond)
-	}
-	return reader.Read(&r.engine.Statistics, key, now)
+	captureDatabaseStats(r.engine, reader)
+	return reader.Read(&r.engine.Statistics, key, time.Time{})
 }
 func (r *catalogRuntime) TableBlockStatistics(address ids.ObjectAddress) pgcatalog.IndexBlockFact {
 	f := r.relationStatistics(address)
@@ -65,28 +62,14 @@ func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.Ma
 }
 
 func (r *catalogRuntime) SequenceIOStatistics(address ids.ObjectAddress) int64 {
-	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
-		return 0
-	}
-	settings := r.settings
-	if settings == nil {
-		settings = r.auth.Session.Settings
-	}
-	reader := statsReader(r.auth.Session, settings)
-	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}
-	var now time.Time
-	if reader.NeedsSnapshot() {
-		now = time.Now().UTC().Truncate(time.Microsecond)
-	}
-	return reader.Read(&r.engine.Statistics, key, now).SequencePageAccesses
+	return r.relationStatistics(address).SequencePageAccesses
 }
 
 // recordStatsTuple is called at real accepted row mutation, not at COMMIT.
 // Engine and transaction owner locks are held. Estimate ownership stays beside
 // writes; collecting a tuple never creates a catalog journal or changes routing.
-func (s *StatementScope) recordStatsTuple(ref ids.ObjectRef, inserts, updates, deletes int64) {
-	_, _, policy := s.Op.EffectiveSettings().StatsConfiguration()
-	if !policy.Counts {
+func (s *StatementScope) recordStatsTuple(ref ids.ObjectRef, inserts, updates, deletes int64, counts bool) {
+	if !counts {
 		return
 	}
 	key := statistics.Key{Object: ref, Category: statistics.Relation}
@@ -101,6 +84,10 @@ func statsIdle(s *session.Session, force bool) {
 	if e == nil {
 		return
 	}
+	if s.Transactions != nil {
+		addDatabaseStats(e, s, statistics.DatabaseFact{Deadlocks: s.Transactions.Ticket.TakeDeadlocks()})
+	}
+	addDatabaseStats(e, s, statistics.DatabaseFact{Deadlocks: s.Advisory.Ticket.TakeDeadlocks()})
 	if !force && s.Settings != nil {
 		_, _, policy := s.Settings.StatsConfiguration()
 		if !policy.Activities {
@@ -108,13 +95,28 @@ func statsIdle(s *session.Session, force bool) {
 		}
 	}
 	if force {
+		if p.statsPublic {
+			addDatabaseStats(e, s, p.statsSession.Transition(time.Now(), false, false, false))
+			switch s.DisconnectCause {
+			case session.DisconnectAbandoned:
+				addDatabaseStats(e, s, statistics.DatabaseFact{Abandoned: 1})
+			case session.DisconnectFatal:
+				addDatabaseStats(e, s, statistics.DatabaseFact{Fatal: 1})
+			case session.DisconnectKilled:
+				addDatabaseStats(e, s, statistics.DatabaseFact{Killed: 1})
+			}
+		}
 		// Unregister holds Session.Mu after the outside-lock callback drain.
 		p.statsFlush.stop()
 		if p.statsWriter.Pending() {
 			p.statsWriter.Flush(&e.Statistics, time.Now(), true)
 		}
 	} else {
+		_, _, policy := s.Settings.StatsConfiguration()
 		s.Mu.Lock()
+		if s.State == session.Live && p.statsPublic {
+			addDatabaseStats(e, s, p.statsSession.Transition(time.Now(), false, s.Transactions != nil && s.Transactions.State != session.TxIdle, policy.Activities))
+		}
 		if s.State == session.Live && statsOutsideTransaction(s) {
 			if p.statsWriter.Pending() {
 				statsReportIdleLocked(s, time.Now())
@@ -133,6 +135,11 @@ func (s *StatementScope) statsCommand() {
 		return
 	}
 	_, _, policy := s.Op.EffectiveSettings().StatsConfiguration()
+	s.LockTicket.SetStatisticsCounts(policy.Counts)
+	s.Op.Session.Advisory.Ticket.SetStatisticsCounts(policy.Counts)
+	if p := PayloadOf(s.Op.Session); p != nil && p.statsPublic {
+		addDatabaseStats(s.Engine(), s.Op.Session, p.statsSession.Transition(time.Now(), true, false, policy.Activities))
+	}
 	if !s.Op.CommandAdmission {
 		return
 	}

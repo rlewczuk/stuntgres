@@ -37,6 +37,9 @@ func (s *StatementScope) ProtocolSimpleQuery(statements int) {
 		}
 	}
 	s.Owner.Mu.Unlock()
+	if statements == 0 {
+		s.AcceptEmptySQL()
+	}
 }
 
 func (e *Engine) SyncProtocolCycle(op *session.Operation, cycle *session.ProtocolCycle) error {

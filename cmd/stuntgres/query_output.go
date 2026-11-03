@@ -84,6 +84,9 @@ func (c *client) writeContextError(ctx context.Context, source session.ProtocolC
 			err = cause
 		}
 	}
+	if diagnostic(err).Severity == "FATAL" && c.session != nil {
+		c.session.ReserveDisconnectCause(session.DisconnectFatal)
+	}
 	if diagnostic(err).Severity == "FATAL" && c.socket != nil {
 		c.interruptTerminalWrite()
 		if e := c.socket.SetWriteDeadline(time.Now().Add(time.Second)); e != nil {

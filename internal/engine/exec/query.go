@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -117,9 +118,11 @@ type Source struct {
 	WindowIndices            []int
 	// Presence uses packed flags only for demanded null-extended namespaces.
 	// Slot lookup is immutable per source; emitted join rows own flat flags.
-	PresenceSlots                  []int
-	PresenceCount                  int
-	PresenceConstant, presenceFlat []bool
+	PresenceSlots                                           []int
+	PresenceCount                                           int
+	PresenceConstant, presenceFlat                          []bool
+	databaseStatistics                                      statistics.DatabaseFact
+	statsInitialized, statsCounts, statsTiming, statsWorker bool
 }
 
 func (s *Source) Count() int {
@@ -207,6 +210,8 @@ func (s *Source) Row(i int) []sqltype.Value {
 		segment, index := s.inheritanceSegment(i)
 		return segment.MapValues(segment.Prefix.Row(index))
 	}
+	start := s.startDatabaseRead()
+	defer s.finishDatabaseRead(start)
 	return s.VersionAt(s.RawIndex(i)).Values
 }
 
@@ -244,6 +249,7 @@ func (s *Source) Close() {
 	s.discardProjection()
 	s.finishReadLeases()
 	s.ReadLease = nil
+	s.reportDatabaseStatistics()
 	s.RLS = nil // The statement, not this borrowed occurrence, owns the program.
 	s.PGSequences = nil
 	sources := s.Sources
@@ -416,9 +422,9 @@ type Stage struct {
 	Closed             bool
 	observations       []*stageObservation
 	projection         *stageObservation
-	projectionOutput   *Source // Only the actual retained projection owner.
-	readSegments       []bool  // Per-opened-stage activation, unchanged by rewind.
-	readSource         bool    // Pending ordinary read, or reached-segment tracking for a hierarchy.
+	projectionOutput   *Source       // Only the actual retained projection owner.
+	readSegments       []bool        // Per-opened-stage activation, unchanged by rewind.
+	readSource         bool          // Pending ordinary read, or reached-segment tracking for a hierarchy.
 	scan               *RelationScan // Shared physical invocation; copied wrappers never own another.
 	Produce            func(context.Context, *Stage) (bool, error)
 	Finish             func() error
@@ -428,6 +434,8 @@ type Stage struct {
 	Reset              func(context.Context, *Stage) (bool, error)
 	scanRange          bool
 	scanStart, scanEnd int
+	physicalScan       bool
+	statsFrontier      int
 }
 
 func (s Stage) Count() int {
@@ -502,6 +510,9 @@ func (s *Stage) NextProjected(ctx context.Context, dst []sqltype.Value) (bool, e
 }
 
 func (s *Stage) Rewind(ctx context.Context) (bool, error) {
+	if s.physicalScan {
+		s.statsFrontier = 0
+	}
 	s.Position = 0
 	for _, record := range s.observations {
 		record.entered, record.frontier = false, 0
@@ -528,6 +539,7 @@ func (s *Stage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.V
 	if err != nil || !present {
 		return present, err
 	}
+	s.databaseOutput(ordinal)
 	row := s.Source.Row(s.Index(ordinal))
 	if s.Expressions == nil {
 		if dst != nil {
@@ -1031,6 +1043,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		// The input frontier was consumed by the blocking sort. Its records
 		// must not follow the sorted output's independently demanded frontier.
 		child.observations = nil
+		child.physicalScan = false // Sorted occurrence replay is not another heap scan.
 		child.projection = nil
 		return child, err
 	case *plan.ProjectNode:
@@ -1556,6 +1569,7 @@ func initializeRelationSource(ctx context.Context, state *State, n *plan.SourceN
 		}
 		child.scan = &scan
 	}
+	child.physicalScan = source.View != nil && !source.Materialized && source.Anonymous == nil
 	if source.RLS != nil {
 		child = openRowSecurityStage(ctx, state, child)
 		// The wrapper retains the same physical source. Hierarchy activation

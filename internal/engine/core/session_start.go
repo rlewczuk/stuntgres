@@ -228,6 +228,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 						}
 					}
 				}
+				payload.statsPublic = true
+				payload.statsSession.Begin(time.Now())
+				addDatabaseStats(e, s, statistics.DatabaseFact{Sessions: 1})
 			}
 		}
 		e.sessionMu.Unlock()

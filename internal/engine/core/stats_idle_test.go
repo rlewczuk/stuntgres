@@ -25,6 +25,9 @@ func TestStatsSnapshotIdlePublicationAuthority(t *testing.T) {
 				t.Cleanup(func() { statsEnd(t, s) })
 				enginetest.SessionSQL(t, s, "CREATE TABLE stats_idle(id integer)")
 				key := statistics.Key{Object: enginetest.RoleTableRef(t, e, "stats_idle")}
+				// Admission/setup database facts used the first shared report.
+				// Prime the ordinary boundary before the measured relation phase.
+				time.Sleep(time.Second)
 				want := func(inserts int64) {
 					t.Helper()
 					if f := e.Statistics.Read(key); f.Inserts != inserts {
@@ -173,6 +176,7 @@ func TestStatsSnapshotIdlePublicationAuthority(t *testing.T) {
 						t.Fatal(err)
 					}
 					t.Cleanup(func() { statsEnd(t, reused) })
+					time.Sleep(time.Second)
 					enginetest.SessionSQL(t, reused, "INSERT INTO stats_idle VALUES(3)")
 					want(2)
 					time.Sleep(10 * time.Second)
@@ -199,14 +203,15 @@ func TestStatsSnapshotIdlePublicationAuthority(t *testing.T) {
 						t.Fatal(err)
 					}
 					t.Cleanup(func() { statsEnd(t, other) })
+					time.Sleep(time.Second)
 					enginetest.SessionSQL(t, other, "INSERT INTO stats_idle VALUES(3)")
 					want(2)
 					enginetest.SessionSQL(t, other, "INSERT INTO stats_idle VALUES(4)")
 					want(2)
-					time.Sleep(5 * time.Second)
+					time.Sleep(4 * time.Second) // First writer's ten-second retry.
 					synctest.Wait()
 					want(3)
-					time.Sleep(5 * time.Second)
+					time.Sleep(6 * time.Second) // Second writer's ten-second retry.
 					synctest.Wait()
 					want(4)
 				case "replacement":
@@ -248,6 +253,7 @@ func TestStatsSnapshotIdlePublicationAuthority(t *testing.T) {
 						t.Fatal(err)
 					}
 					t.Cleanup(func() { statsEnd(t, replacement) })
+					time.Sleep(time.Second)
 					enginetest.SessionSQL(t, replacement, "INSERT INTO stats_idle VALUES(3)")
 					want(3)
 					enginetest.SessionSQL(t, replacement, "INSERT INTO stats_idle VALUES(4)")

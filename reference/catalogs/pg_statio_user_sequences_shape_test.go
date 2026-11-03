@@ -29,6 +29,7 @@ func statioUserSequenceCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, e
 		}
 		return
 	}
+	got = statioSequencePublishedRows(t, p, b, e, statioUserSequenceProbe, oid, read, hit)
 	want := statioSequenceRow{oid: oid, schema: schema, name: name, read: read, hit: hit}
 	if len(got) != 1 || got[0].oid != oid || got[0].schema != schema || got[0].name != name {
 		t.Fatal("actual named user identity", got, want)
@@ -42,6 +43,9 @@ func statioUserSequenceCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, e
 // boundary. PostgreSQL physical values need not equal native logical estimates.
 func statioUserSequenceWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, held fixture.Executor, oid int64, schema, name string, read, hit int64) {
 	t.Helper()
+	if name != "" {
+		statioSequencePublishedRows(t, p, b, conn, statioSequenceProbe, oid, read, hit)
+	}
 	statioSequenceExec(t, p, b, conn, "BEGIN")
 	defer conn.ExecContext(context.Background(), "ROLLBACK")
 	all := statioSequenceRows(t, p, b, conn, statioSequenceProbe, oid)

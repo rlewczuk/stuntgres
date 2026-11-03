@@ -195,6 +195,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		}
 	}
 	var versions, distinctRows []storage.RowVersion
+	statsWriteStart := s.beginDatabaseWrite()
 	if appendOnly {
 		prefix := w.Rows[ref.Address]
 		distinctRows = slices.Grow(prefix, len(rows))[:len(prefix)+len(rows)]
@@ -263,7 +264,8 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			}
 		}
 		e.initializeTemporaryBuffersLocked(s, ref)
-		s.recordStatsTuple(ref, 0, int64(len(versions)), 0)
+		s.recordStatsTuple(ref, 0, int64(len(versions)), 0, statsWriteStart.counts)
+		s.finishDatabaseWrite(statsWriteStart)
 	}
 	return result, nil
 }
@@ -346,6 +348,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if err := e.AssignTransactionXIDLocked(s.TxRef); err != nil {
 		return false, err
 	}
+	statsWriteStart := s.beginDatabaseWrite()
 	var versions []storage.RowVersion
 	if index.ConstraintProjectionRequired(relation) {
 		versions = make([]storage.RowVersion, len(rows))
@@ -394,7 +397,8 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 		}
 	}
 	e.initializeTemporaryBuffersLocked(s, ref)
-	s.recordStatsTuple(ref, int64(len(versions)), 0, 0)
+	s.recordStatsTuple(ref, int64(len(versions)), 0, 0, statsWriteStart.counts)
+	s.finishDatabaseWrite(statsWriteStart)
 	return false, nil
 }
 
@@ -455,6 +459,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if err = e.AssignTransactionXIDLocked(s.TxRef); err != nil {
 		return false, false, storage.RowVersion{}, err
 	}
+	statsWriteStart := s.beginDatabaseWrite()
 	var version storage.RowVersion
 	if candidate.Exclusion != nil {
 		version = *candidate.Exclusion
@@ -481,7 +486,8 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 		s.recordForeignEffect(ref, storage.RowVersion{}, version)
 	}
 	e.initializeTemporaryBuffersLocked(s, ref)
-	s.recordStatsTuple(ref, 1, 0, 0)
+	s.recordStatsTuple(ref, 1, 0, 0, statsWriteStart.counts)
+	s.finishDatabaseWrite(statsWriteStart)
 	return true, false, version, nil
 }
 

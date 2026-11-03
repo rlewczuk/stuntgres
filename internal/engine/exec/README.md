@@ -94,6 +94,27 @@ native preflight construction; retained fold backing is not a complete generic
 plan, and no cost-based generic/custom chooser or definition graph cache is
 introduced. Continuations of an already accepted portal do not rebuild a plan.
 
+Database monitoring uses fixed-size execution-owned source counters, independent
+of optional EXPLAIN observations. Only physical source demand counts: sequential
+fetches, equal live index occurrences and their demanded heap fetches. Filters,
+projections and aggregates do not add result-row counts; partial drains consume
+only the undemanded suffix, retained materialization replay does not reread heap,
+and genuine physical rewind restarts its frontier. Cursor FETCH flushes the
+newly executed source facts before detaching its current host. Counts-off
+per-row paths allocate nothing and sample no clock. Read timing, when enabled,
+brackets actual local cell access rather than SQL-result construction.
+
+Local projection and partial-aggregate workers own private source facts. The
+coordinator joins and folds each once on success or error/cancel, never sharing a
+session Writer with workers. Requested workers and actual starts are recorded at
+the admitted launch loops. Foreign parallel startup records requested maximum
+separately from successfully started partition goroutines; fewer partitions or a
+startup failure do not fabricate launches. Its join helper is not a worker.
+Serial/ineligible/nested execution and plain EXPLAIN contribute no workers;
+EXPLAIN ANALYZE is real execution. Actual native workers need not match a
+PostgreSQL Gather planner choice. `make check RUN='^TestStatDatabaseTupleFrontiers$'`
+includes the disabled allocation control.
+
 
 EXPLAIN ANALYZE attaches an invocation-local `Observation` through the actual
 runtime context. Prepared graph/node identities, not labels or source capacity,
@@ -1156,6 +1177,23 @@ the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 Sampling selection, visibility/layout preservation and lifecycle units use
 `RUN='^TestSystem(Rows|Time)'`, including composed statement-owner coverage in core.
+
+SYSTEM_TIME elapsed-work fixtures that call `timeWorkPastBudget` own virtual Go
+time through `synctest.Test`, rather than spending their 100ms sample on suite
+scheduling before genuine work begins. Shared test-only `timeRunDeadline` wraps
+only timed leaf scenarios: producing continuation, nested physical/sample
+owners, aggregate, blocking, CTE, join, projection, pruning, reader, membership
+and cancellation witnesses. `TestSystemTimeElapsedBudget` and the existing ALL-set
+modes use direct bubbles. Outer grouping subtests and unrelated visibility
+preparation remain ordinary tests.
+The existing ordinary 110ms timer/select advances bubble time at the original
+observed input/support/output gate. The cancellation worker, its channel gates
+and mandatory join remain genuinely owned inside that same bubble. Production
+`time.Now`/`time.Since`, five-second host contexts/guards and all exact prefix,
+input/output count, Infinity multiplicity, cancellation/error precedence,
+retained-backing, continuation and cleanup assertions remain unchanged; no
+context error or sampler clock is overridden. Selected native and race proof:
+`RUN='^TestSystemTime(ProducingSourceContinuation|ElapsedBudget|Nested.*Deadline|ScanCancellation)$'`.
 
 Window phase cancellation witnesses in core use
 `RUN='^(TestQueryWindow(Groups|Rows|Exclude)Cancellation|TestQueryWindowValueOutputPublicationCancellation)$'`.

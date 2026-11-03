@@ -23,6 +23,7 @@ type EndResult struct{ Committed bool }
 
 func clearTransaction(t *session.TransactionOwner, committed bool) {
 	statsTransactionStopped(t)
+	statsTransactionOutcome(t, committed)
 	if !committed {
 		discardStatementStatsPortals(t)
 		e := EngineOf(t.Session)
@@ -220,7 +221,7 @@ func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) 
 // Held-cursor precommit borrows a fresh current operation/presentation scope
 // without starting a new admitted statement or provisional timeout.
 func newStatementScope(op *session.Operation, owner *session.TransactionOwner, start time.Time) *StatementScope {
-	s := &StatementScope{Owner: owner, Op: op, statementStart: start}
+	s := &StatementScope{Owner: owner, Op: op, statementStart: start, statsIdleCommand: owner.State == session.TxIdle}
 	s.statsCommand()
 	s.self = s
 	s.lease.Statement = s

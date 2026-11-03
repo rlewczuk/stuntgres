@@ -181,5 +181,6 @@ func (s *StatementScope) resetPLSegment() {
 	s.foreignTablesSlot = nil
 	s.Completed, s.sessionCompleted = false, false
 	s.controlOutcome = controlOrdinary
+	s.statsIdleCommand, s.statsCommandOutcome = s.Owner.State == session.TxIdle, false
 	s.effectCommand = 0
 }

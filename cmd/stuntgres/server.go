@@ -14,6 +14,7 @@ import (
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 )
 
 var errPeerWatchUnsupported = errors.New("passive peer shutdown monitoring unavailable on this platform")
@@ -169,6 +170,12 @@ func (c *client) startReader() <-chan frontendMessage {
 			}
 			message, err := c.wire.readMessage(buffer)
 			if err != nil {
+				cause := session.DisconnectAbandoned
+				var protocol *sqlstate.Error
+				if errors.As(err, &protocol) && protocol.Code == "08P01" {
+					cause = session.DisconnectFatal
+				}
+				c.session.ReserveDisconnectCause(cause)
 				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, errInvalidFrame) {
 					c.cancel()
 					_ = c.socket.Close()
@@ -179,9 +186,15 @@ func (c *client) startReader() <-chan frontendMessage {
 				c.cancel()
 				return
 			}
+			if message.tag == 'X' {
+				c.session.ReserveDisconnectCause(session.DisconnectNormal)
+			}
 			select {
 			case messages <- message:
 			case <-c.ctx.Done():
+				return
+			}
+			if message.tag == 'X' {
 				return
 			}
 		}
@@ -210,6 +223,11 @@ func (c *client) watchSessionEnd() <-chan error {
 			// Publish physical retirement through the independent session
 			// authority now, before waiting for its operation lease to drain.
 			c.server.awaitCancellation()
+			// A passive FIN is provisional: the actual decoder decides whether
+			// a complete Terminate or a protocol failure preceded transport loss.
+			if c.readDone != nil {
+				<-c.readDone
+			}
 			c.session.RequestEnd(session.InvalidConnection)
 			return
 		}
@@ -246,6 +264,13 @@ func (c *client) interruptTerminalWrite() {
 }
 func (c *client) finish(reason session.EndReason) {
 	c.server.awaitCancellation()
+	if reason == session.InvalidConnection {
+		c.cancel()
+		_ = c.socket.Close()
+		if c.readDone != nil {
+			<-c.readDone
+		}
+	}
 	if c.session != nil {
 		// Preserve the chosen clean/fatal/init reason before canceling the
 		// physical context observed by the existing end-request watcher.

@@ -58,10 +58,7 @@ func (r *catalogRuntime) IndexStatistics(address ids.ObjectAddress) pgcatalog.In
 		settings = r.auth.Session.Settings
 	}
 	reader := statsReader(r.auth.Session, settings)
-	var now time.Time
-	if reader.NeedsSnapshot() {
-		now = time.Now().UTC().Truncate(time.Microsecond)
-	}
-	f := reader.Read(&r.engine.Statistics, statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}, now)
+	captureDatabaseStats(r.engine, reader)
+	f := reader.Read(&r.engine.Statistics, statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}, time.Time{})
 	return pgcatalog.IndexStatisticsFact{Scans: f.IndexScans, Entries: f.IndexEntries, Fetches: f.IndexFetches, LastScan: f.LastIndexScan}
 }

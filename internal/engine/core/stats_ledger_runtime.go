@@ -18,6 +18,7 @@ func settleStatsLedger(e *Engine, sess *session.Session, ledger *statistics.Ledg
 		}
 		if event.Truncated || event.Inserts != 0 || event.Updates != 0 || event.Deletes != 0 {
 			PayloadOf(sess).statsWriter.Add(&e.Statistics, key, event)
+			addDatabaseStats(e, sess, statistics.DatabaseFact{Inserts: event.Inserts, Updates: event.Updates, Deletes: event.Deletes})
 		}
 	}
 	*ledger = nil
@@ -30,6 +31,7 @@ func abortStatsFrames(e *Engine, sess *session.Session, ledger statistics.Ledger
 		event := account.AbortedFrom(level)
 		if event.Inserts != 0 || event.Updates != 0 || event.Deletes != 0 {
 			PayloadOf(sess).statsWriter.Add(&e.Statistics, key, event)
+			addDatabaseStats(e, sess, statistics.DatabaseFact{Inserts: event.Inserts, Updates: event.Updates, Deletes: event.Deletes})
 		}
 	}
 }

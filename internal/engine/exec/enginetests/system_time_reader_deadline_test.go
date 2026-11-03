@@ -18,7 +18,7 @@ import (
 func TestSystemTimeNestedReaderDeadline(t *testing.T) {
 	for _, phase := range []struct {
 		name, scalar, ancestor, caller string
-		gate, exhaustive int
+		gate, exhaustive               int
 	}{
 		{"rows_reservoir", "SELECT bool_and(f) FROM t TABLESAMPLE system_rows(1)", "stuntgres/internal/engine/exec.selectSampleRows", "stuntgres/internal/engine/exec.selectSampleRows", 3, 9},
 		// Bound the genuine inner scan before ORDER BY: sorting the shared
@@ -32,7 +32,7 @@ func TestSystemTimeNestedReaderDeadline(t *testing.T) {
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			for _, mode := range []string{"accepted_prefix", "expired_cancel", "infinity", "infinity_cancel"} {
-				t.Run(mode, func(t *testing.T) {
+				timeRunDeadline(t, mode, func(t *testing.T) {
 					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					ctx := &timeLoopContext{Context: base, ancestor: phase.ancestor}

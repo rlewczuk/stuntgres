@@ -217,6 +217,78 @@
   invalid arguments stay unread, Infinity consumes visible rows, same-stage rewind
   reuses its read frontier, and fresh openings retain capture-owned pin cleanup.
   Logical buffer counters do not promise PostgreSQL physical-counter parity.
+  Isolate elapsed-work deadline fixtures through shared test-only, leaf-scoped
+  virtual-time ownership, including producing continuation, physical/nested
+  sample owners, aggregate, blocking, CTE, join, projection, pruning, reader,
+  membership, ALL-set and owned cancellation-worker witnesses. The existing
+  timer crosses unchanged sample budgets at genuine observed work; preserve
+  exact input/output, prefix, Infinity, primary-error, backing/continuation and
+  cleanup assertions without production clock hooks, retries or budget increases.
+
+- Add the thirty-column typed `pg_catalog.pg_stat_database` view over genuine
+  database transaction, executed tuple, live client, disconnect, hard-deadlock
+  and actual local/aggregate/foreign worker events. Reuse the existing cumulative
+  provider, ledger, publication throttle and reader; snapshots capture accessible
+  databases while native live backend counts stay current. Document unrestricted
+  aggregates/ordinary ACLs, exact read-only diagnostics, checksum/reset NULLs,
+  and explicit in-memory access/timing approximations without fabricated spill.
+  Add independent native/pinned-PostgreSQL reference scenarios, real wire causes,
+  runtime frontier/outcome matrices and a separate cross-database feature smoke.
+  Keep its executable producer in numeric OID lookup order; shared-row witnesses
+  normalize adapter-specific OID transport and definition checks select the
+  boolean pretty-print overload explicitly. Symbolic view definitions follow
+  released deparser qualification rather than copying source-only outer aliases.
+  Reserve its return-rule identity independently of installed catalog relations,
+  preserving `pg_statio_user_indexes` and database-view row/array identities so
+  genuine CREATE DATABASE and replacement validation accept the complete seed.
+  Cover installed database-view ownership and global definition disjointness.
+  Isolate PostgreSQL's genuine startup transaction from measured SQL with
+  same-writer published marker baselines, without inventing a native startup
+  outcome; distinguish released cached backend status from selected native live
+  counts while retaining independent cumulative snapshot/cache assertions.
+  Settle PostgreSQL shared-catalog maintenance with real setup ANALYZE and
+  observed target-worker completion before capturing setup totals, preserving
+  every exact noncommit baseline field without disabling background workers.
+  Successful prepared completion reports its original outcome once, separately
+  from the finisher commit (commit-prepared C2/R0, rollback-prepared C1/R1).
+  Keep independent scenario budgets and genuine command/partial-worker/input
+  witnesses, complete deadlock diagnostics and provider-owned writer fixtures.
+  Settle observed writer baselines above independently required startup/
+  preparation/marker commit minima while preserving every other baseline field
+  and exact subsequent outcomes. Exercise admitted indexed input with downstream
+  rejection and genuine routine-authorized three-worker partial aggregation.
+  Attach wire observers to the actual managed target engine and verify its
+  catalog/view identity. Give each direct/prepared feature smoke a fresh context
+  and complete retained B/C publication, live-backend, shared-row, checksum and
+  read-only witnesses.
+  Preserve the shared writer's publication throttle as session/database events
+  precede relation work: sequence and pending-block fixtures await genuine
+  publication without weakening exact outcomes or forcing a flush. Retain the
+  virtual-time maintenance prefix/retry proof after an ordinary setup boundary.
+  Exclude operation-less captured sources from session collection, include the
+  new view/rule in complete metadata/dependency/restore inventories, and prove
+  orderly wire Terminate with server EOF before transport retirement.
+  Match the complete explicit rewrite-declaration view/rule inventory, including
+  integrated subscription metadata, without replacing per-view ownership checks
+  with a count-only expectation.
+  Prime internal relation/index/function/sequence lifecycle fixtures at genuine
+  ordinary shared-writer eligibility in virtual time, preserving exact pending,
+  reset and ten-second retry proofs. Keep full hard-deadlock diagnostics exact
+  while accepting either actual participant as the closed-cycle starting edge.
+  Match deferred-completion allocation controls through separate engines with
+  identical parent keys and physical version streams, instead of comparing
+  unrelated hashed heap-header paths. Preserve the original relative cap,
+  genuine deferred violation and exact observer row-state witnesses.
+  Complete first-access snapshot authority for actual index, archiver, bgwriter
+  and SLRU reads: all cumulative entry points capture accessible peer-database totals
+  before the Reader becomes full. Preserve current authorization, keyed/fixed/
+  backend/reset partitions, leaf locking and lazy timestamp/activity/clear/
+  recovery-prefetch behavior, including bgwriter's undemanded/FALSE guards.
+  Add independent positive B/C publication vectors
+  through each first row (including the released SLRU `transaction` identity),
+  retaining exact old cuts until clear and transaction
+  end without flushing writers. Consume clear's actual typed VOID singleton
+  through the existing native cursor helper, not the generic tuple exporter.
 
 - Extend the intarray 1.5 provider with genuine intbig_gkey support identity,
   rejecting released I/O and typed NULL/empty/NULL-only shared arrays. Seal both

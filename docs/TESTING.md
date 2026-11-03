@@ -355,6 +355,16 @@ at `GOMAXPROCS(1)` and keeps the smallest of three samples, so unrelated runtime
 allocations cannot fail an exact budget. Do not use `testing.Benchmark`: it
 calibrates for a second per call.
 
+Whole-command relative budgets must also match unrelated physical work.
+Persistent-map copy costs depend on hashed key paths: updating different parent
+rows or consuming different physical version sequences is not a matched control.
+`TestForeignActionsExclusionCompletion` uses separate engines with identical
+parent keys and two guarded insertions each, asserting equal row/version
+frontiers before and after measurement. Immediate distinct guarded rows provide
+the settled control; actual duplicate rows retain 32 deferred events on the
+other side. The original one-allocation relative cap, deferred-violation error
+and both observers' exact row-state assertions remain independent witnesses.
+
 ## Package testing guides
 
 Reference packages: [aggregates](../reference/aggregates/README.md#testing),

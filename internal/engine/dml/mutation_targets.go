@@ -9,7 +9,7 @@ import (
 )
 
 func MutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec.QueryPhysicalRow {
-	version := source.VersionAt(source.RawIndex(index))
+	version := source.ReadSequentialVersion(index)
 	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
 }
 

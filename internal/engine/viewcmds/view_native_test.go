@@ -192,11 +192,13 @@ func TestViewRuleOIDUniquenessAfterRestore(t *testing.T) {
 			indexBootstrapRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='pg_catalog.pg_stat_progress_create_index'::regclass AND rulename='_RETURN'")
 			clusterBootstrapRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='pg_catalog.pg_stat_progress_cluster'::regclass AND rulename='_RETURN'")
 			subscriptionBootstrapRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='pg_catalog.pg_stat_subscription'::regclass AND rulename='_RETURN'")
+			databaseBootstrapRules := readOids("SELECT oid FROM pg_catalog.pg_rewrite WHERE ev_class='pg_catalog.pg_stat_database'::regclass AND rulename='_RETURN'")
 			if len(userRules) != 1 || len(bootstrapRules) != 1 || bootstrapRules[0] != uint32(pgcatalog.ProgressCopyRuleOID) ||
 				len(indexBootstrapRules) != 1 || indexBootstrapRules[0] != uint32(pgcatalog.ProgressCreateIndexRuleOID) ||
 				len(clusterBootstrapRules) != 1 || clusterBootstrapRules[0] != uint32(pgcatalog.ProgressClusterRuleOID) ||
-				len(subscriptionBootstrapRules) != 1 || subscriptionBootstrapRules[0] != uint32(pgcatalog.StatSubscriptionRuleOID) || len(rules) != 5 {
-				t.Fatal("restored and bootstrap rule inventory", rules, userRules, bootstrapRules, indexBootstrapRules, clusterBootstrapRules, subscriptionBootstrapRules)
+				len(subscriptionBootstrapRules) != 1 || subscriptionBootstrapRules[0] != uint32(pgcatalog.StatSubscriptionRuleOID) ||
+				len(databaseBootstrapRules) != 1 || databaseBootstrapRules[0] != uint32(pgcatalog.StatDatabaseRuleOID) || len(rules) != 6 {
+				t.Fatal("restored and bootstrap rule inventory", rules, userRules, bootstrapRules, indexBootstrapRules, clusterBootstrapRules, subscriptionBootstrapRules, databaseBootstrapRules)
 			}
 			seen := make(map[uint32]bool, len(classes))
 			for _, oid := range classes {

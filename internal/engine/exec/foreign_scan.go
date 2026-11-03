@@ -362,7 +362,9 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 					}
 					parallel := newForeignParallelExecution(ctx)
 					execution.Scan = parallel
-					if err := parallel.start(provider, request, execution.Plan, state.foreignParallelMaximum); err != nil {
+					err := parallel.start(provider, request, execution.Plan, state.foreignParallelMaximum)
+					recordDatabaseWorkers(source, state.foreignParallelMaximum, parallel.launched)
+					if err != nil {
 						return err
 					}
 					started = true

@@ -154,8 +154,10 @@ same qualified relation capability before fanout and merges every reached lane
 after join, including failed/canceled prefixes before returning their error.
 Workers never capture capabilities, touch pending maps or publish batches.
 
-A physical session owns one `Writer`, serialized by transaction admission. Policy
-is captured when events occur. Tuple attempts remain unresolved in a write-owned
+A physical session owns one `Writer` for its database provider, serialized by
+transaction admission; its pending map is not a cross-provider batch. Captured
+multi-provider Reader fixtures therefore use independent writers. Policy is
+captured when events occur. Tuple attempts remain unresolved in a write-owned
 `Ledger` until their reporting boundary, separate from the writer's pending batch.
 Statement segments merge at their actual nesting level; savepoints clone roots,
 and immutable parent frames preserve current and first-pre-truncate counters.
@@ -283,6 +285,60 @@ dropped cached target does not invalidate unrelated rows or legitimate observer
 stats privilege; foreign/zero principals remain invalid.
 No peer admission, callback, setting read or clock runs under Provider.mu.
 Query text is UTF8-safe byte-clipped separately from current_query authority.
+
+
+Database facts share this provider/writer/reader, not a second collector.
+`Database` keys use the immutable engine domain and actual database address with
+statistics-only epoch zero; catalog epoch replacement cannot erase database
+history accidentally. Provider generation still fences whole-catalog lifecycle
+replacement. The database `ResetAt` field is a distinct explicit event, never
+the blanket `Fact.ResetAt` startup baseline. A future published-only SQL reset
+must preserve pending writers, unresolved ledgers, active function usage and
+retained captures; it must not call generation-invalidating `Reset`/`Replace`.
+This part exposes no SQL reset operation.
+
+Settlement adds the same ledger I/U/D attempts to database history once, before
+relation retirement, without relation live/dead/truncate estimate effects.
+Committed and aborted executed work both count under existing first-pre-truncate
+and child/prepared rules. Reader capture includes every database-category key
+in the cluster plus the current database's other categories and the shared key.
+All cumulative production entry points establish that domain before keyed or
+fixed-family reads can mark the snapshot full: database statistics, table/
+heap-block/index-block/sequence statistics, index access statistics, and the
+archiver/SLRU and demand-admitted bgwriter source captures. Core admission
+precedes the capture; undemanded/suppressed bgwriter reads stay lazy. The provider
+never invokes an engine/session callback. The current provider's fixed/shared,
+SLRU and backend partitions remain part of its same all-kind cut. The shared
+database key is copied in its owning provider's same leaf-lock interval, never by
+a second later capture that could overwrite a captured provider. Missing/reset
+defaults retain their own provider authority. Reader configuration, timestamp/
+clear and independent activity capture remain noncumulative; recovery-prefetch
+still bypasses cumulative modes. Live public session counts do not use Reader.
+
+Native technical measurements deliberately are not PostgreSQL page counts:
+one newly admitted local physical scan fetch is one in-memory access/hit;
+an equal live indexed occurrence contributes one returned index entry and one
+demanded heap fetch. Rejected hash collisions remain index-internal validation,
+not returned tuples. Sequential predicate rejection still reads its input;
+aggregate/output cardinality is not a scan count. There is no backing disk read,
+spill file, recovery cancellation or physical checksum-failure producer in the
+native primary-only memory engine: block reads, temp files/bytes and conflicts
+therefore remain zero; checksums-off cells remain NULL as above. No memory sort
+allocation is called a temporary file. Enabled read timing measures actual local
+cell access; write timing brackets accepted version/deletion staging. These are
+elapsed technical access measurements, not storage-device latency.
+
+`track_counts` gates new tuple/access/deadlock facts, not connections, top
+transaction outcomes or actual workers. `track_io_timing` gates new access
+clocks; disabled physical per-row collection has no allocation or clock.
+`SessionUsage` consumes monotonic client intervals at real active/idle/end
+boundaries; active and idle-in-transaction spans are disjoint and gated by
+`track_activities`. Turning collection off never deletes old facts or reconstructs
+disabled intervals. Session end force-drains these events through the unchanged
+writer lifecycle; clear-snapshot is never a publication operation.
+
+Runtime matrices: `make check RUN='^TestStatDatabase(Provider|Reader|Durations|SnapshotFirstAccess)$'`;
+use the same selected first-access definition with `RACE=1` for composed capture.
 
 
 `Statements` is a separate cluster-owned bounded statement accumulator. Its leaf

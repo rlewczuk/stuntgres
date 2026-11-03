@@ -46,7 +46,13 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		t.Fatal("PG_NODE_TREE")
 	}
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 194}, &catalog.Type{SQLType: typ})
-	seen := 0
+	want := map[ids.OID]ids.OID{
+		ProgressCopyOID:        ProgressCopyRuleOID,
+		ProgressCreateIndexOID: ProgressCreateIndexRuleOID,
+		ProgressClusterOID:     ProgressClusterRuleOID,
+		StatDatabaseOID:        StatDatabaseRuleOID,
+		StatSubscriptionOID:    StatSubscriptionRuleOID,
+	}
 	var previous string
 	for _, record := range builtinViews {
 		if record.returnRule == 0 {
@@ -55,7 +61,10 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 			}
 			continue
 		}
-		seen++
+		rule, expected := want[record.oid]
+		if !expected || record.returnRule != rule {
+			t.Fatalf("unexpected builtin rewrite identity: view=%d rule=%d want=%d", record.oid, record.returnRule, rule)
+		}
 		if record.declarationErr != nil || record.declaration == nil {
 			t.Fatal(record.oid, record.declarationErr)
 		}
@@ -104,9 +113,10 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		if relation.View != nil {
 			t.Fatal("declaration gained stored-view authority")
 		}
+		delete(want, record.oid)
 	}
-	if seen != 4 {
-		t.Fatal("update explicit inventory expectations", seen)
+	if len(want) != 0 {
+		t.Fatal("missing builtin rewrite declarations", want)
 	}
 }
 

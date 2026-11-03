@@ -29,6 +29,18 @@ and DO NOTHING do not require row-expression evaluation. Provider admission uses
 that effective context while existing row grants, staging and publication remain
 the sole write authorities.
 
+Database read statistics follow real target fetches as well as query Stages.
+`MutationPhysicalRow` uses the source-owned sequential-fetch boundary before
+UPDATE/DELETE predicates (including USING/FROM); MERGE's actual repeated target
+scan uses that same boundary, including a source-empty BY SOURCE scan. Candidate
+metadata replay and later action retries do not masquerade as another scan.
+Source.Close drains performed work even on error/cancellation. Counts-off paths
+add no per-row map/allocation or clock; enabled timing measures actual captured
+version access. Foreign/materialized rows do not impersonate local heap fetches.
+Mutation I/U/D still come only from accepted storage staging and the existing
+ledger, never from scan cardinality or final affected rows.
+
+
 COPY decoding obtains the current selected effective child through
 `Host.CopyInputContext`, reusing its invocation projection until the actual child
 changes. Defaults, domain input and generated rows share that context; decoder

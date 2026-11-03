@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -57,7 +58,12 @@ func statioSequenceMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 
 func statioSequenceRows(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor, q string, args ...any) []statioSequenceRow {
 	t.Helper()
-	rows, err := e.QueryContext(p.Ctx, q, args...)
+	return statioSequenceRowsContext(t, p.Ctx, b, e, q, args...)
+}
+
+func statioSequenceRowsContext(t *testing.T, ctx context.Context, b fixture.Backend, e fixture.Executor, q string, args ...any) []statioSequenceRow {
+	t.Helper()
+	rows, err := e.QueryContext(ctx, q, args...)
 	if err != nil {
 		t.Fatal(q, err)
 	}
@@ -100,6 +106,34 @@ func statioSequenceOID(t *testing.T, p *fixture.Pair, e fixture.Executor, qualif
 	return oid
 }
 
+// Session/database facts share the physical writer's throttle. A sequence's
+// first encounter is not necessarily that writer's first reportable batch.
+// Await ordinary publication without ending retained owners or forcing a flush.
+func statioSequencePublishedRows(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor, q string, oid, read, hit int64) []statioSequenceRow {
+	t.Helper()
+	if b.PG {
+		return statioSequenceRows(t, p, b, e, q, oid)
+	}
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
+	defer cancel()
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		got := statioSequenceRowsContext(t, ctx, b, e, q, oid)
+		if len(got) != 1 || got[0].read == read && got[0].hit == hit {
+			return got
+		}
+		if got[0].read > read || got[0].hit > hit {
+			t.Fatal("published sequence counters exceed exact outcome", got, read, hit)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("sequence publication", got, read, hit, ctx.Err())
+		case <-tick.C:
+		}
+	}
+}
+
 func statioSequenceCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor, oid int64, schema, name string, read, hit int64) {
 	t.Helper()
 	got := statioSequenceRows(t, p, b, e, statioSequenceProbe, oid)
@@ -109,6 +143,7 @@ func statioSequenceCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, e fix
 		}
 		return
 	}
+	got = statioSequencePublishedRows(t, p, b, e, statioSequenceProbe, oid, read, hit)
 	if len(got) != 1 || got[0].oid != oid || got[0].schema != schema || got[0].name != name {
 		t.Fatal("sequence membership", got, oid, schema, name)
 	}
@@ -193,13 +228,15 @@ func TestReferencePGStatioAllSequencesMembership(t *testing.T) {
 			for _, q := range []string{"CREATE SCHEMA statio_a", "CREATE SCHEMA statio_b", `CREATE SCHEMA "PG_TOAST"`, "CREATE SEQUENCE statio_a.same", "CREATE SEQUENCE statio_b.same", `CREATE SEQUENCE statio_a."Quoted Sequence"`, `CREATE SEQUENCE "PG_TOAST".statio_upper`, "CREATE TABLE statio_a.ordinary(id integer)", "CREATE VIEW statio_a.not_sequence AS SELECT id FROM statio_a.ordinary", "CREATE TABLE statio_a.serial_owner(id serial)", "CREATE TABLE statio_b.identity_owner(id bigint GENERATED ALWAYS AS IDENTITY)", "CREATE TEMP SEQUENCE statio_temp"} {
 				statioSequenceExec(t, p, b, a, q)
 			}
-			// A real index build publishes heap activity. Isolate its writer
-			// rather than consuming the sequence producer's first report.
-			ddl,err:=b.DB.Conn(p.Ctx)
-			if err!=nil {t.Fatal(err)}
+			// Keep genuine heap-build work on a separate physical writer;
+			// sequence publication is independently observed below.
+			ddl, err := b.DB.Conn(p.Ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer ddl.Close()
-			statioSequenceExec(t,p,b,ddl,"CREATE INDEX statio_index ON statio_a.ordinary(id)")
-			statioSequenceRetire(t,ddl)
+			statioSequenceExec(t, p, b, ddl, "CREATE INDEX statio_index ON statio_a.ordinary(id)")
+			statioSequenceRetire(t, ddl)
 			q := "SELECT * FROM pg_catalog.pg_statio_all_sequences WHERE schemaname IN ('statio_a','statio_b','PG_TOAST') OR relname='statio_temp' ORDER BY schemaname,relname"
 			want := map[string]int64{}
 			for _, name := range []string{"statio_a.same", "statio_b.same", `statio_a."Quoted Sequence"`, `"PG_TOAST".statio_upper`, "statio_a.serial_owner_id_seq", "statio_b.identity_owner_id_seq", "pg_temp.statio_temp"} {

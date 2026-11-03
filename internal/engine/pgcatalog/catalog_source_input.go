@@ -106,6 +106,8 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{0, 1, 2, 3, 4}
 	case StatioAllIndexesOID, StatioUserIndexesOID:
 		return []int{0, 1, 3, 4}
+	case StatDatabaseOID:
+		return []int{0, 1}
 	case ids.ProcedureClassID:
 		return []int{ProcedureOIDColumn}
 	case InfoRoutinesOID:
@@ -208,6 +210,7 @@ type Runtime interface {
 	SequenceIOStatistics(ids.ObjectAddress) int64
 	IndexStatistics(ids.ObjectAddress) IndexStatisticsFact
 	IndexBlockStatistics(ids.ObjectAddress) IndexBlockFact
+	DatabaseStatistics(ids.OID) DatabaseStatisticsFact
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64

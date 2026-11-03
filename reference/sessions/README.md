@@ -171,3 +171,22 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
 - Wire logs (error, server and query logs): `RUN='^TestReferenceServer(Logs|PreparedLogs|QueryLog)$$'`
 - Dual-backend query log: `RUN='^TestReferenceServerDualQueryLog$$'`
+
+- `make check RUN='^TestReferenceStatDatabaseWire$'` and the same with
+  `REFERENCE=1` exercise actual server/frontend lifetime, not synthetic session
+  ending requests. The untagged scenario uses pq's public physical Dialer seam
+  for normal Terminate, abrupt socket EOF, recognized invalid-message FATAL,
+  native idle-session timeout and administrator termination. A separate observer
+  attaches to the same managed secondary database: native managed databases have
+  independent engines/catalogs, not one shared inventory. Each real client
+  independently asserts `current_database() = 'server_second'` and the matching
+  `pg_database.oid`/`pg_stat_database.datid` identity. The settled baseline includes
+  the real observer, setup and native provisioning sessions; measured client
+  session/category/live deltas remain exact. The scenario checks actual English
+  FATAL diagnostics and terminal EOF without a second authentication/framing
+  fixture or RequestEnd mock. Embedded database-view scenarios separately cover
+  cross-database observers within one actual cluster.
+  The normal-close witness sends the actual Terminate frame and keeps transport
+  open until server EOF before retiring pq's handle. This proves decoded normal
+  termination rather than racing a client FIN against frontend decoding.
+

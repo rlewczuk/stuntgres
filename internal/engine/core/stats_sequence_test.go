@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"stuntgres/internal/engine"
@@ -26,84 +27,93 @@ func statsSequenceCount(t *testing.T, e *core.Engine, key statistics.Key, want i
 func TestStatsSequenceRuntimeLifecycle(t *testing.T) {
 	for _, refill := range []bool{false, true} {
 		t.Run(map[bool]string{false: "pending_fenced", true: "next_real_refill"}[refill], func(t *testing.T) {
-			e := engine.New()
-			s := enginetest.StartSession(t, e, nil)
-			statsFunctionExec(t, s, "CREATE SEQUENCE stats_sequence_reset CACHE 3", "BEGIN", "SELECT nextval('stats_sequence_reset')", "COMMIT")
-			key := statistics.Key{Object: enginetest.RoleTableRef(t, e, "stats_sequence_reset")}
-			statsSequenceCount(t, e, key, 1)
-			statsFunctionExec(t, s, "BEGIN", "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')")
-			statsSequenceCount(t, e, key, 1) // Second reservation is still pending.
-			e.Statistics.Reset(time.Now())
-			statsFunctionExec(t, s, "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')")
-			statsSequenceCount(t, e, key, 0) // Reset does not discard the warm value tail.
-			if refill {
-				statsFunctionExec(t, s, "SELECT nextval('stats_sequence_reset')")
-			}
-			statsFunctionExec(t, s, "ROLLBACK")
-			statsFunctionRetire(t, s)
-			want := int64(0)
-			if refill {
-				want = 1
-			}
-			statsSequenceCount(t, e, key, want)
+			synctest.Test(t, func(t *testing.T) {
+				e := engine.New()
+				s := enginetest.StartSession(t, e, nil)
+				statsFunctionExec(t, s, "CREATE SEQUENCE stats_sequence_reset CACHE 3")
+				// Admission/setup used the first shared-writer publication.
+				time.Sleep(time.Second)
+				statsFunctionExec(t, s, "BEGIN", "SELECT nextval('stats_sequence_reset')", "COMMIT")
+				key := statistics.Key{Object: enginetest.RoleTableRef(t, e, "stats_sequence_reset")}
+				statsSequenceCount(t, e, key, 1)
+				statsFunctionExec(t, s, "BEGIN", "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')")
+				statsSequenceCount(t, e, key, 1) // Second reservation is still pending.
+				e.Statistics.Reset(time.Now())
+				statsFunctionExec(t, s, "SELECT nextval('stats_sequence_reset')", "SELECT nextval('stats_sequence_reset')")
+				statsSequenceCount(t, e, key, 0) // Reset does not discard the warm value tail.
+				if refill {
+					statsFunctionExec(t, s, "SELECT nextval('stats_sequence_reset')")
+				}
+				statsFunctionExec(t, s, "ROLLBACK")
+				statsFunctionRetire(t, s)
+				want := int64(0)
+				if refill {
+					want = 1
+				}
+				statsSequenceCount(t, e, key, want)
+			})
 		})
 	}
 	for _, control := range []string{"reset", "restore"} {
 		t.Run("surviving_temp/"+control, func(t *testing.T) {
-			e := engine.New()
-			s := enginetest.StartSession(t, e, nil)
-			statsFunctionExec(t, s, "CREATE SEQUENCE stats_sequence_persistent", "CREATE TEMP SEQUENCE stats_sequence_temp CACHE 3", "BEGIN", "SELECT nextval('stats_sequence_temp')", "COMMIT")
-			// pg_temp is a physical-session alias; the bootstrap-only
-			// RoleTableRef helper has no authority for this owner's alias.
-			read := e.CatalogRead()
-			address, ok := read.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.TemporaryNamespace, Name: "stats_sequence_temp"})
-			if !ok || read.MustNamespace(s.TemporaryNamespace).Temporary != s.SessionToken {
-				t.Fatal("missing owner TEMP sequence")
-			}
-			old := statistics.Key{Object: e.Catalog.Domain.Ref(read.Epoch(), address)}
-			statsSequenceCount(t, e, old, 1)
-			var dump bytes.Buffer
-			if err := engine.Dump(context.Background(), e, &dump); err != nil {
-				t.Fatal(err)
-			}
-			statsSequenceCount(t, e, old, 1)
-			var late statistics.Writer
-			late.Add(&e.Statistics, old, statistics.Fact{SequencePageAccesses: 17})
-			var err error
-			if control == "reset" {
-				err = engine.Reset(context.Background(), e)
-			} else {
-				err = engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes()))
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			read = e.CatalogRead()
-			address, ok = read.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.TemporaryNamespace, Name: "stats_sequence_temp"})
-			if !ok || read.MustNamespace(s.TemporaryNamespace).Temporary != s.SessionToken {
-				t.Fatal("replacement lost owner TEMP sequence")
-			}
-			next := statistics.Key{Object: e.Catalog.Domain.Ref(read.Epoch(), address)}
-			if next.Object.Address != old.Object.Address || next.Object.Epoch == old.Object.Epoch {
-				t.Fatal("TEMP identity/epoch", old, next)
-			}
-			late.Flush(&e.Statistics, time.Now(), true)
-			statsSequenceCount(t, e, old, 0)
-			statsSequenceCount(t, e, next, 1)
-			statsFunctionExec(t, s, "SELECT nextval('stats_sequence_temp')", "SELECT nextval('stats_sequence_temp')")
-			statsSequenceCount(t, e, next, 1)
-			var ending statistics.Writer
-			ending.Add(&e.Statistics, next, statistics.Fact{SequencePageAccesses: 23})
-			statsFunctionRetire(t, s)
-			statsSequenceCount(t, e, next, 0)
-			if e.CatalogRead().Get(next.Object.Address) != nil {
-				t.Fatal("TEMP owner end left sequence descriptor")
-			}
-			ending.Flush(&e.Statistics, time.Now(), true)
-			statsSequenceCount(t, e, next, 0)
-			ending.Add(&e.Statistics, next, statistics.Fact{SequencePageAccesses: 29})
-			ending.Flush(&e.Statistics, time.Now(), true)
-			statsSequenceCount(t, e, next, 0)
+			synctest.Test(t, func(t *testing.T) {
+				e := engine.New()
+				s := enginetest.StartSession(t, e, nil)
+				statsFunctionExec(t, s, "CREATE SEQUENCE stats_sequence_persistent", "CREATE TEMP SEQUENCE stats_sequence_temp CACHE 3")
+				time.Sleep(time.Second)
+				statsFunctionExec(t, s, "BEGIN", "SELECT nextval('stats_sequence_temp')", "COMMIT")
+				// pg_temp is a physical-session alias; the bootstrap-only
+				// RoleTableRef helper has no authority for this owner's alias.
+				read := e.CatalogRead()
+				address, ok := read.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.TemporaryNamespace, Name: "stats_sequence_temp"})
+				if !ok || read.MustNamespace(s.TemporaryNamespace).Temporary != s.SessionToken {
+					t.Fatal("missing owner TEMP sequence")
+				}
+				old := statistics.Key{Object: e.Catalog.Domain.Ref(read.Epoch(), address)}
+				statsSequenceCount(t, e, old, 1)
+				var dump bytes.Buffer
+				if err := engine.Dump(context.Background(), e, &dump); err != nil {
+					t.Fatal(err)
+				}
+				statsSequenceCount(t, e, old, 1)
+				var late statistics.Writer
+				late.Add(&e.Statistics, old, statistics.Fact{SequencePageAccesses: 17})
+				var err error
+				if control == "reset" {
+					err = engine.Reset(context.Background(), e)
+				} else {
+					err = engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes()))
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				read = e.CatalogRead()
+				address, ok = read.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.TemporaryNamespace, Name: "stats_sequence_temp"})
+				if !ok || read.MustNamespace(s.TemporaryNamespace).Temporary != s.SessionToken {
+					t.Fatal("replacement lost owner TEMP sequence")
+				}
+				next := statistics.Key{Object: e.Catalog.Domain.Ref(read.Epoch(), address)}
+				if next.Object.Address != old.Object.Address || next.Object.Epoch == old.Object.Epoch {
+					t.Fatal("TEMP identity/epoch", old, next)
+				}
+				late.Flush(&e.Statistics, time.Now(), true)
+				statsSequenceCount(t, e, old, 0)
+				statsSequenceCount(t, e, next, 1)
+				statsFunctionExec(t, s, "SELECT nextval('stats_sequence_temp')", "SELECT nextval('stats_sequence_temp')")
+				statsSequenceCount(t, e, next, 1)
+				var ending statistics.Writer
+				ending.Add(&e.Statistics, next, statistics.Fact{SequencePageAccesses: 23})
+				statsFunctionRetire(t, s)
+				statsSequenceCount(t, e, next, 0)
+				if e.CatalogRead().Get(next.Object.Address) != nil {
+					t.Fatal("TEMP owner end left sequence descriptor")
+				}
+				ending.Flush(&e.Statistics, time.Now(), true)
+				statsSequenceCount(t, e, next, 0)
+				ending.Add(&e.Statistics, next, statistics.Fact{SequencePageAccesses: 29})
+				ending.Flush(&e.Statistics, time.Now(), true)
+				statsSequenceCount(t, e, next, 0)
+			})
 		})
 	}
 	for _, outcome := range []string{"create_abort", "create_drop", "drop_commit", "drop_abort"} {

@@ -217,6 +217,9 @@ func (s *StatementScope) Finish(err error) (result error) {
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	if err != nil && s.statsIdleCommand && t.State == session.TxIdle && s.TxRef == (ids.TxRef{}) && s.Op.SQLAvailable {
+		s.statsControlOutcome(false)
+	}
 	var endedTicket *lock.Ticket
 	if t.State == session.TxImplicit && (!t.RetainsTransaction() || err != nil) {
 		s.captureStatementStatsTerminal(s.statementStats)
@@ -325,6 +328,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	ownerExtensionOf(t).largeObjects = largeObjectDescriptors{}
 	ownerExtensionOf(t).largeObjectBase = nil
 	PayloadOf(t.Session).statsReader.Clear()
+	statsTransactionOutcome(t, false)
 	settleStatsLedger(e, t.Session, &t.Stats, false)
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog)
 	t.Session.Settings.FinishTransaction(false)

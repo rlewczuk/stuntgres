@@ -280,6 +280,9 @@ func statsMaintenanceDeadlineProof(t *testing.T) {
 				s := enginetest.StartSession(t, e, nil)
 				enginetest.SessionSQL(t, s, "CREATE TABLE stats_report_deadline(id integer)")
 				key := statistics.Key{Object: enginetest.RoleTableRef(t, e, "stats_report_deadline")}
+				// Admission/database outcomes already used this writer's first
+				// report. Reach the ordinary boundary before the measured prefix.
+				time.Sleep(time.Second)
 				enginetest.SessionSQL(t, s, "INSERT INTO stats_report_deadline VALUES(1)")
 				enginetest.SessionSQL(t, s, "INSERT INTO stats_report_deadline VALUES(2)")
 				time.Sleep(500 * time.Millisecond)
@@ -288,8 +291,8 @@ func statsMaintenanceDeadlineProof(t *testing.T) {
 				if report.Inserts != 1 || report.Live != 2 || report.AnalyzeCount+report.VacuumCount != 1 {
 					t.Fatal("maintenance deferred or force-flushed pending prefix", report)
 				}
-				// The original timer was armed at t=0. Reporting at t=.5 must
-				// neither restart it nor consume the pending relation delta.
+				// The original retry was armed by the second measured INSERT.
+				// Maintenance at +.5s must not restart it or consume its delta.
 				time.Sleep(9500 * time.Millisecond)
 				synctest.Wait()
 				f := e.Statistics.Read(key)

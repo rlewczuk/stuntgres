@@ -399,6 +399,9 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		}
 		_, err = e.endAdmitted(s.Op, t, ref, control.Kind == parser.KindCommit, sqlRestart(control.Chain), true, nextStart, s)
 	}
+	if state == session.TxIdle && step.Action == session.ControlPreflight && (control.Kind == parser.KindCommit || control.Kind == parser.KindRollback) {
+		s.statsControlOutcome(err == nil && control.Kind == parser.KindCommit)
+	}
 	if err == nil {
 		s.controlOutcome = controlExecuted
 	}

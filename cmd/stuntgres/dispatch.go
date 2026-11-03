@@ -108,6 +108,7 @@ func (c *client) run() {
 			continue
 		}
 		if m.tag == 'X' {
+			c.session.ReserveDisconnectCause(session.DisconnectNormal)
 			if c.reference != nil {
 				c.reference.forward(m)
 			}
@@ -207,6 +208,7 @@ func (c *client) run() {
 		}
 		if err != nil {
 			if diagnostic(err).Severity == "FATAL" {
+				c.session.ReserveDisconnectCause(session.DisconnectFatal)
 				reason = session.Terminated
 				if !c.fatalSent {
 					_ = c.writeSQLError(c.ctx, "", err)
@@ -217,6 +219,9 @@ func (c *client) run() {
 	}
 }
 func (c *client) fatal(err error) {
+	if c.session != nil {
+		c.session.ReserveDisconnectCause(session.DisconnectFatal)
+	}
 	if !c.fatalSent {
 		_ = c.wire.errorResponse(err, true)
 		_ = c.wire.flush()

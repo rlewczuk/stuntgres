@@ -80,6 +80,7 @@ func stageMergeWindow(ctx context.Context, h Host, rows *MergeRows, ref ids.Obje
 // refer to captured occurrences, preserving equal values and source provenance.
 func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*MergeRows, error) {
 	ctx, b, target := in.Context, in.Binding, in.Target
+	target.Host = h
 	sourceSchema := cursor.Schema()
 	width := len(sourceSchema)
 	scratch := make([]sqltype.Value, width)
@@ -177,7 +178,12 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	}
 	capture := func(i int, class parser.MergeMatch, source int) MergeCandidate {
 		slot := target.RawIndex(i)
-		old := target.VersionAt(slot)
+		var old storage.RowVersion
+		if sourceCount == 0 {
+			old = target.ReadSequentialVersion(i)
+		} else {
+			old = target.VersionAt(slot) // Already visited candidate metadata.
+		}
 		deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: old.Row, Version: old.Version, Ordinal: slot, RepairStamp: old.RepairStamp}
 		if slot >= len(target.Committed) && !old.ForcedFrozen {
 			deletion.Own = true
@@ -193,7 +199,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 		bindIdentity(j)
 		matched := false
 		for i := range target.Count() {
-			old := target.VersionAt(target.RawIndex(i))
+			old := target.ReadSequentialVersion(i)
 			copy(frame, old.Values)
 			evaluation.PhysicalTable, evaluation.PhysicalVersion = b.Ref, old
 			truth, err := MergeMatches(&evaluation, b.Merge.On)

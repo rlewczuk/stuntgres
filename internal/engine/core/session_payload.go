@@ -31,6 +31,9 @@ type sessionPayload struct {
 	statsReader    statistics.Reader        // Cleared at every transaction terminal boundary.
 	statsFlush     statsFlushSlot           // Session.Mu; callbacks use nonblocking transaction admission.
 	origin         replicationOriginSession // Engine.Mu; physical, never journaled.
+	statsPublic    bool                     // Immutable successful public-registration identity.
+	statsOutcome   ids.TxRef                // Admission-owned once-only top transaction outcome.
+	statsSession   statistics.SessionUsage
 }
 
 func (*sessionPayload) PayloadSlot() {}

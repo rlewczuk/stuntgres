@@ -19,8 +19,8 @@ func statioSequenceRetire(t *testing.T, c *sql.Conn) {
 }
 
 func TestReferencePGStatioAllSequencesCounters(t *testing.T) {
-	// Each prefix has a fresh writer and exactly one publication. This observes
-	// every boundary without sleeps, bypassing throttles or losing CACHE tails.
+	// Each prefix has a fresh writer and one sequence-encounter batch. Await
+	// its ordinary publication without bypassing throttles or losing CACHE tails.
 	vectors := []struct {
 		label     string
 		read, hit int64

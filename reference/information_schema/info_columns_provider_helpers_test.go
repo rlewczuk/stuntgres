@@ -47,6 +47,7 @@ func icProviderInventory(c *icCase) {
 		"pg_stat_activity":                  strings.Fields("datid datname pid leader_pid usesysid usename application_name client_addr client_hostname client_port backend_start xact_start query_start state_change wait_event_type wait_event state backend_xid backend_xmin query_id query backend_type"),
 		"pg_stat_archiver":                  strings.Fields("archived_count last_archived_wal last_archived_time failed_count last_failed_wal last_failed_time stats_reset"),
 		"pg_stat_bgwriter":                  strings.Fields("buffers_clean maxwritten_clean buffers_alloc stats_reset"),
+		"pg_stat_database":                  strings.Fields("datid datname numbackends xact_commit xact_rollback blks_read blks_hit tup_returned tup_fetched tup_inserted tup_updated tup_deleted conflicts temp_files temp_bytes deadlocks checksum_failures checksum_last_failure blk_read_time blk_write_time session_time active_time idle_in_transaction_time sessions sessions_abandoned sessions_fatal sessions_killed parallel_workers_to_launch parallel_workers_launched stats_reset"),
 		"pg_stat_recovery_prefetch":         strings.Fields("stats_reset prefetch hit skip_init skip_new skip_fpw skip_rep wal_distance block_distance io_depth"),
 		"pg_stat_slru":                      strings.Fields("name blks_zeroed blks_hit blks_read blks_written blks_exists flushes truncates stats_reset"),
 		"pg_stat_replication_slots":         strings.Fields("slot_name spill_txns spill_count spill_bytes stream_txns stream_count stream_bytes total_txns total_bytes stats_reset"),
@@ -198,6 +199,7 @@ func icProviderInventory(c *icCase) {
 			kind := "r"
 			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription")
+			views = append(views, "pg_stat_database")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

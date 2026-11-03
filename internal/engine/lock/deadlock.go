@@ -3,6 +3,7 @@ package lock
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"stuntgres/internal/engine/ids"
@@ -212,6 +213,9 @@ func (m *Manager) detectDeadlockSnapshot(newRequest *relationRequest, notify **r
 	// Finish alone discards writes and releases held locks. Only the selected
 	// exact pending contribution is removed here; survivors cannot see its effects.
 	terminalRequest(victim, diagnostic, notify)
+	if victim.statisticsCounts && victim.err == diagnostic {
+		atomic.AddInt64(&victim.ticket.deadlocks, 1)
+	}
 	m.settle(victim.entry, notify)
 	m.retire(victim.ref, victim.entry)
 	return false

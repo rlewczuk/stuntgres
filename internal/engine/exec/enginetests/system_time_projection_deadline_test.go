@@ -18,7 +18,7 @@ func TestSystemTimeNestedProjectionDeadline(t *testing.T) {
 	for _, phase := range []string{"derived", "values", "json_array"} {
 		t.Run(phase, func(t *testing.T) {
 			for _, mode := range []string{"accepted_prefix", "expired_cancel", "argument_failure", "infinity", "infinity_cancel"} {
-				t.Run(mode, func(t *testing.T) {
+				timeRunDeadline(t, mode, func(t *testing.T) {
 					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					ctx := &timeLoopContext{Context: base}

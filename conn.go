@@ -212,6 +212,9 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		if len(args) != 0 {
 			err = errors.New("stuntgres: expected zero arguments")
 		}
+		if err == nil && !describe {
+			scope.AcceptEmptySQL()
+		}
 		return
 	}
 	if describe {

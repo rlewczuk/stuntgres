@@ -13,9 +13,8 @@ type Reader struct {
 	cache      map[Key]Fact
 	full       bool
 	stamp      time.Time
-	reset      time.Time
-	epoch      uint64
 	activity   map[ids.SessionToken]Activity
+	defaults   []captureDefault
 	shared     [SharedKindCount]SharedFact
 	slru       [SLRUCount]SLRUFact
 	kinds      uint8
@@ -39,30 +38,26 @@ func (r *Reader) Clear() {
 func (r *Reader) Timestamp() time.Time { return r.stamp }
 func (r *Reader) NeedsSnapshot() bool  { return r.mode == "snapshot" && !r.full }
 
-// capture is the sole all-kind snapshot publication, under the provider mutex.
+// capture is the standalone single-provider fallback, under the provider mutex.
+// Cluster-aware consumers first Capture their complete accessible domain.
 func (r *Reader) capture(p *Provider, now time.Time) {
-	r.cache = make(map[Key]Fact, len(p.facts))
-	for key := range p.facts {
-		r.cache[key] = p.read(key)
-	}
-	r.shared, r.slru = p.shared, p.slru
-	r.kinds = (1 << SharedKindCount) - 1
-	r.backends = make(map[ids.SessionToken]backendRead, len(p.backends))
-	for token, f := range p.backends {
-		r.backends[token] = backendRead{f, true}
-	}
-	r.reset, r.epoch = p.reset, p.generation
+	r.captureLocked(p, true, Key{})
 	r.full, r.stamp = true, now
 }
-func (r *Reader) missing(category Category) Fact {
-	reset := r.reset
-	if category == IO {
-		reset = r.shared[SharedIO].ResetAt
+func (r *Reader) missing(p *Provider, category Category) Fact {
+	for _, d := range r.defaults {
+		if d.provider == p {
+			reset := d.fact.ResetAt
+			if category == IO {
+				reset = d.ioReset
+			}
+			if category == WAL {
+				reset = d.walReset
+			}
+			return missingFact(category, reset, d.fact.Generation)
+		}
 	}
-	if category == WAL {
-		reset = r.shared[SharedWAL].ResetAt
-	}
-	return missingFact(category, reset, r.epoch)
+	return Fact{}
 }
 func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
 	if r.mode == "none" {
@@ -72,7 +67,7 @@ func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
 		return f
 	}
 	if r.full {
-		return r.missing(k.Category)
+		return r.missing(p, k.Category)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -81,7 +76,7 @@ func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
 		if f, ok := r.cache[k]; ok {
 			return f
 		}
-		return r.missing(k.Category)
+		return r.missing(p, k.Category)
 	}
 	if r.cache == nil {
 		r.cache = make(map[Key]Fact)
@@ -155,6 +150,58 @@ func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time)
 	f, ok := p.backends[token]
 	r.backends[token] = backendRead{f, ok}
 	return f, ok
+}
+
+// CaptureSource describes the accessible capture domain: all current-database
+// objects, and the database category alone from every other database.
+type CaptureSource struct {
+	Provider *Provider
+	Database Key
+	Shared   Key // Optional shared-database fact in this same provider lock.
+	All      bool
+}
+type captureDefault struct {
+	provider          *Provider
+	fact              Fact
+	ioReset, walReset time.Time
+}
+
+func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
+	if r.cache == nil {
+		r.cache = make(map[Key]Fact)
+	}
+	r.defaults = append(r.defaults, captureDefault{provider: p, fact: Fact{ResetAt: p.reset, Generation: p.generation}, ioReset: p.shared[SharedIO].ResetAt, walReset: p.shared[SharedWAL].ResetAt})
+	if all {
+		for key := range p.facts {
+			r.cache[key] = p.read(key)
+		}
+		r.shared, r.slru = p.shared, p.slru
+		r.kinds = (1 << SharedKindCount) - 1
+		r.backends = make(map[ids.SessionToken]backendRead, len(p.backends))
+		for token, f := range p.backends {
+			r.backends[token] = backendRead{f, true}
+		}
+	} else {
+		r.cache[database] = p.read(database)
+	}
+}
+
+// Capture is called under the cluster membership authority. Provider locks are
+// leaf-only and acquired in the caller's stable database order.
+func (r *Reader) Capture(sources []CaptureSource, now time.Time) {
+	if !r.NeedsSnapshot() {
+		return
+	}
+	for _, source := range sources {
+		p := source.Provider
+		p.mu.Lock()
+		r.captureLocked(p, source.All, source.Database)
+		if !source.All && source.Shared != (Key{}) {
+			r.cache[source.Shared] = p.read(source.Shared)
+		}
+		p.mu.Unlock()
+	}
+	r.full, r.stamp = true, now
 }
 func (r *Reader) Activities(p *Provider) map[ids.SessionToken]Activity {
 	if r.activity == nil {

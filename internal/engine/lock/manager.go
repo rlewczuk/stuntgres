@@ -114,6 +114,8 @@ type Ticket struct {
 	multiCache         []uint32
 	uniqueDeltaActive  bool
 	uniqueDelta        []Resource
+	statisticsCounts   uint32 // sync/atomic only; mirrors admitted command policy.
+	deadlocks          int64  // sync/atomic only; once-only victim occurrences awaiting owner drain.
 }
 
 // Ref is the transaction a ticket belongs to; zero for a session ticket.
@@ -140,29 +142,48 @@ func (t *Ticket) MirrorCompletion(state ids.TxCompletion) {
 	atomic.StoreUint32(&t.completion, uint32(state))
 }
 
+// Statistics policy is copied into each actual wait; later commands cannot
+// change the eligibility of an already admitted victim request.
+func (t *Ticket) SetStatisticsCounts(enabled bool) {
+	if t != nil {
+		value := uint32(0)
+		if enabled {
+			value = 1
+		}
+		atomic.StoreUint32(&t.statisticsCounts, value)
+	}
+}
+func (t *Ticket) TakeDeadlocks() int64 {
+	if t == nil {
+		return 0
+	}
+	return atomic.SwapInt64(&t.deadlocks, 0)
+}
+
 // Request is one queued acquisition. Its defining type keeps the name
 // relationRequest: the reference suite recognizes a parked lock wait by the
 // frame (*relationRequest).wait.
 type Request = relationRequest
 
 type relationRequest struct {
-	ticket       *Ticket
-	provenance   ids.TxRef
-	ctx          context.Context
-	mode         Mode
-	contribution *RelationContribution
-	done         chan struct{}
-	err          error
-	terminal     bool
-	notifyNext   *relationRequest
-	stop         func() bool
-	timer        *time.Timer
-	policy       Policy
-	deadline     time.Time
-	enqueuedAt   time.Time
-	ref          Resource
-	entry        *relationEntry
-	timeoutState atomic.Uint32
+	ticket           *Ticket
+	provenance       ids.TxRef
+	ctx              context.Context
+	mode             Mode
+	contribution     *RelationContribution
+	done             chan struct{}
+	err              error
+	terminal         bool
+	notifyNext       *relationRequest
+	stop             func() bool
+	timer            *time.Timer
+	policy           Policy
+	deadline         time.Time
+	enqueuedAt       time.Time
+	ref              Resource
+	entry            *relationEntry
+	timeoutState     atomic.Uint32
+	statisticsCounts bool
 }
 
 // Mode is the visible union of ordinary and scoped ownership. Ordinary grants
@@ -757,6 +778,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 		m.owners[provenance].resources[ref] = struct{}{}
 	}
 	r := &relationRequest{ticket: t, provenance: provenance, ctx: ctx, mode: mode, contribution: contribution, done: make(chan struct{}), policy: policy, ref: ref, entry: e}
+	r.statisticsCounts = atomic.LoadUint32(&t.statisticsCounts) != 0
 	if policy.Timeout > 0 {
 		r.deadline = time.Now().Add(policy.Timeout)
 	}

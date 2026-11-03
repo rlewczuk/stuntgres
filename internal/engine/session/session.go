@@ -29,6 +29,17 @@ const (
 	Abandoned
 )
 
+// DisconnectCause is independent of resource cleanup's EndReason. The first
+// accepted ending request fixes it before cancellation can close a transport.
+type DisconnectCause uint8
+
+const (
+	DisconnectNormal DisconnectCause = iota
+	DisconnectAbandoned
+	DisconnectFatal
+	DisconnectKilled
+)
+
 type ResourceKind uint8
 
 const (
@@ -92,6 +103,8 @@ type Session struct {
 	Resources              [resourceKinds]*resourceEntry
 	Removed                map[ResourceHandle]bool
 	Reason                 EndReason
+	DisconnectCause        DisconnectCause
+	disconnectSelected     bool
 	cleanupErrors          []error
 	result                 error
 	Settings               *SettingsStore
@@ -398,6 +411,26 @@ func (s *Session) RequestEnd(reason EndReason) {
 	s.requestEndLocked(reason)
 }
 
+func (s *Session) RequestEndCause(reason EndReason, cause DisconnectCause) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.requestEndCauseLocked(reason, cause)
+}
+
+// ReserveDisconnectCause retains a genuine terminal transport/protocol
+// decision before output/cancellation, without starting cleanup or waking the
+// socket interrupter. It does not classify an ordinary statement FATAL.
+func (s *Session) ReserveDisconnectCause(cause DisconnectCause) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.reserveDisconnectCauseLocked(cause)
+}
+func (s *Session) reserveDisconnectCauseLocked(cause DisconnectCause) {
+	if !s.disconnectSelected {
+		s.DisconnectCause, s.disconnectSelected = cause, true
+	}
+}
+
 // EndRequested wakes observers as soon as ending is requested, before leases
 // drain. Check reports the authoritative reason; WaitEnd still joins cleanup.
 func (s *Session) EndRequested() <-chan struct{} {
@@ -413,6 +446,17 @@ func (s *Session) EndRequested() <-chan struct{} {
 }
 
 func (s *Session) requestEndLocked(reason EndReason) {
+	cause := DisconnectNormal
+	switch reason {
+	case Abandoned, InvalidConnection:
+		cause = DisconnectAbandoned
+	case Terminated:
+		cause = DisconnectKilled
+	}
+	s.requestEndCauseLocked(reason, cause)
+}
+
+func (s *Session) requestEndCauseLocked(reason EndReason, disconnect DisconnectCause) {
 	if s.State == Ending || s.State == Ended {
 		return
 	}
@@ -421,6 +465,7 @@ func (s *Session) requestEndLocked(reason EndReason) {
 		close(s.endRequested)
 	}
 	s.Reason = reason
+	s.reserveDisconnectCauseLocked(disconnect)
 	s.Timeouts.Transaction.Stop()
 	s.Timeouts.Idle.Stop()
 	var cause error

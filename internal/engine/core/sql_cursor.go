@@ -229,6 +229,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, requestedName *string, root plan.Node, source *exec.Source, parameters []sqltype.Value, scroll bool) (*sqlCursor, string, error) {
 	keep := false
 	defer func() {
+		source.FlushDatabaseStatistics()
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		s.authority.Host = nil
@@ -476,6 +477,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
+		c.state.Source.FlushDatabaseStatistics()
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		if err != nil {

@@ -18,43 +18,62 @@ import (
 func TestForeignActionsExclusionCompletion(t *testing.T) {
 	for _, worked := range []string{"no-row-query", "unchanged-parent-key"} {
 		t.Run(worked, func(t *testing.T) {
-			e := engine.New()
-			creator, control, deferred := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
-			for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "INSERT INTO p VALUES(1),(2)"} {
-				enginetest.SessionSQL(t, creator, q)
+			type fixture struct {
+				engine          *core.Engine
+				creator, writer *session.Session
 			}
-			var clauses []string
-			for i := 0; i < 32; i++ {
-				clauses = append(clauses, fmt.Sprintf("CONSTRAINT ex_%d EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED", i))
+			newFixture := func(retained bool) fixture {
+				e := engine.New()
+				creator, writer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+				for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "INSERT INTO p VALUES(1),(2)"} {
+					enginetest.SessionSQL(t, creator, q)
+				}
+				var clauses []string
+				for i := range 32 {
+					clauses = append(clauses, fmt.Sprintf("CONSTRAINT ex_%d EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED", i))
+				}
+				enginetest.SessionSQL(t, creator, "CREATE TABLE guarded(k INT,"+strings.Join(clauses, ",")+")")
+				tx := enginetest.TransactionBegin(t, writer)
+				t.Cleanup(func() { enginetest.TransactionEnd(t, writer, tx, false) })
+				if retained {
+					enginetest.SessionSQL(t, writer, "INSERT INTO guarded VALUES(1),(1)")
+				} else {
+					enginetest.SessionSQL(t, writer, "SET CONSTRAINTS ALL IMMEDIATE")
+					enginetest.SessionSQL(t, writer, "INSERT INTO guarded VALUES(1),(2)")
+				}
+				return fixture{e, creator, writer}
 			}
-			enginetest.SessionSQL(t, creator, "CREATE TABLE guarded(k INT,"+strings.Join(clauses, ",")+")")
-			cr, dr := enginetest.TransactionBegin(t, control), enginetest.TransactionBegin(t, deferred)
-			t.Cleanup(func() {
-				enginetest.TransactionEnd(t, control, cr, false)
-				enginetest.TransactionEnd(t, deferred, dr, false)
-			})
-			enginetest.SessionSQL(t, control, "SET CONSTRAINTS ALL IMMEDIATE")
-			enginetest.SessionSQL(t, control, "INSERT INTO guarded VALUES(2)")
-			enginetest.SessionSQL(t, deferred, "INSERT INTO guarded VALUES(1),(1)")
-			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.Transactions)).Events) != 32 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(control.Transactions)).Events) != 0 {
+			control, deferred := newFixture(false), newFixture(true)
+			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.writer.Transactions)).Events) != 32 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(control.writer.Transactions)).Events) != 0 {
 				t.Fatal("fixture did not create real retained deferred versus settled work")
 			}
-			cq, dq := "SELECT 1", "SELECT 1"
-			if worked == "unchanged-parent-key" {
-				cq = "UPDATE p SET id=id WHERE id=1"
-				dq = "UPDATE p SET id=id WHERE id=2"
+			// Separate engines permit the same parent key and physical version
+			// stream without conflicting row locks. Both fixtures insert two
+			// guarded rows: only genuine deferred membership differs, not the
+			// heap-header persistent map's hashed predecessor-key sequence.
+			checkFrontiers := func() {
+				control.engine.Mu.Lock()
+				cr, cv := control.engine.Storage.RowFrontier(), control.engine.Storage.VersionFrontier()
+				control.engine.Mu.Unlock()
+				deferred.engine.Mu.Lock()
+				dr, dv := deferred.engine.Storage.RowFrontier(), deferred.engine.Storage.VersionFrontier()
+				deferred.engine.Mu.Unlock()
+				if cr != dr || cv != dv {
+					t.Fatalf("unmatched physical fixture frontiers: control rows/versions %d/%d, retained %d/%d", cr, cv, dr, dv)
+				}
 			}
-			ca, da := enginetest.Statement(t, cq), enginetest.Statement(t, dq)
-			complete := func(s *session.Session, action bool) {
-				op, err := s.Acquire(context.Background())
+			checkFrontiers()
+			q := "SELECT 1"
+			if worked == "unchanged-parent-key" {
+				q = "UPDATE p SET id=id WHERE id=1"
+			}
+			ast := enginetest.Statement(t, q)
+			complete := func(f fixture) {
+				op, err := f.writer.Acquire(context.Background())
 				if err != nil {
 					t.Fatal(err)
 				}
-				ast := ca
-				if action {
-					ast = da
-				}
-				result, err := e.Execute(op, ast, 0, nil)
+				result, err := f.engine.Execute(op, ast, 0, nil)
 				if result.Rows != nil {
 					closeErr := result.Rows.Close()
 					if err == nil {
@@ -69,27 +88,30 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 			// Follow docs/TESTING.md#allocation-checks: minimum-of-three fixed
 			// batches exclude sampled runtime type-assertion cache allocations
 			// without changing this whole-completion relative allocation budget.
-			baseline, _ := util.AllocationsPerCall(20, func() { complete(control, false) })
-			retained, _ := util.AllocationsPerCall(20, func() { complete(deferred, true) })
-			// The checker needs one remaining-event vector for the one incumbent
-			// deferred pass. Whole real completion otherwise has the same statement,
-			// private relation inventory and no action-created exclusion demand.
+			baseline, _ := util.AllocationsPerCall(20, func() { complete(control) })
+			retained, _ := util.AllocationsPerCall(20, func() { complete(deferred) })
+			checkFrontiers()
+			// The checker borrows retained membership and leaves deferred events
+			// unclaimed. Preserve the original one-allocation relative cap while
+			// matching all ordinary physical write work on both sides.
 			if retained > baseline+1 {
-				t.Errorf("retained deferred completion allocations %d exceed control %d plus one incumbent event vector", retained, baseline)
+				t.Errorf("retained deferred completion allocations %d exceed control %d plus one retained-completion allocation", retained, baseline)
 			}
-			op, err := deferred.Acquire(context.Background())
+			op, err := deferred.writer.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := e.Execute(op, enginetest.Statement(t, "SET CONSTRAINTS ALL IMMEDIATE"), 0, nil)
+			result, err := deferred.engine.Execute(op, enginetest.Statement(t, "SET CONSTRAINTS ALL IMMEDIATE"), 0, nil)
 			op.Done()
 			var d *sqlstate.Error
 			if result.Rows != nil || !errors.As(err, &d) || d.Code != "23P01" {
 				t.Fatal("completion prematurely checked or lost genuine deferred violation", result, err)
 			}
 			// The prior worked commands neither publish deferred data nor cascade.
-			enginetest.TransactionRows(t, creator, "SELECT id FROM p ORDER BY id", 1, 2)
-			enginetest.TransactionRows(t, creator, "SELECT k FROM guarded ORDER BY k")
+			for _, f := range []fixture{control, deferred} {
+				enginetest.TransactionRows(t, f.creator, "SELECT id FROM p ORDER BY id", 1, 2)
+				enginetest.TransactionRows(t, f.creator, "SELECT k FROM guarded ORDER BY k")
+			}
 		})
 	}
 }

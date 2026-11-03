@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -55,12 +56,15 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 	case session.ControlRefuse:
 		return step.Err
 	case session.ControlComplete:
-		return e.completePrepared(s.Op, control.GID, control.Kind == parser.KindCommitPrepared)
+		err := e.completePrepared(s.Op, control.GID, control.Kind == parser.KindCommitPrepared)
+		s.statsControlOutcome(err == nil)
+		return err
 	}
 	if step.Warning != nil {
 		s.Op.EmitNotice(session.LevelWarning, *step.Warning)
 	}
 	if step.Action == session.ControlWarn {
+		s.statsControlOutcome(true)
 		return nil
 	}
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
@@ -163,6 +167,14 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 		e.Mu.Unlock()
 		return err
 	}
+	// REL_18_6 FinishPreparedTransaction calls AtEOXact_PgStat after removing
+	// the prepared entry. Only this successful claimed completion resolves the
+	// original outcome; the admitted finisher command records its own outcome.
+	outcome := statistics.DatabaseFact{Rollbacks: 1}
+	if commit {
+		outcome.Commits, outcome.Rollbacks = 1, 0
+	}
+	addDatabaseStats(e, op.Session, outcome)
 	e.EndLockOwner(entry.Ticket)
 	return nil
 }

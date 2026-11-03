@@ -23,6 +23,7 @@ type foreignParallelExecution struct {
 	failure        error
 	started, ended bool
 	endError       error
+	launched       int // Leader-owned: successful actual partition goroutine starts.
 }
 
 func newForeignParallelExecution(ctx context.Context) *foreignParallelExecution {
@@ -82,6 +83,7 @@ func (p *foreignParallelExecution) start(provider catalog.ForeignParallelScanPro
 	p.started = true
 	for _, scan := range p.scans {
 		p.workers.Add(1)
+		p.launched++
 		go func() {
 			defer p.workers.Done()
 			for {

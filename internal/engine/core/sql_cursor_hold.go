@@ -187,6 +187,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	c.admit(s)
 	authority := c.authority
 	defer func() {
+		c.state.Source.FlushDatabaseStatistics()
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		authority.Host = nil

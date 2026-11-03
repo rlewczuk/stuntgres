@@ -137,6 +137,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	if err := e.SerializableWriteLocked(s, candidate.Ref, event[:]); err != nil {
 		return err
 	}
+	statsWriteStart := s.beginDatabaseWrite()
 	if err := e.AssignTransactionXIDLocked(s.TxRef); err != nil {
 		return err
 	}
@@ -159,7 +160,8 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	s.projectExclusionDeletionLocked(e, candidate)
 	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{Resource: s.admittedTuple(candidate.Ref, original), Version: original.Version}, Mode: lock.MultiUpdateAction})
 	e.initializeTemporaryBuffersLocked(s, candidate.Ref)
-	s.recordStatsTuple(candidate.Ref, 0, 0, 1)
+	s.recordStatsTuple(candidate.Ref, 0, 0, 1, statsWriteStart.counts)
+	s.finishDatabaseWrite(statsWriteStart)
 	return nil
 }
 

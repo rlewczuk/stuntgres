@@ -15,7 +15,7 @@ import (
 
 func TestSystemTimeNestedJoinDeadline(t *testing.T) {
 	for _, mode := range []string{"accepted_prefix", "expired_cancel", "infinity", "infinity_cancel"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			ctx := &timeLoopContext{Context: base, ancestor: "stuntgres/internal/engine/exec.(*joinHash).build"}

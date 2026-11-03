@@ -581,6 +581,11 @@ acquisition and the leaf provider. Unconditional post-resource DrainStatistics
 cancels and joins callbacks outside locks, even without a Transaction attachment;
 Unregister force-drains after cleanup. Reader clear
 never publishes. Provider locking is a leaf beneath existing owner/engine locks.
+Session/database events share this writer and may consume its first eligible
+report before relation, index, function or sequence work. Internal lifecycle
+fixtures prime ordinary eligibility with synctest virtual time before their
+measured phase; their exact pending/reset and ten-second retry boundaries remain
+unchanged. Completion alone is not authority to bypass the shared throttle.
 Replication statistics reset uses current EXECUTE admission and the cluster mutex.
 Named subscription OIDs search existing records in the actual owning providers,
 retaining each stored domain/epoch key independently of caller-private or committed
@@ -622,9 +627,10 @@ UTC instant. Other families and standalone provider semantics are unchanged.
 No second provider or Reader is needed without production physical event writers.
 The archiver view checks current SELECT and backing routine3195 EXECUTE before
 configuring/fetching its session Reader, then projects detached facts outside
-Engine.Mu. Describe and denied admission cannot populate the Reader. Its
-none/cache/snapshot cuts are database-local coherent all-family ownership, not
-reads redirected to another runtime's relation/function provider.
+Engine.Mu. Describe and denied admission cannot populate the Reader. Fixed/shared
+families retain their current provider's coherent values; snapshot additionally
+includes accessible peer-database totals, never another runtime's relation or
+function facts.
 Backing routine3195 is a zero-provider catalog descriptor with ordinary default
 PUBLIC EXECUTE and live GRANT/REVOKE, not a getter implementation. Current native
 admission remains independent of retained statistics backing; portable peer-ACL
@@ -643,6 +649,71 @@ evaluation occurs under Engine.Mu to establish that proof. Its
 three physical technical estimates are zero absent corresponding facilities/events,
 never query-derived; ResetAt is genuine shared metadata. Neither view masks fields
 by monitoring-role membership, and the four bgwriter getters remain noncallable.
+
+`stats_database.go` projects database facts through the same catalog runtime.
+Database-category keys use the immutable database/domain identity (epoch zero),
+not unsynchronized catalog roots. Every cumulative first-access authority invokes
+the same complete-domain capture before a Reader method can mark the cut full:
+`DatabaseStatistics`; `relationStatistics` (table, heap/index-block and sequence
+projections); `IndexStatistics`; and the archiver/SLRU and demanded bgwriter
+source-capture branches. Bgwriter retains its presence-only and proven-FALSE
+no-read guards; neither those paths nor denied getter admission capture peers.
+Existing SELECT and backing-routine EXECUTE checks precede capture. Providers
+are visited in stable database order under shared membership authority, with
+leaf-only provider locks. The current provider's keyed, fixed/shared, SLRU and
+backend partitions and each provider's reset/missing defaults keep their existing
+owners; the shared database key is copied in its owning leaf-lock interval.
+`statsReader` only configures. Timestamp/clear and independent activity capture
+do not construct a cumulative snapshot; recovery-prefetch stays a fresh direct
+provider read. None/cache behavior and clear-without-publication are unchanged.
+`TestStatDatabaseSnapshotFirstAccess` exercises actual local index, archiver,
+bgwriter and SLRU `transaction` rows against positive distinct B/C writes,
+retained publication cuts, clear and both transaction terminals. Its clear call
+uses the existing typed
+VOID consumer, which checks the non-NULL singleton, empty output and EOF before
+closing; the generic test tuple exporter does not support VOID.
+The source combines retained cumulative facts with live registry counts under
+`sessionMu`, inspecting only immutable successful public-registration identity;
+it never acquires `Session.Mu` from that registry lock. Private restore/maintenance
+owners and failed admission are not public sessions.
+Native admission attaches an idle transaction owner but does not begin a catalog
+transaction, so registration adds no synthetic transaction outcome. PostgreSQL
+18.6's `InitPostgres` really starts and commits a startup transaction. Reference
+SQL-outcome scenarios isolate that source-grounded difference with a published
+marker on the same live writer before measuring SQL; client admission is
+asserted separately. Idle physical cleanup itself still adds no outcome.
+
+Top outcomes are recorded once beside actual owner/ref completion or a narrow
+accepted SQL-control/admitted-command authority. Idle physical cleanup and
+repeated aborted commands cannot invent rollbacks. Idle SQL COMMIT, ROLLBACK and
+PREPARE-warning commands do have genuine backend outcomes; a parsed empty simple
+query commits. Argument conversion rejected before command admission does not.
+PREPARE transfers unresolved work and records no outcome at preparing exit.
+Successful actual completion removes the claimed prepared entry and records the
+original outcome once, separately from the successful finisher command's commit:
+COMMIT PREPARED adds C2/R0; ROLLBACK PREPARED adds C1/R1. A failed finisher adds
+only its actual command abort and does not complete the original. This follows
+released `FinishPreparedTransaction`'s `AtEOXact_PgStat` callback, not SQLSTATE.
+Admitted syntax/analysis failure before visibility ownership records one command abort,
+not an error-text event. Ledger settlement contributes database attempts independently of relation
+retirement. Public registration, terminal cause and actual monotonic activity
+transitions share the session writer. Physical connection retirement, not return
+to a `database/sql` pool, is the terminal publication boundary. Genuine hard
+deadlocks are drained from the victim's ticket, never inferred from SQLSTATE.
+Real executor worker facts merge only on the coordinator after worker joins,
+including failed execution; plain EXPLAIN does not collect launches.
+Runtime worker and idle-timeout witnesses use actual `AcquireCommand` admission,
+which captures worker/cost policy and owns SQL idle completion. Native-control
+`Acquire` does neither. The real supported partial-aggregate witness is
+`string_agg`, not serial-only CountProvider. Cancellation joins both actual
+workers after one physical input predicate per worker and retains those facts.
+
+Selected runtime proof: `make check RUN='^TestStatDatabase(CatalogIdentities|Transactions|TupleFrontiers|SessionCauses|Workers)$'`;
+the catalog unit checks installed row/array ownership and full-seed definition
+disjointness before database-template replacement. Use `RACE=1` for the
+reader/session/worker concurrency selectors. Public SQL and the separate feature
+smoke live in untagged `reference/` definitions.
+
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.

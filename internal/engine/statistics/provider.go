@@ -22,6 +22,7 @@ const (
 	WAL
 	ReplicationSlot
 	Subscription
+	Database
 )
 
 type Fact struct {
@@ -31,8 +32,8 @@ type Fact struct {
 	LastVacuum, LastAnalyze                                                                        time.Time
 	IndexScans, IndexEntries, IndexFetches                                                         int64
 	LastIndexScan                                                                                  time.Time
-	SeqScans, SeqTuples, TableIndexFetches int64
-	LastSeqScan time.Time
+	SeqScans, SeqTuples, TableIndexFetches                                                         int64
+	LastSeqScan                                                                                    time.Time
 	Truncated                                                                                      bool
 	VacuumTime, AnalyzeTime                                                                        time.Duration
 	Calls, Operations                                                                              int64
@@ -45,6 +46,54 @@ type Fact struct {
 	ConflDeleteOriginDiffers, ConflDeleteMissing, ConflMultipleUniqueConflicts                     int64
 	ResetAt                                                                                        time.Time
 	Generation                                                                                     uint64
+	Database                                                                                       DatabaseFact
+}
+
+// DatabaseFact contains cumulative database events, independent of relation
+// lifetime. ResetAt is an explicit statistics-reset event, not provider startup.
+type DatabaseFact struct {
+	Commits, Rollbacks, BlocksRead, BlocksHit                         int64
+	Returned, Fetched, Inserts, Updates, Deletes                      int64
+	Conflicts, TempFiles, TempBytes, Deadlocks                        int64
+	ChecksumFailures                                                  int64
+	ChecksumLastFailure, ResetAt                                      time.Time
+	ReadTime, WriteTime, SessionTime, ActiveTime, IdleTransactionTime time.Duration
+	Sessions, Abandoned, Fatal, Killed                                int64
+	WorkersPlanned, WorkersLaunched                                   int64
+}
+
+func (a *DatabaseFact) Add(b DatabaseFact) {
+	a.Commits += b.Commits
+	a.Rollbacks += b.Rollbacks
+	a.BlocksRead += b.BlocksRead
+	a.BlocksHit += b.BlocksHit
+	a.Returned += b.Returned
+	a.Fetched += b.Fetched
+	a.Inserts += b.Inserts
+	a.Updates += b.Updates
+	a.Deletes += b.Deletes
+	a.Conflicts += b.Conflicts
+	a.TempFiles += b.TempFiles
+	a.TempBytes += b.TempBytes
+	a.Deadlocks += b.Deadlocks
+	a.ChecksumFailures += b.ChecksumFailures
+	if !b.ChecksumLastFailure.IsZero() {
+		a.ChecksumLastFailure = b.ChecksumLastFailure
+	}
+	if !b.ResetAt.IsZero() {
+		a.ResetAt = b.ResetAt
+	}
+	a.ReadTime += b.ReadTime
+	a.WriteTime += b.WriteTime
+	a.SessionTime += b.SessionTime
+	a.ActiveTime += b.ActiveTime
+	a.IdleTransactionTime += b.IdleTransactionTime
+	a.Sessions += b.Sessions
+	a.Abandoned += b.Abandoned
+	a.Fatal += b.Fatal
+	a.Killed += b.Killed
+	a.WorkersPlanned += b.WorkersPlanned
+	a.WorkersLaunched += b.WorkersLaunched
 }
 
 // Provider's mutex is a leaf: it never calls engine, session, clock or settings.
@@ -130,6 +179,7 @@ func merge(a, b Fact) Fact {
 	a.BlocksHit += b.BlocksHit
 	a.TotalTime += b.TotalTime
 	a.SelfTime += b.SelfTime
+	a.Database.Add(b.Database)
 	return a
 }
 
@@ -228,8 +278,8 @@ func (a *IndexAccess) Record(searches, entries, fetches int64) {
 // RelationAccess owns reached heap work, independently of tuple settlement.
 // Like IndexAccess it is captured once and only touches serialized local state.
 type RelationAccess struct {
-	writer *Writer
-	key Key
+	writer     *Writer
+	key        Key
 	generation uint64
 }
 
@@ -249,7 +299,9 @@ func (a *RelationAccess) Record(scans, tuples, bitmapFetches int64) {
 		return
 	}
 	f, present := a.writer.pending[a.key]
-	if !present { return }
+	if !present {
+		return
+	}
 	f.SeqScans += scans
 	f.SeqTuples += tuples
 	f.TableIndexFetches += bitmapFetches

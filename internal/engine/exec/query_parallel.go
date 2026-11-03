@@ -178,7 +178,8 @@ func ParallelQuerySource(source *Source) (*Source, error) {
 	return &Source{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
 		Headers: source.Headers, Repaired: source.Repaired, RawXmax: source.RawXmax,
 		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns, ScanFraction: source.ScanFraction,
-		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host}, nil
+		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host,
+		statsWorker: true, statsInitialized: true, statsCounts: source.statsCounts, statsTiming: source.statsTiming}, nil
 }
 
 type QueryParallelRun struct {
@@ -190,6 +191,7 @@ type QueryParallelRun struct {
 	count       int
 	start       int // Allocation-free contiguous run when indices is nil.
 	scanCounts  relationScanCounts
+	statistics  statistics.DatabaseFact
 }
 
 func (r *QueryParallelRun) index(ordinal int) int {
@@ -234,6 +236,7 @@ func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *So
 		return run, err
 	}
 	defer worker.Close()
+	defer func() { run.statistics = worker.databaseStatistics }()
 	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
 	state.scanCounts = &run.scanCounts
 	defer state.ReleaseMemberships()
@@ -305,6 +308,8 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	var errorMu sync.Mutex
 	var first error
 	n := source.Count()
+	source.prepareDatabaseStatistics()
+	recordDatabaseWorkers(source, workers, workers)
 	for i := range workers {
 		joined.Add(1)
 		go func(i int) {
@@ -329,6 +334,9 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		counts.tuples += runs[i].scanCounts.tuples
 	}
 	access.Record(counts.starts, counts.tuples, 0)
+	for i := range runs {
+		mergeDatabaseWorker(source, runs[i].statistics)
+	}
 	if first != nil {
 		return nil, 0, first
 	}

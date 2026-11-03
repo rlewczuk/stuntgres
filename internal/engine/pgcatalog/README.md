@@ -21,6 +21,82 @@ They retain all-formal order separately from input/default slots, including OUT,
 INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
 cannot replace these descriptor-owned facts.
 
+## Database cumulative monitoring
+
+`pg_catalog.pg_stat_database` is a typed, read-only catalog source. Its native
+relation identity is 12212; the existing seeded row/array types remain
+12272/12271. These are native identities, not promises of PostgreSQL initdb OID
+parity. There is one row per actual `pg_database` identity, including databases
+with no published entry, and one shared-object row `(datid=0, datname=NULL,
+numbackends=0)`. The zero follows REL_18_6 `system_views.sql`'s explicit CASE,
+despite the monitoring manual describing NULL. No order is promised without
+`ORDER BY`. Database aggregates have no backend-owner or `pg_read_all_stats`
+masking; ordinary relation SELECT ACLs still apply.
+The executable source is admitted through the common numerically sorted producer
+registry, independently of descriptor and symbolic-definition inventory order.
+`make check RUN='^TestProducerRegistryLookup$'` checks that lookup invariant,
+including the database source; symbolic definition registration alone cannot
+make a source executable.
+The existing symbolic builtin-view inventory also supplies default/pretty
+`pg_get_viewdef`, quote-all-identifiers and exact-signature search-path masking.
+Its native return-rule identity is 12360, reserved independently of every
+descriptor address and owned definition in the complete installed catalog.
+In particular, relation 12359 remains `pg_statio_user_indexes`; database creation
+and catalog replacement validate the same disjoint identity space.
+Upstream-only getter names are bounded display references, not newly installed
+SQL functions or another execution path.
+The released deparser leaves outer `oid`/`datname` references unqualified for its
+single FROM item, retaining the `d` alias and inner `pg_database` qualification;
+the symbolic default/pretty forms follow that presentation, not source spelling.
+`TestReferenceStatDatabaseDefinition` independently checks the released expression
+inventory and identifier presentation without normalizing away qualifiers.
+
+SELECT-star and prepared descriptions preserve this exact order:
+
+| Columns | SQL types, in the same order |
+| --- | --- |
+| datid, datname, numbackends | oid, name, integer |
+| xact_commit, xact_rollback, blks_read, blks_hit | bigint, bigint, bigint, bigint |
+| tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted | bigint, bigint, bigint, bigint, bigint |
+| conflicts, temp_files, temp_bytes, deadlocks, checksum_failures | bigint, bigint, bigint, bigint, bigint |
+| checksum_last_failure | timestamp with time zone |
+| blk_read_time, blk_write_time, session_time, active_time, idle_in_transaction_time | double precision, double precision, double precision, double precision, double precision |
+| sessions, sessions_abandoned, sessions_fatal, sessions_killed | bigint, bigint, bigint, bigint |
+| parallel_workers_to_launch, parallel_workers_launched | bigint, bigint |
+| stats_reset | timestamp with time zone |
+
+Missing cumulative numbers are zero. `checksum_failures` is NULL with checksums
+off (the native default); its last-failure timestamp is NULL without an actual
+failure, including when checksums are on. `stats_reset` is NULL without an
+explicit database statistics-reset event, not the provider's catalog-replacement
+timestamp. Floating times are milliseconds. Logical identities, accepted tuple
+attempts/reads, top transaction outcomes, real deadlock decisions, client lifecycle
+causes and executor worker starts are exact native events. Only block/access,
+temporary-file, checksum and elapsed-time technical fields use the documented
+in-memory model in `statistics/README.md`; no physical spill/checksum/recovery
+engine is implied. Native current `numbackends` bypasses retained cumulative
+snapshots. This deliberately differs from the released backend-status reader:
+PostgreSQL 18.6's `pg_stat_get_db_numbackends` counts a transaction-local backend
+snapshot, cached independently of `stats_fetch_consistency` until transaction
+end or clear. The public retained-reader witness expects that released stale
+status and native live status separately; an independent outside-transaction
+observer proves real peer admission/publication without clearing the retained
+cumulative facts. See released
+[`backend_status.c`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/activity/backend_status.c)
+and [`pgstatfuncs.c`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/adt/pgstatfuncs.c).
+
+INSERT, UPDATE and DELETE reject even zero-match writes with SQLSTATE `55000`,
+respectively `cannot insert into view "pg_stat_database"`,
+`cannot update view "pg_stat_database"`, and
+`cannot delete from view "pg_stat_database"`. Detail is exactly
+`Views that do not select from a single table or view are not automatically updatable.`
+Hints use `To enable inserting into the view, provide an INSTEAD OF INSERT trigger or an unconditional ON INSERT DO INSTEAD rule.`
+(UPDATE uses `updating the view`/`UPDATE`; DELETE uses
+`deleting from the view`/`DELETE`). TRUNCATE rejects with `42809`,
+`"pg_stat_database" is not a table`. No reset builtin or database getter routine
+is introduced by this source.
+
+
 `pg_class.relpartbound` captures immutable membership and parent-key roots.
 `PartitionBoundParts` exposes those borrowed roots only for its genuine bound
 carrier so the partition inquiry owner can render SQL without parsing structural
@@ -122,6 +198,9 @@ and direct source opening rechecks the same current authority. A presence-only
 source preserves singleton cardinality without a getter or Reader access. A proven
 direct FALSE input also avoids Reader access through an ordinary aggregate, but
 does not waive the referenced getters' initialization-time EXECUTE admission.
+Demanded cumulative bgwriter rows establish the same complete accessible-domain
+snapshot as database statistics before reading their fixed-family fact; the
+presence-only, FALSE-input and denied-admission paths remain noncapturing.
 Authorized rows have no role-dependent masking. The scalar no-FROM definition
 is display metadata, not a callable getter implementation; ordinary virtual-view
 mutation diagnostics remain authoritative.
@@ -1748,9 +1827,12 @@ format and serves the boolean `pg_get_viewdef` presentation selector.
 OID12208/rule OID12209 and REL_18_6 default/pretty projection, including command/
 phase CASEs, OID cast and parameter aliases. Its real FULL visitor uses the
 current private catalog runtime and authenticated viewer; this metadata grants
-no simulated CLUSTER execution provider. COPY, CLUSTER/FULL and CREATE INDEX
-progress declare native `_RETURN` identities, stamped into immutable relation
-descriptors during bootstrap.
+no simulated CLUSTER execution provider. COPY, CLUSTER/FULL, CREATE INDEX,
+database statistics and subscription statistics declare native `_RETURN`
+identities, stamped into immutable relation descriptors during bootstrap.
+The rewrite declaration regression checks this complete view/rule inventory
+explicitly, rejecting missing, unexpected or mismatched identities while
+retaining every declaration and ownership assertion.
 Rewrite projection, object-name/address lookup and dependency ownership use `ReturnRuleOID`; the
 rule has an internal edge to its view. Released backing catalog/routine references
 are bootstrap-pinned, not fabricated dependency objects or executable payloads.

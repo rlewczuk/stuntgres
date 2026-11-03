@@ -139,7 +139,10 @@ func statioPrivateLifetime(t *testing.T) {
 			statioSeed(t, e)
 			key, control := statioKey(t, e, "statio_events_i"), statioKey(t, e, "statio_events_unused")
 			actor := enginetest.StartSession(t, e, nil)
-			statsFunctionExec(t, actor, "SET enable_seqscan=off", "SELECT k FROM statio_events WHERE k=1")
+			statsFunctionExec(t, actor, "SET enable_seqscan=off")
+			// Establish the positive prefix at the ordinary shared boundary.
+			time.Sleep(time.Second)
+			statsFunctionExec(t, actor, "SELECT k FROM statio_events WHERE k=1")
 			statioFact(t, e, key, 1, 0)
 			statsFunctionExec(t, actor, "SELECT k FROM statio_events WHERE k=1", "SELECT v FROM statio_events WHERE v=10")
 			pending := reflect.ValueOf(core.PayloadOf(actor)).Elem().FieldByName("statsWriter").FieldByName("pending").MapIndex(reflect.ValueOf(key))

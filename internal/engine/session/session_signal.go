@@ -43,7 +43,7 @@ func (s *Session) TerminateLocked() {
 			Message: "terminating connection due to administrator command",
 		}
 	}
-	s.requestEndLocked(Terminated)
+	s.requestEndCauseLocked(Terminated, DisconnectKilled)
 }
 
 // WaitTermination observes real cleanup completion, not request delivery or the

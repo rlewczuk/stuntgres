@@ -108,7 +108,7 @@ func (s *Session) ExpireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 		}
 	}
 	s.Timeouts.Fatal = TimeoutFatal(code)
-	s.requestEndLocked(Terminated)
+	s.requestEndCauseLocked(Terminated, DisconnectFatal)
 }
 
 // Admission observes elapsed budgets before a delayed callback can be outrun

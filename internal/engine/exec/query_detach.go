@@ -8,10 +8,14 @@ func detachQuerySource(source *Source) {
 		return
 	}
 	source.discardProjection()
+	source.reportDatabaseStatistics()
 	for _, child := range source.Sources {
 		if child != source {
 			detachQuerySource(child)
 		}
+	}
+	for _, leaf := range source.Inheritance {
+		detachQuerySource(leaf.Prefix)
 	}
 	if source.Input != nil {
 		detachQuerySource(source.Input)

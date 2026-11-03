@@ -16,6 +16,18 @@ It imports only lower layers (`ids`, `authorization`, `catalog`, `functions`,
 `extension`, `sequence`, ...) or the root: feature packages import `session` to
 implement its slots, so either import would form a cycle.
 
+Database monitoring retains a one-shot `DisconnectCause` separately from resource
+cleanup's `EndReason`. `ReserveDisconnectCause` holds only `Session.Mu`: a genuine
+terminal protocol/transport decision can retain its category before cancellation
+or a potentially failing FATAL write, without waking cleanup or changing socket
+deadlines. `requestEndCauseLocked` reserves atomically with an accepted native
+timeout/admin request; later cleanup cannot reclassify it. Normal close has no
+terminal category; actual abandoned transport, native fatal timeout/protocol
+decision and administrator termination increment respectively abandoned, fatal
+and killed once. Statement cancellation and a provider diagnostic that leaves
+the session live are not disconnects.
+
+
 `Journal.Statistics` contains immutable selected-column and selected-definition
 deltas keyed by relation, stable attribute or generation-qualified statistics
 object identity, and inherited flavor. `Clone` copies the outer map while sharing

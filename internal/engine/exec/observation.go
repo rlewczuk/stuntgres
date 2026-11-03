@@ -209,6 +209,7 @@ func (s *Stage) observeDrained(count int) {
 // occurrence crosses the same source output boundary, without counting skipped
 // source ordinals or inferring rows from the backing source's capacity.
 func (s *Stage) observeIndexedRead() {
+	s.databaseFetched(1, true)
 	for _, record := range s.observations {
 		record.start()
 		record.rows++

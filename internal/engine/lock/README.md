@@ -17,6 +17,19 @@ engine.
   Its transaction ID, phase and completion state are atomic mirrors that the
   engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
   detached from its session (`DetachPrepared`).
+  The admitted command's statistics-counts policy is atomically mirrored on the
+  ticket and captured by each actual wait. Only a genuine hard-cycle victim,
+  after final timeout/cancellation arbitration retains that exact deadlock
+  diagnostic, adds a ticket-owned occurrence. The core owner consumes it once
+  outside manager metadata; soft reorder, user-raised 40P01, cancellation and
+  lock timeout are not database deadlocks. No engine/session callback runs under
+  `Manager.mu`. Selected proof: `make check RUN='^TestStatDatabaseDeadlockDecision$'`
+  (also `RACE=1`).
+  The runtime cycle witness retains complete two-edge Detail with actual
+  ticket/resource identities, the released Hint and empty unrelated fields.
+  Either actual participant may anchor the cycle: the witness accepts only the
+  two exact rotations, not missing, duplicated or unrelated edges. Timeout
+  helpers requiring empty Detail/Hint are not deadlock assertions.
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
   collation, conversion, statistics, cast, transform, procedure, language, text-search parser/template/dictionary/configuration,
   access method, operator family/class or shared role (`ids.ObjectRef`),

@@ -5,6 +5,25 @@ simple and extended queries, prepared statements, resumable portals, text/binary
 values, streaming COPY, FunctionCall by routine OID and LISTEN/NOTIFY delivery to
 idle listeners. Transport adds no SQL, catalog or type capability of its own.
 
+Database monitoring preserves the real client disconnect cause before generic
+cancellation/cleanup. A fully decoded frontend Terminate reserves normal close
+and stops the bounded reader after publishing that message. The passive FIN
+watcher is a provisional transport observation, not an accepted statistics cause;
+generic InvalidConnection teardown joins the reader so decoded normal/protocol
+decisions win before fallback abandonment. If closure prevents decoding a full
+Terminate, the actual server decision is transport retirement. Recognizable
+protocol FATAL reserves fatal before output; native timeout/admin requests already
+own fatal/killed. Failed FATAL output and subsequent EOF cannot overwrite an
+accepted cause. Existing diagnostics, bounded buffers and terminal-write budgets
+are unchanged. Public real-wire proof:
+`make check RUN='^TestReferenceStatDatabaseWire$'`, also with `REFERENCE=1`.
+Each managed database owns its own engine, catalog and roles. Monitoring a
+secondary wire database therefore requires an observer attached to that same
+engine; its catalog is not part of an unrelated managed database's inventory.
+The wire proof checks actual connection/catalog/view identities and accounts for
+the genuine provisioning and observer sessions before exact client deltas.
+
+
 ## Operation
 
 Commands (`./stuntgres --help` lists every option and long alias):

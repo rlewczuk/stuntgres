@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -65,6 +66,29 @@ func TestReferenceStatsXactBlocksSmoke(t *testing.T) {
 		xactBlockAdvanced(t, b, beforeTemp, xactBlockRead(t, p, c, getter, temp))
 		xactBlockWant(t, xactBlockRead(t, p, peer, nil, temp), xactBlockPair{})
 		xactBlockTerminal(t, p, b, c, "COMMIT")
+		// These are unflushed-writer counters, not a transaction-local reset.
+		// Startup/database facts can have consumed the first eligible flush.
+		// Keep this physical client and await its real ordinary publication.
+		if !b.PG {
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
+			defer cancel()
+			tick := time.NewTicker(5 * time.Millisecond)
+			defer tick.Stop()
+			for {
+				var fetched, hit int64
+				if err := c.QueryRowContext(ctx, xactBlockSQL, a).Scan(&fetched, &hit); err != nil {
+					t.Fatal(err)
+				}
+				if fetched == 0 && hit == 0 {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					t.Fatal("ordinary pending-block publication", fetched, hit, ctx.Err())
+				case <-tick.C:
+				}
+			}
+		}
 		statsExec(t, p, b, c, "BEGIN", 0)
 		xactBlockWant(t, xactBlockRead(t, p, c, getter, a), xactBlockPair{})
 		xactBlockWant(t, xactBlockRead(t, p, c, getter, other), xactBlockPair{})

@@ -23,7 +23,7 @@ import (
 // actual SQL admission; no interval vector or replacement pruner is supplied.
 func TestSystemTimeNestedPruningDeadline(t *testing.T) {
 	for _, mode := range []string{"accepted_prefix", "expired_cancel", "infinity", "infinity_cancel"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			e := engine.New()
 			enginetest.Run(t, e, "CREATE EXTENSION tsm_system_time")
 			enginetest.Run(t, e, "CREATE TABLE time_prune(k INT) PARTITION BY RANGE(k)")

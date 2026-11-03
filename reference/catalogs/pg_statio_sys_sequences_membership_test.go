@@ -21,6 +21,9 @@ func statioSysSequenceEmpty(t *testing.T, p *fixture.Pair, b fixture.Backend, e 
 // Named all/user projections read the shared provider in one stable boundary.
 func statioSysUserWitness(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, oid int64, schema, name string, read, hit int64) {
 	t.Helper()
+	if name != "" {
+		statioSequencePublishedRows(t, p, b, conn, statioSequenceProbe, oid, read, hit)
+	}
 	statioSequenceExec(t, p, b, conn, "BEGIN")
 	defer conn.ExecContext(context.Background(), "ROLLBACK")
 	all := statioSequenceRows(t, p, b, conn, statioSequenceProbe, oid)
@@ -61,13 +64,15 @@ func TestReferencePGStatioSysSequencesMembership(t *testing.T) {
 			} {
 				statioSequenceExec(t, p, b, producer, q)
 			}
-			// Keep setup's genuine heap-build report off the TEMP sequence
-			// owner's physical writer, whose first encounter must be fresh.
-			ddl,err:=b.DB.Conn(p.Ctx)
-			if err!=nil {t.Fatal(err)}
+			// Keep setup's genuine heap-build work on a separate physical
+			// writer; the retained TEMP owner's publication is awaited below.
+			ddl, err := b.DB.Conn(p.Ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer ddl.Close()
-			statioSequenceExec(t,p,b,ddl,"CREATE INDEX statio_sys_index ON statio_sys_private.ordinary(id)")
-			statioSequenceRetire(t,ddl)
+			statioSequenceExec(t, p, b, ddl, "CREATE INDEX statio_sys_index ON statio_sys_private.ordinary(id)")
+			statioSequenceRetire(t, ddl)
 			stmt, err := observer.PrepareContext(p.Ctx, statioSysSequenceProbe)
 			if err != nil {
 				t.Fatal(err)
@@ -89,10 +94,9 @@ func TestReferencePGStatioSysSequencesMembership(t *testing.T) {
 				}
 				statioSysUserWitness(t, p, b, observer, oid, schema, c.name, 0, 0)
 				statioSysSequenceEmpty(t, p, b, held, oid)
-				// Reusing a physical writer across these transactions would hit
-				// its cumulative-statistics publication throttle. Give each
-				// persistent sequence a real writer lifetime; TEMP must retain
-				// its original owner, whose first encounter batch is still fresh.
+				// Give each persistent sequence a real writer lifetime. TEMP
+				// retains its owner and CACHE tail, so its ordinary publication
+				// is observed with the bounded counter wait instead.
 				writer := producer
 				if c.schema != "" {
 					writer, err = b.DB.Conn(p.Ctx)

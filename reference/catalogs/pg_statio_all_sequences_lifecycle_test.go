@@ -106,8 +106,8 @@ func TestReferencePGStatioAllSequencesControls(t *testing.T) {
 			} // Public native controls have no PostgreSQL analogue.
 			statioSequenceExec(t, p, b, observer, "CREATE TEMP SEQUENCE statio_control_temp CACHE 3")
 			tempOID := statioSequenceOID(t, p, observer, "pg_temp.statio_control_temp")
-			// This writer has no prior encounter batch. Its first COMMIT publishes
-			// TEMP history while leaving the owner and its CACHE tail attached.
+			// Retain the TEMP owner and CACHE tail while the bounded observer
+			// awaits this batch through the same ordinary publication throttle.
 			statioSequenceExec(t, p, b, observer, "BEGIN")
 			pgSequencesScalar(t, p, b, observer, "SELECT nextval('statio_control_temp')", "nextval", 1)
 			statioSequenceExec(t, p, b, observer, "COMMIT")

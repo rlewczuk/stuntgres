@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"stuntgres/internal/engine"
@@ -20,8 +21,19 @@ import (
 
 const timeTestMillis = 100.0
 
-// Real elapsed work inside a production-demanded expression, not a substituted
-// clock or rows-per-millisecond oracle. Start only after nested demand begins.
+// Give each elapsed-work scenario ownership of Go time. Scheduler delays must
+// not consume the sample before its real input/support/output gate is reached.
+// Worker goroutines and their joins remain inside the same scenario bubble.
+func timeRunDeadline(t *testing.T, name string, body func(*testing.T)) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		synctest.Test(t, body)
+	})
+}
+
+// Elapsed Go time inside production-demanded work, not a replacement sampler
+// clock or rows-per-millisecond oracle. The ordinary timer advances bubble time
+// only after nested demand begins.
 func timeWorkPastBudget(ctx context.Context) error {
 	timer := time.NewTimer(110 * time.Millisecond)
 	defer timer.Stop()
@@ -62,7 +74,7 @@ func timeArgument(t *testing.T, leaf *plan.SourceNode, millis float64) *plan.Sou
 // its pending NULL tuple or replay a field whose successful effect completed.
 func TestSystemTimeProducingSourceContinuation(t *testing.T) {
 	for _, mode := range []string{"resume", "pending_close", "pending_error", "pending_cancel"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			f := timeNewLoopFixture(t, base, "SELECT *, (SELECT bool_and(f) AND bool_or(f) FROM t) FROM t TABLESAMPLE system_time(100)")
@@ -186,77 +198,79 @@ func TestSystemTimeProducingSourceContinuation(t *testing.T) {
 }
 
 func TestSystemTimeElapsedBudget(t *testing.T) {
-	project, raw := timeBoundSource(t)
-	leaf := project.Child.(*plan.SourceNode)
-	accepted, argument := leaf.Sample, leaf.Sample.Argument
-	for _, millis := range []float64{timeTestMillis, math.Inf(1), timeTestMillis} {
-		calls, closes := 0, 0
-		inner := exec.Stage{
-			Source: raw, Columns: project.Schema(),
-			Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
-			Finish: func() error { closes++; return nil },
-		}
-		inner.Expressions = append([]expr.Expr(nil), project.Expressions...)
-		inner.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
-			calls++
-			if calls == 2 && !math.IsInf(millis, 1) {
-				if err := timeWorkPastBudget(c.Context); err != nil {
-					return sqltype.Value{}, err
+	synctest.Test(t, func(t *testing.T) {
+		project, raw := timeBoundSource(t)
+		leaf := project.Child.(*plan.SourceNode)
+		accepted, argument := leaf.Sample, leaf.Sample.Argument
+		for _, millis := range []float64{timeTestMillis, math.Inf(1), timeTestMillis} {
+			calls, closes := 0, 0
+			inner := exec.Stage{
+				Source: raw, Columns: project.Schema(),
+				Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
+				Finish:     func() error { closes++; return nil },
+			}
+			inner.Expressions = append([]expr.Expr(nil), project.Expressions...)
+			inner.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				calls++
+				if calls == 2 && !math.IsInf(millis, 1) {
+					if err := timeWorkPastBudget(c.Context); err != nil {
+						return sqltype.Value{}, err
+					}
+				}
+				return c.Row[0], nil
+			})
+			// Child caches and source backing must survive cooperative unwind.
+			inner.CacheWidth = 1
+			inner.OrderValues = make([]sqltype.Value, raw.Count())
+			inner.CacheOccurrences = make([]int, raw.Count())
+			for i := range raw.Count() {
+				inner.OrderValues[i], inner.CacheOccurrences[i] = raw.Row(i)[0], i
+			}
+			cache := &inner.OrderValues[0]
+			occurrences := &inner.CacheOccurrences[0]
+			bridge := &exec.Source{Ref: raw.Ref, NestedRoot: project, NestedInputs: raw, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			stage, err := exec.OpenNode(ctx, &exec.State{Source: bridge}, timeArgument(t, leaf, millis))
+			cancel()
+			if err != nil {
+				_ = stage.Close()
+				t.Fatal(err)
+			}
+			defer stage.Close()
+			if math.IsInf(millis, 1) {
+				if stage.Count() != raw.Count() || calls != raw.Count() {
+					t.Fatal("Infinity did not exhaust genuine finite input", stage.Count(), calls)
+				}
+			} else if calls >= raw.Count() || stage.Count() < 1 {
+				t.Fatal("elapsed scan drained tail or lost accepted prefix", stage.Count(), calls)
+			}
+			if inner.Closed || inner.Source != raw || closes != 0 || &inner.OrderValues[0] != cache || &inner.CacheOccurrences[0] != occurrences || inner.CacheWidth != 1 {
+				t.Fatal("budget EOF terminalized retained producer/cache")
+			}
+			if len(bridge.Flat) != bridge.FlatCount*bridge.FlatWidth {
+				t.Fatal("budget unwind retained an incomplete projected row")
+			}
+			for i := range stage.Count() {
+				if stage.Source.Row(stage.Index(i))[0] != raw.Row(i)[0] {
+					t.Fatal("retained prefix lost original values")
 				}
 			}
-			return c.Row[0], nil
-		})
-		// Child caches and source backing must survive cooperative unwind.
-		inner.CacheWidth = 1
-		inner.OrderValues = make([]sqltype.Value, raw.Count())
-		inner.CacheOccurrences = make([]int, raw.Count())
-		for i := range raw.Count() {
-			inner.OrderValues[i], inner.CacheOccurrences[i] = raw.Row(i)[0], i
-		}
-		cache := &inner.OrderValues[0]
-		occurrences := &inner.CacheOccurrences[0]
-		bridge := &exec.Source{Ref: raw.Ref, NestedRoot: project, NestedInputs: raw, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		stage, err := exec.OpenNode(ctx, &exec.State{Source: bridge}, timeArgument(t, leaf, millis))
-		cancel()
-		if err != nil {
-			_ = stage.Close()
-			t.Fatal(err)
-		}
-		defer stage.Close()
-		if math.IsInf(millis, 1) {
-			if stage.Count() != raw.Count() || calls != raw.Count() {
-				t.Fatal("Infinity did not exhaust genuine finite input", stage.Count(), calls)
+			if err := stage.Close(); err != nil || closes != 1 || inner.Source != nil || inner.OrderValues != nil || stage.Finish != nil || stage.Reset != nil {
+				t.Fatal("child not released exactly once", err, closes)
 			}
-		} else if calls >= raw.Count() || stage.Count() < 1 {
-			t.Fatal("elapsed scan drained tail or lost accepted prefix", stage.Count(), calls)
-		}
-		if inner.Closed || inner.Source != raw || closes != 0 || &inner.OrderValues[0] != cache || &inner.CacheOccurrences[0] != occurrences || inner.CacheWidth != 1 {
-			t.Fatal("budget EOF terminalized retained producer/cache")
-		}
-		if len(bridge.Flat) != bridge.FlatCount*bridge.FlatWidth {
-			t.Fatal("budget unwind retained an incomplete projected row")
-		}
-		for i := range stage.Count() {
-			if stage.Source.Row(stage.Index(i))[0] != raw.Row(i)[0] {
-				t.Fatal("retained prefix lost original values")
+			if err := stage.Close(); err != nil || closes != 1 {
+				t.Fatal("duplicate child close", err, closes)
+			}
+			if leaf.Sample != accepted || !reflect.DeepEqual(leaf.Sample.Argument, argument) {
+				t.Fatal("clock changed accepted plan")
 			}
 		}
-		if err := stage.Close(); err != nil || closes != 1 || inner.Source != nil || inner.OrderValues != nil || stage.Finish != nil || stage.Reset != nil {
-			t.Fatal("child not released exactly once", err, closes)
-		}
-		if err := stage.Close(); err != nil || closes != 1 {
-			t.Fatal("duplicate child close", err, closes)
-		}
-		if leaf.Sample != accepted || !reflect.DeepEqual(leaf.Sample.Argument, argument) {
-			t.Fatal("clock changed accepted plan")
-		}
-	}
+	})
 }
 
 func TestSystemTimeNestedDeadline(t *testing.T) {
 	for _, prefix := range []bool{false, true} {
-		t.Run(map[bool]string{false: "all_rejected", true: "accepted_prefix"}[prefix], func(t *testing.T) {
+		timeRunDeadline(t, map[bool]string{false: "all_rejected", true: "accepted_prefix"}[prefix], func(t *testing.T) {
 			project, raw := timeBoundSource(t)
 			leaf := project.Child.(*plan.SourceNode)
 			boolean := raw.Row(0)[2].Type()
@@ -296,8 +310,8 @@ func TestSystemTimeNestedDeadline(t *testing.T) {
 			}
 		})
 	}
-	t.Run("physical_source_budgets", timePhysicalDeadline)
-	t.Run("nested_sample_owners", timeNestedSampleOwners)
+	timeRunDeadline(t, "physical_source_budgets", timePhysicalDeadline)
+	timeRunDeadline(t, "nested_sample_owners", timeNestedSampleOwners)
 }
 
 // The aggregate is demanded inside RLS, not a final aggregate after sampling.
@@ -305,7 +319,7 @@ func TestSystemTimeNestedDeadline(t *testing.T) {
 // executor, provider, monotonic clock, or private budget checkpoints.
 func TestSystemTimeNestedAggregateDeadline(t *testing.T) {
 	for _, mode := range []string{"all_rejected", "accepted_prefix", "expired_cancel", "argument_failure", "infinity", "borrowed_producer"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			prefix := mode == "accepted_prefix" || mode == "borrowed_producer"
 			e := engine.New()
 			enginetest.Run(t, e, "CREATE EXTENSION tsm_system_time")
@@ -345,8 +359,8 @@ func TestSystemTimeNestedAggregateDeadline(t *testing.T) {
 				}
 				argumentCalls++
 				if argumentCalls == 1 && mode != "infinity" {
-					// The real clock started before this first argument was
-					// demanded. No worker or synthetic clock advances it.
+					// The sampler's Go clock started before this first argument
+					// was demanded; the ordinary timer crosses its budget here.
 					if err := timeWorkPastBudget(c.Context); err != nil {
 						return sqltype.Value{}, err
 					}
@@ -621,7 +635,7 @@ func timePhysicalDeadline(t *testing.T) {
 
 func TestSystemTimeScanCancellation(t *testing.T) {
 	for _, mode := range []string{"finite_cancel", "expired_cancel", "infinity_cancel", "policy_failure"} {
-		t.Run(mode, func(t *testing.T) {
+		timeRunDeadline(t, mode, func(t *testing.T) {
 			project, raw := timeBoundSource(t)
 			leaf := project.Child.(*plan.SourceNode)
 			if mode == "infinity_cancel" {

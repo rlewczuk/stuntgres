@@ -332,8 +332,12 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 	}
 	if s.Produce == nil && s.scan != nil {
 		ordinal := s.Source.Count()
-		if s.scanRange { ordinal = s.scanEnd }
-		if i < s.Count() { ordinal = s.Index(i) }
+		if s.scanRange {
+			ordinal = s.scanEnd
+		}
+		if i < s.Count() {
+			ordinal = s.Index(i)
+		}
 		s.scan.Reach(ordinal)
 		if i < s.Count() {
 			s.scan.Fetch(s.Index(i))
@@ -364,6 +368,7 @@ func (s *Stage) NextOccurrence(ctx context.Context) (int, bool, error) {
 	i := s.Position
 	s.Position++
 	s.observeOutput(i)
+	s.databaseOutput(i)
 	return i, true, nil
 }
 
@@ -389,10 +394,14 @@ func (s *Stage) Drain(ctx context.Context) error {
 		s.drainReadLeases()
 		if s.scan != nil {
 			start := 0
-			if s.scanRange { start = s.scanStart }
+			if s.scanRange {
+				start = s.scanStart
+			}
 			s.scan.Drain(start, start+s.Count())
 		}
 		s.observeDrained(s.Count())
+		s.databaseFetched(max(0, s.Count()-s.statsFrontier), false)
+		s.statsFrontier = s.Count()
 		return nil
 	}
 	for !s.Done {
