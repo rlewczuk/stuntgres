@@ -31,6 +31,12 @@ successful DROP removes both metadata and the database-scoped name before a
 subsequent CREATE. Duplicate-option diagnostics reuse the AST's already
 one-based Unicode character position without a second cursor adjustment.
 
+After genuine CREATE succeeds, the host initializes the owning database's shared
+subscription statistics entry before publishing the success notice. Catalog
+visibility remains private; the unadopted stage or its adopted transaction journal
+owns exact-key retirement on discard. Compatible ALTER retains this identity and
+history; a staged DROP does not retire shared statistics before commit.
+
 ## Testing
 
 Public direct/prepared scenarios live in `reference/catalogs`; pure option,

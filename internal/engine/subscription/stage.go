@@ -22,6 +22,7 @@ type Host interface {
 	SubscriptionInBlock() bool
 	ValidateSubscriptionSync(string) error
 	ParseSubscriptionLSN(string) (uint64, error)
+	InitializeSubscriptionStatistics(*catalog.Subscription)
 }
 
 func transaction(h Host, label string) error {
@@ -155,6 +156,7 @@ func Stage(h Host, auth ddl.Authority, s *parser.Subscription) error {
 			h.AbandonReplicationOrigin()
 			return err
 		}
+		h.InitializeSubscriptionStatistics(d)
 		h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "subscription was created, but is not connected", Hint: "To initiate replication, you must manually create the replication slot, enable the subscription, and refresh the subscription."})
 		return nil
 	}

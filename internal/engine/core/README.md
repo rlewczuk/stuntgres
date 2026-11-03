@@ -409,7 +409,7 @@ and clamps estimates. Its supported physical dead estimate is sampled under
 the captured storage authority; raw invisible versions are not presumed dead
 because birth frontiers also exclude live versions. Column-list reports retain
 modifications. Existing-object reports and completed function calls survive
-unrelated rollback. Journal-proven relation/function creations discarded by abort
+unrelated rollback. Journal-proven relation/function/subscription creations discarded by abort
 retire their category-qualified keys unless retained by a restored owner or
 statement checkpoint. Explicit existing/new object drops retire only on successful
 commit, after tuple settlement; direct catalog publication also retires its
@@ -436,6 +436,19 @@ acquisition and the leaf provider. Unconditional post-resource DrainStatistics
 cancels and joins callbacks outside locks, even without a Transaction attachment;
 Unregister force-drains after cleanup. Reader clear
 never publishes. Provider locking is a leaf beneath existing owner/engine locks.
+Replication statistics reset uses current EXECUTE admission and the cluster mutex.
+Named subscription OIDs search existing records in the actual owning providers,
+retaining each stored domain/epoch key independently of caller-private or committed
+catalog visibility. Provisional CREATE and staged DROP records remain eligible
+until their actual retirement boundary. NULL-all visits the same provider inventory
+using one microsecond timestamp. No projected record is created in another database.
+Targeted resets preserve global generations, unrelated categories, pending writer
+prefixes, throttles and retained readers, and survive transaction rollback.
+Subscription staging initializes its actual zero/NULL-reset shared entry only
+after successful creation. Unadopted stage discard and adopted journal retirement
+own provisional lifetime; drop waits for successful ordinary/direct/prepared
+publication. Native replacement seeds only selected-database restored subscriptions
+under fresh identities, leaving peer providers and retained captures unchanged.
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.
@@ -3023,6 +3036,8 @@ Held cursor store/producer ownership and replacement units share
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
+Replication reset expression, owner-routing, retained-reader and actual subscription
+lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share

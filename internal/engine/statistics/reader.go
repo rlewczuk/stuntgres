@@ -35,7 +35,7 @@ func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
 		return f
 	}
 	if r.full {
-		return Fact{ResetAt: r.reset, Generation: r.epoch}
+		return missingFact(k.Category, r.reset, r.epoch)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -49,7 +49,7 @@ func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
 		if f, ok := r.cache[k]; ok {
 			return f
 		}
-		return Fact{ResetAt: r.reset, Generation: r.epoch}
+		return missingFact(k.Category, r.reset, r.epoch)
 	}
 	if r.cache == nil {
 		r.cache = make(map[Key]Fact)

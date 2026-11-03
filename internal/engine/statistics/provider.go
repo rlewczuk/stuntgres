@@ -18,6 +18,8 @@ const (
 	Function
 	IO
 	WAL
+	ReplicationSlot
+	Subscription
 )
 
 type Fact struct {
@@ -28,6 +30,10 @@ type Fact struct {
 	VacuumTime, AnalyzeTime                                            time.Duration
 	Calls, Operations                                                  int64
 	TotalTime, SelfTime                                                time.Duration
+	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
+	ApplyErrorCount, SyncErrorCount int64
+	ConflInsertExists, ConflUpdateOriginDiffers, ConflUpdateExists, ConflUpdateMissing int64
+	ConflDeleteOriginDiffers, ConflDeleteMissing, ConflMultipleUniqueConflicts int64
 	ResetAt                                                            time.Time
 	Generation                                                         uint64
 }
@@ -46,7 +52,8 @@ type Provider struct {
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
 func (p *Provider) read(k Key) Fact {
 	f := p.facts[k]
-	f.ResetAt, f.Generation = p.reset, p.generation
+	f.Generation = p.generation
+	if !perEntryReset(k.Category) { f.ResetAt = p.reset }
 	return f
 }
 func (p *Provider) Reset(at time.Time) {
@@ -114,7 +121,7 @@ func (w *Writer) Add(p *Provider, k Key, f Fact) {
 		w.pending = make(map[Key]Fact)
 	}
 	previous := w.pending[k]
-	next := merge(previous, f)
+	next := mergeCategory(k.Category, previous, f)
 	// A truncate resets shared estimates at flush, but every already reportable
 	// insert in this writer batch still contributes to inserts-since-vacuum.
 	if f.Truncated {
@@ -136,7 +143,7 @@ func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 			if p.facts == nil {
 				p.facts = make(map[Key]Fact, len(w.pending))
 			}
-			next := merge(p.facts[k], f)
+			next := mergeCategory(k.Category, p.facts[k], f)
 			if next.Live < 0 {
 				next.Live = 0
 			}

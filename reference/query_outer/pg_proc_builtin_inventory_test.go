@@ -60,6 +60,8 @@ import (
 // BOOL declarations; only termination names pid/timeout and defaults timeout.
 // The two statistics-snapshot lifecycle declarations retain their released
 // zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
+// Replication statistics reset OIDs6170/6232 retain unnamed TEXT/OID inputs,
+// non-strict VOLATILE/parallel-safe VOID results and matching internal symbols.
 // Exported transaction snapshots add strict VOLATILE/parallel-unsafe OID3809,
 // with no inputs and a scalar TEXT result; strictness is pg_proc.h's default.
 // Callable registry lookups OIDs3476/3479/3492/3494 retain one unnamed TEXT
@@ -214,8 +216,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
 	// The selected network GIN family adds genuine macaddr8_cmp OID4119.
 	// Pending-list cleanup adds the genuine regclass->bigint declaration3789.
-	if len(facts) != 2213 {
-		t.Fatalf("released represented overloads: got %d, want 2213", len(facts))
+	// Replication statistics reset adds the released non-strict VOLATILE/
+	// parallel-safe TEXT/OID->VOID declarations6170/6232 with unnamed inputs.
+	if len(facts) != 2215 {
+		t.Fatalf("released represented overloads: got %d, want 2215", len(facts))
 	}
 	return facts
 }

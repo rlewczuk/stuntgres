@@ -185,6 +185,9 @@ restricted seed. Untyped or widened catalog updates do not acquire this replay
 capability.
 The WAL-position restricted roster follows this exact identity/provider/owner
 comparison too; changed, raw-NULL and explicit-empty ACLs always require repair.
+The replication statistics reset roster uses the same exact raw-seed comparison.
+Default PUBLIC EXECUTE from raw NULL must never be mistaken for owner-only
+bootstrap; modified grants and grant options retain ordered principal remapping.
 Stateless WAL builtins add no physical WAL or restore-marker serialization.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.

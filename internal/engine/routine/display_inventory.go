@@ -1613,6 +1613,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	2034: {Language: catalog.InternalRoutineLanguage, Source: "pg_conf_load_time"},
 	3788: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_snapshot_timestamp"},
 	2230: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_clear_snapshot"},
+	6170: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_reset_replication_slot"},
+	6232: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_reset_subscription_stats"},
 	2196: {Language: catalog.InternalRoutineLanguage, Source: "inet_client_addr"},
 	2197: {Language: catalog.InternalRoutineLanguage, Source: "inet_client_port"},
 	2198: {Language: catalog.InternalRoutineLanguage, Source: "inet_server_addr"},

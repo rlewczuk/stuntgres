@@ -50,6 +50,8 @@ func statsObjectCategory(address ids.ObjectAddress) (statistics.Category, bool) 
 		return statistics.Relation, true
 	case ids.ProcedureClassID:
 		return statistics.Function, true
+	case ids.SubscriptionClassID:
+		return statistics.Subscription, true
 	default:
 		return 0, false
 	}

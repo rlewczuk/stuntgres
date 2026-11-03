@@ -2,8 +2,20 @@
 
 `Provider` belongs to one database engine and publishes copied `Fact` values,
 keyed by domain/epoch-qualified object identity and category. Its mutex is a leaf:
-no engine, settings, session, callback or I/O operation runs beneath it. Reset
-atomically advances the reset generation; old pending batches cannot cross it.
+no engine, settings, session, callback or I/O operation runs beneath it. Full
+`Reset` advances the reset generation; old pending batches cannot cross it.
+Targeted `ResetEntry`/`ResetCategory` and `ResetSubscriptionOID` instead change only
+existing replication-slot or subscription counters and per-entry `ResetAt`, never
+generation, global reset time, tombstones or pending ownership. Missing keys/OIDs
+do not allocate. OID reset scans the existing leaf map for a complete subscription
+address/category and updates the original stored domain/epoch key; catalog
+visibility is not a reset prerequisite. Creation initializes records immediately,
+while staged DROP retains them until commit and creation abort retires them.
+There is no parallel OID registry or projection-owned statistics copy. Legacy
+categories retain their database reset timestamp; absent per-entry categories have
+NULL reset timestamps, including in retained full snapshots. `EnsureSubscription`
+is reserved for actual admitted creation, never a reset/read. Category merges add
+pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
 A physical session owns one `Writer`, serialized by transaction admission. Policy
@@ -25,9 +37,9 @@ subtracts active current I/U/D and generation-valid pending dead estimates from
 its raw sample, never saved pre-truncate counters or pending committed live.
 Column-list ANALYZE retains modifications; full ANALYZE resets them. VACUUM
 resets shared inserts-since-vacuum only. Existing-object reports survive abort.
-New private-object reports are immediately owner-readable. Relation and function
-creations discarded by abort retire their exact category-qualified keys; explicit
-drops retire on successful commit, including existing objects and direct/prepared
+New private-object reports are immediately owner-readable. Relation, function and
+subscription creations discarded by abort retire their exact category-qualified
+keys; explicit drops retire on successful commit, including existing objects and direct/prepared
 publication. Rolled-back drops, live compatible replacements and creations owned
 by either restored savepoint/statement journal retain their facts. Completed calls
 on existing functions survive unrelated rollback. Settlement precedes retirement.
@@ -68,7 +80,7 @@ cancels obsolete retries. Session end invalidates and joins callbacks outside
 locks, then force-drains after transaction cleanup. Truncate resets shared
 live/dead/since, not historical attempts; every reported insert in the coalesced
 batch still contributes to since-vacuum. Reads/clear never flush. There is no
-periodic worker, polling loop or SQL force-flush/reset builtin.
+periodic worker, polling loop or SQL force-flush helper.
 
 A transaction owns one `Reader`. `none` reads published facts, `cache` retains
 whole accessed objects (including missing entries), and `snapshot` coherently

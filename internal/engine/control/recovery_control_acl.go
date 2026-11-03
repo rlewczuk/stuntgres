@@ -8,9 +8,9 @@ import (
 )
 
 // Omit only exact raw authority recreated by restricted-routine bootstrap.
-// Recovery/origin raw NULL, empty ACLs and modified identities require repair.
+// Raw NULL, empty ACLs and modified identities require repair.
 func recoveryControlACLReconstructed(p *catalog.Procedure, bootstrap authorization.PrincipalRef) bool {
-	if p.Address().ClassID != ids.ProcedureClassID || p.Address().SubID != 0 || !(routine.RestrictedRecoveryControlRoutine(p.Address().ObjectID) || routine.RestrictedReplicationOriginRoutine(p.Address().ObjectID)) || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(p.Address().ObjectID) || p.Owner != bootstrap || p.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+	if p.Address().ClassID != ids.ProcedureClassID || p.Address().SubID != 0 || !(routine.RestrictedStatsResetRoutine(p.Address().ObjectID) || routine.RestrictedRecoveryControlRoutine(p.Address().ObjectID) || routine.RestrictedReplicationOriginRoutine(p.Address().ObjectID)) || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(p.Address().ObjectID) || p.Owner != bootstrap || p.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 		return false
 	}
 	identity := p.Builtin.Identity

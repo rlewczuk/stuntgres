@@ -78,6 +78,13 @@ func (c *Context) StatsSnapshotValue(clear bool, result *sqltype.Descriptor) (sq
 	return host.StatsSnapshotValue(clear, result)
 }
 
+func (c *Context) StatsResetReplication(kind functions.StatsResetReplicationKind, argument sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
+	host := c.LiveHost()
+	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: replication statistics reset lacks statement authority") }
+	return host.StatsResetReplication(kind, argument, result)
+}
+
 var _ functions.TriggerDepthRuntime = (*Context)(nil)
 
 func (c *Context) TriggerDepthValue(result *sqltype.Descriptor) (sqltype.Value, error) {

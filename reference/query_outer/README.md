@@ -121,6 +121,9 @@ The two session-signaling declarations add released OIDs2096/2171 with strict,
 VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`
 inputs and a trailing default. Exact membership and every direct/prepared
 property projection include both executable owners.
+Replication statistics reset retains released OIDs6170/6232, unnamed TEXT/OID
+inputs and non-strict VOLATILE/parallel-safe VOID results. Exact membership and
+all 28 direct/prepared property projections include both executable declarations.
 Relation statistics restore/clear adds released OIDs6362/6397, non-strict
 VOLATILE/parallel-unsafe BOOL/VOID signatures, kwargs and two text input names,
 and restore's `{v}` modes with NULL all-argument types. Membership and complete

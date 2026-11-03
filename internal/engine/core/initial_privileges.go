@@ -35,7 +35,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			capture(address, d.ACL)
 		case *catalog.Procedure:
 			// Restricted builtin declarations encode the released REVOKE/GRANTs.
-			if routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 {
+			if routine.RestrictedStatsResetRoutine(address.ObjectID) || routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 {
 				capture(address, d.ACL)
 			}
 		case *catalog.Relation:
@@ -78,6 +78,10 @@ func (e *Engine) initializeInitialPrivileges() error {
 		visit(address, state.Get(address))
 	}
 	for oid := range routine.RestrictedRecoveryControlRoutines() {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+		visit(address, state.Get(address))
+	}
+	for oid := range routine.RestrictedStatsResetRoutines() {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}

@@ -95,6 +95,7 @@ type CatalogStage struct {
 	AuthSession        *session.Session
 	statement          *StatementScope
 	replicationOrigins []ids.OID
+	subscriptionStats []statistics.Key // Provisional creations until stage adoption.
 	AuthRevision       uint64
 	RoleRevision       uint64
 	// Selected lifecycle stages retain their original admission only until the
@@ -1055,9 +1056,11 @@ func extensionMaterializedViewsCurrent(s *CatalogStage, current *catalog.State) 
 func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	if s != nil && s.Owner == e && s.Lifecycle != catalogPublished {
 		s.Lifecycle = catalogDiscarded
-		if len(s.replicationOrigins) != 0 {
+		if len(s.replicationOrigins) != 0 || len(s.subscriptionStats) != 0 {
 			e.Mu.Lock()
 			e.releaseStageReplicationOriginsLocked(s)
+			for _, key := range s.subscriptionStats { e.Statistics.Retire(key) }
+			s.subscriptionStats = nil
 			e.Mu.Unlock()
 		}
 	}

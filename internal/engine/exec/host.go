@@ -106,6 +106,7 @@ type Host interface {
 	// functions.SessionSignalRuntime
 	SessionSignalValue(*Context, functions.SessionSignalKind, int64, int64, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsSnapshotValue(bool, *sqltype.Descriptor) (sqltype.Value, error)
+	StatsResetReplication(functions.StatsResetReplicationKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TriggerDepthRuntime
 	TriggerDepthValue(*sqltype.Descriptor) (sqltype.Value, error)
 	// Capability groups (host_capabilities.go). Each accessor converts the

@@ -26,6 +26,11 @@ func (e *Engine) replaceStatsLocked(next *catalog.State, relations map[ids.Objec
 		}
 		facts[key] = fact
 	}
+	for address, subscription := range e.Catalog.Read(next).Subscriptions() {
+		if subscription.Database == e.Catalog.DatabaseAddress() {
+			facts[statistics.Key{Object: e.Catalog.Domain.Ref(oldEpoch+1, address), Category: statistics.Subscription}] = statistics.Fact{}
+		}
+	}
 	e.Statistics.Replace(time.Now().UTC().Truncate(time.Microsecond), facts)
 	// CREATE DATABASE copies its template into an unregistered runtime. It has
 	// neither a cluster nor a published database identity/history to clear yet.

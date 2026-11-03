@@ -406,6 +406,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Snapshot inquiry forwards to the admitted host's immutable public value,
   selected together with the tuple frontier, never sampled during Eval.
   Immutable expression nodes and prepared descriptors retain no runtime owner.
+  Replication statistics reset forwards its typed kind and current operand through
+  `LiveHost` after ordinary mutable routine admission, including NULL-all calls.
+  The bridge retains no engine/provider, privilege decision or reset timestamp.
   Session activity forwards through `LiveHost`: FETCH borrows its current client
   source without replacing or depending on the cursor's clock snapshots.
   Neither source nor live session authority enters `CursorExpressionData`.

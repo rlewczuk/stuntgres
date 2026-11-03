@@ -269,6 +269,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	procedures := routine.BuiltinProcedures(bootstrap)
 	routine.SeedGenericFileACLs(procedures, bootstrap, principals.LookupRef("pg_monitor"))
 	routine.SeedRecoveryControlACLs(procedures, bootstrap)
+	routine.SeedStatsResetACLs(procedures, bootstrap)
 	routine.SeedServerSignalACLs(procedures, bootstrap)
 	routine.SeedReplicationOriginACLs(procedures, bootstrap)
 	routine.SeedWALPositionACLs(procedures, bootstrap)

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/statistics"
 )
 
 // Cluster-shared identities reserve beyond every database's frontier. The
@@ -22,6 +23,15 @@ func (h DDLHost) AllocateSharedOID() (ids.OID, error) {
 	return oid, nil
 }
 func (h DDLHost) SubscriptionInBlock() bool { return h.Op.Session.Transactions.InBlock() }
+
+// Creation establishes shared statistics immediately, while the descriptor stays
+// private. Stage discard or the adopted journal owns exact-key retirement.
+func (h DDLHost) InitializeSubscriptionStatistics(d *catalog.Subscription) {
+	if d.Database != h.E.Catalog.DatabaseAddress() { return }
+	key := statistics.Key{Object: h.E.Catalog.Domain.Ref(h.StageRead().Epoch(), d.Address()), Category: statistics.Subscription}
+	h.E.Statistics.EnsureSubscription(key)
+	h.CatalogStage.subscriptionStats = append(h.CatalogStage.subscriptionStats, key)
+}
 
 // Portable replay creates registrations; replacement remints both the catalog
 // address and the allocated main origin against retained peers and live claims.

@@ -29,6 +29,10 @@ transaction and routine lifetimes, list selection and the physical boundary.
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+Replication statistics reset scalar metadata, diagnostics, mutable EXECUTE,
+cross-database subscription identities and native ACL controls use
+`RUN='^TestReferenceStatsResetReplication'` in both fixture modes.
+
 Setting-flag metadata and option-array expansion use
 `RUN='^TestReferenceSettingsOptions'` in both modes. Shared physical-session and
 held-call helpers witness noncreating live placeholder recognition, independent

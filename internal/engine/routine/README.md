@@ -210,6 +210,14 @@ preserves explicitly replaced raw NULL ACLs rather than reapplying restrictions.
 Only exact restricted identity, bootstrap owner and one ordered owner-EXECUTE
 entry are omitted as reconstructed authority; untouched seeds add no dump repairs.
 
+`SeedStatsResetACLs` installs owner-only EXECUTE for the two nonstrict replication
+statistics reset declarations before initial-privilege capture. Their exact
+TEXT/OID inputs, VOID result and volatile/parallel-safe metadata belong to the
+ordinary inventory. Mutable grants, revokes and inherited membership govern
+execution; neither subscription ownership nor replication attributes bypass ACLs.
+Native replay preserves raw NULL, explicit-empty and modified grants separately
+from the exact bootstrap owner-only seed.
+
 `SeedReplicationOriginACLs` installs the five released owner-only EXECUTE seeds
 before initial-privilege capture. Their unnamed strict scalar declarations retain
 exact fixed OIDs, formals and results; only lookup is STABLE/parallel-safe.

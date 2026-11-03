@@ -8,6 +8,13 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`StatsResetReplication` owns one immutable typed TEXT/OID operand and its ordinary
+catalog routine identity. Both kinds are nonstrict, volatile scalar VOID calls:
+NULL reaches current EXECUTE admission and reset-all runtime rather than folding
+to NULL. Reconstruction, rendering, capture and stored-provider validation retain
+no target, session, provider or permission decision. Prepare/Describe never calls
+the `StatsResetReplicationRuntime` bridge.
+
 `PgStatStatements` binds only genuine stock installed declarations. The Boolean
 showtext SRF has the released 52-column RECORD shape; the info scalar has two
 OUT fields. STRICT NULL returns no SRF rows without borrowing runtime authority.
