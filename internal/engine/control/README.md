@@ -996,6 +996,9 @@ candidate, these owning operations retain the engine's error contracts:
    `CompatibleInstallationIdentities`, `ReplacementCollisionMapping`,
    `RemapReplacementIdentities` (`persistent_replacement.go`,
    `installation_identity.go`, `temporary_*.go`, `replacement_remap*.go`).
+   A retained builtin closes over its builtin generation peers
+   (`sqltype.BuiltinGenerationPeers`), so the candidate publishes one generation
+   for every descriptor link that bound operations check by identity.
    A retained catalog-only NULL composite closes over its actual member types
    and companion array. Otherwise type reownership rebuilds the fixed description
    against the candidate's current member generations, preserving old captures.

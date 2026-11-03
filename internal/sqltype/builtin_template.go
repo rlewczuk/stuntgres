@@ -1,6 +1,9 @@
 package sqltype
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 // builtinTemplate is one builtin generation built from the compiled tables,
 // with each descriptor's position. Builtins copies it: every descriptor
@@ -9,6 +12,7 @@ import "sync"
 type builtinTemplate struct {
 	types    []*Descriptor
 	position map[*Descriptor]int
+	peers    map[ID][]ID
 }
 
 var builtins = sync.OnceValue(func() builtinTemplate {
@@ -20,8 +24,37 @@ var builtins = sync.OnceValue(func() builtinTemplate {
 		}
 		t.position[d] = i
 	}
+	links := make(map[ID]map[ID]bool)
+	link := func(a, b ID) {
+		if links[a] == nil {
+			links[a] = make(map[ID]bool)
+		}
+		links[a][b] = true
+	}
+	for _, d := range t.types {
+		for _, p := range d.descriptorPointers() {
+			if target := *p; target != nil && target != d {
+				link(d.id, target.id)
+				link(target.id, d.id)
+			}
+		}
+	}
+	t.peers = make(map[ID][]ID, len(links))
+	for id, set := range links {
+		for peer := range set {
+			t.peers[id] = append(t.peers[id], peer)
+		}
+		slices.Sort(t.peers[id])
+	}
 	return t
 })
+
+// BuiltinGenerationPeers returns the IDs of the builtin types whose
+// descriptors point to builtin id, or that id points to, in every builtin
+// generation. Bound operations check these links by descriptor identity, so a
+// catalog that keeps one generation's descriptor must keep its peers too.
+// The result is shared and must not be modified.
+func BuiltinGenerationPeers(id ID) []ID { return builtins().peers[id] }
 
 // cloneBuiltins returns a fresh generation equal to buildBuiltins(): one copy
 // of each template descriptor whose descriptor pointers are moved to the

@@ -15,7 +15,9 @@ import (
 // use: column types, the result types of their defaults, checks, policies,
 // generations, index keys and predicates, view queries, literals and casts,
 // and every column of an exact captured immutable catalog provider a temporary
-// view reads, independently of dependency pinning.
+// view reads, independently of dependency pinning. A retained builtin keeps
+// its builtin generation peers (sqltype.BuiltinGenerationPeers) too, so bound
+// operations that check linked descriptors by identity see one generation.
 // Imported columns and values are reowned later, never temporary rows. It
 // reports whether it changed next.
 // This candidate-only phase precedes CheckTemporaryDependencies so full policy
@@ -51,6 +53,11 @@ func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temp
 		if source.Array != 0 {
 			if array, ok := current.State().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.Array)}); ok {
 				retainBuiltin(array.SQLType)
+			}
+		}
+		for _, id := range sqltype.BuiltinGenerationPeers(typ.ID()) {
+			if peer, ok := current.State().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}); ok {
+				retainBuiltin(peer.SQLType)
 			}
 		}
 	}

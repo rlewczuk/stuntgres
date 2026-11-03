@@ -68,3 +68,35 @@ func TestBuiltinsCopyTemplate(t *testing.T) {
 		t.Fatal("ranking/headline companions escaped the cloned generation")
 	}
 }
+
+// Generation peers are the symmetric closure of builtin descriptor links.
+func TestBuiltinGenerationPeers(t *testing.T) {
+	linked := func(a, b ID) bool {
+		for _, id := range BuiltinGenerationPeers(a) {
+			if id == b {
+				return true
+			}
+		}
+		return false
+	}
+	for _, d := range builtins().types {
+		for _, p := range d.descriptorPointers() {
+			if target := *p; target != nil && target != d && (!linked(d.id, target.id) || !linked(target.id, d.id)) {
+				t.Fatalf("%s and %s are not generation peers", d.Name(), target.Name())
+			}
+		}
+		for _, id := range BuiltinGenerationPeers(d.id) {
+			if id == d.id || !linked(id, d.id) {
+				t.Fatalf("%s peer %d is a self or one-way link", d.Name(), id)
+			}
+		}
+	}
+	for _, pair := range [][2]ID{{TSVector, TSQuery}, {TSVector, Text}, {TSQuery, Bool}, {Bool, Point}, {Int4Range, Bool}, {Int4, 1007}} {
+		if !linked(pair[0], pair[1]) {
+			t.Fatal("missing generation peer", pair)
+		}
+	}
+	if linked(TSVector, Int8) {
+		t.Fatal("unlinked builtins became peers")
+	}
+}
