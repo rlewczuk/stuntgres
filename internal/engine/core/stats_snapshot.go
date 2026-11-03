@@ -51,6 +51,10 @@ func (r *catalogRuntime) relationStatistics(address ids.ObjectAddress) statistic
 	}
 	return reader.Read(&r.engine.Statistics, key, now)
 }
+func (r *catalogRuntime) TableBlockStatistics(address ids.ObjectAddress) pgcatalog.IndexBlockFact {
+	f := r.relationStatistics(address)
+	return pgcatalog.IndexBlockFact{Read: f.BlocksFetched - f.BlocksHit, Hit: f.BlocksHit}
+}
 func (r *catalogRuntime) IndexBlockStatistics(address ids.ObjectAddress) pgcatalog.IndexBlockFact {
 	f := r.relationStatistics(address)
 	return pgcatalog.IndexBlockFact{Read: f.IndexBlocksRead, Hit: f.IndexBlocksHit}

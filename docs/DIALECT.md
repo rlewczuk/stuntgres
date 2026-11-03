@@ -69,6 +69,28 @@ recovery and shared-library C ABI loading are external mechanisms. Logical
 controls preserve killed-row absence and persistent SQL identities, not physical
 corruption or live session/transaction resources.
 
+## Table block monitoring
+
+`pg_catalog.pg_statio_all_tables` has exactly the eleven released PostgreSQL 18
+columns, typed OID/NAME/NAME followed by eight INT8 counters, with nullable
+attribute metadata. Membership and identities are exact represented r/t/m
+relations, not a guessed physical bootstrap inventory; ordinary partition leaves,
+unlogged, materialized and other-session TEMP objects are included. The view is
+PUBLIC-readable by default with its own ordinary ACL, no underlying table/schema
+privilege filtering or RLS redaction, and normal non-updatable-view diagnostics.
+
+Only block counters are approximate: published heap fetched/hit F/H projects to
+`F-H,H`; actual nonempty source Opens currently add one resident logical request
+to both, hence `0,N`. Table index counts sum existing real index provider facts,
+not generic heap requests. No indexes means NULL SUMs; existing unused indexes
+mean numeric zero. Absent native TOAST means SQL NULL for both direct counters
+and empty TOAST index sums, never invented storage identities. Only a valid
+relation with no statistics defaults to zero. Physical disk/cache, byte/page
+sizing, WAL and TOAST storage are not implemented by this monitoring projection.
+Shared counts policy, publication and transaction Reader modes remain unchanged.
+User/sys table-statio SQL companions are staged separately; this all-view uses
+the exact released namespace partition without creating aliases or stubs.
+
 ## Index monitoring
 
 `pg_catalog.pg_stat_all_indexes` exposes exactly the PostgreSQL 18 nine-column

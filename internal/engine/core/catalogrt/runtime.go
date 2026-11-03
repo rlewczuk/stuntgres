@@ -58,6 +58,7 @@ type Host interface {
 	ValidateParameter(catalog.Read, *catalog.Parameter) error
 	Maintenance(ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool)
 	TableStatistics(ids.ObjectAddress) pgcatalog.MaintenanceFact
+	TableBlockStatistics(ids.ObjectAddress) pgcatalog.IndexBlockFact
 	SequenceIOStatistics(ids.ObjectAddress) int64
 	IndexStatistics(ids.ObjectAddress) pgcatalog.IndexStatisticsFact
 	IndexBlockStatistics(ids.ObjectAddress) pgcatalog.IndexBlockFact

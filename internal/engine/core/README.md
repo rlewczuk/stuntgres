@@ -1744,6 +1744,27 @@ Provider cursors contain detached scalar snapshots and lazily synthesize unused
 slots with all eight unavailable fields NULL; no source/session/catalog root
 escapes in a row.
 
+### Table block projection
+
+`catalogRuntime.TableBlockStatistics` reads the qualified relation Fact once
+through the existing transaction Reader and returns `(BlocksFetched-BlocksHit,
+BlocksHit)`. `pg_statio_all_tables` shares current authorization/settings capture
+with the other monitoring sources, not prepared evaluated rows. No collector,
+cache, pending-write readback, forced flush or source-specific snapshot is added.
+The existing actual-work sourceRead lease records one fetched and resident hit
+per reached nonempty invocation, including private/TEMP sources independently
+of shared-buffer eligibility. Thus N published requests give heap `(0,N)`,
+not first-read-cold arithmetic, tuple counts or physical page estimates.
+Its index aggregate sums existing per-index read/hit projections once per real
+parent relationship. No indexes yields NULL, unused real indexes zero. With no
+TOAST relation, both direct toast and tidx counters are NULL; no fake descriptors
+are added. Zero defaults apply to valid relation identities without statistics.
+Counts gating, timing independence, idle throttle, physical-session drain,
+Reader clear/cache/snapshot and retirement remain their existing owners.
+`TestStatioAllTablesReader` composes real source Opens, publication, reader modes,
+clear, policy gating and private/TEMP identity lifetimes; it also supplies
+F7/H5 to independently prove heap subtraction is not hard-coded zero.
+
 ### Index block counters
 
 The selected `pg_statio_all_indexes` source enumerates actual SQLIndex-parent

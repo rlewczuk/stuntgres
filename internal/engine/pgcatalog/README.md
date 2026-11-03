@@ -1025,6 +1025,23 @@ not the adjacent table-statistics specs. Core captures its current authorization
 and effective settings alongside the catalog/role roots so the shared session
 statistics Reader, including snapshot/cache policy, remains authoritative.
 
+`pg_statio_all_tables` (12174) is registered between the table-statistics and
+index-statistics producers in numeric lookup order. Its descriptor links the
+existing row type12176/array12175 rather than minting another pair. The pure
+producer walks actual Relations, captures SQLIndex parent relationships once,
+admits only ClassKind r/t/m, and rejects identity/schema/name keys before any
+Reader demand. Eleven nullable attributes retain exact released types,
+collations, typmods and origins. Heap projection delegates to TableBlockStatistics;
+index sums use the existing IndexBlockStatistics through that same Reader.
+Empty index sums and absent direct TOAST counters are typed NULL. A missing
+TOAST identity reaches strict functions as NULL, unlike missing statistics for
+a valid relation, which default to numeric zero. There is no TOAST descriptor
+synthesis or underlying ACL filter.
+Structured released view metadata supplies definitions and read-only behavior.
+The all-view alone is installed; named table companions are separate parts.
+Unit arithmetic/membership/filter proof: `TestStatioAllTablesProjection`; core
+reader/source ownership proof: `TestStatioAllTablesReader`.
+
 `pg_policy` (3256) is a physical eight-column source over immutable
 `Relation.Security.Policies`. Capture validates the exact source, captured type
 generations and paired principal authority even for an empty catalog. It

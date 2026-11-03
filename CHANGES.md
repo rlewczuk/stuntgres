@@ -1,5 +1,20 @@
 # Changes
 
+- Add exactly the eleven-column PostgreSQL 18 `pg_catalog.pg_statio_all_tables`
+  view with existing row/array identities, PUBLIC SELECT, ordinary read-only
+  diagnostics and exact represented r/t/m membership without parent privilege
+  filtering. Project heap `(F-H,H)` from the shared published relation facts and
+  sum existing real index read/hit facts through the same transaction Reader;
+  no new collector, cache or physical I/O subsystem. Empty index sums are NULL;
+  absent direct TOAST and empty tidx are NULL, with no invented storage.
+  Preserve publication, counts policy, reader modes and qualified retirement.
+  Document logical rather than physical counters and separately staged native
+  user/sys companions; add internal and public dual-mode feature/smoke coverage
+  without changing the pinned PostgreSQL 18.6 fixture. Normalize the exact absent
+  TOAST OID witness through the shared typed fixture, keep ordinary pre-canceled
+  request assertions native-only, and restore view ACLs before dropping private
+  schema ACL dependencies and their role.
+
 - Add the nine-column typed, read-only `pg_catalog.pg_stat_all_indexes` view on
   the shared cumulative provider/Reader, exposing actual index/parent identities
   without parent privilege filtering or field redaction. Attribute searches,

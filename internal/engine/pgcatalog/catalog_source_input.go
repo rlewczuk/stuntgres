@@ -94,7 +94,7 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{AttributeRelationColumn}
 	case ClassOID:
 		return []int{ClassOIDColumn, ClassNameColumn}
-	case StatAllTablesOID:
+	case StatAllTablesOID, StatioAllTablesOID:
 		return []int{0, 1, 2}
 	case StatSysTablesOID, StatUserTablesOID, StatioAllSequencesOID, StatioSysSequencesOID, StatioUserSequencesOID:
 		return []int{0, 2}
@@ -200,6 +200,7 @@ type Runtime interface {
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	Maintenance(ids.ObjectAddress) (MaintenanceFact, bool)
 	TableStatistics(ids.ObjectAddress) MaintenanceFact
+	TableBlockStatistics(ids.ObjectAddress) IndexBlockFact
 	SequenceIOStatistics(ids.ObjectAddress) int64
 	IndexStatistics(ids.ObjectAddress) IndexStatisticsFact
 	IndexBlockStatistics(ids.ObjectAddress) IndexBlockFact

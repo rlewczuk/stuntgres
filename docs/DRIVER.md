@@ -525,6 +525,46 @@ invalidates that seal, requires ordinary historical FK validation and atomically
 rejects invalid replay. No killed TID authority, private/prepared writes, GIDs,
 locks, waiters or executable handles are serialized.
 
+`pg_catalog.pg_statio_all_tables` is the PUBLIC-readable, read-only PostgreSQL
+18.6 eleven-column view: `relid oid`, `schemaname name`, `relname name`, then
+`heap_blks_read`, `heap_blks_hit`, `idx_blks_read`, `idx_blks_hit`,
+`toast_blks_read`, `toast_blks_hit`, `tidx_blks_read`, `tidx_blks_hit` (all bigint).
+All attributes have nullable metadata; actual identities and heap counters are
+non-NULL. Rows are actual represented r/t/m relations, including materialized,
+unlogged, ordinary partition leaves and other-session TEMP objects. Partitioned
+parents, indexes, foreign tables, views, sequences and standalone composites are
+excluded. No underlying-table ACL, RLS, schema-USAGE or owner filter/redaction
+applies; the view's own SELECT ACL remains effective on every execution.
+I/U/D reject with 55000 and full non-updatable-view DETAIL/HINT; TRUNCATE and
+streamed COPY FROM reject with 42809. No portable row order without ORDER BY.
+
+These block counts are **simulated logical requests**, not physical bytes/pages:
+with published relation fetched/hit facts F/H, heap is `(F-H,H)`. Each actual
+reached nonempty source Open currently adds `(F,H)=(1,1)`, so N such requests
+give `(heap_read,heap_hit)=(0,N)`, independent of tuple width or row count.
+Prepare, metadata/statistics inspection and empty unreached storage add nothing.
+Index counters sum the existing per-index representative-page read/hit facts
+over each actual SQLIndex parent relationship once, using the same transaction
+Reader as `pg_statio_all_indexes`. No index gives SQL NULL/NULL (empty SUM);
+existing unused indexes contribute numeric zero. There is no native TOAST
+facility: absent direct toast counters and empty tidx sums are SQL NULL. The
+released left join passes a NULL TOAST identity to strict statistics functions;
+zero denotes missing statistics for a valid relation, not a missing relation.
+Large strings do not manufacture TOAST objects or derive counters from parent storage.
+
+The shared writer publication, track_counts gate, none/cache/snapshot Reader,
+clear-snapshot and qualified retirement remain unchanged; reads never force a
+flush or disclose pending private batches. Timing switches do not gate counts.
+Rename/schema movement preserves history, drop/recreate does not, and native
+Dump/Reset/Restore does not serialize monitoring history. Exactly the all-table
+statio view is installed here; named user/sys companions are separate coordinated
+parts. Its rows partition by `pg_catalog`, `information_schema`, or case-sensitive
+prefix `pg_toast` for system, and the complement for user, without new SQL names.
+Selected public proof:
+`make check RUN='^TestReferencePGStatioAllTables(Shape|Membership|Counters|Snapshots|Privileges|Lifecycle|Diagnostics|FeatureSmoke)$'`
+(also `REFERENCE=1` for the pinned PostgreSQL 18.6 fixture). The executable quiet
+smoke is `make check RUN='^TestReferencePGStatioAllTablesFeatureSmoke$'` in both modes.
+
 `pg_catalog.pg_statio_all_indexes` exposes exactly seven PostgreSQL 18.6 columns:
 `relid oid`, `indexrelid oid`, `schemaname name`, `relname name`,
 `indexrelname name`, `idx_blks_read bigint`, and `idx_blks_hit bigint`.

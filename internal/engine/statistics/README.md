@@ -188,6 +188,22 @@ copies cover both fields without another provider or lifetime registry.
 `pg_statio_all_indexes` discloses cumulative identities/counts independently of
 underlying-object ACL; only the selected view's own SELECT ACL is checked.
 
+`pg_statio_all_tables` is a pure shared-provider consumer, not another event path.
+For the actual table's published BlocksFetched/BlocksHit F/H it returns heap
+`(F-H,H)`. The resident logical-source model currently records `(1,1)` per
+qualifying nonempty Open, hence `(0,N)` after N requests; rows/width do not scale
+it and metadata/Prepare do not count. TEMP/private generic requests retain their
+existing eligibility independently of index-cache exclusion. Existing real
+index-child facts sum once per parent; empty SUM is NULL/NULL, existing zero
+facts are numeric zero. There is no TOAST collector/facility: absent direct
+toast and empty tidx aggregates are SQL NULL, not parent-derived estimates.
+Missing statistics for a valid relation default to zero; a missing TOAST
+identity instead yields NULL through the released strict direct functions.
+All consumers share the same Reader, settings generation, publication throttle,
+drain and qualified tombstones. Monitoring reads do not force publication or
+expose the current writer's pending batch. Only counts gates collection; timing
+does not. Physical pages/bytes/cache behavior remain outside this projection.
+
 Bulk population captures policy and attempts at staging. Existing overlay
 acceptance transfers private estimates into the statement write ledger; successful direct
 utility publication releases committed estimates without changing its physical
