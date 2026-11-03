@@ -43,10 +43,10 @@ func TestPGStatSLRUInitialization(t *testing.T) {
 		if got.ResetAt.Before(lower) || got.ResetAt.After(upper) || got.ResetAt.Location() != time.UTC || got.ResetAt.Nanosecond()%1000 != 0 || got != (statistics.SLRUFact{ResetAt: family[0].ResetAt}) { t.Fatal("genuine startup without physical activity", got, lower, upper) }
 	}
 	for k := statistics.SharedKind(0); k < statistics.SharedKindCount; k++ {
-		if k == statistics.Archiver {
+		if k == statistics.Archiver || k == statistics.BGWriter {
 			started := time.UnixMicro(e.Cluster.StartedAt + 946684800000000).UTC()
 			if got := e.Statistics.ReadShared(k); got != (statistics.SharedFact{ResetAt: started}) {
-				t.Fatal("archiver startup must contain only genuine cluster reset", got, started)
+				t.Fatal("cluster family startup must contain only genuine reset metadata", k, got, started)
 			}
 			continue
 		}

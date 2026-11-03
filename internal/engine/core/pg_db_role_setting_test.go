@@ -166,7 +166,7 @@ func TestRoleSettingsPopulatedCatalogCapture(t *testing.T) {
 	}
 	capture := func(scope *core.StatementScope) *exec.Source {
 		e.Mu.Lock()
-		rows, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d)
+		rows, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d, nil)
 		// The real capture owner consumes Engine.Mu.
 		if err != nil || rows == nil || rows.Ref != ref || rows.Anonymous == nil {
 			t.Fatal("populated capture", rows, err)

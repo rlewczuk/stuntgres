@@ -1,7 +1,7 @@
 # Statistics reference scenarios
 
 This bounded feature package owns public SQL scenarios for the seven-column
-cluster archiver, nine-column `pg_stat_all_indexes` and 30-column
+cluster archiver, four-column cluster bgwriter, nine-column `pg_stat_all_indexes` and 30-column
 `pg_stat_all_tables` views. All Go tests are untagged external tests using public
 stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
@@ -66,10 +66,42 @@ monitoring history.
 Positive internally published events and cross-family private backing are
 supplementary composed/producer tests, not a public physical archive facility.
 
+Bgwriter scenarios additionally distinguish scalar getter demand from singleton
+presence and constant-false evaluation. Current per-column SELECT and per-getter
+EXECUTE remain separate from Reader ownership, including held statements.
+`TestReferencePGStatBGWriterQueryAdmission` denies a later occurrence's reset getter
+before an earlier permitted occurrence can establish a snapshot, with empty and
+retained cache/snapshot cuts, ordinary invokers, grant/revoke and held reexecution.
+Peer resets and positive retained rows distinguish preservation from clearing.
+`TestReferencePGStatBGWriterAggregateDemand` requires typed singleton zero from
+`count(buffers_clean) WHERE FALSE` without cumulative access, while retaining its
+getter EXECUTE check. Presence-only `count(*)` and TRUE/count-one controls keep
+cardinality, permission demand and actual Reader demand separate.
+Peer getter-ACL changes commit before the consumer's BEGIN. Denied epochs seed a
+retained family through a still-permitted sibling (`buffers_clean` for reset-getter
+denial, `stats_reset` for clean-getter denial), then use savepoint recovery to inspect
+the unchanged cut. Separate granted epochs prove allowed FALSE/count-zero and
+TRUE/count-one behavior. The same held statement survives deny/grant/deny transaction
+boundaries; these scenarios do not assume peer ACL invalidations refresh catalog
+tuples behind locks already held within a consumer transaction.
+Native counters are exact zero estimates without physical events; PostgreSQL
+physical counters may drift while reset instants, metadata, privileges and cached
+cuts stay exact. Four raw backing ACLs exercise the existing serializer/replay
+authority without exposing callable getters.
+
 ## Testing
 
-The archiver family uses `make check RUN='^TestReferencePGStatArchiver'` and
-the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
+The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|BGWriter)'`
+and the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
+
+Selected bgwriter admission/aggregate proofs (both modes are required):
+
+```sh
+make check RUN='^TestReferencePGStatBGWriter(QueryAdmission|AggregateDemand)$'
+make check REFERENCE=1 RUN='^TestReferencePGStatBGWriter(QueryAdmission|AggregateDemand)$'
+make check RUN='^TestPGStatBGWriter(QueryAdmission|ReaderAuthority|ConstantRejection)$'
+make check RACE=1 RUN='^TestPGStatBGWriter(QueryAdmission|ReaderAuthority|ConstantRejection)$'
+```
 
 Run all nine definitions in native and real pinned PostgreSQL modes:
 

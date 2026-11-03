@@ -37,7 +37,7 @@ func TestStatioSysTablesLiveCapture(t *testing.T) {
 			if err != nil || got != want { t.Fatal("independent nonzero heap formula", i, got, want, err) }
 		}
 		e.Mu.Lock()
-		captured, err := core.EngineOpenCatalogSourceLocked(e, scope, in.Ref, in.Source)
+		captured, err := core.EngineOpenCatalogSourceLocked(e, scope, in.Ref, in.Source, nil)
 		if err != nil { t.Fatal(err) }
 		defer captured.Close()
 		for _, row := range captured.Anonymous {

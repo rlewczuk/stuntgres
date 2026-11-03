@@ -66,6 +66,14 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
 - `KeepQuery.Keep` returns the producer row test for a leaf of the SELECT
   being captured (system relations with `pgcatalog.KeyColumns` only); nested
   view and policy captures number their occurrences separately.
+  `KeepQuery.BGWriterReadSuppressed` uses the same captured-leaf ownership guard
+  before the literal-only `exec.CatalogSourceFalse` proof. A proven direct false
+  input can pass through ordinary aggregates with no ordered-set direct arguments:
+  synthesized aggregate output does not demand input-source values. Identity reads,
+  subqueries and unsupported boundaries reject the proof. It suppresses only
+  cumulative bgwriter evaluation, never current getter ACLs, whose recursive
+  query-source admission finishes before any policy/source capture. Unmatched
+  nested queries and all other catalog-source policies stay unchanged.
 - `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links. It copies relation
   templates built once per process and sets this engine's owner, ACL and

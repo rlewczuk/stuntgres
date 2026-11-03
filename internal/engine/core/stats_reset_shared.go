@@ -54,8 +54,13 @@ func (h *statementHost) StatsResetShared(kind functions.StatsResetSharedKind, ar
 		}
 		e.resetBackendPIDLocked(pid, at)
 	} else {
-		if kind == functions.ResetShared && (argument.IsNull() || target == statistics.Archiver) && e.Cluster != nil {
-			e.Cluster.ArchiverResetAt = at
+		if kind == functions.ResetShared && e.Cluster != nil {
+			if argument.IsNull() || target == statistics.Archiver {
+				e.Cluster.ArchiverResetAt = at
+			}
+			if argument.IsNull() || target == statistics.BGWriter {
+				e.Cluster.BGWriterResetAt = at
+			}
 		}
 		reset := func(p *statistics.Provider) {
 			if kind == functions.ResetSLRU {

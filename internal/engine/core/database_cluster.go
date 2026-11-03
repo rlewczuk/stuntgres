@@ -23,9 +23,10 @@ type DatabaseCluster struct {
 	// after construction and never replaced with catalogs.
 	StartedAt      int64
 	ConfigLoadedAt int64
-	// Archiver-only cluster reset authority, guarded by Mu. Database providers
-	// mirror this instant; local catalog replacement is not a shared reset.
+	// Cluster reset authorities, guarded by Mu. Database providers mirror these
+	// instants; local catalog replacement is not a shared reset.
 	ArchiverResetAt time.Time
+	BGWriterResetAt time.Time
 	Mu              sync.Mutex
 	Roles           access.RoleStore
 	Locks           *lock.Manager

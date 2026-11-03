@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
@@ -79,7 +80,22 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		if err != nil {
 			return nil, err
 		}
-		if p.occurrences[i].program.Denied() || leaf.Relation.RelationKind != catalog.ViewRelation {
+		if p.occurrences[i].program.Denied() {
+			continue
+		}
+		if leaf.Relation.Address().ObjectID == pgcatalog.StatBGWriterOID {
+			uses := leaf.Uses
+			if uses == nil {
+				uses = []int{}
+			}
+			// This recursive metadata frontier completes for the whole selected
+			// query/policy/view closure before any source can populate a Reader.
+			// Scalar execution keeps the current invoker, not the view owner.
+			if err := admitBGWriterGetters(auth, uses); err != nil {
+				return nil, err
+			}
+		}
+		if leaf.Relation.RelationKind != catalog.ViewRelation {
 			continue
 		}
 		for _, active := range s.ViewCreationOrZero().Active {

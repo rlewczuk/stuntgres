@@ -85,6 +85,12 @@ EXECUTE. Default ACLs reconstruct on replacement; explicit user ACLs remain
 replay state. Zero provider flags and exclusion from the callable selector
 inventory keep direct and prepared SQL getter calls unsupported.
 
+Bgwriter view getters2772/2773/2859/3075 use the same engine-owned zero-provider,
+implicit PUBLIC EXECUTE authority. They are zero-input strict STABLE,
+parallel-restricted scalar declarations (INT8 for counters, TIMESTAMPTZ for reset),
+without OUT fields, defaults or set estimates. View capture admits EXECUTE only
+for demanded expressions; metadata and ACL replay do not grant public execution.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

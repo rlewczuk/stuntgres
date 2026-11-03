@@ -83,7 +83,7 @@ func TestPGLargeobjectCapturedRoots(t *testing.T) {
 	scope.Inquiry.CommentCatalog = old
 	open := func() [][]sqltype.Value {
 		e.Mu.Lock()
-		result, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, source)
+		result, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

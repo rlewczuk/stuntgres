@@ -71,6 +71,7 @@ type Input struct {
     RecoveryPrefetch statistics.SharedFact // detached current provider cut
     Archiver statistics.SharedFact // detached admitted cumulative Reader cut
     SLRU [statistics.SLRUCount]statistics.SLRUFact // detached cumulative family
+    BGWriter statistics.SharedFact // detached demand-admitted cumulative Reader cut
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -109,6 +110,21 @@ The unbounded TEXT name exposes known driver length `math.MaxInt64`; the BIGINT
 and TIMESTAMPTZ columns expose unavailable length metadata. Its producer entry
 precedes recovery-prefetch in the strictly OID-ordered binary-search registry.
 
+The bgwriter singleton projects slots0/1/2 into three INT8 technical counters and
+genuine reset metadata into TIMESTAMPTZ, with nullable view attributes. With no
+physical background writer or buffer allocator, all three estimates are zero;
+SQL activity and logical buffercache slots are not physical events. Unrelated
+fact slots and event names/times are ignored. Current relation/column SELECT
+precedes independent EXECUTE checks on only the demanded scalar getters
+2772/2773/2859/3075, including predicate and sort dependencies. Recursive source
+preparation admits all selected getter occurrences before any cumulative capture,
+and direct source opening rechecks the same current authority. A presence-only
+source preserves singleton cardinality without a getter or Reader access. A proven
+direct FALSE input also avoids Reader access through an ordinary aggregate, but
+does not waive the referenced getters' initialization-time EXECUTE admission.
+Authorized rows have no role-dependent masking. The scalar no-FROM definition
+is display metadata, not a callable getter implementation; ordinary virtual-view
+mutation diagnostics remain authoritative.
 
 `pg_stat_replication_slots` (12266) validates current registered catalog/source
 and paired role authority for ten nullable attributes: TEXT identity, eight INT8

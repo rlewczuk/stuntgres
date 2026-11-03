@@ -242,8 +242,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// RECORD declaration3195, seven named OUT fields and default PUBLIC EXECUTE.
 	// SLRU adds its metadata-only non-strict STABLE/restricted SETOF RECORD
 	// declaration2306, nine named OUT fields, rows100 and default PUBLIC EXECUTE.
-	if len(facts) != 2252 {
-		t.Fatalf("released represented overloads: got %d, want 2252", len(facts))
+	// Bgwriter adds four metadata-only strict STABLE/restricted zero-input
+	// scalar declarations2772/2773/2859/3075: INT8 counters and TIMESTAMPTZ reset,
+	// no OUT fields/defaults and ordinary implicit PUBLIC EXECUTE authority.
+	if len(facts) != 2256 {
+		t.Fatalf("released represented overloads: got %d, want 2256", len(facts))
 	}
 	return facts
 }

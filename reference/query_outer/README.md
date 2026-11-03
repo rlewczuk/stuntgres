@@ -157,7 +157,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2245 rows, all backed
+supplements. The complete released inventory contains 2256 rows, all backed
 by actual descriptors, including GIN handler333, ten genuine internal
 extraction/consistency support declarations and callable strict volatile
 parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership
@@ -171,6 +171,11 @@ The two builtin bit-string comparators (1596 `bitcmp`, 1672 `varbitcmp`)
 retain complete independent 28-field facts and shared routine-deparse coverage.
 Both use the released internal source `bitcmp`, cost 1, leakproof and strict
 IMMUTABLE/parallel-safe declarations, and two unnamed inputs.
+The four metadata-only bgwriter declarations2772/2773/2859/3075 retain zero-input
+strict STABLE/parallel-restricted scalar signatures, INT8 or TIMESTAMPTZ results,
+cost 1 and no OUT fields or defaults. Complete membership, all 28 metadata fields
+and shared builtin routine deparsing include these actual descriptors without
+granting public getter execution.
 Large-object descriptor OIDs952–955 retain strict VOLATILE/parallel-unsafe scalar signatures,
 unnamed inputs and the released internal implementation symbols. XML aggregate
 OID2901 has one unnamed XML formal, an XML result, non-strict IMMUTABLE/

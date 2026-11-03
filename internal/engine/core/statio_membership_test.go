@@ -68,7 +68,7 @@ func TestStatioAllIndexesMembership(t *testing.T) {
 	// Exercise core's actual source policy, not a runtime with injected Auth:
 	// the registered producer needs the admitted session's statistics Reader.
 	e.Mu.Lock()
-	captured, err := core.EngineOpenCatalogSourceLocked(e, scope, auth.Ref(address), source)
+	captured, err := core.EngineOpenCatalogSourceLocked(e, scope, auth.Ref(address), source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,6 +25,14 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_archiver", 0
 		case 2306:
 			name, entries = "pg_stat_get_slru", 0
+		case 2772:
+			name, entries = "pg_stat_get_bgwriter_buf_written_clean", 0
+		case 2773:
+			name, entries = "pg_stat_get_bgwriter_maxwritten_clean", 0
+		case 2859:
+			name, entries = "pg_stat_get_buf_alloc", 0
+		case 3075:
+			name, entries = "pg_stat_get_bgwriter_stat_reset_time", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:
@@ -73,7 +81,7 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	if entries == 0 {
-		// These view backing routines have ordinary implicit PUBLIC EXECUTE.
+		// Shared-statistics getters have ordinary implicit PUBLIC EXECUTE.
 		// Even an explicit ACL with identical effective rights is user state.
 		return !acl.Explicit && len(acl.Entries) == 0
 	}

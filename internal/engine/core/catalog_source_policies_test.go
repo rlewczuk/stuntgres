@@ -121,7 +121,7 @@ func TestCatalogSourcePGPoliciesCapture(t *testing.T) {
 			// wrapper may be published on mismatched catalog/principal authority.
 			core.InquiryDeparseAuthRef(&scope.Inquiry).Roles = authorization.Read{}
 			e.Mu.Lock()
-			rejected, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d)
+			rejected, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d, nil)
 			if rejected != nil || err == nil {
 				t.Fatal("failed authority published rows", rejected, err)
 			}
@@ -170,7 +170,7 @@ func TestCatalogSourcePGPoliciesPresentation(t *testing.T) {
 	stale := ref
 	stale.Epoch++
 	e.Mu.Lock()
-	rejected, err := core.EngineOpenCatalogSourceLocked(e, scope, stale, d)
+	rejected, err := core.EngineOpenCatalogSourceLocked(e, scope, stale, d, nil)
 	if rejected != nil || err == nil {
 		t.Fatal("stale capture published rows", rejected, err)
 	}

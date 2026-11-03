@@ -203,6 +203,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	// Read authority here, after template preparation and final admission:
 	// a shared reset may have occurred while the cluster mutex was released.
 	target.Statistics.ResetShared(statistics.Archiver, e.Cluster.ArchiverResetAt)
+	target.Statistics.ResetShared(statistics.BGWriter, e.Cluster.BGWriterResetAt)
 	e.Cluster.Targets = targets
 	e.Cluster.NextOID = oid + 1
 	return core.Result{CommandTag: "CREATE DATABASE"}, nil

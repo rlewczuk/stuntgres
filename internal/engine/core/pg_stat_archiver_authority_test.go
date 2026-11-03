@@ -84,7 +84,7 @@ func TestPGStatArchiverReaderAuthority(t *testing.T) {
 					d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.StatArchiverOID})
 					ref := view.Owner().Domain.Ref(view.Epoch(), d.Address())
 					e.Mu.Lock()
-					source, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d)
+					source, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, d, nil)
 					if denied {
 						if source != nil {
 							source.Close()

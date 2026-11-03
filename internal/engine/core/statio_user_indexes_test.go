@@ -277,7 +277,7 @@ func TestPGStatioUserIndexesReaderConsistency(t *testing.T) {
 			source := auth.Catalog.MustRelation(address)
 			// Exercise actual core policy rather than injecting runtime Auth:
 			// current catalog/roles/settings and the admitted session's Reader.
-			captured, err := core.EngineOpenCatalogSourceLocked(e, scope, auth.Ref(address), source)
+			captured, err := core.EngineOpenCatalogSourceLocked(e, scope, auth.Ref(address), source, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

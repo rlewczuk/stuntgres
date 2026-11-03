@@ -10,6 +10,61 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// CatalogSourceFalse proves that this occurrence's scalar outputs cannot be
+// evaluated: its sole unsampled scan is directly below a filter whose first
+// conjunct is a bound BOOL FALSE literal. It never evaluates an expression.
+// This is not source or ACL pruning; the normal filter still removes the row.
+func CatalogSourceFalse(root plan.Node, occurrence int, ref ids.ObjectRef) bool {
+	var scan, filtered *plan.SourceNode
+	var predicate expr.Expr
+	scans := 0
+	unsupported := false
+	plan.VisitCTEQuery(root, func(node plan.Node) {
+		switch node := node.(type) {
+		case *plan.SourceNode:
+			if node.Occurrence == occurrence {
+				scan, scans = node, scans+1
+			}
+		case *plan.FilterNode:
+			if child, ok := node.Child.(*plan.SourceNode); ok && child.Occurrence == occurrence {
+				filtered, predicate = child, node.Predicate
+			}
+		case *plan.ProjectNode:
+			unsupported = unsupported || node.CTEOwner || node.RuleInvocation
+		case *plan.SortNode:
+		case *plan.AggregateNode:
+			// Ordinary arguments, keys, FILTER and local ORDER expressions run
+			// only for input rows. Direct ordered-set arguments can run on the
+			// aggregate's output row even when its input is empty.
+			for _, call := range node.Calls {
+				unsupported = unsupported || len(call.Direct) != 0
+			}
+		default:
+			unsupported = true
+		}
+	}, func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(operand expr.Expr) {
+			switch operand := operand.(type) {
+			case plan.SubqueryExpr:
+				unsupported = true
+			case plan.ColumnExpr:
+				unsupported = unsupported || operand.Virtual != nil && operand.QueryOccurrence != 0
+			case plan.SystemAttributeExpr:
+				unsupported = unsupported || operand.QueryOccurrence != 0
+			}
+		})
+	}, true)
+	if unsupported || scans != 1 || scan != filtered || scan.Ref != ref || scan.Sample != nil {
+		return false
+	}
+	literal, ok := firstConjunct(predicate).(plan.LiteralExpr)
+	if !ok || literal.Value.Type() == nil || literal.Value.Type().ID() != sqltype.Bool || literal.ResultUsage().Type != literal.Value.Type() {
+		return false
+	}
+	truth, err := plan.TruthOf(literal.Value)
+	return err == nil && truth == plan.False
+}
+
 // CatalogSourceKeep returns a test of one column cell of the catalog source
 // that leaf occurrence of root scans, so its producer can skip rows the
 // statement's filter rejects. It applies only when root scans the occurrence

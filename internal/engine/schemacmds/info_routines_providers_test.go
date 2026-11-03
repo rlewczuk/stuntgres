@@ -29,20 +29,25 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 	for _, want := range []struct {
 		oid        ids.OID
 		name       string
+		result     ids.OID
 		returnsSet bool
 		aclEntries int
 	}{
-		{2306, "pg_stat_get_slru", true, 0},
-		{3195, "pg_stat_get_archiver", false, 0},
-		{3329, "pg_show_all_file_settings", true, 1},
-		{3400, "pg_config", true, 1},
-		{4100, "pg_get_shmem_allocations_numa", true, 2},
-		{5052, "pg_get_shmem_allocations", true, 2},
-		{6250, "pg_ident_file_mappings", true, 1},
-		{6399, "pg_get_aios", true, 2},
+		{2306, "pg_stat_get_slru", 2249, true, 0},
+		{2772, "pg_stat_get_bgwriter_buf_written_clean", 20, false, 0},
+		{2773, "pg_stat_get_bgwriter_maxwritten_clean", 20, false, 0},
+		{2859, "pg_stat_get_buf_alloc", 20, false, 0},
+		{3075, "pg_stat_get_bgwriter_stat_reset_time", 1184, false, 0},
+		{3195, "pg_stat_get_archiver", 2249, false, 0},
+		{3329, "pg_show_all_file_settings", 2249, true, 1},
+		{3400, "pg_config", 2249, true, 1},
+		{4100, "pg_get_shmem_allocations_numa", 2249, true, 2},
+		{5052, "pg_get_shmem_allocations", 2249, true, 2},
+		{6250, "pg_ident_file_mappings", 2249, true, 1},
+		{6399, "pg_get_aios", 2249, true, 2},
 	} {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: want.oid})
-		if seen[want.oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(want.oid) || p.Builtin.Providers != 0 || p.Builtin.ReturnsSet != want.returnsSet || p.ReturnsSet() != want.returnsSet || p.Name() != want.name || p.RoutineKind != catalog.FunctionRoutine || p.Result != 2249 || p.Signature != "" || !p.Display.Valid() || p.SecurityDefiner {
+		if seen[want.oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(want.oid) || p.Builtin.Providers != 0 || p.Builtin.ReturnsSet != want.returnsSet || p.ReturnsSet() != want.returnsSet || p.Name() != want.name || p.RoutineKind != catalog.FunctionRoutine || p.Result != want.result || p.Signature != "" || !p.Display.Valid() || p.SecurityDefiner {
 			t.Fatal("incomplete metadata-only backing declaration", p, want)
 		}
 		owner := e.Roles().LookupRef("postgres")
@@ -54,6 +59,11 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		if want.aclEntries == 2 && p.ACL.Entries[1] != (authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: e.Roles().LookupRef("pg_read_all_stats")}, Privileges: authorization.ExecutePrivilege}) {
 			t.Fatal("metadata-only backing stats EXECUTE", p)
+		}
+		if want.result != 2249 {
+			if !p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.OutputDeclaration() != nil || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 || p.CostEstimate() != 1 || p.RowEstimate() != 0 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+				t.Fatal("released zero-input scalar bgwriter declaration", p)
+			}
 		}
 		if want.oid == 3195 {
 			if p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {

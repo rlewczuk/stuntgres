@@ -47,7 +47,7 @@ func TestPGTriggerCaptureRuntime(t *testing.T) {
 			}
 			stale:=ref;stale.Epoch++
 			e.Mu.Lock()
-			rejected,err:=core.EngineOpenCatalogSourceLocked(e,scope,stale,d)
+			rejected,err:=core.EngineOpenCatalogSourceLocked(e,scope,stale,d,nil)
 			if rejected!=nil || err==nil { t.Fatal("runtime accepted stale trigger source",rejected,err) }
 		}()
 	}

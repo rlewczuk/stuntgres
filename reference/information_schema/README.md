@@ -144,6 +144,12 @@ precision, absent defaults and non-updatability through direct, prepared and
 retained statements, without an oracle-side column-name filter.
 `pg_stat_slru` likewise contributes its nine release-ordered identity, seven
 counter and reset fields with view classification to the complete provider bag.
+
+`pg_stat_bgwriter` likewise contributes its four release-ordered nullable
+BIGINT/BIGINT/BIGINT/TIMESTAMPTZ fields and view classification to the complete
+native bag. Its full columns projection checks precision, absent defaults and
+non-updatability through direct, prepared and retained statements, without
+oracle-side column filtering.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and

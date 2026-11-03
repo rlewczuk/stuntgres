@@ -35,6 +35,15 @@ func (q *KeepQuery) Keep(ctx context.Context, input sqltype.InputEnvironment, ou
 	return pgcatalog.Keep{}
 }
 
+// BGWriterReadSuppressed preserves scalar getter ACL demand while proving that
+// no bgwriter expression is evaluated. Other sources retain their capture policy.
+func (q *KeepQuery) BGWriterReadSuppressed(leaves []exec.Leaf, i int, mark plan.RowMark) bool {
+	if q == nil || mark.Mode != 0 || leaves[i].Relation.Address().ObjectID != pgcatalog.StatBGWriterOID || !sameLeafTables(q.Leaves, leaves) {
+		return false
+	}
+	return exec.CatalogSourceFalse(q.Root, i, leaves[i].Ref)
+}
+
 func sameLeafTables(a, b []exec.Leaf) bool {
 	if len(a) != len(b) {
 		return false

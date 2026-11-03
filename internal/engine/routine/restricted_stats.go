@@ -18,18 +18,22 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 6250, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_ident_file_mappings"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 25, 23, 25, 25, 25, 25}, "map_number", "file_name", "line_number", "map_name", "sys_name", "pg_username", "error")},
 	{Identity: catalog.RoutineIdentity{ID: 3195, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_archiver"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 25, 1184, 20, 25, 1184, 1184}, "archived_count", "last_archived_wal", "last_archived_time", "failed_count", "last_failed_wal", "last_failed_time", "stats_reset")},
 	{Identity: catalog.RoutineIdentity{ID: 2306, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_slru"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{25, 20, 20, 20, 20, 20, 20, 20, 1184}, "name", "blks_zeroed", "blks_hit", "blks_read", "blks_written", "blks_exists", "flushes", "truncates", "stats_reset")},
+	{Identity: catalog.RoutineIdentity{ID: 2772, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_buf_written_clean"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 2773, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_maxwritten_clean"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 2859, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_buf_alloc"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 3075, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_stat_reset_time"}, Kind: catalog.FunctionRoutine, Result: 1184, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 }
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
 // pg_config, pg_show_all_file_settings and pg_ident_file_mappings retain owner-only EXECUTE.
-// pg_stat_get_archiver and pg_stat_get_slru retain ordinary default PUBLIC EXECUTE.
+// Archiver, SLRU and bgwriter getters retain ordinary default PUBLIC EXECUTE ACLs.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
 	for i := range restrictedStatsDeclarations {
 		declaration := &restrictedStatsDeclarations[i]
 		var acl authorization.ACLValue
-		if declaration.Identity.ID != 3195 && declaration.Identity.ID != 2306 {
+		if id := declaration.Identity.ID; id != 3195 && id != 2306 && id != 2772 && id != 2773 && id != 2859 && id != 3075 {
 			count := 2
 			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 {
 				count = 1

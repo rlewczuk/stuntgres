@@ -58,6 +58,7 @@ func (e *Engine) replaceStatsLocked(next *catalog.State, relations map[ids.Objec
 	// neither a cluster nor a published database identity/history to clear yet.
 	if e.Cluster != nil {
 		e.Statistics.ResetShared(statistics.Archiver, e.Cluster.ArchiverResetAt)
+		e.Statistics.ResetShared(statistics.BGWriter, e.Cluster.BGWriterResetAt)
 		e.Cluster.StatementStatistics.Clear(statistics.StatementFilter{DatabaseID: uint32(e.Catalog.DatabaseAddress().ObjectID)}, false, time.Now())
 	}
 }

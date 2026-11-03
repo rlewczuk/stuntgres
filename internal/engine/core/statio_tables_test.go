@@ -85,7 +85,7 @@ func TestStatioAllTablesReader(t *testing.T) {
 				read,_:=rows[0][3].Integer();hit,_:=rows[0][4].Integer();if read!=0||hit!=3 {t.Fatal("view reuses facts",rows)}
 				for _,value:=range rows[0][5:] {if !value.IsNull() {t.Fatal("absent indexes and TOAST retain NULL",rows[0])}}
 				// The core capture switch must carry the same admitted reader.
-				e.Mu.Lock();captured,err:=core.EngineOpenCatalogSourceLocked(e,scope,in.Ref,in.Source);if err!=nil {t.Fatal(err)};defer captured.Close()
+				e.Mu.Lock();captured,err:=core.EngineOpenCatalogSourceLocked(e,scope,in.Ref,in.Source,nil);if err!=nil {t.Fatal(err)};defer captured.Close()
 				found:=false
 				for _,row:=range captured.Anonymous {id,_:=row[0].OID();if id==uint32(ref.Address.ObjectID) {found=true;n,_:=row[4].Integer();if n!=3 {t.Fatal("runtime registration lost reader",row)}}}
 				if !found {t.Fatal("core capture omitted table")}

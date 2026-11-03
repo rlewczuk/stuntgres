@@ -17,9 +17,27 @@ import (
 	"time"
 )
 
+// Scalar getter authority is shared by whole-query preparation and low-level
+// capture rechecks. nil means full projection; nonnil empty is presence-only.
+func admitBGWriterGetters(auth AuthorizationView, uses []int) error {
+	procedures := [...]ids.OID{2772, 2773, 2859, 3075}
+	if uses == nil {
+		uses = []int{0, 1, 2, 3}
+	}
+	for _, column := range uses {
+		if column < 0 || column >= len(procedures) {
+			return fmt.Errorf("stuntgres: invalid bgwriter column demand")
+		}
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedures[column]}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep) (*exec.Source, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressBGWriterRead bool) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	if oid == pgcatalog.StatActivityOID {
 		return e.capturePGStatActivityLocked(scope, ref, source, keep)
@@ -46,6 +64,27 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.StatBGWriterOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		if err := admitBGWriterGetters(auth, outputUses); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		if (outputUses == nil || len(outputUses) != 0) && !suppressBGWriterRead {
+			reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
+			var now time.Time
+			if reader.NeedsSnapshot() {
+				now = time.Now().UTC().Truncate(time.Microsecond)
+			}
+			in.BGWriter = reader.ReadShared(&e.Statistics, statistics.BGWriter, now)
+		}
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatArchiverOID, pgcatalog.StatSLRUOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

@@ -15,6 +15,17 @@ their local context is installed for evaluation and cleared on every exit.
 Full-text vector conversion forwards the effective evaluator context explicitly,
 never recovers an older operation context from the host.
 
+`CatalogSourceFalse` is a literal-only bound-plan proof for a single unsampled
+source directly under a first-conjunct BOOL FALSE filter. It inspects occurrence,
+reference and immutable literal authority without evaluating an expression.
+Ordinary aggregates above that input qualify only without ordered-set direct
+arguments: keys, ordinary arguments, FILTER and ordering consume input rows, not
+the aggregate's synthesized empty-input result. Subqueries, identity reads,
+unsupported shapes, joins and invocation/CTE boundaries yield no proof; a parameter
+cannot establish FALSE. Core uses it only to suppress bgwriter cumulative
+evaluation, not source opening, getter ACL admission or normal filtering;
+`CatalogSourceKeep` retains its independent producer row-test contract.
+
 Table sampling opens the ordinary visible source, including row security, before
 WHERE. SYSTEM_ROWS evaluates its assignment-bigint count once per demanded
 invocation and retains private reservoirs of visible occurrence indices.

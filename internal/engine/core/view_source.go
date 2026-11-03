@@ -15,7 +15,7 @@ import (
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
 // keep is the catalog producer row test (see catalogSourceKeep), or zero.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep) (*exec.Source, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep, suppressBGWriterRead bool) (*exec.Source, error) {
 	ctx := scope.Op.Context()
 	if err := ctx.Err(); err != nil {
 		e.Mu.Unlock()
@@ -36,7 +36,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.Mu.Unlock()
 		return source, err
 	case catalog.CatalogRelation:
-		return e.openCatalogSourceLocked(scope, ref, d, keep)
+		return e.openCatalogSourceLocked(scope, ref, d, keep, outputUses, suppressBGWriterRead)
 	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
 		e.Mu.Unlock()

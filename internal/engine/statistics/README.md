@@ -61,18 +61,19 @@ Full Reset/Replace clear fixed/backend history with the database incarnation,
 retain current live registrations and advance the existing pending-generation
 fence. New actual target publication inherits only positive registrations under
 cluster serialization, using separate provider lock acquisitions, never metric
-history. Archiver reset metadata alone has cluster authority: core initializes
-`DatabaseCluster.ArchiverResetAt` from genuine startup and mirrors it through
-`ResetShared` at target publication and after accepted local replacement. Shared
-archiver/all reset updates that authority and every current mirror at one instant.
-This bounded exception is valid because production has no archive event writer;
+history. Archiver and bgwriter reset metadata have explicit cluster authority:
+core initializes `DatabaseCluster.ArchiverResetAt` and `BGWriterResetAt` from
+genuine startup and mirrors each through `ResetShared` at target publication
+and after accepted local replacement. The selected family or all-family shared
+reset updates its authority and every current mirror at one instant. This bounded
+exception is valid because neither family has a production physical event writer;
 future physical events require cluster event ownership, not independent counters.
 Other fixed families retain their existing local replacement/publication rules.
 No monitoring history is serialized or activity manufactured.
 The provider remains zero-value-ready: reads never initialize reset metadata.
 The completed engine owner records recovery-prefetch and SLRU initialization
-once through targeted ResetShared and mirrors genuine archiver initialization,
-without changing unrelated families or generation.
+once through targeted ResetShared and mirrors genuine archiver and bgwriter
+initialization, without changing unrelated families or generation.
 Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–5
 are unused by its view. Both technical estimates are zero without a physical
 producer, never query-derived activity. Exact last-success/failure names and
@@ -82,6 +83,11 @@ zeroed/hit/read/written/exists/flushes/truncates; unrelated SharedFact stays six
 Publication adds each admitted counter and never adopts pending reset metadata.
 No corresponding physical event means deterministic zero technical estimates,
 never physical measurements, query-derived activity or read-time reset clocks.
+
+Bgwriter slots0/1/2 are cleaned buffers, cleaning-limit stops and allocated buffers;
+slots3–5 and last-event fields are unused by the view. Each technical estimate is
+zero while its physical facility/events are absent, never inferred from logical
+SQL work, elapsed time or buffercache occupancy. ResetAt remains exact event metadata.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.

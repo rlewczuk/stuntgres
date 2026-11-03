@@ -55,7 +55,7 @@ func (h *statementHost) PgvisibilityCatalogBytes(ref ids.ObjectRef, target *cata
 		e.Mu.Unlock()
 		return 0, err
 	}
-	source, err := e.openCatalogSourceLocked(s, ref, target, pgcatalog.Keep{})
+	source, err := e.openCatalogSourceLocked(s, ref, target, pgcatalog.Keep{}, nil, false)
 	if err != nil {
 		return 0, err
 	}

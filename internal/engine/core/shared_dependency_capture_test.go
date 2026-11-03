@@ -70,7 +70,7 @@ func TestPGShdependInquiryAcquisitionFrontier(t *testing.T) {
 		source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ShdependOID})
 		ref := view.Owner().Domain.Ref(view.Epoch(), source.Address())
 		e.Mu.Lock()
-		rows, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, source)
+		rows, err := core.EngineOpenCatalogSourceLocked(e, scope, ref, source, nil)
 		// The production source-opening boundary consumes the mutex.
 		if err != nil {
 			t.Fatal(err)

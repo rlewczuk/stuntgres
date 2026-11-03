@@ -103,6 +103,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros, StatementStatistics: statistics.NewStatements(5000, time.Now())}
 	cluster.ArchiverResetAt = time.UnixMicro(cluster.StartedAt + activityEpochUnixMicros).UTC()
+	cluster.BGWriterResetAt = cluster.ArchiverResetAt
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.Analysis = BindingHost{Engine: e}
 	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
@@ -442,6 +443,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.Statistics.ResetShared(statistics.RecoveryPrefetch, initializedAt)
 	e.Statistics.ResetShared(statistics.SLRU, initializedAt)
 	e.Statistics.ResetShared(statistics.Archiver, cluster.ArchiverResetAt)
+	e.Statistics.ResetShared(statistics.BGWriter, cluster.BGWriterResetAt)
 	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil
 }
