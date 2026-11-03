@@ -32,22 +32,24 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		result     ids.OID
 		returnsSet bool
 		aclEntries int
+		signature  catalog.ProcedureSignature
 	}{
-		{2306, "pg_stat_get_slru", 2249, true, 0},
-		{2772, "pg_stat_get_bgwriter_buf_written_clean", 20, false, 0},
-		{2773, "pg_stat_get_bgwriter_maxwritten_clean", 20, false, 0},
-		{2859, "pg_stat_get_buf_alloc", 20, false, 0},
-		{3075, "pg_stat_get_bgwriter_stat_reset_time", 1184, false, 0},
-		{3195, "pg_stat_get_archiver", 2249, false, 0},
-		{3329, "pg_show_all_file_settings", 2249, true, 1},
-		{3400, "pg_config", 2249, true, 1},
-		{4100, "pg_get_shmem_allocations_numa", 2249, true, 2},
-		{5052, "pg_get_shmem_allocations", 2249, true, 2},
-		{6250, "pg_ident_file_mappings", 2249, true, 1},
-		{6399, "pg_get_aios", 2249, true, 2},
+		{2306, "pg_stat_get_slru", 2249, true, 0, ""},
+		{2772, "pg_stat_get_bgwriter_buf_written_clean", 20, false, 0, ""},
+		{2773, "pg_stat_get_bgwriter_maxwritten_clean", 20, false, 0, ""},
+		{2859, "pg_stat_get_buf_alloc", 20, false, 0, ""},
+		{3075, "pg_stat_get_bgwriter_stat_reset_time", 1184, false, 0, ""},
+		{3195, "pg_stat_get_archiver", 2249, false, 0, ""},
+		{3329, "pg_show_all_file_settings", 2249, true, 1, ""},
+		{3400, "pg_config", 2249, true, 1, ""},
+		{4100, "pg_get_shmem_allocations_numa", 2249, true, 2, ""},
+		{5052, "pg_get_shmem_allocations", 2249, true, 2, ""},
+		{6118, "pg_stat_get_subscription", 2249, true, 0, "26"},
+		{6250, "pg_ident_file_mappings", 2249, true, 1, ""},
+		{6399, "pg_get_aios", 2249, true, 2, ""},
 	} {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: want.oid})
-		if seen[want.oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(want.oid) || p.Builtin.Providers != 0 || p.Builtin.ReturnsSet != want.returnsSet || p.ReturnsSet() != want.returnsSet || p.Name() != want.name || p.RoutineKind != catalog.FunctionRoutine || p.Result != want.result || p.Signature != "" || !p.Display.Valid() || p.SecurityDefiner {
+		if seen[want.oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(want.oid) || p.Builtin.Providers != 0 || p.Builtin.ReturnsSet != want.returnsSet || p.ReturnsSet() != want.returnsSet || p.Name() != want.name || p.RoutineKind != catalog.FunctionRoutine || p.Result != want.result || p.Signature != want.signature || !p.Display.Valid() || p.SecurityDefiner {
 			t.Fatal("incomplete metadata-only backing declaration", p, want)
 		}
 		owner := e.Roles().LookupRef("postgres")
@@ -90,6 +92,27 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 				}
 			}
 		}
+		if want.oid == 6118 {
+			if p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.RowEstimate() != 10 || p.CostEstimate() != 1 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+				t.Fatal("released subscription backing declaration", p)
+			}
+			outputs := p.OutputDeclaration()
+			if outputs == nil || outputs.Inputs() != 1 || outputs.Len() != 10 || outputs.Name(0) != "subid" || p.InputNames != nil {
+				t.Fatal("released subscription IN/OUT signature", outputs)
+			}
+			for i, field := range [...]struct {
+				name string
+				typ ids.OID
+			}{
+				{"subid", 26}, {"relid", 26}, {"pid", 23}, {"leader_pid", 23},
+				{"received_lsn", 3220}, {"last_msg_send_time", 1184}, {"last_msg_receipt_time", 1184},
+				{"latest_end_lsn", 3220}, {"latest_end_time", 1184}, {"worker_type", 25},
+			} {
+				if outputs.Name(i+1) != field.name || outputs.Type(i) != field.typ {
+					t.Fatal("released subscription OUT field", i, outputs.Name(i+1), outputs.Type(i), field)
+				}
+			}
+		}
 		seen[want.oid] = true
 	}
 	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
@@ -121,6 +144,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		3195: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_archiver"},
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
+		6118: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_subscription"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},

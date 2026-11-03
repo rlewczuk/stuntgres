@@ -195,6 +195,7 @@ var Specs = [...]Spec{
 		{"srsublsn", sqltype.PgLSN, true, 0, 0, -1},
 	}, false, CatalogHasIndexes(SubscriptionRelOID), true, false, "stuntgres: missing catalog source type"},
 	{StatActivityOID, ids.PGCatalogNamespaceOID, "pg_stat_activity", activityColumns, true, false, false, false, "stuntgres: missing activity source type"},
+	{StatSubscriptionOID, ids.PGCatalogNamespaceOID, "pg_stat_subscription", statSubscriptionColumns, true, false, false, false, "stuntgres: missing subscription statistics source type"},
 	{StatRecoveryPrefetchOID, ids.PGCatalogNamespaceOID, "pg_stat_recovery_prefetch", recoveryPrefetchColumns, true, false, false, false, "stuntgres: missing recovery prefetch source type"},
 	{StatSLRUOID, ids.PGCatalogNamespaceOID, "pg_stat_slru", slruColumns, true, false, false, false, "stuntgres: missing slru source type"},
 	{StatReplicationSlotsOID, ids.PGCatalogNamespaceOID, "pg_stat_replication_slots", replicationSlotsColumns, true, false, false, false, "stuntgres: missing replication slots source type"},

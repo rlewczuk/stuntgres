@@ -137,6 +137,24 @@ Ordinary current SELECT admission applies without field redaction; the common
 virtual-view paths reject mutations. Symbolic display describes the released
 inventory/lateral-statistics join without granting callable backing interfaces.
 
+`pg_stat_subscription` (relation12248, rowtype12250, array12249) authenticates
+the captured catalog/source, type generations, paired role root and qualified
+source reference before enumerating real shared subscription identities. Its
+eleven nullable attributes preserve exact OID/NAME identity across databases.
+Without a real apply worker the released LEFT JOIN yields nine typed NULLs;
+Enabled metadata, counters and ordinary session PIDs never establish a worker.
+There is no owner-based field mask or protected conninfo projection. Current
+view/column SELECT and backing routine6118 EXECUTE are independently admitted
+before pure capture outside Engine.Mu. Constant-false queries still require SELECT
+but do not invoke the getter or demand its EXECUTE. Reads do not access or
+initialize a cumulative Reader, publish events, reset counters or allocate keys.
+The existing Subscription provider category and command lifetime hooks remain
+the sole genuine error/conflict counter owner. Separate symbolic default/pretty
+definitions preserve released join formatting. Native `_RETURN` rule12251 uses
+the existing parsed default rewrite declaration, not a
+callable SRF or executable rule. Common non-updatable-view admission owns mutation
+diagnostics; retained rows own their original immutable typed backing.
+
 - `pg_stat_activity` (12226) projects one detached unmasked cluster activity cut
   with exactly 22 nullable fields and independently live actual wait ownership.
   Core samples canonical XID/xmin and releases metadata locks before manager
@@ -1755,6 +1773,10 @@ through the shared usage-origin projector.
 
 Detached archiver projection, typed absence and source authority use
 `make check RUN='^TestPGStatArchiverProjection$'` in `enginetests/`.
+
+Subscription identity/absence, authenticated source rejection and retained
+type-generation ownership use `make check RUN='^TestPGStatSubscriptionSource$'`
+in `enginetests/`; composed provider lifetime witnesses live with core.
 
 Build-configuration capture/ownership units in `enginetests/` use
 `make check RUN='^TestPGConfig'`. They retain real catalog/type generations,

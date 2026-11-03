@@ -11,7 +11,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		return 3
 	case 2763: // regexp_matches(text,text)
 		return 1
-	case 1689, 2764, 3035, 3425, 6353: // ACL expansion, flagged matches, channels, ancestors, modules
+	case 1689, 2764, 3035, 3425, 6118, 6353: // ACL expansion, flagged matches, channels, ancestors, subscription workers, modules
 		return 10
 	case 3713, 3714: // ts_token_type(oid) and ts_token_type(text)
 		return 16

@@ -22,18 +22,19 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 2773, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_maxwritten_clean"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 2859, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_buf_alloc"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 3075, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_stat_reset_time"}, Kind: catalog.FunctionRoutine, Result: 1184, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 6118, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_subscription", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 26, 23, 23, 3220, 1184, 1184, 3220, 1184, 25}, "subid", "subid", "relid", "pid", "leader_pid", "received_lsn", "last_msg_send_time", "last_msg_receipt_time", "latest_end_lsn", "latest_end_time", "worker_type")},
 }
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
 // pg_config, pg_show_all_file_settings and pg_ident_file_mappings retain owner-only EXECUTE.
-// Archiver, SLRU and bgwriter getters retain ordinary default PUBLIC EXECUTE ACLs.
+// Archiver, SLRU, bgwriter and subscription getters retain default PUBLIC EXECUTE ACLs.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
 	for i := range restrictedStatsDeclarations {
 		declaration := &restrictedStatsDeclarations[i]
 		var acl authorization.ACLValue
-		if id := declaration.Identity.ID; id != 3195 && id != 2306 && id != 2772 && id != 2773 && id != 2859 && id != 3075 {
+		if id := declaration.Identity.ID; id != 3195 && id != 2306 && id != 2772 && id != 2773 && id != 2859 && id != 3075 && id != 6118 {
 			count := 2
 			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 {
 				count = 1
@@ -50,6 +51,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID},
 			ObjectRevision:  1,
 			ObjectName:      declaration.Identity.Name,
+			Signature:       declaration.Identity.Signature,
 			RoutineKind:     declaration.Kind,
 			Builtin:         declaration,
 			Owner:           owner,

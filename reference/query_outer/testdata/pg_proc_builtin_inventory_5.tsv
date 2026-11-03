@@ -136,3 +136,4 @@
 2773	pg_stat_get_bgwriter_maxwritten_clean	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_bgwriter_maxwritten_clean	\N	false	\N
 2859	pg_stat_get_buf_alloc	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_buf_alloc	\N	false	\N
 3075	pg_stat_get_bgwriter_stat_reset_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_stat_get_bgwriter_stat_reset_time	\N	false	\N
+6118	pg_stat_get_subscription	11	12	1	10	0	0	f	false	false	false	true	s	r	1	0	2249	26	{26,26,26,23,23,3220,1184,1184,3220,1184,25}	{i,o,o,o,o,o,o,o,o,o,o}	{subid,subid,relid,pid,leader_pid,received_lsn,last_msg_send_time,last_msg_receipt_time,latest_end_lsn,latest_end_time,worker_type}	false	\N	pg_stat_get_subscription	\N	false	\N

@@ -75,7 +75,7 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			}
 			_, baseline, _ := access.DescriptorACL(descriptor)
 			oid := descriptor.Address().ObjectID
-			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075)
+			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075 || oid == 6118)
 			if implicit != !baseline.Explicit || implicit && len(baseline.Entries) != 0 {
 				t.Fatal("backing routine default ACL classification", descriptor)
 			}
@@ -164,6 +164,7 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 					func(x *catalog.Procedure) { x.ObjectAddress.ObjectID++ },
 					func(x *catalog.Procedure) { x.ObjectName = "changed" },
 					func(x *catalog.Procedure) { x.ObjectNamespace.ObjectID++ },
+					func(x *catalog.Procedure) { x.Signature = "25" },
 					func(x *catalog.Procedure) { copyDeclaration := *x.Builtin; x.Builtin = &copyDeclaration },
 				} {
 					x := *original

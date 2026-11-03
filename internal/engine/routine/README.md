@@ -91,6 +91,13 @@ parallel-restricted scalar declarations (INT8 for counters, TIMESTAMPTZ for rese
 without OUT fields, defaults or set estimates. View capture admits EXECUTE only
 for demanded expressions; metadata and ACL replay do not grant public execution.
 
+`pg_stat_get_subscription` (6118) is likewise ACL-only: non-strict STABLE,
+parallel-restricted SETOF RECORD, one IN OID and ten named OUT fields in released
+backing-routine order, cost1/rows10. The real `(oid)` signature participates in
+lookup, current default-PUBLIC EXECUTE, GRANT/REVOKE and native ACL replay.
+Its shared immutable declaration and per-engine descriptor do not grant callable
+provider capability or imply an apply-worker publisher.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

@@ -44,6 +44,35 @@ func (q *KeepQuery) BGWriterReadSuppressed(leaves []exec.Leaf, i int, mark plan.
 	return exec.CatalogSourceFalse(q.Root, i, leaves[i].Ref)
 }
 
+// RejectsInput proves that this SELECT cannot demand its single catalog input.
+// It mirrors the executor's direct WHERE proof before eager catalog capture;
+// unsupported topology keeps ordinary capture and all its demanded errors.
+func (q *KeepQuery) RejectsInput(ctx context.Context, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, leaves []exec.Leaf, i int, mark plan.RowMark, locks *exec.LockContext) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if q == nil || len(leaves) != 1 || i != 0 || mark.Mode != 0 || locks != nil || !sameLeafTables(q.Leaves, leaves) {
+		return false, nil
+	}
+	project, ok := q.Root.(*plan.ProjectNode)
+	if !ok || project.Frame != 1 || project.CTEOwner || project.RuleInvocation {
+		return false, nil
+	}
+	filter, ok := project.Child.(*plan.FilterNode)
+	if !ok {
+		return false, nil
+	}
+	source, ok := filter.Child.(*plan.SourceNode)
+	if !ok || source.Occurrence != i || source.Ref != leaves[i].Ref || source.Sample != nil {
+		return false, nil
+	}
+	evaluation := exec.Context{
+		EvalFrame: exec.EvalFrame{Scope: 1, Frame: project.Frame},
+		EvalStatement: exec.EvalStatement{Context: ctx, Parameters: q.Parameters, Input: input, Output: output},
+	}
+	return exec.QueryPredicateRejectsAll(&evaluation, filter.Predicate)
+}
+
 func sameLeafTables(a, b []exec.Leaf) bool {
 	if len(a) != len(b) {
 		return false

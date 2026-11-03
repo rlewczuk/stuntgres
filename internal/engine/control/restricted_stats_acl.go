@@ -17,7 +17,7 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 	entries := 2
 	switch object := d.(type) {
 	case *catalog.Procedure:
-		if object.Address().ClassID != ids.ProcedureClassID || object.Address().SubID != 0 || object.Builtin == nil || object.Builtin != routine.BuiltinRoutine(object.Address().ObjectID) {
+		if object.Address().ClassID != ids.ProcedureClassID || object.Address().SubID != 0 || object.Builtin == nil || object.Builtin != routine.BuiltinRoutine(object.Address().ObjectID) || object.Signature != object.Builtin.Identity.Signature {
 			return false
 		}
 		switch object.Address().ObjectID {
@@ -33,6 +33,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_buf_alloc", 0
 		case 3075:
 			name, entries = "pg_stat_get_bgwriter_stat_reset_time", 0
+		case 6118:
+			name, entries = "pg_stat_get_subscription", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:

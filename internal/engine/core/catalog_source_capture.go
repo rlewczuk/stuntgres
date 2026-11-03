@@ -114,6 +114,23 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
+	case pgcatalog.StatSubscriptionOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		// SELECT uses the common column manifest. The backing routine has
+		// independent current EXECUTE authority, including held statements.
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6118}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		e.Mu.Unlock()
+		// Identity-only inactive rows need no cumulative Reader or provider
+		// mutation. The shared provider still owns actual counter lifetime.
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatRecoveryPrefetchOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

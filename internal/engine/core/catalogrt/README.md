@@ -50,8 +50,9 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   default, decoded by its captured array codec. Source literals retain their
   type and spelling across validated assignment coercion; no expression
   evaluation, provider binding or replay-renderer change occurs.
-- `CaptureRows` is the sole constructor of a catalog `exec.Source`. An empty
-  producer result is still an owned anonymous rowset.
+- `CaptureRows` constructs produced catalog `exec.Source` values. An empty
+  producer result is still an owned anonymous rowset; an admitted undemanded
+  input instead uses the executor's existing typed-empty materialized source.
 - `CaptureCache` keeps the latest `pg_type`, `pg_proc` and `pg_depend` rows per
   engine, owned by `Engine.Mu`, keyed by the published `*catalog.State`, the
   published `*access.RoleRecord`, the source relation and its ref.
@@ -72,8 +73,17 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   synthesized aggregate output does not demand input-source values. Identity reads,
   subqueries and unsupported boundaries reject the proof. It suppresses only
   cumulative bgwriter evaluation, never current getter ACLs, whose recursive
-  query-source admission finishes before any policy/source capture. Unmatched
-  nested queries and all other catalog-source policies stay unchanged.
+  query-source admission finishes before any policy/source capture.
+- `KeepQuery.RejectsInput` reuses the executor's literal/imported-parameter WHERE
+  proof only for this SELECT's exact single Source under Project→Filter. FALSE
+  and Boolean NULL can elide eager catalog production after common SELECT
+  admission. TRUE demands capture. Current parameters are checked on each
+  execution; no rejected-demand decision is retained. Nested/CTE/rule frames,
+  samples, row marks, locks and other topology conservatively keep capture.
+  Arbitrary expressions are never evaluated as proof. Cancellation and invalid
+  parameter frames remain errors, not successful empty results. Bgwriter's scalar
+  getter ACLs remain admitted before this proof; its broader aggregate read-only
+  suppression remains independent of direct-input source elision.
 - `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links. It copies relation
   templates built once per process and sets this engine's owner, ACL and
@@ -100,6 +110,9 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
 - Shared-dependency immutable-root, local-OID collision and referenced-pin
   units use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
   `reference/catalog_privileges`.
+- Bound catalog-input proof and topology guards use
+  `make check RUN='^TestCatalogSourceRejectsInputProof$'`; actual current ACL and
+  provider/Reader ownership remain composed core and public reference witnesses.
 - Producer tests build runtimes with `core.NewCatalogRuntime` and read their
   fields back with `core.CatalogRuntimeFieldsOf`; they live with the
   producers (`core/enginetests/{pgcatalog,infoschema}`,

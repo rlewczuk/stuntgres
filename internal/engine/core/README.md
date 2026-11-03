@@ -2736,6 +2736,14 @@ Producers, the OID registry and descriptor specs live in
   Restricted statistics-view capture additionally checks the current EXECUTE ACL of
   its metadata-only backing routine, after ordinary view SELECT admission and
   before the pure producer. Neither grant is retained in prepared artifacts.
+  Before invoking a catalog producer, the capturing SELECT may prove its exact
+  single input undemanded through `catalogrt.KeepQuery.RejectsInput`, using the
+  executor's literal/current-parameter WHERE proof. Common current SELECT,
+  descriptor/domain/epoch and restricted-view admission still precede the typed
+  empty source. No producer, backing getter or provider cut is then opened.
+  Physical/stored/foreign/sequence paths are unchanged; unsupported topology and
+  locking keep ordinary capture. A held statement recomputes demand from this
+  execution's imported parameters rather than retaining an earlier FALSE.
 - The runtime producers read is [`core/catalogrt`](catalogrt/README.md):
   `catalogrt.Runtime` over `catalogrt.Host`, the shared capture cache
   (`Engine.catalogCaptures`, owned by `Engine.Mu`), keep filters and the

@@ -18,6 +18,13 @@ is reserved for actual admitted creation, never a reset/read. Category merges ad
 pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
+Subscription error/conflict facts are cumulative execution counters, not worker
+inventory. Desired catalog Enabled state and ordinary session PIDs cannot confer
+apply-worker authority. The subscription monitoring view enumerates actual shared
+catalog identities and leaves absent-worker fields typed NULL without reading,
+allocating or mutating these facts. Command creation/drop/replacement hooks retain
+sole ownership of subscription baselines and qualified retirement.
+
 Relation facts also carry additive `BlocksFetched`/`BlocksHit` request counters.
 `Writer.PendingBlocks` returns a copied pair from only that physical owner's
 pending full key, checking provider generation and retirement without allocation

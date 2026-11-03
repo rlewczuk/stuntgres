@@ -419,7 +419,16 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 				if scope.ruleAction.Auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 					sourceInvoker = leaf.Principal
 				}
-				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogKeep.Keep(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks), scope.catalogKeep.BGWriterReadSuppressed(leaves, i, mark))
+				capture := true
+				if leaf.Relation.RelationKind == catalog.CatalogRelation {
+					var rejects bool
+					rejects, err = scope.catalogKeep.RejectsInput(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks)
+					if err != nil {
+						break
+					}
+					capture = !rejects
+				}
+				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogKeep.Keep(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks), capture, scope.catalogKeep.BGWriterReadSuppressed(leaves, i, mark))
 				e.Mu.Lock()
 			}
 		}

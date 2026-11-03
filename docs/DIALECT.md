@@ -55,6 +55,32 @@ Reset does not invalidate a retained cut or detached Rows. Mutations reject
 through ordinary non-updatable-view diagnostics, including WHERE FALSE, and no
 portable row order exists without ORDER BY.
 
+## Subscription monitoring
+
+`pg_catalog.pg_stat_subscription` is the eleven-column, read-only PostgreSQL 18
+relation. Its shared subscription OID/NAME identities are visible across databases,
+including distinct same-name subscriptions. With no actual apply worker, the
+released LEFT JOIN retains one identity row and nine typed NULL worker/status
+fields. Desired Enabled state, ordinary session PIDs, counters and replication
+origin registrations do not establish execution. External publisher connections,
+replication slots and apply transport retain their existing command boundaries;
+no worker activity, received LSN/time or substantive apply conflict is fabricated.
+
+Public identity/status visibility is not owner-masked. Protected connection
+information remains in the separately protected `pg_subscription.subconninfo`
+catalog column and is never copied into this view. Current view/column SELECT
+applies on every execution, including held statements. The backing
+`pg_stat_get_subscription(oid)` separately requires EXECUTE when evaluated;
+constant-false queries retain SELECT admission but do not invoke the getter.
+Its released definition and native `_RETURN` metadata do not grant a callable
+statistics getter or executable rule. Existing shared-provider subscription
+counter/lifetime ownership is unchanged; status reads do not create snapshots,
+keys or counter events. Rename preserves identity, drop removes it, and native
+Restore remints definitions without importing monitoring history. Detached native
+Rows retain their original typed values across later changes. Mutations, including
+WHERE FALSE, reject through normal full non-updatable-view diagnostics; TRUNCATE
+and COPY FROM also reject. No row order is portable without ORDER BY.
+
 ## Heap surgery
 
 The genuine `pg_surgery` provider implements forced freeze and kill on canonical
