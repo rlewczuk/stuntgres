@@ -31,9 +31,30 @@ func TestFTSVectorFunctionsRoutineDeclarations(t *testing.T) {
 			t.Fatal("display", tc, display)
 		}
 	}
-	for _, oid := range []ids.OID{3322, 3327} {
+	for _, oid := range []ids.OID{3322} {
 		if BuiltinRoutine(oid) != nil {
 			t.Fatal("adjacent operation enabled", oid)
+		}
+	}
+}
+
+func TestFTSArrayConfigRoutineDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		oid, result     ids.OID
+		name, signature string
+		volatility      expr.Volatility
+		provider        functions.RoutineProvider
+	}{
+		{3327, 3614, "array_to_tsvector", "1009", expr.Immutable, functions.FTSVectorRoutineProvider},
+		{3759, 3734, "get_current_ts_config", "", expr.Stable, functions.FTSQueryRoutineProvider},
+	} {
+		got := BuiltinRoutine(tc.oid)
+		identity := catalog.RoutineIdentity{ID: tc.oid, Namespace: ids.PGCatalogNamespaceOID, Name: tc.name, Signature: catalog.ProcedureSignature(tc.signature)}
+		if got == nil || got.Identity != identity || got.Result != tc.result || got.Kind != catalog.FunctionRoutine || !got.Strict || got.Volatility != tc.volatility || got.Parallel != 's' || got.ReturnsSet || got.Defaults != 0 || got.Variadic != 0 || got.Outputs != nil || got.Providers != tc.provider {
+			t.Fatal("released array/config declaration", tc, got)
+		}
+		if display, ok := builtinRoutineDisplay[tc.oid]; !ok || display != (builtinDisplayFacts{Language: catalog.InternalRoutineLanguage, Source: tc.name}) {
+			t.Fatal("released array/config display", tc, display)
 		}
 	}
 }

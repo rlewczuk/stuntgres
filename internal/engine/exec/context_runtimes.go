@@ -1188,6 +1188,14 @@ func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, 
 	return host.TextSearch().ConvertJSONTextSearch(c.Context, explicit, configuration, document, filter, filtered, result)
 }
 
+func (c *Context) CurrentTextSearchConfig(result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: current text search configuration lacks statement authority")
+	}
+	return host.TextSearch().CurrentTextSearchConfig(c.Context, result)
+}
+
 func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {
 	host := c.LiveHost()
 	if host == nil {

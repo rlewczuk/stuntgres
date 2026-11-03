@@ -704,6 +704,14 @@ default-config constant. Execution borrows one coherent parser/dictionary
 capture; ordinary folding owns immutable explicit results without a conversion
 cache or notice replay.
 
+`FTSCurrentConfig` is a stable, zero-child REGCONFIG scalar in the existing
+text-search conversion routine-provider family. Its own canonical statement
+discriminator preserves routine identity without capturing configuration state.
+It stays symbolic and unfolded through planning, reconstruction and stored replay.
+Execution borrows `FTSConversionRuntime.CurrentTextSearchConfig`, which resolves actual identity
+from operation-effective settings without dictionary acquisition or a retained
+default/configuration value.
+
 `FTS` owns the four selected `@@` signatures and their actual `ts_match_vq`,
 `ts_match_qv`, `ts_match_tt` and `ts_match_tq` routine identities. Typed pairs
 are immutable; text pairs are stable and borrow `FTSConversionRuntime` only
@@ -1477,9 +1485,11 @@ publication and lock-manager tickets stay in the engine.
   `FTSQueryRuntime` after strict-NULL and empty-query bypass. Stored nodes keep
   typed operands and routine identity, never SQL rows or a statement host.
 - **Text-search vector utilities**: `FTSVector` owns checked immutable scalar
-  operations and strict typed operands. The string family's `FinishString`
-  routes an already analyzed typed vector `length` operand to this provider;
-  unknown and other typed length operands retain their existing owners.
+  operations, including the TEXT[]-anchored positionless constructor, and strict
+  typed operands. Constructor lexemes are consumed as-is, not parsed as vector
+  syntax. The string family's `FinishString` routes an already analyzed typed
+  vector `length` operand to this provider; unknown and other typed length
+  operands retain their existing owners.
 - **Cube spatial** (`cube_spatial.go`, `cube_spatial_bind.go`): `CubeSpatial`
   owns two coerced operands and a checked `sqltype.CubeSpatialPlan`.
   `InstalledCubeRoutine.CubeType` exposes the selected installation's descriptor

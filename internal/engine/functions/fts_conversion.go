@@ -11,6 +11,7 @@ import (
 type FTSConversionRuntime interface {
 	ConvertTextSearch(fts.ConversionKind, bool, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertJSONTextSearch(bool, sqltype.Value, sqltype.Value, sqltype.Value, bool, *sqltype.Descriptor) (sqltype.Value, error)
+	CurrentTextSearchConfig(*sqltype.Descriptor) (sqltype.Value, error)
 }
 
 // FTSConversion owns checked SQL operands, never configuration or dictionary state.

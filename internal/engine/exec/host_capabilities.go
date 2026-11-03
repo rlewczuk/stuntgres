@@ -60,6 +60,7 @@ type TextSearchRuntime interface {
 	LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertJSONTextSearch(ctx context.Context, explicit bool, configuration, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error)
+	CurrentTextSearchConfig(ctx context.Context, result *sqltype.Descriptor) (sqltype.Value, error)
 	UnaccentText(procedure ids.ObjectRef, dictionary sqltype.Value, input string, result *sqltype.Descriptor) (sqltype.Value, error)
 	functions.FTSInspectionRuntime
 	functions.FTSParserRuntime

@@ -429,6 +429,7 @@
 3321	ts_delete	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3614	3614 25	\N	\N	\N	false	\N	tsvector_delete_str	\N	false	\N
 3323	ts_delete	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3614	3614 1009	\N	\N	\N	false	\N	tsvector_delete_arr	\N	false	\N
 3326	tsvector_to_array	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1009	3614	\N	\N	\N	false	\N	tsvector_to_array	\N	false	\N
+3327	array_to_tsvector	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	3614	1009	\N	\N	\N	false	\N	array_to_tsvector	\N	false	\N
 3334	pg_size_bytes	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	20	25	\N	\N	\N	false	\N	pg_size_bytes	\N	false	\N
 3344	cash_mul_int8	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	790 20	\N	\N	\N	false	\N	cash_mul_int8	\N	false	\N
 3345	cash_div_int8	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	790 20	\N	\N	\N	false	\N	cash_div_int8	\N	false	\N

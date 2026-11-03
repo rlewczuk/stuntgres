@@ -71,6 +71,8 @@ import (
 // same one-TEXT contract, returning their exact alias types or INT4 typmod.
 // GIN pending-list cleanup OID3789 retains its strict VOLATILE/parallel-unsafe
 // one-regclass INT8 declaration, cost 1 and released internal symbol.
+// Array-vector construction and current-config identity add strict scalar,
+// parallel-safe declarations3327/3759 with immutable/stable volatility.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -218,8 +220,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Pending-list cleanup adds the genuine regclass->bigint declaration3789.
 	// Replication statistics reset adds the released non-strict VOLATILE/
 	// parallel-safe TEXT/OID->VOID declarations6170/6232 with unnamed inputs.
-	if len(facts) != 2215 {
-		t.Fatalf("released represented overloads: got %d, want 2215", len(facts))
+	// Array-vector construction and current configuration add the strict,
+	// parallel-safe scalar declarations3327/3759 and unnamed input formals.
+	if len(facts) != 2217 {
+		t.Fatalf("released represented overloads: got %d, want 2217", len(facts))
 	}
 	return facts
 }

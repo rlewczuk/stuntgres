@@ -22,8 +22,8 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 ## Contract
 
 - `Convert` (to_tsvector, to_tsquery and its plain, phrase and websearch
-  forms), `ConvertJSON`, `Debug`, `Stat`, `Rewrite`, `Lexize`, `Unaccent` and
-  `ResolveParser` are the bodies of `exec.TextSearchRuntime`.
+  forms), `ConvertJSON`, `CurrentConfig`, `Debug`, `Stat`, `Rewrite`, `Lexize`,
+  `Unaccent` and `ResolveParser` are the bodies of `exec.TextSearchRuntime`.
 - `CaptureConfiguration` captures one configuration and its parser from an
   immutable catalog read; `Capture.Walk` tokenizes and lexizes a text,
   acquiring each consulted dictionary on demand; `Capture.Accept` is the final
@@ -66,6 +66,10 @@ not initialize mapped dictionaries. Omitted configuration resolves the current
 `default_text_search_config` name from operation-effective settings at execution,
 with Engine-before-settings lock order and semantic missing-schema/configuration
 errors. Mapping changes publish through ordinary schema stages and definition locks.
+`CurrentConfig` uses the same coherent identity-only resolver and cancellation
+fence to construct a real REGCONFIG value on every call. It reads
+`Operation.Setting`, including detached restricted invocation settings, and
+never acquires a parser/dictionary or retains a session default in a plan.
 JSON conversion validates its filter first, then resolves an omitted default
 identity before traversal, even if no item is selected. Explicit configurations
 retain lazy identity demand. Both forms acquire parser/dictionary runtime only

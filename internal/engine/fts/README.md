@@ -124,6 +124,14 @@ consumes an already converted internal byte and emits hard operation errors.
 Selector scans, transformations and extraction check cancellation at bounded
 intervals; no partial values or execution context escape an operation.
 
+`ArrayVector` is the positionless counterpart of `VectorBuilder`: flattened
+as-is strings become private lexeme entries without tokenization or vector-text
+reparsing. NULL, empty and overlong elements fail in storage order before the
+shared byte-sort/deduplication and surviving-total size check. Source strings
+remain immutable, positions stay absent, and cancellation during extraction,
+sorting, merging or rendering publishes no partial vector. These are hard
+function errors rather than recoverable text-input failures.
+
 `Vector.Match` reads immutable vector entries and query arenas directly using an
 iterative, short-circuit Boolean evaluator. It consumes the canonical arena's
 value nodes and right-child unary nodes without translating their layout.

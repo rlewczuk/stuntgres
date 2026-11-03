@@ -736,9 +736,13 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   domain wrappers, before reading immutable retained positions. `FTSStatisticsRows`
   publishes owned fixed-record TEXT/INT4/INT4 results only after accumulation.
 - `FTSVectorPlan` checks same-generation vector, scalar and array companions
-  and exact typmods before strict NULL evaluation. TEXT and TEXT[] selectors
-  retain valid usage collations while matching lexemes byte-exactly. Conversion
-  transfers one owned TEXT element buffer to the generic array constructor.
+  and exact typmods before strict NULL evaluation. The positionless array
+  constructor anchors on authentic TEXT[] with bidirectional TSVECTOR/TEXT
+  companions; input element authority and shape survive cloning and rebinding.
+  TEXT and TEXT[] usages retain valid collations while lexemes remain byte-exact.
+  Vector-to-array conversion transfers one owned TEXT element buffer to the
+  generic array constructor; array-to-vector consumes its immutable flat values
+  without changing dimensions, tokenizing or inventing positions.
   Internal CHAR scalars use the ordinary declaration, input and cast descriptors,
   validating external UTF8 text before one-byte decoding. CHAR arrays use the
   ordinary array codec and shared `ArrayElementAdmitted` policy for storage.

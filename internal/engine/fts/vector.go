@@ -255,3 +255,37 @@ func renderVector(ctx context.Context, merged []lexeme) (*Vector, error) {
 func vectorSize(n int) error {
 	return failure("54000", fmt.Sprintf("string is too long for tsvector (%d bytes, max 1048575 bytes)", n))
 }
+
+// ArrayVector constructs as-is, positionless lexemes from a flat SQL array.
+// Validate storage order before canonicalizing: later invalid elements must not
+// hide an earlier failure, and duplicate bytes do not count toward the total.
+func ArrayVector(ctx context.Context, count int, element func(int) (string, bool)) (*Vector, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries := make([]lexeme, count)
+	for i := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		word, present := element(i)
+		if !present {
+			return nil, failure("22004", "lexeme array may not contain nulls")
+		}
+		if len(word) == 0 {
+			return nil, failure("2200F", "lexeme array may not contain empty strings")
+		}
+		if len(word) > maxWordBytes {
+			return nil, failure("54000", fmt.Sprintf("word is too long (%d bytes, max 2046 bytes)", len(word)))
+		}
+		entries[i].word = word
+	}
+	vector, err := canonicalVector(ctx, entries)
+	if err != nil {
+		return nil, sqlstate.HardInputError(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return vector, nil
+}

@@ -37,6 +37,7 @@
 3756	pg_ts_parser_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_parser_is_visible	\N	false	\N
 3757	pg_ts_dict_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_dict_is_visible	\N	false	\N
 3758	pg_ts_config_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_config_is_visible	\N	false	\N
+3759	get_current_ts_config	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	3734		\N	\N	\N	false	\N	get_current_ts_config	\N	false	\N
 3768	pg_ts_template_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_template_is_visible	\N	false	\N
 3778	pg_tablespace_location	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_tablespace_location	\N	false	\N
 3787	to_jsonb	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3802	2283	\N	\N	\N	false	\N	to_jsonb	\N	false	\N

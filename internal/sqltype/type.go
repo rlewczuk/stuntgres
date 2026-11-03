@@ -484,6 +484,7 @@ func buildBuiltins() []*Descriptor {
 			vector.ftsText = d
 		case 1009:
 			vector.ftsTextArray = d
+			d.ftsVector, d.ftsText = vector, ftsText
 		case 1002:
 			vector.ftsCharArray = d
 		}

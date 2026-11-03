@@ -325,10 +325,13 @@ func (XMLXPath) JumbleFields(s expr.StatementFields)       { s.JumbleText("funct
 func (Format) JumbleFields(s expr.StatementFields)         { s.JumbleText("functions.Format") }
 func (FTS) JumbleFields(s expr.StatementFields)            { s.JumbleText("functions.FTS") }
 func (FTSConversion) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.FTSConversion") }
-func (FTSInspection) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.FTSInspection") }
-func (FTSParser) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.FTSParser") }
-func (FTSQuery) JumbleFields(s expr.StatementFields)       { s.JumbleText("functions.FTSQuery") }
-func (FTSVector) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.FTSVector") }
+func (FTSCurrentConfig) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.FTSCurrentConfig")
+}
+func (FTSInspection) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.FTSInspection") }
+func (FTSParser) JumbleFields(s expr.StatementFields)     { s.JumbleText("functions.FTSParser") }
+func (FTSQuery) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.FTSQuery") }
+func (FTSVector) JumbleFields(s expr.StatementFields)     { s.JumbleText("functions.FTSVector") }
 func (GenericFileList) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.GenericFileList")
 }

@@ -1695,6 +1695,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3321: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_delete_str"},
 	3323: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_delete_arr"},
 	3326: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_to_array"},
+	3327: {Language: catalog.InternalRoutineLanguage, Source: "array_to_tsvector"},
+	3759: {Language: catalog.InternalRoutineLanguage, Source: "get_current_ts_config"},
 	3623: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_strip"},
 	3624: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_setweight"},
 	3711: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_length"},

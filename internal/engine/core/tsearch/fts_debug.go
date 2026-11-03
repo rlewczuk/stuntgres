@@ -47,6 +47,27 @@ func resolveTextSearchInput[A Authority[A]](h Host[A], ctx context.Context, expl
 	return textSearchInput{read: read, oid: oid}, nil
 }
 
+// CurrentConfig resolves only identity, with the operation-effective setting
+// and catalog generation captured under the existing engine/settings lock order.
+// It neither acquires dictionaries nor retains a configuration across calls.
+func CurrentConfig[A Authority[A]](h Host[A], ctx context.Context, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if result == nil || result.ID() != sqltype.Regconfig || !result.Concrete() {
+		return sqltype.Value{}, fmt.Errorf("invalid current text search configuration result")
+	}
+	input, err := resolveTextSearchInput(h, ctx, false, sqltype.Value{})
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	value, err := sqltype.RegTSValue(result, input.oid)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return sqltype.Value{}, err
+	}
+	return value, nil
+}
+
 func captureTextSearchInput[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (Capture[A], error) {
 	input, err := resolveTextSearchInput(h, ctx, explicit, value)
 	if err != nil {

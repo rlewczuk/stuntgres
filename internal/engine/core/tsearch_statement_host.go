@@ -71,6 +71,10 @@ func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit boo
 	return tsearch.ConvertJSON[AuthorizationView](h.host(), ctx, explicit, config, document, filter, filtered, result)
 }
 
+func (h *textSearchHost) CurrentTextSearchConfig(ctx context.Context, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return tsearch.CurrentConfig[AuthorizationView](h.host(), ctx, result)
+}
+
 func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	return tsearch.Debug[AuthorizationView](h.host(), ctx, explicit, value, text, result)
 }

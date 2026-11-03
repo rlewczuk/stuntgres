@@ -34,6 +34,12 @@ these are shared across families:
   quoting; their held routes retain typed selector and weight operands across
   executions. Select this family with
   `make check RUN='^TestReferenceFTSVectorFunctions'`.
+- Array construction/current-configuration scenarios reuse the fixture's pinned
+  sessions, held statements, scalar metadata and retained-row helpers. Expected
+  lexemes and routine facts are independent; generated configuration identities
+  are relational. Native logical-control/cancellation phases retain the same SQL
+  witnesses and replay the actual emitted SQL. Select this family with
+  `make check RUN='^TestReferenceFTSArrayConfig'`.
 - JSON text-search conversions reuse the configuration scenario and constructor
   metadata helper. Direct, fresh-prepared and held typed operands cover filters,
   source-preserving JSON traversal, lazy configuration demand and diagnostics;

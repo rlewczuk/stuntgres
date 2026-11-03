@@ -40,6 +40,9 @@ func (e FTSVector) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	for _, arg := range e.Children() {
 		if c.FunctionLiteralNull(arg) {
+			if err := ctx.Err(); err != nil {
+				return sqltype.Value{}, err
+			}
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
@@ -68,10 +71,10 @@ func (e FTSVector) Validate() error {
 	}
 	return nil
 }
-func (e FTSVector) ValidateStoredProvider() error { return e.Validate() }
+func (e FTSVector) ValidateStoredProvider() error        { return e.Validate() }
 func (e FTSVector) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e FTSVector) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
-func (e FTSVector) LooksLikeFunction() bool { return true }
+func (e FTSVector) PreflightFold() expr.Preflight        { return expr.PreflightNullOrEvaluate }
+func (e FTSVector) LooksLikeFunction() bool              { return true }
 func (e FTSVector) Render() (expr.Rendering, error) {
 	if err := e.Validate(); err != nil {
 		return expr.Rendering{}, err
