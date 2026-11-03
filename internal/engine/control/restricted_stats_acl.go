@@ -17,10 +17,12 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 	entries := 2
 	switch object := d.(type) {
 	case *catalog.Procedure:
-		if object.Address().ClassID != ids.ProcedureClassID || object.Builtin == nil || object.Builtin != routine.BuiltinRoutine(object.Address().ObjectID) {
+		if object.Address().ClassID != ids.ProcedureClassID || object.Address().SubID != 0 || object.Builtin == nil || object.Builtin != routine.BuiltinRoutine(object.Address().ObjectID) {
 			return false
 		}
 		switch object.Address().ObjectID {
+		case 3195:
+			name, entries = "pg_stat_get_archiver", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:
@@ -65,7 +67,15 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	owner, acl, _ := access.DescriptorACL(d)
-	if owner != bootstrap || d.Name() != name || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || !acl.Explicit || len(acl.Entries) != entries {
+	if owner != bootstrap || d.Name() != name || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+		return false
+	}
+	if entries == 0 {
+		// The archiver backing routine has ordinary implicit PUBLIC EXECUTE.
+		// Even an explicit ACL with identical effective rights is user state.
+		return !acl.Explicit && len(acl.Entries) == 0
+	}
+	if !acl.Explicit || len(acl.Entries) != entries {
 		return false
 	}
 	return acl.Entries[0] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: bootstrap}, Privileges: ownerMask}) &&

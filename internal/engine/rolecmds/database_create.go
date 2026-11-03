@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/parser"
 )
 
@@ -199,6 +200,9 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	target.Cluster = e.Cluster
 	roots.InstallLocked()
 	target.Statistics.InheritBackendRegistrations(&e.Statistics)
+	// Read authority here, after template preparation and final admission:
+	// a shared reset may have occurred while the cluster mutex was released.
+	target.Statistics.ResetShared(statistics.Archiver, e.Cluster.ArchiverResetAt)
 	e.Cluster.Targets = targets
 	e.Cluster.NextOID = oid + 1
 	return core.Result{CommandTag: "CREATE DATABASE"}, nil

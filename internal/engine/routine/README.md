@@ -70,6 +70,13 @@ is independent of view SELECT; catalog ownership/completeness and the reference
 routine inventories include the declaration without making it a callable SRF.
 The view captures actual explicitly attached files through its own admitted source.
 
+`pg_stat_get_archiver` (3195) is an ordinary zero-provider view-authority
+descriptor: non-strict STABLE/parallel-restricted scalar RECORD, seven named OUT
+fields, cost 1 and no set row estimate. Its implicit default ACL admits PUBLIC
+EXECUTE; current GRANT/REVOKE uses the same descriptor independently of view
+SELECT. The immutable declaration is shared, while each engine owns its mutable
+descriptor. Neither the identity ledger nor this metadata grants a callable getter.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -72,7 +73,12 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			if !restrictedStatsACLReconstructed(descriptor, owner, stats) {
 				t.Fatal("seeded authority needs no replay")
 			}
-			for _, change := range []func(*authorization.ACLValue){
+			_, baseline, _ := access.DescriptorACL(descriptor)
+			implicit := descriptor.Address().ObjectID == 3195
+			if implicit != !baseline.Explicit || implicit && len(baseline.Entries) != 0 {
+				t.Fatal("backing routine default ACL classification", descriptor)
+			}
+			changes := []func(*authorization.ACLValue){
 				func(a *authorization.ACLValue) { a.Explicit = false },
 				func(a *authorization.ACLValue) { a.Entries = nil },
 				func(a *authorization.ACLValue) {
@@ -91,7 +97,43 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 					a.Entries[len(a.Entries)-1].Grantee.Role = new(authorization.Domain).Principal(stats.ID())
 				},
 				func(a *authorization.ACLValue) { a.Entries[len(a.Entries)-1].Privileges = 0 },
-			} {
+			}
+			if implicit {
+				changes = []func(*authorization.ACLValue){
+					func(a *authorization.ACLValue) { a.Explicit = true },
+					func(a *authorization.ACLValue) {
+						*a = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+							{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.ExecutePrivilege},
+							{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege},
+						}}
+					},
+					func(a *authorization.ACLValue) {
+						a.Entries = []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.ExecutePrivilege}}
+					},
+				}
+				public := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.ExecutePrivilege}
+				ownerEntry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege}
+				statsEntry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.ExecutePrivilege}
+				withOption := statsEntry
+				withOption.GrantOptions = authorization.ExecutePrivilege
+				otherGrantor := statsEntry
+				otherGrantor.Grantor = stats
+				foreignPrincipal := statsEntry
+				foreignPrincipal.Grantee.Role = new(authorization.Domain).Principal(stats.ID())
+				for _, entries := range [][]authorization.ACLEntry{
+					{ownerEntry, public},
+					{public, ownerEntry, public},
+					{ownerEntry, withOption},
+					{statsEntry, ownerEntry, withOption},
+					{ownerEntry, otherGrantor},
+					{ownerEntry, foreignPrincipal},
+				} {
+					changes = append(changes, func(a *authorization.ACLValue) {
+						*a = authorization.ACLValue{Explicit: true, Entries: slices.Clone(entries)}
+					})
+				}
+			}
+			for _, change := range changes {
 				var modified catalog.Descriptor
 				switch original := descriptor.(type) {
 				case *catalog.Procedure:
@@ -116,6 +158,9 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			case *catalog.Procedure:
 				for _, change := range []func(*catalog.Procedure){
 					func(x *catalog.Procedure) { x.Owner = stats },
+					func(x *catalog.Procedure) { x.ObjectAddress.ClassID = ids.RelationClassID },
+					func(x *catalog.Procedure) { x.ObjectAddress.SubID = 1 },
+					func(x *catalog.Procedure) { x.ObjectAddress.ObjectID++ },
 					func(x *catalog.Procedure) { x.ObjectName = "changed" },
 					func(x *catalog.Procedure) { x.ObjectNamespace.ObjectID++ },
 					func(x *catalog.Procedure) { copyDeclaration := *x.Builtin; x.Builtin = &copyDeclaration },

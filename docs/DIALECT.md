@@ -24,6 +24,37 @@ and source-less native transaction controls invent no SQL source. See the full
 [Driver activity contract](DRIVER.md#session-activity-monitoring), including
 disabled tracking, canonical horizons and complete mutation diagnostics.
 
+## Archiver monitoring
+
+`pg_catalog.pg_stat_archiver` exposes one cluster-wide, read-only row with the
+seven PostgreSQL 18 columns: `archived_count` (bigint), `last_archived_wal`
+(text), `last_archived_time` (timestamptz), `failed_count` (bigint),
+`last_failed_wal` (text), `last_failed_time` (timestamptz), and `stats_reset`
+(timestamptz). All attributes have nullable catalog metadata. The two technical
+counter estimates use the deterministic formula **zero in the absence of a
+physical archiver/event producer**; SQL reads and DML never count as archival
+activity. Both last-WAL names and both last-event times stay NULL without actual
+events. A filename is not an archive-completeness or filename-order guarantee.
+
+Reset metadata is exact: initialized clusters record their genuine startup
+instant, and authorized `pg_stat_reset_shared('archiver')` or NULL/default-all
+resets record one genuine instant across databases. New databases inherit this
+authority; database-local native Reset/Restore preserves it. Reads never
+initialize a missing reset timestamp. Dump serializes no monitoring history.
+
+Current view/selected-column SELECT and backing `pg_stat_get_archiver()`
+EXECUTE are independently required on each execution. The backing catalog
+descriptor has default PUBLIC EXECUTE and supports ordinary GRANT/REVOKE.
+Permitted ordinary roles, `pg_monitor` and `pg_read_all_stats` see the same fields,
+without session-style masking; these roles do not inherently receive reset
+EXECUTE. No callable archiver getter or physical WAL facility is introduced.
+The existing cumulative
+Reader supplies none/current, cache/family and snapshot/all-family cuts;
+clear and transaction completion release cuts without resetting counters.
+Reset does not invalidate a retained cut or detached Rows. Mutations reject
+through ordinary non-updatable-view diagnostics, including WHERE FALSE, and no
+portable row order exists without ORDER BY.
+
 ## Heap surgery
 
 The genuine `pg_surgery` provider implements forced freeze and kill on canonical

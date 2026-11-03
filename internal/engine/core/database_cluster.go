@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -22,13 +23,16 @@ type DatabaseCluster struct {
 	// after construction and never replaced with catalogs.
 	StartedAt      int64
 	ConfigLoadedAt int64
-	Mu             sync.Mutex
-	Roles          access.RoleStore
-	Locks          *lock.Manager
-	RoleDomain     ids.Domain
-	DefaultTarget  *Engine
-	Targets        map[string]*Engine
-	NextOID        ids.OID
+	// Archiver-only cluster reset authority, guarded by Mu. Database providers
+	// mirror this instant; local catalog replacement is not a shared reset.
+	ArchiverResetAt time.Time
+	Mu              sync.Mutex
+	Roles           access.RoleStore
+	Locks           *lock.Manager
+	RoleDomain      ids.Domain
+	DefaultTarget   *Engine
+	Targets         map[string]*Engine
+	NextOID         ids.OID
 	// StatementStatistics survives database catalog replacement and session end.
 	// Its private mutex is a leaf beneath every runtime/authority lock.
 	StatementStatistics *statistics.Statements

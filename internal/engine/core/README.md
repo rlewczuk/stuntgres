@@ -611,8 +611,24 @@ Provider locks remain leaves under the cluster mutex. Published changes are
 immediate and nontransactional; reset never clears the physical reader or moves
 its snapshot construction timestamp. Fixed-family events are logical provider
 state, not evidence of physical workers, storage IO or WAL generation. The
-per-target traversal is the bounded cluster approximation; no adjacent shared
-monitoring view/getter or global aggregate is introduced.
+per-target traversal preserves existing shared-family behavior. Archiver alone
+also retains `DatabaseCluster.ArchiverResetAt` under the shared mutex, initialized
+from the PostgreSQL-epoch StartedAt instant. Target publication mirrors the
+current authority only after fallible template work/admission; accepted local
+catalog replacement restores it after Provider.Replace. Neither boundary is a
+shared reset. Authorized archiver/NULL-all shared reset updates the authority
+and every current provider mirror with one microsecond UTC instant. Other
+families and standalone provider semantics are unchanged. This needs no second
+provider or Reader change because there is no production archive event writer.
+The archiver view checks current SELECT and backing routine3195 EXECUTE before
+configuring/fetching its session Reader, then projects detached facts outside
+Engine.Mu. Describe and denied admission cannot populate the Reader. Its
+none/cache/snapshot cuts are database-local coherent all-family ownership, not
+reads redirected to another runtime's relation/function provider.
+Backing routine3195 is a zero-provider catalog descriptor with ordinary default
+PUBLIC EXECUTE and live GRANT/REVOKE, not a getter implementation. Current native
+admission remains independent of retained statistics backing; portable peer-ACL
+reference witnesses cross the reader transaction boundary for catalog visibility.
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.
@@ -3157,6 +3173,10 @@ routine depth, trigger depth, effective-user/configuration and command policy.
 
 WAL-name startup propagation, destination rebinding and accepted-fold ownership
 use `RUN='^TestWALNamesMetadata$'`.
+
+Archiver capture, cumulative Reader backing and cluster publication/replacement
+ownership use `make check RUN='^TestPGStatArchiver'`; add `RACE=1` for the same
+family's synchronized ownership witnesses.
 
 Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and
 cancellation, statement pins, independent prepared protocol resources and retained

@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -24,12 +26,60 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		seen[p.Address().ObjectID] = true
 	}
-	for _, oid := range []ids.OID{3329, 3400, 4100, 5052, 6250, 6399} {
-		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
-		if seen[oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(oid) || p.Builtin.Providers != 0 || !p.Builtin.ReturnsSet || !p.Display.Valid() || p.SecurityDefiner {
-			t.Fatal("incomplete metadata-only backing declaration", p)
+	for _, want := range []struct {
+		oid        ids.OID
+		name       string
+		returnsSet bool
+		aclEntries int
+	}{
+		{3195, "pg_stat_get_archiver", false, 0},
+		{3329, "pg_show_all_file_settings", true, 1},
+		{3400, "pg_config", true, 1},
+		{4100, "pg_get_shmem_allocations_numa", true, 2},
+		{5052, "pg_get_shmem_allocations", true, 2},
+		{6250, "pg_ident_file_mappings", true, 1},
+		{6399, "pg_get_aios", true, 2},
+	} {
+		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: want.oid})
+		if seen[want.oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(want.oid) || p.Builtin.Providers != 0 || p.Builtin.ReturnsSet != want.returnsSet || p.ReturnsSet() != want.returnsSet || p.Name() != want.name || p.RoutineKind != catalog.FunctionRoutine || p.Result != 2249 || p.Signature != "" || !p.Display.Valid() || p.SecurityDefiner {
+			t.Fatal("incomplete metadata-only backing declaration", p, want)
 		}
-		seen[oid] = true
+		owner := e.Roles().LookupRef("postgres")
+		if p.Owner != owner || p.ACL.Explicit != (want.aclEntries != 0) || len(p.ACL.Entries) != want.aclEntries {
+			t.Fatal("metadata-only backing default authority", p, want)
+		}
+		if want.aclEntries != 0 && p.ACL.Entries[0] != (authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege}) {
+			t.Fatal("metadata-only backing owner EXECUTE", p)
+		}
+		if want.aclEntries == 2 && p.ACL.Entries[1] != (authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: e.Roles().LookupRef("pg_read_all_stats")}, Privileges: authorization.ExecutePrivilege}) {
+			t.Fatal("metadata-only backing stats EXECUTE", p)
+		}
+		if want.oid == 3195 {
+			if p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+				t.Fatal("released scalar archiver declaration", p)
+			}
+			outputs := p.OutputDeclaration()
+			if outputs == nil || outputs.Len() != 7 || outputs.Inputs() != 0 {
+				t.Fatal("released archiver OUT-only signature", outputs)
+			}
+			for i, field := range [...]struct {
+				name string
+				typ  ids.OID
+			}{
+				{"archived_count", 20},
+				{"last_archived_wal", 25},
+				{"last_archived_time", 1184},
+				{"failed_count", 20},
+				{"last_failed_wal", 25},
+				{"last_failed_time", 1184},
+				{"stats_reset", 1184},
+			} {
+				if outputs.Name(i) != field.name || outputs.Type(i) != field.typ {
+					t.Fatal("released archiver OUT field", i, outputs.Name(i), outputs.Type(i), field)
+				}
+			}
+		}
+		seen[want.oid] = true
 	}
 	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
 	if !seen[2282] || memory.Builtin != routine.BuiltinRoutine(2282) || memory.Builtin.Providers == 0 || !memory.Builtin.ReturnsSet || memory.Result != 2249 || len(memory.ACL.Entries) != 2 {
@@ -56,6 +106,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
 		2282: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_backend_memory_contexts"},
+		3195: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_archiver"},
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},

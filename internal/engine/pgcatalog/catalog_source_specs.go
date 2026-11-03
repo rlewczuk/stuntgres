@@ -197,6 +197,7 @@ var Specs = [...]Spec{
 	{StatActivityOID, ids.PGCatalogNamespaceOID, "pg_stat_activity", activityColumns, true, false, false, false, "stuntgres: missing activity source type"},
 	{StatRecoveryPrefetchOID, ids.PGCatalogNamespaceOID, "pg_stat_recovery_prefetch", recoveryPrefetchColumns, true, false, false, false, "stuntgres: missing recovery prefetch source type"},
 	{StatReplicationSlotsOID, ids.PGCatalogNamespaceOID, "pg_stat_replication_slots", replicationSlotsColumns, true, false, false, false, "stuntgres: missing replication slots source type"},
+	{StatArchiverOID, ids.PGCatalogNamespaceOID, "pg_stat_archiver", archiverColumns, true, false, false, false, "stuntgres: missing archiver source type"},
 	{StatAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_sys_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_user_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

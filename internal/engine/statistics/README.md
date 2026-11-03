@@ -59,14 +59,21 @@ their end paths allocate no history. State is bounded by current public lifetime
 not connection churn, and cannot retain private session owners.
 Full Reset/Replace clear fixed/backend history with the database incarnation,
 retain current live registrations and advance the existing pending-generation
-fence. New actual target publication inherits only positive registrations under
-cluster serialization, using separate provider lock acquisitions, never metrics
-or reset history. No monitoring history is serialized or activity manufactured.
-The provider remains zero-value-ready: reads do not initialize reset metadata.
-The completed engine owner records recovery-prefetch initialization once through
-targeted ResetShared, without resetting unrelated families or generation.
-Projection uses copied current facts; no corresponding physical event means
-zero technical counters/gauges, never query-derived activity or read-time clocks.
+fence. New target publication inherits positive registrations, not metric
+history. Archiver reset metadata alone has cluster authority: core initializes
+`DatabaseCluster.ArchiverResetAt` from genuine startup and mirrors it through
+`ResetShared` at target publication and after accepted local replacement. Shared
+archiver/all reset updates that authority and every current mirror at one instant.
+This bounded exception is valid because production has no archive event writer;
+future physical events require cluster event ownership, not independent counters.
+Other fixed families retain their existing local replacement/publication rules.
+The provider remains zero-value-ready: reads never initialize reset metadata.
+The completed engine owner records prefetch and archiver initialization through
+targeted ResetShared without changing unrelated families or generation.
+Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–5
+are unused by its view. Both technical estimates are zero without a physical
+producer, never query-derived activity. Exact last-success/failure names and
+instants are independently NULL when absent. Projection consumes copied facts.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.

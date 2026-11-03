@@ -23,6 +23,13 @@ func TestPGStatRecoveryPrefetchInitialization(t *testing.T) {
 		t.Fatal("startup fabricated prefetch activity", fact)
 	}
 	for kind := statistics.SharedKind(0); kind < statistics.SharedKindCount; kind++ {
+		if kind == statistics.Archiver {
+			started := time.UnixMicro(e.Cluster.StartedAt + 946684800000000).UTC()
+			if got := e.Statistics.ReadShared(kind); got != (statistics.SharedFact{ResetAt: started}) {
+				t.Fatal("archiver startup must contain only genuine cluster reset", got, started)
+			}
+			continue
+		}
 		if kind != statistics.RecoveryPrefetch && e.Statistics.ReadShared(kind) != (statistics.SharedFact{}) {
 			t.Fatal("prefetch startup initialized another shared family", kind, e.Statistics.ReadShared(kind))
 		}

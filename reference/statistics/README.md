@@ -1,7 +1,8 @@
 # Statistics reference scenarios
 
-This bounded feature package owns public SQL scenarios for the nine-column
-`pg_stat_all_indexes` and 30-column `pg_stat_all_tables` views. All Go tests are untagged external tests using public
+This bounded feature package owns public SQL scenarios for the seven-column
+cluster archiver, nine-column `pg_stat_all_indexes` and 30-column
+`pg_stat_all_tables` views. All Go tests are untagged external tests using public
 stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
 native-only phases, not a simulated PostgreSQL Restore or Reset API.
@@ -42,7 +43,33 @@ Common lifecycle bodies live in `fixture/statistics_helpers.go`; index-specific
 row and expectation helpers remain local to this package. Public physical
 retirement is a genuine terminal publication boundary, not a new SQL flush API.
 
+Archiver scenarios independently assert exact seven-column/catalog/driver
+metadata, singleton cardinality and read-only diagnostics; stable absent-event
+zero estimates and NULL names/times; genuine bounded reset instants; current
+view/column/backing EXECUTE admission; and none/cache/snapshot ownership.
+Peer ACL changes are asserted after the reader transaction boundary, separately
+from cumulative snapshot lifetime. Native private frontier tests distinguish
+current authority from retained positive Reader backing.
+Backing ACL controls distinguish implicit PUBLIC EXECUTE from explicit-empty,
+explicit effective-default, reordered and duplicate entries, grant options and
+alternate grantors. Direct and retained catalog/view consumers check real
+GRANT/REVOKE and repeated native Dump/Restore into the source and an independent
+destination; PostgreSQL executes the actual emitted ACL repairs. Default raw
+absence requires no repair, while every explicit raw distinction survives replay.
+Cluster reset history survives successive distinct late database publications,
+including a shared reset issued by the first late target before the next is
+published, and local native replacement. Unrelated shared, SLRU and strict-NULL
+backend resets preserve archiver authority. Public controls retain actual
+returned Rows, reject failed, I/O-interrupted and canceled replacement atomically,
+and replay actual emitted user SQL into a distinct destination without importing
+monitoring history.
+Positive internally published events and cross-family private backing are
+supplementary composed/producer tests, not a public physical archive facility.
+
 ## Testing
+
+The archiver family uses `make check RUN='^TestReferencePGStatArchiver'` and
+the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
 
 Run all nine definitions in native and real pinned PostgreSQL modes:
 

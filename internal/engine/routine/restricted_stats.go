@@ -16,23 +16,29 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 3400, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_config"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{25, 25}, "name", "setting")},
 	{Identity: catalog.RoutineIdentity{ID: 3329, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_show_all_file_settings"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{25, 23, 23, 25, 25, 16, 25}, "sourcefile", "sourceline", "seqno", "name", "setting", "applied", "error")},
 	{Identity: catalog.RoutineIdentity{ID: 6250, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_ident_file_mappings"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 25, 23, 25, 25, 25, 25}, "map_number", "file_name", "line_number", "map_name", "sys_name", "pg_username", "error")},
+	{Identity: catalog.RoutineIdentity{ID: 3195, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_archiver"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 25, 1184, 20, 25, 1184, 1184}, "archived_count", "last_archived_wal", "last_archived_time", "failed_count", "last_failed_wal", "last_failed_time", "stats_reset")},
 }
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
 // pg_config, pg_show_all_file_settings and pg_ident_file_mappings retain owner-only EXECUTE.
+// pg_stat_get_archiver retains the ordinary default PUBLIC EXECUTE ACL.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
 	for i := range restrictedStatsDeclarations {
 		declaration := &restrictedStatsDeclarations[i]
-		count := 2
-		if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 {
-			count = 1
-		}
-		entries := make([]authorization.ACLEntry, count)
-		entries[0] = authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege}
-		if count == 2 {
-			entries[1] = authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.ExecutePrivilege}
+		var acl authorization.ACLValue
+		if declaration.Identity.ID != 3195 {
+			count := 2
+			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 {
+				count = 1
+			}
+			entries := make([]authorization.ACLEntry, count)
+			entries[0] = authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege}
+			if count == 2 {
+				entries[1] = authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: authorization.ExecutePrivilege}
+			}
+			acl = authorization.ACLValue{Explicit: true, Entries: entries}
 		}
 		procedures[i] = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
@@ -46,7 +52,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 			Volatility:      declaration.Volatility,
 			Strict:          declaration.Strict,
 			Display:         catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: declaration.Identity.Name},
-			ACL:             authorization.ACLValue{Explicit: true, Entries: entries},
+			ACL:             acl,
 		}
 		if declaration.Identity.ID == 3329 {
 			procedures[i].Display.Source = "show_all_file_settings"

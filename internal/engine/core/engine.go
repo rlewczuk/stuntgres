@@ -102,6 +102,7 @@ type Result struct {
 func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros, StatementStatistics: statistics.NewStatements(5000, time.Now())}
+	cluster.ArchiverResetAt = time.UnixMicro(cluster.StartedAt + activityEpochUnixMicros).UTC()
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.Analysis = BindingHost{Engine: e}
 	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
@@ -438,6 +439,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// Record genuine owner initialization only after all fallible setup succeeds.
 	// The provider remains zero-value-ready; reads never invent reset metadata.
 	e.Statistics.ResetShared(statistics.RecoveryPrefetch, time.Now().UTC().Truncate(time.Microsecond))
+	e.Statistics.ResetShared(statistics.Archiver, cluster.ArchiverResetAt)
 	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil
 }

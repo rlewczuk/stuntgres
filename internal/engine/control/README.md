@@ -233,6 +233,10 @@ comparison too; changed, raw-NULL and explicit-empty ACLs always require repair.
 The replication statistics reset roster uses the same exact raw-seed comparison.
 Default PUBLIC EXECUTE from raw NULL must never be mistaken for owner-only
 bootstrap; modified grants and grant options retain ordered principal remapping.
+The metadata-only archiver backing descriptor instead starts with an implicit
+PUBLIC EXECUTE ACL. Only its canonical identity, bootstrap owner and absent raw
+ACL are reconstructed without SQL; every explicit ACL, including an empty array
+or an effective default, retains its exact ordered entries and grant options.
 Stateless WAL builtins add no physical WAL or restore-marker serialization.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.

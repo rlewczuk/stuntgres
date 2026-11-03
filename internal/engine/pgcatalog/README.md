@@ -69,6 +69,7 @@ type Input struct {
     Activities map[ids.SessionToken]statistics.Activity
     ActivityObserver authorization.PrincipalRef
     RecoveryPrefetch statistics.SharedFact // detached current provider cut
+    Archiver statistics.SharedFact // detached admitted cumulative Reader cut
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -78,8 +79,16 @@ or session pointers. Core captures recovery-prefetch under Engine.Mu before the
 leaf provider lock, then releases Engine.Mu before pure projection. Registration
 and exact source/type/attribute authority are checked before owned rows publish.
 Missing reset metadata remains typed NULL; integer gauges use checked INT4
-conversion. Projection neither initializes metadata nor creates cumulative
-reader snapshots, and ordinary SELECT ACLs do not imply activity-field redaction.
+conversion. Projection never initializes metadata or constructs Reader snapshots.
+The archiver singleton has seven nullable INT8/TEXT/TIMESTAMPTZ attributes;
+TEXT retains default collation100. Slots0/1 project successful/failed archive
+counts, independently absent event strings/timestamps become typed NULL, and
+unused slots are ignored. Core checks current view/column SELECT and backing
+routine3195 EXECUTE before taking the admitted cumulative Reader cut; ordinary
+SELECT does not imply session-style redaction. The released function-source
+definition supplies normal read-only diagnostics. Its zero-provider routine
+descriptor owns exact OUT metadata and default PUBLIC EXECUTE/GRANT/REVOKE,
+without providing a callable getter.
 
 `pg_stat_replication_slots` (12266) validates current registered catalog/source
 and paired role authority for ten nullable attributes: TEXT identity, eight INT8
@@ -1683,6 +1692,9 @@ table-default ACL fallback. Its display inventory is independent of execution
 through the shared usage-origin projector.
 
 ## Testing
+
+Detached archiver projection, typed absence and source authority use
+`make check RUN='^TestPGStatArchiverProjection$'` in `enginetests/`.
 
 Build-configuration capture/ownership units in `enginetests/` use
 `make check RUN='^TestPGConfig'`. They retain real catalog/type generations,

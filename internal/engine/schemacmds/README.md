@@ -352,6 +352,10 @@ extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences. The complete
 Earth routine source bag includes all eight parsed SQL RETURN bodies with empty
 source text and the C `geo_distance` symbol, preserving their language split.
+The builtin completeness inventory owns every callable and metadata-only row.
+Metadata-only expectations specify scalar versus SETOF and exact default ACLs
+per declaration; the scalar archiver backing routine retains implicit PUBLIC
+EXECUTE without weakening the restricted SETOF declarations.
 Dependency-bag units resolve every installed Snowball seed pair by
 declaration, retaining each pair's normal dependencies and the shared
 template-to-helper edges once, without pinning allocated identities. Hindi and

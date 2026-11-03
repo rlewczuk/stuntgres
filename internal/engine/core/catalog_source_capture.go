@@ -10,10 +10,11 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
+	"time"
 )
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
@@ -45,6 +46,27 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.StatArchiverOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		// View/column SELECT was admitted by the common query manifest. Check
+		// current backing EXECUTE before even configuring the session Reader.
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3195}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
+		var now time.Time
+		if reader.NeedsSnapshot() {
+			now = time.Now().UTC().Truncate(time.Microsecond)
+		}
+		in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, now)
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatRecoveryPrefetchOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

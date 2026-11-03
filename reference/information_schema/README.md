@@ -137,6 +137,11 @@ through direct and prepared information_schema.columns reads. Its addition is
 an inventory extension, not a filter that discards newly supported providers.
 The same complete bag classifies `pg_stat_recovery_prefetch` as a view with its
 ten release-ordered reset, counter and gauge columns in both execution routes.
+`pg_stat_archiver` contributes exactly its seven ordered fields and view
+classification to that unfiltered native bag. Its full 44-field columns
+projection independently checks nullable BIGINT/TEXT/TIMESTAMPTZ metadata,
+precision, absent defaults and non-updatability through direct, prepared and
+retained statements, without an oracle-side column-name filter.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and

@@ -16,15 +16,15 @@ import (
 // A producer owns only its rows. The caller chooses coherent immutable roots
 // and owns runtime capture policy, locking and query-source construction.
 type Input struct {
-	Context      context.Context
-	Catalog      catalog.Read
-	Roles        authorization.Read
-	Owner        *catalog.Owner
-	Ref          ids.ObjectRef
-	Source       *catalog.Relation
-	Runtime      Runtime
-	RoleSettings RoleSettingsProjection
-	IdentFile    *identfile.Source
+	Context       context.Context
+	Catalog       catalog.Read
+	Roles         authorization.Read
+	Owner         *catalog.Owner
+	Ref           ids.ObjectRef
+	Source        *catalog.Relation
+	Runtime       Runtime
+	RoleSettings  RoleSettingsProjection
+	IdentFile     *identfile.Source
 	BackendMemory BackendMemorySnapshot
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
@@ -34,6 +34,8 @@ type Input struct {
 	// RecoveryPrefetch is a detached current fact, independent of cumulative
 	// reader modes. Projection never borrows a live provider or session.
 	RecoveryPrefetch statistics.SharedFact
+	// Archiver is detached from the admitted session's cumulative Reader.
+	Archiver statistics.SharedFact
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress

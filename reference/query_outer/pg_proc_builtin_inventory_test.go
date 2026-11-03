@@ -238,8 +238,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Current-backend memory adds one callable ten-OUT-field record SRF.
 	// Current-backend fetched/hit inquiries add two strict VOLATILE/restricted
 	// unnamed OID-to-INT8 declarations3044/3045.
-	if len(facts) != 2250 {
-		t.Fatalf("released represented overloads: got %d, want 2250", len(facts))
+	// Archiver adds its metadata-only non-strict STABLE/restricted scalar
+	// RECORD declaration3195, seven named OUT fields and default PUBLIC EXECUTE.
+	if len(facts) != 2251 {
+		t.Fatalf("released represented overloads: got %d, want 2251", len(facts))
 	}
 	return facts
 }
