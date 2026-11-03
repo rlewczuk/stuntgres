@@ -362,8 +362,10 @@ rows or consuming different physical version sequences is not a matched control.
 parent keys and two guarded insertions each, asserting equal row/version
 frontiers before and after measurement. Immediate distinct guarded rows provide
 the settled control; actual duplicate rows retain 32 deferred events on the
-other side. The original one-allocation relative cap, deferred-violation error
-and both observers' exact row-state assertions remain independent witnesses.
+other side. Completion must preserve every retained event and the vector's exact
+backing, independently of the unchanged one-allocation relative cap. The later
+deferred-violation error and both observers' exact row-state assertions remain
+independent witnesses; none of these assertions may replace the allocation cap.
 
 ## Package testing guides
 

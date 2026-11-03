@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,6 +48,8 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.writer.Transactions)).Events) != 32 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(control.writer.Transactions)).Events) != 0 {
 				t.Fatal("fixture did not create real retained deferred versus settled work")
 			}
+			events := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.writer.Transactions)).Events
+			membership := slices.Clone(events)
 			// Separate engines permit the same parent key and physical version
 			// stream without conflicting row locks. Both fixtures insert two
 			// guarded rows: only genuine deferred membership differs, not the
@@ -91,6 +94,10 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 			baseline, _ := util.AllocationsPerCall(20, func() { complete(control) })
 			retained, _ := util.AllocationsPerCall(20, func() { complete(deferred) })
 			checkFrontiers()
+			after := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.writer.Transactions)).Events
+			if !slices.Equal(after, membership) || len(after) != len(events) || &after[0] != &events[0] {
+				t.Fatal("completion changed unrelated deferred event membership or backing")
+			}
 			// The checker borrows retained membership and leaves deferred events
 			// unclaimed. Preserve the original one-allocation relative cap while
 			// matching all ordinary physical write work on both sides.

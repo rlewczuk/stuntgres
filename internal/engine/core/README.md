@@ -1624,6 +1624,10 @@ make later deletion or replacement unable to retire its exact incarnation.
 Command completion checks due indexes, executes immediate RI actions, checks
 action-generated indexes, then enlists/checks due FK work before AFTER bodies.
 Nested completion consumes only its accepted command's events.
+Completion borrows retained event membership until an event is actually appended
+or consumed; unrelated deferred obligations do not detach the vector. Unchanged
+parent-key transitions also skip RI row-inventory capture. Actions still run
+between the producer and action-generated index checks.
 SET validates every name before installing candidate modes, then drains against
 the live state. Callback appends and nested SET overrides are never overwritten.
 Top-level and nested dispatch share this executor; description is effect-free.
