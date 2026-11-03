@@ -28,6 +28,8 @@ type Fact struct {
 	Inserts, Updates, Deletes, Live, Dead, Modifications, InsertsSince                             int64
 	VacuumCount, AnalyzeCount                                                                      int64
 	LastVacuum, LastAnalyze                                                                        time.Time
+	IndexScans, IndexEntries, IndexFetches                                                         int64
+	LastIndexScan                                                                                  time.Time
 	Truncated                                                                                      bool
 	VacuumTime, AnalyzeTime                                                                        time.Duration
 	Calls, Operations                                                                              int64
@@ -96,6 +98,12 @@ func merge(a, b Fact) Fact {
 	a.Dead += b.Dead
 	a.Modifications += b.Modifications
 	a.InsertsSince += b.InsertsSince
+	a.IndexScans += b.IndexScans
+	a.IndexEntries += b.IndexEntries
+	a.IndexFetches += b.IndexFetches
+	if b.LastIndexScan.After(a.LastIndexScan) {
+		a.LastIndexScan = b.LastIndexScan
+	}
 	a.Calls += b.Calls
 	a.Operations += b.Operations
 	a.SequencePageAccesses += b.SequencePageAccesses
@@ -109,6 +117,7 @@ func merge(a, b Fact) Fact {
 type Writer struct {
 	pending                map[Key]Fact
 	last                   time.Time
+	stopped                time.Time
 	generation             uint64
 	initialized            bool
 	chargedSelf            time.Duration // Backend-wide completed function self time; owner-serialized.
@@ -147,6 +156,53 @@ func (w *Writer) Add(p *Provider, k Key, f Fact) {
 	}
 	w.pending[k] = next
 }
+
+// TransactionStopped records the latest completed top-level transaction, even
+// when its only effect is to advance a throttled earlier scan batch's stop time.
+func (w *Writer) TransactionStopped(at time.Time) {
+	if !at.IsZero() {
+		w.stopped = at
+	}
+}
+
+// IndexAccess accepts actual executor work, independently of tuple rollback.
+func (w *Writer) IndexAccess(p *Provider, k Key, policy Policy, searches, entries, fetches int64) {
+	if !policy.Counts || searches == 0 && entries == 0 && fetches == 0 {
+		return
+	}
+	w.Add(p, k, Fact{IndexScans: searches, IndexEntries: entries, IndexFetches: fetches})
+}
+
+// IndexAccess is an owner-serialized, generation-qualified executor capability.
+// Capture takes the provider lock once; reached rows only update local pending
+// work. Flush remains the authority for generation and retirement admission.
+type IndexAccess struct {
+	writer     *Writer
+	key        Key
+	generation uint64
+}
+
+func (w *Writer) CaptureIndexAccess(p *Provider, k Key, policy Policy) IndexAccess {
+	if !policy.Counts {
+		return IndexAccess{}
+	}
+	w.Add(p, k, Fact{})
+	if _, ok := w.pending[k]; !ok {
+		return IndexAccess{}
+	}
+	return IndexAccess{writer: w, key: k, generation: w.generation}
+}
+
+func (a *IndexAccess) Record(searches, entries, fetches int64) {
+	if a.writer == nil || a.writer.generation != a.generation {
+		return
+	}
+	f := a.writer.pending[a.key]
+	f.IndexScans += searches
+	f.IndexEntries += entries
+	f.IndexFetches += fetches
+	a.writer.pending[a.key] = f
+}
 func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 	if !w.Pending() || !force && !w.last.IsZero() && now.Sub(w.last) < time.Second {
 		return false
@@ -161,6 +217,15 @@ func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 			}
 			if p.facts == nil {
 				p.facts = make(map[Key]Fact, len(w.pending))
+			}
+			// Only a positive scan batch owns a last-scan update. The stop
+			// marker and publication throttle are deliberately separate clocks.
+			f.LastIndexScan = time.Time{}
+			if f.IndexScans > 0 {
+				f.LastIndexScan = w.stopped
+				if f.LastIndexScan.IsZero() {
+					f.LastIndexScan = now
+				}
 			}
 			next := mergeCategory(k.Category, p.facts[k], f)
 			if next.Live < 0 {

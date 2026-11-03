@@ -105,6 +105,7 @@ var producers = [...]Registration{
 	{ConfigOID, capturePGConfig},
 	{ShmemAllocationsOID, capturePGShmemAllocations},
 	{ShmemAllocationsNUMAOID, capturePGShmemAllocations},
+	{StatAllIndexesOID, captureIndexStatistics},
 	{ProgressCopyOID, captureCopyProgress},
 	{ProgressCreateIndexOID, captureCreateIndexProgress},
 	{PublicationTablesOID, capturePGPublicationTables},

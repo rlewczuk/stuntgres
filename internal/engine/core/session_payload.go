@@ -26,6 +26,7 @@ type sessionPayload struct {
 	externalSQL    *remote.Owner            // Physical command admission serializes initial attachment.
 	thesaurusMemos tsearch.ThesaurusMemos   // Engine.Mu; this session's successful initializations.
 	statsWriter    statistics.Writer        // Transaction admission serializes collection and drains.
+	statsStopped   ids.TxRef                // Prevents failed-block cleanup from stamping the same stop twice.
 	statsReader    statistics.Reader        // Cleared at every transaction terminal boundary.
 	statsFlush     statsFlushSlot           // Session.Mu; callbacks use nonblocking transaction admission.
 	origin         replicationOriginSession // Engine.Mu; physical, never journaled.

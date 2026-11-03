@@ -3,8 +3,6 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
-	"errors"
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -16,7 +14,7 @@ const statsClearSQL = "SELECT pg_catalog.pg_stat_clear_snapshot()"
 
 func statsExec(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, query string, count int64) {
 	t.Helper()
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(query, count))
+	fixture.StatisticsExec(t, p, b, c, query, count)
 }
 func statsCountSQL(table string) string {
 	return "SELECT n_tup_ins FROM pg_catalog.pg_stat_user_tables WHERE relid='public." + table + "'::regclass"
@@ -57,14 +55,12 @@ func statsNoTimestamp(t *testing.T, p *fixture.Pair, c *sql.Conn, stmt *sql.Stmt
 }
 func statsClear(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select(statsClearSQL, []string{"pg_stat_clear_snapshot"}, []string{"VOID"}, [][]any{{""}}))
+	fixture.StatisticsClearSnapshot(t, p, b, c)
 }
 
 func statsRetire(t *testing.T, writer *sql.Conn) {
 	t.Helper()
-	if err := writer.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
-		t.Fatalf("physical retirement: %v", err)
-	}
+	fixture.StatisticsRetire(t, writer)
 }
 
 // Physical retirement is a public terminal boundary, never a SQL flush helper.
@@ -80,38 +76,11 @@ func statsPublish(t *testing.T, p *fixture.Pair, b fixture.Backend, table string
 }
 func statsAwait(t *testing.T, p *fixture.Pair, b fixture.Backend, table, column string, want int64) {
 	t.Helper()
-	probe, err := b.DB.Conn(p.Ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer probe.Close()
-	fixture.RunStep(t, p.Ctx, probe, b.Recorder, fixture.Exec("SET stats_fetch_consistency=none", 0))
-	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
-	defer cancel()
-	tick := time.NewTicker(5 * time.Millisecond)
-	defer tick.Stop()
-	var last int64
-	query := "SELECT " + column + " FROM pg_catalog.pg_stat_user_tables WHERE relid='public." + table + "'::regclass"
-	for {
-		if err = probe.QueryRowContext(ctx, query).Scan(&last); err != nil {
-			t.Fatalf("publication probe %s last=%d: %v", column, last, err)
-		}
-		if last == want {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("publication expired last=%d want=%d: %v", last, want, ctx.Err())
-		case <-tick.C:
-		}
-	}
+	fixture.StatisticsAwaitTableCount(t, p, b, table, column, want)
 }
 func statsCreate(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, names ...string) {
 	t.Helper()
-	for _, name := range names {
-		statsExec(t, p, b, c, "CREATE TABLE "+name+"(id integer)", 0)
-		statsExec(t, p, b, c, "ALTER TABLE "+name+" SET (autovacuum_enabled=false)", 0)
-	}
+	fixture.StatisticsCreateTables(t, p, b, c, names...)
 }
 func TestReferenceStatsSnapshotLifecycle(t *testing.T) {
 	activityScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {

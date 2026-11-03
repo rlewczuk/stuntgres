@@ -55,27 +55,7 @@ func statsReportingAwait(t *testing.T, p *fixture.Pair, observer *sql.Conn, tabl
 }
 func statsReportingConn(t *testing.T, p *fixture.Pair, b fixture.Backend) (*sql.Conn, func()) {
 	t.Helper()
-	c, err := b.DB.Conn(p.Ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	owned := true
-	t.Cleanup(func() {
-		if owned {
-			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
-			defer cancel()
-			if _, err := c.ExecContext(ctx, "ROLLBACK"); err != nil {
-				t.Errorf("reporting rollback cleanup: %v", err)
-			}
-			if err := c.Close(); err != nil {
-				t.Error(err)
-			}
-		}
-	})
-	return c, func() {
-		statsRetire(t, c)
-		owned = false
-	}
+	return fixture.StatisticsReportingConn(t, p, b)
 }
 func statsReportingExec(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, prepared bool, q string, n int64) {
 	t.Helper()

@@ -22,6 +22,7 @@ import (
 type EndResult struct{ Committed bool }
 
 func clearTransaction(t *session.TransactionOwner, committed bool) {
+	statsTransactionStopped(t)
 	if !committed {
 		discardStatementStatsPortals(t)
 		e := EngineOf(t.Session)

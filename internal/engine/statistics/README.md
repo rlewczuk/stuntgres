@@ -62,6 +62,21 @@ snapshot. Clear releases every cumulative partition and cached activity together
 The core traverses actual per-database providers for cluster-wide reset effects;
 there is no second cluster provider or competing IO/WAL counter copy.
 
+Index searches, returned entries and simple live heap fetches occupy the existing
+Relation category under the exact qualified index identity. `CaptureIndexAccess`
+captures collection policy/generation once per actual search; the value-carried
+`IndexAccess` updates only owner-local pending state on reached rows, without a
+settings/provider lock per row. These reads bypass the tuple ledger and survive
+errors/rollback. Flush still rejects retired keys and stale generations.
+`TransactionStopped` retains the latest top-level stop separately from the
+publication throttle. Only accepted publication of a positive scan delta advances
+`LastIndexScan`, taking the maximum existing/stop value. A genuinely absent stop
+uses the supplied publication instant as a lazy standalone default. Read-only
+deltas, empty/early flushes and Reader clear cannot alter last scan. Draining
+pending state does not erase the stop marker; a later no-index transaction can
+therefore date an earlier throttled batch. Reset/Replace clear index facts using
+the same generation authority, not another event provider.
+
 A physical session owns one `Writer`, serialized by transaction admission. Policy
 is captured when events occur. Tuple attempts remain unresolved in a write-owned
 `Ledger` until their reporting boundary, separate from the writer's pending batch.

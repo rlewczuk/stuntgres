@@ -201,6 +201,17 @@ production dependency is involved.
 
 ## Helpers
 
+- **Statistics lifecycle.** `statistics_helpers.go` owns `StatisticsScenario`,
+  `StatisticsExec`, `StatisticsClearSnapshot`, `StatisticsRetire`,
+  `StatisticsReportingConn`, `StatisticsAwaitTableCount` and
+  `StatisticsCreateTables`, shared by [statistics](../statistics/README.md) and
+  the existing [session-state](../session_state/README.md) cumulative scenarios.
+  One scenario body serves all configured backends. Reporting connections retain
+  bounded rollback/close cleanup until public physical retirement
+  (`driver.ErrBadConn`); that terminal publication witness is not a SQL
+  force-flush/reset API. Snapshot clear only clears the reader cut. Independent
+  none-mode table-count probes use the existing liveness bound and retain their
+  last observation on failure.
 - **Column metadata.** `TableDDLColumnTypes` checks caller-specified names, types
   and nullability with explicit adapter ScanType expectations, including internal
   `CHAR`, `INT2`, catalog vectors and `PG_NODE_TREE`; unlisted types fail rather

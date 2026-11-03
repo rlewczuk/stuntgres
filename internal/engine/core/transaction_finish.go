@@ -335,6 +335,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	e.Visibility.EndTransactionLocked(t.Ref, false)
 	e.IndexWaits.EndOwnerLocked(t.Ref)
 	e.Mu.Unlock()
+	statsTransactionStopped(t)
 	endedTicket := t.Abort()
 	syncCharacteristics(t)
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))

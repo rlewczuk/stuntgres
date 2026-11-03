@@ -1185,6 +1185,19 @@ catalog writes or bypass a provider's independent backing-source checks.
   name/identifier fragment inventory, including current routine identities and
   quote-all formatting. Independent pinned-18.6 SQL fixtures exercise both forms
   under both quote settings in `TestReferenceAttributeStatisticsViewDefinition`.
+- `pg_stat_all_indexes` (registry relation12187, rowtype12189): exactly nine nullable
+  OID/OID/NAME/NAME/NAME/INT8/TIMESTAMPTZ/INT8/INT8 columns. Enumerate actual
+  SQLIndex descriptors joined to r/t/m parents, regardless of parent schema/table
+  privileges or readiness/validity. PUBLIC SELECT belongs to the view itself;
+  no per-field role redaction applies. Missing activity is0/NULL, never an absent
+  identity. Safe pushed identity/name `Keep` rejection precedes the shared Reader
+  fetch, so cache mode does not freeze unrelated filtered-out indexes.
+  Dynamic statistics never enter the catalog-state CaptureCache. Exact displayed
+  current names/identities follow rename/move/drop without changing retained
+  result values. Bootstrap HasIndexes flags do not create native index inventory.
+  Sys/user are complementary schema predicates over this one unordered view,
+  including the entire `^pg_toast` prefix, not neighboring registered views.
+  Canonical display and read-only event classification share builtinViews.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership
@@ -1625,6 +1638,10 @@ Rewrite schema, sealed builtin declaration and atomic-capture units use
 Shared-dependency producer authority, unsigned encoding and canonical visitor
 units in `enginetests/` use
 `RUN='^Test(PGShdepend|RoleDependencyVisitor|DefaultACLDependencyAddress)'`.
+
+Producer registry ordering and exhaustive binary-search reachability use
+`RUN='^TestCatalogProducerLookup$'`. Adding a source must preserve existing OID
+identities and lookup reachability, independently of descriptor installation order.
 
 Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`

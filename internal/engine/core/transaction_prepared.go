@@ -31,6 +31,7 @@ func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
 	e.prepared.InstallLocked(p.Entry)
 	p.Origin.Ticket = nil
 	e.prepareReplicationOriginsLocked(p.Entry.Ref, true)
+	statsTransactionStopped(p.Origin)
 	clearTransactionContents(p.Origin)
 	p.Origin.Session.RetireTransactionTimeoutLocked()
 }

@@ -38,6 +38,51 @@ recovery and shared-library C ABI loading are external mechanisms. Logical
 controls preserve killed-row absence and persistent SQL identities, not physical
 corruption or live session/transaction resources.
 
+## Index monitoring
+
+`pg_catalog.pg_stat_all_indexes` exposes exactly the PostgreSQL 18 nine-column
+view: OID parent/index identities, NAME schema/table/index names, INT8 searches,
+nullable TIMESTAMPTZ last scan, and INT8 returned entries/simple live fetches.
+All view attributes have nullable metadata. Missing activity means zero counters
+and SQL NULL last scan, not a fabricated zero timestamp. Ordinary PUBLIC SELECT
+applies to the view; there is **no parent table/schema privilege filtering or
+per-field redaction**, including for users without `pg_read_all_stats`.
+INSERT/UPDATE/DELETE reject with 55000 even for WHERE FALSE; TRUNCATE and COPY
+FROM reject with 42809 using ordinary view diagnostics.
+
+Rows enumerate actual current-database index descriptors whose parents are
+ordinary, represented TOAST, or materialized relations. Native bootstrap
+`HasIndexes` flags are not an inventory of physical PostgreSQL bootstrap/TOAST
+indexes, so no fake index rows/OIDs are created. Partitioned parents, foreign
+tables, views and sequences are excluded; actual leaf, TEMP, unlogged and
+unready/invalid existing indexes remain represented. System/user predicates are
+`schemaname IN ('pg_catalog','information_schema') OR schemaname ~ '^pg_toast'`
+and its complement, not additional index-statistics views. No order is promised
+without ORDER BY.
+
+Counters follow **actual reached execution**, never SELECT count or planner
+preference. Current eligible implicit hash searches count one search (including
+non-NULL misses), equality-accepted returned entries, and live heap candidates
+before residual recheck. Logical bulk bloom counts searches/lossy candidates,
+but per-index fetches stay zero (bitmap-style ownership, not physical bitmap
+execution). Retained output replay, mere capture/Prepare, full scans, unsupported
+AND hash predicates, explicit/private/historical fallback, and B-tree presence
+alone do not create native index events. No B-tree scan, bitmap access method or
+index-only scan is added; projection coverage never implies avoided heap fetches.
+PostgreSQL may choose a different real path; settings are preferences, not proof.
+
+`track_counts` gates collection, not results. The existing cumulative provider,
+idle/terminal publication throttle and shared `stats_fetch_consistency`
+none/cache/snapshot Reader own visibility. Clear discards the read cut; it neither
+flushes pending work nor resets counters. A published positive-search batch stamps
+the latest completed top-level transaction stop available at publication, not
+scan start or flush wall time; read/fetch-only batches cannot advance last scan.
+Reached read events survive failure/rollback. Drop retires exact qualified keys,
+rename/schema movement preserves history, and recreate starts fresh. Dump stores
+definitions/data, never monitoring history. Restore/Reset retain already-published
+destination live TEMP index history under the new epoch, but imported persistent
+indexes start at zero/NULL and old-generation pending work is rejected.
+
 ## Passwordcheck activation
 
 `Driver.RegisterPasswordCheck` enables the stock role-password hook and

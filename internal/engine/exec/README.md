@@ -330,6 +330,19 @@ typmods; naming is captured only on failure and is never retained in result tupl
   back without excluding rows. Signature matches map exact row/version/position
   identities to captured visible occurrences, with no pre-recheck key comparison.
   The shared FilterNode producer always evaluates its original predicate.
+  Candidate state retains the exact qualified index identity and one captured
+  owner-local statistics capability. A genuine non-NULL hash search charges
+  searches, equality-accepted returned entries and each first reached live heap
+  candidate before residual filtering. Internal hash collisions do not count as
+  returned entries. Bulk bloom signature traversal owns searches/lossy returned
+  candidates but deliberately no per-index heap fetches: logical bitmap-style
+  ownership, not a physical bitmap access method. Actual errors preserve already
+  reached work. NULL/unconstrained shortcuts, unused root capture and retained
+  replay are not new searches or entries; retained output is not another fetch.
+  Existing implicit/current-root eligibility remains unchanged, so explicit,
+  private and historical fallbacks produce no native index events. B-tree
+  presence and covering projections imply no new access method or index-only
+  accounting.
   Sources and stages release retained roots on close, invalidate stale selection
   on reset, and preserve terminal cancellation rather than returning partial
   success. Cursors/portals retain their opening decision; prepared execution

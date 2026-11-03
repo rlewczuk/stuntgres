@@ -416,8 +416,8 @@ type Stage struct {
 	observations       []*stageObservation
 	projection         *stageObservation
 	projectionOutput   *Source // Only the actual retained projection owner.
-	readSegments       []bool // Per-opened-stage activation, unchanged by rewind.
-	readSource         bool   // Pending ordinary read, or reached-segment tracking for a hierarchy.
+	readSegments       []bool  // Per-opened-stage activation, unchanged by rewind.
+	readSource         bool    // Pending ordinary read, or reached-segment tracking for a hierarchy.
 	Produce            func(context.Context, *Stage) (bool, error)
 	Finish             func() error
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
@@ -885,6 +885,10 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 					i = candidates.Occurrences[candidates.Position]
 					candidates.Position++
 					child.observeIndexedRead()
+					if candidates.Simple && candidates.Position > candidates.Fetched {
+						candidates.Access.Record(0, 0, 1)
+						candidates.Fetched = candidates.Position
+					}
 				} else {
 					var present bool
 					var err error

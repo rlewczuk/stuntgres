@@ -477,6 +477,20 @@ inserted versions to since-vacuum, and never publishes private live rows.
 Completed ANALYZE/VACUUM reports instead update the same shared provider
 immediately, including inside an open transaction. They neither drain ordinary
 pending deltas nor change their throttle/retry or existing reader snapshots.
+`stats_indexes.go` captures a narrow execution capability with operation-effective
+`track_counts`, retaining the exact index ref and the physical writer's generation.
+Actual search/entry/fetch work is nontransactional read accounting, never tuple
+ledger settlement. Top-level clear, actual failed-block abort and successful
+PREPARE record one UTC-microsecond stop marker before owner identity disappears.
+A physical payload remembers the stopped TxRef so a later no-op failed-block
+ROLLBACK cannot overwrite that terminal clock; savepoints/PL exceptions do not
+stamp top-level stops. Prepared completion never transfers/replays read events.
+The catalog runtime projects index facts through the same physical-session Reader
+as table facts. The replacement baseline additionally preserves already-published
+attached destination TEMP SQLIndex facts (which have no row store), remapping only
+their retained qualified epoch. Imported persistent indexes and stale pending
+writers do not inherit that history.
+
 ANALYZE uses the actual local collector population (partition parents report
 zero local tuples), subtracts current owner/statement frames and pending dead,
 and clamps estimates. Its supported physical dead estimate is sampled under
@@ -3215,6 +3229,19 @@ units use `RUN='^TestStatsSequence'`, also with `RACE=1`.
 TEMP replacement fixtures identify sequences in the attached owner's actual
 namespace, not through a bootstrap session's `pg_temp` alias; their assertions
 retain published facts, epoch fencing, warm value tails and physical-end retirement.
+Index source/path/stop/replacement ownership units use `RUN='^TestPGStatAllIndexes'`.
+Their composed row helper preserves unsigned OID and TIMESTAMPTZ values through
+the typed sqltype accessors; the generic primitive test exporter is not a codec
+for either type.
+The catalog fixture includes a real partition-leaf index. Partitioned-parent
+exclusion is composed through the existing immutable catalog stage against a
+real partitioned parent, without adding unsupported parent-index DDL or an AM.
+`RUN='^TestPGStatAllIndexesInterruptedAccess$'` keeps reached search/entry/fetch
+prefixes across deterministic hash/bloom enumeration errors and cancellation
+after one of two heap candidates. Each uses the actual implicit statement
+`Finish(error)` boundary and checks its later terminal stop instant.
+The cancellation fixture asserts retained output before the failing demand,
+which owns stage closure, and never calls `Count` on a released stage.
 Replication reset expression, owner-routing, retained-reader and actual subscription
 lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
 Shared/backend reset routing, provider composition, immutable expression and

@@ -1,5 +1,19 @@
 # Changes
 
+- Add the nine-column typed, read-only `pg_catalog.pg_stat_all_indexes` view on
+  the shared cumulative provider/Reader, exposing actual index/parent identities
+  without parent privilege filtering or field redaction. Attribute searches,
+  returned entries and pre-residual simple heap fetches to genuine hash execution;
+  logical bulk bloom owns searches/entries but no per-index fetches. Preserve
+  current access eligibility and B-tree/full-scan zero-event boundaries. Stamp
+  positive published batches with the latest actual top-level transaction stop,
+  retaining reached reads through failures without replaying them under prepared
+  finishers. Retire exact dropped keys, reject stale pending generations, and
+  preserve published destination TEMP index history across native replacement.
+  Document native inventory/access-method boundaries and add independent unit
+  and pinned-18.6 public reference scenarios; no fixture repin or fake bootstrap
+  index rows.
+
 - Add the 22-column, fully nullable `pg_catalog.pg_stat_activity` monitoring view
   on the existing shared provider. Report real cluster sessions, original query
   text, application/settings restoration, transaction/state clocks through the

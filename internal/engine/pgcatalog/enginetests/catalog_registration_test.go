@@ -105,3 +105,21 @@ func TestCatalogBuiltinViewDefinitionInventory(t *testing.T) {
 		t.Fatal("publication view acquired write authority")
 	}
 }
+
+func TestCatalogProducerLookup(t *testing.T) {
+	registrations := pgcatalog.Registrations()
+	var previous ids.OID
+	for i, registration := range registrations {
+		if i > 0 && registration.OID <= previous {
+			t.Fatalf("producer registry is not strictly OID-ordered: %d follows %d", registration.OID, previous)
+		}
+		if registration.Produce == nil {
+			t.Fatalf("nil producer registered for OID %d", registration.OID)
+		}
+		produce, ok := pgcatalog.ProducerFor(registration.OID)
+		if !ok || produce == nil {
+			t.Fatalf("registered producer is unreachable by OID %d", registration.OID)
+		}
+		previous = registration.OID
+	}
+}

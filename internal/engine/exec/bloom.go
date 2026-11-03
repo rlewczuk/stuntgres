@@ -99,6 +99,11 @@ func bloomFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode
 		if !constrained {
 			return nil, nil
 		}
+		selection.Index = source.Ref.Domain().Ref(source.Ref.Epoch, capture.Address)
+		if host := state.Source.LiveHost(); host != nil {
+			selection.Access = host.CaptureIndexAccess(selection.Index)
+		}
+		selection.Access.Record(1, 0, 0)
 		if len(root.Entries) != 0 && capture.ReadLease != nil {
 			capture.ReadLease.Open()
 		}
@@ -128,6 +133,7 @@ func bloomFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode
 			// Deliberately no key comparison: collisions reach the original
 			// FilterNode predicate on the captured visible stored row.
 			selection.Occurrences = append(selection.Occurrences, ordinal)
+			selection.Access.Record(0, 1, 0)
 		}
 		return selection, ctx.Err()
 	}

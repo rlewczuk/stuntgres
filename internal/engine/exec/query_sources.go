@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -322,6 +323,10 @@ type candidateSelection struct {
 	Bloom       *storage.BloomRoot
 	Occurrences []int
 	Position    int
+	Index       ids.ObjectRef
+	Access      statistics.IndexAccess
+	Simple      bool // Hash heap fetch ownership; bulk bloom deliberately leaves false.
+	Fetched     int  // Retained candidate replay is not another physical heap fetch.
 }
 
 // Select only a top-level, single-source WHERE. Inner view/derived/subquery
@@ -377,10 +382,14 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 		if err != nil {
 			return nil, err
 		}
-		selection := &candidateSelection{Root: capture.Root, Occurrences: []int{}}
+		selection := &candidateSelection{Root: capture.Root, Occurrences: []int{}, Index: source.Ref.Domain().Ref(source.Ref.Epoch, capture.Address), Simple: true}
 		if value.IsNull() {
 			return selection, ctx.Err()
 		}
+		if host := state.Source.LiveHost(); host != nil {
+			selection.Access = host.CaptureIndexAccess(selection.Index)
+		}
+		selection.Access.Record(1, 0, 0)
 		if capture.ReadLease != nil {
 			capture.ReadLease.Open()
 		}
@@ -417,6 +426,7 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 			}
 			if equal {
 				selection.Occurrences = append(selection.Occurrences, ordinal)
+				selection.Access.Record(0, 1, 0)
 			}
 		}
 		return selection, ctx.Err()

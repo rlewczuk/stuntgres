@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,6 +50,8 @@ type Host interface {
 	ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error)
 	AsyncAppendEnabled() bool
 	AdmittedPlannerMethods() plan.PlannerMethods
+	// Capture once at a reached search; row events touch only owner-local state.
+	CaptureIndexAccess(ids.ObjectRef) statistics.IndexAccess
 
 	// Admission: the statement's routine admission authority and its
 	// original dependency manifest. Reads statement-owned fields only; fails
