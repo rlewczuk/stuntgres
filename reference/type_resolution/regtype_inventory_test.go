@@ -382,6 +382,7 @@ func TestReferenceRegtypeInitializedInventory(t *testing.T) {
 				fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(query, []string{"a", "b", "same_identity"}, []string{"REGTYPE", "REGTYPE", "BOOL"}, [][]any{{fact.output, fact.output, true}}, oid))
 			})
 		}
+		regtypeGSSAPIRelationships(t, p, conn, recorder)
 	})
 }
 
@@ -417,5 +418,14 @@ func TestReferenceRegtypeInitializedNames(t *testing.T) {
 				fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(query, []string{"a", "b", "linked"}, []string{"REGTYPE", "REGTYPE", "BOOL"}, [][]any{{output, output + "[]", true}}))
 			}
 		}
+		regtypeGSSAPIRelationships(t, p, conn, recorder)
 	})
+}
+
+// Initdb identities need not match another allocator. Class, row and array
+// relationships are independently prescribed; no type-identity zero is typrelid.
+func regtypeGSSAPIRelationships(t *testing.T, p *fixture.Pair, conn *sql.Conn, recorder *fixture.Recorder) {
+	t.Helper()
+	query := "SELECT c.reltype='pg_catalog.pg_stat_gssapi'::regtype::oid AS owns_type,t.typrelid=c.oid AS owns_relation,t.typarray='pg_catalog.pg_stat_gssapi[]'::regtype::oid AS owns_array,a.typelem=t.oid AS owns_element,a.typrelid=0 AS array_without_relation FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_stat_gssapi'::regclass"
+	fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(query, []string{"owns_type", "owns_relation", "owns_array", "owns_element", "array_without_relation"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true, true}}))
 }

@@ -202,6 +202,7 @@ var Specs = [...]Spec{
 	{StatArchiverOID, ids.PGCatalogNamespaceOID, "pg_stat_archiver", archiverColumns, true, false, false, false, "stuntgres: missing archiver source type"},
 	{StatBGWriterOID, ids.PGCatalogNamespaceOID, "pg_stat_bgwriter", bgwriterColumns, true, false, false, false, "stuntgres: missing bgwriter source type"},
 	{StatCheckpointerOID, ids.PGCatalogNamespaceOID, "pg_stat_checkpointer", checkpointerColumns, true, false, false, false, "stuntgres: missing checkpointer source type"},
+	{StatGSSAPIOID, ids.PGCatalogNamespaceOID, "pg_stat_gssapi", statGSSAPIColumns, true, false, false, false, "stuntgres: missing GSSAPI source type"},
 	{StatAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_sys_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_user_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

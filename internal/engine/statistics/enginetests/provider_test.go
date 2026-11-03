@@ -172,7 +172,7 @@ func TestStatsProviderCollection(t *testing.T) {
 		t.Fatal("function matrix", f)
 	}
 	token := (&ids.Domain{}).Session(1)
-	p.RegisterActivity(token, statistics.Activity{})
+	p.RegisterActivity(token, statistics.Activity{Principal: statsLogin()})
 	p.Command(token, ids.CommandIdentity{Command: 1}, "SELECT secret", now, true)
 	var r statistics.Reader
 	if !r.Activities(&p)[token].Active {

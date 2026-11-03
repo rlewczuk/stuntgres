@@ -169,6 +169,16 @@ definitions/data, never monitoring history. Restore/Reset retain already-publish
 destination live TEMP index history under the new epoch, but imported persistent
 indexes start at zero/NULL and old-generation pending work is rejected.
 
+## Embedded GSSAPI monitoring
+
+`pg_stat_gssapi` projects real embedded physical-session lifetime and current
+privilege filtering. Native connections do not perform GSS authentication,
+transport encryption or credential delegation: flags are false and the dependent
+principal is NULL, never derived from a role name or endpoint approximation.
+The view adds no network authentication mechanism or backing activity routine.
+See [the driver contract](DRIVER.md#gssapi-session-monitoring) for visibility,
+snapshot refresh and physical-versus-pooled close semantics.
+
 ## Passwordcheck activation
 
 `Driver.RegisterPasswordCheck` enables the stock role-password hook and

@@ -46,7 +46,7 @@ func TestStatsProviderResetShared(t *testing.T) {
 			w.SLRU(&p, statistics.Transaction, slruVector(66))
 			w.Flush(&p, t0, true)
 			token := (&ids.Domain{}).Session(1)
-			p.RegisterActivity(token, statistics.Activity{})
+			p.RegisterActivity(token, statistics.Activity{Principal: statsLogin()})
 			p.Command(token, ids.CommandIdentity{}, "activity control", t0, true)
 			var ar statistics.Reader
 			beforeActivity := ar.Activities(&p)

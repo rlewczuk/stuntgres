@@ -175,6 +175,20 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
+	case pgcatalog.StatGSSAPIOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		in.GSSAPISessions, err = e.captureGSSAPISessionsLocked(scope, auth)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.BackendMemoryContextsOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

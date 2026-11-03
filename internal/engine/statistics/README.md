@@ -58,19 +58,21 @@ IO/WAL keyed facts remain the sole operations/duration authority and use their
 family reset times, including absent keys. Archiver reset removes last-operation
 presentation; prefetch resets cumulative counters but preserves its three current
 gauges. Full-session-token backend partitions contain separate IO/WAL facts;
-missing resets never allocate. `BeginBackend` grants positive authority only
-from successful actual public-session publication. Both report and flush require
-that membership; End deletes membership and facts rather than retaining ended
-tokens. Invalid, detached and private identities never receive membership, and
-their end paths allocate no history. State is bounded by current public lifetimes,
-not connection churn, and cannot retain private session owners.
+missing resets never allocate. `BeginBackend` grants positive metrics reporting
+authority only from successful actual public-session publication. Report and
+flush require that membership; End deletes membership and facts rather than
+retaining ended tokens. Invalid, detached and private identities never receive
+membership, and their end paths allocate no history. State is bounded by current
+public lifetimes, not connection churn, and cannot retain private session owners.
 Full Reset/Replace clear fixed/backend history with the database incarnation,
 retain current live registrations and advance the existing pending-generation
-fence. New actual target publication inherits only positive registrations under
-cluster serialization, using separate provider lock acquisitions, never metric
-history. Archiver, bgwriter and checkpointer reset metadata have explicit cluster
-authority: core initializes `DatabaseCluster.ArchiverResetAt`, `BGWriterResetAt`
-and `CheckpointerResetAt` from
+fence. New actual target publication inherits only positive backend reporting
+registrations under cluster serialization, using separate provider lock
+acquisitions, never activity, commands, metrics or reset history. Session
+monitoring uses the single default-target activity map described below, not
+mirrored per-target membership. Archiver, bgwriter and checkpointer reset metadata
+have explicit cluster authority: core initializes `DatabaseCluster.ArchiverResetAt`,
+`BGWriterResetAt` and `CheckpointerResetAt` from
 genuine startup and mirrors each through `ResetShared` at target publication
 and after accepted local replacement. The selected family or all-family shared
 reset updates its authority and every current mirror at one instant. This bounded
@@ -282,6 +284,8 @@ lock/sleep wait publication is independent of the activity tracking switch.
 The default database's existing provider owns the sole cluster activity map;
 other providers retain their existing cumulative/backend facts only. Successful
 physical public attachment registers detached birth/database/login principal identity.
+`RegisterActivity` rejects invalid/private/detached tokens and zero principals;
+duplicate publication preserves the first startup facts rather than relabeling.
 Command, transaction, setting-restoration and drained-retirement owners publish
 actual facts, with exact command guards for query IDs and sleep wait callbacks.
 Reset/Replace never remint backend birth or erase live activity.
@@ -289,7 +293,7 @@ Core enriches one complete unmasked cut with canonical assigned low32 XID and
 accepted public full-XID horizons under cluster authority, then installs it in
 Reader independently of cumulative modes/stamp. Each execution overlays detached
 manager waits and live sleep ownership after releasing cluster synchronization;
-current inherited-role masking happens only in the pure catalog producer.
+`pg_stat_activity`'s current inherited-role masking happens only in its pure catalog producer.
 The provider does not cache a role spelling: the producer joins the current role
 name by immutable principal identity, with typed NULL for an absent role. A
 dropped cached target does not invalidate unrelated rows or legitimate observer
@@ -297,6 +301,10 @@ stats privilege; foreign/zero principals remain invalid.
 No peer admission, callback, setting read or clock runs under Provider.mu.
 Query text is UTF8-safe byte-clipped separately from current_query authority.
 
+GSSAPI uses that same enriched raw cut and immutable `Activity.Principal` login
+identity. It classifies current observer authority in core and passes only
+visible detached PIDs to its producer. Unauthorized GSSAPI peers are absent;
+activity's separate current-field mask and live-wait overlays remain unchanged.
 
 Database facts share this provider/writer/reader, not a second collector.
 `Database` keys use the immutable engine domain and actual database address with

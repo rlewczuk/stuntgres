@@ -17,6 +17,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatDatabaseOID, returnRule: StatDatabaseRuleOID, parts: databaseStatisticsViewParts(false), prettyParts: databaseStatisticsViewParts(true)},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
+	{oid: StatGSSAPIOID, parts: statGSSAPIViewParts, prettyParts: statGSSAPIViewParts},
 	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},
 	{oid: BackendMemoryContextsOID, parts: backendMemoryViewParts, prettyParts: backendMemoryViewParts},
 	{oid: ConfigOID, parts: configViewParts, prettyParts: configViewParts},

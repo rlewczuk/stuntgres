@@ -456,11 +456,14 @@ type Activity struct {
 }
 
 func (p *Provider) RegisterActivity(token ids.SessionToken, a Activity) {
-	if token.Private() != nil || token.ID() == 0 {
+	if !validBackendToken(token) || a.Principal.ID() == 0 {
 		return
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if _, registered := p.activities[token]; registered {
+		return // Startup identity cannot be relabeled by duplicate attachment.
+	}
 	if p.activities == nil {
 		p.activities = make(map[ids.SessionToken]Activity)
 	}

@@ -81,6 +81,16 @@ TEMP setup/storage proof and performs its native edited-authority Restore while
 the same physical owner and row/array consumer remain live, checking unchanged
 stored values, nominal identities, fresh view/SRF captures and fixed root bytes.
 
+Session-monitoring scenarios use `make check RUN='^TestReferencePGStatGSSAPI'`
+and the same selector with `REFERENCE=1`. Real login connectors and physical
+retirement distinguish raw transaction membership from current execution
+authority; typed metadata, full write/COPY diagnostics, immutable retained rows
+and native replacement controls share the public dual-mode bodies.
+Snapshot scenarios exercise both first-consumer orders with activity, real peer
+XID/xmin authority, retained cuts after peer completion, clear/end refresh and
+current-role rechecks through direct and prepared reads. Metadata relationships
+use each backend's observed identities; only native inventory IDs are fixed.
+
 Materialized-view summary scenarios use `make check RUN='^TestReferencePGMatviews'`
 and the same selector with `REFERENCE=1` for pinned PostgreSQL. They assert full
 typed rows across index history, catalog admission, public metadata visibility

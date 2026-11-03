@@ -42,6 +42,9 @@ type Input struct {
 	BGWriter statistics.SharedFact
 	// Checkpointer is detached after demand-scoped backing EXECUTE admission.
 	Checkpointer statistics.SharedFact
+	// GSSAPISessions contains detached real clients visible to this execution.
+	// Raw transaction membership and current authorization remain core-owned.
+	GSSAPISessions []GSSAPISession
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress

@@ -603,9 +603,12 @@ Shared and SLRU resets traverse these same actual cluster target providers.
 Target validation precedes mutation. Backend reset classifies the actual PID in
 session registries, releases registry ownership before lifecycle locking, then
 resets that full live token's retained IO/WAL partitions without borrowing a peer
-writer. Successful public-session startup grants positive backend membership to
-current actual partitions; new target publication inherits only that positive
-authority, not metric history. Private and failed initialization never enroll.
+writer. Successful public-session startup grants positive metrics reporting
+membership to current actual partitions. New target publication inherits that
+reporting authority, never activity facts or metric history. Public startup
+separately registers immutable `CountedAuthenticated` identity and actual birth
+facts once in the existing default-target cluster activity map, before any
+command. Private and failed initialization never enroll.
 The unlocked end-drain verifies actual registry ownership and withdraws the
 token's membership and facts from every existing partition, without historical
 negative tokens or private-owner pointers. Session.Mu-held Unregister never
@@ -714,6 +717,20 @@ the catalog unit checks installed row/array ownership and full-seed definition
 disjointness before database-template replacement. Use `RACE=1` for the
 reader/session/worker concurrency selectors. Public SQL and the separate feature
 smoke live in untagged `reference/` definitions.
+
+`pg_stat_gssapi` reads this same sole cluster activity map through the real
+transaction's raw reader, independently of cumulative snapshot mode or timestamp.
+Both monitoring views use `captureActivitiesLocked` to install one complete cut
+including canonical assigned XID and accepted xmin enrichment, even when GSSAPI
+is read first. Only activity refreshes post-unlock live wait overlays. At each
+GSSAPI execution core captures current authorization under Engine.Mu and
+classifies the cached immutable `Activity.Principal` startup identities using
+inherited login-role or
+`pg_read_all_stats` privileges. Unauthorized peers are absent, not masked tuples;
+SET ROLE never relabels the target login. Stats readers can still observe a live
+backend whose login role was dropped; recreating its name does not adopt its old
+principal. Only detached visible PIDs reach the pure producer after releasing
+Engine.Mu. Clear/end refresh membership; Reset/Restore preserve physical lifetime.
 
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
@@ -3830,5 +3847,6 @@ make check RUN='^TestLqueryProvider'                   # installed scalar author
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
 make check RUN='^TestExecutionPause'                  # detached operation cancellation, release and binding isolation; also RACE=1
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # catalog source capture and producers; one catalog: ^TestPG<Name>
+make check RUN='^TestPGStatGSSAPI'                      # real attachment, raw transaction capture, current authority and detached producer; also RACE=1
 make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
 ```

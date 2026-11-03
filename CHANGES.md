@@ -156,6 +156,13 @@
   Preserve destination routine provenance through reconstruction and typed-nil
   byte arguments as SQL NULL for shared TEXT input.
 
+- Add read-only `pg_stat_gssapi` on the shared session/statistics provider with
+  five typed columns, actual physical PIDs, false native GSS flags and a NULL
+  principal. Preserve immutable startup login identity and transaction-cached
+  raw membership while rechecking current observer privileges on every execution.
+  Physical retirement removes fresh rows; native replacement preserves live
+  clients without serializing monitoring history.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual

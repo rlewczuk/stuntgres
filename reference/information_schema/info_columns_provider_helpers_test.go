@@ -90,6 +90,7 @@ func icProviderInventory(c *icCase) {
 		"pg_shmem_allocations_numa":         strings.Fields("name numa_node size"),
 		"pg_aios":                           strings.Fields("pid io_id io_generation state operation off length target handle_data_len raw_result result target_desc f_sync f_localmem f_buffered"),
 		"pg_backend_memory_contexts":        strings.Fields("name ident type level path total_bytes total_nblocks free_bytes free_chunks used_bytes"),
+		"pg_stat_gssapi":                    strings.Fields("pid gss_authenticated principal encrypted credentials_delegated"),
 		"pg_config":                         strings.Fields("name setting"),
 		"pg_file_settings":                  strings.Fields("sourcefile sourceline seqno name setting applied error"),
 		"pg_ident_file_mappings":            strings.Fields("map_number file_name line_number map_name sys_name pg_username error"),
@@ -200,7 +201,7 @@ func icProviderInventory(c *icCase) {
 			kind := "r"
 			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription", "pg_stat_checkpointer")
-			views = append(views, "pg_stat_database")
+			views = append(views, "pg_stat_database", "pg_stat_gssapi")
 			for _, view := range views {
 				if view == table {
 					kind = "v"
@@ -297,6 +298,25 @@ func icProviderInventory(c *icCase) {
 				// All eleven released fields, including both independent FLOAT8
 				// times: no oracle-side column-name restriction.
 				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_checkpointer'", rows)
+				child.run(child.conn, s)
+				child.run(child.conn, fixture.Prepared(s))
+				child.run(child.hold(s.Query), s)
+			}
+			if table == "pg_stat_gssapi" {
+				dataTypes := []string{"integer", "boolean", "text", "boolean", "boolean"}
+				udts := []string{"int4", "bool", "text", "bool", "bool"}
+				var rows [][]any
+				for i, field := range inventory[table] {
+					facts := map[string]any{"is_nullable": "YES", "is_updatable": "NO"}
+					if i == 0 {
+						facts["numeric_precision"], facts["numeric_precision_radix"], facts["numeric_scale"] = int64(32), int64(2), int64(0)
+					}
+					if i == 2 {
+						facts["character_octet_length"] = int64(1073741824)
+					}
+					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataTypes[i], "pg_catalog", udts[i], facts))
+				}
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_gssapi'", rows)
 				child.run(child.conn, s)
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)

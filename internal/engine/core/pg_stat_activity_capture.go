@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/statistics"
 )
 
 // Consumes Engine.Mu. The cluster mutex precedes only the provider's leaf lock;
@@ -16,8 +17,36 @@ func (e *Engine) capturePGStatActivityLocked(scope *StatementScope, ref ids.Obje
 		e.Mu.Unlock()
 		return nil, err
 	}
+	live, activities := e.captureActivitiesLocked(scope, true)
+	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep, Catalog: auth.Catalog, Roles: auth.Roles, ActivityObserver: auth.State.CurrentUser, Activities: activities}
+	e.Mu.Unlock()
+	waits := e.Locks.ActivityWaits()
+	for token, a := range activities {
+		a.WaitType, a.Wait = "", ""
+		current, exists := live[token]
+		if exists && current.Active {
+			a.WaitType, a.Wait = current.WaitType, current.Wait
+			if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
+				a.WaitType, a.Wait = "Lock", wait.Event
+			}
+		}
+		activities[token] = a
+	}
+	produce, _ := pgcatalog.ProducerFor(pgcatalog.StatActivityOID)
+	return catalogrt.CaptureRows(in, produce)
+}
+
+// Engine.Mu and transaction admission are held. Both session monitoring views
+// initialize the same raw transaction cut, including canonical XID enrichment.
+// Capturing GSSAPI first must not leave a partial cut for pg_stat_activity.
+// liveWaits requests a fresh live cut for activity's wait overlay even when the
+// transaction cut already exists; GSSAPI does not allocate that unused live cut.
+func (e *Engine) captureActivitiesLocked(scope *StatementScope, liveWaits bool) (map[ids.SessionToken]statistics.Activity, map[ids.SessionToken]statistics.Activity) {
 	reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
 	provider := e.activityProvider()
+	if reader.ActivityCaptured() && !liveWaits {
+		return nil, reader.Activities(provider)
+	}
 	live := provider.CaptureActivities()
 	if !reader.ActivityCaptured() {
 		for token, a := range live {
@@ -45,21 +74,5 @@ func (e *Engine) capturePGStatActivityLocked(scope *StatementScope, ref ids.Obje
 		}
 		reader.InstallActivities(live)
 	}
-	activities := reader.Activities(provider)
-	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep, Catalog: auth.Catalog, Roles: auth.Roles, ActivityObserver: auth.State.CurrentUser, Activities: activities}
-	e.Mu.Unlock()
-	waits := e.Locks.ActivityWaits()
-	for token, a := range activities {
-		a.WaitType, a.Wait = "", ""
-		current, exists := live[token]
-		if exists && current.Active {
-			a.WaitType, a.Wait = current.WaitType, current.Wait
-			if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
-				a.WaitType, a.Wait = "Lock", wait.Event
-			}
-		}
-		activities[token] = a
-	}
-	produce, _ := pgcatalog.ProducerFor(pgcatalog.StatActivityOID)
-	return catalogrt.CaptureRows(in, produce)
+	return live, reader.Activities(provider)
 }

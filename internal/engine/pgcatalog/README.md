@@ -703,6 +703,15 @@ diagnostics; retained rows own their original immutable typed backing.
   implicit memberships. Stored row IDs are allocated by role publication, never
   by reads. Schema/relation/column ACL admission remains in the common path;
   restricted `pg_authid` credentials remain independent.
+- `pg_stat_gssapi` (12257) consumes only core-classified detached real-client PID
+  facts through `Input.GSSAPISessions`, never a session visitor or provider lock.
+  The common source wrapper preserves five nullable typed columns and existing
+  row/array identities. Every actual native client has false authentication,
+  encryption and delegation flags and a NULL text principal; no transport fact
+  is synthesized. Core applies current authorization to raw transaction membership
+  before production. Unauthorized peers are absent. PUBLIC SELECT and ordinary
+  read-only view diagnostics use the common relation path; this producer adds no
+  backing-function EXECUTE admission or shared catalog-row cache.
 - `pg_aios` captures the actual in-use AIO inventory as fifteen nullable typed
   attributes. Logical storage owns no physical AIO handles, so capture is empty,
   including after SQL work and native controls. Source identity, descriptor and
@@ -1966,6 +1975,8 @@ a hash root alone does not select that access method.
 - Logical-slot source authority and orphan-provider ownership:
   `RUN='^TestPGStatReplicationSlots'`; public scenarios:
   `RUN='^TestReferencePGStatReplicationSlots'` in both fixture modes.
+- Session monitoring SQL: `RUN='^TestReferencePGStatGSSAPI'`
+- Session capture/producer ownership (core): `RUN='^TestPGStatGSSAPI'`, also `RACE=1`
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`

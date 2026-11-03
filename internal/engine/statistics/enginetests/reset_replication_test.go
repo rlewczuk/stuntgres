@@ -24,7 +24,7 @@ func TestStatsProviderTargetedReset(t *testing.T) {
 	t1, t2, t3, t4, t5 := t0.Add(time.Second), t0.Add(2*time.Second), t0.Add(3*time.Second), t0.Add(4*time.Second), t0.Add(5*time.Second)
 	p.Reset(t0)
 	token := (&ids.Domain{}).Session(1)
-	p.RegisterActivity(token, statistics.Activity{})
+	p.RegisterActivity(token, statistics.Activity{Principal: statsLogin()})
 	p.Command(token, ids.CommandIdentity{}, "reset activity control", t0, true)
 	var activityReader statistics.Reader
 	activityBefore := activityReader.Activities(&p)

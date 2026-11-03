@@ -1818,6 +1818,37 @@ candidate or record maintenance completion. INSERT/UPDATE/DELETE, direct or
 prepared and even with a false predicate, reject with SQLSTATE55000 and the
 standard non-automatically-updatable-view detail and matching trigger/rule hint.
 
+## GSSAPI session monitoring
+
+`pg_catalog.pg_stat_gssapi` is a read-only view with five nullable columns in
+order: `pid integer`, `gss_authenticated boolean`, `principal text`,
+`encrypted boolean`, and `credentials_delegated boolean`. Each authorized real
+physical embedded client contributes its actual `pg_backend_pid()` identity,
+three false flags and a NULL principal. Embedded sessions have performed no GSS
+authentication, encryption or credential delegation. Turning `track_activities`
+off does not remove a session or invent transport attributes.
+
+The default PUBLIC SELECT grant permits querying the view, not inspecting every
+peer. Superusers, inherited `pg_read_all_stats` members (including `pg_monitor`)
+and roles inheriting the target's startup login identity can see its row.
+Unauthorized peer rows are absent, never a visible PID with masked fields.
+SET-only or ADMIN-only membership is insufficient; target SET ROLE does not
+change the recorded login. Current observer privileges are rechecked for every
+execution, including held prepared statements over transaction-cached membership.
+
+Membership is captured once per transaction, independently of cumulative
+`stats_fetch_consistency` and its snapshot timestamp. A cached capture may retain
+a retired peer or omit a newcomer until `pg_stat_clear_snapshot()` or transaction
+end. Already returned rows remain immutable. Closing a borrowed `sql.Conn` may
+only return its physical connection to the idle pool; actual physical teardown
+removes the backend from fresh observations. Native Reset/Restore preserve live
+session identities and serialize no monitoring history. Use ORDER BY for any
+required row order.
+
+INSERT, UPDATE and DELETE reject with `55000`, the standard
+non-automatically-updatable-view detail and matching trigger/rule hint, even
+when no rows match. TRUNCATE and COPY FROM reject with `42809`.
+
 ## Physical base-backup progress
 
 `pg_catalog.pg_stat_progress_basebackup` (also available unqualified on the
