@@ -26,6 +26,7 @@ const (
 
 type Fact struct {
 	Inserts, Updates, Deletes, Live, Dead, Modifications, InsertsSince                             int64
+	IndexBlocksRead, IndexBlocksHit                                                                int64
 	VacuumCount, AnalyzeCount                                                                      int64
 	LastVacuum, LastAnalyze                                                                        time.Time
 	IndexScans, IndexEntries, IndexFetches                                                         int64
@@ -120,6 +121,8 @@ func merge(a, b Fact) Fact {
 	if b.LastSeqScan.After(a.LastSeqScan) {
 		a.LastSeqScan = b.LastSeqScan
 	}
+	a.IndexBlocksRead += b.IndexBlocksRead
+	a.IndexBlocksHit += b.IndexBlocksHit
 	a.Calls += b.Calls
 	a.Operations += b.Operations
 	a.SequencePageAccesses += b.SequencePageAccesses
@@ -308,6 +311,19 @@ type Policy struct {
 func (w *Writer) Tuple(p *Provider, k Key, policy Policy, inserts, updates, deletes int64) {
 	if policy.Counts {
 		w.Add(p, k, Fact{Inserts: inserts, Updates: updates, Deletes: deletes, InsertsSince: inserts})
+	}
+}
+
+// IndexBlock accepts one actual representative-page access. Timing settings do
+// not gate counts, and cache admission failure is still a nonresident read.
+func (w *Writer) IndexBlock(p *Provider, k Key, policy Policy, resident bool) {
+	if !policy.Counts {
+		return
+	}
+	if resident {
+		w.Add(p, k, Fact{IndexBlocksHit: 1})
+	} else {
+		w.Add(p, k, Fact{IndexBlocksRead: 1})
 	}
 }
 

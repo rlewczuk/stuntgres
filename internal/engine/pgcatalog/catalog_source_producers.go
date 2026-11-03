@@ -118,6 +118,7 @@ var producers = [...]Registration{
 	{StatRecoveryPrefetchOID, capturePGStatRecoveryPrefetch},
 	{WaitEventsOID, capturePGWaitEvents},
 	{AIOSOID, captureAIOS},
+	{StatioAllIndexesOID, captureStatioIndexes},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},

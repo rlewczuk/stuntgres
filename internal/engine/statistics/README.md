@@ -164,6 +164,23 @@ Ordinary and WAL I/O keep operation counts when their independent timing switche
 are off. No clock is sampled by these category methods; callers supply actual
 measurements only when enabled.
 
+Relation-category `IndexBlocksRead`/`IndexBlocksHit` are the selected statio index facts,
+keyed by the actual qualified index object, not its parent or a view-local copy.
+They are independent of `BlocksFetched`/`BlocksHit`: generic resident requests
+must neither populate nor be changed by the selected cache-outcome counters.
+`Writer.IndexBlock` accepts one genuine index read-lease outcome under effective
+Counts policy; timing switches do not gate counts or sample a clock. Core's
+existing representative-page cache atomically supplies resident-before-access:
+hit adds (0,1), miss adds (1,0), including no-room admission. These are cumulative
+logical simulations, independent of usage saturation, pin count or cardinality,
+not PostgreSQL physical block measurements. TEMP/private/uncommitted sources
+retain the cache's existing exclusion, even though their real catalog identities
+can be visible. Missing facts project as zero. The additive merge, session
+pending publication, reset generation, exact retirement and whole-Fact Reader
+copies cover both fields without another provider or lifetime registry.
+`pg_statio_all_indexes` discloses cumulative identities/counts independently of
+underlying-object ACL; only the selected view's own SELECT ACL is checked.
+
 Bulk population captures policy and attempts at staging. Existing overlay
 acceptance transfers private estimates into the statement write ledger; successful direct
 utility publication releases committed estimates without changing its physical

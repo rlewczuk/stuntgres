@@ -114,7 +114,12 @@ func (e *Engine) captureReadLeaseLocked(scope *StatementScope, source *exec.Sour
 		// Preserve cache-only source eligibility (for example a nonheap
 		// relation) without manufacturing table/index request accounting.
 		if key, eligible := e.logicalBufferReadKeyLocked(scope, read, address); eligible {
-			return &logicalBufferRead{engine: e, key: key, owner: scope.Op.Session.SessionToken}
+			buffer := &logicalBufferRead{engine: e, key: key, owner: scope.Op.Session.SessionToken}
+			if relation.SQLIndex != nil {
+				buffer.op = scope.Op
+				buffer.ref = e.Catalog.Domain.Ref(read.Epoch(), address)
+			}
+			return buffer
 		}
 		return nil
 	}
@@ -126,6 +131,10 @@ func (e *Engine) captureReadLeaseLocked(scope *StatementScope, source *exec.Sour
 	if key, eligible := e.logicalBufferReadKeyLocked(scope, read, address); eligible {
 		lease.hasBuffer = true
 		lease.buffer.engine, lease.buffer.key, lease.buffer.owner = e, key, lease.owner
+		if relation.SQLIndex != nil {
+			lease.buffer.op = scope.Op
+			lease.buffer.ref = e.Catalog.Domain.Ref(read.Epoch(), address)
+		}
 	}
 	return lease
 }

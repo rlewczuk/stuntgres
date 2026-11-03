@@ -73,6 +73,20 @@
   Internal subscription cleanup waits for ownership release with cancellation and
   exact live readmission; explicit origin SQL drop keeps its immediate active error.
 
+- Add exactly the seven-column PostgreSQL 18.6 `pg_statio_all_indexes` view,
+  using real represented index/parent identities, typed metadata, ordinary
+  view SELECT ACLs and complete read-only mutation diagnostics. Cumulative
+  identities/counts are not filtered by underlying-object ACL. Wire both block
+  counters to actual eligible index read-lease Opens through atomic logical
+  cache outcomes and the shared statistics writer/Reader; document deterministic
+  simulation, publication and TEMP/private-source exclusions without claiming
+  physical I/O parity or adding sibling views, fake builtin indexes or TOAST.
+  Counts-off eligible reads still warm the cache; explicit-transaction heap
+  fallback does not invent index touches. Public precancellation coverage uses
+  ordinary context cancellation at the database/sql pool boundary.
+  Keep selected IndexBlocksRead/IndexBlocksHit cache outcomes independent of
+  generic BlocksFetched/BlocksHit requests on the existing integrated read lease.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual

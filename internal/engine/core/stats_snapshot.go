@@ -35,9 +35,9 @@ func (h *statementHost) StatsSnapshotValue(clear bool, result *sqltype.Descripto
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid statistics snapshot runtime signature")
 }
-func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.MaintenanceFact {
+func (r *catalogRuntime) relationStatistics(address ids.ObjectAddress) statistics.Fact {
 	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
-		return pgcatalog.MaintenanceFact{}
+		return statistics.Fact{}
 	}
 	settings := r.settings
 	if settings == nil {
@@ -49,7 +49,14 @@ func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.Ma
 	if reader.NeedsSnapshot() {
 		now = time.Now().UTC().Truncate(time.Microsecond)
 	}
-	f := reader.Read(&r.engine.Statistics, key, now)
+	return reader.Read(&r.engine.Statistics, key, now)
+}
+func (r *catalogRuntime) IndexBlockStatistics(address ids.ObjectAddress) pgcatalog.IndexBlockFact {
+	f := r.relationStatistics(address)
+	return pgcatalog.IndexBlockFact{Read: f.IndexBlocksRead, Hit: f.IndexBlocksHit}
+}
+func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.MaintenanceFact {
+	f := r.relationStatistics(address)
 	return pgcatalog.MaintenanceFact{SeqScans: f.SeqScans, SeqTuples: f.SeqTuples, LastSeqScan: f.LastSeqScan, TableIndexFetches: f.TableIndexFetches, Inserts: f.Inserts, Updates: f.Updates, Deletes: f.Deletes, Live: f.Live, Dead: f.Dead, Modifications: f.Modifications, InsertsSince: f.InsertsSince, VacuumCount: f.VacuumCount, LastVacuum: f.LastVacuum, AnalyzeCount: f.AnalyzeCount, LastAnalyze: f.LastAnalyze, VacuumTime: f.VacuumTime, AnalyzeTime: f.AnalyzeTime}
 }
 

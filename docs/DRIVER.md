@@ -503,6 +503,47 @@ invalidates that seal, requires ordinary historical FK validation and atomically
 rejects invalid replay. No killed TID authority, private/prepared writes, GIDs,
 locks, waiters or executable handles are serialized.
 
+`pg_catalog.pg_statio_all_indexes` exposes exactly seven PostgreSQL 18.6 columns:
+`relid oid`, `indexrelid oid`, `schemaname name`, `relname name`,
+`indexrelname name`, `idx_blks_read bigint`, and `idx_blks_hit bigint`.
+It joins actual represented index descriptors to ordinary, TOAST or materialized
+parents; partitioned roots are excluded and ordinary partition leaves included.
+Leaf membership uses explicit represented leaf indexes; this view does not add
+partitioned-index DDL support.
+It does not manufacture bootstrap indexes or TOAST storage. Missing cumulative
+facts are `0,0`, not NULL; these seven columns have no activity-field redaction.
+Underlying table SELECT/schema USAGE does not filter rows. The view's own SELECT
+ACL still applies (PUBLIC by default), including prepared execution; I/U/D and
+TRUNCATE reject normally. No order is promised without ORDER BY.
+
+The two counters are explicitly **logical simulations**, not physical page I/O:
+each actual eligible index read-lease Open touches one representative main-fork
+page. Resident-before-access adds `(read,hit)=(0,1)`; nonresident adds `(1,0)`,
+even when zero capacity or all-pinned occupancy prevents admission. Residency
+and outcome are decided atomically in the existing deterministic cache. Every
+actual Open counts, without duplicating an already-open pin; rewind of the same
+stage, preparation, planning, catalog/statistics reads and unused indexes add
+nothing. Usage saturation at five does not cap cumulative hits. Counts follow
+effective `track_counts` at the event, independently of timing settings.
+Disabling counts does not disable actual cache touches: an eligible cold access
+with counts off warms the page without a delta; the next counts-on access is a
+hit. Native hash/bloom candidate capture currently requires an implicit statement
+with no private catalog. Explicit transactions use their existing heap fallback,
+even with `enable_seqscan=off`; that fallback does not touch an unused index.
+TEMP/private-created/private-rewritten, virtual and storageless sources remain
+excluded from shared-cache collection, not from represented catalog membership:
+new excluded indexes report zero, and excluded rewrites retain historical facts.
+After successful publication a newly eligible incarnation starts cold.
+
+Counters use the existing session writer's idle/throttle/drain publication and
+transaction Reader's none/cache/snapshot/clear semantics; reads never force a
+flush. Rename/move/ACL changes retain identity/history; committed drop retires
+the exact key, while rolled-back drops preserve it. Native controls do not dump
+runtime history. Exactly this one statio index view is installed: native
+`pg_statio_user_indexes`/`pg_statio_sys_indexes` are not added. Equivalent category
+predicates over all rows use schema `pg_catalog`, `information_schema` or prefix
+`pg_toast` for system and the complement for user, with identical shared facts.
+
 Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
 Their real function ACLs, fixed RECORD shapes and selected identities survive
 native controls; EXECUTE is checked even for NULL, independently of parent

@@ -1728,6 +1728,54 @@ Provider cursors contain detached scalar snapshots and lazily synthesize unused
 slots with all eight unavailable fields NULL; no source/session/catalog root
 escapes in a row.
 
+### Index block counters
+
+The selected `pg_statio_all_indexes` source enumerates actual SQLIndex-parent
+relationships with parent relkind r/t/m, without underlying-object ACL or
+temporary-owner filtering. Its own view ACL remains ordinary SQL authority.
+Typed nullable catalog attributes yield actual non-NULL identities and two
+zero-default bigint facts; no fake bootstrap/TOAST descriptors or sibling statio
+SQL names are installed. System membership is the exact namespace-name predicate
+pg_catalog/information_schema/prefix pg_toast, not OID or ownership.
+
+`logicalBufferRead.Open` on a genuine eligible index invocation records one
+representative-page outcome: resident-before-touch increments IndexBlocksHit,
+otherwise IndexBlocksRead, including a failed cache admission. The leaf cache returns
+that outcome atomically with opening/touching; provider collection occurs only
+after releasing the cache leaf. Already-open valid entries touch without a
+second pin but still record each invocation. A previous nil admission retries
+and remains a miss until admitted. Stage rewind does not itself invoke Open.
+No new physical I/O, bytes model, cache, event owner or timer is introduced.
+The integrated sourceRead lease retains its independent BlocksFetched/BlocksHit
+request accounting. Only eligible actual SQLIndex buffer captures carry the live
+operation and qualified index reference for these separate cache-outcome facts;
+generic requests, including excluded TEMP/private requests, cannot populate them.
+
+The capture-owned bridge retains only qualified index identity and the existing
+operation authority needed for live EffectiveSettings (including proconfig and
+SET LOCAL), never a bound query/evaluation graph. Source lifetime permits
+Close→Open reuse; Close releases pins, while source disposal releases operation
+authority. Transaction admission serializes its existing session Writer.
+Counts—not IO timing—gate accepted deltas. Reads are nontransactional facts,
+not tuple Ledger entries, and use normal pending publication and retirement.
+Counts-off accesses still perform the same eligible cache open/touch; a cold
+counts-off access followed by a counts-on access therefore records only a hit.
+Eligibility is unchanged: hash/bloom candidate capture requires `scope.implicit`
+and no private catalog. An explicit transaction's existing heap fallback is not
+an index event, even when sequential scans are discouraged. Public policy
+witnesses use autocommit accesses; composed LOCAL-policy coverage applies the
+ordinary settings authority to an already eligible captured lease.
+`catalogRuntime` reads both index blocks and table statistics through the same
+Reader, snapshot timestamp, configuration generation and transaction terminals.
+Keep rejects identity/name keys before the first fact lookup.
+
+Existing TEMP/private-created/private-rewritten/template-runtime exclusions
+remain: represented identities are still visible to their captured catalog,
+but excluded accesses add no shared-cache counts. A private rewrite retains
+published history; its next eligible committed incarnation is cold. Metadata-only
+changes keep history; committed drop and replacement use existing qualified
+retirement/generation fences. Held rows remain detached values.
+
 ## Cluster and logical database ownership
 
 Each exact Driver DSN owns one `DatabaseCluster`: a pointer-stable metadata mutex,

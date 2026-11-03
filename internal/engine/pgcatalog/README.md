@@ -1000,6 +1000,11 @@ every system relation (OID, namespace, name, columns with type, typmod,
 dimensions, nullability and collation, flags). Spec order is the descriptor
 registration order and differs from the registry order.
 
+The `pg_statio_all_indexes` producer follows its relation OID's numeric position,
+not the adjacent table-statistics specs. Core captures its current authorization
+and effective settings alongside the catalog/role roots so the shared session
+statistics Reader, including snapshot/cache policy, remains authoritative.
+
 `pg_policy` (3256) is a physical eight-column source over immutable
 `Relation.Security.Policies`. Capture validates the exact source, captured type
 generations and paired principal authority even for an empty catalog. It

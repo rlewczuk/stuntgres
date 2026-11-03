@@ -203,6 +203,7 @@ var Specs = [...]Spec{
 	{StatioSysSequencesOID, ids.PGCatalogNamespaceOID, "pg_statio_sys_sequences", statioSequencesColumns, true, false, false, false, "stuntgres: missing sequence I/O source type"},
 	{StatioUserSequencesOID, ids.PGCatalogNamespaceOID, "pg_statio_user_sequences", statioSequencesColumns, true, false, false, false, "stuntgres: missing sequence I/O source type"},
 	{StatAllIndexesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_indexes", indexStatisticsColumns, true, false, false, false, "stuntgres: missing index statistics source type"},
+	{StatioAllIndexesOID, ids.PGCatalogNamespaceOID, "pg_statio_all_indexes", statioIndexColumns, true, false, false, false, "stuntgres: missing index block statistics source type"},
 	{ProgressVacuumOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_vacuum", progressVacuumColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{ProgressBasebackupOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_basebackup", progressBasebackupColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{ProgressCopyOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_copy", progressCopyColumns, true, false, false, false, "stuntgres: missing COPY progress source type"},

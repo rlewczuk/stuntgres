@@ -3,6 +3,8 @@ package core
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"sync"
 )
 
@@ -19,6 +21,10 @@ type logicalBufferRead struct {
 	cache  *logicalBufferCache
 	entry  *logicalBufferEntry
 	opened bool
+	// Only index captures collect. Operation supplies live restricted/proconfig
+	// settings at Open; its transaction owner serializes the pending Writer.
+	op  *session.Operation
+	ref ids.ObjectRef
 }
 
 func (r *logicalBufferRead) Open() {
@@ -45,15 +51,20 @@ func (r *logicalBufferRead) Open() {
 	if !eligible || key != r.key {
 		return
 	}
+	cache := e.logicalBuffersLocked()
+	resident := false
 	if r.opened && r.entry != nil {
-		if r.cache != nil {
-			r.cache.touch(r.entry)
-		}
-		return
+		resident = cache.touch(r.entry)
 	}
-	r.opened = true
-	r.cache = e.logicalBuffersLocked()
-	r.entry = r.cache.open(r.key, r.owner)
+	if !resident {
+		r.entry, resident = cache.open(r.key, r.owner)
+	}
+	r.opened, r.cache = true, cache
+	// Cache leaf is released before settings or provider authority is entered.
+	if r.op != nil && !r.op.Released {
+		_, _, policy := r.op.EffectiveSettings().StatsConfiguration()
+		PayloadOf(r.op.Session).statsWriter.IndexBlock(&e.Statistics, statistics.Key{Object: r.ref, Category: statistics.Relation}, policy, resident)
+	}
 }
 func (r *logicalBufferRead) Close() {
 	r.mu.Lock()

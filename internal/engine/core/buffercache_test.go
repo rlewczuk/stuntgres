@@ -22,17 +22,17 @@ func TestPgBuffercacheCacheLifecycle(t *testing.T) {
 	if capacity != 2 || rows != nil || cache.byKey != nil {
 		t.Fatal("empty snapshot allocated capacity-sized storage")
 	}
-	first := cache.open(key(17000), owner)
-	second := cache.open(key(17001), owner)
+	first, _ := cache.open(key(17000), owner)
+	second, _ := cache.open(key(17001), owner)
 	if first.slot != 1 || second.slot != 2 {
 		t.Fatal("lowest free slots", first.slot, second.slot)
 	}
-	if cache.open(key(17002), owner) != nil {
+	if entry, _ := cache.open(key(17002), owner); entry != nil {
 		t.Fatal("all-pinned cache evicted a live owner")
 	}
 	_, retained := cache.snapshot()
 	cache.close(first, owner)
-	third := cache.open(key(17002), owner)
+	third, _ := cache.open(key(17002), owner)
 	if third.slot != 1 || cache.byKey[first.key] != nil || cache.bySlot[2] != second {
 		t.Fatal("deterministic unpinned replacement")
 	}
@@ -54,7 +54,7 @@ func TestPgBuffercacheCacheLifecycle(t *testing.T) {
 	cache.mu.Lock()
 	cache.retireLocked(third.key, third)
 	cache.mu.Unlock()
-	fourth := cache.open(key(17003), owner)
+	fourth, _ := cache.open(key(17003), owner)
 	if fourth.slot != 1 || fourth.usage != 1 {
 		t.Fatal("retired lowest hole not reused cold", fourth)
 	}
@@ -72,12 +72,12 @@ func TestPgBuffercacheCacheSessionOwnership(t *testing.T) {
 	cache := &logicalBufferCache{capacity: 1}
 	key := logicalBufferKey{domain: new(ids.Domain), epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}
 	owner, peer := key.domain.Session(1), key.domain.Session(2)
-	first := cache.open(key, owner)
-	second := cache.open(key, owner)
+	first, _ := cache.open(key, owner)
+	second, _ := cache.open(key, owner)
 	if first != second || len(first.owners) != 1 || first.owners[owner] != 2 || first.usage != 2 {
 		t.Fatal("aliases counted as different backends")
 	}
-	third := cache.open(key, peer)
+	third, _ := cache.open(key, peer)
 	if third != first || len(first.owners) != 2 {
 		t.Fatal("distinct sessions were merged")
 	}
@@ -95,7 +95,7 @@ func TestPgBuffercacheCacheSessionOwnership(t *testing.T) {
 	for range 8 {
 		workers.Go(func() {
 			for range 8 {
-				entry := cache.open(key, owner)
+				entry, _ := cache.open(key, owner)
 				cache.close(entry, owner)
 			}
 		})

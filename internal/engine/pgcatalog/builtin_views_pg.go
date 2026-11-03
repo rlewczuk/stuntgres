@@ -258,6 +258,24 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("   FROM "), viewClass("pg_stat_all_tables"), viewText("\n"),
 		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" <> ALL (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) AND ("), viewIdentifier("schemaname"), viewText(" !~ '^pg_toast'::"), viewType("text"), viewText("));"),
 	}},
+	// pg_catalog.pg_statio_all_indexes — REL_18_6 system_views.sql.
+	{oid: StatioAllIndexesOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("relid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("i"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("indexrelid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("n"), viewText("."), viewIdentifier("nspname"), viewText(" AS "), viewIdentifier("schemaname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("c"), viewText("."), viewIdentifier("relname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("i"), viewText("."), viewIdentifier("relname"), viewText(" AS "), viewIdentifier("indexrelname"), viewText(",\n"),
+		viewText("    ("), viewRoutine("pg_stat_get_blocks_fetched", "26"), viewText("("), viewIdentifier("i"), viewText("."), viewIdentifier("oid"), viewText(") - "), viewRoutine("pg_stat_get_blocks_hit", "26"), viewText("("), viewIdentifier("i"), viewText("."), viewIdentifier("oid"), viewText(")) AS "), viewIdentifier("idx_blks_read"), viewText(",\n"),
+		viewText("    "), viewRoutine("pg_stat_get_blocks_hit", "26"), viewText("("), viewIdentifier("i"), viewText("."), viewIdentifier("oid"), viewText(") AS "), viewIdentifier("idx_blks_hit"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_class"), viewText(" "), viewIdentifier("c"), viewText(",\n"),
+		viewText("    "), viewClass("pg_index"), viewText(" "), viewIdentifier("x"), viewText(",\n"),
+		viewText("    "), viewClass("pg_class"), viewText(" "), viewIdentifier("i"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("n"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = ANY (ARRAY['r'::"), viewType("\"char\""), viewText(", 't'::"), viewType("\"char\""), viewText(", 'm'::"), viewType("\"char\""), viewText("])) AND ("),
+		viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("x"), viewText("."), viewIdentifier("indrelid"), viewText(") AND ("),
+		viewIdentifier("i"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("x"), viewText("."), viewIdentifier("indexrelid"), viewText(") AND ("),
+		viewIdentifier("c"), viewText("."), viewIdentifier("relnamespace"), viewText(" = "), viewIdentifier("n"), viewText("."), viewIdentifier("oid"), viewText("));"),
+	}},
 	// pg_catalog.pg_stat_progress_vacuum — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: 12012, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("s"), viewText("."), viewIdentifier("pid"), viewText(",\n"),

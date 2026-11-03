@@ -32,13 +32,14 @@ type logicalBufferRow struct {
 	usage, pins           int64
 }
 
-func (c *logicalBufferCache) open(key logicalBufferKey, owner ids.SessionToken) *logicalBufferEntry {
+func (c *logicalBufferCache) open(key logicalBufferKey, owner ids.SessionToken) (*logicalBufferEntry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry := c.byKey[key]
+	resident := entry != nil
 	if entry == nil {
 		if c.capacity <= 0 {
-			return nil
+			return nil, false
 		}
 		slot := int64(0)
 		if int64(len(c.bySlot)) < c.capacity {
@@ -61,7 +62,7 @@ func (c *logicalBufferCache) open(key logicalBufferKey, owner ids.SessionToken) 
 			}
 		}
 		if slot == 0 {
-			return nil
+			return nil, false
 		} // All occupied slots have live leases.
 		if c.byKey == nil {
 			c.byKey = make(map[logicalBufferKey]*logicalBufferEntry)
@@ -75,7 +76,7 @@ func (c *logicalBufferCache) open(key logicalBufferKey, owner ids.SessionToken) 
 		entry.owners = make(map[ids.SessionToken]int)
 	}
 	entry.owners[owner]++
-	return entry
+	return entry, resident
 }
 func (c *logicalBufferCache) close(entry *logicalBufferEntry, owner ids.SessionToken) {
 	if entry == nil {
@@ -106,15 +107,17 @@ func (c *logicalBufferCache) snapshot() (int64, map[int64]logicalBufferRow) {
 	}
 	return c.capacity, rows
 }
-func (c *logicalBufferCache) touch(entry *logicalBufferEntry) {
+func (c *logicalBufferCache) touch(entry *logicalBufferEntry) bool {
 	if entry == nil {
-		return
+		return false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.bySlot[entry.slot] == entry && c.byKey[entry.key] == entry {
 		entry.usage = min(entry.usage+1, 5)
+		return true
 	}
+	return false
 }
 func (c *logicalBufferCache) retireLocked(key logicalBufferKey, entry *logicalBufferEntry) {
 	delete(c.byKey, key)

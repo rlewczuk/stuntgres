@@ -54,6 +54,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 	}
 	for _, invalid := range [][]pgcatalog.Registration{
 		{{1247, capturePGType}, {1247, capturePGAttribute}},
+		{{pgcatalog.StatioAllIndexesOID, capturePGType}, {pgcatalog.ProgressVacuumOID, capturePGAttribute}},
 		{{pgcatalog.LocksOID, capturePGType}},
 		{{12048, capturePGType}},
 		{{1247, nil}},
