@@ -222,7 +222,9 @@ routine/schema/EXECUTE and target/store, then publishes explicit empty VM outsid
 statement/savepoint/transaction undo. It changes no tuple/header/MVCC state and
 releases its own contribution before transaction end. Explicit invalidation
 dominates later captures and DML until successful VACUUM publication. Checks use
-scoped AccessShare; final cohort/root/horizon fences reject stale publication.
+scoped AccessShare. Final identity, authority, physical-root, fact and map
+truncation/removal fences reject stale results; a moved READ horizon or a sound
+root installed by a peer capture only withholds this capture's publication.
 Manager sampling and checked layout work remain outside every owner/Engine mutex.
 Every exit releases only the invocation's own relation contribution.
 

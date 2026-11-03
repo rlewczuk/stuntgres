@@ -109,6 +109,10 @@ func visibilityCapture(ctx context.Context, e *core.Engine, s *session.Session, 
 	if result.Rows != nil {
 		result.Rows.Close()
 	}
+	if gate, ok := ctx.(*visibilityCheckBarrier); ok && err == nil {
+		// Wrap the actual admitted context, as visibilityCheckCapture does.
+		op.Ctx = &visibilityCheckBarrier{Context: op.Context(), entered: gate.entered, release: gate.release}
+	}
 	var captured storage.VisibilityMap
 	if err == nil {
 		captured, err = core.HostOf(scope).Contrib().Pgvisibility(n, uint32(ref.Address.ObjectID), 0)

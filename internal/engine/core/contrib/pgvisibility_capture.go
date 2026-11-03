@@ -2,7 +2,6 @@ package contrib
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -254,6 +253,9 @@ func capturePgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExp
 	}
 	// Final readmission uses the current exact owner cohort. Neither payload
 	// allocation/codec work nor Manager calls occur inside this window.
+	// Identity, authority, physical roots and tuple facts fence the result.
+	// The READ horizon was exact when the facts were sampled; peer statements
+	// advertising or retiring snapshots since then only withhold publication.
 	owners, err = h.LockHeapStatisticsCohort()
 	if err != nil {
 		return storage.VisibilityMap{}, nil, err
@@ -268,16 +270,18 @@ func capturePgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExp
 		if valid {
 			latest := h.HeapStatisticsFactsLocked(owners, store, target.Address(), writes, deletes)
 			latest = storage.PrepareVisibilityFacts(latest, store.Headers)
-			valid = storage.SameVisibilityFacts(facts, latest) && h.PgvisibilityHorizonLocked(owners) == horizon && (!n.Kind.Check() || h.PgvisibilityCheckHorizonLocked() == checkHorizon)
+			valid = storage.SameVisibilityFacts(facts, latest) && (!n.Kind.Check() || h.PgvisibilityCheckHorizonLocked() == checkHorizon)
+			if h.PgvisibilityHorizonLocked(owners) != horizon {
+				publish = nil
+			}
 		}
 	}
 	if valid {
-		current := h.PgvisibilityMapLocked(target, store)
-		if current != root {
-			// Concurrent first captures may publish identical safe claims. Only
-			// that benign materialization can share admission; truncation or
-			// replacement of any already captured root always fences the result.
-			valid = root == nil && publish != nil && current != nil && !current.Invalidated && current.Proof == publish.Proof && current.Basis.Same(&snapshot, facts) && sameVisibilityClaims(current.Map, publish.Map)
+		if current := h.PgvisibilityMapLocked(target, store); current != root {
+			// Truncation or removal of the modeled map fences the result. A
+			// sound root installed meanwhile by a peer capture only supersedes
+			// this capture's publication; its facts are unchanged.
+			valid = current != nil && !current.Invalidated
 			publish = nil
 		}
 	}
@@ -295,8 +299,4 @@ func capturePgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExp
 		return storage.VisibilityMap{}, nil, err
 	}
 	return result, findings, nil
-}
-
-func sameVisibilityClaims(a, b storage.VisibilityMap) bool {
-	return a.Blocks == b.Blocks && a.MappedBlocks == b.MappedBlocks && a.AllVisible == b.AllVisible && a.AllFrozen == b.AllFrozen && slices.Equal(a.Runs, b.Runs)
 }

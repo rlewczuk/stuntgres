@@ -1131,8 +1131,9 @@ adapters and `PageinspectNotice`, and these host pieces:
   The independent consistency horizon follows running assigned full XIDs, not
   read-only advertised snapshots. Real incarnation VM roots live on storage;
   producer-backed catalog heaps use descriptor-anchored RelationMetadata without
-  invented tuples. Final cohort readmission fences physical facts, horizon,
-  map root, descriptor, domain/epoch, storage and headers before publication.
+  invented tuples. Final cohort readmission fences physical facts, map
+  truncation/removal, descriptor, domain/epoch, storage and headers; a moved
+  READ horizon or a peer-installed root only withholds publication.
 - freespace capture uses the caller's ordinary retained data view rather than the
   dirty-statistics cohort. Existing catalog producer sizing and genuine index
   Allocation roots are shared through the leaf host, with no new store or global

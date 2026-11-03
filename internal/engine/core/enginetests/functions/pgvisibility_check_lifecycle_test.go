@@ -96,8 +96,8 @@ func TestPgvisibilityCheckCaptureLifecycle(t *testing.T) {
 			n := visibilityCheckNode(t, e, "pg_check_visible")
 			observer := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, observer, "SET SESSION AUTHORIZATION visibility_check_reader")
-			// Materialize a real prior root, so replacing even an equal-valued
-			// capture cannot be mistaken for benign concurrent first publication.
+			// Materialize a real prior root, so truncating it is a genuine map
+			// change rather than an absent root that was never captured.
 			items, err := visibilityCheckCapture(t.Context(), e, observer, n, ref)
 			if err != nil || len(items) != 0 {
 				t.Fatal(items, err)
