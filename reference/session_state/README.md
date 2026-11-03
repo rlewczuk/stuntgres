@@ -130,6 +130,23 @@ these SQL scenarios do not manufacture physical work or use neighboring getters.
 Recovery-prefetch monitoring uses `RUN='^TestReferencePGStatRecoveryPrefetch'`
 with `make check` in native and `REFERENCE=1` modes.
 
+SLRU monitoring uses `RUN='^TestReferencePGStatSLRU'` in native and `REFERENCE=1`
+modes: Shape, Lifecycle, Privileges, ReadOnly, Controls and FeatureSmoke cover the
+eight-category/nine-column contract, typed empty/direct/prepared results, genuine
+reset bounds, none/cache/snapshot retention and clear, live view/column/getter ACLs,
+exact mutation diagnostics and retained native replacement rows/session authority.
+Native tests assert stable zero estimates across ordinary SQL; live PostgreSQL
+uses inactive other for stability/reset observations, never assumes active
+physical categories remain zero. Internal one-hot provider/projection tests prove
+all seven positive positions and composed capture proves cross-family snapshots.
+The native Controls/FeatureSmoke phase also round-trips the backing getter ACL:
+implicit NULL needs no dump repair, while restricted user-role grants (including
+grant options), explicit-empty and explicit-effective-default ACLs retain their
+independently expected raw values. Direct and previously held ordinary-role view
+reads must honor the restored deny/grant boundary after each actual Restore.
+These controls use the public Dump/Restore APIs, not PostgreSQL SQL substitutes.
+
+
 Setting-flag metadata and option-array expansion use
 `RUN='^TestReferenceSettingsOptions'` in both modes. Shared physical-session and
 held-call helpers witness noncreating live placeholder recognition, independent

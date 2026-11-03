@@ -36,7 +36,7 @@ func sharedStatsSeed(e *core.Engine, key statistics.Key) {
 		w.Shared(&e.Statistics, k, statistics.SharedFact{Counters: [6]int64{int64(k+1) * 11}, TotalTime: time.Millisecond})
 	}
 	for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
-		w.SLRU(&e.Statistics, k, statistics.SharedFact{Counters: [6]int64{int64(k) + 1}})
+		w.SLRU(&e.Statistics, k, statistics.SLRUFact{Counters: [7]int64{int64(k) + 1}})
 	}
 	w.Add(&e.Statistics, key, statistics.Fact{Operations: 10, TotalTime: 20 * time.Millisecond})
 	wal, relation := key, key
@@ -124,7 +124,7 @@ func TestStatsResetSharedRuntime(t *testing.T) {
 		sharedStatsSeed(e, key)
 		tx := e.Statistics.ReadSLRU(statistics.Transaction)
 		resetStatsExec(t, s, "SELECT pg_stat_reset_slru('"+name+"')")
-		if e.Statistics.ReadSLRU(statistics.OtherSLRU).Counters != ([6]int64{}) || e.Statistics.ReadSLRU(statistics.Transaction) != tx {
+		if e.Statistics.ReadSLRU(statistics.OtherSLRU).Counters != ([7]int64{}) || e.Statistics.ReadSLRU(statistics.Transaction) != tx {
 			t.Fatal("unknown SLRU did not isolate other")
 		}
 	}
@@ -147,7 +147,7 @@ func TestStatsResetSharedRuntime(t *testing.T) {
 	for _, q := range []string{"SELECT pg_stat_reset_slru()", "SELECT pg_stat_reset_slru(NULL)"} {
 		resetStatsExec(t, s, q)
 		for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
-			if e.Statistics.ReadSLRU(k).Counters != ([6]int64{}) || peer.Statistics.ReadSLRU(k).Counters != ([6]int64{}) {
+			if e.Statistics.ReadSLRU(k).Counters != ([7]int64{}) || peer.Statistics.ReadSLRU(k).Counters != ([7]int64{}) {
 				t.Fatal("SLRU all", k)
 			}
 		}
@@ -289,7 +289,7 @@ func TestStatsResetSharedProviderSmoke(t *testing.T) {
 	sharedStatsBackend(e, s, 11, 13)
 	sharedStatsBackend(peer, ps, 17, 19)
 	var slruSeed statistics.Writer
-	slruSeed.SLRU(&e.Statistics, statistics.OtherSLRU, statistics.SharedFact{Counters: [6]int64{1}})
+	slruSeed.SLRU(&e.Statistics, statistics.OtherSLRU, statistics.SLRUFact{Counters: [7]int64{1}})
 	slruSeed.Flush(&e.Statistics, time.Unix(100, 0), true)
 	if e.Statistics.ReadSLRU(statistics.Transaction).Counters[0] != 7 || e.Statistics.ReadSLRU(statistics.OtherSLRU).Counters[0] != 9 {
 		t.Fatal("positive SLRU smoke seed")

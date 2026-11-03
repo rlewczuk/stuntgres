@@ -57,7 +57,7 @@ type Provider struct {
 	generation   uint64
 	retired      map[Key]struct{}
 	shared       [SharedKindCount]SharedFact
-	slru         [SLRUCount]SharedFact
+	slru         [SLRUCount]SLRUFact
 	backends     map[ids.SessionToken]BackendFact
 	liveBackends map[ids.SessionToken]struct{}
 }
@@ -143,7 +143,7 @@ type Writer struct {
 	initialized            bool
 	chargedSelf            time.Duration // Backend-wide completed function self time; owner-serialized.
 	sharedPending          [SharedKindCount]SharedFact
-	slruPending            [SLRUCount]SharedFact
+	slruPending            [SLRUCount]SLRUFact
 	backendPending         map[ids.SessionToken]BackendFact
 	sharedDirty, slruDirty uint8
 }

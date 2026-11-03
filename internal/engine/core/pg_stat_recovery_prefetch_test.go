@@ -30,13 +30,13 @@ func TestPGStatRecoveryPrefetchInitialization(t *testing.T) {
 			}
 			continue
 		}
-		if kind != statistics.RecoveryPrefetch && e.Statistics.ReadShared(kind) != (statistics.SharedFact{}) {
+		if kind != statistics.RecoveryPrefetch && kind != statistics.SLRU && e.Statistics.ReadShared(kind) != (statistics.SharedFact{}) {
 			t.Fatal("prefetch startup initialized another shared family", kind, e.Statistics.ReadShared(kind))
 		}
 	}
 	for kind := statistics.SLRUKind(0); kind < statistics.SLRUCount; kind++ {
-		if e.Statistics.ReadSLRU(kind) != (statistics.SharedFact{}) {
-			t.Fatal("prefetch startup initialized SLRU", kind)
+		if e.Statistics.ReadSLRU(kind) != (statistics.SLRUFact{ResetAt: fact.ResetAt}) {
+			t.Fatal("startup SLRU must share genuine initialization without counters", kind)
 		}
 	}
 	if got := e.Statistics.Read(statistics.Key{}); got != (statistics.Fact{}) {

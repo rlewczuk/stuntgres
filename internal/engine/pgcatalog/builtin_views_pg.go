@@ -3,6 +3,7 @@ package pgcatalog
 var pgBuiltinViews = [...]builtinView{
 	{oid: StatActivityOID, parts: activityViewDefinitionParts, prettyParts: activityViewDefinitionParts},
 	{oid: StatRecoveryPrefetchOID, parts: recoveryPrefetchViewParts, prettyParts: recoveryPrefetchViewParts},
+	{oid: StatSLRUOID, parts: slruViewParts, prettyParts: slruViewParts},
 	{oid: StatReplicationSlotsOID, parts: replicationSlotsViewParts, prettyParts: replicationSlotsViewParts},
 	{oid: StatArchiverOID, parts: archiverViewParts, prettyParts: archiverViewParts},
 	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},

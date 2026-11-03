@@ -70,6 +70,7 @@ type Input struct {
     ActivityObserver authorization.PrincipalRef
     RecoveryPrefetch statistics.SharedFact // detached current provider cut
     Archiver statistics.SharedFact // detached admitted cumulative Reader cut
+    SLRU [statistics.SLRUCount]statistics.SLRUFact // detached cumulative family
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -89,6 +90,25 @@ SELECT does not imply session-style redaction. The released function-source
 definition supplies normal read-only diagnostics. Its zero-provider routine
 descriptor owns exact OUT metadata and default PUBLIC EXECUTE/GRANT/REVOKE,
 without providing a callable getter.
+
+`pg_stat_slru` (relation12236, rowtype12238, array12237) projects exactly eight
+fixed SLRU names and nine nullable attributes: TEXT name (default collation100),
+seven BIGINT counters and TIMESTAMPTZ reset metadata. Core admits current view/
+column SELECT and independent `pg_stat_get_slru` EXECUTE before accessing the
+existing session statistics Reader; denied reads cannot create a snapshot.
+Unlike prefetch, SLRU honors none/cache/snapshot. The pure producer receives only
+the detached coherent family, preserves missing reset times as NULL and never
+manufactures physical activity. Its released getter-backed definition is display/
+dependency metadata; an engine-owned zero-provider routine2306 descriptor owns
+the live default PUBLIC EXECUTE ACL and ordinary GRANT/REVOKE without exposing
+a callable getter implementation. Ordinary readers see
+all fields without activity-style masking; common registered-view mutation
+rejection owns INSERT/UPDATE/DELETE/TRUNCATE/COPY diagnostics.
+
+The unbounded TEXT name exposes known driver length `math.MaxInt64`; the BIGINT
+and TIMESTAMPTZ columns expose unavailable length metadata. Its producer entry
+precedes recovery-prefetch in the strictly OID-ordered binary-search registry.
+
 
 `pg_stat_replication_slots` (12266) validates current registered catalog/source
 and paired role authority for ten nullable attributes: TEXT identity, eight INT8

@@ -32,6 +32,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		returnsSet bool
 		aclEntries int
 	}{
+		{2306, "pg_stat_get_slru", true, 0},
 		{3195, "pg_stat_get_archiver", false, 0},
 		{3329, "pg_show_all_file_settings", true, 1},
 		{3400, "pg_config", true, 1},
@@ -106,6 +107,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
 		2282: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_backend_memory_contexts"},
+		2306: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_slru"},
 		3195: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_archiver"},
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},

@@ -77,6 +77,14 @@ EXECUTE; current GRANT/REVOKE uses the same descriptor independently of view
 SELECT. The immutable declaration is shared, while each engine owns its mutable
 descriptor. Neither the identity ledger nor this metadata grants a callable getter.
 
+`pg_stat_get_slru` (2306) follows that same ACL-only admission seam, with
+non-strict STABLE/parallel-restricted SETOF RECORD metadata, nine named OUT
+fields, cost 1 and rows 100. Its engine-owned descriptor admits live EXECUTE
+checks and GRANT/REVOKE through ordinary object authority with implicit PUBLIC
+EXECUTE. Default ACLs reconstruct on replacement; explicit user ACLs remain
+replay state. Zero provider flags and exclusion from the callable selector
+inventory keep direct and prepared SQL getter calls unsupported.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

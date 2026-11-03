@@ -59,7 +59,8 @@ their end paths allocate no history. State is bounded by current public lifetime
 not connection churn, and cannot retain private session owners.
 Full Reset/Replace clear fixed/backend history with the database incarnation,
 retain current live registrations and advance the existing pending-generation
-fence. New target publication inherits positive registrations, not metric
+fence. New actual target publication inherits only positive registrations under
+cluster serialization, using separate provider lock acquisitions, never metric
 history. Archiver reset metadata alone has cluster authority: core initializes
 `DatabaseCluster.ArchiverResetAt` from genuine startup and mirrors it through
 `ResetShared` at target publication and after accepted local replacement. Shared
@@ -67,13 +68,20 @@ archiver/all reset updates that authority and every current mirror at one instan
 This bounded exception is valid because production has no archive event writer;
 future physical events require cluster event ownership, not independent counters.
 Other fixed families retain their existing local replacement/publication rules.
+No monitoring history is serialized or activity manufactured.
 The provider remains zero-value-ready: reads never initialize reset metadata.
-The completed engine owner records prefetch and archiver initialization through
-targeted ResetShared without changing unrelated families or generation.
+The completed engine owner records recovery-prefetch and SLRU initialization
+once through targeted ResetShared and mirrors genuine archiver initialization,
+without changing unrelated families or generation.
 Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–5
 are unused by its view. Both technical estimates are zero without a physical
 producer, never query-derived activity. Exact last-success/failure names and
 instants are independently NULL when absent. Projection consumes copied facts.
+SLRU uses dedicated `SLRUFact` values with seven counters in SQL order
+zeroed/hit/read/written/exists/flushes/truncates; unrelated SharedFact stays six-slot.
+Publication adds each admitted counter and never adopts pending reset metadata.
+No corresponding physical event means deterministic zero technical estimates,
+never physical measurements, query-derived activity or read-time reset clocks.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.
@@ -83,6 +91,11 @@ SLRU array; prefetch always reads current provider state without constructing a
 snapshot. Clear releases every cumulative partition and cached activity together.
 The core traverses actual per-database providers for cluster-wide reset effects;
 there is no second cluster provider or competing IO/WAL counter copy.
+`ReadSLRUs` returns one detached eight-entry family under one leaf lock, so none
+mode cannot tear a family-wide reset between category rows. Cache admits the
+whole family on first entry/view read; snapshot shares its all-provider cut with
+keyed relation facts. Peer resets do not invalidate either retained cut.
+
 
 Index searches, returned entries and simple live heap fetches occupy the existing
 Relation category under the exact qualified index identity. `CaptureIndexAccess`

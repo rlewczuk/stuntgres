@@ -382,6 +382,50 @@ INSTEAD OF trigger-or-rule Hint, including WHERE FALSE. TRUNCATE rejects with
 (`cannot copy to view "pg_stat_recovery_prefetch"`) and its INSTEAD OF INSERT Hint.
 There is no portable row order without ORDER BY.
 
+### SLRU monitoring
+
+`pg_catalog.pg_stat_slru` (also unqualified through the ordinary catalog path)
+has nine nullable attributes in order: `name text`, `blks_zeroed bigint`,
+`blks_hit bigint`, `blks_read bigint`, `blks_written bigint`, `blks_exists bigint`,
+`flushes bigint`, `truncates bigint`, `stats_reset timestamptz`. Typed metadata
+survives empty results and held prepared reexecution. Exactly eight cluster-wide
+category rows exist: commit_timestamp, multixact_member, multixact_offset, notify,
+serializable, subtransaction, transaction and other. No order is portable without
+ORDER BY; other aggregates otherwise unlisted SLRU caches, not extension rows.
+
+Names are genuine fixed metadata. Reset timestamps come from successful engine
+initialization, explicit reset or accepted native replacement, in UTC microseconds;
+reads/Prepare never create reset events. Each technical counter is the sum of
+admitted corresponding provider events. No physical SLRU facility exists in the
+embedded engine, so all seven are deterministic **zero technical estimates**, not
+physical measurements; ordinary SQL, settings and transactions invent no activity.
+An explicitly uninitialized provider retains NULL reset metadata.
+
+The existing session reader supplies one atomic family per execution in none
+mode; cache retains the whole family on its first access, while snapshot shares
+the first cumulative all-family cut and snapshot timestamp. Peer resets leave
+cache/snapshot unchanged until clear, transaction end or settings-generation
+transition. Preparing alone does not fetch. Returned Rows retain their own cut;
+held statements execute against current authority and the applicable reader cut.
+
+`pg_stat_reset_slru(name)` zeros the named published entry; unknown, case/space
+mismatches and empty names select other. NULL/no argument resets all eight.
+`pg_stat_reset_shared('slru')` and shared NULL/no-argument forms also reset all;
+database-local `pg_stat_reset()` does not. Resets record genuine event times,
+survive rollback and preserve pending reports and retained reader snapshots.
+Default reset EXECUTE requires superuser; explicit grants work independently of
+monitoring membership. Native Reset/Restore clears all counters and records new
+reset times while retaining already returned Rows; failed/canceled controls and
+Dump do not change or serialize monitoring history.
+
+PUBLIC SELECT exposes all eight rows/fields without privilege masking. Current
+view/used-column SELECT and backing `pg_stat_get_slru` EXECUTE ACLs apply on every
+execution, including held statements; no callable getter is added. INSERT, UPDATE
+and DELETE reject with 55000, exact non-updatable-view Detail and operation-specific
+INSTEAD OF trigger/rule Hint, even with WHERE FALSE. TRUNCATE rejects with 42809
+(`"pg_stat_slru" is not a table`); COPY FROM rejects with 42809
+(`cannot copy to view "pg_stat_slru"`) and the INSTEAD OF INSERT trigger Hint.
+
 ### Logical replication slot monitoring
 
 `pg_catalog.pg_stat_replication_slots` (also unqualified on the ordinary catalog

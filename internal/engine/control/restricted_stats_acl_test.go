@@ -74,7 +74,7 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 				t.Fatal("seeded authority needs no replay")
 			}
 			_, baseline, _ := access.DescriptorACL(descriptor)
-			implicit := descriptor.Address().ObjectID == 3195
+			implicit := descriptor.Address().ObjectID == 3195 || descriptor.Address().ObjectID == 2306
 			if implicit != !baseline.Explicit || implicit && len(baseline.Entries) != 0 {
 				t.Fatal("backing routine default ACL classification", descriptor)
 			}

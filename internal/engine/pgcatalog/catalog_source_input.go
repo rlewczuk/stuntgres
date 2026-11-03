@@ -36,6 +36,8 @@ type Input struct {
 	RecoveryPrefetch statistics.SharedFact
 	// Archiver is detached from the admitted session's cumulative Reader.
 	Archiver statistics.SharedFact
+	// SLRU is one detached family captured by the session cumulative reader.
+	SLRU [statistics.SLRUCount]statistics.SLRUFact
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress

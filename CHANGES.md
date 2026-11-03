@@ -15,6 +15,22 @@
   request assertions native-only, and restore view ACLs before dropping private
   schema ACL dependencies and their role.
 
+- Add typed, read-only `pg_catalog.pg_stat_slru`: eight genuine fixed category
+  identities, seven deterministic zero technical estimates absent physical SLRU,
+  and genuine initialization/reset/replacement timestamps. Dedicated seven-slot
+  SLRU facts preserve unrelated shared families; atomic family capture reuses
+  existing none/cache/snapshot readers. Enforce live view/column/backing-routine
+  ACLs through an engine-owned ACL-only getter2306 descriptor without adding a
+  callable getter. Preserve implicit PUBLIC EXECUTE and explicit ACL replay.
+  Cover positive one-hot mapping, reset/
+  pending isolation, retained rows, native controls and exact public diagnostics;
+  preserve the pinned PostgreSQL18.6 fixture. Keep SLRU reachable through the
+  OID-ordered producer registry and assert known unbounded TEXT name length in
+  both driver modes, with unavailable length metadata for the remaining columns.
+  Exercise real getter ACL Dump/Restore with independent raw NULL/empty/default
+  provenance, remapped user grants/options and restored direct/held view denial
+  and recovery; omit unnecessary repair for the implicit PUBLIC default.
+
 - Add the nine-column typed, read-only `pg_catalog.pg_stat_all_indexes` view on
   the shared cumulative provider/Reader, exposing actual index/parent identities
   without parent privilege filtering or field redaction. Attribute searches,

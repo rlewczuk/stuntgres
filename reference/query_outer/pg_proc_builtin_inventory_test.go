@@ -240,8 +240,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// unnamed OID-to-INT8 declarations3044/3045.
 	// Archiver adds its metadata-only non-strict STABLE/restricted scalar
 	// RECORD declaration3195, seven named OUT fields and default PUBLIC EXECUTE.
-	if len(facts) != 2251 {
-		t.Fatalf("released represented overloads: got %d, want 2251", len(facts))
+	// SLRU adds its metadata-only non-strict STABLE/restricted SETOF RECORD
+	// declaration2306, nine named OUT fields, rows100 and default PUBLIC EXECUTE.
+	if len(facts) != 2252 {
+		t.Fatalf("released represented overloads: got %d, want 2252", len(facts))
 	}
 	return facts
 }

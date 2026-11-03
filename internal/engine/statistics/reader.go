@@ -17,7 +17,7 @@ type Reader struct {
 	epoch      uint64
 	activity   map[ids.SessionToken]Activity
 	shared     [SharedKindCount]SharedFact
-	slru       [SLRUCount]SharedFact
+	slru       [SLRUCount]SLRUFact
 	kinds      uint8
 	backends   map[ids.SessionToken]backendRead
 }
@@ -113,15 +113,24 @@ func (r *Reader) ReadShared(p *Provider, k SharedKind, now time.Time) SharedFact
 	}
 	return r.shared[k]
 }
-func (r *Reader) ReadSLRU(p *Provider, k SLRUKind, now time.Time) SharedFact {
+func (r *Reader) ReadSLRU(p *Provider, k SLRUKind, now time.Time) SLRUFact {
 	if k >= SLRUCount {
-		return SharedFact{}
+		return SLRUFact{}
 	}
 	if r.mode == "none" {
 		return p.ReadSLRU(k)
 	}
 	r.ReadShared(p, SLRU, now)
 	return r.slru[k]
+}
+
+// ReadSLRUs admits the entire family to the existing cumulative reader.
+func (r *Reader) ReadSLRUs(p *Provider, now time.Time) [SLRUCount]SLRUFact {
+	if r.mode == "none" {
+		return p.ReadSLRUs()
+	}
+	r.ReadShared(p, SLRU, now)
+	return r.slru
 }
 func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time) (BackendFact, bool) {
 	if r.mode == "none" {

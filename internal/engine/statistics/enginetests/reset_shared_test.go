@@ -11,6 +11,9 @@ import (
 func sharedVector(n int64) statistics.SharedFact {
 	return statistics.SharedFact{Counters: [6]int64{n, n + 1, n + 2, n + 3, n + 4, n + 5}, TotalTime: time.Duration(n) * time.Millisecond}
 }
+func slruVector(n int64) statistics.SLRUFact {
+	return statistics.SLRUFact{Counters: [7]int64{n, n + 1, n + 2, n + 3, n + 4, n + 5, n + 6}}
+}
 func sharedSeed(p *statistics.Provider, k statistics.SharedKind, n int64, at time.Time) {
 	var w statistics.Writer
 	w.Shared(p, k, sharedVector(n))
@@ -40,7 +43,7 @@ func TestStatsProviderResetShared(t *testing.T) {
 			for k := statistics.SharedKind(0); k < statistics.SharedKindCount; k++ {
 				sharedSeed(&p, k, int64(k+1)*11, t0)
 			}
-			w.SLRU(&p, statistics.Transaction, sharedVector(66))
+			w.SLRU(&p, statistics.Transaction, slruVector(66))
 			w.Flush(&p, t0, true)
 			token := (&ids.Domain{}).Session(1)
 			p.RegisterActivity(token, statistics.Activity{})
@@ -133,7 +136,7 @@ func TestStatsProviderResetSLRU(t *testing.T) {
 	var w statistics.Writer
 	at := time.Unix(100, 0).UTC()
 	for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
-		w.SLRU(&p, k, sharedVector(int64(k)+1))
+		w.SLRU(&p, k, slruVector(int64(k)+1))
 	}
 	w.Flush(&p, at, true)
 	var cache statistics.Reader
@@ -141,9 +144,9 @@ func TestStatsProviderResetSLRU(t *testing.T) {
 	cache.ReadSLRU(&p, statistics.Transaction, at)
 	p.ResetSLRU(statistics.SLRUTarget("transaction"), at)
 	for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
-		want := sharedVector(int64(k) + 1)
+		want := slruVector(int64(k) + 1)
 		if k == statistics.Transaction {
-			want = statistics.SharedFact{ResetAt: at}
+			want = statistics.SLRUFact{ResetAt: at}
 		}
 		if got := p.ReadSLRU(k); got != want {
 			t.Fatal(k, got, want)
@@ -155,16 +158,16 @@ func TestStatsProviderResetSLRU(t *testing.T) {
 		}
 		p.ResetSLRU(statistics.SLRUTarget(name), at)
 	}
-	if cache.ReadSLRU(&p, statistics.OtherSLRU, at) != sharedVector(8) {
+	if cache.ReadSLRU(&p, statistics.OtherSLRU, at) != slruVector(8) {
 		t.Fatal("SLRU cache was per entry, not per kind")
 	}
 	cache.Clear()
-	if cache.ReadSLRU(&p, statistics.OtherSLRU, at) != (statistics.SharedFact{ResetAt: at}) {
+	if cache.ReadSLRU(&p, statistics.OtherSLRU, at) != (statistics.SLRUFact{ResetAt: at}) {
 		t.Fatal("clear")
 	}
 	p.ResetShared(statistics.SLRU, at)
 	for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
-		if p.ReadSLRU(k) != (statistics.SharedFact{ResetAt: at}) {
+		if p.ReadSLRU(k) != (statistics.SLRUFact{ResetAt: at}) {
 			t.Fatal("all SLRUs", k)
 		}
 	}
@@ -243,14 +246,14 @@ func TestStatsProviderResetSharedPending(t *testing.T) {
 		w.Add(&p, key, statistics.Fact{Operations: 10, TotalTime: 20 * time.Millisecond})
 	}
 	w.Shared(&p, statistics.Archiver, sharedVector(10))
-	w.SLRU(&p, statistics.Transaction, sharedVector(10))
+	w.SLRU(&p, statistics.Transaction, slruVector(10))
 	w.Backend(&p, token, statistics.Fact{Operations: 10}, statistics.Fact{Operations: 20})
 	w.Flush(&p, at, false)
 	for _, key := range []statistics.Key{a, b} {
 		w.Add(&p, key, statistics.Fact{Operations: 3, TotalTime: 4 * time.Millisecond})
 	}
 	w.Shared(&p, statistics.Archiver, sharedVector(3))
-	w.SLRU(&p, statistics.Transaction, sharedVector(3))
+	w.SLRU(&p, statistics.Transaction, slruVector(3))
 	w.Backend(&p, token, statistics.Fact{Operations: 3}, statistics.Fact{Operations: 4})
 	before := p.Read(a)
 	p.ResetAllShared(at)
@@ -269,7 +272,9 @@ func TestStatsProviderResetSharedPending(t *testing.T) {
 	}
 	want := sharedVector(3)
 	want.ResetAt = at
-	if p.ReadShared(statistics.Archiver) != want || p.ReadSLRU(statistics.Transaction) != want {
+	slruWant := slruVector(3)
+	slruWant.ResetAt = at
+	if p.ReadShared(statistics.Archiver) != want || p.ReadSLRU(statistics.Transaction) != slruWant {
 		t.Fatal("fixed pending")
 	}
 	backend, _ := p.ReadBackend(token)

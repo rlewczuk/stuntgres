@@ -23,6 +23,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		switch object.Address().ObjectID {
 		case 3195:
 			name, entries = "pg_stat_get_archiver", 0
+		case 2306:
+			name, entries = "pg_stat_get_slru", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:
@@ -71,7 +73,7 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	if entries == 0 {
-		// The archiver backing routine has ordinary implicit PUBLIC EXECUTE.
+		// These view backing routines have ordinary implicit PUBLIC EXECUTE.
 		// Even an explicit ACL with identical effective rights is user state.
 		return !acl.Explicit && len(acl.Entries) == 0
 	}

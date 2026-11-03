@@ -438,7 +438,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	}
 	// Record genuine owner initialization only after all fallible setup succeeds.
 	// The provider remains zero-value-ready; reads never invent reset metadata.
-	e.Statistics.ResetShared(statistics.RecoveryPrefetch, time.Now().UTC().Truncate(time.Microsecond))
+	initializedAt := time.Now().UTC().Truncate(time.Microsecond)
+	e.Statistics.ResetShared(statistics.RecoveryPrefetch, initializedAt)
+	e.Statistics.ResetShared(statistics.SLRU, initializedAt)
 	e.Statistics.ResetShared(statistics.Archiver, cluster.ArchiverResetAt)
 	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil

@@ -131,3 +131,4 @@
 2850	pg_walfile_name_offset	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2249	3220	{3220,25,23}	{i,o,o}	{lsn,file_name,file_offset}	false	\N	pg_walfile_name_offset	\N	false	\N
 6213	pg_split_walfile_name	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2249	25	{25,1700,20}	{i,o,o}	{file_name,segment_number,timeline_id}	false	\N	pg_split_walfile_name	\N	false	\N
 3195	pg_stat_get_archiver	11	12	1	0	0	0	f	false	false	false	false	s	r	0	0	2249		{20,25,1184,20,25,1184,1184}	{o,o,o,o,o,o,o}	{archived_count,last_archived_wal,last_archived_time,failed_count,last_failed_wal,last_failed_time,stats_reset}	false	\N	pg_stat_get_archiver	\N	false	\N
+2306	pg_stat_get_slru	11	12	1	100	0	0	f	false	false	false	true	s	r	0	0	2249		{25,20,20,20,20,20,20,20,1184}	{o,o,o,o,o,o,o,o,o}	{name,blks_zeroed,blks_hit,blks_read,blks_written,blks_exists,flushes,truncates,stats_reset}	false	\N	pg_stat_get_slru	\N	false	\N

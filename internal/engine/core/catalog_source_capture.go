@@ -46,7 +46,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
-	case pgcatalog.StatArchiverOID:
+	case pgcatalog.StatArchiverOID, pgcatalog.StatSLRUOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -54,7 +54,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		// View/column SELECT was admitted by the common query manifest. Check
 		// current backing EXECUTE before even configuring the session Reader.
-		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3195}), Privileges: authorization.ExecutePrivilege}); err != nil {
+		procedure := ids.OID(3195)
+		if oid == pgcatalog.StatSLRUOID {
+			procedure = 2306
+		}
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedure}), Privileges: authorization.ExecutePrivilege}); err != nil {
 			e.Mu.Unlock()
 			return nil, err
 		}
@@ -64,7 +68,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		if reader.NeedsSnapshot() {
 			now = time.Now().UTC().Truncate(time.Microsecond)
 		}
-		in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, now)
+		if oid == pgcatalog.StatSLRUOID {
+			in.SLRU = reader.ReadSLRUs(&e.Statistics, now)
+		} else {
+			in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, now)
+		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatRecoveryPrefetchOID:

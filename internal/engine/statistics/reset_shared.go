@@ -78,6 +78,20 @@ type SharedFact struct {
 	WALDistance, BlockDistance, IODepth int64
 	ResetAt                             time.Time
 }
+
+// SLRUFact keeps the seven SLRU counters in PostgreSQL column order:
+// zeroed, hit, read, written, exists, flushes, truncates.
+type SLRUFact struct {
+	Counters [7]int64
+	ResetAt  time.Time
+}
+
+func mergeSLRU(a, b SLRUFact) SLRUFact {
+	for i := range a.Counters {
+		a.Counters[i] += b.Counters[i]
+	}
+	return a
+}
 type BackendFact struct {
 	IO, WAL Fact
 	ResetAt time.Time
@@ -104,13 +118,20 @@ func (p *Provider) ReadShared(k SharedKind) SharedFact {
 	}
 	return p.shared[k]
 }
-func (p *Provider) ReadSLRU(k SLRUKind) SharedFact {
+func (p *Provider) ReadSLRU(k SLRUKind) SLRUFact {
+	if k >= SLRUCount {
+		return SLRUFact{}
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if k >= SLRUCount {
-		return SharedFact{}
-	}
 	return p.slru[k]
+}
+
+// ReadSLRUs captures the complete fixed family under one leaf lock.
+func (p *Provider) ReadSLRUs() [SLRUCount]SLRUFact {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.slru
 }
 func (p *Provider) ReadBackend(token ids.SessionToken) (BackendFact, bool) {
 	p.mu.Lock()
@@ -135,7 +156,7 @@ func (p *Provider) resetShared(k SharedKind, at time.Time) {
 	}
 	if k == SLRU {
 		for i := range p.slru {
-			p.slru[i] = SharedFact{ResetAt: at}
+			p.slru[i] = SLRUFact{ResetAt: at}
 		}
 	}
 	category := IO
@@ -175,7 +196,7 @@ func (p *Provider) ResetSLRU(k SLRUKind, at time.Time) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.slru[k] = SharedFact{ResetAt: at}
+	p.slru[k] = SLRUFact{ResetAt: at}
 }
 func (p *Provider) ResetBackend(token ids.SessionToken, at time.Time) bool {
 	p.mu.Lock()
@@ -243,7 +264,7 @@ func (p *Provider) endBackend(token ids.SessionToken) {
 // public sessions. The existing provider generation rejects old pending work.
 func (p *Provider) clearShared(at time.Time) {
 	p.shared = [SharedKindCount]SharedFact{}
-	p.slru = [SLRUCount]SharedFact{}
+	p.slru = [SLRUCount]SLRUFact{}
 	p.backends = nil
 	for k := range p.shared {
 		p.shared[k].ResetAt = at
@@ -269,7 +290,7 @@ func (w *Writer) clearPending() {
 		w.sharedDirty = 0
 	}
 	if w.slruDirty != 0 {
-		w.slruPending = [SLRUCount]SharedFact{}
+		w.slruPending = [SLRUCount]SLRUFact{}
 		w.slruDirty = 0
 	}
 	w.backendPending = nil
@@ -290,14 +311,14 @@ func (w *Writer) Shared(p *Provider, k SharedKind, delta SharedFact) {
 	w.sharedPending[k] = mergeShared(w.sharedPending[k], delta)
 	w.sharedDirty |= 1 << k
 }
-func (w *Writer) SLRU(p *Provider, k SLRUKind, delta SharedFact) {
-	if k >= SLRUCount || delta == (SharedFact{}) {
+func (w *Writer) SLRU(p *Provider, k SLRUKind, delta SLRUFact) {
+	if k >= SLRUCount || delta == (SLRUFact{}) {
 		return
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	w.initialize(p)
-	w.slruPending[k] = mergeShared(w.slruPending[k], delta)
+	w.slruPending[k] = mergeSLRU(w.slruPending[k], delta)
 	w.slruDirty |= 1 << k
 }
 func (w *Writer) Backend(p *Provider, token ids.SessionToken, io, wal Fact) {
@@ -327,7 +348,7 @@ func (w *Writer) flushShared(p *Provider) {
 	}
 	for dirty := w.slruDirty; dirty != 0; dirty &= dirty - 1 {
 		k := bits.TrailingZeros8(dirty)
-		p.slru[k] = mergeShared(p.slru[k], w.slruPending[k])
+		p.slru[k] = mergeSLRU(p.slru[k], w.slruPending[k])
 	}
 	for token, delta := range w.backendPending {
 		if _, live := p.liveBackends[token]; !live {
