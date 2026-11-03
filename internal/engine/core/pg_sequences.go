@@ -85,8 +85,13 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	if rights&(authorization.SelectPrivilege|authorization.UsagePrivilege) != 0 && generator.Called {
-		row[10], err = sqltype.Integer(row[10].Type(), generator.Last)
+	if rights&(authorization.SelectPrivilege|authorization.UsagePrivilege) != 0 {
+		if generator.Called {
+			row[10], err = sqltype.Integer(row[10].Type(), generator.Last)
+		}
+		if err == nil {
+			s.recordSequencePageAccess(ref)
+		}
 	}
 	return err
 }

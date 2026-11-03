@@ -53,6 +53,23 @@ func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.Ma
 	return pgcatalog.MaintenanceFact{Inserts: f.Inserts, Updates: f.Updates, Deletes: f.Deletes, Live: f.Live, Dead: f.Dead, Modifications: f.Modifications, InsertsSince: f.InsertsSince, VacuumCount: f.VacuumCount, LastVacuum: f.LastVacuum, AnalyzeCount: f.AnalyzeCount, LastAnalyze: f.LastAnalyze, VacuumTime: f.VacuumTime, AnalyzeTime: f.AnalyzeTime}
 }
 
+func (r *catalogRuntime) SequenceIOStatistics(address ids.ObjectAddress) int64 {
+	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
+		return 0
+	}
+	settings := r.settings
+	if settings == nil {
+		settings = r.auth.Session.Settings
+	}
+	reader := statsReader(r.auth.Session, settings)
+	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}
+	var now time.Time
+	if reader.NeedsSnapshot() {
+		now = time.Now().UTC().Truncate(time.Microsecond)
+	}
+	return reader.Read(&r.engine.Statistics, key, now).SequencePageAccesses
+}
+
 // recordStatsTuple is called at real accepted row mutation, not at COMMIT.
 // Engine and transaction owner locks are held. Estimate ownership stays beside
 // writes; collecting a tuple never creates a catalog journal or changes routing.

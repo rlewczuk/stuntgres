@@ -1054,7 +1054,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `TableStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
+| `Maintenance`, `TableStatistics`, `SequenceIOStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
@@ -1223,6 +1223,20 @@ catalog writes or bypass a provider's independent backing-source checks.
   Tuple prefixes and completed rebuilt roots are genuine logical work; absent
   physical block work reports zero. `pg_class.relfilenode` projects the catalog's
   current logical storage incarnation without adding physical file inquiries.
+- `pg_statio_all_sequences` is one PUBLIC-readable, read-only five-column source:
+  OID/NAME/NAME/INT8/INT8, all nullable metadata, five non-NULL cells per row.
+  It enumerates actual sequence descriptors, including private and other-session
+  TEMP identities, without schema-USAGE, sequence-ACL or activity filtering.
+  Missing activity is zero, not privilege-redacted NULL. Identity/name rejection
+  precedes the transaction reader. With published tracked encounters N, its
+  simulated one-page projection is (0,0) for N=0 and (1,N-1) otherwise; this is
+  cumulative logical residency, not physical storage or sequence CACHE size.
+  The canonical released five-column join/function definition owns presentation
+  and non-updatability; it grants no executable block-getter capability.
+  No sys/user counterpart source is registered here. Classification over this
+  source uses system schemas `pg_catalog`, `information_schema` or the
+  case-sensitive `^pg_toast` prefix, with the complementary user predicate;
+  `pg_temp_N` and `PG_TOAST` are user schemas. Rows have no implicit SQL ordering.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.

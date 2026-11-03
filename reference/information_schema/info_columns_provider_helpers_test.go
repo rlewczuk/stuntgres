@@ -28,7 +28,8 @@ func icProviderInventory(c *icCase) {
 		"pg_group": fixture.PGGroupColumns, "pg_roles": fixture.PGRolesColumns,
 		"pg_language": fixture.PGLanguageColumns, "pg_parameter_acl": fixture.PGParameterACLColumns,
 		"pg_sequence": fixture.PGSequenceColumns, "pg_sequences": fixture.PGSequencesColumns,
-		"pg_shdescription": fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
+		"pg_statio_all_sequences": strings.Fields("relid schemaname relname blks_read blks_hit"),
+		"pg_shdescription":        fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
 		"pg_shdepend":   strings.Fields("dbid classid objid objsubid refclassid refobjid deptype"),
 		"pg_shseclabel": strings.Fields("objoid classoid provider label"),
 		"pg_ts_config":  fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
@@ -186,7 +187,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stats pg_stat_activity pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
+			views := strings.Fields("pg_stats pg_stat_activity pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

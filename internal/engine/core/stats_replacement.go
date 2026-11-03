@@ -26,6 +26,21 @@ func (e *Engine) replaceStatsLocked(next *catalog.State, relations map[ids.Objec
 		}
 		facts[key] = fact
 	}
+	// Sequences have generators, not heap stores. Preserve only actual
+	// destination TEMP sequences whose physical owners remain attached.
+	for _, descriptor := range e.Catalog.Read(next).Descriptors() {
+		d, ok := descriptor.(*catalog.Relation)
+		if !ok || d.RelationKind != catalog.SequenceRelation {
+			continue
+		}
+		ns, ok := e.Catalog.Read(next).Namespace(d.Namespace())
+		if !ok || ns.Temporary.Domain() != e.Catalog.Domain || !session.TokenAttached(ns.Temporary) {
+			continue
+		}
+		oldKey := statistics.Key{Object: e.Catalog.Domain.Ref(oldEpoch, d.Address()), Category: statistics.Relation}
+		nextKey := statistics.Key{Object: e.Catalog.Domain.Ref(oldEpoch+1, d.Address()), Category: statistics.Relation}
+		facts[nextKey] = e.Statistics.Read(oldKey)
+	}
 	for address, subscription := range e.Catalog.Read(next).Subscriptions() {
 		if subscription.Database == e.Catalog.DatabaseAddress() {
 			facts[statistics.Key{Object: e.Catalog.Domain.Ref(oldEpoch+1, address), Category: statistics.Subscription}] = statistics.Fact{}

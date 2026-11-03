@@ -35,6 +35,11 @@ changes. Defaults, domain input and generated rows share that context; decoder
 masking never replaces the raw final publication authority. Key/predicate probes
 reuse their supplied context without per-row activation or context allocation.
 
+`CopyRelationKind` owns COPY target-kind diagnostics for both directions.
+Builtin catalog sources marked `CatalogView` use the same view rejection and
+directional hints as stored views; non-view catalog relations remain distinct.
+Frontend stream capability admission stays in core, before target execution.
+
 - `Statement`: the active command, target, private rows, snapshot, unique
   journal, query authority, scopes, lock ticket, WHERE CURRENT OF row,
   disclosure environment and `Operation`. It never locks or waits and is read

@@ -18,6 +18,23 @@ is reserved for actual admitted creation, never a reset/read. Category merges ad
 pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
+`Relation` facts include additive `SequencePageAccesses`, independent of tuple,
+maintenance and IO-operation fields. It counts successful generator encounters,
+not sequence values: a real nextval cache reservation, successful setval, an
+admitted direct sequence scan, or an authorized demanded pg_sequences last_value
+read (including an uncalled NULL). Cached nextval, currval/lastval, definition
+reads and rejected calls add nothing. The current event's Counts policy gates
+collection before writer work; other tracking switches do not. Suppression never
+changes generator state or value-cache tails and enabling never replays events.
+Existing-object encounters survive later rollback and publish through the same
+writer gate/throttle. Relation retirement rejects late batches. Reset fences
+pending counts without clearing sequence value caches. Projection after the
+Reader gives one logical resident page: N=0 maps to reads/hits (0,0), N>0 to
+(1,N-1), regardless of concurrent first-batch ordering. Missing facts are zero.
+Native replacement starts persistent/imported histories empty and transplants
+only published facts of surviving attached destination TEMP identities into the
+new epoch; old pending work is fenced. Dump contains no monitoring history.
+
 Seven fixed `SharedKind` families and eight SLRU entries belong to this same
 provider. `ResetShared`/`ResetAllShared`/`ResetSLRU` modify published state only.
 IO/WAL keyed facts remain the sole operations/duration authority and use their
@@ -171,6 +188,8 @@ independent of cross-engine clocks and physical planning invocation frequency.
 
 Deterministic publication, reader, suppression, identity/reset and concurrent
 merge tests use `make check RUN='^TestStatsProvider'`; add `RACE=1` for concurrency.
+Sequence encounter merging, reader snapshots and identity/reset fencing use
+`make check RUN='^TestStatsSequence'`, also with `RACE=1`.
 Nesting, truncate, COW and pending-prefix accounting uses
 `make check RUN='^TestStatsSnapshotTransactionAccounting$'`, also with `RACE=1`.
 Public SQL scenarios live in `reference/session_state`, using

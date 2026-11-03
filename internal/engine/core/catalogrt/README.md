@@ -34,6 +34,8 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   `access.Environment`, gives its restricted relation kinds and the backing
   engine's catalog owner. Core implements it on one struct that also holds
   the `Runtime`, so a capture allocates once.
+  `SequenceIOStatistics` supplies only an owned encounter count through the
+  physical session's transaction reader, never provider/writer authority.
 - A `Runtime` without a `Host` serves only the presentation methods: core's
   deparse functions and `BuiltinViewDefinition`.
 - Provenance is same-pointer authority (the engine's `catalog.Owner`), never

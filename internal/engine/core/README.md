@@ -462,6 +462,25 @@ ownership without retiring pending drops. Rolled-back drops and compatible
 non-removal replacements preserve facts. Shared tombstones reject late writer
 batches and function completions without resetting unrelated facts or readers.
 Physical storage and optimizer metadata remain independent of report policy.
+Sequence encounters use the same Relation category and physical writer, not the
+tuple ledger. Under Engine.Mu the common sequence host detects actual nextval
+reservations from existing memory generation/tail, and records only successful
+reservations/setval. Defaults, identities and triggers share that host. Admitted
+sequence scans and authorized demanded pg_sequences last_value reads also record
+one encounter, including uncalled NULL; privilege-gated reads and memory-only
+calls record none. Event-effective track_counts suppression leaves real cache
+reservations and session values unchanged. No clocks or physical IO are involved.
+The catalog runtime exposes only the transaction reader's encounter count;
+the typed source projects logical reads/hits after snapshot selection. Reads and
+clear never publish. Statistics reset retains value tails while fencing pending
+counts. Successful native replacement preserves attached destination TEMP
+sequence published facts as well as heap facts under the new epoch, but neither
+old pending deltas nor imported monitoring history; failed replacement changes
+none of them.
+Physical TEMP teardown retires accepted removals in that same catalog-installation
+window under their current epoch. Retained namespace tuples do not retain removed
+relation facts; shared provider tombstones reject pending or later deltas,
+including the ending owner's final flush, without borrowing its writer state.
 Function collection starts at admitted ordinary, PL-trigger and native-trigger
 body boundaries, after effective routine configuration and identity are installed.
 Dispatch/enqueue/WHEN filtering do not collect calls. Stock internal routines
@@ -3161,6 +3180,11 @@ Held cursor store/producer ownership and replacement units share
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
+Sequence value-tail/reset, TEMP replacement and producer key-filter ownership
+units use `RUN='^TestStatsSequence'`, also with `RACE=1`.
+TEMP replacement fixtures identify sequences in the attached owner's actual
+namespace, not through a bootstrap session's `pg_temp` alias; their assertions
+retain published facts, epoch fencing, warm value tails and physical-end retirement.
 Replication reset expression, owner-routing, retained-reader and actual subscription
 lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
 Shared/backend reset routing, provider composition, immutable expression and

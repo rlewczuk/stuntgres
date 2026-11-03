@@ -93,5 +93,15 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	return sequence.CallLocked(request, d, g, &PayloadOf(scope.Op.Session).Sequences)
+	memories := &PayloadOf(scope.Op.Session).Sequences
+	pageAccess := request.Name == "setval"
+	if request.Name == "nextval" {
+		memory := memories.Memory(ref.Address)
+		pageAccess = memory == nil || memory.Generation() != g.Generation || memory.CachedTail() == 0
+	}
+	value, err := sequence.CallLocked(request, d, g, memories)
+	if err == nil && pageAccess {
+		scope.recordSequencePageAccess(ref)
+	}
+	return value, err
 }

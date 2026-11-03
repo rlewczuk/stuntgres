@@ -31,6 +31,7 @@ type Fact struct {
 	Truncated                                                                                      bool
 	VacuumTime, AnalyzeTime                                                                        time.Duration
 	Calls, Operations                                                                              int64
+	SequencePageAccesses                                                                           int64
 	TotalTime, SelfTime                                                                            time.Duration
 	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
 	ApplyErrorCount, SyncErrorCount                                                                int64
@@ -97,6 +98,7 @@ func merge(a, b Fact) Fact {
 	a.InsertsSince += b.InsertsSince
 	a.Calls += b.Calls
 	a.Operations += b.Operations
+	a.SequencePageAccesses += b.SequencePageAccesses
 	a.TotalTime += b.TotalTime
 	a.SelfTime += b.SelfTime
 	return a

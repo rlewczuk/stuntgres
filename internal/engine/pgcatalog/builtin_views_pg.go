@@ -400,6 +400,17 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("     LEFT JOIN "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("n"), viewText(" ON (("), viewIdentifier("n"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("relnamespace"), viewText(")))\n"),
 		viewText("  WHERE ((NOT "), viewRoutine("pg_is_other_temp_schema", "26"), viewText("("), viewIdentifier("n"), viewText("."), viewIdentifier("oid"), viewText(")) AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = 'S'::"), viewType("\"char\""), viewText("));"),
 	}},
+	// pg_catalog.pg_statio_all_sequences — released five-column PG18 definition.
+	{oid: StatioAllSequencesOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("relid"), viewText(",\n"),
+		viewText("    "), viewIdentifier("n"), viewText("."), viewIdentifier("nspname"), viewText(" AS "), viewIdentifier("schemaname"), viewText(",\n"),
+		viewText("    "), viewIdentifier("c"), viewText("."), viewIdentifier("relname"), viewText(",\n"),
+		viewText("    ("), viewRoutine("pg_stat_get_blocks_fetched", "26"), viewText("("), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(") - "), viewRoutine("pg_stat_get_blocks_hit", "26"), viewText("("), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(")) AS "), viewIdentifier("blks_read"), viewText(",\n"),
+		viewText("    "), viewRoutine("pg_stat_get_blocks_hit", "26"), viewText("("), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(") AS "), viewIdentifier("blks_hit"), viewText("\n"),
+		viewText("   FROM ("), viewClass("pg_class"), viewText(" "), viewIdentifier("c"), viewText("\n"),
+		viewText("     LEFT JOIN "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("n"), viewText(" ON (("), viewIdentifier("n"), viewText("."), viewIdentifier("oid"), viewText(" = "), viewIdentifier("c"), viewText("."), viewIdentifier("relnamespace"), viewText(")))\n"),
+		viewText("  WHERE ("), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = 'S'::"), viewType("\"char\""), viewText(");"),
+	}},
 	// pg_catalog.pg_locks — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: 12073, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("locktype"), viewText(",\n"),

@@ -486,6 +486,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   (`TestReferencePGTableViewsBuiltins` lives in `reference/information_schema`)
 - Rule summaries: `RUN='^TestReferencePGRules'`
 - `pg_sequence`, `pg_sequences`: `RUN='^TestReferencePGSequence'`
+- Sequence I/O statistics: `RUN='^TestReferencePGStatioAllSequences'`, in native
+  and `REFERENCE=1` modes. Logical arithmetic and native controls are explicit
+  native phases; PostgreSQL physical counters are required to be nonnegative,
+  not equal to the simulated counts.
 - Shared-memory allocation projections: `RUN='^TestReferencePGShmem'`
 - Wait-event definitions: `RUN='^TestReferencePGWaitEvents'`
 - Catalog foreign keys, `pg_get_userbyid`: `RUN='^TestReferenceCatalogRelations'`

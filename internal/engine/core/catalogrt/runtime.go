@@ -58,6 +58,7 @@ type Host interface {
 	ValidateParameter(catalog.Read, *catalog.Parameter) error
 	Maintenance(ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool)
 	TableStatistics(ids.ObjectAddress) pgcatalog.MaintenanceFact
+	SequenceIOStatistics(ids.ObjectAddress) int64
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64

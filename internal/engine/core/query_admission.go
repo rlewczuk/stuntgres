@@ -535,6 +535,7 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 	i := relation.Columns[0].Usage.Type
 	last, _ := sqltype.Integer(i, g.Last)
 	log, _ := sqltype.Integer(i, 0)
+	scope.recordSequencePageAccess(ref)
 	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
 }
 

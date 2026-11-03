@@ -23,22 +23,22 @@ func CopyRelationKind(relation *catalog.Relation, from bool) error {
 		return d
 	}
 	if kindOfRelation != catalog.TableRelation && !(from && (kindOfRelation == catalog.PartitionedRelation || kindOfRelation == catalog.ForeignRelation)) && !(!from && kindOfRelation == catalog.MaterializedViewRelation) {
-		kind := "non-table relation"
+		label := "non-table relation"
 		switch kindOfRelation {
 		case catalog.ViewRelation:
-			kind = "view"
+			label = "view"
 		case catalog.PartitionedRelation:
-			kind = "partitioned table"
+			label = "partitioned table"
 		case catalog.MaterializedViewRelation:
-			kind = "materialized view"
+			label = "materialized view"
 		case catalog.SequenceRelation:
-			kind = "sequence"
+			label = "sequence"
 		}
 		direction := "from"
 		if from {
 			direction = "to"
 		}
-		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
+		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, label, relation.Name())).(*sqlstate.Error)
 		if !from && (kindOfRelation == catalog.ViewRelation || kindOfRelation == catalog.PartitionedRelation) {
 			d.Hint = "Try the COPY (SELECT ...) TO variant."
 		}

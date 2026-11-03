@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -302,6 +303,14 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	e.Storage.ReplaceRelationsLocked(relations)
 	e.Storage.RelationMetadata = relationMetadata
 	e.Storage.ReplaceIndexRootsLocked(roots)
+	// This terminal path publishes directly, outside ordinary catalog install.
+	// Retire current-epoch facts here so final or late writer flushes cannot
+	// resurrect removed TEMP identities. The provider mutex remains a leaf.
+	for a := range stage.Removals() {
+		if category, tracked := statsObjectCategory(a); tracked {
+			e.Statistics.Retire(statistics.Key{Object: e.Catalog.Domain.Ref(next.Epoch(), a), Category: category})
+		}
+	}
 	stage.Lifecycle = catalogPublished
 	e.Catalog.InstallRevisionFrontierLocked(nextRevision)
 	PayloadOf(s).Sequences.ForgetLocked()
