@@ -18,7 +18,7 @@ type Host interface {
 	AllocateSharedOID() (ids.OID, error)
 	AllocateReplicationOrigin() (ids.OID, error)
 	AbandonReplicationOrigin()
-	ClearReplicationOrigin(ids.OID)
+	ClearReplicationOrigin(ids.OID) error
 	SubscriptionInBlock() bool
 	ValidateSubscriptionSync(string) error
 	ParseSubscriptionLSN(string) (uint64, error)
@@ -200,7 +200,9 @@ func Stage(h Host, auth ddl.Authority, s *parser.Subscription) error {
 			return failure("0A000", "subscription replication slot removal is not available")
 		}
 		if origin, ok := h.StageRead().Get(h.StageRead().NameAddress(catalog.ReplicationOriginNameKey(d.ReplicationOriginName()))).(*catalog.ReplicationOrigin); ok {
-			h.ClearReplicationOrigin(origin.Address().ObjectID)
+			if err := h.ClearReplicationOrigin(origin.Address().ObjectID); err != nil {
+				return err
+			}
 			h.DropTarget(origin.Address())
 		}
 		h.DropTarget(d.Address())

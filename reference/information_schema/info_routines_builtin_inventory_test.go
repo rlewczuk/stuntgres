@@ -100,6 +100,12 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{6003, "pg_replication_origin_create", "pg_replication_origin_create", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6004, "pg_replication_origin_drop", "pg_replication_origin_drop", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6005, "pg_replication_origin_oid", "pg_replication_origin_oid", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6006, "pg_replication_origin_session_setup", "pg_replication_origin_session_setup", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6007, "pg_replication_origin_session_reset", "pg_replication_origin_session_reset", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6008, "pg_replication_origin_session_is_setup", "pg_replication_origin_session_is_setup", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6009, "pg_replication_origin_session_progress", "pg_replication_origin_session_progress", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6010, "pg_replication_origin_xact_setup", "pg_replication_origin_xact_setup", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6011, "pg_replication_origin_xact_reset", "pg_replication_origin_xact_reset", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6012, "pg_replication_origin_advance", "pg_replication_origin_advance", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6013, "pg_replication_origin_progress", "pg_replication_origin_progress", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3330, "pg_current_wal_flush_lsn", "pg_current_wal_flush_lsn", "INTERNAL", "INVOKER"},
@@ -133,8 +139,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3170, "lo_lseek64", "be_lo_lseek64", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3171, "lo_tell64", "be_lo_tell64", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1814 {
-		t.Fatalf("released represented inventory: got %d, want 1814", len(facts))
+	if len(facts) != 1820 {
+		t.Fatalf("released represented inventory: got %d, want 1820", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

@@ -1080,18 +1080,18 @@ func (c *Context) OpenVerifyHeapam(n plan.InstalledVerifyHeapamExpr) (expr.Sourc
 	return n.VerifyHeapam.OpenSource(c)
 }
 
-func (c *Context) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
+func (c *Context) CommitTimestamp(xid uint32) (int64, uint32, bool, error) {
 	host := c.LiveHost()
 	if host == nil {
-		return time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
+		return 0, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
 	return host.TransactionInquiry().CommitTimestamp(xid)
 }
 
-func (c *Context) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
+func (c *Context) LastCommittedTransaction() (uint32, int64, uint32, bool, error) {
 	host := c.LiveHost()
 	if host == nil {
-		return 0, time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
+		return 0, 0, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
 	return host.TransactionInquiry().LastCommittedTransaction()
 }

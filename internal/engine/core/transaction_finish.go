@@ -329,6 +329,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog)
 	t.Session.Settings.FinishTransaction(false)
 	e.Mu.Lock()
+	e.advanceOriginSessionLocked(t.Ref, t.Session)
 	e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, nil, nil, nil)
 	e.abortSnapshotsLocked(t.Ref)
 	e.Visibility.EndTransactionLocked(t.Ref, false)

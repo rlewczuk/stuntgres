@@ -291,6 +291,13 @@ production dependency is involved.
   Capture PostgreSQL PIDs before starting a worker; never query its busy Conn.
   The supplied completion signal fails premature native completion; callers
   retain `LockOperation`'s cancellation/join ownership on every exit.
+  `ReplicationOriginDropWait` requires the same still-live SQL DROP worker's
+  parked origin-release, internal subscription-clear and subscription-stage
+  frames in one complete native stack, excluding creation metadata. PostgreSQL
+  instead requires the exact PID/query in active `ReplicationOriginDrop` wait.
+  Release or cancellation happens only after that observation; callers join
+  the original `LockOperation` and fail premature completion. This test-only
+  observer creates no production telemetry or timing-based admission authority.
   `PartitionDetachPending` additionally requires committed `inhdetachpending`,
   a real virtual-completion wait, and no PostgreSQL parent AX request.
   `VirtualCompletionPending` observes an exact PostgreSQL virtualxid/blocker

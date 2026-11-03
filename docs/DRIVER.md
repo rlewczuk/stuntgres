@@ -1274,6 +1274,22 @@ explicitly rejects with `0A000` because embedded execution has no durable WAL
 flush mechanism. A zero position reads as typed PG_LSN NULL without freeing its
 active slot. Native controls capture/replay logical state without transporting
 source IDs, physical WAL or durability guarantees.
+The six session/transaction-context functions use the same typed invocation and
+live EXECUTE admission. Selection belongs to the physical connection, not a
+`database/sql` borrower or transaction: returning a `sql.Conn` to its pool does
+not release it. Explicit session reset or actual physical close releases
+exclusive ownership; DISCARD and rollback retain configured context changes.
+Assigned-XID commit, abort and child abort advance logical progress monotonically;
+aborted rows remain invisible and receive no committed timestamp. Commit history
+uses the configured origin and backend-global timestamp. Ordinary assigned
+commits store their local stop stamp even without an origin; later selection
+preserves it. Selected commits retain that stamp, obtaining a local fallback only
+when it is unset, until explicit reset or overwrite. PREPARE retains physical
+ownership; prepared completion uses
+the finishing connection's context. Session progress reads accumulated positions,
+not pending configuration, and `flush=true` has the same explicit durable-WAL
+boundary. Native replacement clears replaced selections without disturbing
+retained peer subscription owners.
 
 
 ## COPY

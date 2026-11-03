@@ -79,6 +79,16 @@ func (e *Engine) prepareReplacementOriginProgressLocked(next *catalog.State, imp
 			add(id, position)
 		}
 	}
+	for id, owner := range e.Cluster.replicationOriginOwners {
+		if !e.retainedPeerOriginSessionLocked(owner) {
+			continue
+		}
+		position, present := e.Cluster.replicationOriginProgress[id]
+		if !present {
+			return nil, ids.ErrCatalogReplaced
+		}
+		add(id, position)
+	}
 	definition, err := e.Settings.Lookup("max_active_replication_origins")
 	if err != nil {
 		return nil, err

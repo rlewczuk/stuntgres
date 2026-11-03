@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -415,8 +414,8 @@ func (h *statementHost) TransactionAgeLocked(xid uint32) (int32, error) {
 	return h.scope().Engine().transactionAgeLocked(h.TxRef, xid)
 }
 
-func (h *statementHost) AssignTransactionXIDLocked() error {
-	return h.scope().Engine().AssignTransactionXIDLocked(h.TxRef)
+func (h *statementHost) AssignTopTransactionXIDLocked() error {
+	return h.scope().Engine().AssignTopTransactionXIDLocked(h.TxRef)
 }
 
 func (h *statementHost) CurrentSnapshotLocked() (*sqltype.Snapshot, error) {
@@ -563,10 +562,10 @@ func (h *transactionInquiryHost) TransactionMembers(xid uint32, result *sqltype.
 	return inquiry.TransactionMembers(h.host(), xid, result)
 }
 
-func (h *transactionInquiryHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
+func (h *transactionInquiryHost) CommitTimestamp(xid uint32) (int64, uint32, bool, error) {
 	return inquiry.CommitTimestamp(h.host(), xid)
 }
 
-func (h *transactionInquiryHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
+func (h *transactionInquiryHost) LastCommittedTransaction() (uint32, int64, uint32, bool, error) {
 	return inquiry.LastCommittedTransaction(h.host())
 }

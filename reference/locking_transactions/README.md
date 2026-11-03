@@ -55,6 +55,18 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   cleanup; never clean unrelated GIDs. `sql.Conn.Close` only returns a borrower:
   close an isolated pool or the raw driver connection to witness physical origin
   end.
+  Origin-aware completion scenarios use
+  `RUN='^TestReferenceReplicationOriginSession'` in both modes. They capture the
+  actual assigned write XID and `roident`, distinguish supplied and persistent
+  fallback stamps, and finish detached transactions with an independently
+  configured physical actor. Reset selected actors before shared-origin cleanup.
+  On the same physical actor, an ordinary assigned commit's local timestamp must
+  survive subsequent origin selection without xact configuration: compare the
+  selected commit's exact timestamp and independently resolved origin identity.
+  Active-origin DROP also captures a real failed transaction's write XID: abort
+  may advance origin progress but cannot publish its row, timestamp lookup or
+  last-committed cache. Read-only rejection preserves the next commit's supplied
+  timestamp and origin without another context setup.
   View witnesses reuse one held SELECT across real prepare/commit/rollback
   transitions and assert complete typed metadata even for empty results.
   Unrelated ordinary logins read through PUBLIC SELECT without acquiring

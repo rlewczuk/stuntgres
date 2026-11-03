@@ -230,8 +230,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Schema/database XML mapping adds six strict/STABLE/restricted XML records.
 	// Eight frequency/cover-density rank and four text headline declarations
 	// add strict parallel-safe scalar REAL/TEXT signatures (REL_18_6).
-	if len(facts) != 2238 {
-		t.Fatalf("released represented overloads: got %d, want 2238", len(facts))
+	if len(facts) != 2244 {
+		t.Fatalf("released represented overloads: got %d, want 2244", len(facts))
 	}
 	return facts
 }

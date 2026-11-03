@@ -199,6 +199,14 @@ ignores the native comment rather than importing its historical catalog state.
   with hint `Increase "max_active_replication_origins" and try again.` and no
   position or object fields. All catalog, data, progress, claims and frontiers remain
   unchanged on rejection; an exact-capacity union installs atomically.
+  Physical origin selection, PID and configured LSN/timestamp are never replayed.
+  Successful replacement clears contexts for standalone/selected-database origins
+  atomically with slot replacement, before numeric IDs can be reused. Retained
+  peer subscription contexts keep their selection and exclusive ownership,
+  including private origins whose creation rolled back: active orphan IDs remain
+  excluded from remint and their existing zero/nonzero slots count against the
+  final capacity union. Unowned orphans keep ordinary replacement behavior.
+  Failed controls change neither physical ownership nor slots.
 - Logical publication definitions replay after referenced schemas, columns,
   final indexes and replica identities. Dump preserves options, owners, explicit
   ONLY memberships, schema edges, stable column lists and retained normal

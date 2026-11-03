@@ -187,6 +187,11 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   completes a mark the root seeded with its lock checkpoint, cursor ordinal and
   exclusion slot; `FindSavepoint` skips internal marks; `RollbackToLocked`
   restores owner state and settings (`SettingsStore.RestoreSavepointLocked`).
+  Actual SQL/exception marks also carry the current child's assignment flag,
+  maintained by core under Engine.Mu and the admitted owner. Top-ID inquiry does
+  not mark a child; current writes assign its active ancestors. Core consumes
+  that evidence before rollback/restart, without consuming the outer identity.
+  Physical origin selection/configuration is not savepoint or journal backing.
   The root runs its cursor, portal, extension, exclusion and SSI work around
   them, payload first. Checked
   handles (`owner_handles.go`) recover owners from the `ids` interfaces;
@@ -240,6 +245,9 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   `PublicationPreflightLocked` over a `PreparedPublication`.
   `PreparedTransaction.CheckActor` takes the roles as an `authorization.Read`
   value; the claim shares its permission check.
+  Preparing entries retain transaction roots and completion eligibility, never
+  physical replication-origin selection/configuration. Core advances the preparing
+  actor at detach and uses the finishing operation's actor at prepared completion.
 - **Settings store** (`settings_store.go`, `routine_settings.go`, `settings_defaults.go`):
   `SettingsStore` owns typed/text values and defaults, captured reset sources,
   provider provenance, role actions, characteristic projections and one explicit

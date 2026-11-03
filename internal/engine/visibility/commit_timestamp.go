@@ -2,7 +2,6 @@ package visibility
 
 import (
 	"errors"
-	"time"
 
 	"stuntgres/internal/engine/ids"
 )
@@ -10,7 +9,7 @@ import (
 // Engine.mu owns identities, reserved history slots and the last-completion cache.
 // A reserved slot is absent until the row/catalog publisher installs its commit.
 type CommitTimestamp struct {
-	Stamp   time.Time
+	Stamp   int64 // PostgreSQL microseconds since 2000, including timestamp infinities.
 	Origin  uint32
 	Present bool
 }
@@ -72,14 +71,14 @@ func (reg *Registry) AssignTransactionXIDLocked(ref ids.TxRef) error {
 
 // All storage is reserved before the publisher's final no-failure region.
 // Consume completion ownership so an already-published utility cannot record twice.
-func (reg *Registry) RecordCommitTimestampLocked(ref ids.TxRef) {
+func (reg *Registry) RecordCommitTimestampLocked(ref ids.TxRef, stamp int64, origin uint32) {
 	v := reg.Entries[ref]
 	if v.AssignedXID == 0 {
 		return
 	}
 	reg.EndTransactionIdentityLocked(ref, true)
 	if reg.trackCommitTimestamp {
-		entry := CommitTimestamp{Stamp: time.Now().UTC().Truncate(time.Microsecond), Present: true}
+		entry := CommitTimestamp{Stamp: stamp, Origin: origin, Present: true}
 		reg.CommitTimestamps[v.FullXID] = entry
 		reg.lastCommittedXID, reg.lastCommitTimestamp = v.AssignedXID, entry
 	}

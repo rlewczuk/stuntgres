@@ -53,7 +53,7 @@ func originStateUnitCall(t *testing.T, e *core.Engine, h exec.Host, kind functio
 	values := [2]sqltype.Value{sqltype.String(typ(25), name)}
 	result := typ(26)
 	switch kind {
-	case functions.ReplicationOriginDrop:
+	case functions.ReplicationOriginDrop, functions.ReplicationOriginSessionSetup, functions.ReplicationOriginSessionReset, functions.ReplicationOriginXactReset:
 		result = typ(2278)
 	case functions.ReplicationOriginAdvance:
 		result = typ(2278)
@@ -65,6 +65,15 @@ func originStateUnitCall(t *testing.T, e *core.Engine, h exec.Host, kind functio
 	case functions.ReplicationOriginProgress:
 		result = typ(3220)
 		values[1] = sqltype.Boolean(typ(16), flush)
+	case functions.ReplicationOriginSessionIsSetup:
+		result = typ(16)
+	case functions.ReplicationOriginSessionProgress:
+		result = typ(3220)
+		values[0] = sqltype.Boolean(typ(16), flush)
+	case functions.ReplicationOriginXactSetup:
+		result = typ(2278)
+		values[0], _ = sqltype.PGLSNValue(typ(3220), position)
+		values[1], _ = sqltype.TimestampValue(typ(1184), 1)
 	}
 	return h.ReplicationOrigin(kind, values, result)
 }
@@ -163,7 +172,7 @@ func TestReplicationOriginStateProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	for _, kind := range []functions.ReplicationOriginKind{functions.ReplicationOriginAdvance, functions.ReplicationOriginProgress} {
+	for _, kind := range []functions.ReplicationOriginKind{functions.ReplicationOriginAdvance, functions.ReplicationOriginProgress, functions.ReplicationOriginSessionSetup, functions.ReplicationOriginSessionReset, functions.ReplicationOriginSessionProgress, functions.ReplicationOriginXactSetup, functions.ReplicationOriginXactReset} {
 		_, err := originStateUnitCall(t, e, core.HostOf(scope), kind, "missing", 0, false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "55000" || diagnostic.Message != `cannot query or manipulate replication origin when "max_active_replication_origins" is 0` {
@@ -172,6 +181,11 @@ func TestReplicationOriginStateProgress(t *testing.T) {
 	}
 	if _, err := originStateUnitCall(t, e, core.HostOf(scope), functions.ReplicationOriginOID, "state_unit", 0, false); err != nil {
 		t.Fatal(err)
+	}
+	if value, err := originStateUnitCall(t, e, core.HostOf(scope), functions.ReplicationOriginSessionIsSetup, "", 0, false); err != nil {
+		t.Fatal(err)
+	} else if selected, err := value.Boolean(); err != nil || selected {
+		t.Fatal("is_setup required capacity or fabricated selection", selected, err)
 	}
 }
 func TestReplicationOriginStateReplacement(t *testing.T) {

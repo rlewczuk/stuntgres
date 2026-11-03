@@ -1030,7 +1030,11 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.RoleStore.InstallRevisionFrontierLocked(roleRevision + 1)
 			}
 			if commitRef != (ids.TxRef{}) {
-				e.Visibility.RecordCommitTimestampLocked(commitRef)
+				var actor *session.Session
+				if op != nil {
+					actor = op.Session
+				}
+				e.recordOriginCommitLocked(commitRef, actor)
 			}
 			s.Lifecycle = catalogPublished
 		}
@@ -1442,6 +1446,7 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 // The caller holds replacementMu and mu.
 func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID, progress map[ids.OID]uint64) {
 	sharedRoots := e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
+	e.invalidateReplacedOriginSessionsLocked()
 	e.replaceStatsLocked(next, relations)
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)

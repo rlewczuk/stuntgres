@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"time"
 )
 
 func TransactionAge(h SessionHost, xid uint32) (int32, error) {
@@ -27,7 +26,7 @@ func CurrentTransactionID(h SessionHost, assign bool) (uint64, error) {
 		return 0, ids.ErrCatalogReplaced
 	}
 	if assign {
-		if err := h.AssignTransactionXIDLocked(); err != nil {
+		if err := h.AssignTopTransactionXIDLocked(); err != nil {
 			return 0, err
 		}
 	}
@@ -81,24 +80,24 @@ func commitTimestampDisabled() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 }
 
-func CommitTimestamp(h SessionHost, xid uint32) (time.Time, uint32, bool, error) {
+func CommitTimestamp(h SessionHost, xid uint32) (int64, uint32, bool, error) {
 	h.ReacquireEngine()
 	registry := h.VisibilityLocked()
 	if !registry.TracksCommitTimestamps() {
 		h.ReleaseEngineLocked()
-		return time.Time{}, 0, false, commitTimestampDisabled()
+		return 0, 0, false, commitTimestampDisabled()
 	}
 	entry := registry.LookupCommitTimestampLocked(xid)
 	h.ReleaseEngineLocked()
 	return entry.Stamp, entry.Origin, entry.Present, nil
 }
 
-func LastCommittedTransaction(h SessionHost) (uint32, time.Time, uint32, bool, error) {
+func LastCommittedTransaction(h SessionHost) (uint32, int64, uint32, bool, error) {
 	h.ReacquireEngine()
 	registry := h.VisibilityLocked()
 	if !registry.TracksCommitTimestamps() {
 		h.ReleaseEngineLocked()
-		return 0, time.Time{}, 0, false, commitTimestampDisabled()
+		return 0, 0, 0, false, commitTimestampDisabled()
 	}
 	xid, entry := registry.LastCommittedXID(), registry.LastCommitTimestamp()
 	h.ReleaseEngineLocked()

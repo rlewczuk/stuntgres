@@ -232,18 +232,48 @@ Each subscription reservation carries immutable database scope, not a second
 registration authority; reconciliation reads only the admitted owner's journals.
 The separate sparse progress map stores unsigned logical positions immediately:
 backward and zero assignments survive statement/transaction rollback; zero still
-consumes a slot. Drop clears progress before transactional identity removal.
-Every function demand resolves its name against current private catalog authority;
-ordinary mutable procedure EXECUTE ACLs, not replication attributes, admit calls.
+consumes a slot. Explicit SQL drop rejects active owners, then clears progress before
+transactional identity removal. Named demands resolve current private catalog
+authority; ordinary mutable procedure EXECUTE ACLs, not replication attributes,
+admit calls.
+Subscription's internal clear instead waits for physical ownership release,
+including self-owned origins. A lazy context notification closes under Engine.Mu
+on reset, physical end or native invalidation. The DDL stack waits outside Mu and
+its replacement reservation, then readmits exact operation/settings/catalog/role
+authority before clearing the still-unowned slot. Cancellation and stale
+readmission publish no cleanup. Transaction object grants are not session ownership.
+The physical payload owns one scalar origin context, indexed by origin ID under
+Engine.Mu independently of allocation reservations. Setup reserves a zero slot
+and acquires exclusive ownership; explicit advance/drop reject any active owner.
+Reset or terminal physical-session cleanup releases only the exact token. Pool
+return, DISCARD, ordinary completion and savepoint restoration retain selection
+and configured LSN/timestamp. Terminal cleanup advances an assigned abort before
+release. Native replacement eagerly invalidates replaced contexts at installation,
+while retained peer subscription contexts preserve their exact physical ownership.
+Origin-aware completion advances logical progress monotonically before consuming
+canonical assigned-XID ownership. Commit history receives explicit PostgreSQL
+timestamp microseconds and origin identity; abort/subabort never create history.
+Actual child assignment marks distinguish write-bearing savepoint/exception
+aborts from read-only children of assigned parents; top-XID inquiry does not mark
+children. PREPARE advances the preparing actor without timestamp publication or
+ownership transfer; detached completion uses the finishing physical actor.
+Every assigned non-origin commit stores its local stop stamp in the same physical
+payload, even with history tracking off. Setup preserves that backend-global
+timestamp; selected commits reuse it unless it is PostgreSQL zero, when their
+local fallback is stored back for subsequent commits. Explicit session/xact reset
+clears it. Native replacement clears the stamp with an invalidated selected
+context, not an unselected fallback or a retained peer context.
 Reset/Restore remint standalone and selected subscription registrations against
 retained peers and pending claims. After the last preparation unlock, replacement
-merges current published and scoped pending-peer slots with remapped imports,
+merges published/scoped pending-peer and orphan-active peer slots with imports,
 including allocated zero, and validates the complete union against destination
 active-slot capacity before publishing any catalog, storage or progress state.
 The prepared map installs infallibly under the same cluster mutex. Pre-input
 standalone descriptor and standalone/selected-database progress generations fence
 stale replacement; pending-peer writes use reservation scope and remain allowed.
-Once a claim is released, orphan writes become globally relevant again. Drop-clear
+Active peer contexts retain their scope through ordinary rollback even without
+registration/reservation; replacement excludes their IDs and counts their existing
+slots. Unowned orphans keep predecessor global/replaced behavior. Drop-clear
 never resurrects a slot from saved identity backing. External I/O and lock waits
 never hold that mutex. Acquired rows retain their immutable backing.
 The source-opening policy captures operation authorization explicitly for

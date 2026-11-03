@@ -48,7 +48,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if err := e.VisibilityWriteLocked(a); err != nil || e.Visibility.Entries[a] != first {
 		t.Fatal("repeated ordering admission changed identity", err)
 	}
-	e.Visibility.RecordCommitTimestampLocked(a)
+	e.Visibility.RecordCommitTimestampLocked(a, 123, 0)
 	if e.Visibility.LastCommittedXID() != 0 {
 		t.Fatal("ordering-only completion fabricated a commit")
 	}
@@ -111,18 +111,30 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if node.AssignedXID != publicXID {
 		t.Fatal("late SSI enrollment lost the assigned public identity")
 	}
-	disabled.Visibility.RecordCommitTimestampLocked(ref)
+	disabled.Visibility.RecordCommitTimestampLocked(ref, 123, 0)
 	if disabled.Visibility.Entries[ref].AssignedXID != 0 || node.AssignedXID != publicXID {
 		t.Fatal("completion consumed the retained SSI diagnostic identity")
 	}
 }
 
 func TestCommitTimePublication(t *testing.T) {
+	commitTimePublicationWindows(t, false)
+}
+
+func TestReplicationOriginSessionPublicationWindows(t *testing.T) {
+	originSessionDropAssignmentWindows(t)
+	commitTimePublicationWindows(t, true)
+}
+
+func commitTimePublicationWindows(t *testing.T, originAware bool) {
 	for _, route := range []string{"rows", "empty", "catalog"} {
 		for _, mode := range []string{"success", "cancel_before", "cancel_after"} {
 			t.Run(route+"_"+mode, func(t *testing.T) {
 				e := engine.NewWithSettings(nil, "", true)
 				sess := enginetest.StartSession(t, e, nil)
+				if originAware {
+					originSessionConfigurePublication(t, e, sess)
+				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := sess.Acquire(ctx)
@@ -224,10 +236,10 @@ func TestCommitTimePublication(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("publisher did not reach final boundary")
 				}
-				observed := make(chan [3]bool, 1)
+				observed := make(chan [4]bool, 1)
 				go func() {
 					e.Mu.Lock()
-					snapshot := [3]bool{e.Catalog.State != old, rowStore != nil && len(rowStore.Versions) != 0, e.Visibility.LastCommittedXID() == xid && e.Visibility.CommitTimestamps[uint64(xid)].Present}
+					snapshot := [4]bool{e.Catalog.State != old, rowStore != nil && len(rowStore.Versions) != 0, e.Visibility.LastCommittedXID() == xid && e.Visibility.CommitTimestamps[uint64(xid)].Present, originAware && e.CopyReplicationOriginProgressLocked()[42] == 0x10}
 					e.Mu.Unlock()
 					observed <- snapshot
 				}()
@@ -244,7 +256,7 @@ func TestCommitTimePublication(t *testing.T) {
 				committed := mode != "cancel_before"
 				select {
 				case snapshot := <-observed:
-					if snapshot != [3]bool{route == "catalog" && committed, route == "rows" && committed, committed} {
+					if snapshot != [4]bool{route == "catalog" && committed, route == "rows" && committed, committed, originAware && committed} {
 						t.Fatal("torn publication/history observation", snapshot)
 					}
 				case <-time.After(5 * time.Second):
@@ -255,12 +267,18 @@ func TestCommitTimePublication(t *testing.T) {
 						t.Fatal("failed publication leaked a commit", err)
 					}
 				} else {
-					if err != nil || e.Visibility.LastCommittedXID() != xid || !e.Visibility.CommitTimestamps[uint64(xid)].Present || e.Visibility.LastCommitTimestamp().Stamp.Before(before) || e.Visibility.LastCommitTimestamp().Origin != 0 {
+					wantOrigin := uint32(0)
+					stampWrong := e.Visibility.LastCommitTimestamp().Stamp < before.UnixMicro()-946684800000000
+					if originAware {
+						wantOrigin = 42
+						stampWrong = e.Visibility.LastCommitTimestamp().Stamp != time.Date(2022, 3, 4, 5, 6, 7, 0, time.UTC).UnixMicro()-946684800000000
+					}
+					if err != nil || e.Visibility.LastCommittedXID() != xid || !e.Visibility.CommitTimestamps[uint64(xid)].Present || stampWrong || e.Visibility.LastCommitTimestamp().Origin != wantOrigin {
 						t.Fatal("successful publication missing commit", err)
 					}
 					stamp := e.Visibility.LastCommitTimestamp()
 					// A successful catalog publisher has already consumed completion.
-					e.Visibility.RecordCommitTimestampLocked(ref)
+					e.Visibility.RecordCommitTimestampLocked(ref, 123, 0)
 					if e.Visibility.LastCommitTimestamp() != stamp || e.Visibility.Entries[ref].AssignedXID != 0 {
 						t.Fatal("double completion")
 					}
@@ -278,7 +296,7 @@ func TestCommitTimeReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		xid := e.Visibility.Entries[ref].AssignedXID
-		e.Visibility.RecordCommitTimestampLocked(ref)
+		e.Visibility.RecordCommitTimestampLocked(ref, 123, 0)
 		source := e
 		if foreign {
 			source = engine.New()

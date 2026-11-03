@@ -17,6 +17,13 @@ func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation session.Isola
 func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	// Ordinary callers own this transaction's admission. Detached prepared
+	// completion supplies its finishing actor explicitly before the locked end.
+	if !committed {
+		if owner := session.TxOwnerOf(ref); owner != nil {
+			e.advanceOriginSessionLocked(ref, owner.Session)
+		}
+	}
 	e.endSerializableLocked(ref, committed)
 }
 

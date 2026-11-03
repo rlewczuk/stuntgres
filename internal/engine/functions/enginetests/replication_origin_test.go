@@ -108,3 +108,64 @@ func TestReplicationOriginStateBindingProtocol(t *testing.T) {
 		}
 	}
 }
+
+func TestReplicationOriginSessionBindingProtocol(t *testing.T) {
+	e, op, scope := strictNullUnitFixture(t)
+	calls := []string{
+		"pg_replication_origin_session_setup(NULL::text)",
+		"pg_replication_origin_session_reset()",
+		"pg_replication_origin_session_is_setup()",
+		"pg_replication_origin_session_progress(NULL::boolean)",
+		"pg_replication_origin_xact_setup(NULL::pg_lsn,'2022-03-04+00'::timestamptz)",
+		"pg_replication_origin_xact_reset()",
+	}
+	for i, call := range calls {
+		node, _, evaluation := strictNullUnitBind(t, e, op, scope, call)
+		n := node.(functions.ReplicationOrigin)
+		before := n
+		procedure, err := exec.ExpressionRoutineDescriptor(n)
+		result := []sqltype.ID{sqltype.Void, sqltype.Void, sqltype.Bool, sqltype.PgLSN, sqltype.Void, sqltype.Void}[i]
+		if err != nil || procedure.Address().ObjectID != ids.OID(6006+i) || n.Kind != functions.ReplicationOriginSessionSetup+functions.ReplicationOriginKind(i) || n.Validate() != nil || n.Usage.Type.ID() != result {
+			t.Fatal("released declaration", n, procedure, err)
+		}
+		if n.IntrinsicVolatility() != expr.Volatile || n.PlanningFold() != expr.FoldNever || n.PreflightFold() != expr.PreflightKeep {
+			t.Fatal("session recipe folded")
+		}
+		children := n.Children()
+		saved := append([]expr.Expr(nil), children...)
+		if n.Arity != 0 {
+			children[0] = nil
+			if n.Args[0] == nil {
+				t.Fatal("children borrowed recipe backing")
+			}
+			value, err := n.Eval(&evaluation)
+			if err != nil || !value.IsNull() || value.Type() != n.Usage.Type {
+				t.Fatal("strict typed NULL", value, err)
+			}
+		}
+		rebuilt, err := n.Rebuild(n.Info, saved)
+		if err != nil || !reflect.DeepEqual(before, n) || !reflect.DeepEqual(rebuilt, n) {
+			t.Fatal("immutable reconstruction", rebuilt, err)
+		}
+		capture, matched, err := n.Capture(expr.CaptureFunction)
+		if err != nil || !matched || capture.Count != int(n.Arity) || !capture.Indexed {
+			t.Fatal("capture", capture, err)
+		}
+		rendering, err := n.Render()
+		if err != nil || rendering.Name != originSessionProtocolName(i) || len(rendering.Args) != len(saved) {
+			t.Fatal("render", rendering, err)
+		}
+		if _, err := n.CaptureOperand(int(n.Arity)); err == nil {
+			t.Fatal("extra capture operand")
+		}
+		bad := n
+		bad.Arity++
+		if bad.Validate() == nil {
+			t.Fatal("invalid arity")
+		}
+	}
+}
+
+func originSessionProtocolName(i int) string {
+	return []string{"pg_replication_origin_session_setup", "pg_replication_origin_session_reset", "pg_replication_origin_session_is_setup", "pg_replication_origin_session_progress", "pg_replication_origin_xact_setup", "pg_replication_origin_xact_reset"}[i]
+}

@@ -28,15 +28,15 @@ func identityUnitTimestampWrap(t *testing.T) {
 		if e.Visibility.CommitTimestamps[4294967295].Present || e.Visibility.CommitTimestamps[4294967299].Present {
 			t.Fatal("assignment fabricated completion")
 		}
-		e.Visibility.RecordCommitTimestampLocked(b.Ref())
+		e.Visibility.RecordCommitTimestampLocked(b.Ref(), 123, 0)
 		newer := e.Visibility.LookupCommitTimestampLocked(3)
-		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		e.Visibility.RecordCommitTimestampLocked(a.Ref(), 123, 0)
 		older := e.Visibility.LookupCommitTimestampLocked(4294967295)
 		if !older.Present || !newer.Present || e.Visibility.LastCommittedXID() != 4294967295 || len(e.Visibility.CommitTimestamps) != 2 {
 			t.Fatal("old-epoch active completion lost sparse slot")
 		}
 		last := e.Visibility.LastCommitTimestamp()
-		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		e.Visibility.RecordCommitTimestampLocked(a.Ref(), 456, 0)
 		if e.Visibility.LastCommitTimestamp() != last || e.Visibility.LookupCommitTimestampLocked(3) != newer {
 			t.Fatal("duplicate completion changed history")
 		}
@@ -47,7 +47,7 @@ func identityUnitTimestampWrap(t *testing.T) {
 		_, b := blockingUnitOwner(t, e)
 		pgLocksUnitAssign(t, e, a)
 		e.Mu.Lock()
-		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		e.Visibility.RecordCommitTimestampLocked(a.Ref(), 123, 0)
 		old := e.Visibility.LookupCommitTimestampLocked(3)
 		e.Mu.Unlock()
 		if !old.Present {

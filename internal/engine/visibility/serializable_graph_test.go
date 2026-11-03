@@ -79,7 +79,7 @@ func TestSerializableGraphFinalizedPivotIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	publicXID := f.reg.Entries[pivot.Ref].AssignedXID
-	f.reg.RecordCommitTimestampLocked(pivot.Ref)
+	f.reg.RecordCommitTimestampLocked(pivot.Ref, 123, 0)
 	if f.reg.Entries[pivot.Ref].AssignedXID != 0 || pivot.AssignedXID != publicXID {
 		t.Fatal("completion lost the pivot's canonical diagnostic identity")
 	}

@@ -2,7 +2,6 @@ package exec
 
 import (
 	"context"
-	"time"
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fts"
@@ -108,10 +107,10 @@ type SessionInquiryRuntime interface {
 // TransactionInquiryRuntime holds the bodies of
 // functions.TransactionInquiryRuntime.
 type TransactionInquiryRuntime interface {
-	CommitTimestamp(xid uint32) (time.Time, uint32, bool, error)
+	CommitTimestamp(xid uint32) (int64, uint32, bool, error)
 	CurrentTransactionID(assign bool) (uint64, error)
 	CurrentSnapshot() (*sqltype.Snapshot, error)
-	LastCommittedTransaction() (uint32, time.Time, uint32, bool, error)
+	LastCommittedTransaction() (uint32, int64, uint32, bool, error)
 	MultiTransactionAge(xid uint32) (int32, error)
 	TransactionAge(xid uint32) (int32, error)
 	TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error)

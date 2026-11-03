@@ -15,12 +15,18 @@ const (
 	ReplicationOriginOID
 	ReplicationOriginAdvance
 	ReplicationOriginProgress
+	ReplicationOriginSessionSetup
+	ReplicationOriginSessionReset
+	ReplicationOriginSessionIsSetup
+	ReplicationOriginSessionProgress
+	ReplicationOriginXactSetup
+	ReplicationOriginXactReset
 )
 
-var replicationOriginNames = [...]string{"pg_replication_origin_create", "pg_replication_origin_drop", "pg_replication_origin_oid", "pg_replication_origin_advance", "pg_replication_origin_progress"}
+var replicationOriginNames = [...]string{"pg_replication_origin_create", "pg_replication_origin_drop", "pg_replication_origin_oid", "pg_replication_origin_advance", "pg_replication_origin_progress", "pg_replication_origin_session_setup", "pg_replication_origin_session_reset", "pg_replication_origin_session_is_setup", "pg_replication_origin_session_progress", "pg_replication_origin_xact_setup", "pg_replication_origin_xact_reset"}
 
 func (k ReplicationOriginKind) Name() string {
-	if k > ReplicationOriginProgress {
+	if k > ReplicationOriginXactReset {
 		return ""
 	}
 	return replicationOriginNames[k]
@@ -30,7 +36,7 @@ func (k ReplicationOriginKind) signature() (types [2]sqltype.ID, count int, resu
 	switch k {
 	case ReplicationOriginCreate, ReplicationOriginOID:
 		return types, 1, sqltype.Oid
-	case ReplicationOriginDrop:
+	case ReplicationOriginDrop, ReplicationOriginSessionSetup:
 		return types, 1, sqltype.Void
 	case ReplicationOriginAdvance:
 		types[1] = sqltype.PgLSN
@@ -38,6 +44,16 @@ func (k ReplicationOriginKind) signature() (types [2]sqltype.ID, count int, resu
 	case ReplicationOriginProgress:
 		types[1] = sqltype.Bool
 		return types, 2, sqltype.PgLSN
+	case ReplicationOriginSessionReset, ReplicationOriginXactReset:
+		return types, 0, sqltype.Void
+	case ReplicationOriginSessionIsSetup:
+		return types, 0, sqltype.Bool
+	case ReplicationOriginSessionProgress:
+		types[0] = sqltype.Bool
+		return types, 1, sqltype.PgLSN
+	case ReplicationOriginXactSetup:
+		types[0], types[1] = sqltype.PgLSN, sqltype.Timestamptz
+		return types, 2, sqltype.Void
 	}
 	return types, 0, 0
 }

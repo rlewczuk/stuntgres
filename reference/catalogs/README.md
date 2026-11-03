@@ -34,6 +34,21 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Replication-origin session scenarios use
+`make check RUN='^TestReferenceReplicationOriginSession'` (also with `REFERENCE=1`).
+Pinned actors retain physical ownership across transaction/savepoint boundaries;
+cleanup resets them before dropping shared origins. Pool return and actual
+physical pool close are separate witnesses. Native phases cover replacement invalidation,
+retained peer/private subscription owners and rejected-control atomicity; supplied
+timestamp history and prepared finishers belong to `reference/locking_transactions`.
+Active DROP witnesses separate read-only rejection (accumulated `0/10`, pending
+`0/90`, then an unreconfigured write) from genuine assigned-write error abort.
+Controls join the same peer SQL subscription DROP after reset or physical close,
+and independently cancel an observed wait while preserving its owner and slot.
+Independent progress-allocation probes exercise the ten-slot boundary: nine fit
+beside a retained owner, while ten fit after the resumed DROP. A further probe
+must fail without allocation and succeeds only after freeing an occupied probe.
+
 Materialized-view summary scenarios use `make check RUN='^TestReferencePGMatviews'`
 and the same selector with `REFERENCE=1` for pinned PostgreSQL. They assert full
 typed rows across index history, catalog admission, public metadata visibility

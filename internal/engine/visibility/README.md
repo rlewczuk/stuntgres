@@ -101,6 +101,13 @@ standard library. It never imports the root engine. Layering is in
   following a later index phase with the same low bits. Sparse retained
   status and optional timestamp reservations index the full identity. With
   tracking off, no timestamp map is allocated.
+- **Completion input.** `RecordCommitTimestampLocked` takes an explicit PostgreSQL
+  timestamp-microsecond value (including infinities) and numeric origin. Core owns
+  local stop-time selection and physical origin context/fallback persistence;
+  the registry reads neither sessions nor catalogs. Reserved history storage,
+  completion consumption and the last-committed cache publish once under Engine.Mu.
+  PREPARE and assigned abort/subabort may publish origin progress in core without
+  recording a committed timestamp here.
 - **Snapshots and retention.** Repeatable read and serializable acquire every
   immutable relation root and end root (`Root`), the tuple frontier and the public
   full-XID value together, including snapshot-requiring transaction analysis.

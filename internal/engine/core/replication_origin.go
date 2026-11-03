@@ -55,6 +55,13 @@ func (e *Engine) replicationOriginOccupancyLocked(replacingSelected bool) replic
 		for id := range e.Cluster.replicationOrigins {
 			occupied.add(id)
 		}
+		if replacingSelected {
+			for id, owner := range e.Cluster.replicationOriginOwners {
+				if e.retainedPeerOriginSessionLocked(owner) {
+					occupied.add(id)
+				}
+			}
+		}
 	}
 	return occupied
 }
@@ -181,6 +188,9 @@ func (e *Engine) validateReplacementReplicationOriginsLocked(next *catalog.State
 		}
 		if e.Cluster != nil {
 			if _, exists := e.Cluster.replicationOrigins[d.Address().ObjectID]; exists {
+				return ids.ErrCatalogReplaced
+			}
+			if e.retainedPeerOriginSessionLocked(e.Cluster.replicationOriginOwners[d.Address().ObjectID]) {
 				return ids.ErrCatalogReplaced
 			}
 		}

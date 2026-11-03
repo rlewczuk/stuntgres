@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
-	"time"
 )
 
 // TransactionInquiryRuntime borrows the executing statement's canonical
@@ -18,8 +17,8 @@ type TransactionInquiryRuntime interface {
 	CurrentSnapshot() (*sqltype.Snapshot, error)
 	TransactionStatus(uint64) (string, bool, error)
 	TransactionMembers(uint32, *sqltype.Descriptor) ([]sqltype.Value, error)
-	CommitTimestamp(uint32) (time.Time, uint32, bool, error)
-	LastCommittedTransaction() (uint32, time.Time, uint32, bool, error)
+	CommitTimestamp(uint32) (int64, uint32, bool, error)
+	LastCommittedTransaction() (uint32, int64, uint32, bool, error)
 }
 
 func transactionInquiryRuntime(ctx expr.Context) (TransactionInquiryRuntime, error) {

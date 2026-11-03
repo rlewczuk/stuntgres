@@ -69,6 +69,12 @@
 6003	pg_replication_origin_create	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	26	25	\N	\N	\N	false	\N	pg_replication_origin_create	\N	false	\N
 6004	pg_replication_origin_drop	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	2278	25	\N	\N	\N	false	\N	pg_replication_origin_drop	\N	false	\N
 6005	pg_replication_origin_oid	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	26	25	\N	\N	\N	false	\N	pg_replication_origin_oid	\N	false	\N
+6006	pg_replication_origin_session_setup	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	2278	25	\N	\N	\N	false	\N	pg_replication_origin_session_setup	\N	false	\N
+6007	pg_replication_origin_session_reset	11	12	1	0	0	0	f	false	false	true	false	v	u	0	0	2278		\N	\N	\N	false	\N	pg_replication_origin_session_reset	\N	false	\N
+6008	pg_replication_origin_session_is_setup	11	12	1	0	0	0	f	false	false	true	false	v	r	0	0	16		\N	\N	\N	false	\N	pg_replication_origin_session_is_setup	\N	false	\N
+6009	pg_replication_origin_session_progress	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	3220	16	\N	\N	\N	false	\N	pg_replication_origin_session_progress	\N	false	\N
+6010	pg_replication_origin_xact_setup	11	12	1	0	0	0	f	false	false	true	false	v	r	2	0	2278	3220 1184	\N	\N	\N	false	\N	pg_replication_origin_xact_setup	\N	false	\N
+6011	pg_replication_origin_xact_reset	11	12	1	0	0	0	f	false	false	true	false	v	r	0	0	2278		\N	\N	\N	false	\N	pg_replication_origin_xact_reset	\N	false	\N
 6012	pg_replication_origin_advance	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2278	25 3220	\N	\N	\N	false	\N	pg_replication_origin_advance	\N	false	\N
 6013	pg_replication_origin_progress	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	3220	25 16	\N	\N	\N	false	\N	pg_replication_origin_progress	\N	false	\N
 3330	pg_current_wal_flush_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_flush_lsn	\N	false	\N

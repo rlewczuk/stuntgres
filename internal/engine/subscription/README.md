@@ -30,6 +30,9 @@ Disconnected NULL-slot DROP uses the ordinary provider retirement path, so a
 successful DROP removes both metadata and the database-scoped name before a
 subsequent CREATE. Duplicate-option diagnostics reuse the AST's already
 one-based Unicode character position without a second cursor adjustment.
+The host's internal origin clear waits for active physical ownership to end;
+it propagates cancellation or failed exact readmission before staging removal.
+Core owns unlocked waiting and notification release, not this metadata package.
 
 After genuine CREATE succeeds, the host initializes the owning database's shared
 subscription statistics entry before publishing the success notice. Catalog

@@ -25,12 +25,39 @@ func originNameError(name string) error {
 func originDuplicate(name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_replication_origin_roname_index"`, Detail: fmt.Sprintf("Key (roname)=(%s) already exists.", name), Schema: "pg_catalog", Table: "pg_replication_origin", Constraint: "pg_replication_origin_roname_index"}
 }
-func (h DDLHost) ClearReplicationOrigin(id ids.OID) {
+func (h DDLHost) ClearReplicationOrigin(id ids.OID) error {
+	if err := h.E.waitOriginReleaseLocked(h.Op, id); err != nil {
+		return err
+	}
 	read := h.StageRead()
 	if d, ok := read.Get(ids.ObjectAddress{ClassID: ids.ReplicationOriginClassID, ObjectID: id}).(*catalog.ReplicationOrigin); ok {
 		h.E.bumpOriginProgressLocked(read, d)
 	}
 	delete(h.E.Cluster.replicationOriginProgress, id)
+	return nil
+}
+
+// A rejected active DROP must not acquire an otherwise unnecessary public XID
+// through its name claim. Recheck after ordinary name admission to cover races;
+// missing names and every other predecessor path retain their existing ordering.
+func (s *StatementScope) preflightOriginDrop(key ids.NameKey) error {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := s.Op.Context().Err(); err != nil {
+		return err
+	}
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	auth, err := s.callableAuthorizationLocked(e)
+	if err != nil {
+		return err
+	}
+	if d, ok := auth.Catalog.Get(auth.Catalog.NameAddress(key)).(*catalog.ReplicationOrigin); ok {
+		return e.originActiveErrorLocked(d.Address().ObjectID, true)
+	}
+	return nil
 }
 
 // ReplicationOrigin resolves every demand through the current private catalog.
@@ -39,6 +66,21 @@ func (h *statementHost) ReplicationOrigin(kind functions.ReplicationOriginKind, 
 	s := h.scope()
 	if err := s.Active(); err != nil {
 		return sqltype.Value{}, err
+	}
+	capacity := 0
+	if kind == functions.ReplicationOriginAdvance || kind == functions.ReplicationOriginProgress || kind >= functions.ReplicationOriginSessionSetup && kind != functions.ReplicationOriginSessionIsSetup {
+		text, _ := s.Op.Setting("max_active_replication_origins")
+		var err error
+		capacity, err = strconv.Atoi(text)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if capacity == 0 {
+			return sqltype.Value{}, SQLError("55000", `cannot query or manipulate replication origin when "max_active_replication_origins" is 0`)
+		}
+	}
+	if kind > functions.ReplicationOriginSessionSetup {
+		return h.replicationOriginSessionCall(kind, values, result)
 	}
 	name, err := values[0].Text()
 	if err != nil {
@@ -49,19 +91,13 @@ func (h *statementHost) ReplicationOrigin(kind functions.ReplicationOriginKind, 
 			return sqltype.Value{}, err
 		}
 	}
-	capacity := 0
-	if kind == functions.ReplicationOriginAdvance || kind == functions.ReplicationOriginProgress {
-		text, _ := s.Op.Setting("max_active_replication_origins")
-		capacity, err = strconv.Atoi(text)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if capacity == 0 {
-			return sqltype.Value{}, SQLError("55000", `cannot query or manipulate replication origin when "max_active_replication_origins" is 0`)
-		}
-	}
 	e := s.Engine()
 	key := catalog.ReplicationOriginNameKey(name)
+	if kind == functions.ReplicationOriginDrop {
+		if err := s.preflightOriginDrop(key); err != nil {
+			return sqltype.Value{}, err
+		}
+	}
 	if kind == functions.ReplicationOriginCreate || kind == functions.ReplicationOriginDrop {
 		resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(s.TxRef.Epoch(), ids.ObjectAddress{}), Name: key}
 		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
@@ -125,7 +161,15 @@ func (h *statementHost) ReplicationOrigin(kind functions.ReplicationOriginKind, 
 	}
 	id := d.Address().ObjectID
 	switch kind {
+	case functions.ReplicationOriginSessionSetup:
+		if err := e.setupOriginSessionLocked(s.Op.Session, view, d, capacity); err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.VoidValue(result), nil
 	case functions.ReplicationOriginDrop:
+		if err := e.originActiveErrorLocked(id, true); err != nil {
+			return sqltype.Value{}, err
+		}
 		changes := s.Catalog
 		if changes == nil {
 			changes = s.PendingCatalog().Clone()
@@ -139,12 +183,15 @@ func (h *statementHost) ReplicationOrigin(kind functions.ReplicationOriginKind, 
 		s.Catalog = changes
 		return sqltype.VoidValue(result), nil
 	case functions.ReplicationOriginAdvance:
+		if err := e.originActiveErrorLocked(id, false); err != nil {
+			return sqltype.Value{}, err
+		}
 		position, err := values[1].PGLSN()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if _, active := e.Cluster.replicationOriginProgress[id]; !active && len(e.Cluster.replicationOriginProgress) >= capacity {
-			return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "53400", Message: fmt.Sprintf("could not find free replication state slot for replication origin with ID %d", id), Hint: `Increase "max_active_replication_origins" and try again.`}
+			return sqltype.Value{}, originSlotFull(id)
 		}
 		if e.Cluster.replicationOriginProgress == nil {
 			e.Cluster.replicationOriginProgress = make(map[ids.OID]uint64)

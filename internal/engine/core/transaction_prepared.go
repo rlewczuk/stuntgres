@@ -25,6 +25,7 @@ func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.Prepa
 
 // Called at the canonical publisher's callback-free final boundary.
 func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
+	e.advanceOriginSessionLocked(p.Entry.Ref, p.Origin.Session)
 	e.Visibility.SerializablePreparedLocked(p.Entry.Ref)
 	e.Visibility.DropSnapshotLocked(p.Entry.Ref)
 	e.prepared.InstallLocked(p.Entry)
@@ -143,6 +144,7 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
 		if err == nil {
+			e.advanceOriginSessionLocked(entry.Ref, op.Session)
 			e.discardWritesLocked(entry.Ref, entry.Catalog, entry.Writes, nil, nil, nil)
 			settleStatsLedger(e, op.Session, &entry.Stats, false)
 			retireStatsObjects(e, op.Session, entry.Ref.Epoch(), false, entry.Catalog)

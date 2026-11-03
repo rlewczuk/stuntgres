@@ -160,7 +160,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		held := e.Locks.Checkpoint(ticket)
 		e.Locks.Restore(ticket, held)
 		e.Mu.Lock()
-		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref(), 123, 0)
 		e.Visibility.DropSnapshotLocked(ticket.Ref())
 		e.Mu.Unlock()
 		if ticket.AssignedPublicXID() != xid {
@@ -174,7 +174,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		_, waiter := blockingUnitOwner(t, e)
 		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), lock.TransactionCompletion, lock.CompletionVirtual)
 		e.Mu.Lock()
-		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref(), 123, 0)
 		e.Mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
 		if pending.Kind != lock.TransactionRecord || pending.XID != xid || request == nil || request.Terminal() {
@@ -255,7 +255,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
 		e.Mu.Lock()
-		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref(), 123, 0)
 		if ticket.AssignedPublicXID() != xid {
 			e.Mu.Unlock()
 			t.Fatal("bookkeeping impersonated manager release")

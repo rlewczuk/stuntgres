@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestReplicationOriginStateACLReconstruction(t *testing.T) {
+func TestReplicationOriginSessionACLReconstruction(t *testing.T) {
 	owner := authorization.PrincipalRef{}
 	procedures := routine.BuiltinProcedures(owner)
 	routine.SeedReplicationOriginACLs(procedures, owner)
@@ -53,7 +53,7 @@ func TestReplicationOriginStateACLReconstruction(t *testing.T) {
 			case "provider":
 				changed.Builtin = nil
 			case "oid":
-				changed.ObjectAddress.ObjectID = 6006
+				changed.ObjectAddress.ObjectID = 0
 			}
 			if recoveryControlACLReconstructed(&changed, owner) {
 				t.Fatal("changed authority omitted", p.Name(), mutation)
@@ -64,7 +64,7 @@ func TestReplicationOriginStateACLReconstruction(t *testing.T) {
 		}
 	}
 	slices.Sort(seen)
-	if !slices.Equal(seen, []ids.OID{6003, 6004, 6005, 6012, 6013}) {
+	if !slices.Equal(seen, []ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013}) {
 		t.Fatal("restricted origin roster", seen)
 	}
 }

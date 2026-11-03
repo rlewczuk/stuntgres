@@ -49,6 +49,7 @@ type DatabaseCluster struct {
 	// Transient exclusion only; live registrations belong to the catalog.
 	replicationOrigins                  map[ids.OID]replicationOriginReservation
 	replicationOriginProgress           map[ids.OID]uint64
+	replicationOriginOwners             map[ids.OID]*replicationOriginSession
 	replicationOriginProgressGeneration map[ids.ObjectAddress]uint64
 	// Exported cuts share this cluster mutex with all runtime publication.
 	snapshotSerial uint64

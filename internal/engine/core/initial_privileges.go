@@ -93,7 +93,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}
-	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6012, 6013, 5052, 4100, 6399, 3400, 3329, 6250} {
+	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 5052, 4100, 6399, 3400, 3329, 6250} {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}

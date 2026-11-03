@@ -229,12 +229,12 @@ bypass ACLs. Known strict backend NULL retains ordinary strict-call avoidance.
 Native replay preserves raw NULL, explicit-empty and modified grants separately
 from the exact bootstrap owner-only seed.
 
-`SeedReplicationOriginACLs` installs the five released owner-only EXECUTE seeds
+`SeedReplicationOriginACLs` installs all eleven released owner-only EXECUTE seeds
 before initial-privilege capture. Their unnamed strict scalar declarations retain
-exact fixed OIDs, formals and results; only lookup is STABLE/parallel-safe.
+exact fixed OIDs, formals and results; only named lookup is STABLE/parallel-safe.
 Ordinary GRANT/REVOKE and the same exact restricted-seed reconstruction rules
 own later access and replay, including raw NULL and explicit-empty ACLs.
-The initial-privilege owner captures all five restricted seeds independently of
+The initial-privilege owner captures all restricted seeds independently of
 the live ACL backing; ordinary grants, revokes and raw ACL replacement do not
 rewrite those bootstrap records.
 

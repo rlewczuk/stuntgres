@@ -31,6 +31,16 @@
   constant-NULL planning while retaining live runtime ACL checks. Preserve released
   installation-script diagnostic context and operation-scoped cancellation.
 
+- Implement replication-origin physical session ownership and transaction context
+  through typed calls and live routine ACLs. Publish actual origin/timestamp
+  history and monotonic assigned-XID commit/abort/subabort progress, including
+  preparing/finishing actors. Retain configured context until reset, release
+  ownership on physical close and invalidate only replaced native-control scopes.
+  Preserve ordinary-commit fallback timestamps through later origin selection,
+  including tracking-off sessions; explicit resets clear them.
+  Internal subscription cleanup waits for ownership release with cancellation and
+  exact live readmission; explicit origin SQL drop keeps its immediate active error.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual

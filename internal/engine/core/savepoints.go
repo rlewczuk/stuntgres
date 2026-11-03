@@ -46,6 +46,7 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 // protocol portals, the owner's state and settings, and exclusions. Engine.mu
 // -> Settings.Mu -> Session.Mu are held, with t.Mu.
 func (e *Engine) restoreSavepointLocked(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
+	e.abortOriginSubtransactionLocked(t, mark.Serial)
 	mark.Catalog = e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, mark.Writes, mark.Catalog, nil)
 	abortStatsFrames(e, t.Session, t.Stats, mark.StatsLevel)
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog, mark.Catalog, mark.StatementCatalog)

@@ -114,7 +114,7 @@ type SessionHost interface {
 	// TransactionAgeLocked fences the transaction against the current catalog
 	// epoch and measures xid's age.
 	TransactionAgeLocked(xid uint32) (int32, error)
-	AssignTransactionXIDLocked() error
+	AssignTopTransactionXIDLocked() error
 	// CurrentSnapshotLocked validates the operation for publication and the
 	// transaction's catalog epoch, then returns the statement's snapshot,
 	// nil when there is none.

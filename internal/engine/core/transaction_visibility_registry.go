@@ -61,8 +61,22 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 	e.Mu.Unlock()
 }
 
-// AssignTransactionXIDLocked fences ref against the current catalog epoch.
+// AssignTransactionXIDLocked assigns the current transaction, including actual
+// savepoint/exception ancestors. Top-XID inquiry deliberately uses the separate
+// top-only entrypoint and never assigns a read-only child.
 func (e *Engine) AssignTransactionXIDLocked(ref ids.TxRef) error {
+	if err := e.AssignTopTransactionXIDLocked(ref); err != nil {
+		return err
+	}
+	if owner := session.TxOwnerOf(ref); owner != nil && owner.Ref == ref {
+		for i := range owner.Savepoints {
+			owner.Savepoints[i].Assigned = true
+		}
+	}
+	return nil
+}
+
+func (e *Engine) AssignTopTransactionXIDLocked(ref ids.TxRef) error {
 	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

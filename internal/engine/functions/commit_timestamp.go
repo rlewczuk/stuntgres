@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
-	"time"
 )
 
 type commitTimestampKind uint8
@@ -87,7 +86,7 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 			return sqltype.Value{}, sqlError("22023", "cannot retrieve commit timestamp for transaction 0")
 		}
 	}
-	var stamp time.Time
+	var stamp int64
 	var origin uint32
 	var present bool
 	if n.kind == commitTimestampLast || xid >= 3 {
@@ -108,7 +107,7 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 		if !present {
 			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.TimestampFromTime(n.Usage.Type, stamp)
+		return sqltype.TimestampValue(n.Usage.Type, stamp)
 	}
 	shape := n.Usage.Type
 	fields := make([]sqltype.Value, shape.CompositeLen())
@@ -126,7 +125,7 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 			i++
 		}
 		var err error
-		fields[i], err = sqltype.TimestampFromTime(shape.CompositeMember(i).Usage.Type, stamp)
+		fields[i], err = sqltype.TimestampValue(shape.CompositeMember(i).Usage.Type, stamp)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

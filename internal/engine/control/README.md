@@ -28,6 +28,11 @@ versions by exact VersionID, allowing independently visible siblings with one
 RowID. ACL datum preflight consumes that same visible bag. Replay serializes SQL
 values and installed authority, never discarded history, source TIDs, header
 overrides or live owner handles; independent destination storage remints identities.
+Replication-origin serialization includes logical registrations and allocated
+positions only, never selected sessions, PIDs or configured transaction values.
+Successful replacement invalidates replaced physical contexts in core's final
+cluster-mutex window; retained peer subscription ownership remains live. Failed
+capture/replay/preflight leaves both the active-owner index and contexts intact.
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
 place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition

@@ -79,7 +79,7 @@ func TestTransactionIdentityAllocation(t *testing.T) {
 	if err := e.AssignTransactionXIDLocked(b.Ref()); err == nil || e.Visibility.LastAssignedXID() != 4294967295 || len(e.Visibility.History) != before || b.AssignedPublicXID() != 0 {
 		t.Fatal("live low32 alias partially admitted", err)
 	}
-	e.Visibility.RecordCommitTimestampLocked(a.Ref())
+	e.Visibility.RecordCommitTimestampLocked(a.Ref(), 123, 0)
 	if err := e.AssignTransactionXIDLocked(b.Ref()); err == nil {
 		t.Fatal("publisher-to-release gap reused live mirror")
 	}
@@ -162,7 +162,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	_, a := blockingUnitOwner(t, e)
 	id := uint64(pgLocksUnitAssign(t, e, a))
 	e.Mu.Lock()
-	e.Visibility.RecordCommitTimestampLocked(a.Ref())
+	e.Visibility.RecordCommitTimestampLocked(a.Ref(), 123, 0)
 	core.EngineEndSerializableLocked(e, a.Ref(), false)
 	e.Mu.Unlock()
 	identityUnitStatus(t, e, id, "in progress", true)
@@ -210,7 +210,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 		pgLocksUnitAssign(t, phaseEngine, ticket)
 		phaseEngine.Mu.Lock()
 		defer phaseEngine.Mu.Unlock()
-		phaseEngine.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		phaseEngine.Visibility.RecordCommitTimestampLocked(ticket.Ref(), 123, 0)
 		phaseEngine.Visibility.ResetPhaseLocked(ticket.Ref())
 		phaseEngine.Visibility.SetLastAssignedXIDLocked(4294967295)
 		if err := phaseEngine.AssignTransactionXIDLocked(ticket.Ref()); err != nil {

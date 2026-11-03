@@ -74,7 +74,14 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 	}
 	if len(events) != 0 || publicationNeedsXID(writes, deletes, c, phase) {
 		e.Mu.Lock()
-		err := e.AssignTransactionXIDLocked(ref)
+		var err error
+		if phase != nil && !phase.Preparing {
+			// The detached identity is not the original session's current child.
+			// Never inspect or mark that foreign owner's reused savepoint stack.
+			err = e.AssignTopTransactionXIDLocked(ref)
+		} else {
+			err = e.AssignTransactionXIDLocked(ref)
+		}
 		e.Mu.Unlock()
 		if err != nil {
 			return err
@@ -147,7 +154,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			} else {
 				e.installNotificationPublicationLocked(notifications)
 				e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
-				e.Visibility.RecordCommitTimestampLocked(ref)
+				e.recordOriginCommitLocked(ref, op.Session)
 				publishTransactionStats(e, op.Session, ref, phase, scope)
 				e.finishPreparedLocked(phase)
 				op.FinishDiscardRoleResetLocked()
@@ -775,7 +782,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		e.Storage.ReplaceIndexRootsLocked(indexRoots)
 		publishTransactionStats(e, sess, ref, phase, scope)
 		e.Visibility.AdvanceCommitSeqLocked()
-		e.Visibility.RecordCommitTimestampLocked(ref)
+		e.recordOriginCommitLocked(ref, op.Session)
 		e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
 		e.finishPreparedLocked(phase)
 		op.FinishDiscardRoleResetLocked()

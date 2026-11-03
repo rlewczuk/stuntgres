@@ -37,6 +37,8 @@ type PreparedTransaction struct {
 
 // PreparedPublication is the 2PC phase of one publication: PREPARE installs
 // Entry for Origin (Preparing), COMMIT PREPARED finishes a claimed Entry.
+// Origin is only the preparing transaction owner: physical replication-origin
+// context is neither copied nor transferred. Completion uses the live finisher.
 type PreparedPublication struct {
 	Entry     *PreparedTransaction
 	Preparing bool
