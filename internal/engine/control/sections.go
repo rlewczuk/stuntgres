@@ -41,6 +41,7 @@ var dumpSections = [...]dumpSection{
 	{"collations and conversions", emitDumpTypeStatements},
 	{"events", emitDumpEvents},
 	{"index options", emitDumpIndexOptions},
+	{"GIN split metadata", emitDumpGin},
 	{"clustering preferences", emitDumpClusteringPreferences},
 	{"replica identity", emitDumpReplicaIdentity},
 	{"sequence completion", emitDumpSequenceCompletion},

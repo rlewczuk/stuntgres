@@ -72,7 +72,7 @@ func compoundScalarTransportProof(t *testing.T, e *core.Engine, idx *catalog.Rel
 	}
 	for column, text := range []string{"111", "1", "m", "0.01"} {
 		token := ginInput(t, filtered.Gin.Columns[column].Binding.Usage.Type, text)
-		got, err := index.GinScalarCandidates(context.Background(), filtered.Gin.Columns[column], token, 3, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), filtered.Gin, column, token, 3, sqltype.InputEnvironment{})
 		row := baseline.Versions[1]
 		want := []storage.GinPosting{{Row: row.Row, Version: row.Version, Position: 1}}
 		if err != nil || !slices.Equal(got, want) {
@@ -112,7 +112,7 @@ func compoundScalarTransportProof(t *testing.T, e *core.Engine, idx *catalog.Rel
 		for _, position := range positions {
 			want = append(want, storage.GinPosting{Row: ids.RowID(1000 + position), Version: ids.VersionID(2000 + position), Position: position})
 		}
-		got, err := index.GinScalarCandidates(context.Background(), moved.Gin.Columns[column], query, 3, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), moved.Gin, column, query, 3, sqltype.InputEnvironment{})
 		if err != nil || !slices.Equal(got, want) {
 			t.Fatal("snapshot scalar remint lost row/version/position", column, got, want, err)
 		}
@@ -150,7 +150,7 @@ func compoundScalarTransportProof(t *testing.T, e *core.Engine, idx *catalog.Rel
 	}
 	ginAssertOwners(t, vacuumed, compact)
 	query := ginInput(t, vacuumed.Gin.Columns[3].Binding.Usage.Type, "0.01")
-	got, err := index.GinScalarCandidates(context.Background(), vacuumed.Gin.Columns[3], query, 3, sqltype.InputEnvironment{})
+	got, err := index.GinScalarCandidates(context.Background(), vacuumed.Gin, 3, query, 3, sqltype.InputEnvironment{})
 	want := []storage.GinPosting{{Row: store.Versions[3].Row, Version: store.Versions[3].Version, Position: 2}, {Row: store.Versions[4].Row, Version: store.Versions[4].Version, Position: 3}}
 	if err != nil || !slices.Equal(got, want) {
 		t.Fatal("vacuum scalar destination positions", got, want, err)

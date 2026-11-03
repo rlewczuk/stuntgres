@@ -49,25 +49,27 @@ func ginAssertOwners(t *testing.T, root *storage.IndexRoot, store *storage.Relat
 			}
 		}
 	}
-	for _, column := range root.Gin.Columns {
-		for _, p := range column.NonNull {
-			if !members[p] {
-				t.Fatal("nonnull membership not owned", p)
-			}
-		}
-		for _, list := range column.Tokens {
-			if len(list.Postings) == 0 {
-				t.Fatal("empty posting list")
-			}
-			seen := map[storage.GinPosting]bool{}
-			for _, p := range list.Postings {
-				if !members[p] || seen[p] {
-					t.Fatal("foreign or duplicate posting", p)
+	for _, columns := range [][]storage.GinColumn{root.Gin.Columns, root.Gin.Pending} {
+		for _, column := range columns {
+			for _, p := range column.NonNull {
+				if !members[p] {
+					t.Fatal("nonnull membership not owned", p)
 				}
-				seen[p] = true
 			}
-			if list.Token.Kind == sqltype.GinOrdinary && column.Binding.Class.InputOID() == 2277 && list.Token.Element.Type() != column.Binding.Usage.Type.BaseType().Element() {
-				t.Fatal("source element generation retained")
+			for _, list := range column.Tokens {
+				if len(list.Postings) == 0 {
+					t.Fatal("empty posting list")
+				}
+				seen := map[storage.GinPosting]bool{}
+				for _, p := range list.Postings {
+					if !members[p] || seen[p] {
+						t.Fatal("foreign or duplicate posting", p)
+					}
+					seen[p] = true
+				}
+				if list.Token.Kind == sqltype.GinOrdinary && column.Binding.Class.InputOID() == 2277 && list.Token.Element.Type() != column.Binding.Usage.Type.BaseType().Element() {
+					t.Fatal("source element generation retained")
+				}
 			}
 		}
 	}
@@ -112,7 +114,11 @@ func TestGINPublication(t *testing.T) {
 	if got := ginLookup(t, updated.Gin.Columns[1], sqltype.GinToken{Lexeme: "cat"}); len(got) != 0 {
 		t.Fatal("ended exact predecessor retained", got)
 	}
-	if got := ginPostingID(t, e, idx, ginLookup(t, updated.Gin.Columns[1], sqltype.GinToken{Lexeme: "dog"})); !slices.Equal(got, []int64{1, 2}) {
+	postings, probeErr := index.GinLexemeCandidates(context.Background(), updated.Gin, 1, "dog", false, false, sqltype.InputEnvironment{})
+	if probeErr != nil {
+		t.Fatal(probeErr)
+	}
+	if got := ginPostingID(t, e, idx, postings); !slices.Equal(got, []int64{1, 2}) {
 		t.Fatal("actual update postings", got)
 	}
 	_, err = enginetest.Execute(e, context.Background(), enginetest.Statement(t, "INSERT INTO gin_publication VALUES(4,'{4}','failed:1'),(-1,'{4}','failed:1')"), nil)
@@ -158,7 +164,11 @@ func TestGINPublication(t *testing.T) {
 	enginetest.SessionSQL(t, s, "INSERT INTO gin_private VALUES(4,'four:1')")
 	enginetest.TransactionEnd(t, s, tx, true)
 	_, committed := ginInstalledRoot(t, e, "gin_private_i")
-	if committed == private || !reflect.DeepEqual(private.Gin, captured) || len(ginLookup(t, committed.Gin.Columns[0], sqltype.GinToken{Lexeme: "discarded"})) != 0 || len(ginLookup(t, committed.Gin.Columns[0], sqltype.GinToken{Lexeme: "four"})) != 1 {
+	four, probeErr := index.GinLexemeCandidates(context.Background(), committed.Gin, 0, "four", false, false, sqltype.InputEnvironment{})
+	if probeErr != nil {
+		t.Fatal(probeErr)
+	}
+	if committed == private || !reflect.DeepEqual(private.Gin, captured) || len(ginLookup(t, committed.Gin.Columns[0], sqltype.GinToken{Lexeme: "discarded"})) != 0 || len(four) != 1 {
 		t.Fatal("private commit/savepoint ownership")
 	}
 }
@@ -414,9 +424,16 @@ func ginOrdinaryRebuilds(t *testing.T) {
 		t.Fatal("partition-routed writes omitted leaf postings")
 	}
 	leafBefore := ginCopyPayload(childRoot.Gin)
+	if len(childRoot.Gin.Pending) != 1 || len(childRoot.Gin.Columns[0].Tokens) != 0 || storage.GinPendingIncidences(childRoot.Gin) != 2 {
+		t.Fatal("partition-routed writes did not occupy genuine deduplicated pending storage")
+	}
 	element := childRoot.Gin.Columns[0].Binding.Usage.Type.BaseType().Element()
 	one := sqltype.GinToken{Element: ginInput(t, element, "1")}
-	if got := ginPostingID(t, e, child, ginLookup(t, childRoot.Gin.Columns[0], one)); !slices.Equal(got, []int64{1}) {
+	postings, err := index.GinArrayCandidates(context.Background(), childRoot.Gin, 0, ginInput(t, childRoot.Gin.Columns[0].Binding.Usage.Type, "{1}"), 2, sqltype.InputEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ginPostingID(t, e, child, postings); !slices.Equal(got, []int64{1}) {
 		t.Fatal("partition-routed duplicate element did not yield one posting", got)
 	}
 	enginetest.Run(t, e, "UPDATE gin_partition SET a='{3,3}' WHERE id=1")
@@ -426,7 +443,7 @@ func ginOrdinaryRebuilds(t *testing.T) {
 	if got := ginPostingID(t, e, child, ginLookup(t, leafRebuilt.Gin.Columns[0], three)); !slices.Equal(got, []int64{1}) {
 		t.Fatal("routed update or leaf REINDEX lost destination postings", got)
 	}
-	if leafRebuilt == childRoot || len(ginLookup(t, leafRebuilt.Gin.Columns[0], one)) != 0 || !reflect.DeepEqual(childRoot.Gin, leafBefore) {
+	if leafRebuilt == childRoot || len(leafRebuilt.Gin.Pending) != 0 || len(ginLookup(t, leafRebuilt.Gin.Columns[0], one)) != 0 || !reflect.DeepEqual(childRoot.Gin, leafBefore) {
 		t.Fatal("leaf rebuild retained ended postings or mutated its predecessor")
 	}
 }

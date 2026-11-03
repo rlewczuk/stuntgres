@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
@@ -77,6 +78,7 @@ type Capture struct {
 	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
 	AttributeStatistics   []storage.AttributeStatisticsSnapshot
 	RelationStatistics    []storage.RelationStatisticsSnapshot
+	GinIndexes            []index.GinDumpIndex
 	Providers             []providerReplay
 	Tables                []table.DumpRelation
 	LargeObjects          []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

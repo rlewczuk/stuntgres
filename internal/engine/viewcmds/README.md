@@ -50,6 +50,11 @@ match.
 - Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
   view rows into the private Restore engine in one publication; it admits
   only the trusted bootstrap import authority.
+  Its successful result carries each target's actual allocated row/version
+  identities in parsed/expanded snapshot row order. Native GIN split replay uses
+  this mapping after import; allocation frontiers and equal row values are never
+  relational identity. Empty and unpopulated snapshots return explicit empty
+  target mappings without changing population or typed replay authority.
   `CaptureRestoredTriggerClone` captures a paired child CREATE's actual identity;
   `CheckRestoredTriggerCloneCreate` rejects subsequent same-target replacement,
   including OID-preserving replacement, without rejecting dependency-only ALTERs.
@@ -62,6 +67,10 @@ Materialized snapshot row execution activates its supplied current invocation
 after description/capture unlocks; import capture itself remains dormant.
 Concurrent refresh key reconciliation uses only the eligible direct-column keys,
 not arbitrary predicate/expression recipes, and preserves ordinary cancellation.
+The index owner separately preserves GIN placement through exact retained Values
+provenance, keeping duplicate occurrences separate and routing new refresh rows
+by effective fastupdate. This structural posting transport runs after the real
+typed index builder, not by executing predicate/key/token extraction twice.
 Genuine concurrent refresh preserves the compatible read-history family, while
 ordinary refresh constructs a fresh storage header without `RetainedOrigin`,
 `TruncateBoundary` or materialized/TRUNCATE lineage tokens. Native controls that

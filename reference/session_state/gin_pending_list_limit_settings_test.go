@@ -78,11 +78,10 @@ func TestReferenceGINPendingListLimitTransactions(t *testing.T) {
 		s.run(physicalError("SET gin_pending_list_limit='63'", ginLimitInvalid("63"), true, false))
 		s.run(fixture.Exec("ROLLBACK TO gin_limit_error", 0))
 		s.ginState("8MB", "8192", "session", true)
-		if !s.pg {
-			s.run(ginLimitDemand(false, "SELECT gin_clean_pending_list('gin_limit_tx_i'::regclass) AS cleaned", "INT8", nil))
-			s.run(fixture.Exec("ROLLBACK TO gin_limit_error", 0))
-			s.ginState("8MB", "8192", "session", false)
-		}
+		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_tx_i'::regclass)>0 AS cleaned", "BOOL", true))
+		s.run(fixture.Exec("ROLLBACK TO gin_limit_error", 0))
+		s.ginState("8MB", "8192", "session", false)
+		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_tx_i'::regclass) AS cleaned", "INT8", int64(0)))
 		s.run(fixture.Select("SELECT id,a::text AS a FROM gin_limit_tx WHERE a @> '{1,3}'::integer[]", []string{"id", "a"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "{1,2,3}"}}))
 		s.run(fixture.Exec("COMMIT", 0))
 		s.ginState("8MB", "8192", "session", false)

@@ -80,6 +80,26 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 	if err != nil {
 		return nil, err
 	}
+	// Placement follows the exact accepted version, not today's reloptions.
+	// Reconstructed entries without produced authority are bulk/main entries.
+	placements := make(map[RowIdentity]bool, len(p.Writes))
+	if !reconstruct {
+		for _, row := range p.Writes {
+			if output, ok := row.IndexOutputs[index.Address()]; ok && OutputMatches(output, index) && output.Member {
+				placements[RowIdentity{Row: row.Row, Version: row.Version}] = output.GinPending
+			}
+		}
+	}
+	// GIN Entries is unordered: partition the existing delta in place rather
+	// than allocate two additional full-key entry vectors.
+	cut := 0
+	for i, entry := range added {
+		if !placements[RowIdentity{Row: entry.Row, Version: entry.Version}] {
+			added[cut], added[i] = added[i], added[cut]
+			cut++
+		}
+	}
+	main, pending := added[:cut], added[cut:]
 	changed := len(added) != 0
 	if !changed {
 		for _, entry := range old.Entries {
@@ -96,9 +116,9 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 		return nil, evaluation.Context.Err()
 	}
 	if !materialize {
-		return nil, storage.ValidateGinMerge(evaluation.Context, old.Gin, added, ended, evaluation.Input)
+		return nil, storage.ValidateGinMerge(evaluation.Context, old.Gin, main, pending, ended, evaluation.Input)
 	}
-	payload, err := storage.MergeGin(evaluation.Context, old.Gin, added, ended, evaluation.Input)
+	payload, err := storage.MergeGin(evaluation.Context, old.Gin, main, pending, ended, evaluation.Input)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +142,22 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 
 // GinArrayCandidates consumes posting lookups only. Recheck always belongs to
 // the existing scalar predicate, including shape/bounds/order and NULL truth.
-func GinArrayCandidates(ctx context.Context, column storage.GinColumn, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+func GinArrayCandidates(ctx context.Context, root *storage.GinRoot, ordinal int, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+	if root == nil || ordinal < 0 || ordinal >= len(root.Columns) {
+		return nil, fmt.Errorf("stuntgres: invalid GIN probe ordinal")
+	}
+	main, err := ginArrayCandidates(ctx, root.Columns[ordinal], query, strategy, input)
+	if err != nil || len(root.Pending) == 0 {
+		return main, err
+	}
+	pending, err := ginArrayCandidates(ctx, root.Pending[ordinal], query, strategy, input)
+	if err != nil {
+		return nil, err
+	}
+	return storage.CombineGinPostings(ctx, main, pending, false)
+}
+
+func ginArrayCandidates(ctx context.Context, column storage.GinColumn, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
 	if query.Type() != column.Binding.Usage.Type || column.Binding.Class.InputOID() != 2277 {
 		return nil, fmt.Errorf("stuntgres: foreign GIN array probe")
 	}
@@ -172,7 +207,22 @@ func GinArrayCandidates(ctx context.Context, column storage.GinColumn, query sql
 
 // GinLexemeCandidates is only an exact/prefix dictionary probe. It is not a
 // tsquery evaluator; weights, Boolean truth and positions remain scalar-owned.
-func GinLexemeCandidates(ctx context.Context, column storage.GinColumn, lexeme string, prefix, allNonNull bool, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+func GinLexemeCandidates(ctx context.Context, root *storage.GinRoot, ordinal int, lexeme string, prefix, allNonNull bool, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+	if root == nil || ordinal < 0 || ordinal >= len(root.Columns) {
+		return nil, fmt.Errorf("stuntgres: invalid GIN probe ordinal")
+	}
+	main, err := ginLexemeCandidates(ctx, root.Columns[ordinal], lexeme, prefix, allNonNull, input)
+	if err != nil || len(root.Pending) == 0 {
+		return main, err
+	}
+	pending, err := ginLexemeCandidates(ctx, root.Pending[ordinal], lexeme, prefix, allNonNull, input)
+	if err != nil {
+		return nil, err
+	}
+	return storage.CombineGinPostings(ctx, main, pending, false)
+}
+
+func ginLexemeCandidates(ctx context.Context, column storage.GinColumn, lexeme string, prefix, allNonNull bool, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
 	if column.Binding.Class.InputOID() != uint32(sqltype.TSVector) {
 		return nil, fmt.Errorf("stuntgres: non-vector GIN lexeme probe")
 	}

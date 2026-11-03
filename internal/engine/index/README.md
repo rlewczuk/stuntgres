@@ -66,8 +66,12 @@ builds a binder.
   GIN (`gin.go`, `gin_scalar.go`, `delta.go`) binds actual array/vector or
   authenticated installed scalar family support, then builds per-column typed
   dictionaries and exact row/version/slot postings from already-produced keys.
-  Batch delta merges extract only added
-  keys, end exact predecessors and share unchanged posting backing. NULL items,
+  `GinRoot.Columns` is main inversion; `Pending` is genuine deferred DML
+  inversion, not a mirror or counter. Bulk builds/REINDEX populate main.
+  Accepted INSERT/UPDATE outputs capture effective fastupdate placement once;
+  publication never reevaluates today's options. Batch delta merges extract
+  only added keys, end exact predecessors in both portions and share unchanged
+  posting backing. NULL items,
   empty items and NULL elements are separate categories; array duplicate tokens
   are deduplicated per version, never across duplicate SQL rows. Token comparison
   reuses concrete scalar element equality/ordering and collation, not rendered
@@ -92,16 +96,21 @@ builds a binder.
   helper identities retain distinct class-associated members and captures.
   Only strategies1–5 are scalar GIN probes; SQL not-equal remains ordinary
   predicate evaluation and does not authorize a GiST/distance member.
-  Exact/prefix/array probes and scalar strategies1–5 consume dictionary postings.
-  Scalar equality shares the exact list; range probes binary-bound ordinary keys
-  and use storage's typed cursor-heap union of only the selected lists, never
-  relation heap or NonNull membership. For P postings from k nonempty lists,
-  work is O(P log k), with one output allocation and O(k) cursor scratch rather
-  than growing-prefix copies. Empty intervals return nil; one selected list
-  remains borrowed. Cancellation at any phase, including the final boundary,
-  returns nil rather than partial postings. Scalar predicate recheck and
-  visibility remain source-owned; no optimizer path or second scalar/array/FTS
-  matcher is introduced.
+  Root-and-ordinal exact/prefix/array/scalar probes search both portions,
+  intersecting inside a coherent portion before union. Scalar strategies1–5
+  select each portion's typed dictionary postings and union exact physical
+  triples. Equality and single-list ranges share borrowed backing when only one
+  portion matches; range probes binary-bound ordinary keys and use storage's
+  typed cursor-heap union of only the selected lists, never relation heap or
+  NonNull membership. Within each portion, P postings from k nonempty lists cost
+  O(P log k), with one output allocation and O(k) cursor scratch rather than
+  growing-prefix copies. Two nonempty portions need one further linear identity
+  union. Empty intervals return nil; one selected list remains borrowed.
+  Cancellation at any phase, including the final cross-portion union boundary,
+  returns nil rather than partial postings. Scalar predicate
+  recheck and visibility remain source-owned; no optimizer path or second
+  scalar/array/FTS matcher is introduced. Current roots do not replace ordinary
+  own-write or historical visibility.
   Class/family presentation ALTER (`gin_presentation.go`) strictly authenticates
   predecessor captures before selecting current target support. Search transport
   follows the bound member IDs and complete search stamps, never inferred class
@@ -129,18 +138,48 @@ builds a binder.
   or an installable root merely to discard it.
   Baseline and vacuum structurally filter/remap postings without SQL callbacks;
   slot-only layouts share unchanged bindings/backing. Snapshot/remint reconstructs
-  destination generations and exact physical ownership from transported produced
-  keys, retaining construction history. Empty roots retain actual column bindings.
-  `fastupdate` and `gin_pending_list_limit` retain typed and lexical physical
-  configuration intent (absent defaults on/4096KB), without pending lists/pages.
-  PostgreSQL insertion uses the session threshold unless the index reloption
-  overrides it; SET/RESET/LOCAL here never rebuilds logical postings. Inquiry
-  and separate ALTER replay preserve explicit defaults, spelling and order.
-  `gin_clean_pending_list(regclass)` checks current index kind, GIN implementation,
-  TEMP session and ownership before explicitly rejecting physical pending-list
-  cleanup with named `0A000`; it never returns a fake zero-page count. Typed NULL
-  or undemanded success is not successful cleanup. JSONB token providers are
-  honestly unavailable, not reported as nonexistent PG classes.
+  destination generations, split placement and exact physical ownership from
+  transported produced keys, retaining construction history. Empty roots retain
+  actual column bindings.
+  Exact retained TEMP indexes have a separate replacement-owner certificate
+  (`gin_replacement.go`). Strict old bindings authenticate the live source;
+  fresh destination classes require the same native method, sealed callable
+  declarations, support/search members and concrete type/collation semantics.
+  COW key and both binding wrappers share entries, membership, tokens and
+  postings, retaining construction lineage. Reset may restore persistent class
+  presentation without stranding TEMP captures at the old revision. Detached
+  binding admission remains strict; no SQL/key extraction or old persistent
+  class retention is used to repair replacement.
+  A seeded lookup-only search operator retains its exact validated metadata
+  without inventing a callable provider for Function/Result zero. Nonzero search
+  functions still require the full callable certificate; arbitrary shell
+  operators cannot use the retained replacement path.
+  Concurrent materialized refresh (`gin_materialized.go`) is differential even
+  though the heap owner remints destination versions. Matched rows carry exact
+  retained Values provenance, including separate occurrences sharing a buffer:
+  their placement survives; genuinely new rows use current fastupdate. The
+  transport partitions already-built typed postings without repeating SQL/key/
+  token extraction and freezes matching build-output flags before attachment.
+  Ordinary nonconcurrent refresh is a genuine bulk-main rebuild.
+  `CleanGin` bulk-merges already-extracted pending dictionaries into main without
+  replaying SQL expressions/predicates. It preserves exact Entries, membership
+  and construction debt. The returned technical estimate is ceil(U/128), where
+  U is deduplicated pending token-posting incidences across all columns, including
+  NULL/empty categories; it is not physical PostgreSQL pages or a row count.
+  `GinMaintenance` prepares COW owner/savepoint/history/prepared output placement
+  and candidate/receipt transports. Core owns cohort locks, readmission and the
+  single callback-free installation; private rows never enter shared membership.
+  Output admission uses exact enrolled descriptor/receipt pointers or strict
+  actual `IndexAdmission` certification, never semantic `OutputMatches` alone.
+  `fastupdate` defaults on. Off routes later writes to main but never flushes old
+  pending work. SET/RESET/LOCAL retains typed/lexical configuration without
+  rebuilding; inquiry and separate ALTER replay preserve explicit defaults,
+  spelling and order. PostgreSQL insertion uses the session threshold unless an
+  index reloption overrides it (default 4096KB). Native `gin_pending_list_limit`
+  retains intent only: no automatic threshold/autovacuum or physical page
+  algorithm is introduced. Native metadata records exact live pending dump-row
+  ordinals and rebuilds destination split from typed keys.
+  JSONB token providers remain unavailable, not nonexistent PostgreSQL classes.
   `pgstattuple.go` estimates tuple/page metrics from current logical roots and
   already-produced private outputs. Published logical removal stops contributing
   at once; pgstattuple dead index count is zero because roots have no killed-item
@@ -218,16 +257,22 @@ builds a binder.
   Missing-heap diagnostics use the shared logical-version TID encoding; no
   physical index coordinates or LSN Detail are synthesized.
   `CheckGin` binds the actual GIN key/class/collation generations and validates
-  retained dictionary categories, canonical payloads, strict token/posting order,
-  exact entry-to-store ownership and NonNull membership. Independently extracted
-  retained keys must find their actual dictionary postings; ordinal stamps
-  deduplicate repeated tokens without building another tree. Real private output,
-  successor and deletion authority is checked separately, never demanded in
-  committed dictionaries. Required callable outputs are consumed, not replayed.
-  Scans, extraction and searches honor cancellation. Malformed retained GIN data
-  reports XX002 `GIN posting invariant violated for index "name"` with no
-  invented physical coordinates. Physical GIN pages, links and pending-list
-  validation are not represented by this logical checker.
+  both main and pending dictionaries: categories, canonical payloads, strict
+  token/posting order, exact entry-to-store ownership and NonNull membership.
+  Each entry belongs to exactly one portion across all indexed columns; neither
+  duplicate placement nor a cross-column split is accepted. Independently
+  extracted retained keys must find their actual portion's postings; ordinal
+  stamps deduplicate repeated tokens without merging or building another tree.
+  Real private produced output, successor and deletion authority is checked
+  separately, never demanded in committed dictionaries. Every GIN insertion
+  requires its actual output/placement; no missing-output row extraction or
+  callable replay is allowed. Scans, extraction and searches honor cancellation.
+  Authenticated installed scalar bindings admit ordinary tokens only at the
+  exact concrete key generation and payload-free GinNullItem; array-only
+  NULL-element/empty categories and lexeme carriers cannot become scalar tokens.
+  Malformed retained GIN data reports XX002 `GIN posting invariant violated for
+  index "name"` without invented physical coordinates. Physical GIN pages,
+  links and pending-list pages are not represented by this logical checker.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over
@@ -589,6 +634,13 @@ does not infer a stock provider from a name or retained discriminator. The
 caller supplies its existing owner with the candidate state (`WithState`).
 Captured keys, source rows and index expressions remain immutable; this changes
 authority retention, not predicate/expression evaluation during transport.
+`RemintStorage` owns the private replacement catalog. Symbolic import strips
+source support seals, so remint strictly binds destination GIN classes and COWs
+only changed relation/key descriptors before transporting their roots. Both
+payload portions and construction history then capture the same actual
+destination descriptor; cleanup does not refresh or shape-admit detached source
+captures. Retained TEMP indexes keep their separate source-authorized rebind.
+Ordinary `Snapshot.Transport`/`TransportRows` do not mutate their catalog.
 Whole-storage deletion and detached template TEMP metadata share the same
 method-specific empty-root constructor. It rebinds providers to a real private
 empty store without evaluating SQL keys; remint retains normal descriptor,

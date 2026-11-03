@@ -44,13 +44,13 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 	for _, operand := range []string{"$1::regclass", "'gin_protocol_i'::regclass", "NULL::regclass"} {
 		t.Run(operand, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "pg_catalog.gin_clean_pending_list("+operand+")")
-			n := node.(functions.GinCleanPendingList)
+			n := node.(functions.GinMaintenanceCall)
 			declaration, err := exec.ExpressionRoutineDescriptor(n)
 			if err != nil || declaration == nil || declaration.Builtin == nil {
 				t.Fatal("selected declaration", declaration, err)
 			}
 			d := declaration.Builtin
-			if d.Identity.ID != 3789 || d.Identity.Namespace != 11 || d.Identity.Name != "gin_clean_pending_list" || d.Identity.Signature != "2205" || d.Result != 20 || !d.Strict || d.Volatility != expr.Volatile || d.Parallel != 'u' || d.ReturnsSet || d.Providers != functions.CatalogRoutineProvider {
+			if d.Identity.ID != 3789 || d.Identity.Namespace != 11 || d.Identity.Name != "gin_clean_pending_list" || d.Identity.Signature != "2205" || d.Result != 20 || !d.Strict || d.Volatility != expr.Volatile || d.Parallel != 'u' || d.ReturnsSet || d.Providers != functions.GinMaintenanceRoutineProvider {
 				t.Fatal("released identity and actual provider", d)
 			}
 			if declaration.Display.Language != catalog.InternalRoutineLanguage || declaration.Display.Source != "gin_clean_pending_list" || declaration.Cost != 1 {
@@ -75,7 +75,7 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			next := rebuilt.(functions.GinCleanPendingList)
+			next := rebuilt.(functions.GinMaintenanceCall)
 			if next.Info != info || next.RoutineReference != n.RoutineReference || !reflect.DeepEqual(next.Arg, n.Arg) || !reflect.DeepEqual(n, original) || !n.SameGroup(next, func(a, b expr.Expr) bool { return reflect.DeepEqual(a, b) }, true) {
 				t.Fatal("immutable reconstruction/provenance/group")
 			}
@@ -115,7 +115,7 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 				t.Fatal("nonvolatile recipe accepted")
 			}
 			render, err := n.Render()
-			if err != nil || render.Name != "gin_clean_pending_list" || render.Tree != "GinCleanPendingList" || render.Form != expr.FormCall || len(render.Inputs) != 1 || len(render.Args) != 1 || !reflect.DeepEqual(render.Inputs[0], n.Arg) {
+			if err != nil || render.Name != "gin_clean_pending_list" || render.Tree != "GinMaintenance" || render.Form != expr.FormCall || len(render.Inputs) != 1 || len(render.Args) != 1 || !reflect.DeepEqual(render.Inputs[0], n.Arg) {
 				t.Fatal("ordinary rendering", render, err)
 			}
 			capture, ok, err := n.Capture(expr.CaptureFunction)
@@ -131,7 +131,7 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 			}
 			var jumble ginCleanupJumble
 			n.JumbleFields(&jumble)
-			if !reflect.DeepEqual(jumble.fields, []string{"functions.GinCleanPendingList"}) {
+			if !reflect.DeepEqual(jumble.fields, []string{"functions.GinMaintenanceCall"}) {
 				t.Fatal("owned jumble discriminator", jumble)
 			}
 			if operand == "$1::regclass" {
@@ -169,9 +169,11 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 					}
 				}
 			} else {
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "0A000", Message: "gin_clean_pending_list physical GIN pending-list cleanup is unsupported in embedded mode"})
-				if value.Type() != nil {
-					t.Fatal("failed cleanup manufactured result", value)
+				if err != nil || value.IsNull() || value.Type() != n.Usage.Type {
+					t.Fatal("empty cleanup must return typed zero", value, err)
+				}
+				if count, err := value.Integer(); err != nil || count != 0 {
+					t.Fatal("empty cleanup count", count, err)
 				}
 				planned, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, n, true)
 				if err != nil || reflect.TypeOf(planned) != reflect.TypeOf(n) {
@@ -190,7 +192,7 @@ func TestGINCleanPendingListProtocol(t *testing.T) {
 		})
 	}
 	node, _, evaluation := strictNullUnitBind(t, e, op, scope, "gin_clean_pending_list((1/0)::oid::regclass)")
-	child := node.(functions.GinCleanPendingList).Arg
+	child := node.(functions.GinMaintenanceCall).Arg
 	_, expected := child.Eval(&evaluation)
 	_, actual := node.Eval(&evaluation)
 	if expected == nil || !reflect.DeepEqual(expected, actual) {

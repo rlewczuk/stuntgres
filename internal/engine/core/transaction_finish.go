@@ -8,11 +8,13 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 )
 
 func (s *StatementScope) Finish(err error) (result error) {
@@ -355,14 +357,38 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 	if s.foreignTablesOrZero().owner != nil {
 		err = s.finishForeignOwner(s.foreignTablesOrZero().owner, err)
 	}
+	if err == nil && catalog != nil {
+		for _, candidate := range index.JournalIndexesOrZero(catalog).Candidates {
+			if candidate.Root != nil && candidate.Root.Gin != nil {
+				err = util.ExecutionCheckpoint(s.ActivateRuntime(s.executionContext()), "gin.statement.validated")
+				break
+			}
+		}
+	}
 	t.Mu.Lock()
 	if err == nil {
+	privateForeignFence:
+		if stamp := s.IndexesOrZero(); stamp.GinSourceCaptured && stamp.GinSourceRevision != t.GinRevision {
+			return ids.ErrCatalogReplaced
+		}
+		// Only a physical cleanup can advance accepted placement. In particular,
+		// ordinary private writes must not acquire normalization's allocations
+		// or additional context polls before their final locked preflight.
+		if t.GinRevision != 0 {
+			s.Stage.Rows, err = index.ReconcileGinWrites(s.Op.Context(), s.Stage.Rows, t.Writes)
+			if err != nil {
+				return err
+			}
+			catalog = index.ReconcileGinJournal(catalog, t.Catalog)
+		}
+		if s.ProjectedRoots {
+			writes = s.Stage.Rows
+		}
 		if !s.ProjectedRoots {
 			writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.Replacing)
 		}
 		notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
 		session := s.Op.Session
-	privateForeignFence:
 		e.Mu.Lock()
 		err = s.validateInheritanceRelationshipsLocked(e)
 		session.Mu.Lock()

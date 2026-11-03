@@ -268,14 +268,6 @@ func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork s
 	return host.CatalogInquiry().SizeInquiry(kind, arg, fork, result)
 }
 
-func (c *Context) GinCleanPendingList(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.LiveHost()
-	if host == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing GIN pending-list cleanup snapshot")
-	}
-	return host.CatalogInquiry().GinCleanPendingList(oid, result)
-}
-
 func (c *Context) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

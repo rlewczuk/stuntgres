@@ -14,8 +14,8 @@ import (
 // ValidatePrivateExpressions evaluates the derived keys and predicates of
 // view's ready, live indexes over the staged private rows, so derived-key
 // errors surface before the rows are installed rather than at COMMIT. Indexes
-// with runtime domain conversions retain their actual outputs for publication
-// without a host.
+// with runtime domain conversions and all GIN member versions retain actual
+// outputs for host-free publication and monotonic physical placement.
 // The rows that gain outputs are cloned and written back into staged. Admission
 // owns the rows; view and the execution trees are immutable.
 func ValidatePrivateExpressions(evaluation *exec.Context, view catalog.Read, staged map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
@@ -28,7 +28,7 @@ func ValidatePrivateExpressions(evaluation *exec.Context, view catalog.Read, sta
 		if len(rows) == 0 {
 			continue
 		}
-		if idx.SQLIndex.Predicate == nil {
+		if idx.SQLIndex.Predicate == nil && idx.SQLIndex.Method != catalog.GinMethod {
 			derived := false
 			for _, key := range idx.SQLIndex.Keys {
 				derived = derived || key.Derived != nil
@@ -37,7 +37,7 @@ func ValidatePrivateExpressions(evaluation *exec.Context, view catalog.Read, sta
 				continue
 			}
 		}
-		pending := idx.SQLIndex.HasRuntimeDomainConversion()
+		pending := idx.SQLIndex.HasRuntimeDomainConversion() || idx.SQLIndex.Method == catalog.GinMethod
 		var ordering Ordering
 		var hash storage.HashBinding
 		var preparation ExecutionPreparation

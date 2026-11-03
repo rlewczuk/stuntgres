@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -55,6 +56,10 @@ type restoreRun struct {
 	attributeStatistics      []storage.AttributeStatisticsSnapshot
 	relationStatistics       []storage.RelationStatisticsSnapshot
 	initialPrivileges        *control.InitialPrivilegesMetadata
+	ginIndexes               []index.GinDumpIndex
+	ginRows                  []index.PositionedGinRow
+	ginRowPairs              map[*parser.Insert]index.GinDumpRow
+	ginIdentities            map[[2]string]map[int]index.RowIdentity
 	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
 	comparison               control.ComparisonRestore
 	attributePairs           control.AttributeConstructorPairs
@@ -105,6 +110,7 @@ type restoreStatement struct {
 	ownerPair                          table.RestoredInheritedOwner
 	typeOwnerPair                      typedef.RestoredTypeOwner
 	plChecked                          *core.PLCheckedReplayCapture
+	ginInsert                          core.RestoreInsertCapture
 }
 
 // startCaptures allocates the capture maps once the restore session is
@@ -159,6 +165,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 	if err != nil {
 		return err
 	}
+	r.ginRowPairs, err = index.PairGinRows(r.source, r.statements, r.ginRows)
+	if err != nil {
+		return err
+	}
 	return pairRestoreComparisonContext(r)
 }
 
@@ -185,6 +195,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		core.OperationReplay(op).StagingEffects = false
 		core.OperationReplay(op).SQLBodies = false
 		core.OperationReplay(op).PLChecked = nil
+		core.OperationReplay(op).GinInsert = nil
 		core.OperationReplay(op).DefaultReplay = false
 		core.OperationReplay(op).LargeObjectAuthority = false
 		core.OperationReplay(op).PartitionAttach = false
@@ -220,6 +231,12 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	defer func() { core.OperationReplay(op).PLChecked = nil }()
 	defer clearRestoreMembershipHistory(op)
 	var err error
+	defer func() {
+		core.OperationReplay(op).GinInsert = nil
+		if err != nil {
+			r.cur.ginInsert = core.RestoreInsertCapture{}
+		}
+	}()
 	var result core.Result
 	if domain, ok := stmt.(*parser.CreateDomain); ok {
 		if record, paired := r.domainDefaultPairs[domain]; paired {

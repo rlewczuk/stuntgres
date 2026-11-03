@@ -525,6 +525,19 @@ health check only, never an implicit `DISCARD` or rollback. Run `DISCARD ALL` on
 the pinned connection before `Conn.Close` to clean it. Canceled statements and
 ordinary SQL errors leave the connection reusable.
 
+`gin_clean_pending_list(regclass)` returns one nullable INT8 scalar (`int64`, or
+nil for NULL) through direct and prepared calls. GIN fastupdate writes stage real
+deferred typed postings; disabling fastupdate leaves prior work available for
+cleanup. Native counts approximate removed pages as ceil(U/128), where U is actual
+deduplicated pending token-posting work across columns, including category tokens;
+they are not physical 8KiB pages or indexed-row counts. Index ownership and
+ordinary routine EXECUTE admission are separate. Successful representation
+transfer survives SQL rollback/savepoint/downstream runtime failure and is allowed
+in read-only SELECT, while private row visibility and eventual commit/abort remain
+ordinary. Native Dump/Restore persists both portions with destination-owned keys;
+ordinary PostgreSQL SQL replay does not promise equal physical page counts.
+
+
 ### Cooperative execution pauses
 
 `NewExecutionPause(point)` creates a one-shot host backpressure request.
@@ -561,6 +574,12 @@ Supported stable work points are:
   It holds genuine detached storage inspection with metadata/capture locks
   released. Empty tables, skipped/denied work and nonexecuting preparation or
   progress observations do not admit this point.
+- GIN representation work: `gin.maintenance.prepared` after all cohort/root COW
+  replacements are prepared, `gin.publication.prepared` after index publication
+  preparation, `gin.statement.validated` before a checked private stage transfers,
+  and `gin.restore.prepared` before isolated native split installation. These
+  points hold no engine/owner metadata mutex. They coordinate native work only,
+  not PostgreSQL physical phases.
 
 `query.aggregate.sort` retains a successful real aggregate ordered-input tuple
 comparison before its ordering result returns. Unlike the earlier

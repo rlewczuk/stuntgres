@@ -51,7 +51,7 @@ func TestBtreeGINTemporalPublication(t *testing.T) {
 			query := ginInput(t, next.Binding.Usage.Type, tc.lower)
 			want := compoundExactPostings([]int{0})
 			want = append(want, storage.GinPosting{Row: 199, Version: 299, Position: temporalPhysicalRows})
-			got, err := index.GinScalarCandidates(context.Background(), next, query, 3, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), candidate.Gin, col, query, 3, sqltype.InputEnvironment{})
 			if err != nil || !slices.Equal(got, want) {
 				t.Fatal("published exact produced triples", tc.typ, got, want, err)
 			}
@@ -87,7 +87,7 @@ func TestBtreeGINTemporalPublication(t *testing.T) {
 		ginAssertOwners(t, inserted, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range temporalPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.upper)}
-			a, b := ginLookup(t, old.Gin.Columns[col], token), ginLookup(t, inserted.Gin.Columns[col], token)
+			a, b := ginLookup(t, old.Gin.Pending[col], token), ginLookup(t, inserted.Gin.Pending[col], token)
 			if &a[0] != &b[0] {
 				t.Fatal("append rebuilt unaffected upper", tc.typ)
 			}
@@ -97,9 +97,9 @@ func TestBtreeGINTemporalPublication(t *testing.T) {
 		ginAssertOwners(t, updated, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range temporalPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			previous := ginLookup(t, old.Gin.Columns[col], token)
+			previous := ginLookup(t, old.Gin.Pending[col], token)
 			want := []storage.GinPosting{previous[len(previous)-1]}
-			got := ginLookup(t, updated.Gin.Columns[col], token)
+			got := ginLookup(t, updated.Gin.Pending[col], token)
 			if !slices.Equal(got, want) {
 				t.Fatal("update ended exact predecessor", tc.typ, got, want)
 			}
@@ -127,7 +127,7 @@ func TestBtreeGINTemporalPublication(t *testing.T) {
 		ginAssertOwners(t, committed, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range temporalPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			got := ginLookup(t, committed.Gin.Columns[col], token)
+			got := ginLookup(t, committed.Gin.Pending[col], token)
 			want := 1
 			if len(got) != want {
 				t.Fatal("savepoint survivor", tc.typ, got)

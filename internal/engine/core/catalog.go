@@ -95,7 +95,7 @@ type CatalogStage struct {
 	AuthSession        *session.Session
 	statement          *StatementScope
 	replicationOrigins []ids.OID
-	subscriptionStats []statistics.Key // Provisional creations until stage adoption.
+	subscriptionStats  []statistics.Key // Provisional creations until stage adoption.
 	AuthRevision       uint64
 	RoleRevision       uint64
 	// Selected lifecycle stages retain their original admission only until the
@@ -801,6 +801,19 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
+		if r := s.MaterializedOrZero().Replacement; r != nil && r.Concurrent {
+			for address, root := range indexRoots {
+				target, ok := next.Relation(address)
+				if !ok || target.SQLIndex == nil || target.SQLIndex.Method != catalog.GinMethod || target.SQLIndex.Parent != r.Original.Address() {
+					continue
+				}
+				root, indexErr = index.TransportConcurrentGin(p.ctx, target, r.Predecessor, indexPredecessors[address], root, r.Storage, nil, nil)
+				if indexErr != nil {
+					return ChangeSet{}, indexErr
+				}
+				indexRoots[address] = root
+			}
+		}
 		if err := validatePublishedCatalog(e.Catalog.Read(next), current, next, s); err != nil {
 			return ChangeSet{}, err
 		}
@@ -815,7 +828,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			e.Mu.Unlock()
 			continue
 		}
-		if !index.StoresUnchanged(e.Storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
+		if !e.Storage.IndexRootsCurrent(indexPredecessors) || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
 				op.Session.Mu.Unlock()
 			}
@@ -1060,7 +1073,9 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 		if len(s.replicationOrigins) != 0 || len(s.subscriptionStats) != 0 {
 			e.Mu.Lock()
 			e.releaseStageReplicationOriginsLocked(s)
-			for _, key := range s.subscriptionStats { e.Statistics.Retire(key) }
+			for _, key := range s.subscriptionStats {
+				e.Statistics.Retire(key)
+			}
 			s.subscriptionStats = nil
 			e.Mu.Unlock()
 		}

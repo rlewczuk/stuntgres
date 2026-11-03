@@ -37,6 +37,7 @@ type Source struct {
 	State          *catalog.State
 	Relations      map[ids.ObjectAddress]*storage.Relation
 	Sequences      map[ids.ObjectAddress]*storage.SequenceGenerator
+	IndexRoots     map[ids.ObjectAddress]*storage.IndexRoot
 	Frontier       ids.CommitSeq
 	Bootstrap      authorization.PrincipalRef
 	Foreign        fdw.Registry
@@ -84,6 +85,9 @@ func Collect(ctx context.Context, source Source) (*Capture, error) {
 		if err := c.collect(ctx, a, d); err != nil {
 			return nil, err
 		}
+	}
+	if err := c.captureGin(ctx); err != nil {
+		return nil, err
 	}
 	return c.Capture, nil
 }

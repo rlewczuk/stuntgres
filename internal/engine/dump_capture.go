@@ -60,6 +60,7 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 		State:            state,
 		Relations:        e.Storage.Relations,
 		Sequences:        e.Storage.Sequences,
+		IndexRoots:       e.Storage.IndexRoots,
 		Frontier:         e.Visibility.CommitSeq(),
 		Bootstrap:        e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID),
 		Foreign:          e.Foreign,

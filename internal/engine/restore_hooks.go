@@ -28,6 +28,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
 	{Name: "partition: pending detach records", Decode: decodeRestorePendingDetach},
 	{Name: "initial privileges inventory", Decode: decodeRestoreInitialPrivileges},
+	{Name: "GIN split records", Decode: decodeRestoreGin},
 
 	// Before admission.
 	{Name: "comparison binding context", Before: beforeRestoreComparisonContext},
@@ -90,6 +91,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: UNIQUE replay", Prepare: prepareRestorePartitionUnique},
 	{Name: "partition: generated teardown extension", Prepare: prepareRestorePartitionTeardown},
 	{Name: "routine: checked PL admission", Prepare: prepareRestorePLChecked},
+	{Name: "GIN relational row capture", Prepare: prepareRestoreGinRow},
 
 	// After execution.
 	{Name: "comparison bound definition", After: afterRestoreComparisonContext},
@@ -111,6 +113,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: attribute definition capture", After: afterRestoreAttributeDefinition},
 	{Name: "trigger: retained clone capture", After: afterRestoreTriggerClone},
 	{Name: "routine: checked PL admission consumed", After: afterRestorePLChecked},
+	{Name: "GIN relational row identity", After: afterRestoreGinRow},
 
 	// After the last statement.
 	{Name: "host runtime prerequisite closure", Finish: finishRestoreHostRequirements},
@@ -127,4 +130,5 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	// Pending membership is installed only after every ordinary repair completes.
 	{Name: "partition: pending detach membership", Finish: finishRestorePendingDetaches},
 	{Name: "initial privileges replacement", Finish: finishRestoreInitialPrivileges},
+	{Name: "GIN split replacement", Finish: finishRestoreGin},
 }

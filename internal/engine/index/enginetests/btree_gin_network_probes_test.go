@@ -99,7 +99,7 @@ func TestBtreeGINNetworkPostings(t *testing.T) {
 		column.NonNull = []storage.GinPosting{{Row: 9999, Version: 9999, Position: 9999}}
 		networkProbeProof(t, column, tc.boundary, tc.absent, [][]int{{0}, {0, 1, 2}, {1, 2}, {1, 2, 3}, {3}}, []int{0, 1, 2, 3})
 		sameID := *column.Binding.Usage.Type
-		if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("equal-ID foreign scalar probe admitted", got, err)
 		}
 	}
@@ -113,8 +113,9 @@ func TestBtreeGINNetworkPostings(t *testing.T) {
 func networkProbeProof(t *testing.T, column storage.GinColumn, boundary, absent string, want [][]int, all []int) {
 	t.Helper()
 	query := ginInput(t, column.Binding.Usage.Type, boundary)
+	probe := &storage.GinRoot{Columns: []storage.GinColumn{column}}
 	for i, positions := range want {
-		got, err := index.GinScalarCandidates(context.Background(), column, query, i+1, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), probe, 0, query, i+1, sqltype.InputEnvironment{})
 		if err != nil || !slices.Equal(got, compoundExactPostings(positions)) {
 			t.Fatal("selected strategy exact triples", i+1, got, positions, err)
 		}
@@ -124,25 +125,25 @@ func networkProbeProof(t *testing.T, column storage.GinColumn, boundary, absent 
 				t.Fatal("equality copied posting backing")
 			}
 		}
-		null, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(query.Type()), i+1, sqltype.InputEnvironment{})
+		null, err := index.GinScalarCandidates(context.Background(), probe, 0, sqltype.Null(query.Type()), i+1, sqltype.InputEnvironment{})
 		if err != nil || len(null) != 0 {
 			t.Fatal("strict NULL", null, err)
 		}
 		empty := column
 		empty.Tokens = nil
-		got, err = index.GinScalarCandidates(context.Background(), empty, query, i+1, sqltype.InputEnvironment{})
+		got, err = index.GinScalarCandidates(context.Background(), &storage.GinRoot{Columns: []storage.GinColumn{empty}}, 0, query, i+1, sqltype.InputEnvironment{})
 		if err != nil || len(got) != 0 {
 			t.Fatal("empty dictionary", got, err)
 		}
 	}
 	if absent != "" {
-		if got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, query.Type(), absent), 3, sqltype.InputEnvironment{}); err != nil || len(got) != 0 {
+		if got, err := index.GinScalarCandidates(context.Background(), probe, 0, ginInput(t, query.Type(), absent), 3, sqltype.InputEnvironment{}); err != nil || len(got) != 0 {
 			t.Fatal("missing equality", got, err)
 		}
 	}
 	for _, strategy := range []int{0, 6, 15} {
 		for _, value := range []sqltype.Value{query, sqltype.Null(query.Type())} {
-			got, err := index.GinScalarCandidates(context.Background(), column, value, strategy, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), probe, 0, value, strategy, sqltype.InputEnvironment{})
 			if err == nil || got != nil {
 				t.Fatal("invented strategy", strategy, got, err)
 			}
@@ -154,7 +155,7 @@ func networkProbeProof(t *testing.T, column storage.GinColumn, boundary, absent 
 		strategy  int
 		positions []int
 	}{{first, 1, nil}, {last, 5, nil}, {first, 4, all}, {last, 2, all}} {
-		got, err := index.GinScalarCandidates(context.Background(), column, edge.value, edge.strategy, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), probe, 0, edge.value, edge.strategy, sqltype.InputEnvironment{})
 		if err != nil || !slices.Equal(got, compoundExactPostings(edge.positions)) {
 			t.Fatal("endpoint range", got, err)
 		}
@@ -164,12 +165,12 @@ func networkProbeProof(t *testing.T, column storage.GinColumn, boundary, absent 
 	for _, kind := range []sqltype.GinTokenKind{sqltype.GinNullElement, sqltype.GinEmptyItem, sqltype.GinNullItem} {
 		categories.Tokens = append(categories.Tokens, storage.GinPostingList{Token: sqltype.GinToken{Kind: kind}, Postings: []storage.GinPosting{{Row: 9999, Version: 9999, Position: 9999}}})
 	}
-	got, err := index.GinScalarCandidates(context.Background(), categories, first, 4, sqltype.InputEnvironment{})
+	got, err := index.GinScalarCandidates(context.Background(), &storage.GinRoot{Columns: []storage.GinColumn{categories}}, 0, first, 4, sqltype.InputEnvironment{})
 	if err != nil || !slices.Equal(got, compoundExactPostings(all)) {
 		t.Fatal("placeholder category leaked", got, err)
 	}
 	interrupted := &spgistInterruptContext{Context: context.Background(), remaining: 3}
-	got, err = index.GinScalarCandidates(interrupted, column, query, 4, sqltype.InputEnvironment{})
+	got, err = index.GinScalarCandidates(interrupted, probe, 0, query, 4, sqltype.InputEnvironment{})
 	if !errors.Is(err, context.Canceled) || got != nil {
 		t.Fatal("partial canceled candidates", got, err)
 	}

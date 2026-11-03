@@ -18,20 +18,21 @@ import (
 // registry owns these roots and the original lock/SSI identity after detach;
 // no session attachment is consulted to authorize completion.
 type PreparedTransaction struct {
-	GID      string
-	Owner    authorization.PrincipalRef
-	Ref      ids.TxRef
-	Prepared time.Time
-	Database string
-	Ticket   *lock.Ticket
-	Writes   map[ids.ObjectAddress][]storage.RowVersion
-	Deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Stats    statistics.Ledger
-	Catalog  *Journal
-	Claimed  bool
-	Roots    map[ids.ObjectAddress]visibility.Root
-	Frontier ids.CommitSeq
-	Options  TxOptions
+	GID         string
+	Owner       authorization.PrincipalRef
+	Ref         ids.TxRef
+	Prepared    time.Time
+	Database    string
+	Ticket      *lock.Ticket
+	Writes      map[ids.ObjectAddress][]storage.RowVersion
+	GinRevision uint64 // Detached physical-placement publication fence.
+	Deletes     map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats       statistics.Ledger
+	Catalog     *Journal
+	Claimed     bool
+	Roots       map[ids.ObjectAddress]visibility.Root
+	Frontier    ids.CommitSeq
+	Options     TxOptions
 }
 
 // PreparedPublication is the 2PC phase of one publication: PREPARE installs

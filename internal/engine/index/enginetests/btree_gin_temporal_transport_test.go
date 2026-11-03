@@ -58,7 +58,7 @@ func TestBtreeGINTemporalTransport(t *testing.T) {
 				if populated {
 					want = []storage.GinPosting{{Row: 1002, Version: 2002, Position: 2}, {Row: 1003, Version: 2003, Position: 3}}
 				}
-				got, err := index.GinScalarCandidates(context.Background(), moved.Gin.Columns[col], query, 3, sqltype.InputEnvironment{})
+				got, err := index.GinScalarCandidates(context.Background(), moved.Gin, col, query, 3, sqltype.InputEnvironment{})
 				if err != nil || !slices.Equal(got, want) {
 					t.Fatal("reminted triples", tc.typ, got, want, err)
 				}
@@ -77,45 +77,54 @@ func TestBtreeGINTemporalTransport(t *testing.T) {
 			if targetIndex == idx || restored == root || restored.Gin == root.Gin || restored.Construction == root.Construction || !index.ConstructionMatches(restored, targetIndex) || len(restored.Gin.Columns) != 6 || len(restored.Entries) != len(root.Entries) {
 				t.Fatal("replacement lost destination state")
 			}
-			for col := range temporalPrivateCases {
-				a, b := root.Gin.Columns[col], restored.Gin.Columns[col]
-				if a.Binding.Same(b.Binding) || a.Binding.Usage.Type == b.Binding.Usage.Type || len(a.Tokens) != len(b.Tokens) {
-					t.Fatal("replacement retained source generation", col)
+			for portion, columns := range [2][]storage.GinColumn{root.Gin.Columns, root.Gin.Pending} {
+				destination := restored.Gin.Columns
+				if portion == 1 {
+					destination = restored.Gin.Pending
 				}
-				destinationType, _ := target.CatalogRead().LookupType(sqltype.ID(temporalPrivateCases[col].input))
-				if b.Binding.Usage.Type != destinationType {
-					t.Fatal("binding did not select actual destination type")
+				if len(columns) != len(destination) {
+					t.Fatal("replacement lost split placement", portion)
 				}
-				sourceClass, _ := view.OperatorClass(ids.OID(a.Binding.Class.OID()))
-				destinationClass, _ := target.CatalogRead().OperatorClass(ids.OID(b.Binding.Class.OID()))
-				sourceFamily, _ := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(a.Binding.Class.FamilyOID())})
-				destinationFamily, _ := target.CatalogRead().OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(b.Binding.Class.FamilyOID())})
-				pairs := [][2]catalog.Descriptor{{sourceClass, destinationClass}, {sourceFamily, destinationFamily}}
-				for slot := 2; slot <= 5; slot++ {
-					x := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(a.Binding.Class.Support(slot).Routine)})
-					y := target.CatalogRead().MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(b.Binding.Class.Support(slot).Routine)})
-					pairs = append(pairs, [2]catalog.Descriptor{x, y})
-				}
-				for _, pair := range pairs {
-					x, y := catalog.DescriptorOrigin(pair[0]), catalog.DescriptorOrigin(pair[1])
-					if x == nil || y == nil || x.Installation == y.Installation || x.Declaration != y.Declaration || x.Installation.Provider != "btree_gin" || y.Installation.Provider != "btree_gin" || x.Installation.Version != "1.3" || y.Installation.Version != "1.3" {
-						t.Fatal("symbolic declaration identity or independent seal lost")
+				for col := range columns {
+					a, b := columns[col], destination[col]
+					if a.Binding.Same(b.Binding) || a.Binding.Usage.Type == b.Binding.Usage.Type || len(a.Tokens) != len(b.Tokens) {
+						t.Fatal("replacement retained source generation", col)
 					}
-				}
-				for slot := 1; slot <= 5; slot++ {
-					if a.Binding.Class.Support(slot).Authority == b.Binding.Class.Support(slot).Authority {
-						t.Fatal("source support authority imported", col, slot)
+					destinationType, _ := target.CatalogRead().LookupType(sqltype.ID(temporalPrivateCases[col].input))
+					if b.Binding.Usage.Type != destinationType {
+						t.Fatal("binding did not select actual destination type")
 					}
-				}
-				if _, err := routine.BindClassSupport(target.CatalogRead(), a.Binding.Class); err == nil {
-					t.Fatal("source capture admitted by destination")
-				}
-				if populated && &a.Tokens[0] == &b.Tokens[0] {
-					t.Fatal("source dictionary backing imported")
-				}
-				for _, list := range b.Tokens {
-					if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
-						t.Fatal("destination token owner")
+					sourceClass, _ := view.OperatorClass(ids.OID(a.Binding.Class.OID()))
+					destinationClass, _ := target.CatalogRead().OperatorClass(ids.OID(b.Binding.Class.OID()))
+					sourceFamily, _ := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(a.Binding.Class.FamilyOID())})
+					destinationFamily, _ := target.CatalogRead().OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(b.Binding.Class.FamilyOID())})
+					pairs := [][2]catalog.Descriptor{{sourceClass, destinationClass}, {sourceFamily, destinationFamily}}
+					for slot := 2; slot <= 5; slot++ {
+						x := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(a.Binding.Class.Support(slot).Routine)})
+						y := target.CatalogRead().MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(b.Binding.Class.Support(slot).Routine)})
+						pairs = append(pairs, [2]catalog.Descriptor{x, y})
+					}
+					for _, pair := range pairs {
+						x, y := catalog.DescriptorOrigin(pair[0]), catalog.DescriptorOrigin(pair[1])
+						if x == nil || y == nil || x.Installation == y.Installation || x.Declaration != y.Declaration || x.Installation.Provider != "btree_gin" || y.Installation.Provider != "btree_gin" || x.Installation.Version != "1.3" || y.Installation.Version != "1.3" {
+							t.Fatal("symbolic declaration identity or independent seal lost")
+						}
+					}
+					for slot := 1; slot <= 5; slot++ {
+						if a.Binding.Class.Support(slot).Authority == b.Binding.Class.Support(slot).Authority {
+							t.Fatal("source support authority imported", col, slot)
+						}
+					}
+					if _, err := routine.BindClassSupport(target.CatalogRead(), a.Binding.Class); err == nil {
+						t.Fatal("source capture admitted by destination")
+					}
+					if len(a.Tokens) > 0 && &a.Tokens[0] == &b.Tokens[0] {
+						t.Fatal("source dictionary backing imported")
+					}
+					for _, list := range b.Tokens {
+						if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
+							t.Fatal("destination token owner")
+						}
 					}
 				}
 			}

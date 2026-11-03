@@ -162,7 +162,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 			e.Mu.Unlock()
 			before, store := e.Catalog.State, e.Storage.Relations[d.Address()]
-			if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
+			if _, err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
 			if e.Catalog.State != before || e.Storage.Relations[d.Address()] != store || d.Populated {
@@ -178,14 +178,23 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 	e.Mu.Unlock()
 	record := view.MaterializedSnapshot{Schema: "public", Name: "unit_mv", Populated: true, Rows: "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
-	if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
+	if _, err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
 	}
-	if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
+	identities, err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record})
+	if err != nil {
 		t.Fatal(err)
 	}
 	current := e.Catalog.State.MustRelation(d.Address())
 	stored := e.Storage.Relations[d.Address()].Versions
+	if len(identities[d.Address()]) != len(stored) {
+		t.Fatal("missing actual imported identities")
+	}
+	for i, row := range stored {
+		if got := identities[d.Address()][i]; got.Row != row.Row || got.Version != row.Version {
+			t.Fatal("import identity was inferred instead of transported")
+		}
+	}
 	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].Values[0], stored[1].Values[0]) || !stored[2].Values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")
 	}

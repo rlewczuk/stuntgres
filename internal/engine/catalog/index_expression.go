@@ -20,9 +20,10 @@ func (d *IndexDefinition) HasRuntimeDomainConversion() bool {
 
 // Callable index recipes must run on the produced tuple before RETURNING.
 // Reuse the tracked insertion output so publication does not call them twice.
-// Plain-column indexes retain their allocation-free insertion path.
+// Plain-column non-GIN indexes retain their allocation-free insertion path.
+// GIN retains actual produced placement before RETURNING or later reloptions.
 func (d *IndexDefinition) RequiresInsertionOutput() bool {
-	if d.HasRuntimeDomainConversion() {
+	if d.Method == GinMethod || d.HasRuntimeDomainConversion() {
 		return true
 	}
 	if d.Predicate != nil {

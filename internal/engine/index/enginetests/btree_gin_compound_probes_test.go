@@ -41,8 +41,9 @@ func compoundScalarProbeProof(t *testing.T, root *storage.IndexRoot) {
 		// NonNull is deliberately unusable as a candidate fallback: only the real
 		// dictionary lists carry the exact independently assigned physical triples.
 		column.NonNull = []storage.GinPosting{{Row: 9999, Version: 9999, Position: 9999}}
+		probe := &storage.GinRoot{Columns: []storage.GinColumn{column}}
 		for i, positions := range tc.want {
-			got, err := index.GinScalarCandidates(context.Background(), column, query, i+1, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), probe, 0, query, i+1, sqltype.InputEnvironment{})
 			exact := compoundExactPostings(positions)
 			if err != nil || !slices.Equal(got, exact) {
 				t.Fatal("selective scalar strategy triples", col, i+1, got, exact, err)
@@ -53,27 +54,27 @@ func compoundScalarProbeProof(t *testing.T, root *storage.IndexRoot) {
 					t.Fatal("equality copied or replaced exact posting-list backing", col)
 				}
 			}
-			null, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(column.Binding.Usage.Type), i+1, sqltype.InputEnvironment{})
+			null, err := index.GinScalarCandidates(context.Background(), probe, 0, sqltype.Null(column.Binding.Usage.Type), i+1, sqltype.InputEnvironment{})
 			if err != nil || len(null) != 0 {
 				t.Fatal("strict scalar NULL probe", col, i+1, null, err)
 			}
 			empty := column
 			empty.Tokens = nil
-			got, err = index.GinScalarCandidates(context.Background(), empty, query, i+1, sqltype.InputEnvironment{})
+			got, err = index.GinScalarCandidates(context.Background(), &storage.GinRoot{Columns: []storage.GinColumn{empty}}, 0, query, i+1, sqltype.InputEnvironment{})
 			if err != nil || len(got) != 0 {
 				t.Fatal("empty dictionary fabricated candidates", col, i+1, got, err)
 			}
 		}
 		if tc.absent != "" {
 			absent := ginInput(t, column.Binding.Usage.Type, tc.absent)
-			got, err := index.GinScalarCandidates(context.Background(), column, absent, 3, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), probe, 0, absent, 3, sqltype.InputEnvironment{})
 			if err != nil || len(got) != 0 {
 				t.Fatal("absent equality returned heap/NonNull members", col, got, err)
 			}
 		}
 		for _, strategy := range []int{0, 6, 15} {
 			for _, value := range []sqltype.Value{query, sqltype.Null(query.Type())} {
-				got, err := index.GinScalarCandidates(context.Background(), column, value, strategy, sqltype.InputEnvironment{})
+				got, err := index.GinScalarCandidates(context.Background(), probe, 0, value, strategy, sqltype.InputEnvironment{})
 				if err == nil || got != nil {
 					t.Fatal("invalid scalar strategy accepted", col, strategy, value, got, err)
 				}
@@ -89,7 +90,7 @@ func compoundScalarProbeProof(t *testing.T, root *storage.IndexRoot) {
 		}{
 			{first, 1, nil}, {first, 4, tc.all}, {last, 5, nil}, {last, 2, tc.all},
 		} {
-			got, err := index.GinScalarCandidates(context.Background(), column, edge.query, edge.strategy, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), probe, 0, edge.query, edge.strategy, sqltype.InputEnvironment{})
 			if err != nil || !slices.Equal(got, compoundExactPostings(edge.positions)) {
 				t.Fatal("exact endpoint scalar range", col, edge.strategy, got, err)
 			}
@@ -102,25 +103,25 @@ func compoundScalarProbeProof(t *testing.T, root *storage.IndexRoot) {
 		}
 		categories := column
 		categories.Tokens = ordinary
-		got, err := index.GinScalarCandidates(context.Background(), categories, first, 4, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), &storage.GinRoot{Columns: []storage.GinColumn{categories}}, 0, first, 4, sqltype.InputEnvironment{})
 		if err != nil || !slices.Equal(got, compoundExactPostings(tc.all)) {
 			t.Fatal("nonordinary category leaked into scalar range", col, got, err)
 		}
 		interrupted := &spgistInterruptContext{Context: context.Background(), remaining: 3}
-		got, err = index.GinScalarCandidates(interrupted, column, query, 4, sqltype.InputEnvironment{})
+		got, err = index.GinScalarCandidates(interrupted, probe, 0, query, 4, sqltype.InputEnvironment{})
 		if !errors.Is(err, context.Canceled) || got != nil {
 			t.Fatal("interrupted scalar probe exposed partial candidates", col, got, err)
 		}
 	}
 	for col := range 4 {
 		foreign := root.Gin.Columns[(col+1)%4].Binding.Usage.Type
-		if got, err := index.GinScalarCandidates(context.Background(), root.Gin.Columns[col], sqltype.Null(foreign), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(foreign), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("foreign scalar query generation admitted", col, got, err)
 		}
 	}
 	for col := 4; col < 6; col++ {
 		column := root.Gin.Columns[col]
-		if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(column.Binding.Usage.Type), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(column.Binding.Usage.Type), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("array/vector admitted as scalar", col, got, err)
 		}
 	}
@@ -144,7 +145,7 @@ func compoundScalarMergeProof(t *testing.T, view catalog.Read, parent, idx *cata
 		t.Fatal("valid scalar delta lacked materialized control", candidate, err)
 	}
 	query := ginInput(t, root.Gin.Columns[0].Binding.Usage.Type, "111")
-	got, err := index.GinScalarCandidates(context.Background(), candidate.Gin.Columns[0], query, 3, sqltype.InputEnvironment{})
+	got, err := index.GinScalarCandidates(context.Background(), candidate.Gin, 0, query, 3, sqltype.InputEnvironment{})
 	want := []storage.GinPosting{{Row: 105, Version: 205, Position: 4}, {Row: 199, Version: 299, Position: 7}}
 	if err != nil || !slices.Equal(got, want) {
 		t.Fatal("scalar delta lost produced physical ownership", got, want, err)
@@ -160,4 +161,13 @@ func compoundScalarMergeProof(t *testing.T, view catalog.Read, parent, idx *cata
 	if !reflect.DeepEqual(root.Gin, before) || !reflect.DeepEqual(root.Entries, entries) {
 		t.Fatal("scalar delta admission mutated predecessor")
 	}
+}
+
+func compoundScalarLookup(t *testing.T, root *storage.GinRoot, ordinal int, value sqltype.Value) []storage.GinPosting {
+	t.Helper()
+	postings, err := index.GinScalarCandidates(context.Background(), root, ordinal, value, 3, sqltype.InputEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return postings
 }

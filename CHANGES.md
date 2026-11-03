@@ -78,6 +78,16 @@
   NULL earth values. Parameter-first custom calls retain strict NULL; explicit
   generic demand evaluates the conversion with current helper-only diagnostics.
 
+- Add typed `gin_clean_pending_list(regclass)` with genuine immutable GIN
+  main/pending inversion, produced fastupdate placement, bulk cleanup and exact
+  membership/probe preservation. Cleanup uses index ownership and ordinary
+  EXECUTE/RowExclusive admission, survives SQL rollback/read-only SELECT, and
+  transfers active/savepoint/prepared private representation without publishing
+  private rows or resurrecting pending at commit. Native Dump/Restore preserves
+  split through symbolic relational-row metadata and destination-owned typed keys.
+  Removed-page results are technical ceil(token-posting incidences/128) estimates,
+  not physical PostgreSQL pages. Include executable OID3789 and full pg_proc facts.
+
 - Add transactional shared-builtin `ALTER TABLESPACE ... RENAME TO` and typed
   `OWNER TO`, with immutable live-name rebinding, owner/grantor/grantee ACL
   rebasing, same-owner no-op, shared target publication and attachment inheritance.

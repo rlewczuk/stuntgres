@@ -65,6 +65,7 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 			// Poison the shortcut vector only on the copied probe column: the actual
 			// source and its dictionaries remain genuine and immutable.
 			column.NonNull = []storage.GinPosting{{Row: 999999, Version: 999999, Position: 999999}}
+			probe := &storage.GinRoot{Columns: []storage.GinColumn{column}}
 			cases := []struct {
 				strategy int
 				bound    string
@@ -75,14 +76,14 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 					var got []storage.GinPosting
 					var probeErr error
 					allocations, bytes := util.AllocationsPerCall(3, func() {
-						got, probeErr = index.GinScalarCandidates(context.Background(), column, query, tc.strategy, sqltype.InputEnvironment{})
+						got, probeErr = index.GinScalarCandidates(context.Background(), probe, 0, query, tc.strategy, sqltype.InputEnvironment{})
 					})
 					if probeErr != nil || !slices.Equal(got, expected) {
 						t.Fatal("broad range lost exact Row/Version/Position order or included NULL/shortcut rows", tc.strategy, probeErr, got)
 					}
 					stopped, stop := context.WithCancel(context.Background())
 					stop()
-					if candidate, err := index.GinScalarCandidates(stopped, column, query, tc.strategy, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) || candidate != nil {
+					if candidate, err := index.GinScalarCandidates(stopped, probe, 0, query, tc.strategy, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) || candidate != nil {
 						t.Fatal("pre-canceled range exposed postings", candidate, err)
 					}
 					if allocations > 8 || bytes > int64(192*count+8192) {
@@ -98,7 +99,7 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 					// nonnil partial/successful slice paired with context.Canceled.
 					const allowance = 1 << 30
 					counted := &spgistInterruptContext{Context: context.Background(), remaining: allowance}
-					if _, err := index.GinScalarCandidates(counted, column, query, tc.strategy, sqltype.InputEnvironment{}); err != nil {
+					if _, err := index.GinScalarCandidates(counted, probe, 0, query, tc.strategy, sqltype.InputEnvironment{}); err != nil {
 						t.Fatal(err)
 					}
 					polls := allowance - counted.remaining
@@ -106,11 +107,11 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 						t.Fatal("range omitted admitted cancellation observations", polls)
 					}
 					merging := &spgistInterruptContext{Context: context.Background(), remaining: polls * 3 / 4}
-					if candidate, err := index.GinScalarCandidates(merging, column, query, tc.strategy, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) || candidate != nil {
+					if candidate, err := index.GinScalarCandidates(merging, probe, 0, query, tc.strategy, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) || candidate != nil {
 						t.Errorf("admitted canceled merge exposed partial postings: strategy=%d count=%d error=%v", tc.strategy, len(candidate), err)
 					}
 					late := &spgistInterruptContext{Context: context.Background(), remaining: polls}
-					canceled, err := index.GinScalarCandidates(late, column, query, tc.strategy, sqltype.InputEnvironment{})
+					canceled, err := index.GinScalarCandidates(late, probe, 0, query, tc.strategy, sqltype.InputEnvironment{})
 					if !errors.Is(err, context.Canceled) || canceled != nil {
 						t.Errorf("late canceled range exposed successful/partial postings: strategy=%d count=%d error=%v", tc.strategy, len(canceled), err)
 					}
@@ -124,24 +125,24 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 			var equal []storage.GinPosting
 			var equalErr error
 			allocations, bytes := util.AllocationsPerCall(5, func() {
-				equal, equalErr = index.GinScalarCandidates(context.Background(), column, equalityQuery, 3, sqltype.InputEnvironment{})
+				equal, equalErr = index.GinScalarCandidates(context.Background(), probe, 0, equalityQuery, 3, sqltype.InputEnvironment{})
 			})
 			if equalErr != nil || len(equal) != 1 || &equal[0] != &matching[0] || allocations != 0 || bytes != 0 {
 				t.Fatal("equality lost exact zero-allocation backing", equalErr, allocations, bytes)
 			}
-			if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(column.Binding.Usage.Type), 4, sqltype.InputEnvironment{}); err != nil || got != nil {
+			if got, err := index.GinScalarCandidates(context.Background(), probe, 0, sqltype.Null(column.Binding.Usage.Type), 4, sqltype.InputEnvironment{}); err != nil || got != nil {
 				t.Fatal("NULL query exposed ordinary/NULL postings", got, err)
 			}
 			minimum := ginInput(t, column.Binding.Usage.Type, "0")
-			if got, err := index.GinScalarCandidates(context.Background(), column, minimum, 1, sqltype.InputEnvironment{}); err != nil || got != nil {
+			if got, err := index.GinScalarCandidates(context.Background(), probe, 0, minimum, 1, sqltype.InputEnvironment{}); err != nil || got != nil {
 				t.Fatal("empty selected dictionary interval exposed postings", got, err)
 			}
-			singleton, err := index.GinScalarCandidates(context.Background(), column, minimum, 2, sqltype.InputEnvironment{})
+			singleton, err := index.GinScalarCandidates(context.Background(), probe, 0, minimum, 2, sqltype.InputEnvironment{})
 			if err != nil || len(singleton) != 1 || &singleton[0] != &column.Tokens[0].Postings[0] {
 				t.Fatal("single selected list lost borrowed immutable backing", singleton, err)
 			}
 			for _, strategy := range []int{6, 15} {
-				if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(column.Binding.Usage.Type), strategy, sqltype.InputEnvironment{}); err == nil || got != nil {
+				if got, err := index.GinScalarCandidates(context.Background(), probe, 0, sqltype.Null(column.Binding.Usage.Type), strategy, sqltype.InputEnvironment{}); err == nil || got != nil {
 					t.Fatal("NULL query authorized unavailable strategy", strategy, got, err)
 				}
 			}
@@ -152,7 +153,7 @@ func TestBtreeGINCompoundRangeResources(t *testing.T) {
 			duplicate.Tokens = slices.Clone(column.Tokens)
 			duplicate.Tokens[1].Postings = append(slices.Clone(column.Tokens[1].Postings), column.Tokens[0].Postings[0])
 			query := ginInput(t, column.Binding.Usage.Type, "0")
-			if got, err := index.GinScalarCandidates(context.Background(), duplicate, query, 4, sqltype.InputEnvironment{}); err != nil || !slices.Equal(got, expected) {
+			if got, err := index.GinScalarCandidates(context.Background(), &storage.GinRoot{Columns: []storage.GinColumn{duplicate}}, 0, query, 4, sqltype.InputEnvironment{}); err != nil || !slices.Equal(got, expected) {
 				t.Fatal("range did not union exact triples while retaining distinct versions", err, got)
 			}
 			if !reflect.DeepEqual(root.Gin, source) || !reflect.DeepEqual(root.Entries, entries) {

@@ -73,6 +73,16 @@ func textEngine(t *testing.T, populated bool) (*core.Engine, *catalog.Relation, 
 		}
 	}
 	idx, root := ginInstalledRoot(t, e, "text_private_i")
+	if populated && (len(root.Gin.Pending) != len(textPrivateCases) || storage.GinPendingIncidences(root.Gin) == 0) {
+		t.Fatal("populated fixture lacks genuine deferred postings")
+	}
+	if populated {
+		for _, column := range root.Gin.Columns {
+			if len(column.Tokens) != 0 || len(column.NonNull) != 0 {
+				t.Fatal("DML fixture unexpectedly populated bulk/main inversion")
+			}
+		}
+	}
 	return e, idx, root
 }
 

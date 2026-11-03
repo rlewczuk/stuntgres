@@ -29,7 +29,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 	if err != nil {
 		return err
 	}
-	if len(bindings) != len(c.Root.Gin.Columns) {
+	if len(bindings) != len(c.Root.Gin.Columns) || len(c.Root.Gin.Pending) != 0 && len(c.Root.Gin.Pending) != len(bindings) {
 		return corrupt()
 	}
 	positions := make(map[ids.VersionID]int, len(c.Root.Entries))
@@ -52,13 +52,21 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 	if err := c.checkMaps(ctx, positions); err != nil {
 		return err
 	}
+	// Placement belongs to an entire entry, including every indexed column.
+	// A version in both portions (even under disjoint tokens/columns) is corrupt.
+	placements := make([]uint8, len(c.Root.Entries))
+	portion := uint8(0)
 	owns := func(p storage.GinPosting) bool {
 		at, ok := positions[p.Version]
 		if !ok {
 			return false
 		}
 		e := c.Root.Entries[at]
-		return e.Row == p.Row && e.Position == p.Position
+		if e.Row != p.Row || e.Position != p.Position || placements[at] != 0 && placements[at] != portion {
+			return false
+		}
+		placements[at] = portion
+		return true
 	}
 	checkPostings := func(postings []storage.GinPosting) error {
 		for i, p := range postings {
@@ -72,47 +80,67 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 		return nil
 	}
 	for ordinal, binding := range bindings {
-		column := &c.Root.Gin.Columns[ordinal]
-		if !column.Binding.Same(binding) {
-			return corrupt()
-		}
 		actualCount := 0
-		for i, list := range column.Tokens {
-			if err := ctx.Err(); err != nil {
-				return err
+		for side, columns := range [2][]storage.GinColumn{c.Root.Gin.Columns, c.Root.Gin.Pending} {
+			if len(columns) == 0 {
+				continue
 			}
-			if !amcheckGinTokenShape(binding, list.Token) || len(list.Postings) == 0 {
+			portion = uint8(side + 1)
+			column := &columns[ordinal]
+			if !column.Binding.Same(binding) {
 				return corrupt()
 			}
-			cmp, err := binding.Compare(ctx, list.Token, list.Token, evaluation.Input)
-			if err != nil {
-				return err
-			}
-			if cmp != 0 {
-				return corrupt()
-			}
-			if i > 0 {
-				cmp, err = binding.Compare(ctx, column.Tokens[i-1].Token, list.Token, evaluation.Input)
+			for i, list := range column.Tokens {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if !amcheckGinTokenShape(binding, list.Token) || len(list.Postings) == 0 {
+					return corrupt()
+				}
+				cmp, err := binding.Compare(ctx, list.Token, list.Token, evaluation.Input)
 				if err != nil {
 					return err
 				}
-				if cmp >= 0 {
+				if cmp != 0 {
 					return corrupt()
 				}
+				if i > 0 {
+					cmp, err = binding.Compare(ctx, column.Tokens[i-1].Token, list.Token, evaluation.Input)
+					if err != nil {
+						return err
+					}
+					if cmp >= 0 {
+						return corrupt()
+					}
+				}
+				if err := checkPostings(list.Postings); err != nil {
+					return err
+				}
+				actualCount += len(list.Postings)
 			}
-			if err := checkPostings(list.Postings); err != nil {
+			if err := checkPostings(column.NonNull); err != nil {
 				return err
 			}
-			actualCount += len(list.Postings)
 		}
-		if err := checkPostings(column.NonNull); err != nil {
-			return err
+		main := &c.Root.Gin.Columns[ordinal]
+		var empty storage.GinColumn
+		pending := &empty
+		if len(c.Root.Gin.Pending) != 0 {
+			pending = &c.Root.Gin.Pending[ordinal]
 		}
-		stamps := make([]int, len(column.Tokens))
+		stamps := make([]int, len(main.Tokens)+len(pending.Tokens))
 		expectedCount, nonNull := 0, 0
 		for at, entry := range c.Root.Entries {
 			if err := ctx.Err(); err != nil {
 				return err
+			}
+			column, seen := main, stamps[:len(main.Tokens)]
+			switch placements[at] {
+			case 1:
+			case 2:
+				column, seen = pending, stamps[len(main.Tokens):]
+			default:
+				return corrupt()
 			}
 			p := storage.GinPosting{Row: entry.Row, Version: entry.Version, Position: entry.Position}
 			key := entry.Keys[ordinal]
@@ -153,10 +181,10 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 				if cmp != 0 {
 					return corrupt()
 				}
-				if stamps[lo] == at+1 {
+				if seen[lo] == at+1 {
 					return nil
 				}
-				stamps[lo] = at + 1
+				seen[lo] = at + 1
 				found, err := amcheckGinHasPosting(ctx, column.Tokens[lo].Postings, p)
 				if err != nil {
 					return err
@@ -170,17 +198,13 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 				return err
 			}
 		}
-		if expectedCount != actualCount || nonNull != len(column.NonNull) {
+		if expectedCount != actualCount || nonNull != len(main.NonNull)+len(pending.NonNull) {
 			return corrupt()
 		}
 	}
 	if err := c.checkPrivateAssociations(ctx); err != nil {
 		return err
 	}
-	var preparation ExecutionPreparation
-	var keys []sqltype.Value
-	var ordering Ordering
-	prepared := false
 	successors := make(map[ids.RowID]struct{}, len(c.Writes))
 	for _, row := range c.Writes {
 		if err := ctx.Err(); err != nil {
@@ -197,43 +221,17 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 			continue
 		}
 		output, produced := row.IndexOutputs[c.Index.Address()]
-		if produced && !OutputMatches(output, c.Index) {
+		if !produced {
+			// Every GIN insertion retains its actual key and placement decision;
+			// a missing output is never an implicit row-backed extraction lane.
+			return corrupt()
+		}
+		if !OutputMatches(output, c.Index) {
 			return ids.ErrCatalogReplaced
 		}
 		member, actual := output.Member, output.Keys
-		if produced && !member && len(actual) != 0 {
+		if !member && (len(actual) != 0 || output.GinPending) {
 			return corrupt()
-		}
-		if !produced {
-			// A row predating the index must carry its actual DDL-produced output.
-			// Only the admitted, non-callable row-backed lane permits extraction.
-			if !RowMaintainsIndex(row, c.Index) || c.Index.SQLIndex.RequiresInsertionOutput() {
-				return corrupt()
-			}
-			if !prepared {
-				ordering, err = BindIndexKeys(view, c.Parent, c.Index.SQLIndex)
-				if err != nil {
-					return err
-				}
-				prepared = true
-			}
-			member, err = preparation.PredicateMatches(evaluation, c.Parent, c.Index.SQLIndex, row.Values, &ordering, nil)
-			if err != nil {
-				return err
-			}
-			if member {
-				if err := preparation.PrepareKeys(evaluation, c.Parent, c.Index.SQLIndex, &ordering, nil); err != nil {
-					return err
-				}
-				if keys == nil {
-					keys = make([]sqltype.Value, len(bindings))
-				}
-				evaluation.Row = row.Values
-				if err := ordering.FillKeys(row.Values, keys, evaluation); err != nil {
-					return err
-				}
-				actual = keys
-			}
 		}
 		if !member {
 			continue
@@ -253,6 +251,12 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 func amcheckGinTokenShape(binding sqltype.GinBinding, token sqltype.GinToken) bool {
 	if token.Kind > sqltype.GinNullItem {
 		return false
+	}
+	if binding.IsScalar() {
+		if token.Kind == sqltype.GinNullItem {
+			return token.Element == (sqltype.Value{}) && token.Lexeme == ""
+		}
+		return token.Kind == sqltype.GinOrdinary && token.Element.Type() == binding.Usage.Type && !token.Element.IsNull() && token.Lexeme == ""
 	}
 	// Exact zero checks validate the absence of an element payload, not token
 	// equality. Dictionary equality/order always belongs to GinBinding.Compare.

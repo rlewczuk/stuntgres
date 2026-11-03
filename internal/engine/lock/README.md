@@ -177,6 +177,16 @@ engine.
   scopes. Savepoint checkpoints never promote active scoped contributions into
   ordinary ownership. Canceled upgrades do not remove an earlier hold; retired
   ticket and entry identities fence delayed cleanup from a replacement grant.
+  GIN physical cleanup uses the dedicated RowExclusive slot without retaining
+  a transaction grant. Only these four single relation modes are admitted;
+  composites and other modes remain invalid. Ownership, checkpoint and queued
+  cancellation/generation witnesses include genuine RowExclusive conflicts and
+  compatible peer writers:
+
+  ```sh
+  make check RUN='^TestRelationContribution(Ownership|Checkpoint|QueueGeneration|Modes)$'
+  make check RACE=1 RUN='^TestRelationContribution(Ownership|Checkpoint|QueueGeneration|Modes)$'
+  ```
 
 Engine type mutation resource order is source TypeExclusive, actual composite
 backing AX when required, then typed-table closure AX. Schema moves retain source

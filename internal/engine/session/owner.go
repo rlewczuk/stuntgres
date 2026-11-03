@@ -60,6 +60,7 @@ type TransactionOwner struct {
 	Next            ids.TxID
 	Command         ids.CommandID
 	Writes          map[ids.ObjectAddress][]storage.RowVersion
+	GinRevision     uint64 // Physical placement fence; SQL savepoints never rewind it.
 	Deletes         map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Stats           statistics.Ledger
 	Start           time.Time
@@ -79,7 +80,7 @@ type TransactionOwner struct {
 	Catalog             *Journal
 	Savepoints          []SavepointMark
 	AccessedTemporary   bool
-	ExportedSnapshots bool // Sticky for the whole top-level incarnation, not savepoint state.
+	ExportedSnapshots   bool // Sticky for the whole top-level incarnation, not savepoint state.
 	TempTablespaces     TempTablespaceSelector
 	RetainedMessage     bool           // Admission spans a direct multi-command message.
 	ProtocolCycle       *ProtocolCycle // Retention only; never owns admission.

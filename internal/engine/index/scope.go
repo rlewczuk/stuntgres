@@ -13,6 +13,8 @@ type Scope struct {
 	ExistingOutputs    map[ids.ObjectAddress]map[RowIdentity]storage.IndexOutput
 	ConstraintModes    ConstraintModes
 	ConstraintsStarted bool
+	GinSourceCaptured  bool
+	GinSourceRevision  uint64
 	eventsOwned        bool
 }
 
@@ -23,6 +25,7 @@ func (x *Scope) EndStatement() {
 		return
 	}
 	x.ExistingOutputs, x.Maintenance = nil, nil
+	x.GinSourceCaptured = false
 }
 
 // AppendConstraintEvent detaches the transaction/savepoint event slice once

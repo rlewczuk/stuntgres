@@ -266,24 +266,24 @@ func TestBtreeGINCompoundPublication(t *testing.T) {
 	entries, payload := gistCopyEntries(old), ginCopyPayload(old.Gin)
 	column := old.Gin.Columns[3]
 	money := sqltype.GinToken{Element: ginInput(t, column.Binding.Usage.Type, "0.01")}
-	retained := ginLookup(t, column, money)
+	retained := compoundScalarLookup(t, old.Gin, 3, money.Element)
 	enginetest.Run(t, e, "INSERT INTO compound_private VALUES(8,'000','','z','-0.02','{8}','new:1')")
 	_, inserted := ginInstalledRoot(t, e, "compound_private_i")
-	same := ginLookup(t, inserted.Gin.Columns[3], money)
+	same := compoundScalarLookup(t, inserted.Gin, 3, money.Element)
 	if inserted == old || &same[0] != &retained[0] || inserted.Construction != old.Construction {
 		t.Fatal("unrelated scalar delta rebuilt old posting backing")
 	}
 	bitToken := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[0].Binding.Usage.Type, "100")}
-	duplicates := slices.Clone(ginLookup(t, old.Gin.Columns[0], bitToken))
+	duplicates := slices.Clone(compoundScalarLookup(t, old.Gin, 0, bitToken.Element))
 	enginetest.Run(t, e, "UPDATE compound_private SET b='011',m='0.02' WHERE id=3")
 	_, updated := ginInstalledRoot(t, e, "compound_private_i")
-	got := ginLookup(t, updated.Gin.Columns[0], bitToken)
+	got := compoundScalarLookup(t, updated.Gin, 0, bitToken.Element)
 	if len(duplicates) != 2 || len(got) != 1 || got[0] != duplicates[1] {
 		t.Fatal("update did not end exact predecessor", duplicates, got)
 	}
 	enginetest.Run(t, e, "DELETE FROM compound_private WHERE id=4")
 	_, deleted := ginInstalledRoot(t, e, "compound_private_i")
-	if got := ginLookup(t, deleted.Gin.Columns[0], bitToken); len(got) != 0 {
+	if got := compoundScalarLookup(t, deleted.Gin, 0, bitToken.Element); len(got) != 0 {
 		t.Fatal("delete retained ended duplicate", got)
 	}
 	session := enginetest.StartSession(t, e, nil)
@@ -308,7 +308,7 @@ func TestBtreeGINCompoundPublication(t *testing.T) {
 	}
 	enginetest.TransactionEnd(t, session, tx, true)
 	_, committed := ginInstalledRoot(t, e, "compound_private_i")
-	if got := ginLookup(t, committed.Gin.Columns[0], bitToken); len(got) != 1 || committed == deleted {
+	if got := compoundScalarLookup(t, committed.Gin, 0, bitToken.Element); len(got) != 1 || committed == deleted {
 		t.Fatal("commit/savepoint did not publish exactly one surviving scalar posting", got)
 	}
 	enginetest.Run(t, e, "ALTER TABLE compound_private ADD CONSTRAINT compound_positive CHECK(id>0)")
@@ -318,7 +318,7 @@ func TestBtreeGINCompoundPublication(t *testing.T) {
 	if err == nil || e.Storage.IndexRoots[idx.Address()] != admitted || !reflect.DeepEqual(admitted.Entries, admittedEntries) || !reflect.DeepEqual(admitted.Gin, admittedPayload) {
 		t.Fatal("later failing row published a partial scalar posting candidate", err)
 	}
-	if !reflect.DeepEqual(old.Entries, entries) || !reflect.DeepEqual(old.Gin, payload) || !slices.Equal(retained, ginLookup(t, old.Gin.Columns[3], money)) {
+	if !reflect.DeepEqual(old.Entries, entries) || !reflect.DeepEqual(old.Gin, payload) || !slices.Equal(retained, compoundScalarLookup(t, old.Gin, 3, money.Element)) {
 		t.Fatal("publication mutated retained scalar root")
 	}
 }
@@ -339,20 +339,32 @@ func TestBtreeGINCompoundTransport(t *testing.T) {
 	if restored == old || restored.Gin == old.Gin || destination == sourceIndex {
 		t.Fatal("restore reused source executable root")
 	}
-	for column := range 4 {
-		a, b := old.Gin.Columns[column], restored.Gin.Columns[column]
-		if a.Binding.Same(b.Binding) || column == 2 && a.Binding.Usage.Type == b.Binding.Usage.Type {
-			t.Fatal("restore retained source descriptor/binding generation", column)
+	for portion, columns := range [2][]storage.GinColumn{old.Gin.Columns, old.Gin.Pending} {
+		current := restored.Gin.Columns
+		if portion == 1 {
+			current = restored.Gin.Pending
 		}
-		if len(a.Tokens) != len(b.Tokens) {
-			t.Fatal("restore lost scalar dictionary", column)
+		if len(columns) != len(current) {
+			t.Fatal("restore changed actual main/pending column count", portion)
 		}
-		if len(a.Tokens) > 0 && &a.Tokens[0] == &b.Tokens[0] {
-			t.Fatal("restore borrowed source dictionary backing", column)
+		if len(columns) == 0 {
+			continue
 		}
-		for _, list := range b.Tokens {
-			if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
-				t.Fatal("restored scalar token retained source type", column)
+		for column := range 4 {
+			a, b := columns[column], current[column]
+			if a.Binding.Same(b.Binding) || column == 2 && a.Binding.Usage.Type == b.Binding.Usage.Type {
+				t.Fatal("restore retained source descriptor/binding generation", column)
+			}
+			if len(a.Tokens) != len(b.Tokens) {
+				t.Fatal("restore lost scalar dictionary", column)
+			}
+			if len(a.Tokens) > 0 && &a.Tokens[0] == &b.Tokens[0] {
+				t.Fatal("restore borrowed source dictionary backing", column)
+			}
+			for _, list := range b.Tokens {
+				if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
+					t.Fatal("restored scalar token retained source type", column)
+				}
 			}
 		}
 	}
@@ -391,14 +403,13 @@ func TestBtreeGINCompoundPresentation(t *testing.T) {
 		if current == prior || currentIndex == priorIndex || current.Gin == prior.Gin {
 			t.Fatal("presentation did not refresh actual live wrappers", change.query)
 		}
-		for col := range 6 {
-			a, b := prior.Gin.Columns[col], current.Gin.Columns[col]
-			if &a.Tokens[0] != &b.Tokens[0] || &a.NonNull[0] != &b.NonNull[0] || a.Binding.Usage != b.Binding.Usage {
-				t.Fatal("presentation rebuilt typed dictionary/posting backing", change.query, col)
-			}
-			want := ginClass(t, e.CatalogRead(), ids.OID(currentIndex.SQLIndex.Keys[col].Class.OID()))
-			if currentIndex.SQLIndex.Keys[col].Class != want || b.Binding.Class != want {
-				t.Fatal("live key/root authority stamps differ", col)
+		compoundSharedPresentation(t, prior, current)
+		for _, columns := range [2][]storage.GinColumn{current.Gin.Columns, current.Gin.Pending} {
+			for col, column := range columns {
+				want := ginClass(t, e.CatalogRead(), ids.OID(currentIndex.SQLIndex.Keys[col].Class.OID()))
+				if currentIndex.SQLIndex.Keys[col].Class != want || column.Binding.Class != want {
+					t.Fatal("live key/root authority stamps differ", col)
+				}
 			}
 		}
 		if &prior.Entries[0] != &current.Entries[0] || !reflect.DeepEqual(prior.Gin, saved) || !reflect.DeepEqual(prior.Entries, entries) {

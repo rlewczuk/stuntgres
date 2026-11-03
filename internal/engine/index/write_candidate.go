@@ -215,6 +215,7 @@ func MaterializeIndexOutput(evaluation *exec.Context, preparation *ExecutionPrep
 	}
 	member, err := preparation.PredicateMatches(evaluation, parent, index.SQLIndex, values, ordering, hash)
 	output := storage.IndexOutput{Index: index, Member: member}
+	output.GinPending = member && GinFastUpdate(index)
 	if err != nil || !member {
 		return output, err
 	}
@@ -233,6 +234,19 @@ func MaterializeIndexOutput(evaluation *exec.Context, preparation *ExecutionPrep
 		err = ordering.FillKeys(values, output.Keys, evaluation)
 	}
 	return output, err
+}
+
+// GinFastUpdate is consulted at SQL output production, never at COMMIT.
+func GinFastUpdate(index *catalog.Relation) bool {
+	if index == nil || index.SQLIndex == nil || index.SQLIndex.Method != catalog.GinMethod {
+		return false
+	}
+	for _, option := range index.StorageOptions.Base {
+		if option.Name == "fastupdate" {
+			return option.Boolean
+		}
+	}
+	return true
 }
 
 // A private version maintains only indexes ready when its statement accepted it.

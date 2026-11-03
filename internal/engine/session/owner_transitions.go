@@ -18,6 +18,7 @@ import (
 // held.
 func (t *TransactionOwner) BeginLocked(settings *SettingsStore, state TxState, start time.Time) {
 	t.State = state
+	t.GinRevision = 0
 	t.Isolation = IsolationFromText(settings.Value("default_transaction_isolation"))
 	t.ReadOnly = settings.Value("default_transaction_read_only") == "on"
 	t.Deferrable = settings.Value("default_transaction_deferrable") == "on"
@@ -135,5 +136,5 @@ func (t *TransactionOwner) PrepareRefusal(gid string, withHold, foreign bool) er
 // ticket. The publication preflight rejects it if ref is no longer t.Ref.
 func (t *TransactionOwner) PreparedEntry(gid string, ref ids.TxRef, owner authorization.PrincipalRef, database string, at time.Time) *PreparedTransaction {
 	t.Stats.Release(0)
-	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, Deletes: t.Deletes, Stats: t.Stats, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, GinRevision: t.GinRevision, Deletes: t.Deletes, Stats: t.Stats, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 }

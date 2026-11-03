@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -39,12 +40,48 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			retained.SetDescriptor(address, descriptor)
 			continue
 		}
-		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
-			parent, exists := next.Relation(index.SQLIndex.Parent)
-			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil {
+			continue
+		}
+		if !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live {
+			parent, exists := next.Relation(idx.SQLIndex.Parent)
+			if exists && parent.Partition != nil && idx.SQLIndex.Ready && idx.SQLIndex.Live {
 				continue
 			}
-			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", catalog.QuoteIdentifier(index.Name()))
+			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", catalog.QuoteIdentifier(idx.Name()))
+		}
+		if idx.SQLIndex.Method != catalog.GinMethod {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, 0, 0, err
+		}
+		parent, exists := next.Relation(idx.SQLIndex.Parent)
+		if !exists {
+			return nil, 0, 0, ids.ErrCatalogReplaced
+		}
+		bindings, err := BindGinIndex(view, parent, idx.SQLIndex)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		// Symbolic import deliberately drops source support seals. Capture the
+		// destination's actual providers in its private descriptor before root
+		// transport captures that descriptor and its construction history.
+		var keys []catalog.IndexKey
+		for i, binding := range bindings {
+			if idx.SQLIndex.Keys[i].Class != binding.Class {
+				if keys == nil {
+					keys = slices.Clone(idx.SQLIndex.Keys)
+				}
+				keys[i].Class = binding.Class
+			}
+		}
+		if keys != nil {
+			current, definition := *idx, *idx.SQLIndex
+			definition.Keys = keys
+			current.SQLIndex = &definition
+			next.SetDescriptor(address, &current)
 		}
 	}
 	rowID, versionID := base.NextRow, base.NextVersion
@@ -111,6 +148,19 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			root := base.Roots[address]
 			if root == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
+			}
+			if idx.SQLIndex.Method == catalog.GinMethod {
+				if base.Relations[parent.Address()] != relations[parent.Address()] {
+					return nil, 0, 0, ids.ErrCatalogReplaced
+				}
+				current, rebound, err := rebindRetainedGin(ctx, view.WithState(base.Catalog), view, parent, idx, root)
+				if err != nil {
+					return nil, 0, 0, err
+				}
+				if current != idx {
+					next.SetDescriptor(address, current)
+				}
+				root = rebound
 			}
 			roots[address] = root
 			continue

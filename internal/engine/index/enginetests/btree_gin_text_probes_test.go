@@ -108,7 +108,7 @@ func TestBtreeGINTextPostings(t *testing.T) {
 			t.Fatal("NULL exact triples", tc.typ)
 		}
 		foreign := *column.Binding.Usage.Type
-		if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(&foreign), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(&foreign), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("foreign query generation admitted", got, err)
 		}
 	}
@@ -139,7 +139,7 @@ func textSelectedBPChar(t *testing.T) {
 			t.Fatal("selected bpchar must collapse only trailing ASCII spaces", len(column.Tokens))
 		}
 		for _, query := range []string{"ab", "ab ", "ab  "} {
-			got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, column.Binding.Usage.Type, query), 3, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, ginInput(t, column.Binding.Usage.Type, query), 3, sqltype.InputEnvironment{})
 			if err != nil || !slices.Equal(got, compoundExactPostings([]int{0, 1, 2})) {
 				t.Fatal("selected bpchar equivalence", col, query, got, err)
 			}

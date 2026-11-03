@@ -158,56 +158,64 @@ func TestAmcheckGINCaptureReadmission(t *testing.T) {
 	}
 }
 func TestAmcheckGINCancellation(t *testing.T) {
-	for _, where := range []string{"GinBinding.Compare", "GinBinding.Extract"} {
-		t.Run(where, func(t *testing.T) {
-			e, d, r := ginAmcheckUnitRoot(t)
-			n := ginAmcheckUnitExpression(t, e)
-			reader, ticket := blockingUnitOwner(t, e)
-			enginetest.SessionSQL(t, reader, "SET application_name='gin caller'")
-			enginetest.SessionSQL(t, reader, "INSERT INTO t VALUES(7,'{7,7}','cat')")
-			scope := pgrowlocksUnitScope(t, e, reader)
-			scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
-			e.Mu.Lock()
-			auth, err := core.ScopeWriteAuthorizationLocked(scope, e)
-			e.Mu.Unlock()
-			if err != nil {
-				t.Fatal(err)
-			}
-			scope.RoutineAuth = auth
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			beforeRole := scope.Op.RoleState()
-			beforeInput, beforeOutput := scope.Input, scope.Output
-			beforeRoot := ginAmcheckClone(r)
-			rows := reader.Transactions.Writes[d.SQLIndex.Parent]
-			beforeRows := ginAmcheckCopyWrites(rows)
-			beforeLocks := e.Locks.Inspect(ticket)
-			active := &amcheckComparisonContext{Context: ctx, cancel: cancel, match: where, work: func() {
-				if scope.Op.Restricted == nil {
-					t.Fatal("GIN work missing restricted owner")
-				}
-				e.Mu.Lock()
-				e.Mu.Unlock()
-				reader.Mu.Lock()
-				reader.Mu.Unlock()
-			}}
-			scope.Op.Ctx = active
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: active, Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
-			_, err = n.Eval(&evaluation)
-			if !active.entered || !errors.Is(err, context.Canceled) {
-				t.Fatal("real typed traversal not interrupted", active.entered, err)
-			}
-			if !reflect.DeepEqual(r, beforeRoot) || !reflect.DeepEqual(rows, beforeRows) || e.Storage.IndexRoots[d.Address()] != r {
-				t.Fatal("cancellation mutated retained/private authority")
-			}
-			if scope.Op.Restricted != nil || scope.Op.RoleState() != beforeRole || reflect.ValueOf(scope.Input.TypeDiagnosticName).Pointer() != reflect.ValueOf(beforeInput.TypeDiagnosticName).Pointer() || !reflect.DeepEqual(scope.Output, beforeOutput) {
-				t.Fatal("interruption leaked maintenance presentation")
-			}
-			if !reflect.DeepEqual(beforeLocks, e.Locks.Inspect(ticket)) {
-				t.Fatal("interruption changed prior contributions")
-			}
-			if value, _ := reader.Setting("application_name"); value != "gin caller" {
-				t.Fatal("owner settings escaped", value)
+	for _, pending := range []bool{false, true} {
+		name := "main"
+		if pending {
+			name = "pending"
+		}
+		t.Run(name, func(t *testing.T) {
+			for _, where := range []string{"GinBinding.Compare", "GinBinding.Extract"} {
+				t.Run(where, func(t *testing.T) {
+					e, d, r := ginAmcheckUnitPortion(t, pending)
+					n := ginAmcheckUnitExpression(t, e)
+					reader, ticket := blockingUnitOwner(t, e)
+					enginetest.SessionSQL(t, reader, "SET application_name='gin caller'")
+					enginetest.SessionSQL(t, reader, "INSERT INTO t VALUES(7,'{7,7}','cat')")
+					scope := pgrowlocksUnitScope(t, e, reader)
+					scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
+					e.Mu.Lock()
+					auth, err := core.ScopeWriteAuthorizationLocked(scope, e)
+					e.Mu.Unlock()
+					if err != nil {
+						t.Fatal(err)
+					}
+					scope.RoutineAuth = auth
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					beforeRole := scope.Op.RoleState()
+					beforeInput, beforeOutput := scope.Input, scope.Output
+					beforeRoot := ginAmcheckClone(r)
+					rows := reader.Transactions.Writes[d.SQLIndex.Parent]
+					beforeRows := ginAmcheckCopyWrites(rows)
+					beforeLocks := e.Locks.Inspect(ticket)
+					active := &amcheckComparisonContext{Context: ctx, cancel: cancel, match: where, work: func() {
+						if scope.Op.Restricted == nil {
+							t.Fatal("GIN work missing restricted owner")
+						}
+						e.Mu.Lock()
+						e.Mu.Unlock()
+						reader.Mu.Lock()
+						reader.Mu.Unlock()
+					}}
+					scope.Op.Ctx = active
+					evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: active, Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
+					_, err = n.Eval(&evaluation)
+					if !active.entered || !errors.Is(err, context.Canceled) {
+						t.Fatal("real typed traversal not interrupted", active.entered, err)
+					}
+					if !reflect.DeepEqual(r, beforeRoot) || !reflect.DeepEqual(rows, beforeRows) || e.Storage.IndexRoots[d.Address()] != r {
+						t.Fatal("cancellation mutated retained/private authority")
+					}
+					if scope.Op.Restricted != nil || scope.Op.RoleState() != beforeRole || reflect.ValueOf(scope.Input.TypeDiagnosticName).Pointer() != reflect.ValueOf(beforeInput.TypeDiagnosticName).Pointer() || !reflect.DeepEqual(scope.Output, beforeOutput) {
+						t.Fatal("interruption leaked maintenance presentation")
+					}
+					if !reflect.DeepEqual(beforeLocks, e.Locks.Inspect(ticket)) {
+						t.Fatal("interruption changed prior contributions")
+					}
+					if value, _ := reader.Setting("application_name"); value != "gin caller" {
+						t.Fatal("owner settings escaped", value)
+					}
+				})
 			}
 		})
 	}

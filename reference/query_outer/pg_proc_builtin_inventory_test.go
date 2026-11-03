@@ -220,7 +220,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// both are leakproof and strict IMMUTABLE/parallel-safe INT4 comparators;
 	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
 	// The selected network GIN family adds genuine macaddr8_cmp OID4119.
-	// Pending-list cleanup adds the genuine regclass->bigint declaration3789.
+	// Pending-list cleanup adds strict VOLATILE/parallel-unsafe
+	// REGCLASS-to-INT8 declaration gin_clean_pending_list, OID3789.
 	// Replication statistics reset adds the released non-strict VOLATILE/
 	// parallel-safe TEXT/OID->VOID declarations6170/6232 with unnamed inputs.
 	// Array-vector construction and current configuration add the strict,

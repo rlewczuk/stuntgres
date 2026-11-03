@@ -22,7 +22,13 @@ type GinColumn struct {
 	Tokens  []GinPostingList
 	NonNull []GinPosting
 }
-type GinRoot struct{ Columns []GinColumn }
+
+// Columns is the bulk/main inversion; Pending contains genuine deferred DML
+// postings with the same bindings. An empty pending portion has no columns.
+type GinRoot struct {
+	Columns []GinColumn
+	Pending []GinColumn
+}
 type ginTuple struct {
 	token   sqltype.GinToken
 	posting GinPosting
@@ -209,18 +215,18 @@ func mergeGinPostings(ctx context.Context, old, added []GinPosting, ended map[id
 
 // MergeGin merges each affected dictionary/list once and shares unchanged
 // posting backing. Ended predecessors are exact versions, not SQL row values.
-func MergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) (*GinRoot, error) {
-	return mergeGin(ctx, old, added, ended, input, true)
+func MergeGin(ctx context.Context, old *GinRoot, main, pending []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) (*GinRoot, error) {
+	return mergeGin(ctx, old, main, pending, ended, input, true)
 }
 
 // ValidateGinMerge performs the same fallible extraction/comparison work as a
 // merge, retaining only delta-sized scratch. No installation payload escapes.
-func ValidateGinMerge(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) error {
-	_, err := mergeGin(ctx, old, added, ended, input, false)
+func ValidateGinMerge(ctx context.Context, old *GinRoot, main, pending []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment) error {
+	_, err := mergeGin(ctx, old, main, pending, ended, input, false)
 	return err
 }
 
-func mergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment, materialize bool) (*GinRoot, error) {
+func mergeGin(ctx context.Context, old *GinRoot, main, pending []IndexEntry, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment, materialize bool) (*GinRoot, error) {
 	if old == nil {
 		return nil, fmt.Errorf("stuntgres: missing GIN predecessor")
 	}
@@ -228,25 +234,68 @@ func mergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[i
 	for i := range bindings {
 		bindings[i] = old.Columns[i].Binding
 	}
-	delta, err := BuildGin(ctx, bindings, added, input)
+	mainDelta, err := BuildGin(ctx, bindings, main, input)
 	if err != nil {
 		return nil, err
 	}
-	var out *GinRoot
-	if materialize {
-		out = &GinRoot{Columns: make([]GinColumn, len(bindings))}
+	pendingDelta, err := BuildGin(ctx, bindings, pending, input)
+	if err != nil {
+		return nil, err
 	}
-	for i, prior := range old.Columns {
-		nonnull, err := mergeGinPostings(ctx, prior.NonNull, delta.Columns[i].NonNull, ended, materialize)
+	columns, err := mergeGinColumns(ctx, old.Columns, mainDelta.Columns, ended, input, materialize)
+	if err != nil {
+		return nil, err
+	}
+	priorPending := old.Pending
+	if len(priorPending) == 0 && len(pending) != 0 {
+		priorPending = make([]GinColumn, len(bindings))
+		for i, binding := range bindings {
+			priorPending[i].Binding = binding
+		}
+	}
+	var deferred []GinColumn
+	if len(priorPending) != 0 {
+		deferred, err = mergeGinColumns(ctx, priorPending, pendingDelta.Columns, ended, input, materialize)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !materialize {
+		return nil, ctx.Err()
+	}
+	if !ginHasTokens(deferred) {
+		deferred = nil
+	}
+	return &GinRoot{Columns: columns, Pending: deferred}, ctx.Err()
+}
+
+// mergeGinColumns consumes already extracted dictionaries. Cleanup and DML use
+// the same traversal without reexecuting expressions or extracting keys twice.
+func mergeGinColumns(ctx context.Context, old, delta []GinColumn, ended map[ids.VersionID]ids.RowID, input sqltype.InputEnvironment, materialize bool) ([]GinColumn, error) {
+	if len(ended) == 0 {
+		additions := false
+		for _, column := range delta {
+			additions = additions || len(column.Tokens) != 0
+		}
+		if !additions {
+			return old, ctx.Err()
+		}
+	}
+	var out []GinColumn
+	if materialize {
+		out = make([]GinColumn, len(old))
+	}
+	for i, prior := range old {
+		nonnull, err := mergeGinPostings(ctx, prior.NonNull, delta[i].NonNull, ended, materialize)
 		if err != nil {
 			return nil, err
 		}
 		var column *GinColumn
 		if materialize {
-			column = &out.Columns[i]
+			column = &out[i]
 			column.Binding, column.NonNull = prior.Binding, nonnull
 		}
-		next := delta.Columns[i].Tokens
+		next := delta[i].Tokens
 		j := 0
 		for _, list := range prior.Tokens {
 			if err := ctx.Err(); err != nil {
@@ -289,6 +338,56 @@ func mergeGin(ctx context.Context, old *GinRoot, added []IndexEntry, ended map[i
 	return out, nil
 }
 
+// ginIncidences saturates rather than overflowing; the estimate is deliberately
+// technical, not a count of PostgreSQL pages or indexed rows.
+func ginIncidences(columns []GinColumn) int64 {
+	var n int64
+	const maximum = int64(^uint64(0) >> 1)
+	for _, column := range columns {
+		for _, token := range column.Tokens {
+			if int64(len(token.Postings)) > maximum-n {
+				return maximum
+			}
+			n += int64(len(token.Postings))
+		}
+	}
+	return n
+}
+
+func GinPendingIncidences(root *GinRoot) int64 {
+	if root == nil {
+		return 0
+	}
+	return ginIncidences(root.Pending)
+}
+
+// GinPageEstimate counts technical units of 128 actual pending token-posting
+// incidences; it is deliberately not a physical PostgreSQL page measurement.
+func GinPageEstimate(incidences int64) int64 {
+	pages := incidences / 128
+	if incidences%128 != 0 {
+		pages++
+	}
+	return pages
+}
+
+// CleanGin prepares a representation-only immutable transfer. Entries and
+// construction provenance belong to IndexRoot and are never rebuilt here.
+func CleanGin(ctx context.Context, old *GinRoot, input sqltype.InputEnvironment) (*GinRoot, int64, error) {
+	if old == nil {
+		return nil, 0, fmt.Errorf("stuntgres: missing GIN predecessor")
+	}
+	n := GinPendingIncidences(old)
+	if n == 0 {
+		return old, 0, ctx.Err()
+	}
+	columns, err := mergeGinColumns(ctx, old.Columns, old.Pending, nil, input, true)
+	if err != nil {
+		return nil, 0, err
+	}
+	return &GinRoot{Columns: columns}, n, ctx.Err()
+}
+
 // Lookup performs actual binary dictionary lookup; it never scans Entries.
 func (c GinColumn) Lookup(ctx context.Context, token sqltype.GinToken, input sqltype.InputEnvironment) ([]GinPosting, error) {
 	lo, hi := 0, len(c.Tokens)
@@ -322,56 +421,86 @@ func TransportGin(ctx context.Context, old *GinRoot, move func(GinPosting) (GinP
 	if old == nil {
 		return nil, fmt.Errorf("stuntgres: missing GIN transport payload")
 	}
-	out := &GinRoot{Columns: make([]GinColumn, len(old.Columns))}
-	changed := false
-	mapList := func(prior []GinPosting) ([]GinPosting, error) {
+	mapList := func(prior []GinPosting) ([]GinPosting, bool, error) {
 		var next []GinPosting
+		changed := false
 		for i, p := range prior {
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			n, keep, err := move(p)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
-			if next == nil && (!keep || n != p) {
+			if !changed && (!keep || n != p) {
 				next = make([]GinPosting, 0, len(prior))
 				next = append(next, prior[:i]...)
+				changed = true
 			}
-			if next != nil && keep {
+			if changed && keep {
 				next = append(next, n)
 			}
 		}
-		if next == nil {
-			return prior, ctx.Err()
+		if !changed {
+			return prior, false, ctx.Err()
 		}
-		changed = true
-		return next, ctx.Err()
+		return next, true, ctx.Err()
 	}
-	for i, prior := range old.Columns {
-		c := &out.Columns[i]
-		c.Binding = prior.Binding
-		var err error
-		c.NonNull, err = mapList(prior.NonNull)
-		if err != nil {
-			return nil, err
-		}
-		c.Tokens = make([]GinPostingList, 0, len(prior.Tokens))
-		for _, list := range prior.Tokens {
-			p, e := mapList(list.Postings)
-			if e != nil {
-				return nil, e
+	var out *GinRoot
+	for portion, columns := range [2][]GinColumn{old.Columns, old.Pending} {
+		copied := false
+		for i, prior := range columns {
+			column := prior
+			nonnull, changed, err := mapList(prior.NonNull)
+			if err != nil {
+				return nil, err
 			}
-			if len(p) > 0 {
-				c.Tokens = append(c.Tokens, GinPostingList{list.Token, p})
+			column.NonNull = nonnull
+			tokensChanged := false
+			for j, list := range prior.Tokens {
+				postings, mapped, err := mapList(list.Postings)
+				if err != nil {
+					return nil, err
+				}
+				if mapped && !tokensChanged {
+					column.Tokens = make([]GinPostingList, 0, len(prior.Tokens))
+					column.Tokens = append(column.Tokens, prior.Tokens[:j]...)
+					tokensChanged = true
+				}
+				if tokensChanged && len(postings) != 0 {
+					column.Tokens = append(column.Tokens, GinPostingList{Token: list.Token, Postings: postings})
+				}
+			}
+			if !changed && !tokensChanged {
+				continue
+			}
+			if out == nil {
+				out = &GinRoot{Columns: old.Columns, Pending: old.Pending}
+			}
+			if !copied {
+				next := append([]GinColumn(nil), columns...)
+				if portion == 0 {
+					out.Columns = next
+				} else {
+					out.Pending = next
+				}
+				copied = true
+			}
+			if portion == 0 {
+				out.Columns[i] = column
+			} else {
+				out.Pending[i] = column
 			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if !changed {
+	if out == nil {
 		return old, nil
+	}
+	if !ginHasTokens(out.Pending) {
+		out.Pending = nil
 	}
 	return out, nil
 }
@@ -540,4 +669,13 @@ func siftGinPostingCursor(ctx context.Context, heap []ginPostingCursor, at int) 
 	}
 	heap[at] = cursor
 	return nil
+}
+
+func ginHasTokens(columns []GinColumn) bool {
+	for _, column := range columns {
+		if len(column.Tokens) != 0 {
+			return true
+		}
+	}
+	return false
 }

@@ -35,6 +35,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
 	captures, err := index.SelectOverlayCapturesLocked(&e.Storage, view, &stage.Candidate, stage.IndexesOrZero(), scope.PendingCatalog(), c)
+	for _, capture := range captures {
+		if capture.GinSource != nil {
+			scope.indexes().GinSourceCaptured = true
+			scope.indexes().GinSourceRevision = scope.Owner.GinRevision
+			break
+		}
+	}
 	e.Mu.Unlock()
 	if err != nil {
 		return err
@@ -114,6 +121,12 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if err != nil {
 			return err
 		}
+		if capture.GinSource != nil {
+			full, err = index.TransportConcurrentGin(ctx, idx, &capture.GinPredecessor, capture.GinSource, full, visible, scope.OwnWrites[parent.Address()], outputs)
+			if err != nil {
+				return err
+			}
+		}
 		schema := view.Get(parent.Namespace()).Name()
 		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building); err != nil {
 			return err
@@ -146,6 +159,18 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				scope.Stage.Rows[parent.Address()] = updated
 			} else {
 				scope.StageProjectedColumnRoots(parent.Address(), updated, deletes)
+			}
+		}
+	}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if stamp := scope.IndexesOrZero(); stamp.GinSourceCaptured {
+		if stamp.GinSourceRevision != scope.Owner.GinRevision {
+			return ids.ErrCatalogReplaced
+		}
+		for _, capture := range captures {
+			if capture.GinSource != nil && e.Storage.IndexRoots[capture.Index.Address()] != capture.GinCommittedSource {
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}

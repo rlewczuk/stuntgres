@@ -84,6 +84,9 @@ and the standard library, and never the engine.
   Fresh construction/maintenance uses `SetMember`/`SetRowEntry`; captured roots and
   hash bucket pointers remain immutable. Incremental GIN retirement sets likewise
   carry every actual VersionID with its RowID association, not one end per RowID.
+  GIN member outputs additionally own immutable `GinPending` placement. Cleanup
+  may clear it through COW without changing keys, SQL values or row visibility;
+  a later version receives independent produced placement.
   `IndexRoot.Construction` is an opaque immutable index-owner provenance payload.
   Storage transports preserve it; they cannot mint a new full-build recipe.
   Index roots contain only current logical membership; tuple/page statistics
@@ -97,10 +100,15 @@ and the standard library, and never the engine.
   and storage/generation/prefix/end authority. Local signature scratch never
   escapes into a root. Delta publication shares only unchanged immutable
   signature backing; vacuum moves signatures with their exact versions.
-  `index_gin.go` owns `GinRoot` per-column dictionaries, concrete token bindings,
-  nonnull membership and exact immutable row/version/slot postings. Full batches
-  sort/deduplicate typed tokens; delta batches merge dictionaries once and retain
-  untouched posting backing. Binary lookup consumes postings rather than full Entries.
+  `index_gin.go` owns `GinRoot.Columns` (main) and `Pending` per-column dictionaries,
+  concrete token bindings, nonnull membership and exact immutable row/version/slot
+  postings. Full builds are main-only; DML partitions already-produced deltas by
+  accepted placement. Batches sort/deduplicate typed tokens and merge each target
+  dictionary once; ended exact versions are removed from both portions.
+  `CleanGin` merges existing typed pending payload without extraction, shares
+  untouched posting backing and preserves the predecessor. `GinPageEstimate`
+  uses 128 token-posting incidences per technical unit, never heap membership.
+  Binary lookup consumes postings rather than full Entries.
   `UnionGinPostingLists` combines selected sorted posting lists with a typed
   binary cursor heap, sharing the single-list fast path and otherwise allocating
   one result plus O(k) cursor scratch. It uses the same complete
@@ -116,8 +124,9 @@ and the standard library, and never the engine.
   roots when no compaction is needed. SQL key/predicate execution stays outside
   storage and all fallible work completes before publication.
   These are process-local logical artifacts, not physical pages/WAL or a durable
-  PostgreSQL index format. Native controls rebuild destination signatures rather
-  than serializing roots, live pointers or session resources.
+  PostgreSQL index format. Native controls rebuild destination-owned payloads and
+  retain GIN split through symbolic dump-row metadata, never serialized roots,
+  source identities, live pointers or session resources.
 - **Sequence generators** (`sequence.go`): `SequenceGenerator`.
 - **Catalog publication values** (`row_shape.go`, `publication.go`): a
   stage's planned heap replacement `RowShape`, whose `Matches` fences store,

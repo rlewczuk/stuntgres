@@ -17,7 +17,7 @@ import (
 )
 
 func TestAmcheckGINPrivateAuthority(t *testing.T) {
-	for _, damage := range []string{"healthy", "wrong_parent", "wrong_output", "wrong_key", "false_keys", "missing_output", "base", "delete_ref", "delete_store", "duplicate_successor", "not_maintained", "baseline"} {
+	for _, damage := range []string{"healthy", "wrong_parent", "wrong_output", "wrong_key", "false_keys", "false_pending", "missing_output", "base", "delete_ref", "delete_store", "duplicate_successor", "not_maintained", "baseline"} {
 		t.Run(damage, func(t *testing.T) {
 			e, d, r := ginAmcheckUnitRoot(t)
 			reader, _ := blockingUnitOwner(t, e)
@@ -35,16 +35,21 @@ func TestAmcheckGINPrivateAuthority(t *testing.T) {
 			if len(c.Writes) != 2 || c.Deletes == nil {
 				t.Fatal("missing actual private authority", c)
 			}
-			// Obtain the real row-backed lane first, then damage a captured output.
-			if len(c.Writes[0].IndexOutputs) != 0 {
-				t.Fatal("expected implicit row-backed lane")
+			// GIN owns an actual produced key and immutable placement decision,
+			// including this ordinary attribute-only insertion.
+			for _, row := range c.Writes {
+				output, ok := row.IndexOutputs[d.Address()]
+				if !ok || !output.Member || !output.GinPending || !index.OutputMatches(output, d) || !index.RowMaintainsIndex(row, d) {
+					t.Fatal("missing genuine produced GIN admission", output)
+				}
 			}
 			switch damage {
 			case "wrong_parent":
 				c.ParentRef.Address.ObjectID++
-			case "wrong_output", "wrong_key", "false_keys":
+			case "wrong_output", "wrong_key", "false_keys", "false_pending":
 				row := &c.Writes[0]
-				out := storage.IndexOutput{Index: d, Member: true, Keys: []sqltype.Value{row.Values[1], row.Values[2]}}
+				out := row.IndexOutputs[d.Address()]
+				out.Keys = append([]sqltype.Value(nil), out.Keys...)
 				if damage == "wrong_output" {
 					wrong := *d
 					wrong.ObjectAddress.ObjectID++
@@ -56,8 +61,15 @@ func TestAmcheckGINPrivateAuthority(t *testing.T) {
 				if damage == "false_keys" {
 					out.Member = false
 				}
-				row.IndexOutputs = map[ids.ObjectAddress]storage.IndexOutput{d.Address(): out}
-			case "missing_output", "not_maintained":
+				if damage == "false_pending" {
+					out.Member, out.Keys = false, nil
+				}
+				row.IndexOutputs = maps.Clone(row.IndexOutputs)
+				row.IndexOutputs[d.Address()] = out
+			case "missing_output":
+				c.Writes[0].IndexOutputs = maps.Clone(c.Writes[0].IndexOutputs)
+				delete(c.Writes[0].IndexOutputs, d.Address())
+			case "not_maintained":
 				// This real admission does not contain an index created after the rows.
 				enginetest.SessionSQL(t, reader, "CREATE INDEX later_i ON t USING gin((a || ARRAY[0]))")
 				for _, row := range reader.Transactions.Writes[parent.Address()] {
@@ -106,7 +118,7 @@ func TestAmcheckGINPrivateAuthority(t *testing.T) {
 				next.Gin.Columns[0].Tokens[0].Postings = nil
 				c.Root = next
 			}
-			// The healthy implicit lane needs the ordinary owner environment/host.
+			// Verification consumes the same ordinary owner environment/host.
 			scope := pgrowlocksUnitScope(t, e, reader)
 			before := ginAmcheckClone(c.Root)
 			beforeWrites := ginAmcheckCopyWrites(c.Writes)

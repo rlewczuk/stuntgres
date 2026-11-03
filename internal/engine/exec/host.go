@@ -124,6 +124,7 @@ type Host interface {
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime
 	LargeObject(functions.LargeObjectRequest) (functions.LargeObjectResult, error)
+	GinCleanPendingList(ids.OID) (int64, error)
 	// expr.Context: session generators, conversion procedure, regex cache
 	FunctionArrayRandomOwner() (expr.RandomOwner, error)
 	FunctionRandomOwner() (expr.RandomOwner, error)

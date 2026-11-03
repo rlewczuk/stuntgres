@@ -44,7 +44,7 @@ func TestBtreeGINNetworkPublication(t *testing.T) {
 		}
 		for col, tc := range networkPrivateCases {
 			query := ginInput(t, candidate.Gin.Columns[col].Binding.Usage.Type, tc.upper)
-			got, err := index.GinScalarCandidates(context.Background(), candidate.Gin.Columns[col], query, 3, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), candidate.Gin, col, query, 3, sqltype.InputEnvironment{})
 			want := []storage.GinPosting{{Row: 104, Version: 204, Position: 3}, {Row: 199, Version: 299, Position: 5}}
 			if err != nil || !slices.Equal(got, want) {
 				t.Fatal("produced delta physical owner", tc.typ, got, want, err)
@@ -112,7 +112,7 @@ func TestBtreeGINNetworkPublication(t *testing.T) {
 		ginAssertOwners(t, inserted, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range networkPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			a, b := ginLookup(t, old.Gin.Columns[col], token), ginLookup(t, inserted.Gin.Columns[col], token)
+			a, b := ginLookup(t, old.Gin.Pending[col], token), ginLookup(t, inserted.Gin.Pending[col], token)
 			if &a[0] != &b[0] {
 				t.Fatal("append rebuilt unaffected posting", tc.typ)
 			}
@@ -122,8 +122,8 @@ func TestBtreeGINNetworkPublication(t *testing.T) {
 		ginAssertOwners(t, updated, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range networkPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			previous := ginLookup(t, old.Gin.Columns[col], token)
-			got := ginLookup(t, updated.Gin.Columns[col], token)
+			previous := ginLookup(t, old.Gin.Pending[col], token)
+			got := ginLookup(t, updated.Gin.Pending[col], token)
 			if len(previous) != 2 || len(got) != 1 || got[0] != previous[1] {
 				t.Fatal("update ended wrong predecessor", tc.typ, got, previous)
 			}
@@ -132,7 +132,7 @@ func TestBtreeGINNetworkPublication(t *testing.T) {
 		_, deleted := ginInstalledRoot(t, e, "network_private_i")
 		ginAssertOwners(t, deleted, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range networkPrivateCases {
-			if got := ginLookup(t, deleted.Gin.Columns[col], sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}); len(got) != 0 {
+			if got := ginLookup(t, deleted.Gin.Pending[col], sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}); len(got) != 0 {
 				t.Fatal("ended duplicate remains", tc.typ, got)
 			}
 		}
@@ -155,7 +155,7 @@ func TestBtreeGINNetworkPublication(t *testing.T) {
 		_, committed := ginInstalledRoot(t, e, "network_private_i")
 		ginAssertOwners(t, committed, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range networkPrivateCases {
-			if got := ginLookup(t, committed.Gin.Columns[col], sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}); len(got) != 1 {
+			if got := ginLookup(t, committed.Gin.Pending[col], sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}); len(got) != 1 {
 				t.Fatal("savepoint exact survivor", tc.typ, got)
 			}
 		}

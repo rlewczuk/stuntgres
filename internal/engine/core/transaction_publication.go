@@ -27,7 +27,10 @@ func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[
 	if scope != nil {
 		authority = scope.CatalogAuthority
 	}
-	return e.publishRows(op, ref, writes, deletes, owner.Catalog, authority, scope)
+	owner.Mu.Lock()
+	changes := owner.Catalog
+	owner.Mu.Unlock()
+	return e.publishRows(op, ref, writes, deletes, changes, authority, scope)
 }
 
 func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, scope *StatementScope) error {
@@ -159,7 +162,55 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		input, output = scope.Input, scope.Output
 	}
 	sourceCatalog := c
+	// Both owners mutate physical placement only under Engine.Mu. Unlike SQL
+	// savepoint state, this revision never rewinds within an incarnation.
+	e.Mu.Lock()
+	ginRevision := publicationGinRevision(ref, phase)
+	var ginAccepted map[ids.ObjectAddress][]storage.RowVersion
+	var ginJournal *session.Journal
+	if phase != nil && !phase.Preparing {
+		ginAccepted, ginJournal = phase.Entry.Writes, phase.Entry.Catalog
+	} else {
+		owner := session.TxOwnerOf(ref)
+		ginAccepted, ginJournal = owner.Writes, owner.Catalog
+	}
+	e.Mu.Unlock()
+	var ginInsert *RestoreInsertCapture
+	if replay, ok := op.ReplaySlot.(*restoreReplay); ok && replay.StagingEffects && replay.InsertAuthority {
+		ginInsert = replay.GinInsert
+	}
+	// Before the first physical cleanup, no accepted output can have advanced
+	// to main placement. Keep that ordinary publication path free of alias
+	// normalization and its extra cancellation polls: the final locked operation
+	// preflight remains the installation boundary.
+	if ginRevision != 0 {
+		writes, err = index.ReconcileGinWrites(op.Context(), writes, ginAccepted)
+		if err != nil {
+			return err
+		}
+		sourceCatalog = index.ReconcileGinJournal(sourceCatalog, ginJournal)
+	}
 	for {
+		recaptured := false
+		e.Mu.Lock()
+		revision := publicationGinRevision(ref, phase)
+		if revision != ginRevision {
+			if phase != nil && !phase.Preparing {
+				writes, deletes, sourceCatalog = phase.Entry.Writes, phase.Entry.Deletes, phase.Entry.Catalog
+			} else {
+				owner := session.TxOwnerOf(ref)
+				writes, deletes, sourceCatalog = owner.Writes, owner.Deletes, owner.Catalog
+			}
+			ginRevision = revision
+			recaptured = true
+		}
+		e.Mu.Unlock()
+		if recaptured && phase == nil {
+			writes, deletes, sourceCatalog, err = e.prepareTemporaryCommit(op, ref, writes, deletes, sourceCatalog, scope)
+			if err != nil {
+				return err
+			}
+		}
 		c = sourceCatalog
 		notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		var nextCatalog *catalog.State
@@ -172,6 +223,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		prepared := make([]index.RowPublication, 0, len(writes)+len(deletes))
 		e.Mu.Lock()
+		if publicationGinRevision(ref, phase) != ginRevision {
+			e.Mu.Unlock()
+			continue
+		}
 		if ref.Epoch() != e.Catalog.State.Epoch() {
 			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
@@ -407,6 +462,14 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if indexErr != nil {
 				return indexErr
 			}
+			for _, root := range indexRoots {
+				if root != nil && root.Gin != nil {
+					if err := util.ExecutionCheckpoint(ctx, "gin.publication.prepared"); err != nil {
+						return err
+					}
+					break
+				}
+			}
 		}
 	publicationFence:
 		sess := op.Session
@@ -422,13 +485,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && ref.Epoch() != e.Catalog.State.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
-		if err == nil && c != nil && !index.RoutineSourcesMatch(index.JournalIndexesOrZero(c).Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+		if err == nil && publicationGinRevision(ref, phase) == ginRevision && c != nil && !index.RoutineSourcesMatch(index.JournalIndexesOrZero(c).Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
 			err = catalog.Conflict{}
 		}
 		if err == nil && e.Visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := e.RoleStore.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.Catalog.State != current || c != nil && e.Visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := publicationGinRevision(ref, phase) != ginRevision || e.RoleStore.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.Catalog.State != current || c != nil && e.Visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || p.Store.Retained != p.Retained || p.Store.Headers != p.Headers || !storage.SameVersionRoot(p.Store.Versions, p.Root) {
@@ -500,6 +563,8 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			return err
 		}
 		if phase != nil && phase.Preparing {
+			phase.Entry.Writes, phase.Entry.Deletes, phase.Entry.Catalog = writes, deletes, sourceCatalog
+			phase.Entry.GinRevision = ginRevision
 			e.installPreparedLocked(phase)
 			sess.Mu.Unlock()
 			e.Mu.Unlock()
@@ -609,6 +674,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 				if p.SingleSlot >= 0 {
 					slot = p.SingleSlot
+				}
+				if ginInsert != nil {
+					ginInsert.record(ref, p.Address, p.Store, row.Row, row.Version, row.Base == 0)
 				}
 				if row.Base == 0 {
 					p.Store.Maintenance.Inserts++
@@ -720,4 +788,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func PublicationOperationLocked(e *Engine, op *session.Operation) error {
 	return session.PublicationOperationLocked(DomainOf(e), op)
+}
+
+// Called with Engine.Mu, including for a detached claimed finisher.
+func publicationGinRevision(ref ids.TxRef, phase *session.PreparedPublication) uint64 {
+	if phase != nil && !phase.Preparing {
+		return phase.Entry.GinRevision
+	}
+	return session.TxOwnerOf(ref).GinRevision
 }

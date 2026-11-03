@@ -235,9 +235,6 @@ func (Circle) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Cir
 func (ColumnCompression) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.ColumnCompression")
 }
-func (GinCleanPendingList) JumbleFields(s expr.StatementFields) {
-	s.JumbleText("functions.GinCleanPendingList")
-}
 func (CommentInquiry) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.CommentInquiry") }
 func (commitTimestampExpression) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.commitTimestampExpression")
@@ -297,6 +294,9 @@ func (EventTriggerDroppedObjects) JumbleFields(s expr.StatementFields) {
 }
 func (EventTriggerRewrite) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.EventTriggerRewrite")
+}
+func (GinMaintenanceCall) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.GinMaintenanceCall")
 }
 func (HstoreArray) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.HstoreArray") }
 func (HstoreConstruct) JumbleFields(s expr.StatementFields) {

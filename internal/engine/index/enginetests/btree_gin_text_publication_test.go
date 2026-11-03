@@ -29,7 +29,7 @@ func TestBtreeGINTextPublication(t *testing.T) {
 		}
 		for col, tc := range textPrivateCases {
 			column := next.Gin.Columns[col]
-			got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, column.Binding.Usage.Type, tc.lower), 3, sqltype.InputEnvironment{})
+			got, err := index.GinScalarCandidates(context.Background(), next.Gin, col, ginInput(t, column.Binding.Usage.Type, tc.lower), 3, sqltype.InputEnvironment{})
 			want := append(compoundExactPostings([]int{0}), storage.GinPosting{Row: 199, Version: 299, Position: 8})
 			if err != nil || !slices.Equal(got, want) {
 				t.Fatal("produced exact triples", tc.typ, got, want, err)
@@ -66,7 +66,7 @@ func TestBtreeGINTextPublication(t *testing.T) {
 		ginAssertOwners(t, inserted, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range textPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.upper)}
-			a, b := ginLookup(t, old.Gin.Columns[col], token), ginLookup(t, inserted.Gin.Columns[col], token)
+			a, b := ginLookup(t, old.Gin.Pending[col], token), ginLookup(t, inserted.Gin.Pending[col], token)
 			if &a[0] != &b[0] {
 				t.Fatal("append rebuilt unaffected list")
 			}
@@ -76,8 +76,8 @@ func TestBtreeGINTextPublication(t *testing.T) {
 		ginAssertOwners(t, updated, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range textPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			prior := ginLookup(t, old.Gin.Columns[col], token)
-			got := ginLookup(t, updated.Gin.Columns[col], token)
+			prior := ginLookup(t, old.Gin.Pending[col], token)
+			got := ginLookup(t, updated.Gin.Pending[col], token)
 			if !slices.Equal(got, prior[1:]) {
 				t.Fatal("update did not end exact predecessor", tc.typ, got, prior)
 			}
@@ -105,7 +105,7 @@ func TestBtreeGINTextPublication(t *testing.T) {
 		ginAssertOwners(t, committed, e.Storage.Relations[idx.SQLIndex.Parent])
 		for col, tc := range textPrivateCases {
 			token := sqltype.GinToken{Element: ginInput(t, old.Gin.Columns[col].Binding.Usage.Type, tc.boundary)}
-			if got := ginLookup(t, committed.Gin.Columns[col], token); len(got) != 1 {
+			if got := ginLookup(t, committed.Gin.Pending[col], token); len(got) != 1 {
 				t.Fatal("savepoint survivors", got)
 			}
 		}

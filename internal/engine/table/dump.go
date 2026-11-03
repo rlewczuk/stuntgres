@@ -38,6 +38,7 @@ type DumpRelation struct {
 	RecipeComponent     ids.ObjectAddress
 	Identities          map[int32]catalog.ColumnIdentity
 	IdentitySequences   map[ids.ObjectAddress]sequence.Dump
+	GinReplay           bool // Pair emitted live-row ordinals to destination identities.
 }
 
 // ColumnProvenance describes the actual emitted declaration, including retained
@@ -79,12 +80,24 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 	destination := index.PartitionHashReplayTarget(catalogView, t.Descriptor)
 	qualified := catalog.QuoteIdentifier(catalogView.Get(destination.Namespace()).Name()) + "." + catalog.QuoteIdentifier(destination.Name())
 	var line strings.Builder
+	ordinal := 0
 	for _, version := range t.Versions {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if !visibility.LiveVersion(version, t.Frontier, t.Ends, nil) {
 			continue
+		}
+		ordinal++
+		if t.GinReplay {
+			record := index.GinDumpRow{Schema: t.Schema, Table: t.Name, Ordinal: ordinal, ReplaySchema: catalogView.Get(destination.Namespace()).Name(), ReplayTable: destination.Name()}
+			comment, err := index.EncodeGinRow(record)
+			if err != nil {
+				return err
+			}
+			if err := emit(comment); err != nil {
+				return err
+			}
 		}
 		row := version.Values
 		line.Reset()
@@ -138,10 +151,14 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 			destination := t.Columns[i].Usage.Type
 			base := destination.BaseType().ID()
 			exactTimestamp, captureErr := typedef.ExactTimestampReplayNeeded(ctx, catalogView, t.Columns[i].Usage, v)
-			if captureErr != nil { return captureErr }
+			if captureErr != nil {
+				return captureErr
+			}
 			if exactTimestamp {
 				text, captureErr := destination.Output(ctx, v)
-				if captureErr != nil { return captureErr }
+				if captureErr != nil {
+					return captureErr
+				}
 				node := typedef.DomainReplayNode{Kind: "timestamp_exact", Scalar: &text}
 				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.Columns[i].Name, Value: &node})
 				literal = "'" + strings.ReplaceAll(text, "'", "''") + "'"

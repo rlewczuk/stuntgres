@@ -39,6 +39,13 @@ git clone https://github.com/rlewczuk/stuntgres.git ../stuntgres
 go mod edit -require=stuntgres@v0.0.0 -replace=stuntgres=../stuntgres
 ```
 
+GIN indexes retain genuine main and deferred fastupdate postings.
+`gin_clean_pending_list(regclass)` transfers pending work without changing matches;
+its nullable INT8 result estimates ceil(pending token-posting incidences/128),
+not physical PostgreSQL pages. Disabling fastupdate preserves existing pending
+work. Cleanup survives SQL rollback, and native Dump/Restore preserves the split.
+See the [driver guide](docs/DRIVER.md) for details.
+
 ## A first test
 
 ```go

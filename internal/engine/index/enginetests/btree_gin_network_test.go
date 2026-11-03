@@ -84,6 +84,16 @@ func ginFamilyEngine(t *testing.T, table string, cases []networkPrivateCase, pop
 		}
 	}
 	idx, root := ginInstalledRoot(t, e, table+"_i")
+	if populated && (len(root.Gin.Pending) != len(cases) || storage.GinPendingIncidences(root.Gin) == 0) {
+		t.Fatal("populated fixture lacks genuine deferred postings")
+	}
+	if populated {
+		for _, column := range root.Gin.Columns {
+			if len(column.Tokens) != 0 || len(column.NonNull) != 0 {
+				t.Fatal("DML fixture unexpectedly populated bulk/main inversion")
+			}
+		}
+	}
 	return e, idx, root
 }
 func networkPhysical(t *testing.T) (*core.Engine, *catalog.Relation, *catalog.Relation, *storage.Relation, *storage.IndexRoot) {

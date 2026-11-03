@@ -273,7 +273,7 @@ func TestGINInvertedRoot(t *testing.T) {
 	ginWantRows(t, ginLookup(t, root.Gin.Columns[0], sqltype.GinToken{Kind: sqltype.GinNullItem}), 8)
 	ginWantRows(t, ginLookup(t, root.Gin.Columns[1], sqltype.GinToken{Lexeme: "cat"}), 1, 2, 5)
 	ginWantRows(t, ginLookup(t, root.Gin.Columns[1], sqltype.GinToken{Lexeme: "rat"}), 1, 2, 4, 5)
-	prefix, err := index.GinLexemeCandidates(context.Background(), root.Gin.Columns[1], "cat", true, false, sqltype.InputEnvironment{})
+	prefix, err := index.GinLexemeCandidates(context.Background(), root.Gin, 1, "cat", true, false, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestGINInvertedRoot(t *testing.T) {
 		strategy int
 		rows     []ids.RowID
 	}{{"{1,2}", 2, []ids.RowID{1, 5, 6, 7}}, {"{NULL}", 2, nil}, {"{}", 2, []ids.RowID{1, 2, 3, 4, 5, 6, 7}}, {"{2}", 1, []ids.RowID{1, 2, 4, 5, 6, 7}}} {
-		got, err := index.GinArrayCandidates(context.Background(), root.Gin.Columns[0], ginInput(t, array, tc.query), tc.strategy, sqltype.InputEnvironment{})
+		got, err := index.GinArrayCandidates(context.Background(), root.Gin, 0, ginInput(t, array, tc.query), tc.strategy, sqltype.InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -316,7 +316,7 @@ func TestGINCancellation(t *testing.T) {
 		t.Fatal("admitted typed extraction was not interrupted", emitted, err)
 	}
 	mergeContext := &spgistInterruptContext{Context: context.Background(), remaining: 8}
-	interrupted, err := storage.MergeGin(mergeContext, f.root.Gin, nil, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
+	interrupted, err := storage.MergeGin(mergeContext, f.root.Gin, nil, nil, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
 	if interrupted != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("posting-only merge was not interrupted", interrupted, err)
 	}
@@ -334,7 +334,7 @@ func TestGINCancellation(t *testing.T) {
 	added := []storage.IndexEntry{{Row: 20, Version: 20, Position: 8, Keys: f.root.Entries[0].Keys}}
 	for _, polls := range []int{1, 10, 40} {
 		ctx := &spgistInterruptContext{Context: context.Background(), remaining: polls}
-		root, err := storage.MergeGin(ctx, f.root.Gin, added, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
+		root, err := storage.MergeGin(ctx, f.root.Gin, added, nil, map[ids.VersionID]ids.RowID{1: 1}, sqltype.InputEnvironment{})
 		if root != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled delta became installable", polls, root, err)
 		}
@@ -354,11 +354,14 @@ func TestGINCancellation(t *testing.T) {
 func ginCopyPayload(root *storage.GinRoot) *storage.GinRoot {
 	copy := *root
 	copy.Columns = slices.Clone(root.Columns)
-	for i := range copy.Columns {
-		copy.Columns[i].NonNull = slices.Clone(root.Columns[i].NonNull)
-		copy.Columns[i].Tokens = slices.Clone(root.Columns[i].Tokens)
-		for j := range copy.Columns[i].Tokens {
-			copy.Columns[i].Tokens[j].Postings = slices.Clone(root.Columns[i].Tokens[j].Postings)
+	copy.Pending = slices.Clone(root.Pending)
+	for _, columns := range [][]storage.GinColumn{copy.Columns, copy.Pending} {
+		for i := range columns {
+			columns[i].NonNull = slices.Clone(columns[i].NonNull)
+			columns[i].Tokens = slices.Clone(columns[i].Tokens)
+			for j := range columns[i].Tokens {
+				columns[i].Tokens[j].Postings = slices.Clone(columns[i].Tokens[j].Postings)
+			}
 		}
 	}
 	return &copy

@@ -243,8 +243,12 @@ func RebindGinPresentationRoot(before, after catalog.Read, oldParent, parent, ol
 	}
 	next, payload := *root, *root.Gin
 	payload.Columns = slices.Clone(payload.Columns)
+	payload.Pending = slices.Clone(payload.Pending)
 	for i := range bindings {
 		payload.Columns[i].Binding = bindings[i]
+		if len(payload.Pending) != 0 {
+			payload.Pending[i].Binding = bindings[i]
+		}
 	}
 	next.Gin = &payload
 	if ginPresentationIndexSemantics(oldIndex, index) {

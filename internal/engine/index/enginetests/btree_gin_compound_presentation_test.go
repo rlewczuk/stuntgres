@@ -17,27 +17,36 @@ import (
 
 func compoundSharedPresentation(t *testing.T, before, after *storage.IndexRoot) {
 	t.Helper()
-	if before == after || before.Gin == after.Gin || len(before.Gin.Columns) != len(after.Gin.Columns) {
+	if before == after || before.Gin == after.Gin || len(before.Gin.Columns) != len(after.Gin.Columns) || len(before.Gin.Pending) != len(after.Gin.Pending) {
 		t.Fatal("presentation omitted live wrapper replacement")
 	}
 	if len(before.Entries) > 0 && &before.Entries[0] != &after.Entries[0] {
 		t.Fatal("presentation rebuilt produced entries")
 	}
-	for i, a := range before.Gin.Columns {
-		b := after.Gin.Columns[i]
-		if a.Binding.Usage != b.Binding.Usage || len(a.Tokens) != len(b.Tokens) || len(a.NonNull) != len(b.NonNull) {
-			t.Fatal("presentation changed scalar shape", i)
+	for portion, columns := range [2][]storage.GinColumn{before.Gin.Columns, before.Gin.Pending} {
+		current := after.Gin.Columns
+		if portion == 1 {
+			current = after.Gin.Pending
 		}
-		if len(a.Tokens) > 0 && &a.Tokens[0] != &b.Tokens[0] || len(a.NonNull) > 0 && &a.NonNull[0] != &b.NonNull[0] {
-			t.Fatal("presentation copied actual dictionary/nonnull backing", i)
-		}
-		for j, list := range a.Tokens {
-			if &list.Postings[0] != &b.Tokens[j].Postings[0] {
-				t.Fatal("presentation copied exact posting list backing", i, j)
+		for i, a := range columns {
+			b := current[i]
+			if a.Binding.Usage != b.Binding.Usage || len(a.Tokens) != len(b.Tokens) || len(a.NonNull) != len(b.NonNull) {
+				t.Fatal("presentation changed scalar portion shape", portion, i)
 			}
-		}
-		if i < 4 && a.Binding.Class.Support(1).Authority != b.Binding.Class.Support(1).Authority {
-			t.Fatal("presentation reminted original installed authority", i)
+			if a.Binding.Class != before.Gin.Columns[i].Binding.Class || b.Binding.Class != after.Gin.Columns[i].Binding.Class {
+				t.Fatal("presentation left main/pending on different class generations", portion, i)
+			}
+			if len(a.Tokens) > 0 && &a.Tokens[0] != &b.Tokens[0] || len(a.NonNull) > 0 && &a.NonNull[0] != &b.NonNull[0] {
+				t.Fatal("presentation copied actual dictionary/nonnull backing", portion, i)
+			}
+			for j, list := range a.Tokens {
+				if &list.Postings[0] != &b.Tokens[j].Postings[0] {
+					t.Fatal("presentation copied exact posting list backing", portion, i, j)
+				}
+			}
+			if i < 4 && a.Binding.Class.Support(1).Authority != b.Binding.Class.Support(1).Authority {
+				t.Fatal("presentation reminted original installed authority", portion, i)
+			}
 		}
 	}
 }

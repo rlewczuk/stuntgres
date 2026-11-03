@@ -425,10 +425,12 @@ defaults, overrides and transaction/savepoint restoration use the shared store.
 shared SET/RESET/LOCAL/set_config transaction/savepoint journal. In PostgreSQL it
 sets the fastupdate insertion cleanup threshold when no per-index reloption
 overrides it; assignment alone does not request cleanup or change logical rows.
-Embedded GIN maintains genuine logical postings but has no physical pending
-pages. A demanded, owner-authorized `gin_clean_pending_list(regclass)` reports
-`0A000`: `gin_clean_pending_list physical GIN pending-list cleanup is unsupported
-in embedded mode`, rather than a successful zero-page simulation.
+Embedded GIN maintains genuine main/pending logical postings but has no physical
+pending pages or automatic threshold flushing. Assignment never drains either
+portion. A demanded, owner-authorized `gin_clean_pending_list(regclass)` actually
+transfers pending postings to main and returns a technical incidence-based page
+estimate; empty work returns zero. These explicit maintenance semantics are
+independent of the setting-only threshold.
 
 The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `extension_control_path`,

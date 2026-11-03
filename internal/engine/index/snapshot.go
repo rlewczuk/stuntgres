@@ -197,6 +197,16 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 				return nil, err
 			}
 			entries := make([]storage.IndexEntry, 0, min(len(source.Root.Entries), len(store.Versions)))
+			ginMainCount := 0
+			var pendingIdentities map[RowIdentity]bool
+			if source.Root.Gin != nil && len(source.Root.Gin.Pending) != 0 {
+				pendingIdentities = make(map[RowIdentity]bool)
+				for _, token := range source.Root.Gin.Pending[0].Tokens {
+					for _, posting := range token.Postings {
+						pendingIdentities[RowIdentity{Row: posting.Row, Version: posting.Version}] = true
+					}
+				}
+			}
 			for _, entry := range source.Root.Entries {
 				if err := ctx.Err(); err != nil {
 					return nil, err
@@ -221,7 +231,13 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 					}
 				}
 				row := store.Versions[position]
-				entries = append(entries, storage.IndexEntry{Keys: keys, Row: row.Row, Version: row.Version, Position: position})
+				mapped := storage.IndexEntry{Keys: keys, Row: row.Row, Version: row.Version, Position: position}
+				entries = append(entries, mapped)
+				if source.Root.Gin != nil && !pendingIdentities[RowIdentity{Row: entry.Row, Version: entry.Version}] {
+					last := len(entries) - 1
+					entries[ginMainCount], entries[last] = entries[last], entries[ginMainCount]
+					ginMainCount++
+				}
 			}
 			if index.SQLIndex.Method == catalog.BtreeMethod {
 				if err := ordering.Sort(ctx, entries); err != nil {
@@ -236,10 +252,23 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 				rebuilt.Construction = transportConstruction(source.Root, source.Index, index)
 				roots[address] = rebuilt
 			} else if index.SQLIndex.Method == catalog.GinMethod {
-				rebuilt, err := ginRoot(ctx, view, parent, index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index), sqltype.InputEnvironment{})
+				bindings, err := BindGinIndex(view, parent, index.SQLIndex)
 				if err != nil {
 					return nil, err
 				}
+				payload, err := storage.BuildGin(ctx, bindings, entries[:ginMainCount], sqltype.InputEnvironment{})
+				if err != nil {
+					return nil, err
+				}
+				if ginMainCount != len(entries) {
+					pending, err := storage.BuildGin(ctx, bindings, entries[ginMainCount:], sqltype.InputEnvironment{})
+					if err != nil {
+						return nil, err
+					}
+					payload.Pending = pending.Columns
+				}
+				rebuilt := logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))
+				rebuilt.Gin = payload
 				roots[address] = rebuilt
 			} else {
 				roots[address] = logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))

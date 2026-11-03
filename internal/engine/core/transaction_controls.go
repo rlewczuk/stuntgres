@@ -224,7 +224,10 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 			}
 		}
 		if err == nil {
-			err = e.publishWrites(op, ref, t.Writes, t.Deletes, scope)
+			t.Mu.Lock()
+			writes, deletes := t.Writes, t.Deletes
+			t.Mu.Unlock()
+			err = e.publishWrites(op, ref, writes, deletes, scope)
 			committed = err == nil
 		}
 		if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {

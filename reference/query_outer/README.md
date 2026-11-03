@@ -152,8 +152,10 @@ remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
 supplements. The complete released inventory contains 2226 rows, all backed
-by actual descriptors, including GIN handler333 and ten genuine internal
-extraction/consistency support declarations. Metadata ownership grants no scalar
+by actual descriptors, including GIN handler333, ten genuine internal
+extraction/consistency support declarations and callable strict volatile
+parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership
+for internal support routines grants no scalar
 C ABI execution. The ten nullable lookup records retain one unnamed TEXT input,
 their exact alias or INT4 typmod results and strict STABLE/parallel-safe
 scalar declarations.

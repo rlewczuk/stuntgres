@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typecmds"
@@ -24,9 +25,9 @@ import (
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
+func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) (map[ids.ObjectAddress][]index.RowIdentity, error) {
 	if len(records) == 0 {
-		return nil
+		return nil, nil
 	}
 	input, _ := op.EffectiveSettings().Presentation()
 	input.ExactSnapshot = true
@@ -42,7 +43,7 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	type imported struct {
 		descriptor *catalog.Relation
@@ -53,10 +54,10 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 	seen := make(map[ids.ObjectAddress]bool, len(records))
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
-			return err
+			return nil, err
 		}
 		if !record.Populated && record.Rows != "" {
-			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
+			return nil, fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
 		e.Mu.Lock()
 		namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
@@ -65,18 +66,18 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 		valid := ok && d.RelationKind == catalog.MaterializedViewRelation && !d.Populated && !seen[address]
 		e.Mu.Unlock()
 		if !valid {
-			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
+			return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
 		}
 		seen[address] = true
 		statements, domainReplayPairs, err := view.ParseMaterializedSnapshot(ctx, record.Rows)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		var rows [][]sqltype.Value
 		for _, statement := range statements {
 			s, err := view.MaterializedSnapshotInsert(record, d, statement)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if s.DefaultValues {
 				rows = append(rows, []sqltype.Value{})
@@ -88,7 +89,7 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 			}
 			values, err := ImportMaterializedSnapshotRow(e, ctx, op, auth, d, s, input, replay)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			rows = append(rows, values...)
 		}
@@ -97,29 +98,35 @@ func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	next := catalog.CloneState(e.Catalog.State)
+	identities := make(map[ids.ObjectAddress][]index.RowIdentity, len(imports))
 	for _, item := range imports {
 		versions, err := e.Storage.AllocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for i := range versions {
 			versions[i].Born = e.Visibility.CommitSeq()
 			versions[i].Frozen, versions[i].ImportFrozen = true, true
 		}
+		produced := make([]index.RowIdentity, len(versions))
+		for i, row := range versions {
+			produced[i] = index.RowIdentity{Row: row.Row, Version: row.Version}
+		}
+		identities[item.descriptor.Address()] = produced
 		d := *item.descriptor
 		d.ObjectRevision, err = e.Catalog.RevisionLocked()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		d.Populated = item.populated
 		next.SetDescriptor(d.Address(), &d)
 		e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{Versions: versions})
 	}
 	e.Catalog.PublishLocked(next)
-	return nil
+	return identities, nil
 }
 
 // ImportMaterializedSnapshotRow evaluates one snapshot INSERT into rows of

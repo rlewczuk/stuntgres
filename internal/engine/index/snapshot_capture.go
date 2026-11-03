@@ -121,32 +121,34 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 			}
 		}
 		if root.Gin != nil {
-			if len(root.Gin.Columns) != len(idx.SQLIndex.Keys) {
+			if len(root.Gin.Columns) != len(idx.SQLIndex.Keys) || len(root.Gin.Pending) != 0 && len(root.Gin.Pending) != len(idx.SQLIndex.Keys) {
 				return nil, ids.ErrCatalogReplaced
 			}
 			bindings, err := BindGinIndex(view, parent, idx.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
-			for ordinal, column := range root.Gin.Columns {
-				if !bindings[ordinal].Same(column.Binding) {
-					return nil, ids.ErrCatalogReplaced
-				}
-				for _, posting := range column.NonNull {
-					if err := ctx.Err(); err != nil {
-						return nil, err
+			for _, columns := range [2][]storage.GinColumn{root.Gin.Columns, root.Gin.Pending} {
+				for ordinal, column := range columns {
+					if !bindings[ordinal].Same(column.Binding) {
+						return nil, ids.ErrCatalogReplaced
 					}
-					if err := check(posting.Row, posting.Version, posting.Position); err != nil {
-						return nil, err
-					}
-				}
-				for _, list := range column.Tokens {
-					for _, posting := range list.Postings {
+					for _, posting := range column.NonNull {
 						if err := ctx.Err(); err != nil {
 							return nil, err
 						}
 						if err := check(posting.Row, posting.Version, posting.Position); err != nil {
 							return nil, err
+						}
+					}
+					for _, list := range column.Tokens {
+						for _, posting := range list.Postings {
+							if err := ctx.Err(); err != nil {
+								return nil, err
+							}
+							if err := check(posting.Row, posting.Version, posting.Position); err != nil {
+								return nil, err
+							}
 						}
 					}
 				}

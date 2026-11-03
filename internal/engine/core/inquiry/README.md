@@ -91,17 +91,11 @@ immutable vectors, not mutable heap headers or prepared numeric/ACL results.
 The allocation model belongs to
 [`storage`](../../storage/README.md#logical-allocation-estimates).
 
-`GinCleanPendingList` uses that same retained catalog owner/replacement-epoch
-fence under `Engine.Mu`, then asks core's focused target method to resolve the
-current transaction/private catalog. Relation/index kind and the actual access
-method implementation precede other-session TEMP rejection and inherited
-index-owner/superuser authorization. The host recaptures
-`RoutineAuthorizationLocked` over that same catalog, not relation-write
-authority; ordinary expression admission separately owns live EXECUTE checks.
-An eligible demanded target returns the unpositioned `0A000`
-`gin_clean_pending_list physical GIN pending-list cleanup is unsupported in
-embedded mode`. No roots, postings, reloptions, pages or counters are changed.
-Strict NULL and undemanded expressions never enter this physical boundary.
+`gin_clean_pending_list` is representation maintenance, not a catalog inquiry.
+Its typed `GinMaintenanceCall` borrows the focused statement-host maintenance
+capability; core owns current authority, scoped RowExclusive locking, COW
+whole-owner preparation and atomic transfer. No duplicate inquiry runtime or
+unsupported physical-cleanup boundary remains here.
 
 `FormatType` consumes the immutable visibility catalog and authorized
 relation/type-compatible path, including the session's TEMP namespace.

@@ -65,6 +65,19 @@ and session; capture, rebuild and rendering retain only typed operands and
 ordinary routine provenance, never descriptor tables, cursors, opening bytes or
 ACL decisions. Preparation/description do not invoke this runtime.
 
+`GinMaintenanceCall` is one strict, volatile, nonfolding REGCLASS-to-INT8 recipe.
+It retains its typed child and ordinary OID3789 routine provenance, never a root,
+lock or cached cleanup result. NULL returns typed NULL without borrowing target
+authority. Reached calls use `GinMaintenanceRuntime` on the current statement;
+the core owns index ownership, relation locks and representation publication.
+Ordinary argument coercion and missing-signature diagnostics remain binder-owned.
+Statement jumbling projects its own concrete discriminator, ordinary selected
+routine OID and lexical REGCLASS child through the shared expression walker.
+Fingerprinting never invokes cleanup or retains an index identity/result; constant
+operands normalize independently of their target, while parameters retain their
+ordinary analyzed identity.
+
+
 `IsnValidation` retains the authenticated installed routine, exact formal/result
 identities and zero/one typed child. Validity/repair use immutable strict folding
 and inline datum operations; weak getter/setter remain unfolded. Strict NULL
@@ -432,18 +445,16 @@ is unsupported in embedded mode. Prepare and undemanded expressions do not
 inspect physical storage. Stored views use ordinary reconstruction, capture,
 rendering and native-control replay, with no retained GUC or measured metadata.
 
-`GinCleanPendingList` binds `gin_clean_pending_list(regclass)` through ordinary
-catalog routine 3789: canonical INT8 result, STRICT, VOLATILE, parallel-unsafe,
-cost 1. Its immutable one-child recipe participates in ordinary capture,
-rendering, jumbling, reconstruction and stored/native-control replay. Strict
-constant-NULL simplification precedes FoldNever: an erased call returns typed
-INT8 NULL without an invocation, including after EXECUTE is revoked. Surviving
-demanded non-NULL calls use live ordinary EXECUTE admission, evaluate the target
-once and borrow the current catalog runtime for index-kind, GIN implementation,
-TEMP-session and index-owner checks. Only an eligible target reaches the named
-`0A000` physical GIN pending-list cleanup boundary; no page count is fabricated.
-Prepare and undemanded expressions do not clean storage. The owning public
-family is `RUN='^TestReferenceGINPendingListLimit'`.
+`GinMaintenanceCall` also supplies scalar-source admission and validates its
+canonical REGCLASS child, INT8 result and merged volatile properties through
+reconstruction and stored-provider replay. Strict constant-NULL simplification
+precedes FoldNever: an erased call returns typed INT8 NULL without an invocation,
+including after EXECUTE is revoked. Surviving demanded calls use live ordinary
+EXECUTE admission and evaluate the target exactly once. Prepare and undemanded
+expressions do not clean storage. `TestGINCleanPendingListProtocol` retains these
+protocol witnesses; `TestReferenceGINPendingListLimit` independently covers the
+setting-only automatic threshold and real explicit cleanup, including native
+split-preserving replay.
 
 `GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
 sources, retaining only a closed kind, immutable operands and result shape.

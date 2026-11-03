@@ -110,7 +110,7 @@ func TestBtreeGINTemporalPostings(t *testing.T) {
 			if &got[0] != &column.Tokens[ordinal].Postings[0] {
 				t.Fatal("equality lost backing")
 			}
-			selected, err := index.GinScalarCandidates(context.Background(), column, token.Element, 3, sqltype.InputEnvironment{})
+			selected, err := index.GinScalarCandidates(context.Background(), root.Gin, col, token.Element, 3, sqltype.InputEnvironment{})
 			if err != nil || !slices.Equal(selected, got) || &selected[0] != &got[0] {
 				t.Fatal("exact equality candidates", tc.typ, key.text, selected, err)
 			}
@@ -119,6 +119,7 @@ func TestBtreeGINTemporalPostings(t *testing.T) {
 			t.Fatal("NULL physical postings", tc.typ)
 		}
 		column.NonNull = []storage.GinPosting{{Row: 9999, Version: 9999, Position: 9999}}
+		probe := &storage.GinRoot{Columns: []storage.GinColumn{column}}
 		// Every finite/special dictionary boundary exercises all five strategies;
 		// the independent sorted key groups specify exact physical memberships.
 		for ordinal, key := range keys {
@@ -140,14 +141,14 @@ func TestBtreeGINTemporalPostings(t *testing.T) {
 			networkProbeProof(t, column, key.text, tc.absent, wants, all)
 			for strategy, positions := range wants {
 				positions = slices.Sorted(slices.Values(positions))
-				got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, column.Binding.Usage.Type, key.text), strategy+1, sqltype.InputEnvironment{})
+				got, err := index.GinScalarCandidates(context.Background(), probe, 0, ginInput(t, column.Binding.Usage.Type, key.text), strategy+1, sqltype.InputEnvironment{})
 				if err != nil || !slices.Equal(got, compoundExactPostings(positions)) {
 					t.Fatal("all typed endpoints", tc.typ, key.text, strategy+1, got, positions, err)
 				}
 			}
 		}
 		sameID := *column.Binding.Usage.Type
-		if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("foreign generation probe", got, err)
 		}
 	}

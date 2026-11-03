@@ -49,3 +49,7 @@ func EnginePrepareRemintedStorage(x *Engine, ctx context.Context, next *catalog.
 func ScopeValidatePrivateIndexExpressions(x *StatementScope, changes *session.Journal, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
 	return x.validatePrivateIndexExpressions(changes, deletes)
 }
+
+func GinMaintenanceTarget(auth AuthorizationView, target *catalog.Relation, recovery bool, token ids.SessionToken) error {
+	return ginMaintenanceTarget(auth, target, recovery, token)
+}

@@ -44,7 +44,7 @@ func TestBtreeGINNetworkTransport(t *testing.T) {
 	}
 	for col, tc := range networkPrivateCases {
 		value := ginInput(t, filtered.Gin.Columns[col].Binding.Usage.Type, tc.upper)
-		got, err := index.GinScalarCandidates(context.Background(), filtered.Gin.Columns[col], value, 3, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), filtered.Gin, col, value, 3, sqltype.InputEnvironment{})
 		row := baseline.Versions[1]
 		if err != nil || !slices.Equal(got, []storage.GinPosting{{Row: row.Row, Version: row.Version, Position: 1}}) {
 			t.Fatal("baseline physical slots", tc.typ, got, err)
@@ -75,7 +75,7 @@ func TestBtreeGINNetworkTransport(t *testing.T) {
 	}
 	for col, tc := range networkPrivateCases {
 		query := ginInput(t, moved.Gin.Columns[col].Binding.Usage.Type, tc.boundary)
-		got, err := index.GinScalarCandidates(context.Background(), moved.Gin.Columns[col], query, 3, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), moved.Gin, col, query, 3, sqltype.InputEnvironment{})
 		want := []storage.GinPosting{{Row: 1001, Version: 2001, Position: 1}, {Row: 1002, Version: 2002, Position: 2}}
 		if err != nil || !slices.Equal(got, want) {
 			t.Fatal("remint exact triples", tc.typ, got, err)
@@ -108,7 +108,7 @@ func TestBtreeGINNetworkTransport(t *testing.T) {
 	ginAssertOwners(t, vacuumed, compact)
 	for col, tc := range networkPrivateCases {
 		query := ginInput(t, vacuumed.Gin.Columns[col].Binding.Usage.Type, tc.boundary)
-		got, err := index.GinScalarCandidates(context.Background(), vacuumed.Gin.Columns[col], query, 3, sqltype.InputEnvironment{})
+		got, err := index.GinScalarCandidates(context.Background(), vacuumed.Gin, col, query, 3, sqltype.InputEnvironment{})
 		row := store.Versions[2]
 		if err != nil || !slices.Equal(got, []storage.GinPosting{{Row: row.Row, Version: row.Version, Position: 1}}) {
 			t.Fatal("vacuum exact slots", tc.typ, got, err)
@@ -126,22 +126,31 @@ func TestBtreeGINNetworkTransport(t *testing.T) {
 	if restored == root || restored.Gin == root.Gin || targetIdx == idx {
 		t.Fatal("replacement imported executable root")
 	}
-	for col := range networkPrivateCases {
-		a, b := root.Gin.Columns[col], restored.Gin.Columns[col]
-		if a.Binding.Same(b.Binding) || a.Binding.Class.Support(1).Authority == b.Binding.Class.Support(1).Authority || len(a.Tokens) != len(b.Tokens) || &a.Tokens[0] == &b.Tokens[0] {
-			t.Fatal("replacement retained source authority/backing", col)
+	for portion, columns := range [2][]storage.GinColumn{root.Gin.Columns, root.Gin.Pending} {
+		destination := restored.Gin.Columns
+		if portion == 1 {
+			destination = restored.Gin.Pending
 		}
-		for slot := 1; slot <= 5; slot++ {
-			if a.Binding.Class.Support(slot).Authority == b.Binding.Class.Support(slot).Authority {
-				t.Fatal("source helper authority imported", col, slot)
+		if len(columns) != len(destination) {
+			t.Fatal("replacement lost split placement", portion)
+		}
+		for col := range columns {
+			a, b := columns[col], destination[col]
+			if a.Binding.Same(b.Binding) || a.Binding.Class.Support(1).Authority == b.Binding.Class.Support(1).Authority || len(a.Tokens) != len(b.Tokens) || len(a.Tokens) > 0 && &a.Tokens[0] == &b.Tokens[0] {
+				t.Fatal("replacement retained source authority/backing", col)
 			}
-		}
-		if _, err := routine.BindClassSupport(target.CatalogRead(), a.Binding.Class); err == nil {
-			t.Fatal("destination admitted source capture")
-		}
-		for _, list := range b.Tokens {
-			if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
-				t.Fatal("destination token generation")
+			for slot := 1; slot <= 5; slot++ {
+				if a.Binding.Class.Support(slot).Authority == b.Binding.Class.Support(slot).Authority {
+					t.Fatal("source helper authority imported", col, slot)
+				}
+			}
+			if _, err := routine.BindClassSupport(target.CatalogRead(), a.Binding.Class); err == nil {
+				t.Fatal("destination admitted source capture")
+			}
+			for _, list := range b.Tokens {
+				if list.Token.Kind == sqltype.GinOrdinary && list.Token.Element.Type() != b.Binding.Usage.Type {
+					t.Fatal("destination token generation")
+				}
 			}
 		}
 	}

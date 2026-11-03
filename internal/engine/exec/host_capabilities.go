@@ -78,7 +78,6 @@ type CatalogInquiryRuntime interface {
 	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
 	SizeInquiry(functions.SizeKind, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
-	GinCleanPendingList(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	DatabaseFilesInquiry(functions.DatabaseFilesKind, sqltype.Value, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)

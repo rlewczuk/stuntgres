@@ -8,10 +8,38 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// GinScalarCandidates selects only the exact/range dictionary posting lists.
-// It is not a heap scan or SQL ordering path; visibility and any conservative
-// recheck stay with the ordinary scalar predicate and its owning source.
-func GinScalarCandidates(ctx context.Context, column storage.GinColumn, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+// GinScalarCandidates selects exact/range dictionary postings from both genuine
+// portions. A sole nonempty result remains borrowed; two results are combined
+// by exact physical identity. Visibility and SQL recheck remain source-owned.
+func GinScalarCandidates(ctx context.Context, root *storage.GinRoot, ordinal int, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
+	if root == nil || ordinal < 0 || ordinal >= len(root.Columns) || len(root.Pending) != 0 && len(root.Pending) != len(root.Columns) {
+		return nil, fmt.Errorf("stuntgres: invalid GIN scalar probe ordinal")
+	}
+	main, err := ginScalarCandidates(ctx, root.Columns[ordinal], query, strategy, input)
+	if err != nil || len(root.Pending) == 0 {
+		return main, err
+	}
+	if !root.Pending[ordinal].Binding.Same(root.Columns[ordinal].Binding) {
+		return nil, fmt.Errorf("stuntgres: foreign GIN scalar pending binding")
+	}
+	pending, err := ginScalarCandidates(ctx, root.Pending[ordinal], query, strategy, input)
+	if err != nil {
+		return nil, err
+	}
+	if len(main) == 0 {
+		return pending, nil
+	}
+	if len(pending) == 0 {
+		return main, nil
+	}
+	combined, err := storage.CombineGinPostings(ctx, main, pending, false)
+	if err != nil {
+		return nil, err
+	}
+	return combined, nil
+}
+
+func ginScalarCandidates(ctx context.Context, column storage.GinColumn, query sqltype.Value, strategy int, input sqltype.InputEnvironment) ([]storage.GinPosting, error) {
 	if !column.Binding.IsScalar() || query.Type() != column.Binding.Usage.Type {
 		return nil, fmt.Errorf("stuntgres: foreign GIN scalar probe")
 	}

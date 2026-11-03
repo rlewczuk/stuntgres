@@ -18,25 +18,31 @@ func scalarSameGin(a, b *storage.GinRoot) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	if (a.Columns == nil) != (b.Columns == nil) || len(a.Columns) != len(b.Columns) {
-		return false
-	}
-	for col, left := range a.Columns {
-		right := b.Columns[col]
-		if !left.Binding.Same(right.Binding) || (left.NonNull == nil) != (right.NonNull == nil) || !slices.Equal(left.NonNull, right.NonNull) || (left.Tokens == nil) != (right.Tokens == nil) || len(left.Tokens) != len(right.Tokens) {
+	for portion, leftColumns := range [2][]storage.GinColumn{a.Columns, a.Pending} {
+		rightColumns := b.Columns
+		if portion == 1 {
+			rightColumns = b.Pending
+		}
+		if (leftColumns == nil) != (rightColumns == nil) || len(leftColumns) != len(rightColumns) {
 			return false
 		}
-		for ordinal, x := range left.Tokens {
-			y := right.Tokens[ordinal]
-			if x.Token.Kind != y.Token.Kind || x.Token.Lexeme != y.Token.Lexeme || (x.Postings == nil) != (y.Postings == nil) || !slices.Equal(x.Postings, y.Postings) {
+		for col, left := range leftColumns {
+			right := rightColumns[col]
+			if !left.Binding.Same(right.Binding) || (left.NonNull == nil) != (right.NonNull == nil) || !slices.Equal(left.NonNull, right.NonNull) || (left.Tokens == nil) != (right.Tokens == nil) || len(left.Tokens) != len(right.Tokens) {
 				return false
 			}
-			if x.Token.Kind == sqltype.GinOrdinary {
-				if !sqltype.SameDatum(x.Token.Element, y.Token.Element) {
+			for ordinal, x := range left.Tokens {
+				y := right.Tokens[ordinal]
+				if x.Token.Kind != y.Token.Kind || x.Token.Lexeme != y.Token.Lexeme || (x.Postings == nil) != (y.Postings == nil) || !slices.Equal(x.Postings, y.Postings) {
 					return false
 				}
-			} else if x.Token.Element != y.Token.Element {
-				return false
+				if x.Token.Kind == sqltype.GinOrdinary {
+					if !sqltype.SameDatum(x.Token.Element, y.Token.Element) {
+						return false
+					}
+				} else if x.Token.Element != y.Token.Element {
+					return false
+				}
 			}
 		}
 	}
@@ -151,7 +157,7 @@ func TestBtreeGINScalarPostings(t *testing.T) {
 			if &got[0] != &column.Tokens[ordinal].Postings[0] {
 				t.Fatal("equality lost backing")
 			}
-			selected, err := index.GinScalarCandidates(context.Background(), column, token.Element, 3, sqltype.InputEnvironment{})
+			selected, err := index.GinScalarCandidates(context.Background(), root.Gin, col, token.Element, 3, sqltype.InputEnvironment{})
 			if err != nil || !slices.Equal(selected, got) || &selected[0] != &got[0] {
 				t.Fatal("exact equality candidates", tc.typ, key.text, selected, err)
 			}
@@ -160,6 +166,7 @@ func TestBtreeGINScalarPostings(t *testing.T) {
 			t.Fatal("NULL physical postings", tc.typ)
 		}
 		column.NonNull = []storage.GinPosting{{Row: 9999, Version: 9999, Position: 9999}}
+		probe := &storage.GinRoot{Columns: []storage.GinColumn{column}}
 		networkProbeProof(t, column, tc.boundary, tc.absent, scalarZeroPositions(tc), all)
 		// Every finite/special dictionary boundary exercises all five strategies;
 		// the independent sorted key groups specify exact physical memberships.
@@ -178,14 +185,14 @@ func TestBtreeGINScalarPostings(t *testing.T) {
 			wants := [][]int{lower, append(slices.Clone(lower), equal...), equal, append(slices.Clone(equal), upper...), upper}
 			for strategy, positions := range wants {
 				positions = slices.Sorted(slices.Values(positions))
-				got, err := index.GinScalarCandidates(context.Background(), column, ginInput(t, column.Binding.Usage.Type, key.text), strategy+1, sqltype.InputEnvironment{})
+				got, err := index.GinScalarCandidates(context.Background(), probe, 0, ginInput(t, column.Binding.Usage.Type, key.text), strategy+1, sqltype.InputEnvironment{})
 				if err != nil || !slices.Equal(got, compoundExactPostings(positions)) {
 					t.Fatal("all typed endpoints", tc.typ, key.text, strategy+1, got, positions, err)
 				}
 			}
 		}
 		sameID := *column.Binding.Usage.Type
-		if got, err := index.GinScalarCandidates(context.Background(), column, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
+		if got, err := index.GinScalarCandidates(context.Background(), root.Gin, col, sqltype.Null(&sameID), 3, sqltype.InputEnvironment{}); err == nil || got != nil {
 			t.Fatal("foreign generation probe", got, err)
 		}
 	}

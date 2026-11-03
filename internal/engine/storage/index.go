@@ -41,4 +41,7 @@ type IndexOutput struct {
 	Member bool
 	Keys   []sqltype.Value
 	Key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
+	// GinPending is immutable produced placement, not SQL membership. Cleanup
+	// may clear it without changing the accepted key or transaction visibility.
+	GinPending bool
 }

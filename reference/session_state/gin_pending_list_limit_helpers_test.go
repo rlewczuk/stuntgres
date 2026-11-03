@@ -10,7 +10,6 @@ import (
 )
 
 const ginLimitName = "gin_pending_list_limit"
-const ginLimitBoundary = "gin_clean_pending_list physical GIN pending-list cleanup is unsupported in embedded mode"
 
 func (s *physicalCase) ginState(display, raw, source string, prepared bool) {
 	s.t.Helper()
@@ -79,11 +78,7 @@ func ginLimitResult(pg bool, q, typ string, rows [][]any, args ...any) fixture.S
 }
 
 func ginLimitDemand(pg bool, q, typ string, value any, args ...any) fixture.Step {
-	if pg {
-		return ginLimitResult(pg, q, typ, [][]any{{value}}, args...)
-	}
-	step := physicalError(q, physicalDiagnostic("0A000", ginLimitBoundary), false, true, args...)
-	return step
+	return ginLimitResult(pg, q, typ, [][]any{{value}}, args...)
 }
 
 func (s *physicalCase) ginHeld(step fixture.Step) {
@@ -105,9 +100,10 @@ func (s *physicalCase) ginLogical() {
 	s.run(fixture.Select("SELECT relname,reloptions::text AS reloptions FROM pg_class WHERE relname IN ('gin_limit_low_i','gin_limit_high_i') ORDER BY relname", []string{"relname", "reloptions"}, []string{"NAME", "TEXT"}, [][]any{{"gin_limit_high_i", "{fastupdate=on}"}, {"gin_limit_low_i", "{fastupdate=on}"}}))
 }
 
-// Independent REL_18_6 ginfast.c threshold witness, not observed native counts:
-// one large entry exceeds 64kB, but remains below 8MB. Never drain high twice
-// expecting a positive result: every subsequent call must observe zero on PG.
+// Independent REL_18_6 ginfast.c threshold witness: one large entry exceeds
+// 64kB but remains below 8MB. Native retains both pending lists because automatic
+// threshold flushing is unavailable. Explicit cleanup is real on both backends;
+// every call after the first drain observes zero.
 func (s *physicalCase) ginInsertPair() {
 	s.t.Helper()
 	for _, table := range []string{"gin_limit_low", "gin_limit_high"} {

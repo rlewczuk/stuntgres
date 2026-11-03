@@ -22,7 +22,9 @@ func TestReferenceGINPendingListLimitPhysicalBoundary(t *testing.T) {
 		s.run(fixture.Exec("SET gin_pending_list_limit='64kB'", 0))
 		// This first high measurement executes the statement prepared at 64kB,
 		// after the high insertion at 8MB; it is the only positive high drain.
-		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_low_i'::regclass) AS cleaned", "INT8", int64(0)))
+		// PostgreSQL already flushed low during insertion; native automatic
+		// threshold flushing is unavailable, so its first explicit drain has work.
+		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_low_i'::regclass)>0 AS cleaned", "BOOL", !s.pg))
 		s.ginLogical()
 		s.run(fixture.Exec("SET gin_pending_list_limit='8MB'", 0))
 		fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: s.conn, Statement: statement, SQL: heldSQL}, s.recorder, ginLimitDemand(s.pg, heldSQL, "BOOL", true, "gin_limit_high_i"))
@@ -56,6 +58,10 @@ func TestReferenceGINPendingListLimitPhysicalBoundary(t *testing.T) {
 		if s.pg {
 			return
 		}
+		// Same SQL values, genuinely new produced version: native Dump/Restore
+		// must retain its pending placement, not infer it from the threshold.
+		s.run(fixture.Exec("UPDATE gin_limit_high SET a=a", 1))
+		s.ginLogical()
 		var dump bytes.Buffer
 		if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
 			s.t.Fatal(err)
@@ -82,7 +88,8 @@ func TestReferenceGINPendingListLimitPhysicalBoundary(t *testing.T) {
 		replay.run(fixture.Prepared(empty))
 		replay.ginHeld(empty)
 		replay.ginLogical()
-		replay.run(ginLimitDemand(false, "SELECT cleaned FROM gin_limit_cleanup_view", "INT8", nil))
+		replay.run(ginLimitDemand(false, "SELECT cleaned>0 AS cleaned FROM gin_limit_cleanup_view", "BOOL", true))
+		replay.run(ginLimitDemand(false, "SELECT cleaned FROM gin_limit_cleanup_view", "INT8", int64(0)))
 		replay.ginLogical()
 	})
 }
@@ -90,7 +97,7 @@ func TestReferenceGINPendingListLimitPhysicalBoundary(t *testing.T) {
 func TestReferenceGINPendingListLimitFeatureSmoke(t *testing.T) {
 	physicalCases(t, []string{"gin_limit_smoke_login"}, func(s *physicalCase) {
 		s.ginInsertPair()
-		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_low_i'::regclass) AS cleaned", "INT8", int64(0)))
+		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_low_i'::regclass)>0 AS cleaned", "BOOL", !s.pg))
 		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_high_i'::regclass)>0 AS cleaned", "BOOL", true))
 		s.run(ginLimitDemand(s.pg, "SELECT gin_clean_pending_list('gin_limit_high_i'::regclass) AS cleaned", "INT8", int64(0)))
 		s.run(ginLimitResult(s.pg, "SELECT gin_clean_pending_list(NULL::regclass) AS cleaned", "INT8", [][]any{{nil}}))

@@ -38,6 +38,22 @@ func TestGINPresentationRebinding(t *testing.T) {
 		payload *storage.GinRoot
 	}
 	var predecessors []retained
+	lexemePostings := func(root *storage.IndexRoot, lexeme string) []storage.GinPosting {
+		t.Helper()
+		postings, err := index.GinLexemeCandidates(context.Background(), root.Gin, 1, lexeme, false, false, sqltype.InputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return postings
+	}
+	arrayPostings := func(root *storage.IndexRoot, query sqltype.Value) []storage.GinPosting {
+		t.Helper()
+		postings, err := index.GinArrayCandidates(context.Background(), root.Gin, 0, query, 2, sqltype.InputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return postings
+	}
 	for _, change := range []struct {
 		query  string
 		column int
@@ -82,23 +98,26 @@ func TestGINPresentationRebinding(t *testing.T) {
 		}
 		enginetest.Run(t, e, "INSERT INTO gin_rebinding VALUES(3,'{3,3}','cat:1 rat:2')")
 		_, inserted := ginInstalledRoot(t, e, "gin_rebinding_i")
-		if got := ginPostingID(t, e, currentIndex, ginLookup(t, inserted.Gin.Columns[1], sqltype.GinToken{Lexeme: "cat"})); !slices.Equal(got, []int64{1, 3}) {
+		if got := ginPostingID(t, e, currentIndex, lexemePostings(inserted, "cat")); !slices.Equal(got, []int64{1, 3}) {
 			t.Fatal("current presentation authority lost inserted postings", got)
+		}
+		if len(inserted.Gin.Pending) != 2 || !slices.Equal(ginPostingID(t, e, currentIndex, ginLookup(t, inserted.Gin.Pending[1], sqltype.GinToken{Lexeme: "cat"})), []int64{3}) {
+			t.Fatal("current presentation did not route the inserted version to genuine pending storage")
 		}
 		enginetest.Run(t, e, "UPDATE gin_rebinding SET a='{4}',v='dog:1' WHERE id=3")
 		_, updated := ginInstalledRoot(t, e, "gin_rebinding_i")
-		if got := ginPostingID(t, e, currentIndex, ginLookup(t, updated.Gin.Columns[1], sqltype.GinToken{Lexeme: "cat"})); !slices.Equal(got, []int64{1}) {
+		if got := ginPostingID(t, e, currentIndex, lexemePostings(updated, "cat")); !slices.Equal(got, []int64{1}) {
 			t.Fatal("current presentation authority retained ended vector postings", got)
 		}
 		array := updated.Gin.Columns[0].Binding.Usage.Type
-		three := sqltype.GinToken{Element: ginInput(t, array, "{3}").ArrayElement(0)}
-		four := sqltype.GinToken{Element: ginInput(t, array, "{4}").ArrayElement(0)}
-		if len(ginLookup(t, updated.Gin.Columns[0], three)) != 0 || !slices.Equal(ginPostingID(t, e, currentIndex, ginLookup(t, updated.Gin.Columns[0], four)), []int64{3}) {
-			t.Fatal("current presentation authority lost exact array update")
+		three := ginInput(t, array, "{3}")
+		four := ginInput(t, array, "{4}")
+		if len(arrayPostings(updated, three)) != 0 || !slices.Equal(ginPostingID(t, e, currentIndex, arrayPostings(updated, four)), []int64{3}) || !slices.Equal(ginPostingID(t, e, currentIndex, lexemePostings(updated, "dog")), []int64{3}) {
+			t.Fatal("current presentation authority lost exact array/vector update across main and pending")
 		}
 		enginetest.Run(t, e, "DELETE FROM gin_rebinding WHERE id=3")
 		_, deleted := ginInstalledRoot(t, e, "gin_rebinding_i")
-		if len(deleted.Entries) != 1 || len(ginLookup(t, deleted.Gin.Columns[0], four)) != 0 || len(ginLookup(t, deleted.Gin.Columns[1], sqltype.GinToken{Lexeme: "dog"})) != 0 {
+		if len(deleted.Entries) != 1 || len(deleted.Gin.Pending) != 0 || len(arrayPostings(deleted, four)) != 0 || len(lexemePostings(deleted, "dog")) != 0 {
 			t.Fatal("current presentation authority lost exact deletion")
 		}
 		for _, old := range predecessors {
@@ -150,14 +169,16 @@ func TestGINPresentationRebinding(t *testing.T) {
 		}
 	}
 	currentWrites := session.Transactions.Writes[idx.SQLIndex.Parent]
-	if len(currentWrites) != len(priorWrites) || &currentWrites[0].Values[0] != &priorWrites[0].Values[0] {
+	if len(priorWrites) == 0 || len(currentWrites) != len(priorWrites) || &currentWrites[0].Values[0] != &priorWrites[0].Values[0] {
 		t.Fatal("presentation change reconstructed an earlier own-write payload")
 	}
-	if output, exists := priorWrites[0].IndexOutputs[idx.Address()]; exists {
-		current := currentWrites[0].IndexOutputs[idx.Address()]
-		if output.Index != idx || current.Index != privateIndex || !slices.Equal(output.Keys, current.Keys) || len(output.Keys) != 0 && &output.Keys[0] != &current.Keys[0] {
-			t.Fatal("presentation change lost produced own-write authority/backing")
-		}
+	output, exists := priorWrites[0].IndexOutputs[idx.Address()]
+	if !exists || !output.Member || !output.GinPending {
+		t.Fatal("GIN INSERT did not retain genuine pending output before presentation transport")
+	}
+	current := currentWrites[0].IndexOutputs[idx.Address()]
+	if output.Index != idx || current.Index != privateIndex || current.Member != output.Member || current.GinPending != output.GinPending || !slices.Equal(output.Keys, current.Keys) || len(output.Keys) != 0 && &output.Keys[0] != &current.Keys[0] {
+		t.Fatal("presentation change lost produced own-write authority, placement or backing")
 	}
 	enginetest.SessionSQL(t, session, "INSERT INTO gin_rebinding VALUES(9,'{9}','private:1')")
 	if e.CatalogRead().State() != view.State() || e.Storage.IndexRoots[idx.Address()] != live {
@@ -168,7 +189,7 @@ func TestGINPresentationRebinding(t *testing.T) {
 	if rolledBackIndex != idx || rolledBack != live || e.CatalogRead().State() != view.State() {
 		t.Fatal("rolled-back presentation change replaced committed authority")
 	}
-	if len(ginLookup(t, rolledBack.Gin.Columns[1], sqltype.GinToken{Lexeme: "private"})) != 0 {
+	if len(lexemePostings(rolledBack, "private")) != 0 {
 		t.Fatal("rolled-back presentation change published private postings")
 	}
 }
@@ -211,6 +232,7 @@ func ginAdmissionDelta(t *testing.T, f ginFixture) *index.RowPublication {
 
 func TestGINNonmaterializingMerge(t *testing.T) {
 	small, large := ginDictionaryFixture(t, 8), ginDictionaryFixture(t, 8192)
+	t.Run("split-main-pending", ginMaintenanceNonmaterializing)
 	p := ginAdmissionDelta(t, large)
 	before, entries := ginCopyPayload(large.root.Gin), gistCopyEntries(large.root)
 	t.Run("required-validation", func(t *testing.T) {

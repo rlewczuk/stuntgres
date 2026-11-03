@@ -89,6 +89,17 @@ and final disposal retains only still-current exact heap incarnations. Neither
 private relation creation nor same-address replacement authorizes exporting old
 slots into installed storage.
 
+GIN cleanup changes physical placement, not transaction visibility. Existing
+`Writes`, `Catalog`, savepoint `Writes/Catalog/StatementCatalog`, private history
+and detached prepared roots retain COW produced outputs with `GinPending` cleared.
+Successful cleanup survives SQL rollback, rollback-to and downstream statement
+failure; aborted private rows still disappear normally. `TransactionOwner` and
+`PreparedTransaction.GinRevision` fence publication attempts captured before the
+transfer. The revision advances only for changed private representation, is
+carried through PREPARE, and never rewinds with saved SQL marks. A new transaction
+incarnation resets it. No parallel registry or row-visibility override exists.
+
+
 
 
 ## What it owns

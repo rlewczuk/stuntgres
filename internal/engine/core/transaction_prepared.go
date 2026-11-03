@@ -85,10 +85,13 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 				err = e.checkTransactionConstraints(s)
 			}
 			if err == nil {
+				t.Mu.Lock()
 				// Settlement may have replaced complete maps and the journal.
 				entry.Writes, entry.Deletes, entry.Catalog, entry.Stats = t.Writes, t.Deletes, t.Catalog, t.Stats
+				entry.GinRevision = t.GinRevision
 				entry.Roots, entry.Frontier = t.Roots, t.Frontier
-				err = e.publishRowsPrepared(s.Op, ref, t.Writes, t.Deletes, t.Catalog, s.CatalogAuthority, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
+				t.Mu.Unlock()
+				err = e.publishRowsPrepared(s.Op, ref, entry.Writes, entry.Deletes, entry.Catalog, s.CatalogAuthority, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
 			}
 			t.Mu.Lock()
 		}
@@ -119,15 +122,19 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	var entry *session.PreparedTransaction
+	var captured session.PreparedTransaction
 	if err == nil {
 		entry, err = e.prepared.ClaimLocked(gid, auth.Roles, auth.State.CurrentUser)
+		if err == nil {
+			captured = *entry
+		}
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	if commit {
-		err = e.publishRowsPrepared(op, entry.Ref, entry.Writes, entry.Deletes, entry.Catalog, nil, &session.PreparedPublication{Entry: entry}, nil)
+		err = e.publishRowsPrepared(op, captured.Ref, captured.Writes, captured.Deletes, captured.Catalog, nil, &session.PreparedPublication{Entry: entry}, nil)
 	} else {
 		e.Mu.Lock()
 		op.Session.Mu.Lock()

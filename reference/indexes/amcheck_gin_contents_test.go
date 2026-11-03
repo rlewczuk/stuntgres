@@ -58,6 +58,19 @@ func TestReferenceAmcheckGINContents(t *testing.T) {
 		run(fixture.Exec("INSERT INTO gin_am_contents VALUES(8,'{9,9}','owl:1')", 1))
 		contents(append(append([][]any(nil), initial...), []any{int64(8), "{9,9}", "'owl':1"}))
 		check()
+		// Verification must inspect, not drain, genuine pending payload. The late
+		// index already has a main dictionary and newly pending rows; all five
+		// early indexes still have deferred inversion.
+		for _, name := range indexes {
+			run(fixture.Select("SELECT gin_clean_pending_list('"+name+"') > 0 AS cleaned", []string{"cleaned"}, []string{"BOOL"}, [][]any{{true}}))
+		}
+		check()
+		for _, name := range indexes {
+			run(fixture.Select("SELECT gin_clean_pending_list('"+name+"') AS pages", []string{"pages"}, []string{"INT8"}, [][]any{{int64(0)}}))
+		}
+		// The next update produces main placement for this index and new pending
+		// placement for its siblings, including tokens already present in main.
+		run(fixture.Exec("ALTER INDEX gin_am_array SET(fastupdate=off)", 0))
 		run(fixture.Prepared(fixture.Exec("UPDATE gin_am_contents SET a=$1::integer[],v=$2::tsvector WHERE id=8", 1, "{2,3}", "cat:1")))
 		contents(append(append([][]any(nil), initial...), []any{int64(8), "{2,3}", "'cat':1"}))
 		check()

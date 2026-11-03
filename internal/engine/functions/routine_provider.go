@@ -46,4 +46,5 @@ const (
 	AggregateContextRoutineProvider
 	FTSInspectionRoutineProvider
 	XMLMappingRoutineProvider
+	GinMaintenanceRoutineProvider
 )

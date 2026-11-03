@@ -76,6 +76,46 @@ admits only a single unconditional qualified-target CLUSTER ON preference, uses
 the common private ALTER stage and remaps the full index payload once; no
 physical heap ordering or standalone CLUSTER execution is represented.
 
+### GIN split metadata
+
+`gin_dump.go` captures every persistent GIN index, including empty pending,
+against the same catalog/storage/frontier as table rows. Versioned native
+`stuntgres-gin-index-v1` comments name the index and parent symbolically and list
+pending live-row ordinals in `DumpRelation.EmitRows` order. Paired
+`stuntgres-gin-row-v1` comments associate those ordinals with the actual replay
+INSERT's destination row/version, including routed rows and duplicate values.
+TEMP objects remain outside Dump.
+The existing operation-local restore replay slot arms one bounded capture for
+each annotated INSERT's exact statement, destination reference and physical
+store. The final accepted row-publication loop records its actual RowID/VersionID,
+including routed leaves and domain replay, without another store scan, a callback
+or allocation at installation. Zero/multiple rows, updates or mismatched
+target/store/domain/epoch reject the receipt. After consumes it once; failure and
+operation cleanup retire it. Capture work is constant per produced row, and only
+the required ordinal inventory grows with the dump. No allocator inference or
+per-row before/after incumbent maps are involved.
+
+Materialized snapshots use the same `EmitRows` ordinal stream inside their
+existing snapshot record. Their typed importer returns the actual allocated
+destination row/version slices in parsed row order; Restore uses those results,
+never allocator order or equal-value matching. After population, real stage
+statement scopes build every ready/live physical sibling index of each imported
+GIN-bearing materialized parent once. This includes the unique B-tree entries
+used as concurrent-refresh match authority; an empty pre-population root cannot
+stand in for the imported heap. GIN split transport then uses those produced
+roots, without a second key evaluation. Populated duplicate-valued, empty and
+unpopulated parents participate, with existing final unique/exclusion validation.
+
+Restore's isolated finish validates complete unique index and relational-row
+inventories, current methods/support and exact member ordinals. It partitions
+already-produced destination keys and builds both portions before any root swap;
+metadata does not bypass SQL/provider validation or import source handles.
+Malformed recognized versions/fields, duplicate or missing records, wrong
+targets and out-of-range/nonmember ordinals fail without publishing a prefix.
+Final replacement uses the ordinary split-preserving snapshot/remint path.
+Legacy SQL without native metadata retains ordinary bulk-build placement.
+
+
 ### Historical initial privileges
 
 `pg_init_privs` is a separate historical inventory, never reconstructed from

@@ -87,6 +87,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   admission/cancellation and stored-expression control replay. Native
   `RUN='^TestAmcheckGIN'` owner proofs inspect exact typed posting identities,
   damage retained structures, and assert immutable private/capture authority.
+  Contents also proves verification leaves pending work for actual cleanup, then
+  checks cleaned/main and renewed mixed roots with fastupdate-off siblings.
+  `TestAmcheckGINSplitPostings` retains overlapping-token main/pending roots;
+  logical-corruption and cancellation proofs cover both genuine portions,
+  including cross-portion duplicates and inconsistent column placement. Private
+  authority proofs consume mandatory produced GIN outputs, never synthetic
+  row-backed substitutes.
   The physical failed-concurrent-partial-build phase is PostgreSQL-only:
   native concurrent partial DDL does not retain that representation. Native
   `TestAmcheckGINTargetDiagnostics` instead publishes an actual retained-invalid
@@ -129,9 +136,25 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - GIN arrays/tsvector, exact released catalogs, diagnostics, typed/lexical options,
   publication and replay: `RUN='^TestReferenceGIN'`. Public predicates retain the
   scalar array/FTS authority independently of index use; internal `TestGIN` units
-  prove substantive typed postings, immutable batch merge, destination ownership,
-  every transport, vacuum and cancellation. Fastupdate/pending-limit controls
-  retain physical configuration intent, not a physical pending-list algorithm.
+  prove substantive typed main/pending postings, immutable batch merge,
+  destination ownership, every transport, vacuum and cancellation.
+  `RUN='^TestReferenceGINMaintenance'` covers typed cleanup, exact diagnostics and
+  privileges, fastupdate routing, read-only/nonrollback/cross-session transfer,
+  and actual native split replay. Positive counts are not physical-page goldens.
+  Internal `TestGINMaintenance` witnesses inspect actual split, produced placement,
+  source receipts and revision-fenced active/prepared/stage races; the ordinary
+  `TestGINNonmaterializingMerge` family includes large main and pending payloads.
+  `TestReferenceGINMaintenanceBinding` and `Returning` cover coercion, current
+  identity/namespace authority and genuine pre-RETURNING production.
+  `TestReferenceGINMaintenanceMaterialized` independently covers concurrent
+  matched/new placement and actual native replay of populated duplicate-valued,
+  empty and unpopulated parents with multiple indexes.
+  `TestReferenceGINMaintenanceInstalledScalar` combines actual installed
+  bit/varbit/enum/money GIN classes with array/vector keys, independently checks
+  every scalar strategy and NULL result, and proves residual positive→0 cleanup,
+  fastupdate-off writes, Amcheck no-drain and native split replay.
+  `TestGINMaintenanceScalarCandidates` owns exact physical both-portion probes,
+  pending→clean invariance, cancellation and scalar-token corruption rejection.
   `TestReferenceGINPresentationChanges` independently covers populated array/
   vector class and family rename/owner/schema changes, indexed writes, inquiry,
   private rollback and native replay. Builtin identities are restored on every

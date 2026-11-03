@@ -2,12 +2,15 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/schemacmds"
@@ -136,7 +139,36 @@ func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *sessio
 // finishRestoreMaterializedSnapshots populates materialized views from the
 // decoded snapshots.
 func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return viewcmds.ImportMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
+	produced, err := viewcmds.ImportMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
+	if err != nil {
+		return err
+	}
+	if len(r.ginIndexes) == 0 {
+		return nil
+	}
+	for _, record := range r.ginIndexes {
+		parent := ginRestoreRelation(r.stage.Catalog.Current(), record.ParentSchema, record.Parent)
+		if parent == nil || parent.RelationKind != catalog.MaterializedViewRelation {
+			continue
+		}
+		key := [2]string{record.ParentSchema, record.Parent}
+		if _, seen := r.ginIdentities[key]; seen {
+			continue
+		}
+		rows, ok := produced[parent.Address()]
+		if !ok {
+			return fmt.Errorf("stuntgres: missing native GIN materialized row transport")
+		}
+		if r.ginIdentities == nil {
+			r.ginIdentities = make(map[[2]string]map[int]index.RowIdentity)
+		}
+		ordinals := make(map[int]index.RowIdentity, len(rows))
+		for i, row := range rows {
+			ordinals[i+1] = row
+		}
+		r.ginIdentities[key] = ordinals
+	}
+	return nil
 }
 
 // beforeRestoreRoutineDirective consumes the private directive that defers

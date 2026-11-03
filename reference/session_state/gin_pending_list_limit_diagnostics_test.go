@@ -104,7 +104,7 @@ func TestReferenceGINPendingListLimitDiagnosticsAndPrivileges(t *testing.T) {
 			ordinary.run(fixture.Exec("RESET ROLE", 0))
 			s.run(fixture.Exec("REVOKE gin_limit_owner FROM gin_limit_login", 0))
 			fixture.RunStep(s.t, s.p.Ctx, held, ordinary.recorder, physicalError(q, denied, false, true))
-			// Superuser reaches the physical boundary without index ownership.
+			// Superuser can clean an empty index without index ownership.
 			s.run(ginLimitDemand(s.pg, q, "INT8", int64(0)))
 			const nullSQL = "SELECT gin_clean_pending_list(NULL::regclass) AS cleaned"
 			nullStatement, err := ordinary.conn.PrepareContext(s.p.Ctx, nullSQL)

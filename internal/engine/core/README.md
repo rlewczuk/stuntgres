@@ -2612,6 +2612,53 @@ Producers, the OID registry and descriptor specs live in
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
 
+`gin_maintenance.go` implements `gin_clean_pending_list` through the ordinary
+typed capability. It captures the target, releases Engine.Mu for RowExclusive
+relation admission, then reuses the sorted heap-statistics owner cohort
+(TransactionOwner.Mu in session order, Engine.Mu last). Effective catalog/store,
+owner/epoch, EXECUTE and index-owner authority are readmitted before preparation
+and installation. Active, implicit, savepoint and same-database detached prepared
+roots participate; foreign active lexical StatementScopes are never mutated.
+The index owner authenticates actual current owner bindings and presentation or
+routine-source transitions before COW token/output transport outside Engine.Mu.
+Accepted older outputs use their actual `IndexAdmission` catalog as key
+provenance, not ACL authority. Exact descriptor, physical parent and strict
+two-catalog presentation certificates permit COW descriptor transport while
+sharing produced keys; detached, foreign or changed executable sources fail.
+Semantic `OutputMatches` similarity never supplies production authority: an exact
+enrolled descriptor/receipt pointer or its actual matching `IndexAdmission`
+source certificate is required, even when a detached copy has current shape.
+Exact frontier/root/store/journal/cohort and representation-revision fences
+precede one callback-free transfer. Stale publication attempts recapture latest
+owner roots; Finish reconciles exact-version stage aliases with monotonic main
+placement. No SQL XID, catalog revision or commit frontier is assigned solely
+for cleanup. Read-only SELECT is allowed, and successful physical transfer is
+not SQL undo state; private membership remains private until ordinary commit.
+Committed root publication installs a prepared immutable map image, fenced
+against unrelated roots, so cleanup cannot race readers of a previously captured
+map or overwrite a peer's root. A private replacement heap uses its own candidate,
+never the committed root belonging to another physical store. Concurrent
+materialized refresh captures exact predecessor roots and the owner placement
+revision; changed sources retry direct publication or reject stale private
+preparation before Finish can resurrect deferred placement.
+Before an owner's first physical cleanup, publication/Finish skip placement
+normalization entirely: no accepted output can yet have moved to main. GIN race
+checkpoints likewise require actual GIN candidate/prepared roots. Unrelated
+publication retains its original cancellation polls and final locked installation
+boundary; cancellation after that boundary cannot retract rows, commit history or
+CHAIN installation. The owner admission mutex remains held until Finish, including
+control completion, rather than being released early to work around cancellation.
+Persistent replacement's retained-TEMP remint branch also certifies GIN
+execution across reconstructed builtin descriptor pointers. Only exact live
+TEMP descriptor/root/store provenance can enter it; current provider/declaration
+and concrete codec/collation checks precede COW key/binding transport. A stale
+source or incompatible replacement fails before publication, preserving the
+old split rather than retaining obsolete persistent class metadata.
+The released recovery diagnostic/precedence helper is retained, but the embedded
+runtime supplies false consistently with `pg_is_in_recovery`; there is no native
+recovery mode or invented public setup control.
+
+
 `xml_map_rows_*` borrows ordinary nested SQL execution, relation locks and
 SQL/PL/protocol portal identities. Data SPI parses the complete input, then
 analyzes and executes commands sequentially; schema SPI opens one prepared

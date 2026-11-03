@@ -15,6 +15,8 @@ type OverlayCapture struct {
 	Store                            storage.Relation
 	PresentationSource, SourceParent *catalog.Relation
 	PresentationRoot                 *storage.IndexRoot
+	GinPredecessor                   storage.Relation
+	GinSource, GinCommittedSource    *storage.IndexRoot
 }
 
 // SelectOverlayCapturesLocked selects the indexes of view that a staged
@@ -103,7 +105,17 @@ func SelectOverlayCapturesLocked(published *storage.Store, view catalog.Read, st
 		}
 		snapshot := *store
 		snapshot.IndexSource = store.IndexIdentity()
-		captures = append(captures, OverlayCapture{Index: idx, Parent: parent, Store: snapshot})
+		capture := OverlayCapture{Index: idx, Parent: parent, Store: snapshot}
+		if storageChanged && shape.MaterializedConcurrent && idx.SQLIndex.Method == catalog.GinMethod {
+			previous := session.PrivateStorage(published, owner, parent.Address())
+			if previous == nil {
+				return nil, catalog.Conflict{}
+			}
+			capture.GinPredecessor = *previous
+			capture.GinSource = EffectiveRoot(published.IndexRoots, owner, a)
+			capture.GinCommittedSource = published.IndexRoots[a]
+		}
+		captures = append(captures, capture)
 		c.AddFence(session.NewStorageReadFence(parent.Address(), published.Relations[parent.Address()]))
 	}
 	return captures, nil

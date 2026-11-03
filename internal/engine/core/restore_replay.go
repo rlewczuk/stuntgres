@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -28,6 +29,7 @@ type restoreReplay struct {
 	PartitionUsingIndex    *partition.UsingIndexReplay // Exact leased private-import physical target/index.
 	PartitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
 	DomainReplay           *DomainReplayCapture        // Exact private native INSERT's immutable captured cells.
+	GinInsert              *RestoreInsertCapture       // One annotated INSERT's actual final publication receipt.
 	DomainDefault          *DomainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
 	PLChecked              *PLCheckedReplayCapture     // Exact paired CREATE only, before its staged publication.
 	// Exact decoded native membership reconstruction for one prepared statement.
@@ -77,4 +79,32 @@ type PLCheckedReplayCapture struct {
 	Statement *parser.CreateFunction
 	Owner     authorization.PrincipalRef
 	Consumed  bool
+}
+
+// RestoreInsertCapture belongs to one annotated native INSERT in the isolated
+// restore operation. Only the final physical publisher produces its identity.
+// Count is saturated at two: anything other than exactly one insertion rejects.
+type RestoreInsertCapture struct {
+	Statement *parser.Insert
+	Target    ids.ObjectRef
+	Store     *storage.Relation
+	row       ids.RowID
+	version   ids.VersionID
+	count     uint8
+	invalid   bool
+}
+
+func (c *RestoreInsertCapture) record(ref ids.TxRef, address ids.ObjectAddress, store *storage.Relation, row ids.RowID, version ids.VersionID, insertion bool) {
+	if c.count < 2 {
+		c.count++
+	}
+	c.invalid = c.invalid || !insertion || c.Target.Domain() != ref.Domain() || c.Target.Epoch != ref.Epoch() || c.Target.Address != address || c.Store != store
+	c.row, c.version = row, version
+}
+
+func (c *RestoreInsertCapture) Identity() (ids.RowID, ids.VersionID, bool) {
+	if c == nil || c.invalid || c.count != 1 || c.row == 0 || c.version == 0 {
+		return 0, 0, false
+	}
+	return c.row, c.version, true
 }

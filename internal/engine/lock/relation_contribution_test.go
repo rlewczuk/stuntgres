@@ -32,6 +32,11 @@ func TestRelationContributionOwnership(t *testing.T) {
 				if !f.m.HasRelationMode(owner, resource, mode) {
 					t.Fatal("scoped grant advertised the wrong arbitration mode", deadlockMode(mode))
 				}
+				if mode == RowExclusive {
+					if r := f.request(peer, resource, RowExclusive); r != nil {
+						t.Fatal("scoped RowExclusive blocked a compatible peer")
+					}
+				}
 				waiter := f.request(peer, resource, AccessExclusive)
 				if waiter == nil {
 					t.Fatal("scoped union did not block peer")
@@ -102,13 +107,14 @@ func TestRelationContributionCheckpoint(t *testing.T) {
 }
 
 func TestRelationContributionQueueGeneration(t *testing.T) {
-	for _, mode := range []Mode{Share, AccessExclusive} {
+	for _, tc := range []struct{ mode, blocker Mode }{{Share, RowExclusive}, {RowExclusive, Share}, {AccessExclusive, RowExclusive}} {
+		mode := tc.mode
 		for _, retainPrior := range []bool{false, true} {
 			t.Run(deadlockMode(mode)+"/"+map[bool]string{false: "released_prior", true: "retained_prior"}[retainPrior], func(t *testing.T) {
 				f := newLockFixture(t)
 				owner, blocker, peer := f.tx(), f.tx(), f.tx()
 				resource := f.relation()
-				if r := f.request(blocker, resource, RowExclusive); r != nil {
+				if r := f.request(blocker, resource, tc.blocker); r != nil {
 					t.Fatal("blocker setup queued")
 				}
 				var initial RelationContribution
@@ -164,5 +170,48 @@ func TestRelationContributionQueueGeneration(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRelationContributionModes(t *testing.T) {
+	f := newLockFixture(t)
+	owner, resource := f.tx(), f.relation()
+	for _, mode := range []Mode{0, ShareUpdateExclusive, AccessShare | RowExclusive, Share | RowExclusive, RowExclusive | AccessExclusive} {
+		var contribution RelationContribution
+		request, err := f.m.StartAcquireRelation(context.Background(), owner, resource, mode, Policy{}, &contribution)
+		if request != nil || err == nil || contribution.started || contribution.granted {
+			t.Fatal("invalid scoped mode changed admission state", mode, request, err)
+		}
+	}
+	if f.m.HasRelationMode(owner, resource, AccessShare|Share|RowExclusive|AccessExclusive) {
+		t.Fatal("invalid scoped mode installed a grant")
+	}
+	var shares [4]RelationContribution
+	scopedRelationGrant(t, f.m, owner, resource, AccessShare, &shares[0])
+	scopedRelationGrant(t, f.m, owner, resource, Share, &shares[1])
+	scopedRelationGrant(t, f.m, owner, resource, RowExclusive, &shares[2])
+	scopedRelationGrant(t, f.m, owner, resource, AccessExclusive, &shares[3])
+	f.m.ReleaseRelation(&shares[3])
+	if f.m.HasRelationMode(owner, resource, AccessExclusive) || !f.m.HasRelationMode(owner, resource, AccessShare) || !f.m.HasRelationMode(owner, resource, Share) || !f.m.HasRelationMode(owner, resource, RowExclusive) {
+		t.Fatal("releasing scoped AccessExclusive corrupted another mode slot")
+	}
+	writer := f.request(f.tx(), resource, RowExclusive)
+	if writer == nil {
+		t.Fatal("scoped Share did not block a peer writer")
+	}
+	f.m.ReleaseRelation(&shares[1])
+	if err := f.result(writer); err != nil {
+		t.Fatal(err)
+	}
+	if f.m.HasRelationMode(owner, resource, Share) || !f.m.HasRelationMode(owner, resource, AccessShare) || !f.m.HasRelationMode(owner, resource, RowExclusive) {
+		t.Fatal("releasing scoped Share corrupted another mode slot")
+	}
+	f.m.ReleaseRelation(&shares[2])
+	if f.m.HasRelationMode(owner, resource, RowExclusive) || !f.m.HasRelationMode(owner, resource, AccessShare) {
+		t.Fatal("releasing scoped RowExclusive corrupted AccessShare ownership")
+	}
+	f.m.ReleaseRelation(&shares[0])
+	if f.m.HasRelationMode(owner, resource, AccessShare) {
+		t.Fatal("scoped AccessShare survived its release")
 	}
 }

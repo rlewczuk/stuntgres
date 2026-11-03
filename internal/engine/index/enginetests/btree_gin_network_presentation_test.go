@@ -37,8 +37,8 @@ func TestBtreeGINNetworkPresentation(t *testing.T) {
 			enginetest.Run(t, e, "CREATE SCHEMA network_private_dest")
 			enginetest.Run(t, e, "CREATE ROLE network_private_owner")
 			enginetest.Run(t, e, "GRANT USAGE,CREATE ON SCHEMA public,network_private_dest TO network_private_owner")
-			// Plain columns deliberately use the row-backed insertion lane.
-			// A genuine callable key requires a produced output to transport.
+			// Both plain and callable keys retain produced placement. A callable
+			// key additionally witnesses transport of its retained expression output.
 			enginetest.Run(t, e, "CREATE INDEX network_private_produced_i ON network_private USING gin((macaddr8_cmp(macaddr8,'80:00:00:00:00:00:00:00'::macaddr8)) oid_ops)")
 			producedIndex, producedRoot := ginInstalledRoot(t, e, "network_private_produced_i")
 			if !producedIndex.SQLIndex.RequiresInsertionOutput() {
