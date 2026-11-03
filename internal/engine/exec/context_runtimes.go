@@ -79,10 +79,25 @@ func (c *Context) StatsSnapshotValue(clear bool, result *sqltype.Descriptor) (sq
 }
 
 func (c *Context) StatsResetReplication(kind functions.StatsResetReplicationKind, argument sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
 	host := c.LiveHost()
-	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: replication statistics reset lacks statement authority") }
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: replication statistics reset lacks statement authority")
+	}
 	return host.StatsResetReplication(kind, argument, result)
+}
+
+func (c *Context) StatsResetShared(kind functions.StatsResetSharedKind, argument sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: shared statistics reset lacks statement authority")
+	}
+	return host.StatsResetShared(kind, argument, result)
 }
 
 var _ functions.TriggerDepthRuntime = (*Context)(nil)

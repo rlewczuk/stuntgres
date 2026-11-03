@@ -62,6 +62,9 @@ import (
 // zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
 // Replication statistics reset OIDs6170/6232 retain unnamed TEXT/OID inputs,
 // non-strict VOLATILE/parallel-safe VOID results and matching internal symbols.
+// Shared/SLRU/backend reset OIDs3775/2307/6387 retain VOLATILE/parallel-safe
+// scalar VOID declarations. Shared/SLRU name target with one TEXT NULL default;
+// backend alone is strict, with one unnamed INT4 PID and no default.
 // Exported transaction snapshots add strict VOLATILE/parallel-unsafe OID3809,
 // with no inputs and a scalar TEXT result; strictness is pg_proc.h's default.
 // Callable registry lookups OIDs3476/3479/3492/3494 retain one unnamed TEXT
@@ -222,8 +225,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// parallel-safe TEXT/OID->VOID declarations6170/6232 with unnamed inputs.
 	// Array-vector construction and current configuration add the strict,
 	// parallel-safe scalar declarations3327/3759 and unnamed input formals.
-	if len(facts) != 2217 {
-		t.Fatalf("released represented overloads: got %d, want 2217", len(facts))
+	// Shared, SLRU and backend reset add three released scalar VOID identities.
+	if len(facts) != 2220 {
+		t.Fatalf("released represented overloads: got %d, want 2220", len(facts))
 	}
 	return facts
 }

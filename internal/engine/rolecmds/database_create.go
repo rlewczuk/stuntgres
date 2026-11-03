@@ -198,6 +198,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	target.Catalog.Database = address
 	target.Cluster = e.Cluster
 	roots.InstallLocked()
+	target.Statistics.InheritBackendRegistrations(&e.Statistics)
 	e.Cluster.Targets = targets
 	e.Cluster.NextOID = oid + 1
 	return core.Result{CommandTag: "CREATE DATABASE"}, nil

@@ -208,6 +208,16 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 			}
 			s.State = session.Live
 			e.sessions[s.SessionToken] = s
+			if !private {
+				e.Statistics.BeginBackend(s.SessionToken)
+				if e.Cluster != nil {
+					for _, target := range e.Cluster.Targets {
+						if target != e {
+							target.Statistics.BeginBackend(s.SessionToken)
+						}
+					}
+				}
+			}
 		}
 		e.sessionMu.Unlock()
 	}

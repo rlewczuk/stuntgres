@@ -15,6 +15,13 @@ to NULL. Reconstruction, rendering, capture and stored-provider validation retai
 no target, session, provider or permission decision. Prepare/Describe never calls
 the `StatsResetReplicationRuntime` bridge.
 
+`StatsResetShared` owns one normalized TEXT/INT4 operand for shared, SLRU and
+backend resets. Shared/SLRU have one named `target` with a typed NULL default;
+backend takes an unnamed strict PID. All are volatile scalar VOID calls with
+ordinary routine references and execution-time admission. Backend NULL returns
+typed SQL NULL without runtime authority; the nonstrict defaults execute reset-all.
+No expression retains a provider, session, cache or ACL decision.
+
 `PgStatStatements` binds only genuine stock installed declarations. The Boolean
 showtext SRF has the released 52-column RECORD shape; the info scalar has two
 OUT fields. STRICT NULL returns no SRF rows without borrowing runtime authority.

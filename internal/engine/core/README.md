@@ -449,6 +449,25 @@ after successful creation. Unadopted stage discard and adopted journal retiremen
 own provisional lifetime; drop waits for successful ordinary/direct/prepared
 publication. Native replacement seeds only selected-database restored subscriptions
 under fresh identities, leaving peer providers and retained captures unchanged.
+Shared and SLRU resets traverse these same actual cluster target providers.
+Target validation precedes mutation. Backend reset classifies the actual PID in
+session registries, releases registry ownership before lifecycle locking, then
+resets that full live token's retained IO/WAL partitions without borrowing a peer
+writer. Successful public-session startup grants positive backend membership to
+current actual partitions; new target publication inherits only that positive
+authority, not metric history. Private and failed initialization never enroll.
+The unlocked end-drain verifies actual registry ownership and withdraws the
+token's membership and facts from every existing partition, without historical
+negative tokens or private-owner pointers. Session.Mu-held Unregister never
+takes the cluster mutex, preserving cluster-before-lifecycle lock order and
+ordinary final drain. Revoked membership rejects that final drain's stale backend
+deltas while unrelated pending work still drains normally.
+Provider locks remain leaves under the cluster mutex. Published changes are
+immediate and nontransactional; reset never clears the physical reader or moves
+its snapshot construction timestamp. Fixed-family events are logical provider
+state, not evidence of physical workers, storage IO or WAL generation. The
+per-target traversal is the bounded cluster approximation; no adjacent shared
+monitoring view/getter or global aggregate is introduced.
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.
@@ -3038,6 +3057,8 @@ Session activity command/portal authority units use `RUN='^TestSessionActivity'`
 Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
 Replication reset expression, owner-routing, retained-reader and actual subscription
 lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
+Shared/backend reset routing, provider composition, immutable expression and
+physical reader lifetime use `RUN='^TestStatsResetShared'`, also with `RACE=1`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share

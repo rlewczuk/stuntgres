@@ -23,37 +23,43 @@ const (
 )
 
 type Fact struct {
-	Inserts, Updates, Deletes, Live, Dead, Modifications, InsertsSince int64
-	VacuumCount, AnalyzeCount                                          int64
-	LastVacuum, LastAnalyze                                            time.Time
-	Truncated                                                          bool
-	VacuumTime, AnalyzeTime                                            time.Duration
-	Calls, Operations                                                  int64
-	TotalTime, SelfTime                                                time.Duration
+	Inserts, Updates, Deletes, Live, Dead, Modifications, InsertsSince                             int64
+	VacuumCount, AnalyzeCount                                                                      int64
+	LastVacuum, LastAnalyze                                                                        time.Time
+	Truncated                                                                                      bool
+	VacuumTime, AnalyzeTime                                                                        time.Duration
+	Calls, Operations                                                                              int64
+	TotalTime, SelfTime                                                                            time.Duration
 	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
-	ApplyErrorCount, SyncErrorCount int64
-	ConflInsertExists, ConflUpdateOriginDiffers, ConflUpdateExists, ConflUpdateMissing int64
-	ConflDeleteOriginDiffers, ConflDeleteMissing, ConflMultipleUniqueConflicts int64
-	ResetAt                                                            time.Time
-	Generation                                                         uint64
+	ApplyErrorCount, SyncErrorCount                                                                int64
+	ConflInsertExists, ConflUpdateOriginDiffers, ConflUpdateExists, ConflUpdateMissing             int64
+	ConflDeleteOriginDiffers, ConflDeleteMissing, ConflMultipleUniqueConflicts                     int64
+	ResetAt                                                                                        time.Time
+	Generation                                                                                     uint64
 }
 
 // Provider's mutex is a leaf: it never calls engine, session, clock or settings.
 // Zero value is ready for use. A provider belongs to one database incarnation.
 type Provider struct {
-	mu         sync.Mutex
-	facts      map[Key]Fact
-	activities map[ids.SessionToken]Activity
-	reset      time.Time
-	generation uint64
-	retired    map[Key]struct{}
+	mu           sync.Mutex
+	facts        map[Key]Fact
+	activities   map[ids.SessionToken]Activity
+	reset        time.Time
+	generation   uint64
+	retired      map[Key]struct{}
+	shared       [SharedKindCount]SharedFact
+	slru         [SLRUCount]SharedFact
+	backends     map[ids.SessionToken]BackendFact
+	liveBackends map[ids.SessionToken]struct{}
 }
 
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
 func (p *Provider) read(k Key) Fact {
 	f := p.facts[k]
 	f.Generation = p.generation
-	if !perEntryReset(k.Category) { f.ResetAt = p.reset }
+	if !perEntryReset(k.Category) {
+		f.ResetAt = p.factReset(k.Category)
+	}
 	return f
 }
 func (p *Provider) Reset(at time.Time) {
@@ -61,6 +67,7 @@ func (p *Provider) Reset(at time.Time) {
 	defer p.mu.Unlock()
 	p.facts = nil
 	p.reset = at
+	p.clearShared(at)
 	p.generation++
 }
 
@@ -71,6 +78,7 @@ func (p *Provider) Replace(at time.Time, facts map[Key]Fact) {
 	defer p.mu.Unlock()
 	p.facts, p.reset = facts, at
 	p.retired = nil
+	p.clearShared(at)
 	p.generation++
 }
 func merge(a, b Fact) Fact {
@@ -95,14 +103,20 @@ func merge(a, b Fact) Fact {
 // Writer owns its pending map and throttle. Its owner serializes all methods.
 // Clock values are supplied at boundaries so disabled timing does no clock work.
 type Writer struct {
-	pending     map[Key]Fact
-	last        time.Time
-	generation  uint64
-	initialized bool
-	chargedSelf time.Duration // Backend-wide completed function self time; owner-serialized.
+	pending                map[Key]Fact
+	last                   time.Time
+	generation             uint64
+	initialized            bool
+	chargedSelf            time.Duration // Backend-wide completed function self time; owner-serialized.
+	sharedPending          [SharedKindCount]SharedFact
+	slruPending            [SLRUCount]SharedFact
+	backendPending         map[ids.SessionToken]BackendFact
+	sharedDirty, slruDirty uint8
 }
 
-func (w *Writer) Pending() bool { return len(w.pending) != 0 }
+func (w *Writer) Pending() bool {
+	return len(w.pending) != 0 || w.sharedDirty != 0 || w.slruDirty != 0 || len(w.backendPending) != 0
+}
 func (w *Writer) Add(p *Provider, k Key, f Fact) {
 	p.mu.Lock()
 	generation := p.generation
@@ -113,7 +127,7 @@ func (w *Writer) Add(p *Provider, k Key, f Fact) {
 		return
 	}
 	if !w.initialized || generation != w.generation {
-		w.pending = nil
+		w.clearPending()
 		w.generation = generation
 		w.initialized = true
 	}
@@ -130,12 +144,13 @@ func (w *Writer) Add(p *Provider, k Key, f Fact) {
 	w.pending[k] = next
 }
 func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
-	if len(w.pending) == 0 || !force && !w.last.IsZero() && now.Sub(w.last) < time.Second {
+	if !w.Pending() || !force && !w.last.IsZero() && now.Sub(w.last) < time.Second {
 		return false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if w.generation == p.generation {
+		w.flushShared(p)
 		for k, f := range w.pending {
 			if _, retired := p.retired[k]; retired {
 				continue
@@ -153,7 +168,7 @@ func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 			p.facts[k] = next
 		}
 	}
-	w.pending = nil
+	w.clearPending()
 	w.last = now
 	return true
 }
@@ -174,8 +189,8 @@ func (w *Writer) Tuple(p *Provider, k Key, policy Policy, inserts, updates, dele
 // FunctionUsage retains pending-local baselines, never a pointer into a map.
 // The owner must not flush while an invocation is active.
 type FunctionUsage struct {
-	key Key
-	generation uint64
+	key                Key
+	generation         uint64
 	total, chargedSelf time.Duration
 }
 
@@ -188,7 +203,7 @@ func (w *Writer) BeginFunction(p *Provider, k Key) (FunctionUsage, bool) {
 		return FunctionUsage{}, false
 	}
 	if !w.initialized || w.generation != p.generation {
-		w.pending = nil
+		w.clearPending()
 		w.generation, w.initialized = p.generation, true
 	}
 	return FunctionUsage{key: k, generation: w.generation, total: w.pending[k].TotalTime, chargedSelf: w.chargedSelf}, true
@@ -262,6 +277,7 @@ func (p *Provider) End(session ids.SessionToken) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.activities, session)
+	p.endBackend(session)
 }
 
 // PendingDead inspects only this writer's reportable, unflushed dead delta.

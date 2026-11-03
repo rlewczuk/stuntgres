@@ -1,5 +1,15 @@
 # Changes
 
+- Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
+  `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
+  routine EXECUTE admission. Reset published shared families across actual
+  database providers and resolve real live backend PIDs without changing pending
+  publication, retained caches or transaction-independent reset lifetime.
+  Preserve SLRU whole-kind captures and prefetch gauges. Backend reporting uses
+  bounded positive public-session authority: end withdraws membership without
+  retaining connection history or private maintenance owners, including across
+  native replacement and new database-provider publication.
+
 - Add btree_gin 1.3's date, time, timetz, timestamp, timestamptz and interval
   operator classes and released helper declarations. Reuse typed scalar GIN
   dictionaries and exact posting probes, preserving offset ties, wide interval

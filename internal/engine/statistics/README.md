@@ -18,6 +18,33 @@ is reserved for actual admitted creation, never a reset/read. Category merges ad
 pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
+Seven fixed `SharedKind` families and eight SLRU entries belong to this same
+provider. `ResetShared`/`ResetAllShared`/`ResetSLRU` modify published state only.
+IO/WAL keyed facts remain the sole operations/duration authority and use their
+family reset times, including absent keys. Archiver reset removes last-operation
+presentation; prefetch resets cumulative counters but preserves its three current
+gauges. Full-session-token backend partitions contain separate IO/WAL facts;
+missing resets never allocate. `BeginBackend` grants positive authority only
+from successful actual public-session publication. Both report and flush require
+that membership; End deletes membership and facts rather than retaining ended
+tokens. Invalid, detached and private identities never receive membership, and
+their end paths allocate no history. State is bounded by current public lifetimes,
+not connection churn, and cannot retain private session owners.
+Full Reset/Replace clear fixed/backend history with the database incarnation,
+retain current live registrations and advance the existing pending-generation
+fence. New actual target publication inherits only positive registrations under
+cluster serialization, using separate provider lock acquisitions, never metrics
+or reset history. No monitoring history is serialized or activity manufactured.
+
+Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
+and throttle with keyed work; targeted resets never touch any pending partition.
+The same Reader captures all modeled partitions coherently on first snapshot
+access. Cache mode retains fixed families as whole kinds, including the entire
+SLRU array; prefetch always reads current provider state without constructing a
+snapshot. Clear releases every cumulative partition and cached activity together.
+The core traverses actual per-database providers for cluster-wide reset effects;
+there is no second cluster provider or competing IO/WAL counter copy.
+
 A physical session owns one `Writer`, serialized by transaction admission. Policy
 is captured when events occur. Tuple attempts remain unresolved in a write-owned
 `Ledger` until their reporting boundary, separate from the writer's pending batch.

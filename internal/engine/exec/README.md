@@ -409,6 +409,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Replication statistics reset forwards its typed kind and current operand through
   `LiveHost` after ordinary mutable routine admission, including NULL-all calls.
   The bridge retains no engine/provider, privilege decision or reset timestamp.
+  Shared/SLRU/backend reset uses the same typed `LiveHost` bridge. Backend
+  strict NULL avoids runtime admission; nonstrict shared/SLRU NULL demands it.
+  Neither bridge invalidates readers or drains pending session work.
   Session activity forwards through `LiveHost`: FETCH borrows its current client
   source without replacing or depending on the cursor's clock snapshots.
   Neither source nor live session authority enters `CursorExpressionData`.

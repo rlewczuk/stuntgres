@@ -134,6 +134,12 @@ precede indivisible registration. Failure/cancellation publishes nothing and
 unconditionally releases source exclusion. This path does not mutate database
 policy through ALTER DATABASE.
 
+At successful target publication, the new statistics provider inherits only
+current positive public-backend registrations from the actual source runtime.
+The shared cluster mutex serializes session startup/end and this transfer;
+provider locks are separate leaves, without re-locking the publishing session.
+Backend counters and reset history are not template data or inherited state.
+
 ## Testing
 
 Shared parameter final-registration ownership uses

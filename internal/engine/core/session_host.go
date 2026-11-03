@@ -27,18 +27,45 @@ func (h *sessionHost) StatisticsReadyLocked(s *session.Session) {
 	}
 }
 
-func (h *sessionHost) DrainStatistics(s *session.Session) { cancelStatsFlush(s) }
+func (h *sessionHost) DrainStatistics(s *session.Session) {
+	cancelStatsFlush(s)
+	// This hook runs outside Session.Mu after resources drain. Never take the
+	// cluster mutex in Unregister: PID classification locks cluster then session.
+	e := (*Engine)(h)
+	token := s.Token()
+	if token.ID() == 0 || token.IsDetached() || token.Private() != nil {
+		return
+	}
+	e.Mu.Lock()
+	e.sessionMu.Lock()
+	registered := e.sessions[token] == s
+	e.sessionMu.Unlock()
+	if registered {
+		e.Statistics.End(token)
+		if e.Cluster != nil {
+			for _, peer := range e.Cluster.Targets {
+				if peer != e {
+					peer.Statistics.End(token)
+				}
+			}
+		}
+	}
+	e.Mu.Unlock()
+}
 
 func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 	e := (*Engine)(h)
 	e.sessionMu.Lock()
-	if e.sessions[token] == s {
+	registered := e.sessions[token] == s
+	if registered {
 		delete(e.sessions, token)
 	}
 	e.sessionMu.Unlock()
 	if payload := PayloadOf(s); payload != nil {
 		statsIdle(s, true)
-		e.Statistics.End(token)
+		if registered {
+			e.Statistics.End(token)
+		}
 		payload.admission.release(true)
 	}
 }

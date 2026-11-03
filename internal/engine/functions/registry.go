@@ -109,6 +109,7 @@ var definitions = [...]Definition{
 	{Names: logicalDecodingNames[:], ExactSpelling: true, Bind: bindLogicalDecoding, NamedCall: namedLogicalDecoding},
 	{Names: replicationSlotNames[:], ExactSpelling: true, Bind: bindReplicationSlot, NamedCall: namedReplicationSlot},
 	{Names: statsResetReplicationNames[:], ExactSpelling: true, Bind: bindStatsResetReplication},
+	{Names: statsResetSharedNames[:], ExactSpelling: true, Bind: bindStatsResetShared, NamedCall: namedStatsResetShared},
 	{Names: attributeStatisticsNames, ExactSpelling: true, Bind: bindAttributeStatistics, NamedCall: namedAttributeStatistics},
 	{Names: relationStatisticsNames, ExactSpelling: true, Bind: bindRelationStatistics, NamedCall: namedRelationStatistics},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
