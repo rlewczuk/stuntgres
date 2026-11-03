@@ -47,4 +47,6 @@ const (
 	FTSInspectionRoutineProvider
 	XMLMappingRoutineProvider
 	GinMaintenanceRoutineProvider
+	FTSRankRoutineProvider
+	FTSHeadlineRoutineProvider
 )

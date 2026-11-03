@@ -566,7 +566,8 @@ Supported stable work points are:
   (both record and recordset conversion).
 - Transformations: `array.transform`, `datetime.add_interval`,
   `encoding.convert`, `text.like.match`, `text.like.escape`,
-  `text_search.vector`.
+  `text_search.vector`, `text_search.headline.select`,
+  `text_search.headline.render`.
 - Query/crypto work: `query.aggregate`, `query.aggregate.sort`,
   `query.recursive`, `crypto.bcrypt`, `crypto.sha`.
 - Ordinary VACUUM: `vacuum.inspect`, after a completed 128-version inspection
@@ -580,6 +581,16 @@ Supported stable work points are:
   and `gin.restore.prepared` before isolated native split installation. These
   points hold no engine/owner metadata mutex. They coordinate native work only,
   not PostgreSQL physical phases.
+
+`text_search.headline.select` suspends after the first chosen fragment has been
+marked in invocation-owned scratch. It requires actual fragment selection
+(`MaxFragments > 0`); no-match fallback and non-fragment HighlightAll work do not
+admit it.
+`text_search.headline.render` suspends after the first nonempty output emission,
+including a one-word document, before the result-publication fence. An invocation
+that emits no bytes does not admit it. Each point is reached at most once
+per headline invocation, outside runtime locks. These are native host controls;
+PostgreSQL activity observations do not establish either internal stage.
 
 `query.aggregate.sort` retains a successful real aggregate ordered-input tuple
 comparison before its ordering result returns. Unlike the earlier

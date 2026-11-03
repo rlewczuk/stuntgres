@@ -39,3 +39,18 @@ func (r ParserRuntime) TokenTypes(ctx context.Context) ([23]struct{ Alias, Descr
 	}
 	return DocumentTypes(), nil
 }
+
+// CheckHeadline checks only HEADLINE. Parser token/type capabilities remain
+// independent, and the stock callback is not made SQL-callable by this check.
+func (r ParserRuntime) CheckHeadline(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if r.headline == 0 {
+		return failure("0A000", "text search parser does not support headline creation")
+	}
+	if r.headline != 3720 {
+		return unsupportedParserMethod()
+	}
+	return nil
+}

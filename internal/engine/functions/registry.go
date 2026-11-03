@@ -69,6 +69,8 @@ var definitions = [...]Definition{
 	{Names: []string{"numnode", "querytree", "ts_rewrite"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSQuery},
 	{Names: []string{"table_to_xml", "query_to_xml", "cursor_to_xml", "table_to_xmlschema", "query_to_xmlschema", "cursor_to_xmlschema", "table_to_xml_and_xmlschema", "query_to_xml_and_xmlschema", "schema_to_xml", "schema_to_xmlschema", "schema_to_xml_and_xmlschema", "database_to_xml", "database_to_xmlschema", "database_to_xml_and_xmlschema"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindXMLMapping, NamedCall: namedXMLMapping},
 	{Names: []string{"setweight", "strip", "ts_delete", "ts_filter", "tsvector_to_array", "array_to_tsvector"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSVector},
+	{Names: []string{"ts_rank", "ts_rank_cd"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSRank},
+	{Names: []string{"ts_headline"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSHeadline},
 	{Names: []string{"ts_parse", "ts_token_type"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSParser, NamedCall: namedFTSParser},
 	{Names: []string{"ts_debug", "ts_stat"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSInspection, NamedCall: namedFTSInspection},
 	{Names: []string{"ts_lexize"}, ExactSpelling: true, SharedGates: true, Bind: bindDictionary},

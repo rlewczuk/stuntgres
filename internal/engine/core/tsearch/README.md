@@ -1,8 +1,8 @@
 # internal/engine/core/tsearch
 
 The text-search runtime: tsvector and tsquery conversion (text and JSON
-documents), `ts_debug`, `ts_lexize`, `unaccent`, parser resolution for
-`ts_parse`/`ts_token_type`, the `ts_rewrite` and `ts_stat` nested SQL, and
+documents), `ts_headline`, `ts_debug`, `ts_lexize`, `unaccent`, parser resolution
+for `ts_parse`/`ts_token_type`, the `ts_rewrite` and `ts_stat` nested SQL, and
 dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 §3, L14.5); the immutable codecs, parsers and vector builders are
 [`engine/fts`](../../fts/README.md).
@@ -22,13 +22,17 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 ## Contract
 
 - `Convert` (to_tsvector, to_tsquery and its plain, phrase and websearch
-  forms), `ConvertJSON`, `CurrentConfig`, `Debug`, `Stat`, `Rewrite`, `Lexize`,
-  `Unaccent` and `ResolveParser` are the bodies of `exec.TextSearchRuntime`.
+  forms), `ConvertJSON`, `Headline`, `CurrentConfig`, `Debug`, `Stat`, `Rewrite`,
+  `Lexize`, `Unaccent` and `ResolveParser` are the bodies of `exec.TextSearchRuntime`.
 - `CaptureConfiguration` captures one configuration and its parser from an
   immutable catalog read; `Capture.Walk` tokenizes and lexizes a text,
   acquiring each consulted dictionary on demand; `Capture.Accept` is the final
   currentness and cancellation fence that publishes new thesaurus receipts.
   `Captured` reports whether a configuration is held.
+- `Capture.WalkDocument` shares the same private configured walk with `Walk`.
+  It retains original tokens and associations across consumed phrase spans
+  instead of retokenizing/normalizing each word. Existing scalar position,
+  filter, stopword, lookahead and notice behavior is unchanged.
 - `ThesaurusMemos` maps a dictionary to one successful thesaurus
   initialization of the session; its entries stay opaque to core.
 
@@ -89,6 +93,15 @@ is published before currentness and cancellation are checked.
 Provider failures inside debug acquire the actual SQL-standard function's
 statement context through the shared immutable SQL routine diagnostic helper;
 caller argument-input failures remain outside that body frame.
+
+`Headline` uses the same coherent capture and ordered dictionary demand. The
+selected parser's HEADLINE capability is checked before tokenization/options;
+parsing and LEXTYPES are unaffected by missing HEADLINE. Normalization and its
+notices complete before option parsing, then `sqltype.FTSHeadlineResult` selects
+and renders raw text. Only a complete result passing `Capture.Accept` escapes:
+option errors, cancellation and replaced metadata publish neither TEXT nor a
+partial thesaurus receipt set. Default configuration is resolved per execution;
+only the explicit form is eligible for ordinary immutable-result folding.
 
 `textSearchSQL` owns the shared rewrite/statistics nested cursor scope over the
 `exec.NestedSQL` capability: ordinary settings-aware parse, complete

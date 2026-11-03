@@ -332,6 +332,8 @@ func (FTSInspection) JumbleFields(s expr.StatementFields) { s.JumbleText("functi
 func (FTSParser) JumbleFields(s expr.StatementFields)     { s.JumbleText("functions.FTSParser") }
 func (FTSQuery) JumbleFields(s expr.StatementFields)      { s.JumbleText("functions.FTSQuery") }
 func (FTSVector) JumbleFields(s expr.StatementFields)     { s.JumbleText("functions.FTSVector") }
+func (FTSRank) JumbleFields(s expr.StatementFields)       { s.JumbleText("functions.FTSRank") }
+func (FTSHeadline) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.FTSHeadline") }
 func (GenericFileList) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.GenericFileList")
 }

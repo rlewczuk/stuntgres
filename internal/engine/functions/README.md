@@ -741,6 +741,35 @@ live at execution. Rebuild and substitution retain checked descriptor authority,
 written operands and operator/function qualification without synthetic
 constructor children or retained statement/configuration state.
 
+`FTSRank` owns the eight immutable `ts_rank`/`ts_rank_cd` overloads and
+`FTSRankRoutineProvider`; `FTSHeadline` owns four TEXT-only `ts_headline`
+overloads and its separate `FTSHeadlineRoutineProvider`. Their shared small
+overload selector uses exact/implicit feasibility, preferred types and unknown
+categories, not argument count as a three-argument overload discriminator.
+Every unknown slot chooses its category/preferred flag against the same candidate
+set, then all constraints apply simultaneously. A category conflict skips this
+phase; zero survivors retain the original set before the known-type heuristic.
+Three all-unknown rank or headline arguments remain ambiguous; runtime option
+parsing cannot resolve them. Checked plans preserve actual input/result
+generations through rendering, capture and reconstruction.
+Children evaluate once in written order, with strict literal-NULL preflight.
+Headline is immutable only with explicit REGCONFIG, otherwise stable; child
+properties still merge normally. Its result derives collation from the bound
+document/options through the shared analyzer before routine admission. Explicit
+locations and implicit conflict state survive reconstruction and stored replay;
+selection/rendering still preserve original bytes. Only non-NULL evaluation
+demands `FTSHeadlineRuntime`, forwarded through the statement text-search host.
+Nodes retain no parser, dictionary, default setting, score or excerpt cache.
+Immutable preflight may materialize binding-local typed literals even when COLLATE
+or available parameter children prevent persistent literal-only fold capture.
+The literal preserves result usage and source metadata but clears its callable
+reference; the original routine remains in analysis, separate from the accepted
+empty fold frame.
+Both providers implement the canonical `StatementJumbler` protocol with their
+own static discriminator; the existing analyzer owns selected routine OIDs,
+ordered lexical children and literal/parameter replacement locations. Jumble
+does not evaluate ranking/headlines or replace source occurrence metadata.
+
 `VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
 Named-input binding and applicability share slot assignment and ordinary
 coercion; supplied inputs evaluate once in canonical formal order. The
@@ -987,6 +1016,11 @@ reviewed decision:
 - `AnalyzeArgument` / `CoerceArgument` / `CanCoerce`: occurrence-owned
   analysis, formal coercion selected by intent (intents are values in
   `arguments.go`, not methods) and effect-free feasibility for call shapes.
+  `CallableArgument` reuses the analyzer's definition-only ARRAY lookup seam.
+  Its `LookupOnlyArgument` carries the checked usage and original occurrence,
+  never an executable expression/datum; coercion preserves that distinction
+  until the existing selected-consumer capability check. Rank/headline use it
+  so invalid calls resolve their true array signature before executable demand.
   Setting calls check implicit formal applicability before assignment coercion:
   an incompatible known argument reports the missing function signature rather
   than leaking a coercion implementation error. SQL setting SELECTs use this
@@ -1671,6 +1705,9 @@ publication and lock-manager tickets stay in the engine.
   logical replay.
 
 ## Testing
+
+FTS provider protocols and real-analyzer collation/replay units use
+`RUN='^TestFTS(Rank|Headline)'`; public SQL remains in `reference/ranges_text_search`.
 
 Encoding-name and keyword binding, protocol and cursor units use
 `RUN='^TestEncodingKeywords'`; public scenarios live in `reference/catalogs`.

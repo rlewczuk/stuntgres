@@ -59,4 +59,12 @@ func TestBuiltinsCopyTemplate(t *testing.T) {
 			}
 		}
 	}
+	byID := make(map[ID]*Descriptor, len(first))
+	for _, d := range first {
+		byID[d.id] = d
+	}
+	vector := byID[TSVector]
+	if vector.ftsReal != byID[Float4] || vector.ftsRealArray != byID[1021] || vector.ftsConfig != byID[Regconfig] || vector.ftsRealArray.element != byID[Float4] || byID[Regconfig].ftsVector != vector || byID[1021].ftsVector != vector {
+		t.Fatal("ranking/headline companions escaped the cloned generation")
+	}
 }

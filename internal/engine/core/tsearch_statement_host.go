@@ -75,6 +75,10 @@ func (h *textSearchHost) CurrentTextSearchConfig(ctx context.Context, result *sq
 	return tsearch.CurrentConfig[AuthorizationView](h.host(), ctx, result)
 }
 
+func (h *textSearchHost) HeadlineTextSearch(ctx context.Context, explicit bool, config, document, query, options sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return tsearch.Headline[AuthorizationView](h.host(), ctx, explicit, config, document, query, options, result)
+}
+
 func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	return tsearch.Debug[AuthorizationView](h.host(), ctx, explicit, value, text, result)
 }

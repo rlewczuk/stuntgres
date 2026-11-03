@@ -1,12 +1,13 @@
 # Immutable FTS scalar values and algebra
 
 `fts` is a stateless leaf **below `internal/sqltype`**, despite its directory
-under `internal/engine`. It imports only the standard library and `sqlstate`.
+under `internal/engine`. It imports only the standard library, `sqlstate` and
+`util`; `util` is used narrowly for the existing execution-checkpoint protocol.
 It owns immutable decoded vector lexemes/positions and query operator arenas,
 FTS quoting, grammar, canonical text and released byte/count checks, and the
-stateless default document tokenizer. It does not
-own SQL descriptors, NULL, source positions, portal context, notices, catalogs,
-sessions, dictionaries, ranking or indexes.
+stateless default document tokenizer, frequency/cover-density ranking and raw
+headline selection/rendering. It does not own SQL descriptors, NULL, source
+positions, portal context, notices, catalogs, sessions, dictionaries or indexes.
 
 `Vector.AccumulateStatistics` reads private retained positions into an
 invocation-owned `Statistics` map. It neither copies/exposes positions nor
@@ -148,6 +149,47 @@ cancellation without mutating inputs. Merge checkpoints count iterations,
 independent of one- or two-cursor advancement; completed merges and matches
 check cancellation before publishing results. SQL strict NULL and configured
 text conversion belong to callers.
+
+### Ranking and headlines
+
+`Vector.Rank` consumes immutable positions and query nodes directly. Frequency
+ranking collects released right-first operands and uses a rank-private
+`qsort_arg` translation before lexeme-only deduplication. Equality swaps select
+an observable surviving prefix flag; a stable or generic Go sort is not
+equivalent at the insertion/median/ninther thresholds. Only owned indices move.
+Ranking preserves binary32 intermediate stores. Root AND/phrase uses positional
+pairs, not a preliminary Boolean match; earlier prefix operands retain the
+last matching vector entry. Cover density enforces masks and finds minimal
+forward/backward covers over positioned entries, with harmonic weights, noise
+and extent-midpoint distances. Normalization bits execute in numerical order;
+frequency uses log2 for bit1, density uses the natural logarithm. Arrays, strict
+NULL, REAL descriptors and weight diagnostics belong to `sqltype`.
+
+`HeadlineBuilder` receives original parser tokens and raw-token/lexical-position
+associations from the configured walk. It transfers invocation-owned storage
+to an immutable `HeadlineDocument`; it never normalizes one raw word at a time.
+Phrase replacements retain their whole consumed raw span, including separators.
+`ParseHeadlineOptions` owns the released deflist grammar and option precedence,
+borrowing only the existing SQL INT4 input codec through a callback. Option
+names use released ASCII byte case comparison under UTF8/C, not Unicode
+normalization; unknown-option diagnostics retain the original key spelling. Selection
+uses Boolean/phrase location covers, released endpoint categories and fragment
+priority/stretch/overlap rules; chosen fragments render in document order.
+`renderHeadlineWords` emits the already selected invocation-owned words with one
+builder and no intermediate token copy. Rendering preserves raw text and caller
+markers without HTML sanitization, checking cancellation per word and at completion.
+The existing context-scoped host backpressure protocol admits
+`text_search.headline.select` once after the first genuinely chosen fragment is
+marked, and `text_search.headline.render` once after the first emitted byte.
+Fallback/no-fragment selection and zero-byte output do not admit their
+respective points. Small nonempty documents need no minimum work quantum.
+Checkpoint waits hold no runtime locks, and the unconfigured path allocates no
+pause state or intermediate output.
+Parser HEADLINE capability is checked independently of parsing and token types:
+zero is unsupported, stock3720 is native, other callbacks fail explicitly.
+All scratch is invocation-local, and cancellation returns no partial score,
+headline, token association or selection.
+
 
 ## Query inspection and rewriting
 

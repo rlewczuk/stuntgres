@@ -13,6 +13,9 @@ const (
 	DeferredStringArgument
 	DeferredNullArgument
 	UnresolvedParameterArgument
+	// LookupOnlyArgument carries an analyzer-checked definition-only ARRAY
+	// usage for overload competition, with raw occurrence but no expression.
+	LookupOnlyArgument
 )
 
 // A deferred literal has no Expression. An unresolved parameter already has its
@@ -62,6 +65,9 @@ const (
 	// TypeInquiryArgument preserves direct unknown literals and the logical
 	// witness of the analyzer's already-admitted pseudo-cast no-op branch.
 	TypeInquiryArgument
+	// CallableArgument admits checked definition-only ARRAY shapes for
+	// overload lookup; selecting an executable consumer remains separate.
+	CallableArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }

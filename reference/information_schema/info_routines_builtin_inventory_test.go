@@ -133,8 +133,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3170, "lo_lseek64", "be_lo_lseek64", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3171, "lo_tell64", "be_lo_tell64", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1802 {
-		t.Fatalf("released represented inventory: got %d, want 1802", len(facts))
+	if len(facts) != 1814 {
+		t.Fatalf("released represented inventory: got %d, want 1814", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

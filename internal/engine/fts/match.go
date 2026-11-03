@@ -22,6 +22,7 @@ type matchResult struct {
 	complement bool
 	view       []position
 	ends       []int
+	reverse    bool
 }
 
 func (r matchResult) len() int {
@@ -31,6 +32,9 @@ func (r matchResult) len() int {
 	return len(r.ends)
 }
 func (r matchResult) at(i int) int {
+	if r.reverse {
+		i = r.len() - 1 - i
+	}
 	if r.view != nil {
 		return int(r.view[i].number & 0x3fff)
 	}
@@ -57,6 +61,14 @@ func (v *Vector) Match(ctx context.Context, q *Query) (bool, error) {
 	if q.Empty() {
 		return false, nil
 	}
+	return q.matchWithLeaf(ctx, func(ctx context.Context, _ int, n queryNode, positional bool) (matchResult, error) {
+		return v.matchLeaf(ctx, n, positional)
+	})
+}
+
+// matchWithLeaf keeps positional algebra shared while cover consumers supply
+// invocation-private occurrences rather than a full-vector truth prefilter.
+func (q *Query) matchWithLeaf(ctx context.Context, leaf func(context.Context, int, queryNode, bool) (matchResult, error)) (bool, error) {
 	type frame struct {
 		index      int
 		phase      byte
@@ -75,7 +87,7 @@ func (v *Vector) Match(ctx context.Context, q *Query) (bool, error) {
 		positional := f.positional || n.op == '<'
 		if n.op == 'v' {
 			var err error
-			result, err = v.matchLeaf(ctx, n, positional)
+			result, err = leaf(ctx, f.index, n, positional)
 			if err != nil {
 				return false, err
 			}

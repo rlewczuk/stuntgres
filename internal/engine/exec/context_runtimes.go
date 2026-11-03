@@ -1203,6 +1203,16 @@ func (c *Context) CurrentTextSearchConfig(result *sqltype.Descriptor) (sqltype.V
 	return host.TextSearch().CurrentTextSearchConfig(c.Context, result)
 }
 
+var _ functions.FTSHeadlineRuntime = (*Context)(nil)
+
+func (c *Context) HeadlineTextSearch(explicit bool, configuration, document, query, options sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: headline lacks statement authority")
+	}
+	return host.TextSearch().HeadlineTextSearch(c.Context, explicit, configuration, document, query, options, result)
+}
+
 func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {
 	host := c.LiveHost()
 	if host == nil {

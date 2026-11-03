@@ -69,6 +69,14 @@ strict with cost 100. Table/schema/database variants are STABLE/parallel-restric
 query/cursor variants are VOLATILE/unsafe. Schema inputs are NAME, and database
 variants have three formals without a database-name input.
 
+The eight REAL-returning rank declarations3703–3710 and four TEXT headline
+declarations3743/3744/3754/3755 use separate ordinary rank/headline provider bits.
+All are strict, parallel-safe, non-set, with no defaults, argument names or
+variadic expansion. Rank is immutable/cost1; explicit headline is immutable,
+default headline stable, all headline cost100. Released internal `prosrc` names
+are declaration facts, not synthesized SQL spellings. JSON headline4201–4208
+remains unselected; parser handler3720 stays metadata-only with zero SQL provider.
+
 `OperatorProvider` validates a nonzero current extension link against its parent
 before ordinary operand, result and backer checks. A zero link is locally
 detached; extension-class validation separately rejects any parent bag that

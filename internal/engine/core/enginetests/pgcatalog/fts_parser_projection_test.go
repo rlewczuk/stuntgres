@@ -17,7 +17,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 func TestFTSParserHandlerProjection(t *testing.T) {
 	e := engine.New()
 	base := e.CatalogRead()
@@ -44,20 +43,20 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 		if !represented || d.Builtin == nil || d.Builtin != routine.BuiltinRoutine(h.oid) {
 			t.Fatalf("handler %d lacks its canonical metadata descriptor", h.oid)
 		}
-		identity := catalog.RoutineIdentity{ID:h.oid, Namespace:11, Name:h.name, Signature:catalog.ProcedureSignature(strings.ReplaceAll(h.arguments," ",","))}
+		identity := catalog.RoutineIdentity{ID: h.oid, Namespace: 11, Name: h.name, Signature: catalog.ProcedureSignature(strings.ReplaceAll(h.arguments, " ", ","))}
 		if d.Builtin.Identity != identity || d.Builtin.Providers != 0 || d.Builtin.Result != ids.OID(h.result) || d.RoutineKind != catalog.FunctionRoutine || d.Result != ids.OID(h.result) || d.Name() != h.name || d.Namespace().ObjectID != 11 || d.Owner != source.Owner || !d.Strict || d.Volatility != expr.Immutable || d.Builtin.Parallel != 's' || d.ReturnsSet() || d.CostEstimate() != 1 {
 			t.Fatalf("handler %d lost released non-executable metadata: %+v", h.oid, d)
 		}
-		if d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.PLHandler != catalog.NoPLHandler || d.SecurityDefiner || d.Configuration != nil || d.Display != (catalog.RoutineDisplay{Language:catalog.InternalRoutineLanguage,Source:h.name}) {
-			t.Fatalf("handler %d acquired SQL/foreign/executable authority or changed display",h.oid)
+		if d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.PLHandler != catalog.NoPLHandler || d.SecurityDefiner || d.Configuration != nil || d.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: h.name}) {
+			t.Fatalf("handler %d acquired SQL/foreign/executable authority or changed display", h.oid)
 		}
 	}
 	// This released adjacent identity is genuine but outside the authorized five.
-	unrelated, found := catalog.BuiltinRoutineIdentityByOID(3710)
-	if !found || unrelated.Name != "ts_rank_cd" {
+	unrelated, found := catalog.BuiltinRoutineIdentityByOID(4201)
+	if !found || unrelated.Name != "ts_headline" {
 		t.Fatal("missing independent unrelated identity witness", unrelated)
 	}
-	if _, represented := base.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3710}); represented {
+	if _, represented := base.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4201}); represented {
 		t.Fatal("unrelated witness is not lookup-only")
 	}
 	capture := func(t *testing.T, read catalog.Read) map[ids.OID][]sqltype.Value {
@@ -87,10 +86,10 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			}
 			seen[oid] = true
 			if _, exists := read.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}); !exists {
-				t.Fatalf("pg_proc row %d has no owning Procedure descriptor",oid)
+				t.Fatalf("pg_proc row %d has no owning Procedure descriptor", oid)
 			}
 			if wanted[oid] {
-				delete(wanted,oid)
+				delete(wanted, oid)
 				metadataRows++
 			}
 			for _, h := range handlers {
@@ -107,8 +106,8 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 		if metadataRows != 26 || len(wanted) != 0 || len(selected) != 5 {
 			t.Fatalf("metadata descriptor boundary: count=%d missing=%v selected=%d", metadataRows, wanted, len(selected))
 		}
-		if seen[3710] {
-			t.Fatal("unrelated lookup-only ts_rank_cd became a pg_proc row")
+		if seen[4201] {
+			t.Fatal("unrelated lookup-only JSON ts_headline became a pg_proc row")
 		}
 		return selected
 	}

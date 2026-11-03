@@ -9,6 +9,14 @@
 3691	tsq_mcontains	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	3615 3615	\N	\N	\N	false	\N	tsq_mcontains	\N	false	\N
 3692	tsq_mcontained	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	3615 3615	\N	\N	\N	false	\N	tsq_mcontained	\N	false	\N
 3696	starts_with	11	12	1	0	0	6242	f	false	true	true	false	i	s	2	0	16	25 25	\N	\N	\N	false	\N	text_starts_with	\N	false	\N
+3703	ts_rank	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	700	1021 3614 3615 23	\N	\N	\N	false	\N	ts_rank_wttf	\N	false	\N
+3704	ts_rank	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	700	1021 3614 3615	\N	\N	\N	false	\N	ts_rank_wtt	\N	false	\N
+3705	ts_rank	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	700	3614 3615 23	\N	\N	\N	false	\N	ts_rank_ttf	\N	false	\N
+3706	ts_rank	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	700	3614 3615	\N	\N	\N	false	\N	ts_rank_tt	\N	false	\N
+3707	ts_rank_cd	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	700	1021 3614 3615 23	\N	\N	\N	false	\N	ts_rankcd_wttf	\N	false	\N
+3708	ts_rank_cd	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	700	1021 3614 3615	\N	\N	\N	false	\N	ts_rankcd_wtt	\N	false	\N
+3709	ts_rank_cd	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	700	3614 3615 23	\N	\N	\N	false	\N	ts_rankcd_ttf	\N	false	\N
+3710	ts_rank_cd	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	700	3614 3615	\N	\N	\N	false	\N	ts_rankcd_tt	\N	false	\N
 3711	length	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	3614	\N	\N	\N	false	\N	tsvector_length	\N	false	\N
 3713	ts_token_type	11	12	1	16	0	0	f	false	false	true	true	i	s	1	0	2249	26	{26,23,25,25}	{i,o,o,o}	{parser_oid,tokid,alias,description}	false	\N	ts_token_type_byid	\N	false	\N
 3714	ts_token_type	11	12	1	16	0	0	f	false	false	true	true	s	s	1	0	2249	25	{25,23,25,25}	{i,o,o,o}	{parser_name,tokid,alias,description}	false	\N	ts_token_type_byname	\N	false	\N
@@ -28,12 +36,16 @@
 3732	dispell_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	dispell_lexize	\N	false	\N
 3740	thesaurus_init	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	thesaurus_init	\N	false	\N
 3741	thesaurus_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	thesaurus_lexize	\N	false	\N
+3743	ts_headline	11	12	100	0	0	0	f	false	false	true	false	i	s	4	0	25	3734 25 3615 25	\N	\N	\N	false	\N	ts_headline_byid_opt	\N	false	\N
+3744	ts_headline	11	12	100	0	0	0	f	false	false	true	false	i	s	3	0	25	3734 25 3615	\N	\N	\N	false	\N	ts_headline_byid	\N	false	\N
 3745	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3614	3734 25	\N	\N	\N	false	\N	to_tsvector_byid	\N	false	\N
 3746	to_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	to_tsquery_byid	\N	false	\N
 3747	plainto_tsquery	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3615	3734 25	\N	\N	\N	false	\N	plainto_tsquery_byid	\N	false	\N
 3749	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3614	25	\N	\N	\N	false	\N	to_tsvector	\N	false	\N
 3750	to_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	to_tsquery	\N	false	\N
 3751	plainto_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	plainto_tsquery	\N	false	\N
+3754	ts_headline	11	12	100	0	0	0	f	false	false	true	false	s	s	3	0	25	25 3615 25	\N	\N	\N	false	\N	ts_headline_opt	\N	false	\N
+3755	ts_headline	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	25	25 3615	\N	\N	\N	false	\N	ts_headline	\N	false	\N
 3756	pg_ts_parser_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_parser_is_visible	\N	false	\N
 3757	pg_ts_dict_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_dict_is_visible	\N	false	\N
 3758	pg_ts_config_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_config_is_visible	\N	false	\N

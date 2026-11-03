@@ -45,6 +45,26 @@ these are shared across families:
   source-preserving JSON traversal, lazy configuration demand and diagnostics;
   exact JSONB positions use arrays or single-key objects, never a portable
   multi-key object order. Select with `make check RUN='^TestReferenceFTSJSON'`.
+- `fts_rank_helpers_test.go` shares normal direct/fresh/held rank and headline
+  routes, complete diagnostics and metadata. Expected REAL binary32 bits and
+  raw headline strings come from PostgreSQL18 source and pinned18.6 observations,
+  never native-generated goldens. Both drivers expose REAL as float64; pq parses
+  shortest decimal text while native widens binary32 exactly, so recovered bits
+  are asserted independently. Unbounded TEXT Length is (MaxInt64,true) on both.
+  Computed nullability remains (false,false). Stored-view projections explicitly
+  assert native (true,true), pq (false,false), through the same direct/fresh/held
+  reader and post-EOF/Close metadata checks. Headline collation scenarios use
+  surrounding comparisons and stored `pg_attribute.attcollation` to distinguish
+  document/options-derived collation from unchanged highlighting bytes.
+  Cancellation distinguishes ordinary pre-canceled context errors from admitted
+  PostgreSQL57014 diagnostics; no sleep race or invented adapter SQLSTATE.
+  Native headline selection/output admission observes the actual
+  `fts.markHeadlineFragments`/`fts.renderHeadlineWords` frame on the active worker,
+  then waits for the corresponding request-scoped host pause before canceling
+  and joining. Sampling alone does not reserve worker lifetime. Selection uses
+  one real matching cover plus a long nonmatching source to bound discovery
+  before the first marked fragment; render work retains the full source.
+  PostgreSQL proves active-statement cancellation, not internal stage entry.
 - Unaccent filtering reuses the configuration scenario and metadata helper:
   real ordered chains distinguish changed/unrecognized tokens, stopwords,
   terminal filters, positions and renamed dictionary identity on direct/held
@@ -164,6 +184,13 @@ COPY test in reference/dml.
 - Text search matching: `RUN='^TestReferenceFTSMatch'`; typed positional/Boolean
   matrices and text conversions share direct, fresh-prepared and held routes,
   with live default configuration on one borrowed session.
+- Text search ranking: `RUN='^TestReferenceFTSRank'`; headlines:
+  `RUN='^TestReferenceFTSHeadline'`. Every definition runs in normal dual mode;
+  add `REFERENCE=1` for pinned PostgreSQL. Actual feature smoke is
+  `make check RUN='^TestReferenceFTSRankFeatureSmoke$'` and the identical command
+  with `REFERENCE=1`, including exact REAL/TEXT/metadata, live defaults and held
+  error/recovery observations. Selected twelve declarations also belong to the
+  authoritative pg_proc/information_schema full-bag inventories.
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - Text search configuration debugging: `RUN='^TestReferenceFTSDebug'`.
   Shared inspection helpers assert fixed record metadata, original parser tokens,

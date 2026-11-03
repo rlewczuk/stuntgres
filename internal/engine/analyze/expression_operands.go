@@ -115,6 +115,8 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 			}
 		case functions.ComparisonArgument:
 			operand, err = b.comparisonOperand(raw)
+		case functions.CallableArgument:
+			operand, err = b.callableOperand(raw)
 		case functions.ThresholdArrayArgument:
 			operand, err = b.comparisonOperandPolicy(raw, ExpressionPolicy{Context: ProjectionContext, thresholdArrayInput: true})
 		case functions.ZoneArgument:
@@ -159,7 +161,10 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 	}
 	original, _ := b.OriginalArgument(operand.raw)
 	argument := functions.Argument{Expression: operand.Node, Raw: original, TypeInquiryUnknown: typeInquiryUnknown, TypeInquiryStringIO: typeInquiryStringIO}
-	if operand.Node != nil {
+	if operand.lookupUsage.Type != nil {
+		argument.Usage = operand.lookupUsage
+		argument.Kind = functions.LookupOnlyArgument
+	} else if operand.Node != nil {
 		argument.Usage = operand.Node.ResultUsage()
 		if argument.Usage.Type == nil {
 			argument.Kind = functions.UnresolvedParameterArgument
@@ -189,6 +194,12 @@ func typeInquiryUnknownTransport(node expr.Expr, source *functions.TypeInquiryUn
 
 func (b *Binder) CoerceArgument(argument functions.Argument, request functions.CoercionRequest) (expr.Expr, error) {
 	operand := ComparisonOperand{Node: argument.Expression, raw: argument.Raw}
+	if argument.Kind == functions.LookupOnlyArgument {
+		if argument.Expression != nil || argument.Raw == nil || argument.Usage.Type == nil || !argument.Usage.Type.IsArray() || argument.Usage.Type.Concrete() {
+			return nil, fmt.Errorf("stuntgres: invalid lookup-only callable argument")
+		}
+		operand.lookupUsage = argument.Usage
+	}
 	// Already-bound operands need not have syntax (for example, an operator
 	// supplied through a private slot). Retain their own source position.
 	var pos parser.Position

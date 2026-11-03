@@ -228,8 +228,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// parallel-safe scalar declarations3327/3759 and unnamed input formals.
 	// Shared, SLRU and backend reset add three released scalar VOID identities.
 	// Schema/database XML mapping adds six strict/STABLE/restricted XML records.
-	if len(facts) != 2226 {
-		t.Fatalf("released represented overloads: got %d, want 2226", len(facts))
+	// Eight frequency/cover-density rank and four text headline declarations
+	// add strict parallel-safe scalar REAL/TEXT signatures (REL_18_6).
+	if len(facts) != 2238 {
+		t.Fatalf("released represented overloads: got %d, want 2238", len(facts))
 	}
 	return facts
 }

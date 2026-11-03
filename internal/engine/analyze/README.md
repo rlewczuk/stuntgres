@@ -735,6 +735,9 @@ library, and never the root engine or `session`. The engine, the root driver
   Written children and common element types are analyzed normally before
   signature errors. Only a winning consumer reaches array execution admission;
   a missing overload reports its real array signature without enabling a codec.
+  Registered rank/headline selection reaches this same seam through
+  `CallableArgument`, retaining a `LookupOnlyArgument` carrier rather than
+  reanalyzing syntax or inventing executable query-array support.
 - **Catalog-aware coercion** (`cast.go`): `catalog.SelectCoercion` selects
   declared pairs before fallback and builds only the winning expression.
   `catalog.CanCoerce` is the effect-free feasibility predicate shared with
@@ -808,6 +811,16 @@ Surgery binding, remap and retained definition ownership use
 `RUN='^TestPgsurgeryFreezeProvider'`.
 Retained registry lookup destination-input demand and unchanged capture-error
 propagation use `RUN='^TestRegLookup(RelType|CollRole)RetainedInput$'`.
+Actual rank/headline overload identity, ordered literal/parameter provenance and
+reconstruction units live in `enginetests/fts_rank_jumble_test.go`, selected by
+`RUN='^TestFTS(Rank|Headline)StatementJumble$'`. These supplement public SQL
+coverage; no row expectations or runtime evaluation belong to these units.
+Checked callable lookup versus unsupported array execution, nested shape,
+malformed-child precedence and once-only operand analysis use
+`RUN='^TestFTS(Rank|Headline)CallableLookup$'` in the same test owner.
+Simultaneous unknown-category resolution, zero-survivor retention and typed
+rank/headline overload discriminators use
+`RUN='^TestFTS(Rank|Headline)UnknownResolution$'`.
 
 
 Pure selected aggregate-mode invariants use `RUN='^TestAggregateMovingSelection$'`;

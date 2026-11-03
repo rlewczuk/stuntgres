@@ -728,6 +728,19 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   consumes immutable payloads directly. Text matching exposes only checked
   per-operand conversion targets and a checked normalized-match entry; ordinary
   evaluation never reinterprets text as a vector or query.
+- `FTSRankPlan` checks all eight REAL-returning rank signatures against actual
+  same-generation REAL[], TSVECTOR, TSQUERY and INT4 companions, including typed
+  NULLs and array element/payload shape. Weight dimension/count/NULL/range errors
+  follow released precedence; negative and NaN weights use category defaults.
+  Exact binary32 output comes from the ordinary REAL codec, not decimal reinput.
+- `FTSHeadlinePlan` checks the four TEXT-only headline signatures and their
+  REGCONFIG/TEXT/TSQUERY companions without retaining a configuration or runtime.
+  Result usages require the exact same-generation TEXT descriptor, canonical
+  typmod and valid collation annotation; collation derivation remains expression
+  metadata rather than value or plan authority. `FTSHeadlineResult` consumes a
+  completed rich document and checked query, reuses INT4 option input, and publishes
+  one owned TEXT value only after full selection/rendering. The composed owner
+  performs the final acquisition fence.
 - `FTSQueryPlan` checks source/result descriptor authority for query inspection
   and direct rewriting. `FTSRewriteRules` bridges actual typed SQL rule cells
   into one leaf-owned workspace, distinguishing skipped NULL rows from empty

@@ -118,6 +118,21 @@ func (c Capture[A]) Accept(ctx context.Context, h Host[A]) error {
 // Walk tokenizes input and emits its lexical positions, numbering from
 // *position. It runs with no engine lock held.
 func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position *int, emit func(fts.LexicalPosition)) error {
+	return c.walk(ctx, h, input, position, emit, nil)
+}
+
+// WalkDocument retains raw-token/lexeme associations from the same configured
+// dictionary traversal as Walk, including consumed multiword phrase spans.
+func (c Capture[A]) WalkDocument(ctx context.Context, h Host[A], input string) (*fts.HeadlineDocument, error) {
+	var builder fts.HeadlineBuilder
+	position := 0
+	if err := c.walk(ctx, h, input, &position, func(fts.LexicalPosition) {}, &builder); err != nil {
+		return nil, err
+	}
+	return builder.Finish(ctx)
+}
+
+func (c Capture[A]) walk(ctx context.Context, h Host[A], input string, position *int, emit func(fts.LexicalPosition), document *fts.HeadlineBuilder) error {
 	parser, config, capture := c.parser, c.config, c.acquisition
 	noticeLong := func() {
 		h.Operation().EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
@@ -125,6 +140,19 @@ func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position 
 	tokens, err := parser.Parse(ctx, input)
 	if err != nil {
 		return err
+	}
+	if document != nil {
+		document.SetTokens(tokens)
+	}
+	currentHead, currentEnd := 0, 0
+	emitPosition := func(lexical fts.LexicalPosition) error {
+		if document != nil {
+			if err := document.Associate(ctx, currentHead, currentEnd, lexical); err != nil {
+				return err
+			}
+		}
+		emit(lexical)
+		return nil
 	}
 	// Lookahead can revisit a suffix after an earlier completion. Token
 	// cursors scan forward, so one high-water mark prevents notice replay.
@@ -147,6 +175,7 @@ func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position 
 		}
 		word := token.Text
 		nextHead := head + 1
+		currentHead, currentEnd = head, nextHead
 		for _, address := range config.Mapping(token.ID) {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -203,11 +232,14 @@ func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position 
 					continue
 				}
 				nextHead = consumed
+				currentEnd = consumed
 				*position++
 				lexemes := make([]fts.Lexeme, 0, len(saved))
 				for _, replacement := range saved {
 					if replacement.AddPosition {
-						emit(fts.LexicalPosition{Position: *position, Lexemes: lexemes})
+						if err := emitPosition(fts.LexicalPosition{Position: *position, Lexemes: lexemes}); err != nil {
+							return err
+						}
 						*position++
 						// Query normalization can retain previously emitted slices.
 						lexemes = lexemes[len(lexemes):len(lexemes):cap(lexemes)]
@@ -218,7 +250,9 @@ func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position 
 					}
 					lexemes = append(lexemes, fts.Lexeme{Text: replacement.Text, Prefix: replacement.Prefix, Variant: replacement.Variant})
 				}
-				emit(fts.LexicalPosition{Position: *position, Lexemes: lexemes})
+				if err := emitPosition(fts.LexicalPosition{Position: *position, Lexemes: lexemes}); err != nil {
+					return err
+				}
 				break
 			}
 			lexical, err := dictionary.Lexize(ctx, word)
@@ -244,7 +278,9 @@ func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position 
 				words = append(words, lexeme)
 			}
 			*position++
-			emit(fts.LexicalPosition{Position: *position, Lexemes: words})
+			if err := emitPosition(fts.LexicalPosition{Position: *position, Lexemes: words}); err != nil {
+				return err
+			}
 			break
 		}
 		head = nextHead
