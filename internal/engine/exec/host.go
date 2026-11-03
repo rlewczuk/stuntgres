@@ -109,6 +109,7 @@ type Host interface {
 	// functions.SessionSignalRuntime
 	SessionSignalValue(*Context, functions.SessionSignalKind, int64, int64, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsSnapshotValue(bool, *sqltype.Descriptor) (sqltype.Value, error)
+	StatsXactBlocksValue(functions.StatsXactBlocksKind, uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsResetReplication(functions.StatsResetReplicationKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsResetShared(functions.StatsResetSharedKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TriggerDepthRuntime

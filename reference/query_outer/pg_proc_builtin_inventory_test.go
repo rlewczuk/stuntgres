@@ -60,6 +60,8 @@ import (
 // BOOL declarations; only termination names pid/timeout and defaults timeout.
 // The two statistics-snapshot lifecycle declarations retain their released
 // zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
+// Current-backend block inquiries OIDs3044/3045 retain unnamed strict OID-to-INT8
+// scalar signatures, VOLATILE/parallel-restricted metadata and matching symbols.
 // Replication statistics reset OIDs6170/6232 retain unnamed TEXT/OID inputs,
 // non-strict VOLATILE/parallel-safe VOID results and matching internal symbols.
 // Shared/SLRU/backend reset OIDs3775/2307/6387 retain VOLATILE/parallel-safe
@@ -231,8 +233,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Eight frequency/cover-density rank and four text headline declarations
 	// add strict parallel-safe scalar REAL/TEXT signatures (REL_18_6).
 	// Current-backend memory adds one callable ten-OUT-field record SRF.
-	if len(facts) != 2245 {
-		t.Fatalf("released represented overloads: got %d, want 2245", len(facts))
+	// Current-backend fetched/hit inquiries add two strict VOLATILE/restricted
+	// unnamed OID-to-INT8 declarations3044/3045.
+	if len(facts) != 2247 {
+		t.Fatalf("released represented overloads: got %d, want 2247", len(facts))
 	}
 	return facts
 }

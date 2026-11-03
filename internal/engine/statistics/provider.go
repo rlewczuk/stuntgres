@@ -34,6 +34,7 @@ type Fact struct {
 	VacuumTime, AnalyzeTime                                                                        time.Duration
 	Calls, Operations                                                                              int64
 	SequencePageAccesses                                                                           int64
+	BlocksFetched, BlocksHit                                                                       int64
 	TotalTime, SelfTime                                                                            time.Duration
 	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
 	ApplyErrorCount, SyncErrorCount                                                                int64
@@ -59,6 +60,13 @@ type Provider struct {
 }
 
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
+
+// Generation is the pending/event fence, independent of cumulative read caches.
+func (p *Provider) Generation() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.generation
+}
 func (p *Provider) read(k Key) Fact {
 	f := p.facts[k]
 	f.Generation = p.generation
@@ -107,6 +115,8 @@ func merge(a, b Fact) Fact {
 	a.Calls += b.Calls
 	a.Operations += b.Operations
 	a.SequencePageAccesses += b.SequencePageAccesses
+	a.BlocksFetched += b.BlocksFetched
+	a.BlocksHit += b.BlocksHit
 	a.TotalTime += b.TotalTime
 	a.SelfTime += b.SelfTime
 	return a
@@ -452,6 +462,21 @@ func (w *Writer) PendingDead(p *Provider, k Key) int64 {
 		return 0
 	}
 	return w.pending[k].Dead
+}
+
+// PendingBlocks reads the current owner's unflushed relation requests, never a
+// cumulative Reader cut. Lookup allocates nothing and does not move the throttle.
+func (w *Writer) PendingBlocks(p *Provider, k Key) (fetched, hit int64) {
+	if k.Category != Relation {
+		return 0, 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+		return 0, 0
+	}
+	f := w.pending[k]
+	return f.BlocksFetched, f.BlocksHit
 }
 
 // ReportAnalyze is the source-specific immediate shared reporting boundary.

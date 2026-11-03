@@ -315,6 +315,33 @@ it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
 
+### Pending relation block statistics
+
+`pg_stat_get_xact_blocks_fetched(oid)` and `pg_stat_get_xact_blocks_hit(oid)` return
+nullable INT8 scalars through direct and prepared SQL. Their arguments identify
+tables or indexes, not backend PIDs. NULL returns NULL; an unknown OID or an
+identity with no own pending requests returns zero. Ordinary routine EXECUTE
+admission applies to surviving calls, without a target SELECT or monitoring-role
+requirement. Shared strict planning may erase a constant/custom-bound NULL call
+before execution; a runtime column-NULL call still requires EXECUTE.
+
+Native accounting estimates one resident logical-page request per actually
+reached nonempty source invocation, adding one to both fetched and hit. Fetched
+includes hits; the figures are request estimates, not rows, physical disk reads
+or cache occupancy. Private and TEMP reads count independently of shared-buffer
+eligibility. Prepare, EXPLAIN-only, pruned sources and unchosen indexes do not
+manufacture requests.
+
+These getters read the physical connection's live unflushed pending pair,
+independently of none/cache/snapshot consistency. They neither create a snapshot
+timestamp nor flush; clearing a snapshot leaves the pair intact. track_counts
+suppresses new collection without hiding prior pending values. Timing/activity
+tracking does not gate these requests. Performed existing-object reads survive
+statement/savepoint rollback. Pending retires after successful publication and
+may survive COMMIT/ROLLBACK when normal publication is throttled; it is not
+transferred to a prepared-transaction finisher. Native replacement and actual
+object retirement retain the ordinary generation and identity fences.
+
 ### Session activity monitoring
 
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is

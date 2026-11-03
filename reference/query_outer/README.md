@@ -125,6 +125,9 @@ property projection include both executable owners.
 Replication statistics reset retains released OIDs6170/6232, unnamed TEXT/OID
 inputs and non-strict VOLATILE/parallel-safe VOID results. Exact membership and
 all 28 direct/prepared property projections include both executable declarations.
+Current-backend block inquiries add released OIDs3044/3045, one unnamed OID
+input and strict VOLATILE/parallel-restricted scalar INT8 results. Both exact
+membership and all 28 direct/prepared property projections include them.
 Shared, SLRU and backend statistics reset add OIDs3775/2307/6387 to the same
 28-field inventory. Shared/SLRU have named TEXT `target` and one NULL default;
 backend has an unnamed strict INT4 PID and no default. All three retain scalar

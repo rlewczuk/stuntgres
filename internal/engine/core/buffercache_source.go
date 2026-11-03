@@ -2,7 +2,6 @@ package core
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"sync"
 )
@@ -91,51 +90,32 @@ func logicalBufferIdentity(view catalog.Read, relation *catalog.Relation) (logic
 	}
 	return key, true
 }
-func (e *Engine) captureLogicalBufferReadLocked(scope *StatementScope, view catalog.Read, address ids.ObjectAddress) exec.SourceReadLease {
+func (e *Engine) logicalBufferReadKeyLocked(scope *StatementScope, view catalog.Read, address ids.ObjectAddress) (logicalBufferKey, bool) {
 	// CREATE DATABASE's private replacement target is not an execution/cache
 	// owner until the database is published and attached to its real cluster.
 	if e.Cluster == nil {
-		return nil
+		return logicalBufferKey{}, false
 	}
 	if journal := scope.PendingCatalog(); journal != nil && journal.Storage[address].Rewritten {
-		return nil
+		return logicalBufferKey{}, false
 	}
 	relation, ok := view.Relation(address)
 	if !ok {
-		return nil
+		return logicalBufferKey{}, false
 	}
 	key, eligible := logicalBufferIdentity(view, relation)
 	if !eligible {
-		return nil
+		return logicalBufferKey{}, false
 	}
 	committed, ok := e.Catalog.Current().Relation(address)
 	if !ok {
-		return nil
+		return logicalBufferKey{}, false
 	}
 	incumbent, eligible := logicalBufferIdentity(e.Catalog.Current(), committed)
 	if !eligible || incumbent != key {
-		return nil
+		return logicalBufferKey{}, false
 	}
-	return &logicalBufferRead{engine: e, key: key, owner: scope.Op.Session.SessionToken}
-}
-func (e *Engine) captureLogicalBufferSourcesLocked(scope *StatementScope, source *exec.Source) {
-	if source == nil || source.RlsDenied || source.View == nil {
-		return
-	}
-	if source.Inheritance != nil {
-		for _, segment := range source.Inheritance {
-			e.captureLogicalBufferSourcesLocked(scope, segment.Prefix)
-		}
-		return
-	}
-	view := source.View.Data().Catalog
-	source.ReadLease = e.captureLogicalBufferReadLocked(scope, view, source.Ref.Address)
-	for i := range source.HashIndexes {
-		source.HashIndexes[i].ReadLease = e.captureLogicalBufferReadLocked(scope, view, source.HashIndexes[i].Address)
-	}
-	for i := range source.BloomIndexes {
-		source.BloomIndexes[i].ReadLease = e.captureLogicalBufferReadLocked(scope, view, source.BloomIndexes[i].Address)
-	}
+	return key, true
 }
 
 // Successful publication reconciles sparse occupancy only. Descriptor revisions

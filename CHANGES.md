@@ -22,6 +22,16 @@
   estimate. Expose the released view definition and underlying-all DML
   diagnostics while retaining original-target TRUNCATE and streamed COPY errors.
 
+- Add typed `pg_stat_get_xact_blocks_fetched(oid)` and
+  `pg_stat_get_xact_blocks_hit(oid)` over the shared physical-backend pending
+  writer. Count each reached nonempty native heap/index invocation as one
+  resident logical request in both fetched and hit, including genuine private,
+  TEMP and rewritten storage without changing shared-buffer eligibility.
+  Preserve pending until real publication, including throttled transaction
+  boundaries, and fence retired identities and replacement generations.
+  Reuse ordinary live routine ACLs and strict NULL planning/preflight, keeping
+  optimized NULL distinct from surviving runtime calls.
+
 - Add the 22-column, fully nullable `pg_catalog.pg_stat_activity` monitoring view
   on the existing shared provider. Report real cluster sessions, original query
   text, application/settings restoration, transaction/state clocks through the

@@ -15,6 +15,17 @@ provenance retain no session or permission decision. Source opening borrows
 composites; the ordinary source cursor releases pending values on cancellation.
 FROM, target-list records and member expansion use the existing source protocol.
 
+`StatsXactBlocks` owns the strict OID-to-INT8 fetched/hit inquiries and their
+ordinary routine identities. Non-NULL calls are volatile and never folded;
+shared strict after-bare planning and current-frame preflight can erase known
+NULL calls, including before EXECUTE admission. Surviving column-NULL calls keep
+live routine admission, then return typed NULL without borrowing statistics
+authority. The runtime bridge reads the executing physical writer, not a cached
+value. Capture, reconstruction and stored replay retain only typed recipes.
+The family owns argument-label diagnostics after ordinary child analysis:
+shared call-syntax validation reports duplicate/positional labels before
+signature rejection, including though these routines have unnamed formals.
+
 `StatsResetReplication` owns one immutable typed TEXT/OID operand and its ordinary
 catalog routine identity. Both kinds are nonstrict, volatile scalar VOID calls:
 NULL reaches current EXECUTE admission and reset-all runtime rather than folding

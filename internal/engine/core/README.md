@@ -527,6 +527,19 @@ ownership without retiring pending drops. Rolled-back drops and compatible
 non-removal replacements preserve facts. Shared tombstones reject late writer
 batches and function completions without resetting unrelated facts or readers.
 Physical storage and optimizer metadata remain independent of report policy.
+The two `pg_stat_get_xact_blocks_*` OID inquiries instead read only the current
+physical writer's pending Relation pair. They neither resolve/open the numeric
+target nor construct a cumulative snapshot, sample a clock or publish. Reached
+nonempty heap/index invocations record one resident logical request as
+fetched+1/hit+1 through the shared source lease. Effective track_counts gates new
+events before writer work; prior pending remains visible. Private CREATE, TEMP
+and rewritten owner storage remain eligible independently of shared-buffer
+occupancy. Captures retain full identity, provider generation and storage
+incarnation plus a detachable execution-authority slot, never a finished scope.
+Existing-object reads survive statement/savepoint/transaction abort and stay on
+the preparing physical backend across PREPARE; only real publication retires
+them. No tuple projection or transaction-terminal reset is added.
+
 Sequence encounters use the same Relation category and physical writer, not the
 tuple ledger. Under Engine.Mu the common sequence host detects actual nextval
 reservations from existing memory generation/tail, and records only successful
@@ -1672,6 +1685,10 @@ domains, epochs, relation addresses and effective storage locators. TEMP,
 virtual/provider relations, foreign sources and storage-less partition roots
 cannot acquire occupancy. Actual reached physical leaves, including consumed
 hash/bloom indexes, own source read leases; binding and source capture do not heat.
+That capture now composes independent pending-block accounting with the optional
+cache pin. Statistics can count genuine private/TEMP/rewritten storage without
+granting any shared cache eligibility; the cache's committed locator checks,
+occupancy and pin lifetime remain unchanged.
 Sampled-source initialization retains normal identity and authority checks but
 does not activate storage. Only positive sampling that consumes a nonempty child
 opens its lease; zero samples leave cold occupancy and warm usage/pins unchanged.
@@ -3391,6 +3408,9 @@ and successful/failed replacement fences share `RUN='^TestPgBuffercache'`.
 Composed units retain actual protocol portals and admitted source captures;
 pure tiny-capacity units exercise pinned victims without public inspection hooks.
 Public dual-mode SQL belongs to `reference/extensions`.
+Pending-block source reachability, live typed recipes, identity fences and
+virtual-time publication ownership share `RUN='^TestStatsXactBlocks'`, also with
+`RACE=1`. Public direct/prepared behavior belongs to `reference/session_state`.
 
 Heap-verification capture, admission, incarnation and pure logical-row units
 share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.

@@ -434,7 +434,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations, scope.PendingDetachSnapshot()), leaf.Relation, source, scope.Op.ConstraintExclusion)
 		}
 		if !denied {
-			e.captureLogicalBufferSourcesLocked(scope, source)
+			e.captureReadSourcesLocked(scope, source)
 		}
 		source.RLS = program
 		plannerStore := e.Storage.Relations[leaf.Ref.Address]

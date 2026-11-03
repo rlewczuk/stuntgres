@@ -78,6 +78,17 @@ func (c *Context) StatsSnapshotValue(clear bool, result *sqltype.Descriptor) (sq
 	return host.StatsSnapshotValue(clear, result)
 }
 
+func (c *Context) StatsXactBlocksValue(kind functions.StatsXactBlocksKind, oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: transaction block inquiry lacks statement authority")
+	}
+	return host.StatsXactBlocksValue(kind, oid, result)
+}
+
 func (c *Context) StatsResetReplication(kind functions.StatsResetReplicationKind, argument sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err

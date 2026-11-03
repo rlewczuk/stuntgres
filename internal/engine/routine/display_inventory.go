@@ -1619,6 +1619,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	2034: {Language: catalog.InternalRoutineLanguage, Source: "pg_conf_load_time"},
 	3788: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_snapshot_timestamp"},
 	2230: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_clear_snapshot"},
+	3044: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_xact_blocks_fetched"},
+	3045: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_xact_blocks_hit"},
 	6170: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_reset_replication_slot"},
 	6232: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_reset_subscription_stats"},
 	3775: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_reset_shared"},

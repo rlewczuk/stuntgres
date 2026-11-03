@@ -18,6 +18,16 @@ is reserved for actual admitted creation, never a reset/read. Category merges ad
 pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
+Relation facts also carry additive `BlocksFetched`/`BlocksHit` request counters.
+`Writer.PendingBlocks` returns a copied pair from only that physical owner's
+pending full key, checking provider generation and retirement without allocation
+or throttle mutation. `Provider.Generation` fences captured read events across
+reset/replacement. These inquiries bypass cumulative Reader caches entirely.
+A resident logical request adds fetched and hit together. Performed reads are
+not tuple-ledger attempts: savepoint/statement rollback does not undo them.
+Successful publication clears pending; a throttled batch may cross COMMIT or
+ROLLBACK. Reader clear and published-only resets do not flush or clear it.
+
 `Relation` facts include additive `SequencePageAccesses`, independent of tuple,
 maintenance and IO-operation fields. It counts successful generator encounters,
 not sequence values: a real nextval cache reservation, successful setval, an
@@ -205,6 +215,8 @@ Deterministic publication, reader, suppression, identity/reset and concurrent
 merge tests use `make check RUN='^TestStatsProvider'`; add `RACE=1` for concurrency.
 Sequence encounter merging, reader snapshots and identity/reset fencing use
 `make check RUN='^TestStatsSequence'`, also with `RACE=1`.
+Pending block arithmetic, generation/retirement fences and allocation-free lookup
+use `make check RUN='^TestStatsXactBlocksProvider$'`, also with `RACE=1`.
 Nesting, truncate, COW and pending-prefix accounting uses
 `make check RUN='^TestStatsSnapshotTransactionAccounting$'`, also with `RACE=1`.
 Public SQL scenarios live in `reference/session_state`, using

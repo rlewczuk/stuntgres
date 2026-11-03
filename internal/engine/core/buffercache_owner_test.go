@@ -22,8 +22,8 @@ func TestPgBuffercachePrivateOwnerBoundary(t *testing.T) {
 	// must not manufacture state; source capture cannot lend it a live lease.
 	e.Cluster = nil
 	e.reconcileLogicalBuffersLocked()
-	if lease := e.captureLogicalBufferReadLocked(nil, e.Catalog.Current(), e.Catalog.DatabaseAddress()); lease != nil {
-		t.Fatal("private staging acquired a source cache lease")
+	if key, eligible := e.logicalBufferReadKeyLocked(nil, e.Catalog.Current(), e.Catalog.DatabaseAddress()); eligible || key != (logicalBufferKey{}) {
+		t.Fatal("private staging acquired a source cache identity")
 	}
 	if snapshot, err := e.snapshotLogicalBuffersLocked(); err == nil || snapshot.capacity != 0 || snapshot.rows != nil || !strings.Contains(err.Error(), "registered database runtime") {
 		t.Fatal("private snapshot fabricated a successful observation", snapshot, err)

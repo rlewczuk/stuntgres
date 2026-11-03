@@ -110,8 +110,19 @@ func TestPgBuffercachePublication(t *testing.T) {
 	enginetest.SessionSQL(t, owner, "TRUNCATE buffer_renamed")
 	enginetest.SessionSQL(t, owner, "INSERT INTO buffer_renamed VALUES(1)")
 	private := bufferUnitCapture(t, e, owner, "SELECT k FROM buffer_renamed")
-	if private.source.ReadLease != nil {
-		t.Fatal("uncommitted rewritten root acquired a globally publishable cache lease")
+	if private.source.ReadLease == nil {
+		t.Fatal("rewritten source lost its independent statistics lease")
+	}
+	beforePrivate := bufferUnitFacts(t, e, observer)
+	private.source.ReadLease.Open()
+	afterPrivate := bufferUnitFacts(t, e, observer)
+	if len(afterPrivate) != len(beforePrivate) {
+		t.Fatal("private rewritten read changed shared cache occupancy", beforePrivate, afterPrivate)
+	}
+	for node, fact := range beforePrivate {
+		if afterPrivate[node] != fact {
+			t.Fatal("private rewritten read acquired shared cache usage or pins", beforePrivate, afterPrivate)
+		}
 	}
 	private.close(t)
 	enginetest.SessionSQL(t, owner, "ROLLBACK")

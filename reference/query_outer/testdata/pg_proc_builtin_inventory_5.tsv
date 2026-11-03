@@ -87,6 +87,8 @@
 2096	pg_terminate_backend	11	12	1	0	0	0	f	false	false	true	false	v	s	2	1	16	23 20	\N	\N	{pid,timeout}	true	\N	pg_terminate_backend	\N	false	\N
 2230	pg_stat_clear_snapshot	11	12	1	0	0	0	f	false	false	false	false	v	r	0	0	2278		\N	\N	\N	false	\N	pg_stat_clear_snapshot	\N	false	\N
 3788	pg_stat_get_snapshot_timestamp	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_stat_get_snapshot_timestamp	\N	false	\N
+3044	pg_stat_get_xact_blocks_fetched	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	20	26	\N	\N	\N	false	\N	pg_stat_get_xact_blocks_fetched	\N	false	\N
+3045	pg_stat_get_xact_blocks_hit	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	20	26	\N	\N	\N	false	\N	pg_stat_get_xact_blocks_hit	\N	false	\N
 6170	pg_stat_reset_replication_slot	11	12	1	0	0	0	f	false	false	false	false	v	s	1	0	2278	25	\N	\N	\N	false	\N	pg_stat_reset_replication_slot	\N	false	\N
 6232	pg_stat_reset_subscription_stats	11	12	1	0	0	0	f	false	false	false	false	v	s	1	0	2278	26	\N	\N	\N	false	\N	pg_stat_reset_subscription_stats	\N	false	\N
 2307	pg_stat_reset_slru	11	12	1	0	0	0	f	false	false	false	false	v	s	1	1	2278	25	\N	\N	{target}	true	\N	pg_stat_reset_slru	\N	false	\N

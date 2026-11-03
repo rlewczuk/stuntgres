@@ -497,6 +497,7 @@ func (sqlJSONDocument) JumbleFields(s expr.StatementFields) {
 func (SSLInfo) JumbleFields(s expr.StatementFields)        { s.JumbleText("functions.SSLInfo") }
 func (StatisticsIO) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.StatisticsIO") }
 func (StatsSnapshot) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.StatsSnapshot") }
+func (StatsXactBlocks) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.StatsXactBlocks") }
 func (StringVariadic) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.StringVariadic") }
 func (TablefuncCrosstab) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.TablefuncCrosstab")

@@ -100,6 +100,17 @@ The migrated internal activity-registration/routing units additionally use
 `RUN='^(TestStatsProvider(Collection|ResetShared|TargetedReset)|TestStatsResetSharedBackendLifetime)$'`.
 
 
+Pending relation block signatures, complete diagnostics, actual source/index
+reads, tracking/cache independence, publication lifetime and mutable EXECUTE
+admission use `RUN='^TestReferenceStatsXactBlocks'` in both fixture modes.
+Physical counts use independent monotonic/subset properties and exact native
+logical-request deltas; rows, metadata, privileges and lifetime remain exact.
+Literal/custom-bound NULL erasure is distinguished from surviving column-NULL
+admission. Native Reset/Restore are explicit control phases.
+Chosen-index witnesses retain the existing implicit-only access eligibility and
+project pending counters in the reached SELECT before ordinary publication;
+they do not depend on transaction-throttle timing or expand the optimizer.
+
 Replication statistics reset scalar metadata, diagnostics, mutable EXECUTE,
 cross-database subscription identities and native ACL controls use
 `RUN='^TestReferenceStatsResetReplication'` in both fixture modes.

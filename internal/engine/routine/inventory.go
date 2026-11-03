@@ -2025,6 +2025,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{2034, ids.PGCatalogNamespaceOID, "pg_conf_load_time", ""}, catalog.FunctionRoutine, 1184, true, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3788, ids.PGCatalogNamespaceOID, "pg_stat_get_snapshot_timestamp", ""}, catalog.FunctionRoutine, 1184, true, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2230, ids.PGCatalogNamespaceOID, "pg_stat_clear_snapshot", ""}, catalog.FunctionRoutine, 2278, false, expr.Volatile, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3044, ids.PGCatalogNamespaceOID, "pg_stat_get_xact_blocks_fetched", "26"}, catalog.FunctionRoutine, 20, true, expr.Volatile, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3045, ids.PGCatalogNamespaceOID, "pg_stat_get_xact_blocks_hit", "26"}, catalog.FunctionRoutine, 20, true, expr.Volatile, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{6170, ids.PGCatalogNamespaceOID, "pg_stat_reset_replication_slot", "25"}, catalog.FunctionRoutine, 2278, false, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{6232, ids.PGCatalogNamespaceOID, "pg_stat_reset_subscription_stats", "26"}, catalog.FunctionRoutine, 2278, false, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3775, ids.PGCatalogNamespaceOID, "pg_stat_reset_shared", "25"}, catalog.FunctionRoutine, 2278, false, expr.Volatile, 's', false, 0, 1, functions.CatalogRoutineProvider, nil},
