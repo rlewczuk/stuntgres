@@ -29,6 +29,12 @@ transaction and routine lifetimes, list selection and the physical boundary.
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+Logical-slot monitoring uses `RUN='^TestReferencePGStatReplicationSlots'` in both
+fixture modes for typed empty inventory, query composition, current SELECT
+admission, rejected-start no-publication and complete read-only diagnostics.
+The package oracle retains pg_stat_statements and enables logical WAL through
+the existing fixture options so populated scenarios use genuine logical slots.
+
 The full 22-column monitoring view uses
 `RUN='^TestReferencePGStatActivity(Metadata|Lifecycle|Privileges|RoleIdentity|WaitsAndSignals|Snapshots|IdentityAndTracking|ReadOnly|FeatureSmoke)$'`
 with `make check`, then the same selector with `REFERENCE=1`. Expectations cover

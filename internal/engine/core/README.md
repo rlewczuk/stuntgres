@@ -3323,6 +3323,8 @@ Held cursor store/producer ownership and replacement units share
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
+Logical-slot source/orphan-provider and cumulative-reader ownership uses
+`RUN='^TestPGStatReplicationSlots'`; public SQL stays in the reference family.
 Sequence value-tail/reset, TEMP replacement and producer key-filter ownership
 units use `RUN='^TestStatsSequence'`, also with `RACE=1`.
 TEMP replacement fixtures identify sequences in the attached owner's actual

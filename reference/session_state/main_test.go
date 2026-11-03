@@ -6,4 +6,6 @@ import (
 	"testing"
 )
 
-func TestMain(m *testing.M) { os.Exit(fixture.Main(m, fixture.WithPgStatStatements())) }
+func TestMain(m *testing.M) {
+	os.Exit(fixture.Main(m, fixture.WithPgStatStatements(), fixture.WithLogicalWAL()))
+}

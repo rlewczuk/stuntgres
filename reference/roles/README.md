@@ -83,6 +83,10 @@ source/create and copy catalog positions, option resets, and dynamic flush/inser
 bounds for beyond-current physical advancement. Raw plugin lists preserve literal
 embedded quotes in unquoted elements while rejecting malformed quoted suffixes;
 native creates reject unavailable machinery and never publish slot state.
+Logical-slot monitoring lifecycle uses `RUN='^TestReferencePGStatReplicationSlots'`
+in both modes: genuine logical inclusion, physical exclusion, unredacted reader
+fields and held prepared disappearance after drop; native rejected creation
+leaves the inventory empty.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The CHECKPOINT family uses `make check RUN='^TestReferenceCheckpoint'` for exact

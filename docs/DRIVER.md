@@ -382,6 +382,28 @@ INSTEAD OF trigger-or-rule Hint, including WHERE FALSE. TRUNCATE rejects with
 (`cannot copy to view "pg_stat_recovery_prefetch"`) and its INSTEAD OF INSERT Hint.
 There is no portable row order without ORDER BY.
 
+### Logical replication slot monitoring
+
+`pg_catalog.pg_stat_replication_slots` (also unqualified on the ordinary catalog
+path) is read-only with ten nullable columns: `slot_name text`, `spill_txns`,
+`spill_count`, `spill_bytes`, `stream_txns`, `stream_count`, `stream_bytes`,
+`total_txns`, `total_bytes` (all bigint), and `stats_reset timestamptz`.
+Empty results retain these descriptors, including held prepared executions.
+
+Rows require actual logical slots; physical slots and orphan statistics facts
+are not inventory. Native slot creation rejects before publishing inventory, so
+the view is empty, including after rejected starts or statistics resets. Reading
+or preparing it neither changes provider facts nor initializes cumulative
+statistics snapshots. There are no synthetic workers, progress rows or identities.
+
+PUBLIC SELECT uses current ordinary relation/column ACLs, without role-dependent
+field masking. INSERT/UPDATE/DELETE, including zero-match mutations, reject with
+55000 and the standard non-updatable-view Detail and operation-specific
+INSTEAD OF trigger-or-rule Hint. TRUNCATE rejects with 42809
+(`"pg_stat_replication_slots" is not a table`); COPY FROM rejects with 42809
+(`cannot copy to view "pg_stat_replication_slots"`) and its INSTEAD OF INSERT Hint.
+There is no portable row order without ORDER BY.
+
 ### Session activity monitoring
 
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is

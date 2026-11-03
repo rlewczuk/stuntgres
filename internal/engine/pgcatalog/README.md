@@ -81,6 +81,17 @@ Missing reset metadata remains typed NULL; integer gauges use checked INT4
 conversion. Projection neither initializes metadata nor creates cumulative
 reader snapshots, and ordinary SELECT ACLs do not imply activity-field redaction.
 
+`pg_stat_replication_slots` (12266) validates current registered catalog/source
+and paired role authority for ten nullable attributes: TEXT identity, eight INT8
+counters and TIMESTAMPTZ reset metadata. Only actual logical-slot inventory can
+establish rows; provider keys, resets and rejected creation cannot. Native slot
+creation publishes no inventory, so capture returns no rows without fetching
+statistics, allocating absent rows or establishing a cumulative reader snapshot.
+The existing ReplicationSlot provider remains the sole statistics owner.
+Ordinary current SELECT admission applies without field redaction; the common
+virtual-view paths reject mutations. Symbolic display describes the released
+inventory/lateral-statistics join without granting callable backing interfaces.
+
 - `pg_stat_activity` (12226) projects one detached unmasked cluster activity cut
   with exactly 22 nullable fields and independently live actual wait ownership.
   Core samples canonical XID/xmin and releases metadata locks before manager
@@ -1756,6 +1767,9 @@ a hash root alone does not select that access method.
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Cumulative-statistics SQL: `RUN='^TestReferenceStatsSnapshot'`
+- Logical-slot source authority and orphan-provider ownership:
+  `RUN='^TestPGStatReplicationSlots'`; public scenarios:
+  `RUN='^TestReferencePGStatReplicationSlots'` in both fixture modes.
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`

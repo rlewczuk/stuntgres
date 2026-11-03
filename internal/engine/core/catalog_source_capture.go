@@ -124,7 +124,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			in.IdentFile = e.IdentFile
 			unlockBefore = true
 		}
-	case pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatioAllIndexesOID:
+	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatioAllIndexesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
