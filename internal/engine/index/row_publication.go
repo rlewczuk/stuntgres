@@ -78,6 +78,11 @@ func PrepareRowPublication(p *RowPublication, domain *ids.Domain, ref ids.TxRef,
 				}
 			}
 			predecessor, baseSlot, found := find(p.Root, row.Row, row.Base, hint)
+			// Surgery is irreversible, but does not revoke an already admitted
+			// writer. Ignore only slot death here, not MVCC ends or identity.
+			if p.Headers.Header(predecessor.Version).Slot == storage.HeapSlotDead {
+				predecessor.HeapKilled = false
+			}
 			if !found || row.BaseHeaderStamp() == predecessor.RepairStamp && !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.Ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
 			}
@@ -157,6 +162,9 @@ func PrepareRowPublication(p *RowPublication, domain *ids.Domain, ref ids.TxRef,
 				predecessors = p.Writes
 			}
 			predecessor, _, found := find(predecessors, id, candidate.Version, candidate.Ordinal)
+			if p.Headers.Header(predecessor.Version).Slot == storage.HeapSlotDead {
+				predecessor.HeapKilled = false
+			}
 			if !found || candidate.Own && predecessor.Base != candidate.Base || len(predecessor.Values) != len(p.Relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}

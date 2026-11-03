@@ -177,8 +177,13 @@ builds a binder.
   spelling and order. PostgreSQL insertion uses the session threshold unless an
   index reloption overrides it (default 4096KB). Native `gin_pending_list_limit`
   retains intent only: no automatic threshold/autovacuum or physical page
-  algorithm is introduced. Native metadata records exact live pending dump-row
-  ordinals and rebuilds destination split from typed keys.
+  algorithm is introduced. Native metadata numbers the same captured-header
+  visible heads and exact-version-deduplicated repaired Additional rows as
+  relational export. Source positions still validate genuine memberships and
+  postings; exact row/version identity selects surviving pending placement.
+  Repaired exports absent from source membership acquire ordinary rebuilt main
+  placement, never fabricated pending work. Capture leaves source roots/backing
+  unchanged; destination split reconstruction consumes destination-produced keys.
   JSONB token providers remain unavailable, not nonexistent PostgreSQL classes.
   `pgstattuple.go` estimates tuple/page metrics from current logical roots and
   already-produced private outputs. Published logical removal stops contributing
@@ -245,6 +250,11 @@ builds a binder.
   `AmcheckCapture`, validates actual stored order/identity/positions and parent
   maps, searches the real baseline root independently, and checks demanded heap
   representation and visible uniqueness using its bound ordering and recipes.
+  Under HeapAllIndexed, genuine retained entries referencing exact dead slots
+  report XX002 `index entry references killed heap tuple for index "name"`.
+  Ordinary MVCC-ended entries are not this finding. Surgery never changes the
+  captured root, entries, keys or membership to manufacture or hide corruption;
+  genuine later vacuum/rebuild follows existing maintenance rules.
   Capture pairs the baseline with coherent heap/end/frontier authority and
   real private row outputs or the admitted implicit row-backed lane. No root is
   rebuilt, repaired or published by verification. Uniqueness scratch is never
@@ -282,6 +292,10 @@ builds a binder.
   transaction's private root, else the committed one), `AlterIndexBuild` and
   `RebindExclusionOperators`. The engine fills capture inputs under `Engine.Mu`
   after its epoch checks and holds the lock across the call.
+  Current captured headers filter killed versions in builds, probes, statistics
+  and logical transport. Final row publication retains exact slot death while
+  allowing already-admitted writers to finish; only death is ignored during
+  predecessor liveness admission, never real ends, shape or identity checks.
   `ValidateAlterIndexBuilds` invokes its owner's execution callback only after
   the incumbent late selector chooses actual builds and admits their snapshot.
   Table ALTER supplies the existing restricted table-owner environment for
@@ -741,6 +755,8 @@ make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings 
 make check RUN='^TestBtreeGINTemporal' # typed temporal equivalence, exact postings and sealed lifecycle
 make check RUN='^TestBtreeGINText' # text-family typed equivalence, posting triples and ownership
 make check RUN='^TestPgsurgeryFreezeIndexVersions'   # exact sibling deltas, projections, membership and probes
+make check RUN='^TestPgsurgeryKill(RowPublication|UniqueAdmission)$' # exact death, real ends and structural predecessor admission
+make check RUN='^TestPgsurgeryKillGinCapture$' # genuine split ordinals and immutable heap/header/index backing
 make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 

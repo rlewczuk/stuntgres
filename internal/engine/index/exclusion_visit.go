@@ -47,6 +47,10 @@ func VisitExclusion(op interface{ Context() context.Context }, evaluation *exec.
 	own := scan.Pending[ticket]
 	var v ExclusionVisit
 	visit := func(entry ExclusionEntry, owner *lock.Ticket, committed bool) error {
+		entry.Row = scan.Headers.Apply(entry.Row)
+		if entry.Row.HeapKilled {
+			return nil
+		}
 		if owner == ticket && entry.Row.Row == current.Row.Row && (entry.Row.Version == current.Row.Version || current.Row.Base != 0 && entry.Row.Version == current.Row.Base) {
 			return nil
 		}

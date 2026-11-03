@@ -26,6 +26,9 @@ type HeapTupleFact struct {
 // Vacuum deliberately tests foreign xmin before xmax, unlike the own-xmin
 // branch. Both classifiers are independent of the caller's SELECT snapshot.
 func HeapTupleLive(f HeapTupleFact, caller ids.TxRef, approximate bool) bool {
+	if f.Version.HeapKilled {
+		return false
+	}
 	if f.Aborted && !f.Version.ForcedFrozen {
 		return false
 	}

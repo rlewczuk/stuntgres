@@ -93,6 +93,7 @@ func (h *HeapHeaderRoot) Apply(v RowVersion) RowVersion {
 			v.ForcedFrozen = header.Repaired
 			v.RepairStamp = header.RepairStamp
 			v.ForcedEnd = header.End
+			v.HeapKilled = header.Slot != HeapSlotNormal
 		}
 	}
 	return v
@@ -106,12 +107,51 @@ func (h *HeapHeaderRoot) Header(version ids.VersionID) HeapHeader {
 	return header
 }
 
+// KillHeapHeaders publishes exact slot death without touching payloads, repair
+// identities, other header fields or indexes. Repeated/empty selections share
+// the original root; callers fence the relation generation before publication.
+func KillHeapHeaders(previous *HeapHeaderRoot, rows []RowVersion) *HeapHeaderRoot {
+	var next *HeapHeaderRoot
+	for _, row := range rows {
+		current := previous
+		if next != nil {
+			current = next
+		}
+		header := HeapHeader{Xmax: row.DeleteFullXID, Frozen: row.Frozen, Repaired: row.ForcedFrozen, RepairStamp: row.RepairStamp, End: row.ForcedEnd}
+		if current != nil {
+			if existing, ok := current.Versions.Get(row.Version); ok {
+				header = existing
+			}
+		}
+		if header.Slot != HeapSlotNormal {
+			continue
+		}
+		if next == nil {
+			next = &HeapHeaderRoot{}
+			if previous != nil {
+				*next = *previous
+			}
+		}
+		header.Slot = HeapSlotDead
+		next.Versions = next.Versions.Set(row.Version, header)
+	}
+	if next == nil {
+		return previous
+	}
+	return next
+}
+
 // RepairHeapHeaders prepares one immutable publication for a completed block.
 // Caller has validated each supplied normal slot against actual heap/owner roots.
 func RepairHeapHeaders(previous *HeapHeaderRoot, rows []RowVersion) (*HeapHeaderRoot, error) {
-	if len(rows) == 0 {
+	first := 0
+	for first < len(rows) && previous.Header(rows[first].Version).Slot != HeapSlotNormal {
+		first++
+	}
+	if first == len(rows) {
 		return previous, nil
 	}
+	rows = rows[first:]
 	if previous != nil && previous.Stamp == math.MaxUint64 {
 		return nil, fmt.Errorf("stuntgres: heap repair identity exhausted")
 	}
@@ -126,6 +166,9 @@ func RepairHeapHeaders(previous *HeapHeaderRoot, rows []RowVersion) (*HeapHeader
 		known[row.Version] = true
 	}
 	for _, row := range rows {
+		if previous.Header(row.Version).Slot != HeapSlotNormal {
+			continue
+		}
 		next.Versions = next.Versions.Set(row.Version, HeapHeader{Frozen: true, Repaired: true, RepairStamp: next.Stamp, TupleLockVersion: row.Version, TupleLockStamp: next.Stamp})
 		if !known[row.Version] {
 			row.PrivateHistory = nil

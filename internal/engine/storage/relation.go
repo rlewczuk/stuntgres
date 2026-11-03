@@ -54,6 +54,9 @@ type RowVersion struct {
 	// Canonical insertion provenance is distinct from the commit frontier.
 	InsertFullXID uint64
 	DeleteFullXID uint64
+	// HeapKilled projects irreversible exact slot death from captured Headers.
+	// It is not an independent visibility or transaction undo authority.
+	HeapKilled bool
 	// ForcedFrozen bypasses insertion/end visibility for this exact physical
 	// version. Ordinary maintenance Frozen does not bypass a committed end.
 	ForcedFrozen bool

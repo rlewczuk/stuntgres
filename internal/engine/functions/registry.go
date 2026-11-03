@@ -169,7 +169,7 @@ var definitions = [...]Definition{
 	{Names: []string{DblinkInsertName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLInsert},
 	{Names: []string{DblinkUpdateName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLUpdate},
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary", "pg_check_visible", "pg_check_frozen", "pg_truncate_visibility_map"}, Installed: PgvisibilityExtension, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
-	{Names: []string{"heap_force_freeze"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
+	{Names: []string{"heap_force_freeze", "heap_force_kill"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
 	{Names: []string{"pg_buffercache_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
 	{Names: pageinspectNames[:], Installed: PageinspectExtension, Bind: bindPageinspect, NamedCall: namedPageinspect},

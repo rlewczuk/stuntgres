@@ -42,17 +42,17 @@ func visibilityTransactionOf(ref ids.TxRef) visibilityTransaction {
 func (k visibilityTransaction) reusable() bool { return !k.Present || k.Diagnostic != 0 }
 
 type visibilityFact struct {
-	Row                                                                           ids.RowID
-	Version                                                                       ids.VersionID
-	Born, End, ForcedEnd                                                          ids.CommitSeq
-	InsertFullXID, DeleteFullXID, RepairStamp                                     uint64
-	Inserter, Ender                                                               visibilityTransaction
-	Frozen, ImportFrozen, ForcedFrozen, Aborted, LockMaintenance, LinePointerOnly bool
+	Row                                                                                       ids.RowID
+	Version                                                                                   ids.VersionID
+	Born, End, ForcedEnd                                                                      ids.CommitSeq
+	InsertFullXID, DeleteFullXID, RepairStamp                                                 uint64
+	Inserter, Ender                                                                           visibilityTransaction
+	Frozen, ImportFrozen, ForcedFrozen, HeapKilled, Aborted, LockMaintenance, LinePointerOnly bool
 }
 
 func factIdentity(f HeapTupleFact) visibilityFact {
 	r := f.Version
-	return visibilityFact{r.Row, r.Version, r.Born, f.End, r.ForcedEnd, r.InsertFullXID, r.DeleteFullXID, r.RepairStamp, visibilityTransactionOf(f.Inserter), visibilityTransactionOf(f.Ender), r.Frozen, r.ImportFrozen, r.ForcedFrozen, f.Aborted, f.LockMaintenance, f.LinePointerOnly}
+	return visibilityFact{r.Row, r.Version, r.Born, f.End, r.ForcedEnd, r.InsertFullXID, r.DeleteFullXID, r.RepairStamp, visibilityTransactionOf(f.Inserter), visibilityTransactionOf(f.Ender), r.Frozen, r.ImportFrozen, r.ForcedFrozen, r.HeapKilled, f.Aborted, f.LockMaintenance, f.LinePointerOnly}
 }
 
 // VisibilityBasis captures exact physical roots and payload-free private facts.

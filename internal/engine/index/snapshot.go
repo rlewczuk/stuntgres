@@ -125,6 +125,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 		if !checkedParents[parent.Address()] {
 			count := 0
 			for _, row := range source.Store.Versions {
+				row = source.Store.Headers.Apply(row)
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}

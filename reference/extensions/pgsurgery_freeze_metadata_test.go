@@ -10,7 +10,7 @@ import (
 
 func TestReferencePgsurgeryFreezeMetadata(t *testing.T) {
 	freezeCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		// Select the genuine freeze signature, not upstream's adjacent kill member.
+		// Select freeze independently of the genuine kill cohort member.
 		q := "SELECT p.proname::text AS name,p.pronargs::integer AS nargs,p.proargtypes::text AS args,p.prorettype::bigint AS result,p.proallargtypes::text AS allargs,p.proargmodes::text AS modes,p.proargnames::text AS names,p.proretset AS sets,p.proisstrict AS strict,p.provolatile::text AS volatility,p.proparallel::text AS parallel,p.prosecdef AS definer,p.prosrc AS source,p.probin AS binary,l.lanname::text AS language FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang WHERE n.nspname='fs_part' AND p.proname='heap_force_freeze'"
 		freezeBoth(t, p, b, c, fixture.Select(q,
 			[]string{"name", "nargs", "args", "result", "allargs", "modes", "names", "sets", "strict", "volatility", "parallel", "definer", "source", "binary", "language"},
@@ -89,4 +89,25 @@ func TestReferencePgsurgeryFreezeSystemColumns(t *testing.T) {
 			freezeBoth(t, p, b, c, s)
 		}
 	})
+}
+
+func TestReferencePgsurgeryFreezeFormalSlots(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "direct"
+		if prepared {
+			name = "prepared"
+		}
+		t.Run(name, func(t *testing.T) {
+			freezeCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				freezeRun(t, p, b, c, fixture.Exec("CREATE SEQUENCE fs_part.eval_order", 0))
+				a := freezeOne(t, p, c, "INSERT INTO fs_part.heap VALUES(1,'formal-slot') RETURNING k,v,ctid,xmin,xmax")
+				q := "SELECT fs_part.heap_force_freeze(tids=>ARRAY[CASE WHEN nextval('fs_part.eval_order')=2 THEN $1::tid ELSE '(0,0)'::tid END],reloid=>CASE WHEN nextval('fs_part.eval_order')=1 THEN 'fs_part.heap'::regclass ELSE 0::regclass END) AS repaired"
+				s := freezeVoid(q, a.tid)
+				s.Prepared = prepared
+				freezeRun(t, p, b, c, s)
+				freezeExpect(t, p, b, c, freezeRepaired(a))
+				freezeBoth(t, p, b, c, fixture.Select("SELECT last_value,is_called FROM fs_part.eval_order", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(2), true}}))
+			})
+		})
+	}
 }

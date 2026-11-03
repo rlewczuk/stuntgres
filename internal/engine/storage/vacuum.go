@@ -21,6 +21,9 @@ type VacuumCandidate struct {
 }
 
 func vacuumEnded(row RowVersion, ends *DeletionRoot, frontier ids.CommitSeq) bool {
+	if row.HeapKilled {
+		return true
+	}
 	if row.ForcedFrozen {
 		return row.ForcedEnd != 0 && row.ForcedEnd <= frontier
 	}
@@ -31,7 +34,7 @@ func vacuumEnded(row RowVersion, ends *DeletionRoot, frontier ids.CommitSeq) boo
 	return ok && end.End != 0 && end.End <= frontier
 }
 func vacuumFreeze(row RowVersion, frontier ids.CommitSeq, cutoff uint64) bool {
-	return row.Born != 0 && row.Born <= frontier && !row.Frozen && row.InsertFullXID >= 3 && row.InsertFullXID < cutoff
+	return !row.HeapKilled && row.Born != 0 && row.Born <= frontier && !row.Frozen && row.InsertFullXID >= 3 && row.InsertFullXID < cutoff
 }
 
 // progress reports completed prefixes, batched at logical block boundaries.

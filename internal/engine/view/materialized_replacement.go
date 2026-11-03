@@ -17,11 +17,13 @@ import (
 func ConcurrentPrevious(previous storage.Relation, own []storage.RowVersion, deletes *visibility.PrivateDeletes, frontier ids.CommitSeq) storage.Relation {
 	versions := make([]storage.RowVersion, 0, len(previous.Versions)+len(own))
 	for _, row := range previous.Versions {
+		row = previous.Headers.Apply(row)
 		if visibility.LiveVersion(row, frontier, previous.Ends, deletes) {
 			versions = append(versions, row)
 		}
 	}
 	for _, row := range own {
+		row = previous.Headers.Apply(row)
 		if visibility.LiveVersion(row, frontier, nil, deletes) {
 			versions = append(versions, row)
 		}

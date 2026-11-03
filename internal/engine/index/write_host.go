@@ -97,6 +97,7 @@ type ExclusionScan struct {
 	StoreGeneration uint64
 	Versions        []storage.RowVersion
 	Ends            *storage.DeletionRoot
+	Headers         *storage.HeapHeaderRoot
 	Authority       access.View // for the conflict's key disclosure
 }
 

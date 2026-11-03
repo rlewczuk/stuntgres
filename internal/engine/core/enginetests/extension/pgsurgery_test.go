@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -29,12 +30,12 @@ func surgeryInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION pg_surgery")
 	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pg_surgery"}))
 }
-func surgeryExpression(t *testing.T, e *core.Engine) plan.InstalledPgsurgeryExpr {
+func surgeryExpression(t *testing.T, e *core.Engine, operation functions.PgsurgeryOperation) plan.InstalledPgsurgeryExpr {
 	t.Helper()
 	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.Clause.AggregateClause = "FROM"
 	binder.Query.Namespace = &analyze.QueryNamespace{}
-	node, err := binder.BindFunctionSource(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "heap_force_freeze"}}}, Args: []parser.Expr{
+	node, err := binder.BindFunctionSource(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: operation.Symbol()}}}, Args: []parser.Expr{
 		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "-"}},
 		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "{}"}},
 	}})
@@ -48,8 +49,8 @@ func TestPgsurgeryFreezeProvider(t *testing.T) {
 	ext := surgeryInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgsurgery.Control()
-	if control.Version != "1.0" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 1 {
-		t.Fatal("finite freeze cohort", control, ext)
+	if control.Version != "1.0" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 2 {
+		t.Fatal("finite freeze-first surgery cohort", control, ext)
 	}
 	if err := extension.StockPgsurgery.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
@@ -96,13 +97,13 @@ func TestPgsurgeryFreezeProvider(t *testing.T) {
 			}
 		})
 	}
-	surgeryExpressionOwnership(t, e, ext)
+	surgeryExpressionOwnership(t, e, ext, functions.PgsurgeryFreeze)
 }
-func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Extension) {
+func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Extension, operation functions.PgsurgeryOperation) {
 	t.Helper()
 	view := e.CatalogRead()
-	n := surgeryExpression(t, e)
-	if n.Properties().Volatility != expr.Volatile || !n.Properties().StageDependent || n.CallRoutineReference() != n.Procedure || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
+	n := surgeryExpression(t, e, operation)
+	if n.Operation != operation || n.Properties().Volatility != expr.Volatile || !n.Properties().StageDependent || n.CallRoutineReference() != n.Procedure || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 		t.Fatal("lost volatile installed authority")
 	}
 	for _, rewrite := range []func(expr.Info, []expr.Expr) (expr.Expr, error){n.Rebuild, n.Substitute} {
@@ -111,7 +112,7 @@ func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Exten
 			t.Fatal(err)
 		}
 		copy := value.(plan.InstalledPgsurgeryExpr)
-		if copy.Ref != n.Ref || copy.Procedure != n.Procedure || copy.Slots != n.Slots || &copy.Args[0] == &n.Args[0] {
+		if copy.Ref != n.Ref || copy.Procedure != n.Procedure || copy.Operation != n.Operation || copy.Slots != n.Slots || &copy.Args[0] == &n.Args[0] {
 			t.Fatal("rebuild borrowed children or changed symbolic identity")
 		}
 	}
@@ -121,6 +122,14 @@ func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Exten
 		func(n *plan.InstalledPgsurgeryExpr) { n.Ref.Epoch = 0 },
 		func(n *plan.InstalledPgsurgeryExpr) { n.Ref = new(ids.Domain).Ref(n.Ref.Epoch, n.Ref.Address) },
 		func(n *plan.InstalledPgsurgeryExpr) { n.Slots[1] = 0 },
+		func(n *plan.InstalledPgsurgeryExpr) { n.Operation = 0 },
+		func(n *plan.InstalledPgsurgeryExpr) {
+			if n.Operation == functions.PgsurgeryKill {
+				n.Operation = functions.PgsurgeryFreeze
+			} else {
+				n.Operation = functions.PgsurgeryKill
+			}
+		},
 		func(n *plan.InstalledPgsurgeryExpr) { n.Usage = n.Args[0].ResultUsage() },
 	} {
 		bad := n
@@ -137,8 +146,9 @@ func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Exten
 		t.Fatal("formal rendering", text, err)
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
-		ext.Address():         {ClassID: ids.ExtensionClassID, ObjectID: 930000},
-		n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 930001},
+		ext.Address():  {ClassID: ids.ExtensionClassID, ObjectID: 930000},
+		ext.Members[0]: {ClassID: ids.ProcedureClassID, ObjectID: 930001},
+		ext.Members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 930002},
 	}
 	state := catalog.CloneState(view.State())
 	descriptor := extension.DescriptorRemapper(mapping)
@@ -172,6 +182,30 @@ func surgeryExpressionOwnership(t *testing.T, e *core.Engine, ext *catalog.Exten
 	if err := stored.ValidateInstalledPgsurgery(mapped, e.Catalog.Read(state)); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestPgsurgeryKillProvider(t *testing.T) {
+	e := engine.New()
+	ext := surgeryInstalled(t, e)
+	view := e.CatalogRead()
+	if len(ext.Members) != 2 {
+		t.Fatal("incomplete finite surgery recipe")
+	}
+	proc := view.MustProcedure(ext.Members[1])
+	symbol, err := extension.ProcedureSymbol(view, proc)
+	if err != nil || symbol != "heap_force_kill" || proc.Display.Source != symbol || proc.Display.Binary != "$libdir/pg_surgery" || !proc.Display.HasBinary || !proc.Strict || proc.Volatility != expr.Volatile || proc.Result != 2278 || proc.Signature != "2205,1010" || proc.Installed.Parallel != 'u' || proc.SecurityDefiner || proc.Installed.ArgumentNames != ([4]string{"reloid", "tids"}) {
+		t.Fatal("kill lost its sealed C declaration", proc, err)
+	}
+	initial := view.State().InitialPrivilege(proc.Address())
+	if initial == nil || initial.PrivType != 'e' || !reflect.DeepEqual(initial.ACL, proc.ACL) || initial == view.State().InitialPrivilege(ext.Members[0]) {
+		t.Fatal("kill did not acquire independent initial privileges")
+	}
+	for _, entry := range proc.ACL.Entries {
+		if entry.Grantee.Public && entry.Privileges&authorization.ExecutePrivilege != 0 {
+			t.Fatal("kill inherited PUBLIC EXECUTE")
+		}
+	}
+	surgeryExpressionOwnership(t, e, ext, functions.PgsurgeryKill)
 }
 
 func TestPgsurgeryFreezeProviderMembership(t *testing.T) {
@@ -209,5 +243,33 @@ func TestPgsurgeryFreezeProviderMembership(t *testing.T) {
 				t.Fatal("captured descriptor retained live authority")
 			}
 		})
+	}
+}
+
+func TestPgsurgeryKillStrictNullProvenance(t *testing.T) {
+	e := engine.New()
+	surgeryInstalled(t, e)
+	for _, operation := range []functions.PgsurgeryOperation{functions.PgsurgeryFreeze, functions.PgsurgeryKill} {
+		original := surgeryExpression(t, e, operation)
+		info := expr.InfoOf(original)
+		info.Occurrence = 9
+		info.Source = expr.FoldSourceOccurrence{Frame: 7, Position: parser.Position{Offset: 13, Character: 13}, Input: parser.Position{Offset: 17, Character: 17}}
+		child := plan.LiteralExpr{Info: expr.Info{Usage: original.Args[1].ResultUsage()}, Value: sqltype.Null(original.Args[1].ResultUsage().Type)}
+		rebuilt, err := original.Rebuild(info, []expr.Expr{original.Args[0], child})
+		if err != nil {
+			t.Fatal(err)
+		}
+		call := rebuilt.(plan.InstalledPgsurgeryExpr)
+		folded, changed, err := exec.FoldStrictParameterNull(&exec.Context{}, call)
+		if err != nil || !changed {
+			t.Fatal("strict canonical fold rejected", changed, err)
+		}
+		literal, ok := folded.(plan.LiteralExpr)
+		if !ok || !literal.Value.IsNull() || literal.ResultUsage() != call.ResultUsage() || literal.CallRoutineReference() != nil || literal.Source != info.Source || literal.Occurrence != info.Occurrence || literal.Pos != info.Pos {
+			t.Fatal("strict NULL lost owned occurrence/result or retained callable authority")
+		}
+		if original.Operation != operation || call.CallRoutineReference() != original.Procedure || &call.Args[0] == &original.Args[0] || original.Args[1].ResultUsage() != child.ResultUsage() {
+			t.Fatal("NULL planning mutated original authenticated definition/backing")
+		}
 	}
 }

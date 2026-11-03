@@ -35,7 +35,7 @@ func (h PartitionRowHistory) NextRow(ctx context.Context, position *int, candida
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		original := h.Store.Versions[*position]
+		original := h.Store.Headers.Apply(h.Store.Versions[*position])
 		*position = *position + 1
 		if !visibility.LiveVersion(original, h.Frontier, h.Store.Ends, nil) {
 			continue

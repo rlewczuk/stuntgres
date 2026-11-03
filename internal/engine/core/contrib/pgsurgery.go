@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -232,12 +233,19 @@ func Pgsurgery[A Authority](h Host[A], n plan.InstalledPgsurgeryExpr, oid uint32
 					var next *storage.HeapHeaderRoot
 					if store.Generation == ^uint64(0) {
 						err = fmt.Errorf("stuntgres: heap generation exhausted")
+					} else if n.Operation == functions.PgsurgeryKill {
+						next = storage.KillHeapHeaders(store.Headers, selected)
 					} else {
 						next, err = storage.RepairHeapHeaders(store.Headers, selected)
 					}
 					if err == nil {
 						store.Headers = next
 						store.Generation++
+						if n.Operation == functions.PgsurgeryKill {
+							if root := h.PgvisibilityMapLocked(target, store); root != nil && !root.Invalidated {
+								h.SetPgvisibilityMapLocked(target, store, nil)
+							}
+						}
 					}
 				}
 			}

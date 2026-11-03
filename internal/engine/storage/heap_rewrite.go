@@ -32,7 +32,7 @@ func RewriteHeapVacuum(ctx context.Context, source Relation, frontier ids.Commit
 				continue
 			}
 			row := source.Headers.Apply(original)
-			if row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
+			if !row.HeapKilled && row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
 				c.Versions = append(c.Versions, row)
 				present[row.Version] = true
 			}

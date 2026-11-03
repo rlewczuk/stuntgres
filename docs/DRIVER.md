@@ -423,6 +423,19 @@ Unused slots have only bufferid populated. Dump retains installed SQL/data/ACLs,
 not live cache state; successful target Reset/Restore starts its cache cold while
 preserving other databases and already detached results.
 
+Installed pg_surgery 1.0 provides genuine freeze and kill routines with independent
+EXECUTE grants and current schema/owner checks. Kill acts on exact heap versions
+without DELETE triggers, FK actions or index maintenance. Completed groups survive
+rollback; later scans recapture irreversible headers even under retained MVCC
+snapshots, while already detached results retain their original values.
+Native Dump/Restore preserves survivors, installed origins, owners, ACLs and
+stored consumers, reminting tuple identities and rebuilding indexes. Its existing
+authenticated complete FK snapshots also preserve kill-created orphans with
+enforced metadata; later new invalid writes still fail. Editing emitted SQL
+invalidates that seal, requires ordinary historical FK validation and atomically
+rejects invalid replay. No killed TID authority, private/prepared writes, GIDs,
+locks, waiters or executable handles are serialized.
+
 Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
 Their real function ACLs, fixed RECORD shapes and selected identities survive
 native controls; EXECUTE is checked even for NULL, independently of parent

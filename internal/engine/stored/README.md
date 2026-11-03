@@ -1454,9 +1454,10 @@ independent destinations retain symbolic identity, never execution grants.
 
 `InstalledPgsurgeryExpr` uses the same reference/literal/dependency, remap, retag
 and rendering lanes. Both genuine input names render in lexical order; the
-volatile VOID carrier preserves installed origin without caching current grants.
-Native recipe replay remaps declaration identity, while visible-row transport
-remints physical tuple identities rather than serializing repair history.
+volatile VOID carrier preserves installed origin and the authenticated finite
+freeze/kill operation without caching grants. Evaluation uses declared-slot
+order. Native replay remaps declaration identity, while visible-row transport
+remints tuple identities rather than serializing repair/death history or handles.
 
 
 Scalar type reownership visits current rows, private/committed/discarded predecessor
@@ -1474,7 +1475,7 @@ Rewrite definition ownership, range-slot identity and cancellation use
 Installed visibility recipe, declaration and retained backing ownership use
 `RUN='^TestPgvisibility'`.
 Surgery declaration and retained backing ownership use
-`RUN='^TestPgsurgeryFreezeProvider'`.
+`RUN='^TestPgsurgery(Freeze|Kill)Provider'`.
 Trigger definition invariants, alias identity and remap ownership use
 `RUN='^TestTriggerTransition(Definition|Remap)$'`.
 Symbolic query-leaf remap/retag ownership and persistent capture rejection use

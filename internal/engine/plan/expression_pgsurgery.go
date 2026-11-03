@@ -42,5 +42,5 @@ func (n InstalledPgsurgeryExpr) Substitute(info expr.Info, children []expr.Expr)
 }
 func (n InstalledPgsurgeryExpr) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(InstalledPgsurgeryExpr)
-	return ok && n.Ref == o.Ref && n.Procedure == o.Procedure && n.Slots == o.Slots && n.ResultUsage() == o.ResultUsage()
+	return ok && n.Ref == o.Ref && n.Procedure == o.Procedure && n.Slots == o.Slots && n.Operation == o.Operation && n.ResultUsage() == o.ResultUsage()
 }

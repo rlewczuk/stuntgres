@@ -129,6 +129,7 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		progress.ScanStart(len(store.Versions), index.SQLIndex.Method)
 	}
 	for position, row := range store.Versions {
+		row = store.Headers.Apply(row)
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, err
 		}

@@ -624,7 +624,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   scalar once and expands NULL as one all-NULL row.
 - **Installed surgery** (`pgsurgery.go`): authentic declaration and current
   schema USAGE/routine EXECUTE admission precede runtime child evaluation.
-  Lexical operands evaluate once into two formal slots; STRICT NULL returns
+  Operands evaluate once in formal `reloid`, `tids` order, preserving their
+  lexical provenance. Canonical constant-NULL planning can remove the call;
+  a live nonfoldable STRICT NULL still reaches admission before returning
   typed NULL VOID without invoking the body. Nonnull calls pass the unchanged
   typed TID array and decoded class OID to the statement host, returning nonnull
   VOID only after successful publication. Prepared recipes retain no permission
@@ -1132,7 +1134,7 @@ Freespace layout, released identity and composed capture ownership use
 Installed visibility runtime and composed capture ownership use
 `RUN='^TestPgvisibility'`.
 Surgery invocation and composed definition ownership use
-`RUN='^TestPgsurgeryFreezeProvider'`.
+`RUN='^TestPgsurgery(Freeze|Kill)Provider'`.
 
 
 Crosstab pivot, directional type compatibility and source cleanup units share

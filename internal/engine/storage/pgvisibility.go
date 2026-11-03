@@ -72,7 +72,7 @@ func VisibilityVMExtent(blocks int64) (int64, error) {
 	return pages * 32672, nil
 }
 func VisibilityTupleBits(f HeapTupleFact, horizon VisibilityHorizon, unknownLocks bool) VisibilityBits {
-	if f.LinePointerOnly {
+	if f.LinePointerOnly || f.Version.HeapKilled {
 		return VisibilityBits{}
 	}
 	row := f.Version

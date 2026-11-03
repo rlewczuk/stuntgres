@@ -212,9 +212,15 @@ func CaptureGinSplit(ctx context.Context, view catalog.Read, target *catalog.Rel
 			}
 		}
 	}
+	// Keep raw source positions above for posting validation; replay ordinals
+	// instead follow relational export's captured-header/Additional projection.
+	rows, ends := store.Versions, store.Ends
+	if store.Headers != nil {
+		rows, ends = storage.VisibleHeapVersions(store, frontier), nil
+	}
 	ordinal := 0
-	for _, row := range store.Versions {
-		if !visibility.LiveVersion(row, frontier, store.Ends, nil) {
+	for _, row := range rows {
+		if !visibility.LiveVersion(row, frontier, ends, nil) {
 			continue
 		}
 		ordinal++

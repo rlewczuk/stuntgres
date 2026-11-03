@@ -202,7 +202,7 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
 	generation, pending := e.Exclusions.ScanLocked()
-	return index.ExclusionScan{Generation: generation, Root: root, Pending: pending, View: view, Schema: ns.Name(), Parent: b.Parent.Address(), Store: store, StoreGeneration: store.Generation, Versions: store.Versions, Ends: store.Ends, Authority: auth.View}, nil
+	return index.ExclusionScan{Generation: generation, Root: root, Pending: pending, View: view, Schema: ns.Name(), Parent: b.Parent.Address(), Store: store, StoreGeneration: store.Generation, Versions: store.Versions, Ends: store.Ends, Headers: store.Headers, Authority: auth.View}, nil
 }
 
 func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.ObjectAddress) bool {

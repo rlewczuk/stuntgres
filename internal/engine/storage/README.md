@@ -37,7 +37,7 @@ and the standard library, and never the engine.
   `Generation` advances on ordinary DML publication as well as physical changes;
   it is a tuple-root revision, not an immutable heap-incarnation token. The heap
   pointer identifies the storage incarnation; rewrites install a new pointer.
-  `heap_headers.go` owns immutable exact-VersionID repair/header roots and the
+  `heap_headers.go` owns immutable exact-VersionID repair/dead-slot roots and the
   shared logical TID bijection. `HeapXmin`/`HeapXmax` read captured physical
   insertion/deletion facts; freezing one version never substitutes its RowID's
   current head. `Discarded` retains genuine accepted private versions across
@@ -52,6 +52,13 @@ and the standard library, and never the engine.
   and DELETE copy only changed search paths, not the complete growing map.
   Commit end stamping shares the xmax publication pass. Nil roots and unchanged
   admission paths retain their identity without allocating.
+  `KillHeapHeaders` copies only changed map paths and preserves every other
+  header field, stamp and payload. `RowVersion.HeapKilled` is a captured
+  projection, never another ledger: canonical visibility and visible-data
+  export reject it before private/frozen/birth shortcuts. End/update/commit
+  publication cannot clear death; genuine maintenance may retire slots without
+  resurrecting their payloads. Shape transport preserves headers, while fresh
+  incarnations and logical imports do not borrow old operation authority.
   Sparse `HeapHeader.TupleLockVersion`/`TupleLockStamp` name repaired tuple-lock
   lineages: zero pairs retain ordinary RowID arbitration; exact repair assigns
   its own version and fresh stamp, and accepted successors inherit that pair
@@ -531,6 +538,8 @@ and repaired-source selection use
 Immutable intermediate headers, successor chains and publication allocation
 growth use `RUN='^TestPgsurgeryFreezeHeader'`; the no-op units require zero
 allocations and bytes for unchanged ordinary and rejected stale paths.
+Immutable death projection, no-op ownership and genuine slot retirement use
+`RUN='^TestPgsurgeryKill(Storage|Maintenance)$'`.
 The shared TID boundary/packing unit is `RUN='^TestLogicalTID$'`.
 
 Exact physical end collisions, immutable clone/removal and maintenance transport

@@ -442,6 +442,7 @@ func (Pgstattuple) JumbleFields(s expr.StatementFields)  { s.JumbleText("functio
 func (Pgvisibility) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Pgvisibility") }
 func (n Pgsurgery) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.Pgsurgery")
+	s.JumbleUint64(uint64(n.Operation))
 	s.JumbleUint64(uint64(n.Slots[0]))
 	s.JumbleUint64(uint64(n.Slots[1]))
 }

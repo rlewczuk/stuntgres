@@ -437,6 +437,18 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		if err := extension.ValidatePgsurgeryIdentity(r.catalog, p, ref); err != nil {
 			return nil, err
 		}
+		symbol, err := extension.ProcedureSymbol(r.catalog, p)
+		if err != nil {
+			return nil, err
+		}
+		switch symbol {
+		case "heap_force_freeze":
+			c.Operation = functions.PgsurgeryFreeze
+		case "heap_force_kill":
+			c.Operation = functions.PgsurgeryKill
+		default:
+			return nil, fmt.Errorf("stuntgres: invalid pg_surgery operation")
+		}
 		c.RoutineReference = p
 		if err := extension.ValidatePgsurgeryCall(r.catalog, p, c); err != nil {
 			return nil, err

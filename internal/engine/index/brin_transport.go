@@ -17,6 +17,7 @@ func (b *AlterIndexBuild) brinBaselineRoot(evaluation *exec.Context, index *cata
 		root.Ranges[i] = storage.BrinRange{Summarized: true, Keys: make([]storage.BrinSummary, len(root.Bindings))}
 	}
 	for i, row := range b.Store.Versions {
+		row = b.Store.Headers.Apply(row)
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, err
 		}

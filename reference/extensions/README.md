@@ -405,6 +405,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Relation-kind diagnostics use genuine SQL objects in the same shared body,
   including a UNIQUE index on a partitioned parent. Descriptor-level method
   dispatch is additionally covered by the installed runtime's native owner units.
+- Forced tuple killing: `RUN='^TestReferencePgsurgeryKill'`. Shared direct/held
+  prepared scenarios assert exact unsafe removal, unchanged DELETE/FK consumers,
+  current identity/ACLs, strict NULL planning versus live NULL admission,
+  diagnostics/notices, irreversibility, retained snapshots, private/prepared
+  publication and scoped lock/cancel boundaries. The native amcheck phase asserts
+  genuine retained killed membership; the PostgreSQL phase independently proves
+  physical HOT-parent failure. Native controls test authenticated orphan replay
+  and atomic rejection of edited streams, not serialized TIDs or handles.
 - Encoding conversions: `RUN='^TestReferenceConversion'`
 - LOAD: `RUN='^TestReferenceLoad'`
 - Runtime inquiries: `RUN='^TestReferenceRuntimeInfo'`

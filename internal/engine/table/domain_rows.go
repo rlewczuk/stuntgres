@@ -29,6 +29,7 @@ func ValidateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *ca
 	}
 	scan := func(rows []storage.RowVersion, committed bool) error {
 		for _, row := range rows {
+			row = use.Headers.Apply(row)
 			if err := c.Context.Err(); err != nil {
 				return err
 			}

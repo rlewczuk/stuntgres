@@ -18,6 +18,7 @@ type DomainValidationUse struct {
 	Storage    *storage.Relation
 	Versions   []storage.RowVersion
 	Ends       *storage.DeletionRoot
+	Headers    *storage.HeapHeaderRoot
 	Generation uint64
 }
 

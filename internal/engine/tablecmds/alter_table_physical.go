@@ -71,10 +71,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	store, storageOwner, shape := work.store, work.storageOwner, work.shape
 	var versions []storage.RowVersion
 	var ends *storage.DeletionRoot
+	var headers *storage.HeapHeaderRoot
 	var observedVisibility *storage.VisibilityRoot
 	if store != nil {
 		e.Mu.Lock()
-		versions, ends = store.Versions, store.Ends
+		versions, ends, headers = store.Versions, store.Ends, store.Headers
 		observedVisibility = store.Visibility
 		e.Mu.Unlock()
 	}
@@ -112,13 +113,18 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	shape.MergeFills(fills, next)
 	replacement := store
 	projectedWrites, projectedDeletes := scope.ColumnProjectionRoots(ref.Address)
-	rowExpressions := len(versions) != 0 || len(projectedWrites) != 0
+	projectedWrites = storage.EffectiveHeapRows(projectedWrites, headers)
+	rowExpressions := len(versions) != 0 || len(projectedWrites) != 0 || headers != nil && len(headers.Additional) != 0
 	expressionWork := rowExpressions && (len(transformations) != 0 || len(storedReplacements) != 0 || len(additions) != 0 || len(typeChecks) != 0 || len(addedChecks) != 0 || len(validatedChecks) != 0)
 	if err := prepareAlterExpressionSnapshot(scope, e.StageRead(stage), next, additions, transformations, storedReplacements, addedIndexes, rowExpressions, expressionWork, typeChecks, addedChecks, validatedChecks); err != nil {
 		return core.Result{}, err
 	}
 	if work.validityOnly {
 		if scanValidator, scan := table.PlanAlterScan(old, next, schema, false, physicalRows, nil, nil, validatedChecks, validatedAttributes, nil, nil); scan {
+			if headers != nil {
+				captured := storage.Relation{Versions: versions, Ends: ends, Headers: headers}
+				versions = storage.VisibleHeapVersions(&captured, frontier)
+			}
 			if scanValidator.Checks != nil {
 				if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
 					return core.Result{}, err
@@ -219,6 +225,12 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 		return core.Result{}, err
 	}
 	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, validatedChecks, validatedAttributes, replacements, validator.NotNull); scan {
+		// Shape and codec transport can replace the physical vector. Select
+		// history only now, from the final captured headers, including repairs.
+		if replacement.Headers != nil {
+			versions = storage.VisibleHeapVersions(replacement, frontier)
+			projectedWrites = storage.EffectiveHeapRows(projectedWrites, replacement.Headers)
+		}
 		if scanValidator.Checks != nil {
 			if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
 				return core.Result{}, err

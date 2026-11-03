@@ -207,6 +207,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 	}
 	successors := make(map[ids.RowID]struct{}, len(c.Writes))
 	for _, row := range c.Writes {
+		row = c.Store.Headers.Apply(row)
 		if err := ctx.Err(); err != nil {
 			return err
 		}

@@ -228,24 +228,30 @@ Every exit releases only the invocation's own relation contribution.
 
 ### pg_surgery
 
-`pgsurgery.go` authenticates the installed freeze declaration and current
+`pgsurgery.go` authenticates the installed freeze/kill declaration and current
 routine/schema authority, validates the immutable TID array, and opens the exact
 target with a scoped RowExclusive contribution. After waiting, target descriptor,
 heap incarnation, current ownership and routine authority are checked again under
 the normal ordered owner cohort. Sorted block batches publish immutable headers
-for actual versions only; notices are queued and delivered after all metadata
-mutexes are released. Completed repair publication survives later cancellation,
-statement errors and owner rollback. It does not settle lock tickets or release
-another owner's relation, tuple or advisory resources.
+for actual versions only. After releasing metadata mutexes, each group queues
+its notices on the operation; adapter handlers run only after execution and
+request-lease release, not as between-group callbacks. The live operation
+context is checked before the next group. Completed publication survives later
+cancellation, statement errors and owner rollback. Surgery does not settle lock
+tickets or release another owner's relation, tuple or advisory resources.
 
 Target kind is checked before access-method identity and table ownership, including
 for empty TID arrays. Partitioned indexes use their genuine parent descriptor;
 a heap-compatible handler under another method OID still fails the exact heap-AM
 identity check. Rejection publishes no heap headers.
 
-Forced freezing is unsafe visibility repair: it may expose otherwise invisible
-versions and does not validate payloads, constraints or indexes. The runtime owns
-no physical page/WAL recovery mechanism and emits no unconditional warning.
+Forced freezing is unsafe visibility repair. Killing sets exact immutable dead
+slots before any visibility shortcut, without DELETE, tuple-lock acquisition,
+trigger/FK actions or index maintenance. Current/retained/private/prepared
+versions use the same header authority; exact storage incarnation and current
+ACL checks fence every completed group. Captured roots stay immutable. Neither
+operation validates payloads, constraints or indexes. Physical pages, HOT,
+WAL/crash recovery and C ABI execution remain external mechanisms.
 
 
 ### pageinspect
@@ -390,7 +396,7 @@ rejecting physical listing. Nodes retain neither authority nor physical state.
   units use `RUN='^Test(DblinkBuildSQLDelete|DblinkInsert|DblinkUpdate|DblinkGetPkey)'`
   in this package, core and its binder enginetests.
 - Installed surgery target, publication and provider ownership units use
-  `RUN='^TestPgsurgeryFreeze'` in core and its enginetests. Target units invoke
+  `RUN='^TestPgsurgery(Freeze|Kill)'` in core and its enginetests. Target units invoke
   the installed host against published descriptors, retaining original heap
   roots across kind and method rejection before ownership checks.
 - The runtimes' engine tests stay in core until their census owners move them

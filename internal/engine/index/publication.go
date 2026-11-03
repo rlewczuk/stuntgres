@@ -452,6 +452,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 					continue
 				}
 				for _, row := range publication.Writes {
+					row = publication.Headers.Apply(row)
 					if !RowMaintainsIndex(row, index) || !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, publication.Deletion) {
 						continue
 					}

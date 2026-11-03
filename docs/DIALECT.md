@@ -24,6 +24,20 @@ and source-less native transaction controls invent no SQL source. See the full
 [Driver activity contract](DRIVER.md#session-activity-monitoring), including
 disabled tracking, canonical horizons and complete mutation diagnostics.
 
+## Heap surgery
+
+The genuine `pg_surgery` provider implements forced freeze and kill on canonical
+exact-version TIDs. Kill publishes immutable dead-slot authority, not DELETE:
+it bypasses DELETE triggers and FK actions and leaves existing index membership
+untouched. Completed logical block groups survive rollback and later failures.
+Native heap-all-indexed amcheck reports retained killed targets as a logical
+XX002 finding; it does not claim PostgreSQL's physical HOT-parent diagnostic.
+
+Actual pages/line pointers, cleanup buffer pins, physical HOT/pruning, WAL/crash
+recovery and shared-library C ABI loading are external mechanisms. Logical
+controls preserve killed-row absence and persistent SQL identities, not physical
+corruption or live session/transaction resources.
+
 ## Passwordcheck activation
 
 `Driver.RegisterPasswordCheck` enables the stock role-password hook and

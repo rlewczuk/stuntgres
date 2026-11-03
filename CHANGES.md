@@ -22,6 +22,15 @@
   extend complete provider metadata inventories and migrate obsolete unsupported
   activity checks to bounded predefined-role visibility witnesses.
 
+- Implement genuine `pg_surgery.heap_force_kill(regclass,tid[])` as irreversible
+  immutable exact-version dead-slot publication, preserving freeze identities,
+  existing index membership and unsafe trigger/FK bypass. Native logical amcheck
+  detects retained killed index targets; logical controls preserve surviving data
+  and authenticated FK snapshots without serializing physical/session resources.
+  Correct shared named-argument evaluation to formal-slot order and reuse strict
+  constant-NULL planning while retaining live runtime ACL checks. Preserve released
+  installation-script diagnostic context and operation-scoped cancellation.
+
 - Add typed `pg_stat_reset_shared`, `pg_stat_reset_backend_stats` and
   `pg_stat_reset_slru` with released defaults, strict NULL behavior and current
   routine EXECUTE admission. Reset published shared families across actual

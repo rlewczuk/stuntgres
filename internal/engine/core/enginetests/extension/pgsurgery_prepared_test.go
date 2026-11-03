@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
@@ -17,14 +18,24 @@ import (
 
 // A real demanded immutable child distinguishes retained accepted fold backing
 // from recomputation. The installed repair itself must remain executable.
-const surgeryOwnedQuery = "SELECT heap_force_freeze('surgery_owned'::regclass, CASE WHEN COALESCE(-(7::integer),0)=-7 THEN '{}'::tid[] ELSE '{}'::tid[] END) AS repaired"
+func surgeryOwnedQuery(operation functions.PgsurgeryOperation) string {
+	return "SELECT " + operation.Symbol() + "('surgery_owned'::regclass, CASE WHEN COALESCE(-(7::integer),0)=-7 THEN '{}'::tid[] ELSE '{}'::tid[] END) AS repaired"
+}
 
 func TestPgsurgeryFreezeProviderPreparedOwnership(t *testing.T) {
+	surgeryProviderPreparedOwnership(t, functions.PgsurgeryFreeze)
+}
+
+func TestPgsurgeryKillProviderPreparedOwnership(t *testing.T) {
+	surgeryProviderPreparedOwnership(t, functions.PgsurgeryKill)
+}
+
+func surgeryProviderPreparedOwnership(t *testing.T, operation functions.PgsurgeryOperation) {
 	e := engine.New()
 	surgeryInstalled(t, e)
 	enginetest.Run(t, e, "CREATE TABLE surgery_owned(n integer)")
 	s := enginetest.StartSession(t, e, nil)
-	ast, description := enginetest.PreparedDescription(t, e, s, surgeryOwnedQuery)
+	ast, description := enginetest.PreparedDescription(t, e, s, surgeryOwnedQuery(operation))
 	enginetest.PreparedFoldExecute(t, e, s, ast, &description)
 	owner := description.Folds
 	accepted := owner.Current()
@@ -88,6 +99,14 @@ func TestPgsurgeryFreezeProviderPreparedOwnership(t *testing.T) {
 }
 
 func TestPgsurgeryFreezeProviderProtocolOwnership(t *testing.T) {
+	surgeryProviderProtocolOwnership(t, functions.PgsurgeryFreeze)
+}
+
+func TestPgsurgeryKillProviderProtocolOwnership(t *testing.T) {
+	surgeryProviderProtocolOwnership(t, functions.PgsurgeryKill)
+}
+
+func surgeryProviderProtocolOwnership(t *testing.T, operation functions.PgsurgeryOperation) {
 	e := engine.New()
 	surgeryInstalled(t, e)
 	enginetest.Run(t, e, "CREATE TABLE surgery_owned(n integer)")
@@ -97,7 +116,7 @@ func TestPgsurgeryFreezeProviderProtocolOwnership(t *testing.T) {
 	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	parse := func() {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.ParseProtocol("surgery_definition", surgeryOwnedQuery, nil)
+			_, err := scope.ParseProtocol("surgery_definition", surgeryOwnedQuery(operation), nil)
 			return err
 		})
 	}
@@ -133,7 +152,7 @@ func TestPgsurgeryFreezeProviderProtocolOwnership(t *testing.T) {
 		visit = func(node expr.Expr) {
 			if call, ok := node.(plan.InstalledPgsurgeryExpr); ok {
 				found++
-				if call.CallRoutineReference() != call.Procedure || call.Ref.Address != call.Procedure.Address() || call.Properties().Volatility != expr.Volatile || !call.Properties().StageDependent || call.ResultUsage().Type.ID() != sqltype.Void {
+				if call.Operation != operation || call.CallRoutineReference() != call.Procedure || call.Ref.Address != call.Procedure.Address() || call.Properties().Volatility != expr.Volatile || !call.Properties().StageDependent || call.ResultUsage().Type.ID() != sqltype.Void {
 					t.Fatal("accepted graph lost symbolic repair identity")
 				}
 				dependency := false

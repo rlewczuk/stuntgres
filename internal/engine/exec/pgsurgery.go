@@ -45,8 +45,12 @@ func (c *Context) EvalPgsurgery(n plan.InstalledPgsurgeryExpr) (sqltype.Value, e
 	n.Procedure, n.RoutineReference = current, current
 	var values [2]sqltype.Value
 	null := false
-	for i, child := range n.Args {
-		value, err := child.Eval(c)
+	for slot := range values {
+		i := slot
+		if n.Slots[0] == 1 {
+			i = 1 - slot
+		}
+		value, err := n.Args[i].Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

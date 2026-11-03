@@ -26,8 +26,8 @@ type PgstattupleStatsResult struct {
 	Version, Level, Size, Root, Internal, Leaves, Empty, Deleted int64
 	Density, Fragmentation                                       float64
 	LiveItems, DeadItems, Weight                                 int64
-	Buckets, Overflow, Bitmap, Unused int64
-	FreePercent float64
+	Buckets, Overflow, Bitmap, Unused                            int64
+	FreePercent                                                  float64
 }
 
 // CompactBtreeLayout is a stateless aggregate-packing model, not a PostgreSQL
@@ -138,6 +138,7 @@ func CapturePgstattupleStats(ctx context.Context, c PgstattupleStatsCapture) (Pg
 	}
 	var weight, live, dead int64
 	add := func(row storage.RowVersion, keys []sqltype.Value, ends *storage.DeletionRoot) error {
+		row = c.Store.Headers.Apply(row)
 		if len(keys) != len(c.Index.SQLIndex.Keys) {
 			return fmt.Errorf("stuntgres: incoherent pgstattuple statistics keys")
 		}
@@ -284,5 +285,5 @@ func CompactHashLayout(ctx context.Context, live, dead int64) (PgstattupleStatsR
 		return stats, err
 	}
 	weight, capacity := 20*count, 8152*pages
-	return PgstattupleStatsResult{Version: 4, Buckets: 4, Overflow: pages-4, Bitmap: 1, LiveItems: live, DeadItems: dead, Weight: weight, FreePercent: 100*float64(capacity-weight)/float64(capacity)}, nil
+	return PgstattupleStatsResult{Version: 4, Buckets: 4, Overflow: pages - 4, Bitmap: 1, LiveItems: live, DeadItems: dead, Weight: weight, FreePercent: 100 * float64(capacity-weight) / float64(capacity)}, nil
 }

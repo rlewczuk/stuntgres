@@ -51,6 +51,7 @@ func MergeBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 	}
 	add := func(summary *storage.BrinRange, row storage.RowVersion, checkEnrollment bool) error {
+		row = p.Headers.Apply(row)
 		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), p.Ends, p.Deletion) {
 			return nil
 		}

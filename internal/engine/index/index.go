@@ -363,6 +363,7 @@ func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 	}
 	var preparation ExecutionPreparation
 	for position, row := range store.Versions {
+		row = store.Headers.Apply(row)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

@@ -8,12 +8,30 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Pgsurgery carries only the implemented freeze operation. Slots map lexical
-// children to declared inputs without changing their evaluation order.
+// Pgsurgery retains lexical operands and their formal-slot mapping. Operation
+// is attached only after authenticating the installed procedure's sealed symbol.
+type PgsurgeryOperation uint8
+
+const (
+	PgsurgeryFreeze PgsurgeryOperation = iota + 1
+	PgsurgeryKill
+)
+
+func (o PgsurgeryOperation) Symbol() string {
+	switch o {
+	case PgsurgeryFreeze:
+		return "heap_force_freeze"
+	case PgsurgeryKill:
+		return "heap_force_kill"
+	}
+	return ""
+}
+
 type Pgsurgery struct {
 	expr.Info
-	Args  []expr.Expr
-	Slots [2]uint8
+	Args      []expr.Expr
+	Slots     [2]uint8
+	Operation PgsurgeryOperation
 }
 
 func bindPgsurgery(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
@@ -86,6 +104,12 @@ func (Pgsurgery) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: pg_surgery requires installed invocation authority")
 }
 func (n Pgsurgery) Children() []expr.Expr { return n.Args }
+func (n Pgsurgery) EvaluationOrder() []int {
+	if n.Slots[0] == 1 {
+		return []int{1, 0}
+	}
+	return []int{0, 1}
+}
 func (n Pgsurgery) ValidateArguments(children []expr.Expr) error {
 	if len(children) != 2 {
 		return fmt.Errorf("stuntgres: invalid pg_surgery arguments")
@@ -119,8 +143,8 @@ func (n Pgsurgery) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, 
 }
 func (Pgsurgery) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
 func (Pgsurgery) PlanningFold() expr.Fold              { return expr.FoldNever }
-func (Pgsurgery) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
-func (Pgsurgery) StrictNull() expr.Strict              { return expr.StrictNone }
+func (Pgsurgery) PreflightFold() expr.Preflight        { return expr.PreflightSimplify }
+func (Pgsurgery) StrictNull() expr.Strict              { return expr.StrictAfter }
 func (Pgsurgery) LooksLikeFunction() bool              { return true }
 func (n Pgsurgery) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
 	return expr.CaptureOperands{Args: n.Args, Count: len(n.Args)}, kind == expr.CaptureFunction, nil

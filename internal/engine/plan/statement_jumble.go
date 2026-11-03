@@ -114,6 +114,7 @@ func (InstalledPgvisibilityExpr) JumbleFields(s expr.StatementFields) {
 }
 func (n InstalledPgsurgeryExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgsurgeryExpr")
+	s.JumbleUint64(uint64(n.Operation))
 	s.JumbleUint64(uint64(n.Slots[0]))
 	s.JumbleUint64(uint64(n.Slots[1]))
 }

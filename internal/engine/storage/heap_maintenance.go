@@ -46,7 +46,7 @@ func EffectiveHeapRows(rows []RowVersion, headers *HeapHeaderRoot) []RowVersion 
 			continue
 		}
 		mapped := headers.Apply(row)
-		if mapped.DeleteFullXID == row.DeleteFullXID && mapped.Frozen == row.Frozen && mapped.ForcedFrozen == row.ForcedFrozen && mapped.RepairStamp == row.RepairStamp && mapped.ForcedEnd == row.ForcedEnd {
+		if mapped.HeapKilled == row.HeapKilled && mapped.DeleteFullXID == row.DeleteFullXID && mapped.Frozen == row.Frozen && mapped.ForcedFrozen == row.ForcedFrozen && mapped.RepairStamp == row.RepairStamp && mapped.ForcedEnd == row.ForcedEnd {
 			continue
 		}
 		if next == nil {
@@ -65,6 +65,9 @@ func EffectiveHeapRows(rows []RowVersion, headers *HeapHeaderRoot) []RowVersion 
 // deduplication permits repaired siblings sharing a logical RowID.
 func VisibleHeapVersions(store *Relation, frontier ids.CommitSeq) []RowVersion {
 	live := func(row RowVersion) bool {
+		if row.HeapKilled {
+			return false
+		}
 		if row.ForcedFrozen {
 			return row.ForcedEnd == 0 || row.ForcedEnd > frontier
 		}
@@ -163,7 +166,7 @@ func MaintainHeapHistory(ctx context.Context, c VacuumCandidate, source Relation
 		}
 		for _, row := range source.Headers.Additional {
 			row = source.Headers.Apply(row)
-			if row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
+			if !row.HeapKilled && row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
 				survivors[row.Version] = row
 			}
 		}
@@ -207,7 +210,7 @@ func MaintainHeapHistory(ctx context.Context, c VacuumCandidate, source Relation
 				continue
 			}
 			seen[row.Version] = true
-			live := row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier)
+			live := !row.HeapKilled && row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier)
 			if live {
 				c.Live++
 				continue
@@ -276,7 +279,7 @@ func MaintainHeapHistory(ctx context.Context, c VacuumCandidate, source Relation
 			}
 			seen[original.Version] = true
 			row := source.Headers.Apply(original)
-			if row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
+			if !row.HeapKilled && row.ForcedFrozen && (row.ForcedEnd == 0 || row.ForcedEnd > frontier) {
 				c.Live++
 			} else if retire {
 				retireSlot(row, 0)

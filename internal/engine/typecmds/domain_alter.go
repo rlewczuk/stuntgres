@@ -136,6 +136,7 @@ func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.
 				}
 				use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
 				use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
+				use.Headers = use.Storage.Headers
 			}
 		}
 		e.Mu.Unlock()

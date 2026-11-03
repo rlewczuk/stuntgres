@@ -121,6 +121,7 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 	}
 	tuples := 0
 	for position, row := range store.Versions {
+		row = store.Headers.Apply(row)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

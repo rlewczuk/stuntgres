@@ -83,6 +83,7 @@ func RepairRemappedHash(ctx context.Context, evaluation *exec.Context, authority
 		historyPosition := 0
 		var retainedChecks RetainedChecks
 		for i, version := range store.Versions {
+			version = store.Headers.Apply(version)
 			if err := ctx.Err(); err != nil {
 				return HashRepair{}, err
 			}

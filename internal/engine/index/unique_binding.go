@@ -68,6 +68,9 @@ func UniqueRowExcluded(id ids.RowID, version ids.VersionID, excluded []storage.R
 }
 
 func UniqueRowDeleted(row storage.RowVersion, roots ...*visibility.PrivateDeletes) bool {
+	if row.HeapKilled {
+		return true
+	}
 	for _, root := range roots {
 		if root.Ends(row) {
 			return true

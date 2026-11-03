@@ -114,6 +114,9 @@ call live here.
   predecessor. Misc resolution follows all ADD definitions, including deferred
   foreign keys. `PlanAlterScan` unions selected validation with independently
   required shape checks without scanning unrelated invalid facts.
+  Callers supply final captured-header visibility, including live repaired
+  additional versions, before `ValidateAddedConstraintRows` applies its ordinary
+  private replacement/deletion and historical constraint checks.
   `ClusterCandidate` resolves an unqualified index in the target namespace from
   the current stage after index reconstruction. Capability, predicate and validity
   checks precede partitioned-target rejection and any bit replacement. Changed

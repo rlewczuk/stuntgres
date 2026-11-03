@@ -41,6 +41,9 @@ func LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.Del
 // LiveVersion applies the ordinary heap's single liveness rule to real versions,
 // committed ends and private deletion/replacement overlays.
 func (HeapOperations) LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *PrivateDeletes) bool {
+	if v.HeapKilled {
+		return false
+	}
 	if own.Ends(v) {
 		return false
 	}

@@ -343,11 +343,12 @@ Scalar XML callers, including constructor arguments and XMLROOT versions, keep
 their existing synthetic source-spine presentation rather than acquiring
 relational replay recipes.
 
-Installed surgery binding authenticates the single freeze declaration independently
+Installed surgery binding authenticates the finite freeze/kill declarations independently
 of its current name or extension membership. Ordinary overload and named-input
 resolution supplies REGCLASS/TID-array coercion, executable dependencies and a
-volatile VOID carrier. Stored literal capture records the genuine routine
-reference; held SQL still follows ordinary invalidation and reparse semantics.
+volatile VOID carrier whose operation comes from the sealed executable symbol.
+Stored literal capture records the genuine routine reference; held SQL still
+follows ordinary invalidation and reparse semantics.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before
@@ -808,7 +809,7 @@ Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
 Installed visibility binding, remap and retained definition ownership use
 `RUN='^TestPgvisibility'`.
 Surgery binding, remap and retained definition ownership use
-`RUN='^TestPgsurgeryFreezeProvider'`.
+`RUN='^TestPgsurgery(Freeze|Kill)Provider'`.
 Retained registry lookup destination-input demand and unchanged capture-error
 propagation use `RUN='^TestRegLookup(RelType|CollRole)RetainedInput$'`.
 Actual rank/headline overload identity, ordered literal/parameter provenance and

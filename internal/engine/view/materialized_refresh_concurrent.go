@@ -203,6 +203,7 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	if counts != nil {
 		*counts = MaterializedCounts{Inserts: int64(len(rows))}
 		for _, old := range previous.Versions {
+			old = previous.Headers.Apply(old)
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -245,7 +246,7 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 			continue
 		}
 		for i := oldAt; i < oldEnd; i++ {
-			if !visibility.LiveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
+			if !visibility.LiveVersion(previous.Headers.Apply(previous.Versions[oldEntries[i].Position]), frontier, previous.Ends, nil) {
 				continue
 			}
 			values := previous.Versions[oldEntries[i].Position].Values

@@ -112,6 +112,7 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			row.Row, row.Version = ids.RowID(rowID), ids.VersionID(versionID)
 			row.Base, row.Born = 0, base.Frontier+1
 			row.DeleteFullXID, row.ForcedFrozen, row.RepairStamp, row.ForcedEnd = 0, false, 0, 0
+			row.HeapKilled = false
 			if !base.PreserveProvenance {
 				row.InsertFullXID, row.Frozen, row.ImportFrozen = 0, true, true
 			}

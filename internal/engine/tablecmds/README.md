@@ -94,6 +94,10 @@ A later phase cannot upgrade an already fixed pair with current roots.
   VM-preserving provenance and its copied root under `Engine.Mu`. Physical
   projection/rewrite candidates instead start a fresh model; equal generations
   alone never authorize preserving-copy publication.
+  Historical CHECK/NOT NULL scans select effective rows from the final heap's
+  captured headers after shape and codec transport, including genuine repaired
+  additional versions. Validity-only scans use their coherently captured roots;
+  neither scan materializes header projections into immutable physical payloads.
   `TestPgvisibilityCheckAlterPhysicalProducer` consumes real collected TYPE work
   and deferred metadata before the actual physical continuation; it distinguishes
   unchanged-heap codec transport from destructive rewrite.

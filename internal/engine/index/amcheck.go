@@ -83,6 +83,9 @@ func CheckBtree(evaluation *exec.Context, c AmcheckCapture, options AmcheckOptio
 		if row.Row != entry.Row || row.Version != entry.Version {
 			return c.corrupt("item order invariant violated")
 		}
+		if options.HeapAllIndexed && c.Store.Headers.Header(entry.Version).Slot == storage.HeapSlotDead {
+			return c.corrupt("index entry references killed heap tuple")
+		}
 		if _, exists := positions[entry.Version]; exists {
 			return c.corrupt("item order invariant violated")
 		}
@@ -132,6 +135,7 @@ func CheckBtree(evaluation *exec.Context, c AmcheckCapture, options AmcheckOptio
 		replaced[row.Row] = row.Base
 	}
 	live := func(row storage.RowVersion) bool {
+		row = c.Store.Headers.Apply(row)
 		if base, exists := replaced[row.Row]; exists && base != 0 && base == row.Version {
 			return false
 		}
@@ -210,7 +214,7 @@ func CheckBtree(evaluation *exec.Context, c AmcheckCapture, options AmcheckOptio
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !visibility.LiveVersion(row, c.Frontier, nil, c.Deletes) {
+		if !visibility.LiveVersion(c.Store.Headers.Apply(row), c.Frontier, nil, c.Deletes) {
 			continue
 		}
 		output, produced := row.IndexOutputs[c.Index.Address()]
