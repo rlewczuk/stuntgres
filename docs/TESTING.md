@@ -399,7 +399,8 @@ Reference packages: [aggregates](../reference/aggregates/README.md#testing),
 [temporal_types](../reference/temporal_types/README.md#testing),
 [type_resolution](../reference/type_resolution/README.md#testing),
 [types](../reference/types/README.md#testing),
-[views](../reference/views/README.md#testing).
+[views](../reference/views/README.md#testing),
+[xml_mapping](../reference/xml_mapping/README.md#testing).
 `datetime_formatting` and `query_outer` have no package guide. Internal packages
 document unit tests in their own READMEs (for example
 [parser](../internal/parser/README.md#testing)).

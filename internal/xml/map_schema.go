@@ -86,8 +86,8 @@ func mappingTypeName(ctx context.Context,n MappingTypeName)(string,error){
 
 // MappingSchemaResult can only be minted by checked schema construction.
 // Result exposes immutable characters for typed adoption, not minting authority.
-type MappingSchemaResult struct { result Result }
-func (s MappingSchemaResult) Result()Result{return s.result}
+type MappingSchemaResult struct { result Result; checked bool }
+func (s MappingSchemaResult) Result()Result{if !s.checked{return Result{}};return s.result}
 
 func ConstructMappingSchema(ctx context.Context,s MappingSchema)(MappingSchemaResult,error){
 	if err:=ctx.Err();err!=nil{return MappingSchemaResult{},err}
@@ -119,7 +119,7 @@ func ConstructMappingSchema(ctx context.Context,s MappingSchema)(MappingSchemaRe
 	if !s.Options.Forest{top=table;m.append(ctx,`<xsd:complexType name="`,table,`">`,"\n  <xsd:sequence>\n",`    <xsd:element name="row" type="`,row,`" minOccurs="0" maxOccurs="unbounded"/>`,"\n  </xsd:sequence>\n</xsd:complexType>\n\n")}
 	m.append(ctx,`<xsd:element name="`,root,`" type="`,top,`"/>`,"\n\n</xsd:schema>")
 	if m.err!=nil{return MappingSchemaResult{},m.err};if err:=ctx.Err();err!=nil{return MappingSchemaResult{},err}
-	return MappingSchemaResult{result:Result{original:m.buffer.String(),requested:Content,effective:Content,valid:true}},nil
+	return MappingSchemaResult{result:Result{original:m.buffer.String(),requested:Content,effective:Content,valid:true},checked:true},nil
 }
 
 func (m *RowMapping) schemaType(ctx context.Context,t MappingSchemaType,hex bool)error{

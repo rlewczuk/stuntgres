@@ -136,7 +136,7 @@ type Host interface {
 	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *AcceptedDefaultInvocation) (sqltype.Value, error)
 	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error)
 	PrepareAcceptedDefault(*Context, *catalog.Relation, FoldOrigin, DefaultPreparationPolicy) (expr.Expr, *AcceptedDefault, bool, error)
-	MapXMLRows(functions.XMLMappingOperation, [5]sqltype.Value, *sqltype.Descriptor, sqltype.OutputEnvironment) (sqltype.Value, error)
+	MapXMLRows(*Context, functions.XMLMappingOperation, [5]sqltype.Value, *sqltype.Descriptor, sqltype.OutputEnvironment) (sqltype.Value, error)
 	OpenExtensionPaths(c *Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error)
 
 	PresentationFormatters

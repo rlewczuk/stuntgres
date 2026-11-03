@@ -46,16 +46,36 @@ func xmlMappingType(ctx context.Context,read catalog.Read,d *sqltype.Descriptor,
 func xmlMappingSchema(ctx context.Context,read catalog.Read,columns []catalog.Column,options xml.RowMappingOptions,relation *catalog.Relation,binaryHex bool)(xml.MappingSchema,error){
 	schema:=xml.MappingSchema{Options:options,BinaryHex:binaryHex,Database:read.MustDatabase(catalog.CurrentDatabaseAddress).Name(),Columns:make([]xml.MappingSchemaColumn,len(columns))}
 	if relation!=nil{namespace,ok:=read.Namespace(relation.Namespace());if !ok{return schema,fmt.Errorf("missing XML mapping relation namespace")};schema.Namespace=namespace.Name()}
-	types:=make([]*sqltype.Descriptor,0,len(columns));seen:=make(map[sqltype.ID]bool,len(columns))
+	var collector xmlMappingTypeCollector
 	for i,col:=range columns{
 		name,err:=xmlMappingType(ctx,read,col.Usage.Type,-1);if err!=nil{return schema,err};schema.Columns[i]=xml.MappingSchemaColumn{Name:col.Name,Type:name}
-		if !seen[col.Usage.Type.ID()]{seen[col.Usage.Type.ID()]=true;types=append(types,col.Usage.Type)}
 	}
-	for _,d:=range types{base:=d.BaseType();if !seen[base.ID()]{seen[base.ID()]=true;types=append(types,base)}}
-	schema.Types=make([]xml.MappingSchemaType,len(types))
-	for i,d:=range types{
-		name,err:=xmlMappingType(ctx,read,d,-1);if err!=nil{return schema,err};schema.Types[i].Name=name
-		if d.IsDomain(){typmod:=int32(-1);base:=d;for base.IsDomain(){usage:=base.DomainBase();if typmod<0&&usage.Typmod>=0{typmod=usage.Typmod};base=usage.Type};schema.Types[i].Base,err=xmlMappingType(ctx,read,base,typmod);if err!=nil{return schema,err}}
-	}
+	if err:=collector.AddColumns(ctx,columns);err!=nil{return schema,err}
+	var err error
+	schema.Types,err=collector.Finish(ctx,read);if err!=nil{return schema,err}
 	return schema,nil
+}
+
+// Invocation-private exact OID collection is shared by relation and scope XSD.
+type xmlMappingTypeCollector struct { seen map[sqltype.ID]bool; types []*sqltype.Descriptor }
+func (c *xmlMappingTypeCollector) AddColumns(ctx context.Context,columns []catalog.Column)error{
+	if c.seen==nil{c.seen=make(map[sqltype.ID]bool)}
+	for i,col:=range columns{
+		if i%256==0{if err:=ctx.Err();err!=nil{return err}}
+		d:=col.Usage.Type;if d==nil{return fmt.Errorf("missing XML mapping column type")}
+		if !c.seen[d.ID()]{c.seen[d.ID()]=true;c.types=append(c.types,d)}
+	}
+	return ctx.Err()
+}
+func (c *xmlMappingTypeCollector) Finish(ctx context.Context,read catalog.Read)([]xml.MappingSchemaType,error){
+	for i:=0;i<len(c.types);i++{
+		if i%256==0{if err:=ctx.Err();err!=nil{return nil,err}}
+		base:=c.types[i].BaseType();if !c.seen[base.ID()]{c.seen[base.ID()]=true;c.types=append(c.types,base)}
+	}
+	types:=make([]xml.MappingSchemaType,len(c.types))
+	for i,d:=range c.types{
+		name,err:=xmlMappingType(ctx,read,d,-1);if err!=nil{return nil,err};types[i].Name=name
+		if d.IsDomain(){typmod:=int32(-1);base:=d;for base.IsDomain(){if err:=ctx.Err();err!=nil{return nil,err};usage:=base.DomainBase();if typmod<0&&usage.Typmod>=0{typmod=usage.Typmod};base=usage.Type};types[i].Base,err=xmlMappingType(ctx,read,base,typmod);if err!=nil{return nil,err}}
+	}
+	return types,ctx.Err()
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -10,10 +11,11 @@ import (
 	"stuntgres/internal/xml"
 )
 
-func (h *statementHost) MapXMLRows(op functions.XMLMappingOperation,args [5]sqltype.Value,result *sqltype.Descriptor,output sqltype.OutputEnvironment)(sqltype.Value,error){
+func (h *statementHost) MapXMLRows(c *exec.Context,op functions.XMLMappingOperation,args [5]sqltype.Value,result *sqltype.Descriptor,output sqltype.OutputEnvironment)(sqltype.Value,error){
 	s:=h.scope();ctx:=s.Op.Context()
 	if err:=ctx.Err();err!=nil{return sqltype.Value{},err}
 	if op.Name()==""{return sqltype.Value{},fmt.Errorf("invalid XML mapping operation")}
+	if op.Scope(){return h.xmlScopeMapping(c,op,args,result,output)}
 	start:=1;if op==functions.XMLCursorRows{start=2}
 	nulls,err:=args[start].Boolean();if err!=nil{return sqltype.Value{},err};forest,err:=args[start+1].Boolean();if err!=nil{return sqltype.Value{},err};ns,err:=args[start+2].Text();if err!=nil{return sqltype.Value{},err}
 	options:=xml.RowMappingOptions{Relation:op.Relation(),Nulls:nulls,Forest:forest,TargetNamespace:ns}
@@ -45,11 +47,18 @@ func (h *statementHost) MapXMLRows(op functions.XMLMappingOperation,args [5]sqlt
 func consumeXMLMapping(s *StatementScope,rows exec.RowCursor,options xml.RowMappingOptions,schema *xml.MappingSchemaResult,result *sqltype.Descriptor,output sqltype.OutputEnvironment,sql string)(sqltype.Value,error){
 	ctx:=s.Op.Context();columns:=rows.Schema();names:=make([]string,len(columns));for i,col:=range columns{names[i]=col.Name}
 	mapper,err:=sqltype.NewXMLRowMapping(ctx,result,options,names,schema);if err!=nil{return sqltype.Value{},err}
-	row:=make([]sqltype.Value,len(columns));defer clear(row)
-	for {
-		present,err:=rows.Next(ctx,row);if err!=nil{if sql!=""{err=exec.SPIStatementDiagnostic(err,sql)};return sqltype.Value{},err};if !present{break}
-		env:=output;if typed,ok:=rows.(exec.RowResult);ok{env=typed.OutputEnvironment();env.XMLBinaryHex,env.Zone,env.XMLNotice=output.XMLBinaryHex,output.Zone,output.XMLNotice}
-		if err:=mapper.Append(ctx,row,env);err!=nil{return sqltype.Value{},err}
-	}
+	if err:=consumeXMLMappingRows(s,rows,output,sql,mapper.Append);err!=nil{return sqltype.Value{},err}
 	return mapper.Finish(ctx)
+}
+
+// The caller owns the producer lifetime. The synchronous append callback and
+// borrowed rows/environment never survive this invocation.
+func consumeXMLMappingRows(s *StatementScope,rows exec.RowCursor,output sqltype.OutputEnvironment,sql string,appendRow func(context.Context,[]sqltype.Value,sqltype.OutputEnvironment)error)error{
+	ctx:=s.Op.Context();row:=make([]sqltype.Value,len(rows.Schema()));defer clear(row)
+	for {
+		present,err:=rows.Next(ctx,row);if err!=nil{if sql!=""{err=exec.SPIStatementDiagnostic(err,sql)};return err};if !present{break}
+		env:=output;if typed,ok:=rows.(exec.RowResult);ok{env=typed.OutputEnvironment();env.XMLBinaryHex,env.Zone,env.XMLNotice=output.XMLBinaryHex,output.Zone,output.XMLNotice}
+		err=appendRow(ctx,row,env);clear(row);if err!=nil{return err}
+	}
+	return ctx.Err()
 }

@@ -49,8 +49,8 @@ import (
 // results, parallel-safe defaults and their released internal symbols.
 // The three server-signal declarations retain strict VOLATILE/parallel-safe
 // scalar BOOL metadata, unnamed inputs and their released internal symbols.
-// The eight XML row/schema mapping identities retain explicit cost 100 and
-// strict XML results with named all-IN formals: table functions are STABLE/
+// The fourteen XML mapping identities retain explicit cost 100 and strict XML
+// results with named all-IN formals: table/schema/database functions are STABLE/
 // parallel-restricted, query and cursor functions VOLATILE/parallel-unsafe.
 // The six WAL-position declarations retain strict VOLATILE/parallel-safe scalar
 // PG_LSN results, unnamed formals, no defaults and released internal symbols.
@@ -226,8 +226,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Array-vector construction and current configuration add the strict,
 	// parallel-safe scalar declarations3327/3759 and unnamed input formals.
 	// Shared, SLRU and backend reset add three released scalar VOID identities.
-	if len(facts) != 2220 {
-		t.Fatalf("released represented overloads: got %d, want 2220", len(facts))
+	// Schema/database XML mapping adds six strict/STABLE/restricted XML records.
+	if len(facts) != 2226 {
+		t.Fatalf("released represented overloads: got %d, want 2226", len(facts))
 	}
 	return facts
 }

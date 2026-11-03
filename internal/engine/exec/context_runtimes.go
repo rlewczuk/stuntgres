@@ -1172,7 +1172,7 @@ func (c *Context) MapXMLRows(op functions.XMLMappingOperation, args [5]sqltype.V
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: XML row mapping lacks statement authority")
 	}
-	return host.MapXMLRows(op, args, result, output)
+	return host.MapXMLRows(c, op, args, result, output)
 }
 
 var _ functions.DictionaryRuntime = (*Context)(nil)

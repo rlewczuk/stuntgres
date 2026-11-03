@@ -2635,6 +2635,15 @@ frontier and restoring the complete lexical owner on success and failure.
 Failed SQL/held portals release executor and stored rows while retaining their
 immutable tuple descriptors until terminal close or transaction retirement.
 Mapping retains no catalog, row, session or output environment in XML values.
+Schema/database mapping captures coherent private catalog and role authority
+under `Engine.Mu`, then releases it before membership/ACL traversal, name ordering,
+relation locks and formatting. Schema USAGE and table-wide SELECT determine
+membership; descriptor-only output never demands rows. Generated REGCLASS SELECTs
+reuse the same SQL producer, typed consumer and lexical cleanup. A scope-only
+effective-user borrow carries the actual expression actor through generated SQL
+without changing ordinary view/definer semantics; primary errors and cancellation
+restore the original actor and enclosing owners. No membership or authority
+survives in prepared recipes or generated values.
 
 `session_activity_runtime.go` reads the current operation's original frontend SQL
 and physical session token. `DatabaseCluster` owns immutable microsecond startup
@@ -3010,9 +3019,9 @@ for the same ownership cases; public NULL planning/ACL outcomes remain in
 TEMP tablespace preparation, admission and composed-creation units use
 `RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.
 
-XML row-mapping accepted graph/fold/definition lifetime units use
-`RUN='^TestXMLMapRows'`; public SQL and protocol outcomes remain in
-`reference/strings`.
+XML mapping accepted graph/fold/definition and caller lifetime units use
+`RUN='^TestXMLMap(Rows|Scope)'`; public SQL/protocol outcomes belong to
+`reference/strings` (rows/cursors) and `reference/xml_mapping` (scopes).
 
 Publication descriptor/filter/membership/capture ownership units use
 `make check RUN='^TestPublication'`; public SQL scenarios remain in `reference/`.

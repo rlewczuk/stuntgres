@@ -26,6 +26,9 @@ type RowMapping struct {
 	options RowMappingOptions
 	err error
 	finished bool
+	scope MappingScopeKind
+	schemaRoot, tableRoot string
+	schemaOpen, tableOpen bool
 }
 
 func NewRowMapping(ctx context.Context, options RowMappingOptions, names []string, schema *MappingSchemaResult) (*RowMapping,error) {
@@ -34,7 +37,7 @@ func NewRowMapping(ctx context.Context, options RowMappingOptions, names []strin
 	m:=&RowMapping{options:options,names:make([]string,len(names)),root:"table"}
 	if options.Relation { name,err:=MapName(ctx,options.TableName,true);if err!=nil{return nil,err};m.root=name }
 	for i,name:=range names{if i%256==0{if err:=ctx.Err();err!=nil{return nil,err}};mapped,err:=MapName(ctx,name,true);if err!=nil{return nil,err};m.names[i]=mapped}
-	if schema!=nil&&!schema.result.Valid(){return nil,fmt.Errorf("invalid mapping schema result")}
+	if schema!=nil&&(!schema.checked||!schema.result.Valid()){return nil,fmt.Errorf("invalid mapping schema result")}
 	if !options.Forest { m.start(ctx,m.root,schema!=nil);m.append(ctx,"\n") }
 	if schema!=nil{m.append(ctx,schema.result.original,"\n\n")}
 	if m.err!=nil{return nil,m.err};return m,nil
@@ -52,7 +55,7 @@ func (m *RowMapping) append(ctx context.Context, parts ...string) {
 
 func (m *RowMapping) start(ctx context.Context, root string, schema bool) {
 	m.append(ctx,"<",root)
-	if m.options.Forest||root==m.root {
+	if m.scope==0&&(m.options.Forest||root==m.root) {
 		m.append(ctx,` xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"`)
 		if m.options.TargetNamespace!=""{m.append(ctx,` xmlns="`,m.options.TargetNamespace,`"`)}
 	}
@@ -63,9 +66,10 @@ func (m *RowMapping) start(ctx context.Context, root string, schema bool) {
 func (m *RowMapping) AppendRow(ctx context.Context, fields []MappingField) error {
 	if m.finished{return fmt.Errorf("finished XML row mapper")}
 	if m.err!=nil{return m.err}
+	if m.scope!=0&&!m.tableOpen{m.err=fmt.Errorf("XML scope has no open table");return m.err}
 	if len(fields)!=len(m.names){m.err=fmt.Errorf("XML mapping row width mismatch");return m.err}
 	root:="row"
-	if m.options.Forest { if m.options.Relation{root=m.root};m.start(ctx,root,false) } else { m.append(ctx,"<row>\n") }
+	if m.options.Forest { if m.scope!=0{root=m.tableRoot}else if m.options.Relation{root=m.root};m.start(ctx,root,false) } else { m.append(ctx,"<row>\n") }
 	for i,field:=range fields{
 		if i%256==0{if err:=ctx.Err();err!=nil{m.err=err;return err}}
 		if field.Null{if m.options.Nulls{m.append(ctx,"  <",m.names[i],` xsi:nil="true"/>`,"\n")};continue}
@@ -78,9 +82,10 @@ func (m *RowMapping) AppendRow(ctx context.Context, fields []MappingField) error
 func (m *RowMapping) Finish(ctx context.Context) (Result,error) {
 	if m.finished{return Result{},fmt.Errorf("finished XML row mapper")}
 	m.finished=true
-	if !m.options.Forest{m.append(ctx,"</",m.root,">\n")}
+	if m.err==nil&&m.scope!=0&&(m.tableOpen||m.schemaOpen){m.err=fmt.Errorf("unfinished XML mapping scope")}
+	if m.scope!=0||!m.options.Forest{m.append(ctx,"</",m.root,">\n")}
 	if m.err==nil{m.err=ctx.Err()}
-	m.names=nil;m.options=RowMappingOptions{};m.root=""
+	m.names=nil;m.options=RowMappingOptions{};m.root="";m.schemaRoot="";m.tableRoot=""
 	if m.err!=nil{m.buffer.Reset();return Result{},m.err}
 	text:=m.buffer.String();m.buffer.Reset()
 	return Result{original:text,requested:Content,effective:Content,valid:true},nil

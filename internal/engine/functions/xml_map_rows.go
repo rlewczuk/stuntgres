@@ -16,16 +16,25 @@ const (
 	XMLCursorSchema
 	XMLTableCombined
 	XMLQueryCombined
+	XMLSchemaRows
+	XMLSchemaSchema
+	XMLSchemaCombined
+	XMLDatabaseRows
+	XMLDatabaseSchema
+	XMLDatabaseCombined
 )
-var xmlMappingNames=[...]string{"table_to_xml","query_to_xml","cursor_to_xml","table_to_xmlschema","query_to_xmlschema","cursor_to_xmlschema","table_to_xml_and_xmlschema","query_to_xml_and_xmlschema"}
+var xmlMappingNames=[...]string{"table_to_xml","query_to_xml","cursor_to_xml","table_to_xmlschema","query_to_xmlschema","cursor_to_xmlschema","table_to_xml_and_xmlschema","query_to_xml_and_xmlschema","schema_to_xml","schema_to_xmlschema","schema_to_xml_and_xmlschema","database_to_xml","database_to_xmlschema","database_to_xml_and_xmlschema"}
 func (o XMLMappingOperation) Name()string{if int(o)>=len(xmlMappingNames){return ""};return xmlMappingNames[o]}
 func (o XMLMappingOperation) Relation()bool{return o==XMLTableRows||o==XMLTableSchema||o==XMLTableCombined}
 func (o XMLMappingOperation) Cursor()bool{return o==XMLCursorRows||o==XMLCursorSchema}
-func (o XMLMappingOperation) Schema()bool{return o>=XMLTableSchema}
-func (o XMLMappingOperation) Combined()bool{return o==XMLTableCombined||o==XMLQueryCombined}
-func (o XMLMappingOperation) Arity()int{if o.Name()==""{return 0};if o==XMLCursorRows{return 5};return 4}
-func (o XMLMappingOperation) formal(i int)sqltype.ID{if i==0{if o.Relation(){return sqltype.Regclass};if o.Cursor(){return sqltype.Refcursor};return sqltype.Text};if o==XMLCursorRows&&i==1{return sqltype.Int4};if i==o.Arity()-1{return sqltype.Text};return sqltype.Bool}
-func (o XMLMappingOperation) labels()[]string{if o==XMLCursorRows{return []string{"cursor","count","nulls","tableforest","targetns"}};first:="query";if o.Relation(){first="tbl"};if o.Cursor(){first="cursor"};return []string{first,"nulls","tableforest","targetns"}}
+func (o XMLMappingOperation) SchemaScope()bool{return o==XMLSchemaRows||o==XMLSchemaSchema||o==XMLSchemaCombined}
+func (o XMLMappingOperation) DatabaseScope()bool{return o==XMLDatabaseRows||o==XMLDatabaseSchema||o==XMLDatabaseCombined}
+func (o XMLMappingOperation) Scope()bool{return o.SchemaScope()||o.DatabaseScope()}
+func (o XMLMappingOperation) Schema()bool{return o==XMLTableSchema||o==XMLQuerySchema||o==XMLCursorSchema||o.Combined()||o==XMLSchemaSchema||o==XMLDatabaseSchema}
+func (o XMLMappingOperation) Combined()bool{return o==XMLTableCombined||o==XMLQueryCombined||o==XMLSchemaCombined||o==XMLDatabaseCombined}
+func (o XMLMappingOperation) Arity()int{if o.Name()==""{return 0};if o==XMLCursorRows{return 5};if o.DatabaseScope(){return 3};return 4}
+func (o XMLMappingOperation) formal(i int)sqltype.ID{if i==o.Arity()-1{return sqltype.Text};if o.DatabaseScope(){return sqltype.Bool};if i==0{if o.SchemaScope(){return sqltype.Name};if o.Relation(){return sqltype.Regclass};if o.Cursor(){return sqltype.Refcursor};return sqltype.Text};if o==XMLCursorRows&&i==1{return sqltype.Int4};return sqltype.Bool}
+func (o XMLMappingOperation) labels()[]string{if o.DatabaseScope(){return []string{"nulls","tableforest","targetns"}};if o==XMLCursorRows{return []string{"cursor","count","nulls","tableforest","targetns"}};first:="query";if o.SchemaScope(){first="schema"};if o.Relation(){first="tbl"};if o.Cursor(){first="cursor"};return []string{first,"nulls","tableforest","targetns"}}
 
 type XMLMappingRuntime interface { MapXMLRows(XMLMappingOperation,[5]sqltype.Value,*sqltype.Descriptor,sqltype.OutputEnvironment)(sqltype.Value,error) }
 
@@ -48,7 +57,7 @@ func (e XMLMapping) Validate()error{
 	return nil
 }
 func (e XMLMapping) ValidateStoredProvider()error{return e.Validate()}
-func (e XMLMapping) IntrinsicVolatility()expr.Volatility{if e.Operation.Relation(){return expr.Stable};return expr.Volatile}
+func (e XMLMapping) IntrinsicVolatility()expr.Volatility{if e.Operation.Relation()||e.Operation.Scope(){return expr.Stable};return expr.Volatile}
 func (XMLMapping) PreflightFold()expr.Preflight{return expr.PreflightChildren}
 func (XMLMapping) PlanningFold()expr.Fold{return expr.FoldNever}
 func (XMLMapping) LooksLikeFunction()bool{return true}

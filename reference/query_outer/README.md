@@ -77,10 +77,11 @@ fields, strict VOLATILE/parallel-safe SETOF record declaration, row estimate
 1000 and internal source `pg_ident_file_mappings`. It remains metadata-only;
 the complete membership and 28-field direct/prepared inventory include it,
 as does the shared builtin routine-deparse inventory.
-The eight XML row/schema mapping declarations (2923–2930) retain explicit cost
-100, strict XML results and named all-IN formals. Table functions are STABLE/
-parallel-restricted; query and cursor functions are VOLATILE/parallel-unsafe.
-Exact membership and all 28 direct/prepared metadata projections include them.
+The fourteen XML mapping declarations (2923–2930 and 2933–2938) retain explicit
+cost 100, strict XML results and named all-IN formals. Table/schema/database
+functions are STABLE/parallel-restricted; query and cursor functions are
+VOLATILE/parallel-unsafe. Exact membership and all 28 direct/prepared metadata
+projections include them.
 The nine database/relation size overloads retain their released strict volatile
 metadata; the one-argument SQL wrapper has a declaration body and retained
 released cost 1, as do the internal implementations.
@@ -150,7 +151,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2207 rows, all backed
+supplements. The complete released inventory contains 2226 rows, all backed
 by actual descriptors, including GIN handler333 and ten genuine internal
 extraction/consistency support declarations. Metadata ownership grants no scalar
 C ABI execution. The ten nullable lookup records retain one unnamed TEXT input,

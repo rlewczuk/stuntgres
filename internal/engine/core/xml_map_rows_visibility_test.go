@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"reflect"
 	"runtime"
@@ -35,25 +36,32 @@ type xmlPreparationContext struct {
 	wantWrites    []storage.RowVersion
 	wantDeletes   *visibility.PrivateDeletes
 	wrongFrontier bool
+	scopeMapping bool
+	cancel context.CancelFunc
+	entryCancel,entrySeen bool
 }
 
 func (c *xmlPreparationContext) Err() error {
 	var pcs [64]uintptr
 	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
-	preparing, describing := false, false
+	preparing, describing, entering := false, false, false
 	for {
 		frame, more := frames.Next()
 		preparing = preparing || strings.HasSuffix(frame.Function, ".(*StatementScope).xmlMappingPrepare")
 		describing = describing || strings.HasSuffix(frame.Function, ".(*Engine).describeOperation")
+		if c.scopeMapping{preparing=preparing||strings.HasSuffix(frame.Function,".(*StatementScope).xmlMappingStatement")}
+		entering=entering||strings.HasSuffix(frame.Function,".(*StatementScope).enterExpressionEnvironment")
 		if !more {
 			break
 		}
 	}
+	if c.entryCancel&&entering&&c.scope.Op.EffectiveUser!=nil{c.entrySeen=true;c.cancel()}
 	if preparing && describing {
 		c.seen = true
 		c.writes = xmlPreparationRowsCopy(c.scope.OwnWrites[c.address])
 		c.deletes = c.scope.OwnDeletes[c.address].Clone()
 		c.wrongFrontier = c.wrongFrontier || !reflect.DeepEqual(c.writes, c.wantWrites) || !reflect.DeepEqual(c.deletes, c.wantDeletes)
+		if c.cancel!=nil{c.cancel()}
 	}
 	return c.Context.Err()
 }
@@ -181,12 +189,21 @@ func assertXMLPreparationPresentation(t *testing.T, scope *core.StatementScope, 
 }
 
 func TestXMLMapRowsPreparationVisibility(t *testing.T) {
+	testXMLMappingPreparationVisibility(t,false)
+}
+
+func testXMLMappingPreparationVisibility(t *testing.T,scopeMapping bool) {
 	for _, volatility := range []expr.Volatility{expr.Stable, expr.Volatile} {
 		t.Run(map[expr.Volatility]string{expr.Stable: "stable", expr.Volatile: "volatile"}[volatility], func(t *testing.T) {
-			e := engine.New()
+			var e *core.Engine
+			if scopeMapping{e=engine.NewWithSettings(nil,"xml_scope_caller",false)}else{e=engine.New()}
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			enginetest.RoleExecute(t, e, op, `CREATE TABLE xr_prepare_owner(x integer)`)
 			enginetest.RoleExecute(t, e, op, `INSERT INTO xr_prepare_owner VALUES(1),(2)`)
+			if scopeMapping{
+				enginetest.RoleExecute(t,e,op,`CREATE SCHEMA xs_scope_fail`)
+				enginetest.RoleExecute(t,e,op,`CREATE VIEW xs_scope_fail.t AS SELECT 1/0 AS a`)
+			}
 			done()
 			reader, _ := blockingUnitOwner(t, e)
 			enginetest.SessionSQL(t, reader, `INSERT INTO xr_prepare_owner VALUES(3)`)
@@ -255,6 +272,7 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 				t.Fatal(viewErr, authErr)
 			}
 			scope.RoutineAuth = auth
+			if scopeMapping{scope.ForeignActionAuth=&auth}
 			authority := &exec.Authority{Host: core.HostOf(scope)}
 			core.SetScopeAuthority(scope, authority)
 			core.SetScopeRLSDataRefs(scope, []ids.ObjectRef{ref})
@@ -301,6 +319,8 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			refs, refContent := core.ScopeRLSDataRefs(scope), slices.Clone(core.ScopeRLSDataRefs(scope))
 			dependencies, dependencyContent := scope.RoutineDependencies, slices.Clone(scope.RoutineDependencies)
 			beforeInput, beforeOutput := scope.Input, scope.Output
+			originalEffective,originalForeign:=scope.Op.EffectiveUser,scope.ForeignActionAuth
+			var foreignContent core.AuthorizationView;if originalForeign!=nil{foreignContent=*originalForeign}
 			// Readonly excludes the current stage; writable preparation must add
 			// these exact disjoint candidates, not merely the same row count.
 			wantRows := xmlPreparationRowsCopy(ownRoots.wantWrites[address])
@@ -313,6 +333,7 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			}
 			assertRestored := func() {
 				t.Helper()
+				if scope.Op.EffectiveUser!=originalEffective||scope.ForeignActionAuth!=originalForeign||originalForeign!=nil&&!reflect.DeepEqual(*originalForeign,foreignContent){t.Fatal("scope changed caller effective/foreign actor owner")}
 				ownRoots.assert(t, scope.OwnWrites, scope.OwnDeletes)
 				stageRoots.assert(t, scope.Stage.Rows, scope.Stage.Deletes)
 				viewRoots.assert(t, viewData.Own, viewData.Deleted)
@@ -350,8 +371,36 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			xml := enginetest.Usage(e, sqltype.XML).Type
 			invoke := func(query string, operation functions.XMLMappingOperation) error {
 				args := [5]sqltype.Value{sqltype.String(text, query), sqltype.Boolean(boolean, false), sqltype.Boolean(boolean, false), sqltype.String(text, "")}
-				_, err := core.HostOf(scope).MapXMLRows(operation, args, xml, scope.Output)
+				if operation.Scope(){args[0]=sqltype.String(nameType,query)}
+				evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Catalog: read, Input: scope.Input, Output: scope.Output}}
+				_, err := core.HostOf(scope).MapXMLRows(evaluation, operation, args, xml, scope.Output)
 				return err
+			}
+			if scopeMapping{
+				for _,outcome:=range []string{"success","error","cancel","entry-cancel"}{
+					base,cancel:=context.WithCancel(context.Background())
+					observed:=&xmlPreparationContext{Context:base,scope:scope,address:address,wantWrites:wantRows,wantDeletes:wantDeleted,scopeMapping:true}
+					if outcome=="cancel"||outcome=="entry-cancel"{observed.cancel=cancel};observed.entryCancel=outcome=="entry-cancel"
+					entryIdentity,entryInquiry,entryAuth:=scope.Identity,scope.Inquiry,scope.RoutineAuth
+					entryInput,entryOutput,entryRowSecurity:=scope.Input,scope.Output,scope.RowSecurity
+					entryPresentation:=core.ScopePresentationOrZero(scope)
+					scope.Op.Ctx=observed
+					schema:="public";if outcome=="error"{schema="xs_scope_fail"}
+					failure:=invoke(schema,functions.XMLSchemaCombined)
+					cancel();scope.Op.Ctx=context.Background()
+					if outcome=="success"&&failure!=nil{t.Fatal(failure)}
+					if outcome=="error"{enginetest.State(t,failure,"22012")}
+					if (outcome=="cancel"||outcome=="entry-cancel")&&!errors.Is(failure,context.Canceled){t.Fatal("scope did not preserve cancellation",failure)}
+					if outcome=="entry-cancel"{if !observed.entrySeen||observed.seen{t.Fatal("scope entry cancellation reached/retained producer")}}else if !observed.seen||observed.wrongFrontier||!reflect.DeepEqual(observed.writes,wantRows)||!reflect.DeepEqual(observed.deletes,wantDeleted){t.Fatal("scope SELECT lost caller private frontier",outcome)}
+					if outcome=="cancel"||outcome=="entry-cancel"{
+						if !reflect.DeepEqual(scope.Identity,entryIdentity)||!reflect.DeepEqual(scope.Inquiry,entryInquiry)||!reflect.DeepEqual(scope.RoutineAuth,entryAuth)||scope.RowSecurity!=entryRowSecurity||!reflect.DeepEqual(core.ScopePresentationOrZero(scope),entryPresentation){t.Fatal("canceled scope failed exact saved environment fallback",outcome)}
+						routineTriggerPresentationFields(t,"canceled scope input",scope.Input,entryInput)
+						routineTriggerPresentationFields(t,"canceled scope output",scope.Output,entryOutput)
+						for _,id:=range []sqltype.ID{sqltype.Int4,sqltype.Text}{if scope.Input.TypeDiagnosticName(id)!=entryInput.TypeDiagnosticName(id){t.Fatal("canceled scope changed captured type diagnostic semantics")}}
+					}
+					assertRestored()
+				}
+				return
 			}
 			for _, tc := range []struct{ query, state string }{
 				{`SELECT x INTO xr_not_created FROM xr_prepare_owner`, "42P11"},

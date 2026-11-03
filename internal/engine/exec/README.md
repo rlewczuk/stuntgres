@@ -470,9 +470,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   runtime character casts, without changing accepted XML datums or their other
   captured presentation. XML warning input follows the detachable authority;
   retained output environments are sink-free.
-  `MapXMLRows` forwards the already typed operands and invocation-local
-  `FunctionXMLOutput` policy to the live host. SQL, relation and portal authority
-  remain in core; retained expressions and XML datums keep no host or settings.
+  `MapXMLRows` forwards the actual expression Context, typed operands and
+  invocation-local `FunctionXMLOutput` policy to the live host, so scope mapping
+  preserves expression identity independently of view relation-check ownership.
+  SQL, namespace, relation and portal authority remain in core; retained
+  expressions and XML datums keep no host, context or settings.
   Dropped-object inspection forwards per opening to the live statement's lexical
   event command; no host or inactive `sql_drop` yields the protocol diagnostic.
   The context retains neither records nor a phase guard between invocations.

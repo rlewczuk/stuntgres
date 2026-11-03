@@ -200,10 +200,15 @@ identifiers once, appends already typed-output field characters into one bounded
 buffer, and publishes immutable CONTENT only on successful Finish. NULL skips,
 zero-width rows, growth copies and final publication remain cancellable.
 Namespace spelling is literal generated data, not parser admission.
-`ConstructMappingSchema` owns the released XSD templates and returns opaque
-`MappingSchemaResult` authority. Only that token may supply an embedded schema;
-exposing its immutable Result for typed adoption cannot mint another token.
-Schema facts contain ordered SQL type identities, never SQL callbacks or a DOM.
+`NewScopeMapping` extends that same buffer with checked schema/table nesting;
+only its outer root owns namespace declarations and combined-schema links.
+Scope roots remain present for table forests, including empty members.
+`ConstructMappingSchema` and `ConstructScopeMappingSchema` own the released XSD
+templates and return opaque `MappingSchemaResult` authority. Scope templates
+emit their own complex type without recursively defining referenced members.
+Only that token may supply an embedded schema; exposing its immutable Result for
+typed adoption cannot mint another token. Schema facts contain ordered SQL type
+identities, never SQL callbacks or a DOM.
 
 
 `Declaration` distinguishes absent and present-empty encoding/version properties,
@@ -625,8 +630,8 @@ cancellation and strict-core contrasts.
 
 XMLTABLE invocation, namespace, node-output and cancellation units use
 `RUN='^TestXMLTableProvider$'`.
-Row/schema construction, poisoned failure and cancellation proof use
-`RUN='^TestXMLMapRows(Construction|Cancellation)$'`.
+Row/scope schema construction, poisoned failure and cancellation proof use
+`RUN='^TestXMLMap(Rows|Scope)(Construction|Cancellation)$'`.
 Projected XPath text nodes retain their invocation-local source kind: adjacent
 CDATA still coalesces for XPath string values and cardinality, while XMLTABLE
 XML output serializes CDATA through the common node serializer, including

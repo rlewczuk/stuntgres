@@ -63,11 +63,11 @@ and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`
 does not gain execution capability.
 
-The eight row/schema XML mapping declarations use their released OIDs and fixed
-named formals with ordinary `XMLMappingRoutineProvider` membership. Each returns
-XML and is strict with cost 100; table variants are STABLE/parallel-restricted,
-query/cursor variants VOLATILE/unsafe. Catalog identities alone grant neither
-execution nor additional schema/database mapping functions.
+The fourteen XML mapping declarations use released OIDs and fixed named formals
+with ordinary `XMLMappingRoutineProvider` membership. Each returns XML and is
+strict with cost 100. Table/schema/database variants are STABLE/parallel-restricted;
+query/cursor variants are VOLATILE/unsafe. Schema inputs are NAME, and database
+variants have three formals without a database-name input.
 
 `OperatorProvider` validates a nonzero current extension link against its parent
 before ordinary operand, result and backer checks. A zero link is locally
@@ -731,8 +731,8 @@ Nullable registry lookup declaration, display, successful association and comple
 seed materialization use
 `RUN='^TestRegLookup(RelType|Callable|CollRole)Declarations$'`; public SQL/catalog
 assertions belong to the registry lookup families in `reference/type_resolution`.
-XML row-mapping declaration/display/input-name ownership uses
-`RUN='^TestXMLMapRowsRoutineDeclarations$'`.
+XML mapping declaration/display/input-name ownership uses
+`RUN='^TestXMLMap(Rows|Scope)RoutineDeclarations$'`.
 
 Ordered declaration units distinguish canonical lookup from expanded execution:
 `FinalDeclarationVectors` checks independent storage and collapsed ANY slots;
