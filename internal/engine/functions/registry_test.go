@@ -268,6 +268,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 		{PgvisibilityExtension, "pg_visibility_map pg_visibility pg_visibility_map_summary"},
 		{DblinkExtension, "dblink_get_pkey dblink_build_sql_delete dblink_build_sql_insert dblink_build_sql_update"},
 		{PgFreespaceExtension, "pg_freespace"},
+		{PgBuffercacheExtension, "pg_buffercache_pages"},
 		{PgStatStatementsExtension, "pg_stat_statements pg_stat_statements_info"},
 	} {
 		for name := range strings.FieldsSeq(family.names) {

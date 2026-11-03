@@ -33,6 +33,7 @@ const (
 	PgStatStatementsExtension
 	XML2Extension
 	PgsurgeryExtension
+	PgBuffercacheExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

@@ -55,6 +55,8 @@ func (v *QueryRenderer) renderFunctionTableSQL(ctx context.Context, catalog cata
 			if record.Procedure.Result == 2249 {
 				shape = record.ResultUsage().Type
 			}
+		case plan.InstalledPgBuffercacheExpr:
+			shape = record.ResultUsage().Type
 		case functions.JSONRecord:
 			if record.Defined {
 				shape = record.ResultUsage().Type

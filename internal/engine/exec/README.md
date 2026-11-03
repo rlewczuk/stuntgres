@@ -154,6 +154,17 @@ typmods; naming is captured only on failure and is never retained in result tupl
   authority a held cursor keeps) and `LockContext`. `SelectQuerySource` takes
   resolved `visibility.HeapOperations`; the row loop calls them, never a catalog
   lookup, callback or alternate visibility algorithm.
+  `Source.ReadLease` is captured eligibility, not a preparation-time read.
+  An ordinary SourceNode opening activates one invocation. Relation-source
+  initialization alone does not: TABLESAMPLE initializes through the same
+  identity/security/dispatch path, but activates only when positive sampling
+  consumes its child. Zero sampling never opens a read lease, and an empty
+  source has no representative. Hierarchy stages activate only reached physical
+  segments, and index consumers activate their selected index. Stage-local read
+  and segment frontiers survive rewind but not fresh invocation.
+  Capture-owned pins survive successful borrowed invocations. Owner Finish,
+  error/cancel and Source.Close release them idempotently, before source graph
+  detachment; close never reacquires engine authority.
   `Authority.PreserveParameterDemand` is immutable command-invocation metadata,
   captured from the preparation evaluator before executor source publication.
   `State.Evaluation` restores it when constructing fresh statement frames;
@@ -561,6 +572,12 @@ typmods; naming is captured only on failure and is never retained in result tupl
   typed TID array and decoded class OID to the statement host, returning nonnull
   VOID only after successful publication. Prepared recipes retain no permission
   result or heap handle; the host readmits target authority at publication.
+- **Buffer cache** (`pgbuffercache.go`): an installed anonymous-record carrier
+  retains genuine routine provenance and caller field usages, never OUT aliases.
+  Ordinary current EXECUTE/recipe admission precedes execution-time row/count/type
+  validation. Namespace access follows ordinary prepared invalidation/reanalysis.
+  The statement capability supplies a detached sparse snapshot cursor; cancellation
+  and close release that payload without retaining session pins or an engine.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed six-value frame projects formal slots without

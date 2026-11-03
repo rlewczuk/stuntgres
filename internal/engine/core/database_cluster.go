@@ -32,11 +32,14 @@ type DatabaseCluster struct {
 	// StatementStatistics survives database catalog replacement and session end.
 	// Its private mutex is a leaf beneath every runtime/authority lock.
 	StatementStatistics *statistics.Statements
-	Seed                *Engine
+	// Sparse logical read-cache state; lazily initialized under Mu. Its mutex
+	// is a leaf and it never retains engines, catalog roots or source owners.
+	buffercache *logicalBufferCache
+	Seed        *Engine
 	// AdmissionMu protects only reservation states/counts. Metadata admission
 	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
-	AdmissionMu sync.Mutex
-	admissions  map[*Engine]int
+	AdmissionMu    sync.Mutex
+	admissions     map[*Engine]int
 	templateCopies map[*Engine]*databaseTemplateReaders
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition

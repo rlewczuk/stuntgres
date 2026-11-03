@@ -166,6 +166,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary"}, Installed: PgvisibilityExtension, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
 	{Names: []string{"heap_force_freeze"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
+	{Names: []string{"pg_buffercache_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
 	{Names: pageinspectNames[:], Installed: PageinspectExtension, Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Installed: TablefuncExtension, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Installed: TablefuncExtension, Bind: bindConnectby},

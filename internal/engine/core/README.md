@@ -1498,6 +1498,49 @@ history and owned snapshots. CREATE DATABASE's unpublished template-copy runtime
 has no cluster or registered database identity and clears no shared history.
 No runtime frames, history or handles are dumped.
 
+## Logical buffer-cache ownership
+
+`DatabaseCluster.buffercache` owns a lazy sparse read cache shared by that
+cluster's databases; independent Drivers never share it. Capacity comes from the
+immutable raw `shared_buffers` setting. Slots identify genuine committed catalog
+domains, epochs, relation addresses and effective storage locators. TEMP,
+virtual/provider relations, foreign sources and storage-less partition roots
+cannot acquire occupancy. Actual reached physical leaves, including consumed
+hash/bloom indexes, own source read leases; binding and source capture do not heat.
+Sampled-source initialization retains normal identity and authority checks but
+does not activate storage. Only positive sampling that consumes a nonempty child
+opens its lease; zero samples leave cold occupancy and warm usage/pins unchanged.
+The opened stage retains its read frontier across rewind, while a fresh positive
+invocation increments usage without duplicating its capture-owned session pin.
+
+CREATE DATABASE replaces its template into a private runtime with no Cluster
+before publishing and attaching the destination. Such metadata publication has
+no shared cache to reconcile, and captures acquire no live read lease. Late lease
+activation checks owner absence before registration/generation lookup. A provider
+observation requires the actual registered cluster runtime and returns an explicit
+ownership error otherwise, never successful empty rows or a synthetic private
+cache. After attachment the destination starts cold; only its subsequent real
+reads heat its database identity. Independent Restore staging caches are not
+transplanted.
+
+Each fresh actual source invocation increments usage to five; rewinding the same
+stage does not. One main-fork representative block per relation, clean logical
+read state and distinct source-owning session pins are technical cache metrics,
+not PostgreSQL page occupancy, writeback or backend pins. Lowest vacant slots and
+first unpinned circular victims make allocation deterministic; all-pinned reads
+still succeed without inventing an occupied slot.
+
+Lock order is statement/session authority, cluster metadata mutex, source-lease
+mutex, then cache leaf mutex. Close takes only source/cache leaf ownership, never
+engine authority. Sparse publication reconciliation retains metadata-only changes
+and retires replaced storage/database identities. Successful Reset/Restore drops
+only target live cache state; failed replacement preserves incumbents. Late old
+leases cannot alter replacement entries. Dump serializes ordinary installed SQL,
+membership, owners, current/initial ACLs and user data, never cache state or tokens.
+Provider cursors contain detached scalar snapshots and lazily synthesize unused
+slots with all eight unavailable fields NULL; no source/session/catalog root
+escapes in a row.
+
 ## Cluster and logical database ownership
 
 Each exact Driver DSN owns one `DatabaseCluster`: a pointer-stable metadata mutex,
@@ -3099,6 +3142,11 @@ session admission deliberately derives its own cancellation context.
 Crosstab capture, generation, prepared-definition ownership and nested activation
 invariants share `RUN='^TestTablefuncCrosstab'`. Their composed helpers exercise
 actual installed declarations, accepted protocol bindings and statement hosts.
+Buffer-cache identity, source attribution, sparse eviction, session ownership
+and successful/failed replacement fences share `RUN='^TestPgBuffercache'`.
+Composed units retain actual protocol portals and admitted source captures;
+pure tiny-capacity units exercise pinned victims without public inspection hooks.
+Public dual-mode SQL belongs to `reference/extensions`.
 
 Heap-verification capture, admission, incarnation and pure logical-row units
 share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.

@@ -92,6 +92,10 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   root's `exec` preparation forwarders.
   Symbolic named-relation leaves pass through unchanged: preflight neither opens
   invocation rows nor replaces their immutable schema/name recipe.
+  After static preparation, each named view's column-sensitive SELECT boundary
+  precedes executable SRF admission inside that view. Relation access follows the
+  enclosing definer/security_invoker actor; function EXECUTE retains its invoker.
+  This early boundary never replaces the refreshed executor authorization.
   Sampling counts retain their demanded source-startup coercion/check frontier.
   Source transplants rewrite count expressions and free correlation occurrences
   while preserving the selected immutable handler capability.

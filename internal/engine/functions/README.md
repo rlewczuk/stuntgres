@@ -564,6 +564,14 @@ An unresolved generic result uses the shared deferred-record carrier for typed
 NULL frames; only a declared FROM record supplies its executable tuple shape.
 Non-NULL calls without that shape fail when the source opens, not during binding.
 
+Installed `PgBuffercache` binds only its genuine zero-argument provider identity.
+Its volatile, non-strict anonymous SETOF record is never planning-folded and
+retains no cursor or authority. Caller FROM definitions complete occurrence-owned
+type usages, including renamed fields and the eight-column prefix. The installed
+plan carrier retains current procedure/reference provenance through reconstruction,
+stored remapping and native replay; authorization and actual output validation
+belong to the statement runtime, not this pure declaration boundary.
+
 `random` and `random_normal` retain their selected declarations and children
 through binding. Conditional planning and statement preflight process required
 constant children before strict literal-NULL elimination. Required immutable

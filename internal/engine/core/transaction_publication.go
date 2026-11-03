@@ -683,6 +683,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.Storage.ReplaceRelationsLocked(nextStorage)
 			e.Storage.RelationMetadata = relationMetadata
 			e.Catalog.PublishLocked(nextCatalog)
+			e.reconcileLogicalBuffersLocked()
 			sharedRoots.InstallLocked()
 			e.Catalog.InstallRevisionFrontierLocked(nextRevision)
 			if c.Roles != nil {

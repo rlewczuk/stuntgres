@@ -987,6 +987,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.Visibility.SerializableCommittedLocked(s.InitialTx, e.Visibility.CommitSeq())
 			}
 			e.Catalog.PublishLocked(next)
+			e.reconcileLogicalBuffersLocked()
 			sharedRoots.InstallLocked()
 			e.releaseStageReplicationOriginsLocked(s)
 			e.Storage.ReplaceRelationsLocked(relations)
@@ -1428,6 +1429,7 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.Visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.Catalog.State.Epoch() + 1)
 	e.Catalog.PublishLocked(next)
+	e.reconcileLogicalBuffersLocked()
 	sharedRoots.InstallLocked()
 	e.retireReplacedReplicationOriginsLocked()
 	if e.Cluster != nil {

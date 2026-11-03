@@ -298,7 +298,8 @@ func (p *installationSchedule) install(index int) error {
 			// These are only the just-created script products. Actual source
 			// views retain their ordinary declaration events and final state.
 			for i := len(declarations) - 1; i >= 0; i-- {
-				name := declarations[i].Name.Parts[len(declarations[i].Name.Parts)-1].Text
+				view := declarations[i].Statement
+				name := view.Name.Parts[len(view.Name.Parts)-1].Text
 				qualified := catalog.QuoteIdentifier(item.schema) + "." + catalog.QuoteIdentifier(name)
 				p.script.installationStatements = append(p.script.installationStatements,
 					"ALTER EXTENSION "+catalog.QuoteIdentifier(item.recipe.Provider)+" DROP VIEW "+qualified+";\n",

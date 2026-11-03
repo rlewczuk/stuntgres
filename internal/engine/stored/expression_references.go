@@ -215,6 +215,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledTablefuncCrosstabExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledPgBuffercacheExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledVerifyHeapamExpr:
 		r.Add(n.Ref.Address)
 	case plan.LiteralExpr:

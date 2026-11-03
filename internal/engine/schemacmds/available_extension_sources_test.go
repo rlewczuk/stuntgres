@@ -102,6 +102,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"ltree":              {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
 			"moddatetime":        {"moddatetime", "1.0", nil, "functions for tracking last modification time"},
 			"pageinspect":        {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
+			"pg_buffercache":     {"pg_buffercache", "1.6", nil, "examine the shared buffer cache"},
 			"pg_freespacemap":    {"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"},
 			"pg_stat_statements": {"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"},
 			"pg_surgery":         {"pg_surgery", "1.0", nil, "extension to perform surgery on a damaged relation"},
@@ -142,6 +143,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}
 			expected["moddatetime"] = []any{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}
 			expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
+			expected["pg_buffercache"] = []any{"pg_buffercache", "1.6", false, true, false, true, nil, nil, "examine the shared buffer cache"}
 			expected["pg_freespacemap"] = []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"}
 			expected["pg_stat_statements"] = []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"}
 			expected["pg_visibility"] = []any{"pg_visibility", "1.2", false, true, false, true, nil, nil, "examine the visibility map (VM) and page-level visibility info"}

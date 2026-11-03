@@ -123,6 +123,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgstattupleProviderOf(proc) == extension.StockPgstattuple
 	case functions.PgFreespaceExtension:
 		installed = extension.PgFreespaceProviderOf(proc) == extension.StockPgFreespace
+	case functions.PgBuffercacheExtension:
+		installed = extension.PgBuffercacheProviderOf(proc) == extension.StockPgBuffercache
 	case functions.PgvisibilityExtension:
 		installed = extension.PgvisibilityProviderOf(proc) == extension.StockPgvisibility
 	case functions.PgsurgeryExtension:
@@ -185,6 +187,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgstattuple.ValidateProcedure(r.catalog, p)
 	case extension.PgFreespaceProviderOf(p) != nil:
 		return extension.StockPgFreespace.ValidateProcedure(r.catalog, p)
+	case extension.PgBuffercacheProviderOf(p) != nil:
+		return extension.StockPgBuffercache.ValidateProcedure(r.catalog, p)
 	case extension.PgvisibilityProviderOf(p) != nil:
 		return extension.StockPgvisibility.ValidateProcedure(r.catalog, p)
 	case extension.PgsurgeryProviderOf(p) != nil:
@@ -607,6 +611,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return plan.InstalledConnectbyExpr{Connectby: c, Procedure: p, Ref: ref}, nil
 	case functions.TablefuncCrosstab:
 		return r.attachTablefuncCrosstab(c, ref)
+	case functions.PgBuffercache:
+		return r.attachPgBuffercache(c, ref)
 	case functions.VerifyHeapam:
 		return r.attachVerifyHeapam(c, ref)
 	}

@@ -35,6 +35,7 @@ type ContribRuntime interface {
 	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
 	TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
+	PgBuffercache(result *sqltype.Descriptor) (expr.SourceCursor, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error

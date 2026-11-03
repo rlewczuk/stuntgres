@@ -433,6 +433,9 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
 			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations, scope.PendingDetachSnapshot()), leaf.Relation, source, scope.Op.ConstraintExclusion)
 		}
+		if !denied {
+			e.captureLogicalBufferSourcesLocked(scope, source)
+		}
 		source.RLS = program
 		plannerStore := e.Storage.Relations[leaf.Ref.Address]
 		if plannerStore == nil {

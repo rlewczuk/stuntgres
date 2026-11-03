@@ -83,6 +83,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tsm_system_rows' AND version='1.0'", true, [][]any{{"tsm_system_rows", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts number of rows as a limit"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_surgery'", false, [][]any{{"pg_surgery", "1.0", nil, "extension to perform surgery on a damaged relation"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_surgery' AND version='1.0'", true, [][]any{{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_buffercache'", false, [][]any{{"pg_buffercache", "1.6", nil, "examine the shared buffer cache"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_buffercache' AND version='1.6'", true, [][]any{{"pg_buffercache", "1.6", false, true, false, true, nil, nil, "examine the shared buffer cache"}}, pg))
 			if !pg {
 				// Native availability is its embedded registry, including the genuine
 				// installed bootstrap plpgsql extension.
@@ -145,6 +147,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"})
 				wantAvailable = append(wantAvailable, []any{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"})
 				wantVersions = append(wantVersions, []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"})
+				wantAvailable = append(wantAvailable, []any{"pg_buffercache", "1.6", nil, "examine the shared buffer cache"})
+				wantVersions = append(wantVersions, []any{"pg_buffercache", "1.6", false, true, false, true, nil, nil, "examine the shared buffer cache"})
 				wantAvailable = append(wantAvailable, []any{"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"})
 				wantVersions = append(wantVersions, []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"})
 				wantAvailable = append(wantAvailable, []any{"xml2", "1.2", nil, "XPath querying and XSLT"})

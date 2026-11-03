@@ -29,6 +29,7 @@ func (s *Source) finishProducers(primary error) error {
 	if s == nil {
 		return primary
 	}
+	s.finishReadLeases()
 	failure := primary
 	if stage := s.NestedStage; stage != nil {
 		if primary != nil {

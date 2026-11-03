@@ -327,6 +327,22 @@ view/owner/membership codecs. Planning counts are actual accepted native builds,
 not PostgreSQL generic-plan cache invocation counts. This logical module does not
 load PostgreSQL C libraries, preload shared memory or persist shutdown files.
 
+`CREATE EXTENSION pg_buffercache VERSION '1.6'` installs an ordinary nine-column
+view and the zero-argument anonymous-record `pg_buffercache_pages()` function.
+Their genuine SELECT/EXECUTE ACLs separately grant pg_monitor and revoke PUBLIC;
+ordinary explicit grants can admit other roles. Caller-defined function columns,
+current authority and installed identities use the same SQL/prepared/control
+lifecycles as other stored objects.
+
+The native cluster owns a deterministic logical read cache: actual reached native
+storage reads heat one representative main-fork block, usage saturates at five,
+and pins count distinct active source-owning sessions. Identity is catalog-exact;
+physical occupancy, block, dirtiness, usage and pin metrics are technical
+approximations, not PostgreSQL shared memory, writeback, C ABI or backend resources.
+Unused slots have only bufferid populated. Dump retains installed SQL/data/ACLs,
+not live cache state; successful target Reset/Restore starts its cache cold while
+preserving other databases and already detached results.
+
 Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
 Their real function ACLs, fixed RECORD shapes and selected identities survive
 native controls; EXECUTE is checked even for NULL, independently of parent

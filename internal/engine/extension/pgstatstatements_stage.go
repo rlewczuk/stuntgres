@@ -39,17 +39,17 @@ func (p *PgStatStatementsProvider) Stage(stage Stage, ext *catalog.Extension, ow
 	}
 	return nil
 }
-func (*PgStatStatementsProvider) ConsumerViews(version string) ([]*parser.CreateView, error) {
+func (*PgStatStatementsProvider) ConsumerViews(version string) ([]ConsumerView, error) {
 	if version != "1.12" {
 		return nil, fmt.Errorf("stuntgres: unsupported pg_stat_statements consumer release %q", version)
 	}
-	declarations := make([]*parser.CreateView, 2)
+	declarations := make([]ConsumerView, 2)
 	for i, name := range []string{"pg_stat_statements", "pg_stat_statements_info"} {
 		call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 		if i == 0 {
 			call.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}
 		}
-		declarations[i] = &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Query: &parser.Select{Targets: []parser.Expr{parser.StarExpr{}}, From: &parser.FunctionTable{Calls: []parser.FunctionExpr{call}}}}
+		declarations[i] = ConsumerView{Statement: &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Query: &parser.Select{Targets: []parser.Expr{parser.StarExpr{}}, From: &parser.FunctionTable{Calls: []parser.FunctionExpr{call}}}}, ACL: []ConsumerViewACL{{Public: true, Privileges: authorization.SelectPrivilege}}}
 	}
 	return declarations, nil
 }

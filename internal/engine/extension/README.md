@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
-moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+moddatetime, pageinspect, pg_buffercache, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, tsm_system_rows, unaccent, uuid-ossp, xml2 and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -136,10 +136,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Stock pg_stat_statements 1.12 seals exactly two C-function recipe roots. Its
   optional `ConsumerViews` manifest creates the two ordinary SQL views only
   after sealing, through `StageConsumers` in the same unpublished candidate.
-  Ordinary views acquire real membership, rowtype/array closure, PUBLIC SELECT
-  and historical initial privileges, never fabricated installed relation origins.
-  The manifest also identifies only fresh script products for native replay
-  cleanup; current source view state remains the ordinary view codec's concern.
+  Ordinary views acquire real membership and rowtype/array closure, never
+  fabricated installed relation origins. Each `ConsumerView` owns its ordinary
+  CREATE AST and ordered script ACL events; nil policy preserves creation defaults.
+  Statistics views explicitly grant PUBLIC SELECT. Restricted consumers revoke
+  PUBLIC and grant named roles without erasing unrelated creator defaults.
+  Actual script ACL events record historical initial privileges. The same
+  declaration list identifies fresh replay products; current source view state
+  remains the ordinary view codec's concern.
   Pgcrypto preserves its eighteen incumbent slots and appends the four strict,
   parallel-safe text PGP declarations: volatile encryption and immutable
   decryption, each with two and three arguments. Armor slots14–17 retain their
@@ -542,6 +546,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Installation collisions use the failed member's recipe-specific statement and
   location in the released 1.1 base script, including its legacy SQL wrapper;
   this diagnostic source is distinct from the final 1.3 BEGIN ATOMIC body.
+- **pg_buffercache** (`pgbuffercache_provider.go`) seals the 1.6 zero-argument
+  VOLATILE, non-STRICT, parallel-safe invoker `pg_buffercache_pages()->SETOF record`
+  without OUT parameters. Its ordinary view supplies nine typed definitions.
+  Function EXECUTE and view SELECT have separate pg_monitor grants and PUBLIC
+  revocations. Mutable names, owners, schemas and membership never select callable
+  provenance. Stored caller definitions survive ordinary expression remapping;
+  execution validates current authority before anonymous-record/count/type errors.
+  The core-owned logical read cache is not PostgreSQL shared memory or a C ABI.
 - **pg_visibility** (`pgvisibility_provider.go`) owns five read declarations:
   the block and relation overloads of `pg_visibility_map` and `pg_visibility`,
   and `pg_visibility_map_summary`. Immutable slots retain their released C

@@ -201,6 +201,16 @@ metadata and full diagnostics. Physical flags use independently specified
 ownership/maintenance fixtures; quiescent summary/scalar/SRF consistency is an
 additional invariant, never a substitute for those expectations. Native control
 witnesses remain phases of the same public dual-mode definitions.
+
+Buffer-cache scenarios use `RUN='^TestReferencePgBuffercache'` with one shared
+public fixture. They assert exact caller-defined record/view metadata, catalog
+identity, separate real ACLs and complete diagnostics before comparison.
+Physical PostgreSQL cache fields use independent domain/identity invariants;
+native-only phases specify actual-read usage and capture-owned session pins.
+Unused-slot NULLs require a real witness. Native controls retain SQL state while
+discarding target live occupancy; source-owner units supplement public lifetime
+scenarios without adding an inspection API.
+
 Free-space inquiries use `RUN='^TestReferencePgFreespace'`. The shared fixture
 keeps compact native live-row estimates distinct from PostgreSQL FSM counters,
 while fixing exact declaration, identity, ACL, NULL and diagnostic contracts.
@@ -383,9 +393,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   preserve retained row data/metadata while fresh generations resolve current
   identities. Available-but-uninstalled modules remain absent from `pg_extension`;
   the complete available-extension registry also includes installed `plpgsql`.
-  Complete native inventory expectations include pg_freespacemap 1.3's genuine
-  untrusted, superuser-required, relocatable control row; selected package
-  metadata is checked in both modes without asserting whole-oracle parity.
+  Complete native inventory expectations include pg_freespacemap 1.3 and
+  pg_buffercache 1.6 as genuinely untrusted, superuser-required, relocatable
+  available-but-uninstalled modules with no fixed schema or prerequisites.
+  Their exact released comments and control flags are asserted independently in
+  both source-capture/statement-frontier inventories and the public dual-mode
+  filtering scenario, without asserting whole-oracle inventory parity.
   The btree_gin row uses released default/version1.3, trusted/superuser-required
   and relocatable controls, no fixed schema or prerequisites, and the exact
   released comment. Filtering asserts these rows directly, freshly prepared and

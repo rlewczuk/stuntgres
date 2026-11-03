@@ -41,8 +41,9 @@ func QueryPredicateRejectsAll(c *Context, expr expr.Expr) (bool, error) {
 // the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type Source struct {
-	View *visibility.View
-	Ref  ids.ObjectRef
+	View      *visibility.View
+	Ref       ids.ObjectRef
+	ReadLease SourceReadLease
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
 	StoredRef      ids.ObjectRef
@@ -235,6 +236,8 @@ func (s *Source) VersionAt(i int) storage.RowVersion {
 }
 
 func (s *Source) Close() {
+	s.finishReadLeases()
+	s.ReadLease = nil
 	s.RLS = nil // The statement, not this borrowed occurrence, owns the program.
 	s.PGSequences = nil
 	sources := s.Sources
@@ -406,6 +409,8 @@ type Stage struct {
 	Closed             bool
 	observations       []*stageObservation
 	projection         *stageObservation
+	readSegments       []bool // Per-opened-stage activation, unchanged by rewind.
+	readSource         bool   // Pending ordinary read, or reached-segment tracking for a hierarchy.
 	Produce            func(context.Context, *Stage) (bool, error)
 	Finish             func() error
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
@@ -552,6 +557,7 @@ func (s *Stage) release() {
 	s.Permutation = nil
 	s.OrderValues = nil
 	s.CacheOccurrences = nil
+	s.readSegments = nil
 	s.Pending = nil
 	s.Evaluation = Context{}
 }
@@ -1431,6 +1437,17 @@ func querySourceRetains(source, target *Source) bool {
 }
 
 func openRelationSource(ctx context.Context, state *State, n *plan.SourceNode) (Stage, error) {
+	child, err := initializeRelationSource(ctx, state, n)
+	if err != nil {
+		return Stage{}, err
+	}
+	child.beginRead()
+	return child, nil
+}
+
+// Initialization retains ordinary dispatch, identity and security setup without
+// treating an unconsumed sampled source as a storage read.
+func initializeRelationSource(ctx context.Context, state *State, n *plan.SourceNode) (Stage, error) {
 	source := state.Source
 	if source != nil && source.Sources != nil {
 		if n.Occurrence < 0 || n.Occurrence >= len(source.Sources) {
@@ -1465,9 +1482,12 @@ func openRelationSource(ctx context.Context, state *State, n *plan.SourceNode) (
 			return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
 	}
-	child := Stage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
+	child := Stage{Source: source, Columns: n.Schema(), readSource: true, scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
 	if source.RLS != nil {
-		return openRowSecurityStage(ctx, state, child), nil
+		child = openRowSecurityStage(ctx, state, child)
+		// The wrapper retains the same physical source. Hierarchy activation
+		// stays with its inner stage's reached-segment flags.
+		child.readSource = source.Inheritance == nil
 	}
 	return child, nil
 }

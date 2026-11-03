@@ -52,6 +52,7 @@ func openForeignHierarchy(ctx context.Context, state *State, source *Source, nod
 						return false, err
 					}
 				} else {
+					out.readSegment(position)
 					child = Stage{Source: segment.Prefix, Columns: segment.Leaf.Relation.Columns}
 				}
 				width := len(segment.Leaf.Relation.Columns)

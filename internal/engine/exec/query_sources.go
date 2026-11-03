@@ -300,6 +300,7 @@ type CapturedHashIndex struct {
 	Definition *catalog.IndexDefinition
 	Root       *storage.HashRoot
 	Usage      sqltype.Usage
+	ReadLease  SourceReadLease
 }
 
 // This state is consumed by the real filter producer, not exported telemetry.
@@ -367,6 +368,9 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 		selection := &candidateSelection{Root: capture.Root, Occurrences: []int{}}
 		if value.IsNull() {
 			return selection, ctx.Err()
+		}
+		if capture.ReadLease != nil {
+			capture.ReadLease.Open()
 		}
 		h, err := capture.Root.Binding.Provider.Hash(ctx, value)
 		if err != nil {

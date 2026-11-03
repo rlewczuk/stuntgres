@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 )
 
 func TestForeignActionsExclusionCompletion(t *testing.T) {
@@ -65,13 +66,16 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			baseline := testing.AllocsPerRun(20, func() { complete(control, false) })
-			retained := testing.AllocsPerRun(20, func() { complete(deferred, true) })
+			// Follow docs/TESTING.md#allocation-checks: minimum-of-three fixed
+			// batches exclude sampled runtime type-assertion cache allocations
+			// without changing this whole-completion relative allocation budget.
+			baseline, _ := util.AllocationsPerCall(20, func() { complete(control, false) })
+			retained, _ := util.AllocationsPerCall(20, func() { complete(deferred, true) })
 			// The checker needs one remaining-event vector for the one incumbent
 			// deferred pass. Whole real completion otherwise has the same statement,
 			// private relation inventory and no action-created exclusion demand.
 			if retained > baseline+1 {
-				t.Errorf("retained deferred completion allocations %.0f exceed control %.0f plus one incumbent event vector", retained, baseline)
+				t.Errorf("retained deferred completion allocations %d exceed control %d plus one incumbent event vector", retained, baseline)
 			}
 			op, err := deferred.Acquire(context.Background())
 			if err != nil {

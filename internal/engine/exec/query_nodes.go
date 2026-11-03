@@ -304,6 +304,9 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, s.fail(err)
 	}
+	if i < s.Count() {
+		s.readOrdinal(s.Index(i))
+	}
 	return i < s.Count(), nil
 }
 
@@ -345,6 +348,7 @@ func (s *Stage) Drain(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return s.fail(err)
 		}
+		s.drainReadLeases()
 		s.observeDrained(s.Count())
 		return nil
 	}

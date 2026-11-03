@@ -525,6 +525,15 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 				return invalid()
 			}
 		}
+	case StockPgBuffercache:
+		count = 1
+		if ext.Provider != "pg_buffercache" || ext.Version != "1.6" || slot != 0 {
+			return invalid()
+		}
+		name, signature, result, volatility, strict = "pg_buffercache_pages", "", 2249, expr.Volatile, false
+		if p.Installed != pgBuffercacheDeclaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_buffercache", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.DeclarationBody != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgFreespace:
 		count = 2
 		if ext.Provider != "pg_freespacemap" || ext.Version != "1.3" || slot >= count {

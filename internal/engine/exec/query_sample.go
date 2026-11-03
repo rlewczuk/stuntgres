@@ -30,7 +30,7 @@ func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Sta
 	if count < 0 {
 		return Stage{}, sqlError("2202H", "sample size must not be negative")
 	}
-	child, err := openRelationSource(ctx, state, n)
+	child, err := initializeRelationSource(ctx, state, n)
 	if err != nil {
 		return Stage{}, err
 	}
@@ -78,6 +78,13 @@ func selectSampleRows(ctx context.Context, out, child *Stage, count int64) error
 		out.Selection = []int{}
 		return ctx.Err()
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Positive sampling consumes the child; initialization and zero sampling
+	// do not. Empty sources remain ineligible, and hierarchy Drain reaches
+	// each physical segment through its existing stage-local frontier.
+	child.beginRead()
 	if err := child.Drain(ctx); err != nil {
 		return err
 	}

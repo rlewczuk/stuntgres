@@ -16,6 +16,7 @@ type CapturedBloomIndex struct {
 	Name       string
 	Definition *catalog.IndexDefinition
 	Root       *storage.IndexRoot
+	ReadLease  SourceReadLease
 }
 
 func bloomProbeKey(capture CapturedBloomIndex, probe plan.BloomProbe) int {
@@ -97,6 +98,9 @@ func bloomFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode
 		}
 		if !constrained {
 			return nil, nil
+		}
+		if len(root.Entries) != 0 && capture.ReadLease != nil {
+			capture.ReadLease.Open()
 		}
 		for i, signed := range root.Entries {
 			if err := ctx.Err(); err != nil {

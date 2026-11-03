@@ -524,6 +524,17 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.InstalledPgBuffercacheExpr:
+		if err := ValidateInstalledPgBuffercache(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored pg_buffercache namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), nil)
 	case plan.InstalledDblinkGetPkeyExpr:
 		if err := ValidateInstalledDblinkGetPkey(n, view); err != nil {
 			return "", err

@@ -75,6 +75,45 @@ func AuthorizeSource(a access.View, env RelationAdmission, ref ids.ObjectRef, de
 	return nil
 }
 
+// The named view's read boundary precedes initialization of its executable
+// functions. This does not replace the final, refreshed executor ACL check.
+// Routine authority remains the invoker's; only relation access follows an
+// enclosing stored view's definer/security_invoker policy.
+func authorizePreflightViewRead(c *exec.Context, node *plan.SourceNode, relation *catalog.Relation, columns []int) error {
+	auth, _, err := exec.RoutineAdmissionAuthority(c)
+	if err != nil || !auth.Live() {
+		return err
+	}
+	use := node.Ref
+	if parent := c.RoutineConsumer; parent != nil && parent.RelationKind == catalog.ViewRelation {
+		definition := stored.ViewOf(parent)
+		if definition == nil {
+			return ids.ErrCatalogReplaced
+		}
+		use, err = stored.ViewUseReference(auth.Catalog, parent, use)
+		if err != nil {
+			return err
+		}
+		if !definition.Invoker() {
+			auth.State.CurrentUser = parent.Owner
+		}
+	}
+	// QuerySourceReadUses uses nil for full projection. CheckColumns instead
+	// uses both nil and empty for any-column permission (e.g. count(*)).
+	var local [16]int
+	if columns == nil {
+		if len(relation.Columns) <= len(local) {
+			columns = local[:len(relation.Columns)]
+		} else {
+			columns = make([]int, len(relation.Columns))
+		}
+		for i := range columns {
+			columns[i] = i
+		}
+	}
+	return auth.View.CheckColumns(auth.Env, use, relation, authorization.SelectPrivilege, columns)
+}
+
 // CheckRowMarks validates d's read graph, then checks the stored and
 // inherited row marks of its sources under each view's owner or invoker.
 func CheckRowMarks(a access.View, env access.Environment, d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {

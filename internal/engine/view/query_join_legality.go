@@ -349,6 +349,12 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			if err != nil {
 				return err
 			}
+			// Static preparation still precedes executor ACLs. Before admitting
+			// invoker routines in the view, admit this named relation under its
+			// enclosing relation actor, not under the new view's owner.
+			if err := authorizePreflightViewRead(c, n, d, outputUses); err != nil {
+				return err
+			}
 			return ValidateMarkedQueryJoin(&child, root, view, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
