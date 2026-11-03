@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // ActivatePgTrgmLocked is the reached C-initialization boundary. Engine.Mu is
@@ -70,4 +71,39 @@ func (h *statementHost) PgTrgmThreshold(name string) (float64, error) {
 		return 0, err
 	}
 	return owner.PgTrgmThresholdLocked(e.Settings, name)
+}
+
+// PgTrgmSetLimit is the released float4-output/session-SET path. The demanded
+// operand has finished before entry; capture precision from its live owner,
+// never from the statement's admitted presentation snapshot.
+func (h *statementHost) PgTrgmSetLimit(value sqltype.Value) (float64, error) {
+	scope := h.scope()
+	op, e := scope.Op, scope.Engine()
+	e.Mu.Lock()
+	if _, err := scope.RoutineAuthorizationLocked(); err != nil {
+		e.Mu.Unlock()
+		return 0, err
+	}
+	owner := op.EffectiveSettings()
+	owner.Mu.Lock()
+	op.Session.Mu.Lock()
+	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.Mu.Unlock() }
+	if err := owner.AdmitLocked(DomainOf(e), op); err != nil {
+		unlock()
+		return 0, err
+	}
+	definition, err := owner.LookupDefinition(e.Settings, "pg_trgm.similarity_threshold", true)
+	unlock()
+	if err != nil {
+		return 0, err
+	}
+	_, output := owner.Presentation()
+	text, err := value.Type().OutputWithEnvironment(scope.executionContext(), value, output)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := e.applySetting(scope.executionContext(), op, owner, definition, &text, session.SettingSet, definition.Name); err != nil {
+		return 0, err
+	}
+	return h.PgTrgmThreshold(definition.Name)
 }

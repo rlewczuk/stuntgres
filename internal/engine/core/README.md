@@ -907,9 +907,19 @@ extension script and actual routine fold/residual initialization. Activation
 locks Engine, physical SettingsStore, any distinct effective store, then Session;
 the settings owner promotes active physical and detached images once. Returned
 warnings enter the ordinary operation notice buffer outside settings/session
-locks. A skipped CREATE or analysis alone never loads the overlay. Threshold
+locks. The script reaches activation after its first setter declaration passes
+the duplicate-name check; a duplicate setter, skipped CREATE or analysis alone
+never loads the overlay. Getter and later declaration collisions cannot undo
+physical loading when the catalog stage rolls back. Threshold
 evaluation takes Engine, effective SettingsStore, then Session, validates the
-current invocation and reads the typed REAL definition without implicit loading.
+current invocation and reads the typed threshold without implicit loading.
+The getter rounds that typed value to the expression-owned REAL descriptor.
+The setter resolves the existing definition under the same lock order, releases
+publication locks, and captures the effective owner's live `Presentation` after
+the demanded REAL child. Its descriptor's float4 output feeds ordinary
+`applySetting` with `SettingSet`; parsing, access, cancellation, restricted and
+parallel guards, journal publication and invocation refresh remain shared with
+SET. The result re-reads the effective typed value, never the returned SHOW text.
 Catalog replacement, extension removal, rollback and DISCARD do not unload a
 physical session or reset its threshold values.
 

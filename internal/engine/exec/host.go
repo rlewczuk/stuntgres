@@ -82,6 +82,7 @@ type Host interface {
 	// Reached pg_trgm C initialization and live typed effective thresholds.
 	InitializePgTrgm() error
 	PgTrgmThreshold(string) (float64, error)
+	PgTrgmSetLimit(sqltype.Value) (float64, error)
 	// functions.AdvisoryRuntime and functions.BlockingRuntime
 	Advisory(c *Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)

@@ -98,7 +98,7 @@ func TestPgTrgmStoredRemap(t *testing.T) {
 	}
 	for i, node := range project.Expressions {
 		next, old := pgTrgmOwnerCall(t, node), original[i]
-		if next.Ref != reference(old.Ref) || next.Ref.Address == old.Ref.Address || next.Ref.Domain() != tv.Owner().Domain || next.Formal != types(old.Formal) || next.Formal == old.Formal || next.Usage.Type != types(old.Usage.Type) || next.Usage.Type == old.Usage.Type || next.Member != old.Member || next.Source != old.Source || next.Occurrence != old.Occurrence || next.Properties() != old.Properties() {
+		if next.Ref != reference(old.Ref) || next.Ref.Address == old.Ref.Address || next.Ref.Domain() != tv.Owner().Domain || next.Formal != types(old.Formal) || old.Formal != nil && next.Formal == old.Formal || next.Usage.Type != types(old.Usage.Type) || next.Usage.Type == old.Usage.Type || next.Member != old.Member || next.Source != old.Source || next.Occurrence != old.Occurrence || next.Properties() != old.Properties() {
 			t.Fatal("remap lost destination generations, immutable slot or original source occurrence")
 		}
 		for j, arg := range next.Args {
@@ -123,7 +123,7 @@ func TestPgTrgmStoredRemap(t *testing.T) {
 			t.Fatal("authorized remap mutated immutable source graph")
 		}
 	}
-	for _, cause := range []string{"membership_order", "source_symbol", "current_signature", "operator_backer", "result_generation", "source_domain"} {
+	for _, cause := range []string{"membership_order", "source_symbol", "current_signature", "operator_backer", "result_generation", "setter_parallel", "getter_signature", "real_generation", "source_domain"} {
 		t.Run(cause, func(t *testing.T) {
 			candidate := catalog.CloneState(tv.State())
 			mapType, mapRef := types, reference
@@ -150,6 +150,23 @@ func TestPgTrgmStoredRemap(t *testing.T) {
 				foreign := *actual
 				mapType = func(d *sqltype.Descriptor) *sqltype.Descriptor {
 					if d != nil && d.ID() == 1009 {
+						return &foreign
+					}
+					return types(d)
+				}
+			case "setter_parallel":
+				p := *tv.MustProcedure(te.Installation.Members[14])
+				p.Installed.Parallel = 's'
+				candidate.SetDescriptor(p.Address(), &p)
+			case "getter_signature":
+				p := *tv.MustProcedure(te.Installation.Members[15])
+				p.Signature = "700"
+				candidate.SetDescriptor(p.Address(), &p)
+			case "real_generation":
+				actual, _ := tv.LookupType(sqltype.Float4)
+				foreign := *actual
+				mapType = func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					if d != nil && d.ID() == sqltype.Float4 {
 						return &foreign
 					}
 					return types(d)

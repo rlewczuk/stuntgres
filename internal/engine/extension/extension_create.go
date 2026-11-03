@@ -212,15 +212,6 @@ func (i *statementInstaller) install(name string, implementation catalog.Extensi
 	if err := i.stage.Create(ext); err != nil {
 		return err
 	}
-	if implementation == StockPgTrgm {
-		loader, ok := i.host.(interface{ ActivatePgTrgm() error })
-		if !ok {
-			return fmt.Errorf("stuntgres: pg_trgm script lacks initialization authority")
-		}
-		if err := loader.ActivatePgTrgm(); err != nil {
-			return err
-		}
-	}
 	if err := installer.Stage(i.stage, ext, memberOwner); err != nil {
 		return err
 	}

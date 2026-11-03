@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/sqltype"
 )
 
 var _ functions.PgTrgmRuntime = (*Context)(nil)
@@ -22,4 +23,12 @@ func (c *Context) PgTrgmThreshold(name string) (float64, error) {
 		return 0, fmt.Errorf("stuntgres: pg_trgm threshold lacks statement authority")
 	}
 	return host.PgTrgmThreshold(name)
+}
+
+func (c *Context) PgTrgmSetLimit(value sqltype.Value) (float64, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return 0, fmt.Errorf("stuntgres: pg_trgm setter lacks statement authority")
+	}
+	return host.PgTrgmSetLimit(value)
 }

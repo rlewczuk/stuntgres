@@ -21,6 +21,12 @@ func TestReferencePgTrgmBinding(t *testing.T) {
 						args += ",$2"
 						literal += ",'cat'"
 					}
+					if d.inputs == "real" {
+						args, literal = "$1::real", "0.25::real"
+					}
+					if d.arity == 0 {
+						args, literal = "", ""
+					}
 					q := "SELECT " + d.name + "(" + args + ")"
 					typ := "FLOAT4"
 					var want any = float64(1)
@@ -33,6 +39,10 @@ func TestReferencePgTrgmBinding(t *testing.T) {
 					if d.result == "real" && d.name != "similarity" && d.name != "word_similarity" && d.name != "strict_word_similarity" {
 						want = float64(0)
 					}
+					if d.name == "set_limit" || d.name == "show_limit" {
+						run(fixture.Exec("SET pg_trgm.similarity_threshold='0.25'", 0))
+						want = float64(0.25)
+					}
 					stmt, err := c.PrepareContext(p.Ctx, q)
 					if err != nil {
 						t.Fatal(err)
@@ -42,6 +52,12 @@ func TestReferencePgTrgmBinding(t *testing.T) {
 					frames := [][]any{{"cat"}, {nil}}
 					if d.arity == 2 {
 						frames = [][]any{{"cat", "cat"}, {nil, "cat"}, {"cat", nil}, {nil, nil}, {"cat", "cat"}}
+					}
+					if d.inputs == "real" {
+						frames = [][]any{{"0.25"}, {nil}, {"0.25"}}
+					}
+					if d.arity == 0 {
+						frames = [][]any{{}, {}}
 					}
 					for _, frame := range frames {
 						v := want
@@ -56,14 +72,20 @@ func TestReferencePgTrgmBinding(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 					}
 					run(pgTrgmScalar(b, "SELECT "+d.name+"("+literal+")", d.name, typ, want))
-					nullArgs := "NULL::text"
-					if d.arity == 2 {
-						nullArgs += ",'cat'::text"
+					if d.arity != 0 {
+						nullArgs := "NULL::text"
+						if d.inputs == "real" {
+							nullArgs = "NULL::real"
+						}
+						if d.arity == 2 {
+							nullArgs += ",'cat'::text"
+						}
+						run(pgTrgmScalar(b, "SELECT "+d.name+"("+nullArgs+")", d.name, typ, nil))
+						// STRICT scalar sources return one typed NULL, not zero SRF rows.
+						run(pgTrgmScalar(b, "SELECT * FROM "+d.name+"("+nullArgs+")", d.name, typ, nil))
+					} else {
+						run(pgTrgmScalar(b, "SELECT * FROM "+d.name+"()", d.name, typ, want))
 					}
-					run(pgTrgmScalar(b, "SELECT "+d.name+"("+nullArgs+")", d.name, typ, nil))
-					// Every selected routine is scalar, even in a FROM source, and
-					// returns exactly one typed NULL row rather than zero SRF rows.
-					run(pgTrgmScalar(b, "SELECT * FROM "+d.name+"("+nullArgs+")", d.name, typ, nil))
 					run(pgTrgmSelect(b, "SELECT "+d.name+"("+literal+") WHERE false", []string{d.name}, []string{typ}, nil))
 					run(fixture.Prepared(pgTrgmSelect(b, "SELECT "+d.name+"("+literal+") WHERE false", []string{d.name}, []string{typ}, nil)))
 				})

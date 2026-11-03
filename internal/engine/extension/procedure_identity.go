@@ -183,7 +183,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 		member := functions.PgTrgmMembers[slot]
 		name, signature, result, volatility = member.Name, catalog.ProcedureSignature(member.Signature), member.Result, member.Volatility
-		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_trgm", HasBinary: true}) {
+		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: member.Parallel}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_trgm", HasBinary: true}) {
 			return invalid()
 		}
 	case StockFuzzystrmatch:

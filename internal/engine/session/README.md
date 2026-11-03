@@ -279,6 +279,10 @@ slots into installed storage.
   order; `EffectiveSettingNamesLocked` materializes that same union, including
   crypto-only activation, without duplicates or placeholder definitions.
   `PgTrgmThresholdLocked` reads typed numbers and never activates the library.
+  The threshold API setter reaches ordinary `ApplyLocked` with `SettingSet`,
+  sharing session/local/savepoint restoration rather than writing an override
+  directly. Its live `Presentation` capture happens after operand evaluation
+  and outside Engine/settings/Session publication locks.
   Marks retain their original immutable reset image and journal tails. Raw
   checkpoint copies preserve invocation ancestry; only a new active invocation
   adds its source as a parent. `SettingsMark.Clone` and

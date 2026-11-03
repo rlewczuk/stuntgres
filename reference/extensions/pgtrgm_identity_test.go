@@ -44,6 +44,9 @@ func pgTrgmStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn)
 		trgm_addon.strict_word_similarity_dist_commutator_op('word',distance_input) AS backing_strict_reverse
 		FROM trgm_source`, 0))
 	run(fixture.Exec("CREATE VIEW trgm_literals AS SELECT trgm_addon.show_trgm('cat') AS a,trgm_addon.word_similarity('a','aa') AS w,trgm_addon.strict_word_similarity('a','aa') AS s,'word' OPERATOR(trgm_addon.<<->) 'two words' AS d,'word' OPERATOR(trgm_addon.<->>>) 'two words' AS r", 0))
+	run(fixture.Exec("CREATE VIEW trgm_threshold_getter AS SELECT trgm_addon.show_limit() AS threshold", 0))
+	run(fixture.Exec("CREATE VIEW trgm_threshold_setter AS SELECT trgm_addon.set_limit(0.25::real) AS threshold", 0))
+	run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_getter", pgTrgmFloat(b.PG, .3)))
 	check := fixture.Select(`SELECT id,v,score,trigrams,ordinary,word_score,strict_score,actual,fresh,matches,
 		distance_input,distance_default,distance_ordinary,distance_word,distance_word_reverse,distance_strict,distance_strict_reverse,
 		backing_ordinary,backing_word,backing_word_reverse,backing_strict,backing_strict_reverse FROM trgm_values ORDER BY id`,
@@ -52,10 +55,10 @@ func pgTrgmStored(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn)
 			"backing_ordinary", "backing_word", "backing_word_reverse", "backing_strict", "backing_strict_reverse"},
 		[]string{"INT4", "TEXT", "FLOAT4", "_TEXT", "FLOAT4", "FLOAT4", "FLOAT4", "_TEXT", "FLOAT4", "BOOL",
 			"TEXT", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"}, [][]any{
-		{int64(1), "cat", float64(0.25), pgTrgmArray("  c", " ca", "at ", "cat"), float64(1), float64(1), float64(1), pgTrgmArray("  c", " ca", "at ", "cat"), float64(1), true},
-		{int64(2), "dog", float64(0.25), pgTrgmArray("  d", " do", "dog", "og "), float64(0), float64(0), float64(0), pgTrgmArray("  d", " do", "dog", "og "), float64(0), false},
-		{int64(3), nil, float64(0.25), nil, nil, nil, nil, nil, nil, nil},
-	})
+			{int64(1), "cat", float64(0.25), pgTrgmArray("  c", " ca", "at ", "cat"), float64(1), float64(1), float64(1), pgTrgmArray("  c", " ca", "at ", "cat"), float64(1), true},
+			{int64(2), "dog", float64(0.25), pgTrgmArray("  d", " do", "dog", "og "), float64(0), float64(0), float64(0), pgTrgmArray("  d", " do", "dog", "og "), float64(0), false},
+			{int64(3), nil, float64(0.25), nil, nil, nil, nil, nil, nil, nil},
+		})
 	for i := range check.Rows {
 		var input any = "two words"
 		distances := pgTrgmDistanceValues(b)
@@ -129,6 +132,59 @@ func TestReferencePgTrgmIdentityControls(t *testing.T) {
 			run(fixture.Exec("ALTER EXTENSION pg_trgm ADD FUNCTION trgm_moved.original_similarity(text,text)", 0))
 			run(fixture.Exec("ALTER FUNCTION trgm_moved.original_similarity(text,text) SET SCHEMA trgm_addon", 0))
 			run(fixture.Exec("ALTER FUNCTION trgm_addon.original_similarity(text,text) RENAME TO similarity", 0))
+			for _, api := range []struct{ name, inputs, args, view string }{
+				{"set_limit", "real", "$1::real", "trgm_threshold_setter"},
+				{"show_limit", "", "", "trgm_threshold_getter"},
+			} {
+				t.Run(api.name, func(t *testing.T) {
+					run := pgTrgmRun(t, p, b, c)
+					query := "SELECT trgm_addon." + api.name + "(" + api.args + ") AS threshold"
+					stmt, err := c.PrepareContext(p.Ctx, query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: query}
+					var args []any
+					if api.inputs != "" {
+						args = []any{float64(.25)}
+					}
+					run(pgTrgmScalar(b, "SELECT trgm_addon.set_limit(0.25::real)", "set_limit", "FLOAT4", float64(.25)))
+					frame := pgTrgmScalar(b, query, "threshold", "FLOAT4", float64(.25), args...)
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+					original := "original_" + api.name
+					run(fixture.Exec("ALTER FUNCTION trgm_addon."+api.name+"("+api.inputs+") RENAME TO "+original, 0))
+					run(fixture.Exec("ALTER FUNCTION trgm_addon."+original+"("+api.inputs+") SET SCHEMA trgm_moved", 0))
+					run(fixture.Exec("ALTER EXTENSION pg_trgm DROP FUNCTION trgm_moved."+original+"("+api.inputs+")", 0))
+					run(fixture.Select("SELECT count(*) FROM pg_depend WHERE classid=1255 AND objid=$1::regprocedure::oid AND refclassid=3079 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, "trgm_moved."+original+"("+api.inputs+")"))
+					run(fixture.Exec("CREATE FUNCTION trgm_addon."+api.name+"("+api.inputs+") RETURNS real LANGUAGE SQL AS 'SELECT 0.875::real'", 0))
+					shadow := frame
+					shadow.Rows = [][]any{{float64(.875)}}
+					run(shadow)
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, shadow)
+					run(pgTrgmThresholdView(b, "SELECT threshold FROM "+api.view, float64(.25)))
+					run(fixture.Prepared(pgTrgmThresholdView(b, "SELECT threshold FROM "+api.view, float64(.25))))
+					// A same-name SQL shadow returning .875 does not mutate the
+					// typed threshold; the stored genuine setter still installs .25.
+					pgTrgmSettingValue(run, pgTrgmSettings[0].name, "0.25")
+					literal := ""
+					if api.inputs != "" {
+						literal = "0.5::real"
+					}
+					want := float64(.25)
+					if api.inputs != "" {
+						want = .5
+					}
+					run(pgTrgmScalar(b, "SELECT trgm_moved."+original+"("+literal+") AS threshold", "threshold", "FLOAT4", want))
+					run(fixture.Exec("DROP FUNCTION trgm_addon."+api.name+"("+api.inputs+")", 0))
+					run(fixture.Exec("ALTER EXTENSION pg_trgm ADD FUNCTION trgm_moved."+original+"("+api.inputs+")", 0))
+					run(fixture.Exec("ALTER FUNCTION trgm_moved."+original+"("+api.inputs+") SET SCHEMA trgm_addon", 0))
+					run(fixture.Exec("ALTER FUNCTION trgm_addon."+original+"("+api.inputs+") RENAME TO "+api.name, 0))
+					run(pgTrgmScalar(b, "SELECT trgm_addon.set_limit(0.25::real)", "set_limit", "FLOAT4", float64(.25)))
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
+				})
+			}
+			run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 			distances := pgTrgmDistanceValues(b)
 			distanceIndex := 0
 			for _, op := range pgTrgmOperators {
@@ -190,6 +246,10 @@ func TestReferencePgTrgmIdentityControls(t *testing.T) {
 			run(fixture.Exec("ALTER EXTENSION pg_trgm SET SCHEMA trgm_moved", 0))
 			run(check)
 			run(pgTrgmScalar(b, "SELECT trgm_moved.similarity('a','aa')", "similarity", "FLOAT4", float64(0.25)))
+			run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_setter", float64(.25)))
+			run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_getter", float64(.25)))
+			run(pgTrgmScalar(b, "SELECT trgm_moved.show_limit()", "show_limit", "FLOAT4", float64(.25)))
+			run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 			run(fixture.Exec("SET pg_trgm.similarity_threshold=0", 0))
 			live := check
 			live.Rows = [][]any{append([]any(nil), check.Rows[0]...), append([]any(nil), check.Rows[1]...), append([]any(nil), check.Rows[2]...)}

@@ -25,15 +25,28 @@ func TestReferencePgTrgmDiagnostics(t *testing.T) {
 					args += ",'cat'"
 					types += ", unknown"
 				}
+				if d.inputs == "real" {
+					args, types = "0.25::real", "real"
+				}
+				if d.arity == 0 {
+					args, types = "", ""
+				}
 				fail(extensionMissing("SELECT "+d.name+"("+args+")", d.name, types))
 			}
 			run(fixture.Exec("CREATE EXTENSION pg_trgm", 0))
 			for _, d := range pgTrgmDeclarations {
-				fail(extensionMissing("SELECT "+d.name+"()", d.name, ""))
+				if d.arity == 0 {
+					fail(extensionMissing("SELECT "+d.name+"(1)", d.name, "integer"))
+				} else {
+					fail(extensionMissing("SELECT "+d.name+"()", d.name, ""))
+				}
 				args, types := "1", "integer"
 				if d.arity == 2 {
 					args += ",'cat'"
 					types += ", unknown"
+				}
+				if d.inputs == "real" || d.arity == 0 {
+					args, types = "true", "boolean"
 				}
 				fail(extensionMissing("SELECT "+d.name+"("+args+")", d.name, types))
 				named, signature := "value => 'cat'", "value => unknown"
@@ -41,17 +54,31 @@ func TestReferencePgTrgmDiagnostics(t *testing.T) {
 					named += " ,target => 'cat'"
 					signature += ", target => unknown"
 				}
+				if d.inputs == "real" {
+					named, signature = "value => 0.25::real", "value => real"
+				}
 				fail(extensionMissing("SELECT "+d.name+"("+named+")", d.name, signature))
 				args = "'cat'"
 				if d.arity == 2 {
 					args += ",'cat'"
 				}
-				for _, tc := range []struct{ suffix, decoration, kind string }{
-					{"(DISTINCT " + args + ")", "DISTINCT", "an aggregate function"},
-					{"(" + args + " ORDER BY 'cat')", "ORDER BY", "an aggregate function"},
+				if d.inputs == "real" {
+					args = "0.25::real"
+				}
+				if d.arity == 0 {
+					args = ""
+				}
+				decorations := []struct{ suffix, decoration, kind string }{
 					{"(" + args + ") FILTER (WHERE true)", "FILTER", "an aggregate function"},
 					{"(" + args + ") OVER ()", "OVER", "a window function nor an aggregate function"},
-				} {
+				}
+				if d.arity != 0 {
+					decorations = append(decorations,
+						struct{ suffix, decoration, kind string }{"(DISTINCT " + args + ")", "DISTINCT", "an aggregate function"},
+						struct{ suffix, decoration, kind string }{"(" + args + " ORDER BY 'cat')", "ORDER BY", "an aggregate function"},
+					)
+				}
+				for _, tc := range decorations {
 					fail(pgTrgmFailure("SELECT "+d.name+tc.suffix, fixture.Diagnostic{
 						Code: "42809", Message: tc.decoration + " specified, but " + d.name + " is not " + tc.kind, Position: "8",
 					}))

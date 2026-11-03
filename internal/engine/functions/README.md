@@ -762,10 +762,11 @@ routine declaration supplies signature, namespace, strictness and volatility;
 and explicitness arguments remain evaluated operands. Rebuild, capture, grouping
 and rendering preserve the selected call rather than reinterpreting it as a
 typename shortcut. No procedure becomes callable from type-catalog presence alone.
-`PgTrgm` retains the selected TEXT formal, exact result generation, routine
-reference and immutable member slot for four functions and ten operator backers.
-Capture, reconstruction, grouping and qualified replay preserve both ordered
-operands; no physical session, scratch or threshold value enters the recipe.
+`PgTrgm` retains the selected TEXT or REAL formal (nil for the zero-argument
+getter), exact result generation, routine reference and immutable member slot for
+six functions and ten operator backers. Capture, reconstruction, grouping and
+qualified replay preserve ordered operands without inventing a getter operand;
+no physical session, scratch or threshold value enters the recipe.
 The C/UTF8 kernel classifies ASCII letters/digits, lowercases ASCII and packs
 two-left/one-right padded trigrams. Distinct-set similarity divides in float4;
 word kernels scan positional extents without repadding, with whole-word edges
@@ -778,7 +779,10 @@ widened float4 score inclusively. Word predicates reuse the positional scan in
 check-only mode, returning at the first qualifying extent with legal boundaries;
 extraction and cancellation remain invocation-local. Common routine admission
 owns physical initialization before surviving operands, not the non-NULL kernel.
-All fourteen declarations also use explicit scalar-once source admission:
+The STABLE getter reads the executing typed threshold. The VOLATILE setter
+demands its REAL child once, preserves strict NULL without assignment, and uses
+the live host's float4-output/session-SET path, returning the effective REAL.
+Neither API admits constant folding. All sixteen declarations use explicit scalar-once source admission:
 `OpenSource` evaluates once into the shared `expr.ScalarSource` cursor, emitting
 one row even for strict NULL or an empty TEXT array. The cursor retains only its
 typed datum; common source admission still owns routine initialization and access.

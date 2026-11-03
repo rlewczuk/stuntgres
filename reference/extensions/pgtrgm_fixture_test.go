@@ -89,6 +89,10 @@ func pgTrgmDistanceFrame(b fixture.Backend) fixture.Step {
 }
 
 func pgTrgmSelect(b fixture.Backend, q string, names, types []string, values [][]any, args ...any) fixture.Step {
+	return pgTrgmSelectNullability(b, q, names, types, values, false, false, args...)
+}
+
+func pgTrgmSelectNullability(b fixture.Backend, q string, names, types []string, values [][]any, wantNullable, wantKnown bool, args ...any) fixture.Step {
 	s := fixture.Select(q, names, types, values, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		t.Helper()
@@ -118,8 +122,8 @@ func pgTrgmSelect(b fixture.Backend, q string, names, types []string, values [][
 			if want != nil && c.ScanType() != want {
 				t.Fatalf("%s ScanType=%v want %v", c.Name(), c.ScanType(), want)
 			}
-			if nullable, known := c.Nullable(); known || nullable {
-				t.Fatalf("computed %s nullability=(%v,%v), want unknown", c.Name(), nullable, known)
+			if nullable, known := c.Nullable(); known != wantKnown || nullable != wantNullable {
+				t.Fatalf("%s nullability=(%v,%v), want (%v,%v)", c.Name(), nullable, known, wantNullable, wantKnown)
 			}
 			if _, known := c.Length(); known {
 				t.Fatalf("computed %s unexpected length", c.Name())
@@ -134,6 +138,12 @@ func pgTrgmSelect(b fixture.Backend, q string, names, types []string, values [][
 
 func pgTrgmScalar(b fixture.Backend, q, name, typ string, value any, args ...any) fixture.Step {
 	return pgTrgmSelect(b, q, []string{name}, []string{typ}, [][]any{{value}}, args...)
+}
+
+// Stored view columns expose known nullable metadata natively; lib/pq leaves
+// nullability unknown. Keep the remaining raw type/scan assertions shared.
+func pgTrgmThresholdView(b fixture.Backend, q string, value any) fixture.Step {
+	return pgTrgmSelectNullability(b, q, []string{"threshold"}, []string{"FLOAT4"}, [][]any{{value}}, !b.PG, !b.PG)
 }
 
 func pgTrgmArray(elements ...string) string {

@@ -8,6 +8,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+type pgTrgmOperation uint8
+
+const (
+	pgTrgmScoreOperation pgTrgmOperation = iota
+	pgTrgmSetLimit
+	pgTrgmShowLimit
+)
+
 // PgTrgmMembers is the bounded released callable inventory. Its index is the
 // sealed installation slot, not a mutable SQL name or current membership index.
 var PgTrgmMembers = [...]struct {
@@ -19,21 +27,27 @@ var PgTrgmMembers = [...]struct {
 	Reverse    bool
 	Distance   bool
 	Threshold  string
+	Operation  pgTrgmOperation
+	Formal     sqltype.ID
+	Arity      int
+	Parallel   byte
 }{
-	{"show_trgm", "25", 1009, expr.Immutable, 0, false, false, ""},
-	{"similarity", "25,25", 700, expr.Immutable, 0, false, false, ""},
-	{"word_similarity", "25,25", 700, expr.Immutable, 1, false, false, ""},
-	{"strict_word_similarity", "25,25", 700, expr.Immutable, 2, false, false, ""},
-	{"similarity_op", "25,25", 16, expr.Stable, 0, false, false, "pg_trgm.similarity_threshold"},
-	{"word_similarity_op", "25,25", 16, expr.Stable, 1, false, false, "pg_trgm.word_similarity_threshold"},
-	{"word_similarity_commutator_op", "25,25", 16, expr.Stable, 1, true, false, "pg_trgm.word_similarity_threshold"},
-	{"strict_word_similarity_op", "25,25", 16, expr.Stable, 2, false, false, "pg_trgm.strict_word_similarity_threshold"},
-	{"strict_word_similarity_commutator_op", "25,25", 16, expr.Stable, 2, true, false, "pg_trgm.strict_word_similarity_threshold"},
-	{"similarity_dist", "25,25", 700, expr.Immutable, 0, false, true, ""},
-	{"word_similarity_dist_op", "25,25", 700, expr.Immutable, 1, false, true, ""},
-	{"word_similarity_dist_commutator_op", "25,25", 700, expr.Immutable, 1, true, true, ""},
-	{"strict_word_similarity_dist_op", "25,25", 700, expr.Immutable, 2, false, true, ""},
-	{"strict_word_similarity_dist_commutator_op", "25,25", 700, expr.Immutable, 2, true, true, ""},
+	{"show_trgm", "25", 1009, expr.Immutable, 0, false, false, "", pgTrgmScoreOperation, sqltype.Text, 1, 's'},
+	{"similarity", "25,25", 700, expr.Immutable, 0, false, false, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"word_similarity", "25,25", 700, expr.Immutable, 1, false, false, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"strict_word_similarity", "25,25", 700, expr.Immutable, 2, false, false, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"similarity_op", "25,25", 16, expr.Stable, 0, false, false, "pg_trgm.similarity_threshold", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"word_similarity_op", "25,25", 16, expr.Stable, 1, false, false, "pg_trgm.word_similarity_threshold", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"word_similarity_commutator_op", "25,25", 16, expr.Stable, 1, true, false, "pg_trgm.word_similarity_threshold", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"strict_word_similarity_op", "25,25", 16, expr.Stable, 2, false, false, "pg_trgm.strict_word_similarity_threshold", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"strict_word_similarity_commutator_op", "25,25", 16, expr.Stable, 2, true, false, "pg_trgm.strict_word_similarity_threshold", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"similarity_dist", "25,25", 700, expr.Immutable, 0, false, true, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"word_similarity_dist_op", "25,25", 700, expr.Immutable, 1, false, true, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"word_similarity_dist_commutator_op", "25,25", 700, expr.Immutable, 1, true, true, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"strict_word_similarity_dist_op", "25,25", 700, expr.Immutable, 2, false, true, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"strict_word_similarity_dist_commutator_op", "25,25", 700, expr.Immutable, 2, true, true, "", pgTrgmScoreOperation, sqltype.Text, 2, 's'},
+	{"set_limit", "700", 700, expr.Volatile, 0, false, false, "", pgTrgmSetLimit, sqltype.Float4, 1, 'u'},
+	{"show_limit", "", 700, expr.Stable, 0, false, false, "", pgTrgmShowLimit, 0, 0, 's'},
 }
 
 // PgTrgmProcedureName admits released spellings to catalog discovery only.
@@ -51,6 +65,7 @@ func PgTrgmProcedureName(name string) bool {
 // image. The recipe never retains settings, a session, or granted authority.
 type PgTrgmRuntime interface {
 	PgTrgmThreshold(string) (float64, error)
+	PgTrgmSetLimit(sqltype.Value) (float64, error)
 }
 
 // PgTrgm retains an immutable operation and the actual installed declaration.
@@ -65,18 +80,22 @@ type PgTrgm struct {
 }
 
 func (e PgTrgm) Validate() error {
-	if int(e.Member) >= len(PgTrgmMembers) || e.Formal == nil || e.Formal.ID() != sqltype.Text || e.Usage.Type == nil || e.RoutineReference == nil || e.Ref.Address.ClassID != ids.ProcedureClassID || e.Ref.Address.ObjectID == 0 || e.Ref.Address.SubID != 0 || e.Namespace == "" || e.Name == "" {
+	if int(e.Member) >= len(PgTrgmMembers) || e.Usage.Type == nil || e.RoutineReference == nil || e.Ref.Address.ClassID != ids.ProcedureClassID || e.Ref.Address.ObjectID == 0 || e.Ref.Address.SubID != 0 || e.Namespace == "" || e.Name == "" {
 		return fmt.Errorf("stuntgres: invalid installed pg_trgm call")
 	}
-	count := 2
-	if e.Member == 0 {
-		count = 1
-		if !e.Usage.Type.IsArray() || e.Usage.Type.Element() != e.Formal {
-			return fmt.Errorf("stuntgres: invalid pg_trgm array descriptor")
+	member := PgTrgmMembers[e.Member]
+	if member.Arity == 0 {
+		if e.Formal != nil {
+			return fmt.Errorf("stuntgres: invalid pg_trgm zero-argument formal")
 		}
+	} else if e.Formal == nil || e.Formal.ID() != member.Formal {
+		return fmt.Errorf("stuntgres: invalid pg_trgm formal")
 	}
-	if len(e.Args) != count || ids.OID(e.Usage.Type.ID()) != PgTrgmMembers[e.Member].Result {
+	if len(e.Args) != member.Arity || ids.OID(e.Usage.Type.ID()) != member.Result {
 		return fmt.Errorf("stuntgres: invalid pg_trgm signature")
+	}
+	if e.Member == 0 && (!e.Usage.Type.IsArray() || e.Usage.Type.Element() != e.Formal) {
+		return fmt.Errorf("stuntgres: invalid pg_trgm array descriptor")
 	}
 	for _, arg := range e.Args {
 		if arg == nil || arg.ResultUsage().Type != e.Formal {
@@ -98,9 +117,11 @@ func (e PgTrgm) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, err
 	return e.Rebuild(info, children)
 }
 func (e PgTrgm) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
-	formal := env.Type(e.Formal)
-	changed = changed || formal != e.Formal
-	e.Formal = formal
+	if e.Formal != nil {
+		formal := env.Type(e.Formal)
+		changed = changed || formal != e.Formal
+		e.Formal = formal
+	}
 	next, err := e.Rebuild(info, children)
 	return next, changed, err
 }
@@ -122,6 +143,23 @@ func (e PgTrgm) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
+	}
+	member := PgTrgmMembers[e.Member]
+	if member.Operation == pgTrgmSetLimit || member.Operation == pgTrgmShowLimit {
+		runtime, ok := c.(PgTrgmRuntime)
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: pg_trgm lacks live settings authority")
+		}
+		var threshold float64
+		if member.Operation == pgTrgmSetLimit {
+			threshold, err = runtime.PgTrgmSetLimit(values[0])
+		} else {
+			threshold, err = runtime.PgTrgmThreshold("pg_trgm.similarity_threshold")
+		}
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.Float(e.Usage.Type, float64(float32(threshold)))
 	}
 	left, err := values[0].Text()
 	if err != nil {
@@ -146,7 +184,6 @@ func (e PgTrgm) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	member := PgTrgmMembers[e.Member]
 	if member.Reverse {
 		left, right = right, left
 	}

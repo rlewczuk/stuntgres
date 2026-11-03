@@ -219,14 +219,15 @@ generation and frozen provider syntax; relabelled calls dispatch by checked
 provider identity rather than their original spelling.
 
 Installed pg_trgm binding authenticates the selected declaration and sealed
-member before ordinary TEXT coercion. All four functions and ten backing routines
-retain genuine dependencies, merged child volatility and frozen provider symbols;
-operators lower through the same selected call. There are no global function-name
+member before ordinary member-specific TEXT/REAL coercion. All six functions and
+ten backing routines retain genuine dependencies, merged child volatility and
+frozen provider symbols; the zero-argument getter has no formal or dummy child.
+Operators lower through the same selected call. There are no global function-name
 aliases. Analysis, Prepare and Describe do not initialize the physical library;
 actual immutable folding or residual executor admission owns that transition.
 Released-name discovery derives from the single bounded member table. Selected
-StockPgTrgm identity keeps ordinary callable selection and concrete TEXT coercion
-on that path, reusing analyzed operands; spelling alone grants no callable authority.
+StockPgTrgm identity keeps ordinary callable selection and concrete coercion on
+that path, reusing analyzed operands; spelling alone grants no callable authority.
 
 Installed pgstatindex calls enter shared catalog overload selection before
 provider binding, including the original released spelling on a fresh install.

@@ -38,8 +38,37 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	run(fixture.Exec("ALTER FUNCTION trgm_addon.show_trgm(text) RENAME TO original_trigrams", 0))
 	run(fixture.Exec("ALTER FUNCTION trgm_addon.original_trigrams(text) SET SCHEMA trgm_moved", 0))
 	run(fixture.Exec("ALTER EXTENSION pg_trgm DROP FUNCTION trgm_moved.original_trigrams(text)", 0))
+	for _, api := range []struct{ name, inputs string }{{"set_limit", "real"}, {"show_limit", ""}} {
+		original := "original_" + api.name
+		run(fixture.Exec("ALTER FUNCTION trgm_addon."+api.name+"("+api.inputs+") RENAME TO "+original, 0))
+		run(fixture.Exec("ALTER FUNCTION trgm_addon."+original+"("+api.inputs+") SET SCHEMA trgm_moved", 0))
+		run(fixture.Exec("ALTER EXTENSION pg_trgm DROP FUNCTION trgm_moved."+original+"("+api.inputs+")", 0))
+	}
+	getSQL := "SELECT trgm_moved.original_show_limit() AS threshold"
+	getStmt, err := c.PrepareContext(p.Ctx, getSQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer getStmt.Close()
+	getHeld := fixture.HeldStatement{Executor: c, Statement: getStmt, SQL: getSQL}
+	setSQL := "SELECT trgm_moved.original_set_limit($1::real) AS threshold"
+	setStmt, err := c.PrepareContext(p.Ctx, setSQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer setStmt.Close()
+	setHeld := fixture.HeldStatement{Executor: c, Statement: setStmt, SQL: setSQL}
+	threshold := func(want float32) {
+		t.Helper()
+		fixture.RunStep(t, p.Ctx, getHeld, b.Recorder, pgTrgmScalar(b, getSQL, "threshold", "FLOAT4", pgTrgmFloat(b.PG, want)))
+		run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_getter", pgTrgmFloat(b.PG, want)))
+	}
+	fixture.RunStep(t, p.Ctx, setHeld, b.Recorder, pgTrgmScalar(b, setSQL, "threshold", "FLOAT4", float64(.25), float64(.25)))
+	threshold(.25)
 	run(check)
 	dump := fixture.ExtensionDump(t, p.Ctx, p.Native)
+	run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
+	threshold(.3)
 	q := "SELECT trgm_addon.similarity($1,$2),$1::text OPERATOR(trgm_addon.%) $2::text AS matches"
 	stmt, err := c.PrepareContext(p.Ctx, q)
 	if err != nil {
@@ -80,6 +109,8 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	run(extensionMissing("SELECT similarity('cat','cat')", "similarity", "unknown, unknown"))
 	run(extensionMissing("SELECT similarity_dist('cat','cat')", "similarity_dist", "unknown, unknown"))
 	run(fixture.Select("SELECT count(*) FROM pg_proc WHERE proname IN ('similarity_dist','word_similarity_dist_op','word_similarity_dist_commutator_op','strict_word_similarity_dist_op','strict_word_similarity_dist_commutator_op')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+	run(extensionMissing("SELECT show_limit()", "show_limit", ""))
+	run(extensionMissing("SELECT set_limit(0.25::real)", "set_limit", "real"))
 	pgTrgmLoaded(run, true)
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump)); err != nil {
 		t.Fatal(err)
@@ -101,6 +132,13 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	}
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, frame)
 	checkDistances()
+	threshold(.3)
+	run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_setter", float64(.25)))
+	threshold(.25)
+	fixture.RunStep(t, p.Ctx, setHeld, b.Recorder, pgTrgmScalar(b, setSQL, "threshold", "FLOAT4", float64(.5), float64(.5)))
+	threshold(.5)
+	run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
+	threshold(.3)
 	run(check)
 	run(fixture.Prepared(check))
 	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
@@ -118,6 +156,7 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 		t.Fatal(err)
 	}
 	pgTrgmSettingValue(run, pgTrgmSettings[0].name, "0.2")
+	threshold(.2)
 	changed := frame
 	changed.Rows = [][]any{{float64(0.25), true}}
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, changed)
@@ -149,7 +188,13 @@ func pgTrgmControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Con
 	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
 		t.Fatal("failed restore mutated target")
 	}
+	run(pgTrgmThresholdView(b, "SELECT threshold FROM trgm_threshold_setter", float64(.25)))
+	threshold(.25)
+	if fixture.ExtensionDump(t, p.Ctx, p.Native) != dump {
+		t.Fatal("session setter override entered symbolic replay")
+	}
 	pgTrgmIndependentDestination(t, p, b, dump, check, namedOwner)
+	run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 	// Re-evaluate restored generated/default/CHECK/view recipes, not snapshots.
 	pgTrgmStoredWrites(b, run, check)
 }
@@ -166,7 +211,12 @@ func pgTrgmIndependentDestination(t *testing.T, p *fixture.Pair, b fixture.Backe
 	db, recorder := fixture.RecordedNativePool(t, connector)
 	targetBackend := b
 	targetBackend.Recorder = recorder
-	run := pgTrgmRun(t, p, targetBackend, db)
+	target, err := db.Conn(p.Ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	run := pgTrgmRun(t, p, targetBackend, target)
 	// Advance actual allocators through ordinary declarations. Named logical
 	// principals are recreated in this independent root, not copied numeric IDs.
 	run(fixture.Exec("CREATE ROLE trgm_allocator", 0))
@@ -182,6 +232,13 @@ func pgTrgmIndependentDestination(t *testing.T, p *fixture.Pair, b fixture.Backe
 	run(fixture.Select("SELECT a,w,s,d,r FROM trgm_literals", []string{"a", "w", "s", "d", "r"}, []string{"_TEXT", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"}, [][]any{{pgTrgmArray("  c", " ca", "at ", "cat"), float64(0.5), float64(0.25), distances[1], distances[4]}}))
 	run(pgTrgmScalar(targetBackend, "SELECT trgm_moved.original_trigrams('cat')", "original_trigrams", "_TEXT", pgTrgmArray("  c", " ca", "at ", "cat")))
 	pgTrgmSettingValue(run, pgTrgmSettings[0].name, "0.3")
+	run(pgTrgmThresholdView(targetBackend, "SELECT threshold FROM trgm_threshold_getter", pgTrgmFloat(false, .3)))
+	run(fixture.Prepared(pgTrgmScalar(targetBackend, "SELECT trgm_moved.original_show_limit() AS threshold", "threshold", "FLOAT4", pgTrgmFloat(false, .3))))
+	run(pgTrgmThresholdView(targetBackend, "SELECT threshold FROM trgm_threshold_setter", float64(.25)))
+	run(pgTrgmThresholdView(targetBackend, "SELECT threshold FROM trgm_threshold_getter", float64(.25)))
+	run(fixture.Prepared(pgTrgmScalar(targetBackend, "SELECT trgm_moved.original_set_limit($1::real) AS threshold", "threshold", "FLOAT4", float64(.5), float64(.5))))
+	run(pgTrgmThresholdView(targetBackend, "SELECT threshold FROM trgm_threshold_getter", float64(.5)))
+	run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 	if fixture.ExtensionDump(t, p.Ctx, raw) != dump {
 		t.Fatal("independent destination changed symbolic replay")
 	}

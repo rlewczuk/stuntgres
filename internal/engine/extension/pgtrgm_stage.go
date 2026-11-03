@@ -28,7 +28,7 @@ func (p *PgTrgmProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	}
 	// Retain the released declaration/collision order while the immutable
 	// recipe uses its own fixed slots. All addresses precede cross-links.
-	for _, slot := range [...]int{0, 1, 4, 14, 2, 5, 6, 15, 16, 9, 19, 10, 11, 20, 21, 3, 7, 8, 17, 18, 12, 13, 22, 23} {
+	for _, slot := range [...]int{14, 15, 0, 1, 4, 16, 2, 5, 6, 17, 18, 9, 21, 10, 11, 22, 23, 3, 7, 8, 19, 20, 12, 13, 24, 25} {
 		if slot < PgTrgmOperatorStart {
 			if err := p.stageProcedure(stage, ext, owner, slot); err != nil {
 				return err
@@ -51,12 +51,17 @@ func (p *PgTrgmProvider) stageProcedure(stage Stage, ext *catalog.Extension, own
 		Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name,
 		Signature: catalog.ProcedureSignature(member.Signature), RoutineKind: catalog.FunctionRoutine,
 		Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: true,
-		Installed:      catalog.InstalledRoutineDeclaration{Parallel: 's'},
+		Installed:      catalog.InstalledRoutineDeclaration{Parallel: member.Parallel},
 		Display:        catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name, Binary: "$libdir/pg_trgm", HasBinary: true},
 		Implementation: p,
 	}
 	if stage.LookupName(catalog.DescriptorNameKey(procedure)) != (ids.ObjectAddress{}) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", member.Name), Context: pgTrgmProcedureContext(slot)}
+	}
+	if slot == 14 {
+		if err := stage.ActivatePgTrgm(); err != nil {
+			return err
+		}
 	}
 	return stage.Create(procedure)
 }
@@ -94,14 +99,21 @@ func pgTrgmScript(strict bool) string {
 }
 func pgTrgmProcedureContext(slot int) string {
 	member := functions.PgTrgmMembers[slot]
-	lines := [...]int{18, 23, 42, 6, 28, 47, 52, 11, 16, 75, 87, 92, 39, 44}
-	arguments, result, volatility := "text,text", "float4", "IMMUTABLE"
-	if slot == 0 {
+	lines := [...]int{18, 23, 42, 6, 28, 47, 52, 11, 16, 75, 87, 92, 39, 44, 7, 13}
+	arguments, result, volatility, parallel := "text,text", "float4", "IMMUTABLE", "SAFE"
+	switch slot {
+	case 0:
 		arguments, result = "text", "_text"
-	} else if member.Result == 16 {
-		result, volatility = "bool", "STABLE"
+	case 14:
+		arguments, volatility, parallel = "float4", "VOLATILE", "UNSAFE"
+	case 15:
+		arguments, volatility = "", "STABLE"
+	default:
+		if member.Result == 16 {
+			result, volatility = "bool", "STABLE"
+		}
 	}
-	return fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\nRETURNS %s\nAS '$libdir/pg_trgm'\nLANGUAGE C STRICT %s PARALLEL SAFE\"\nextension script file \"%s\", near line %d", member.Name, arguments, result, volatility, pgTrgmScript(member.Kernel == 2), lines[slot])
+	return fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\nRETURNS %s\nAS '$libdir/pg_trgm'\nLANGUAGE C STRICT %s PARALLEL %s\"\nextension script file \"%s\", near line %d", member.Name, arguments, result, volatility, parallel, pgTrgmScript(member.Kernel == 2), lines[slot])
 }
 func pgTrgmOperatorContext(index int) string {
 	recipe := pgTrgmOperators[index]

@@ -18,6 +18,9 @@ type Stage interface {
 	// InitializePgcrypto performs the stock provider's physical-session C
 	// initializer at its actual member-validation point, not at catalog lookup.
 	InitializePgcrypto(scriptContext string) error
+	// ActivatePgTrgm reaches the first stock setter's C validation only after
+	// its declaration has passed the ordinary duplicate-name check.
+	ActivatePgTrgm() error
 	// Read is the catalog the stage was begun from (its base).
 	// Roles is the installation authority's coherent role snapshot.
 	Roles() authorization.Read

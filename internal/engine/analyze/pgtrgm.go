@@ -29,10 +29,7 @@ func (b *Binder) bindSelectedPgTrgm(raw parser.FunctionExpr, selected sqlCallabl
 	}
 	slot := procedure.Origin.Declaration
 	member := functions.PgTrgmMembers[slot]
-	count := 2
-	if slot == 0 {
-		count = 1
-	}
+	count := member.Arity
 	if member.Name != symbol || installation.Members[slot] != procedure.Address() || len(raw.Args) != count || len(raw.ArgNames) != 0 || raw.Variadic {
 		return nil, b.functionSignatureError(raw)
 	}
@@ -57,8 +54,12 @@ func (b *Binder) bindSelectedPgTrgm(raw parser.FunctionExpr, selected sqlCallabl
 	info.RoutineReference = procedure
 	ref := view.Owner().Domain.Ref(view.Epoch(), procedure.Address())
 	b.dependency(ref, procedure.Revision())
+	var formal *sqltype.Descriptor
+	if count != 0 {
+		formal = selected.Inputs[0].Type
+	}
 	node := functions.PgTrgm{
-		Info: info, Args: args, Formal: selected.Inputs[0].Type,
+		Info: info, Args: args, Formal: formal,
 		Ref: ref, Member: uint8(slot), Namespace: view.Get(procedure.Namespace()).Name(), Name: procedure.Name(),
 	}
 	return node, node.Validate()

@@ -466,16 +466,19 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   family and member relocation to the typed catalog remappers, preserving the
   actual owner kind and immutable source descriptors.
 - **pg_trgm** (`pgtrgm_provider.go`, `pgtrgm_stage.go`): trusted relocatable
-  release 1.6 has exactly fourteen scalar procedures (four functions and ten
+  release 1.6 has exactly sixteen scalar procedures (six functions and ten
   operator backers) and ten reciprocal operators. The single member table
-  supplies C symbols, signatures, result types and volatility; sealed slots,
-  not current names or membership, authorize execution and native replay.
-  Predicates are STABLE; scores, distances and trigram extraction are IMMUTABLE.
-  All declarations are STRICT and PARALLEL SAFE. Deprecated threshold helpers,
-  index support and version-update paths are not installed. After early CREATE
-  admission and the new extension header, StageCreate invokes the narrow host
-  activation before member staging: this represents the released script's first
-  C validator, including later declaration collisions, but not skipped CREATE.
+  supplies C symbols, signatures, formal types/arity, result types, volatility
+  and parallel safety; sealed slots, not current names or membership, authorize
+  execution and native replay. Predicates and the zero-argument getter are STABLE;
+  scores, distances and trigram extraction are IMMUTABLE. All declarations are
+  STRICT. The REAL setter is VOLATILE/PARALLEL UNSAFE; the others are PARALLEL
+  SAFE. Index support and version-update paths are not installed. Member staging
+  reaches `Stage.ActivatePgTrgm` after the first setter's duplicate-name check,
+  immediately before creating that genuine declaration. A setter collision
+  leaves an unloaded session unloaded; getter and later collisions retain the
+  physical loading reached at the setter's C validator despite catalog rollback.
+  Skipped CREATE and early admission failures never reach that boundary.
 - **hstore** (`hstore_provider.go`, `hstore_stage.go`): trusted, relocatable 1.8
   installation of the scalar, strict immutable parallel-safe C-language codecs,
   `hstore_to_array(hstore)` and `hstore_to_matrix(hstore)` with prefix

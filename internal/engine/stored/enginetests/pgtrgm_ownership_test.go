@@ -30,9 +30,9 @@ func pgTrgmOwnerProjection(t *testing.T, e *core.Engine, s *session.Session) *pl
 		t.Fatal(err)
 	}
 	defer op.Done()
-	query := enginetest.BindSelect(t, e, op, `SELECT show_trgm(a),similarity(a,b),word_similarity(a,b),strict_word_similarity(a,b),similarity_op(a,b),word_similarity_op(a,b),word_similarity_commutator_op(a,b),strict_word_similarity_op(a,b),strict_word_similarity_commutator_op(a,b),similarity_dist(a,b),word_similarity_dist_op(a,b),word_similarity_dist_commutator_op(a,b),strict_word_similarity_dist_op(a,b),strict_word_similarity_dist_commutator_op(a,b),a % b,a <% b,a %> b,a <<% b,a %>> b,a <-> b,a <<-> b,a <->> b,a <<<-> b,a <->>> b FROM pgtrgm_owner`)
+	query := enginetest.BindSelect(t, e, op, `SELECT show_trgm(a),similarity(a,b),word_similarity(a,b),strict_word_similarity(a,b),similarity_op(a,b),word_similarity_op(a,b),word_similarity_commutator_op(a,b),strict_word_similarity_op(a,b),strict_word_similarity_commutator_op(a,b),similarity_dist(a,b),word_similarity_dist_op(a,b),word_similarity_dist_commutator_op(a,b),strict_word_similarity_dist_op(a,b),strict_word_similarity_dist_commutator_op(a,b),a % b,a <% b,a %> b,a <<% b,a %>> b,a <-> b,a <<-> b,a <->> b,a <<<-> b,a <->>> b,set_limit(0.25::real),show_limit() FROM pgtrgm_owner`)
 	project, ok := query.Root.(*plan.ProjectNode)
-	if !ok || len(project.Expressions) != 24 {
+	if !ok || len(project.Expressions) != 26 {
 		t.Fatal("missing complete actual pg_trgm bound projection")
 	}
 	return project
@@ -75,6 +75,21 @@ func TestPgTrgmExpressionOwnership(t *testing.T) {
 		if err := call.ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
+		member := functions.PgTrgmMembers[call.Member]
+		result, _ := view.LookupType(sqltype.ID(member.Result))
+		if call.Usage.Type != result || len(call.Args) != member.Arity || call.StrictNull() != expr.StrictAfter || call.Properties().Volatility != member.Volatility {
+			t.Fatal("bound member lost result generation, arity, strictness or volatility")
+		}
+		if member.Arity == 0 {
+			if call.Formal != nil {
+				t.Fatal("zero-argument getter retained a fake formal dependency")
+			}
+		} else if formal, _ := view.LookupType(member.Formal); call.Formal != formal {
+			t.Fatal("bound member lost actual formal generation")
+		}
+		if call.Member >= 14 && call.PlanningFold() != expr.FoldNever {
+			t.Fatal("live threshold API admitted constant folding")
+		}
 		children := call.Children()
 		for _, reconstruct := range []func(expr.Info, []expr.Expr) (expr.Expr, error){call.Rebuild, call.Substitute} {
 			rebuilt, err := reconstruct(call.Info, children)
@@ -106,19 +121,32 @@ func TestPgTrgmExpressionOwnership(t *testing.T) {
 		}
 		for _, arg := range spec.Args {
 			if arg.Transport != expr.TransportCast || arg.TransportType != call.Formal.Usage() {
-				t.Fatal("qualified rendering lost actual TEXT formal")
+				t.Fatal("qualified rendering lost actual member formal")
 			}
 		}
 		for _, mutate := range []func(*functions.PgTrgm){
 			func(n *functions.PgTrgm) { n.Member = 255 },
-			func(n *functions.PgTrgm) { d := *n.Formal; n.Formal = &d },
+			func(n *functions.PgTrgm) {
+				if n.Formal == nil {
+					n.Formal, _ = view.LookupType(sqltype.Float4)
+				} else {
+					d := *n.Formal
+					n.Formal = &d
+				}
+			},
 			func(n *functions.PgTrgm) { d := *n.Usage.Type; n.Usage.Type = &d },
-			func(n *functions.PgTrgm) { n.Args = nil },
+			func(n *functions.PgTrgm) {
+				if len(n.Args) == 0 {
+					n.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: n.Usage}}}
+				} else {
+					n.Args = nil
+				}
+			},
 			func(n *functions.PgTrgm) { n.Ref.Epoch++ },
 			func(n *functions.PgTrgm) { n.Ref.Address.SubID = 1 },
 			func(n *functions.PgTrgm) {
 				d := *n.RoutineReference.(*catalog.Procedure)
-				d.Display.Source = "set_limit"
+				d.Display.Source = "forged_pgtrgm_source"
 				n.RoutineReference = &d
 			},
 		} {
@@ -168,6 +196,8 @@ func TestPgTrgmExpressionOwnership(t *testing.T) {
 		t.Fatal("rejected publication or independent owner mutated accepted source payload")
 	}
 	pgTrgmInitializationOwnership(t, e)
+	pgTrgmThresholdOwnership(t, e, s)
+	pgTrgmThresholdPublicationOwnership(t, e)
 }
 
 func TestPgTrgmProviderIdentity(t *testing.T) {
@@ -191,9 +221,9 @@ func TestPgTrgmProviderIdentity(t *testing.T) {
 				o.Installation = &installation
 				p.Origin = &o
 			},
-			func(p *catalog.Procedure) { p.Display.Source = "show_limit" },
+			func(p *catalog.Procedure) { p.Display.Source = "forged_pgtrgm_source" },
 			func(p *catalog.Procedure) { p.Strict = false },
-			func(p *catalog.Procedure) { p.Installed.Parallel = 'u' },
+			func(p *catalog.Procedure) { p.Installed.Parallel = 'r' },
 		} {
 			bad := *p
 			mutate(&bad)
@@ -253,7 +283,7 @@ func TestPgTrgmProviderIdentity(t *testing.T) {
 // settings/admission behavior uses the separate shared reference fixture.
 type pgTrgmLeafContext struct {
 	*exec.Context
-	threshold float64
+	threshold    float64
 	thresholdErr error
 	trace        *[]string
 }
@@ -277,7 +307,6 @@ func (e pgTrgmLeafOperand) Eval(expr.Context) (sqltype.Value, error) {
 	*e.trace = append(*e.trace, e.label)
 	return e.value, e.err
 }
-
 
 // The real leaf runtime consumes this context's existing Err checkpoints.
 // The budget admits extraction and a first complete matching extent, but not
@@ -378,7 +407,7 @@ func pgTrgmLeafOwnership(t *testing.T, bound *plan.ProjectNode) {
 				pgTrgmLeafOperand{Info: expr.Info{Usage: n.Formal.Usage()}, value: sqltype.String(n.Formal, "aa"), err: rightErr, trace: &trace, label: "right"},
 			}
 			leaf := &pgTrgmLeafContext{
-				Context: &exec.Context{EvalStatement: exec.EvalStatement{Context: t.Context()}},
+				Context:   &exec.Context{EvalStatement: exec.EvalStatement{Context: t.Context()}},
 				threshold: 0, thresholdErr: liveErr, trace: &trace,
 			}
 			value, err := n.Eval(leaf)
@@ -451,7 +480,9 @@ func pgTrgmLeafOwnership(t *testing.T, bound *plan.ProjectNode) {
 	if output, err := array.Type().Output(context.Background(), array); err != nil || output != `{"  c"," ca","at ",cat}` {
 		t.Fatal("later invocation changed retained trigram array", output, err)
 	}
-	for slot := range functions.PgTrgmMembers {
+	// Kernel leaf substitutes cover the original text members only. The live
+	// REAL/zero-argument APIs use actual statement hosts below.
+	for slot := range bound.Expressions[:14] {
 		for _, null := range []bool{false, true} {
 			n := call(slot, "cat", "cat")
 			if null {
@@ -552,6 +583,13 @@ func pgTrgmInitializationOwnership(t *testing.T, e *core.Engine) {
 		op.Done()
 		enginetest.State(t, err, state)
 	}
+	setterEngine := engine.New()
+	setterCollision := enginetest.StartSession(t, setterEngine, nil)
+	enginetest.SessionSQL(t, setterCollision, "CREATE FUNCTION set_limit(real) RETURNS real LANGUAGE SQL AS 'SELECT $1'")
+	executeError(setterEngine, setterCollision, "CREATE EXTENSION pg_trgm", "42723")
+	if loaded(setterEngine, setterCollision) || setterEngine.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pg_trgm"}) != (ids.ObjectAddress{}) {
+		t.Fatal("duplicate first setter reached C validation or published the failed catalog stage")
+	}
 	collisionEngine := engine.New()
 	collision := enginetest.StartSession(t, collisionEngine, nil)
 	enginetest.SessionSQL(t, collision, "CREATE FUNCTION show_trgm(text) RETURNS text LANGUAGE SQL AS 'SELECT $1'")
@@ -565,4 +603,137 @@ func pgTrgmInitializationOwnership(t *testing.T, e *core.Engine) {
 	if loaded(earlyEngine, early) {
 		t.Fatal("early schema rejection reached the C validation boundary")
 	}
+}
+
+func pgTrgmThresholdOwnership(t *testing.T, e *core.Engine, s *session.Session) {
+	t.Helper()
+	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT * FROM show_limit()")
+	setAST, setDescription := enginetest.PreparedDescription(t, e, s, "SELECT * FROM set_limit(0.25::real)")
+	read := func(result core.Result, want float32) {
+		t.Helper()
+		defer result.Rows.Close()
+		var row [1]sqltype.Value
+		present, err := result.Rows.Next(t.Context(), row[:])
+		real, _ := e.CatalogRead().LookupType(sqltype.Float4)
+		if err != nil || !present || row[0].Type() != real || row[0].IsNull() {
+			t.Fatal("live threshold result lost actual REAL generation", present, err)
+		}
+		got, err := row[0].Float()
+		if err != nil || got != float64(want) {
+			t.Fatal("prepared API retained threshold/session input instead of live typed value", got, want, err)
+		}
+		if more, err := result.Rows.Next(t.Context(), row[:]); err != nil || more {
+			t.Fatal("threshold scalar source did not emit exactly once", more, err)
+		}
+	}
+	execute := func(s *session.Session, setter bool, want float32) {
+		t.Helper()
+		var result core.Result
+		var err error
+		if setter {
+			result, err = enginetest.PreparedExecute(e, s, setAST, &setDescription)
+		} else {
+			result, err = enginetest.PreparedExecute(e, s, ast, &description)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		read(result, want)
+	}
+	execute(s, false, .3)
+	execute(s, true, .25)
+	execute(s, false, .25)
+	other := enginetest.StartSession(t, e, nil)
+	execute(other, false, .3)
+	execute(other, true, .25)
+	enginetest.SessionSQL(t, s, "SET pg_trgm.similarity_threshold='0.75'")
+	execute(s, false, .75)
+	execute(other, false, .25)
+	for _, d := range []*core.Description{&description, &setDescription} {
+		for _, entry := range d.Folds.Current().Entries {
+			if p, ok := entry.Callable.(*catalog.Procedure); ok && p.Implementation == extension.StockPgTrgm {
+				t.Fatal("live API published a retained constant or session authority")
+			}
+		}
+	}
+}
+
+func pgTrgmThresholdPublicationOwnership(t *testing.T, e *core.Engine) {
+	t.Helper()
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "BEGIN")
+	cycle := s.NewProtocolCycle()
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn)
+	}
+	command(func(scope *core.StatementScope) error {
+		_, err := scope.ParseProtocol("trgm_threshold_owned", "SELECT COALESCE(similarity('a','aa'),0::real),set_limit(0.25::real),show_limit()", nil)
+		return err
+	})
+	registry := core.PayloadOf(s).PreparedSQL
+	definition := registry.Lookup("trgm_threshold_owned")
+	command(func(scope *core.StatementScope) error {
+		_, err := scope.BindProtocolPortal("trgm_threshold_portal", "trgm_threshold_owned", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
+		return err
+	})
+	binding := registry.Binding("trgm_threshold_portal")
+	if definition == nil || binding == nil || binding.Resource == nil || binding.Resource.Root == nil || binding.Folds == nil {
+		t.Fatal("missing actual accepted threshold definition and portal graph")
+	}
+	graph, folds := binding.Resource.Root, binding.Folds
+	setter := pgTrgmOwnerCall(t, graph.Expressions[1])
+	getter := pgTrgmOwnerCall(t, graph.Expressions[2])
+	real, _ := e.CatalogRead().LookupType(sqltype.Float4)
+	for i, call := range []functions.PgTrgm{setter, getter} {
+		p := call.RoutineReference.(*catalog.Procedure)
+		volatility, parallel, arity := expr.Volatile, byte('u'), 1
+		if i == 1 {
+			volatility, parallel, arity = expr.Stable, 's', 0
+		}
+		if call.Usage.Type != real || len(call.Args) != arity || call.Properties().Volatility != volatility || !p.Strict || p.Installed.Parallel != parallel || call.PlanningFold() != expr.FoldNever || i == 0 && call.Formal != real || i == 1 && call.Formal != nil {
+			t.Fatal("accepted graph lost exact live API signature, generation or declaration")
+		}
+	}
+	owner := definition.Description.Folds
+	accepted := owner.Current()
+	if len(accepted.Entries) == 0 {
+		t.Fatal("immutable companion did not publish real owned fold backing")
+	}
+	for _, entry := range accepted.Entries {
+		if p, ok := entry.Callable.(*catalog.Procedure); ok && (p.Display.Source == "set_limit" || p.Display.Source == "show_limit") {
+			t.Fatal("binding captured a live threshold API as an immutable value")
+		}
+	}
+	// Binding the demanded setter must not execute it, even while its immutable
+	// companion activates the actual owner and publishes a retained constant.
+	s.Settings.Mu.Lock()
+	threshold, err := s.Settings.PgTrgmThresholdLocked(e.Settings, "pg_trgm.similarity_threshold")
+	s.Settings.Mu.Unlock()
+	if err != nil || threshold != float64(float32(.3)) {
+		t.Fatal("parse/bind mutated the live owner", threshold, err)
+	}
+	publication, err := core.BeginFoldPublication(&definition.Description, definition.Body, owner.Environment, e.CatalogRead(), nil)
+	if err != nil || publication == nil {
+		t.Fatal("missing private publication for actual API-bearing definition", err)
+	}
+	publication.Group.Entries = append([]exec.FoldConstant(nil), publication.Group.Entries...)
+	publication.Group.Private = true
+	publication.Group.Entries[0].Value = sqltype.Null(publication.Group.Entries[0].Result.Type)
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	err = publication.Accept(canceled, e.CatalogRead(), owner.Environment, e.CatalogRead().Epoch())
+	current := owner.Current()
+	if !errors.Is(err, context.Canceled) || publication.Group.Sealed || current.Generation != accepted.Generation || &current.Entries[0] != &accepted.Entries[0] || !reflect.DeepEqual(current, accepted) || binding.Resource.Root != graph || binding.Folds != folds || !reflect.DeepEqual(pgTrgmOwnerCall(t, graph.Expressions[1]), setter) || !reflect.DeepEqual(pgTrgmOwnerCall(t, graph.Expressions[2]), getter) {
+		t.Fatal("rejected publication changed accepted API graph, generation or backing", err)
+	}
+	op, _, err := s.AcquireCommand(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = e.SyncProtocolCycle(op, cycle)
+	op.Done()
+	if err != nil {
+		t.Fatal(err)
+	}
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 }

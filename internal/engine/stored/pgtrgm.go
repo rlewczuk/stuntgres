@@ -15,7 +15,7 @@ func validateCapturedPgTrgm(call functions.PgTrgm, captured *catalog.Procedure) 
 		return err
 	}
 	member := functions.PgTrgmMembers[call.Member]
-	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockPgTrgm || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != member.Volatility || string(captured.Signature) != member.Signature || captured.Result != member.Result || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name, Binary: "$libdir/pg_trgm", HasBinary: true}) || captured.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || !captured.Origin.Valid(captured.Address()) {
+	if captured == nil || call.RoutineReference != captured || captured.Revision() == 0 || call.Ref.Address != captured.Address() || captured.Implementation != extension.StockPgTrgm || captured.Builtin != nil || captured.SQL != nil || captured.Foreign != nil || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != member.Volatility || string(captured.Signature) != member.Signature || captured.Result != member.Result || captured.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name, Binary: "$libdir/pg_trgm", HasBinary: true}) || captured.Installed != (catalog.InstalledRoutineDeclaration{Parallel: member.Parallel}) || !captured.Origin.Valid(captured.Address()) {
 		return fmt.Errorf("stuntgres: invalid captured pg_trgm declaration")
 	}
 	origin := captured.Origin
@@ -41,12 +41,20 @@ func validatePgTrgmDeclaration(view catalog.Read, original *catalog.Procedure, c
 	if !ok || current.Implementation != extension.StockPgTrgm || symbol != member.Name || len(installation.Members) != extension.PgTrgmMemberCount || installation.Members[call.Member] != current.Address() || current.Origin.Declaration != int(call.Member) {
 		return invalid()
 	}
-	text, ok := view.LookupType(sqltype.Text)
-	if !ok || types(call.Formal) != text {
-		return invalid()
+	var formal *sqltype.Descriptor
+	if member.Arity == 0 {
+		if call.Formal != nil {
+			return invalid()
+		}
+	} else {
+		var ok bool
+		formal, ok = view.LookupType(member.Formal)
+		if !ok || call.Formal == nil || types(call.Formal) != formal {
+			return invalid()
+		}
 	}
 	for _, arg := range call.Args {
-		if types(arg.ResultUsage().Type) != text {
+		if types(arg.ResultUsage().Type) != formal {
 			return invalid()
 		}
 	}

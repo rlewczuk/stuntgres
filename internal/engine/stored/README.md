@@ -324,14 +324,18 @@ preserve original provider authority while using the destination's current
 declaration and labels; no session setting value is transported.
 
 
-Installed pg_trgm recipes retain exact TEXT/result generations, ordered operands,
-current catalog references and original sealed release/member slots. Remapping
+Installed pg_trgm recipes retain exact TEXT/REAL formal and result generations,
+ordered operands (no formal for the getter), current catalog references and
+original sealed release/member slots. Remapping
 authenticates the source declaration before reprovenancing references, principals,
 formals and results against the genuine destination installation. It preserves
 the captured revision instead of substituting a newer descriptor. Qualified
 rendering resolves the checked current namespace/name, including renamed, moved
 and detached originals; neither member links nor equal numeric OIDs confer
-authority. `TestPgTrgmExpressionOwnership`, `TestPgTrgmProviderIdentity` and
+authority. The setter's VOLATILE/UNSAFE declaration and getter's STABLE/SAFE
+declaration remain exact through capture and destination validation; neither a
+session override nor presentation snapshot is transported.
+`TestPgTrgmExpressionOwnership`, `TestPgTrgmProviderIdentity` and
 `TestPgTrgmStoredRemap` exercise these private ownership boundaries in addition
 to the public reference controls.
 Selected-operator retagging validates the actual destination descriptor through

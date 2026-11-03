@@ -12,6 +12,26 @@ func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
 	pgTrgmCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, notices *[]fixture.Diagnostic) {
 		check := pgTrgmStored(t, p, b, c)
 		run := pgTrgmRun(t, p, b, c)
+		getSQL := "SELECT trgm_addon.show_limit() AS threshold"
+		getStmt, err := c.PrepareContext(p.Ctx, getSQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer getStmt.Close()
+		getHeld := fixture.HeldStatement{Executor: c, Statement: getStmt, SQL: getSQL}
+		setSQL := "SELECT trgm_addon.set_limit($1::real) AS threshold"
+		setStmt, err := c.PrepareContext(p.Ctx, setSQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer setStmt.Close()
+		setHeld := fixture.HeldStatement{Executor: c, Statement: setStmt, SQL: setSQL}
+		get := func(want float32) {
+			t.Helper()
+			fixture.RunStep(t, p.Ctx, getHeld, b.Recorder, pgTrgmScalar(b, getSQL, "threshold", "FLOAT4", pgTrgmFloat(b.PG, want)))
+		}
+		// Preparing both APIs is observational, not assignment.
+		get(.3)
 		distanceFrame := pgTrgmDistanceFrame(b)
 		distanceStmt, err := c.PrepareContext(p.Ctx, distanceFrame.Query)
 		if err != nil {
@@ -80,6 +100,41 @@ func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", true, "a", "aa"))
 		run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", false, "a", "aa"))
+		fixture.RunStep(t, p.Ctx, setHeld, b.Recorder, pgTrgmScalar(b, setSQL, "threshold", "FLOAT4", float64(.25), float64(.25)))
+		get(.25)
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", true, "a", "aa"))
+		fixture.RunStep(t, p.Ctx, setHeld, b.Recorder, pgTrgmScalar(b, setSQL, "threshold", "FLOAT4", nil, nil))
+		get(.25)
+		run(fixture.Exec("BEGIN", 0))
+		run(fixture.Exec("SET LOCAL pg_trgm.similarity_threshold=1", 0))
+		get(1)
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", false, "a", "aa"))
+		run(fixture.Exec("ROLLBACK", 0))
+		get(.25)
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", true, "a", "aa"))
+		fixture.RunStep(t, p.Ctx, setHeld, b.Recorder, pgTrgmFailure(setSQL, fixture.Diagnostic{
+			Code: "22023", Message: `2 is outside the valid range for parameter "pg_trgm.similarity_threshold" (0 .. 1)`,
+		}, float64(2)))
+		get(.25)
+		var peerNotices []fixture.Diagnostic
+		_, peer, recorder := fixture.NoticeReferencePool(t, p, b.PG, &peerNotices)
+		peerBackend := b
+		peerBackend.Recorder = recorder
+		peerRun := pgTrgmRun(t, p, peerBackend, peer)
+		if fixture.SettingsPhysical(t, c) == fixture.SettingsPhysical(t, peer) {
+			t.Fatal("smoke reused the setter's physical owner")
+		}
+		peerRun(pgTrgmScalar(peerBackend, getSQL, "threshold", "FLOAT4", pgTrgmFloat(b.PG, .3)))
+		peerRun(pgTrgmScalar(peerBackend, "SELECT 'a' OPERATOR(trgm_addon.%) 'aa' AS result", "result", "BOOL", false))
+		pgTrgmNotices(t, &peerNotices)
+		run(fixture.Exec("SET extra_float_digits='-5'", 0))
+		// Observe installation through TEXT while transport precision is low,
+		// then restore precision before asserting the getter's typed REAL.
+		run(pgTrgmScalar(b, "SELECT trgm_addon.set_limit(0.26::real)", "set_limit", "FLOAT4", pgTrgmFloat(b.PG, .3)))
+		pgTrgmSettingValue(run, pgTrgmSettings[0].name, "0.3")
+		run(fixture.Exec("RESET extra_float_digits", 0))
+		get(.3)
+		run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
 		for _, op := range pgTrgmOperators {
 			if op.result != "BOOL" || op.kernel == 0 {
 				continue

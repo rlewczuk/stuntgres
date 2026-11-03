@@ -73,7 +73,7 @@ func extensionNamespacesOf(stage *core.CatalogStage) []extensionNamespace {
 func (h *extensionHost) Context() context.Context { return h.Op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.Op.EmitNotice(session.LevelNotice, n) }
 
-// ActivatePgTrgm runs at the released script's first C-validation boundary.
+// ActivatePgTrgm runs after the first setter's duplicate check, at its C validator.
 // Engine.Mu is held; the core helper releases settings/session locks before
 // these owned warnings enter the ordinary operation queue (no user callback).
 func (h *extensionHost) ActivatePgTrgm() error {

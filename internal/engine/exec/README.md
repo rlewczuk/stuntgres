@@ -492,8 +492,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   actual fold/residual admission boundary, after current EXECUTE and declaration
   checks but before operands. A strict literal-NULL call erased by planning does
   not initialize; surviving dynamic-NULL and zero-row expressions do. The narrow
-  `InitializePgTrgm`/`PgTrgmThreshold` live-host bridge retains no settings image
-  or actor; thresholds are typed live reads, never parsed SHOW text or folded BOOLs.
+  `InitializePgTrgm`/`PgTrgmThreshold`/`PgTrgmSetLimit` live-host bridge retains no
+  settings image or actor. Reads consume typed live thresholds, never parsed SHOW
+  text or folded BOOLs. The setter formats its demanded REAL with the effective
+  owner's live presentation, then uses ordinary session SET and its journal;
+  its result is the installed typed threshold rather than an input echo.
   `CheckProgram` owns ordinary CHECK cooked expressions plus command/actor/RI
   phases, each holding a stable `RoutineProgram` pointer. The live statement
   retains that same pointer through lazy truth and existing wait/publication
