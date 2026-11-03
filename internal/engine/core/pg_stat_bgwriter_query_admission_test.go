@@ -22,7 +22,7 @@ import (
 type bgwriterReaderOwnership struct {
 	value string
 	owner uintptr
-	maps [3]string
+	maps  [3]string
 }
 
 func bgwriterReaderState(s *session.Session) bgwriterReaderOwnership {
@@ -93,8 +93,8 @@ func TestPGStatBGWriterQueryAdmission(t *testing.T) {
 						defer statsFunctionExec(t, s, "ROLLBACK")
 						key := statistics.Key{Object: enginetest.RoleTableRef(t, e, "bgwriter_admission_marker"), Category: statistics.Relation}
 						var writer statistics.Writer
-						writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7}})
-						writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{13}})
+						writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7}})
+						writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{13}})
 						writer.Add(&e.Statistics, key, statistics.Fact{Inserts: 11})
 						writer.Flush(&e.Statistics, time.Unix(100, 0), true)
 						if retained {
@@ -105,12 +105,12 @@ func TestPGStatBGWriterQueryAdmission(t *testing.T) {
 						if bgwriterReaderState(s) != beforeDescribe {
 							t.Fatal("Describe changed Reader ownership")
 						}
-						writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{5, 5, 7}})
-						writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{5}})
+						writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{5, 5, 7}})
+						writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{5}})
 						writer.Add(&e.Statistics, key, statistics.Fact{Inserts: 7})
 						writer.Flush(&e.Statistics, time.Unix(200, 0), true)
 						current := e.Statistics.ReadShared(statistics.BGWriter)
-						if current.Counters != ([6]int64{8, 10, 14}) || e.Statistics.Read(key).Inserts != 18 {
+						if current.Counters != ([8]int64{8, 10, 14}) || e.Statistics.Read(key).Inserts != 18 {
 							t.Fatal("provider must diverge from retained cut", current)
 						}
 						deny := func() {
@@ -139,10 +139,14 @@ func TestPGStatBGWriterQueryAdmission(t *testing.T) {
 							t.Fatal("grant did not admit current query", err)
 						}
 						first := int64(8)
-						if retained { first = 3 }
+						if retained {
+							first = 3
+						}
 						if tc.name == "earlier_archiver" {
 							first = 18
-							if retained && mode == "snapshot" { first = 13 }
+							if retained && mode == "snapshot" {
+								first = 13
+							}
 						}
 						bgwriterAdmissionRow(t, result, first, current.ResetAt)
 						statsFunctionExec(t, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.pg_stat_get_bgwriter_stat_reset_time() FROM PUBLIC")

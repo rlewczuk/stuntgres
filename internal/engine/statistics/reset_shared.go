@@ -71,8 +71,9 @@ func (k SLRUKind) Name() string {
 // SharedFact contains logical cumulative events. IO/WAL operations remain solely
 // in keyed Fact records. Recovery gauges are current state, not reset counters.
 type SharedFact struct {
-	Counters                            [6]int64
+	Counters                            [8]int64
 	TotalTime                           time.Duration
+	WriteTime, SyncTime                 time.Duration
 	LastSuccess, LastFailure            string
 	LastSuccessAt, LastFailureAt        time.Time
 	WALDistance, BlockDistance, IODepth int64
@@ -92,6 +93,7 @@ func mergeSLRU(a, b SLRUFact) SLRUFact {
 	}
 	return a
 }
+
 type BackendFact struct {
 	IO, WAL Fact
 	ResetAt time.Time
@@ -102,6 +104,8 @@ func mergeShared(a, b SharedFact) SharedFact {
 		a.Counters[i] += b.Counters[i]
 	}
 	a.TotalTime += b.TotalTime
+	a.WriteTime += b.WriteTime
+	a.SyncTime += b.SyncTime
 	if !b.LastSuccessAt.IsZero() {
 		a.LastSuccess, a.LastSuccessAt = b.LastSuccess, b.LastSuccessAt
 	}

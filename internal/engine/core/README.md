@@ -616,9 +616,10 @@ Provider locks remain leaves under the cluster mutex. Published changes are
 immediate and nontransactional; reset never clears the physical reader or moves
 its snapshot construction timestamp. Fixed-family events are logical provider
 state, not evidence of physical workers, storage IO or WAL generation. The
-per-target traversal preserves existing shared-family behavior. Archiver and
-bgwriter retain explicit `DatabaseCluster.ArchiverResetAt`/`BGWriterResetAt`
-authorities under the shared mutex, initialized from the PostgreSQL-epoch StartedAt
+per-target traversal preserves existing shared-family behavior. Archiver,
+bgwriter and checkpointer retain explicit `DatabaseCluster.ArchiverResetAt`,
+`BGWriterResetAt` and `CheckpointerResetAt` authorities under the shared mutex,
+initialized from the PostgreSQL-epoch StartedAt
 instant. Target publication mirrors current authority only after fallible template
 work/admission; accepted local catalog replacement restores it after Provider.Replace.
 Neither boundary is a shared reset. Authorized selected-family/NULL-all shared
@@ -3300,7 +3301,7 @@ WAL-name startup propagation, destination rebinding and accepted-fold ownership
 use `RUN='^TestWALNamesMetadata$'`.
 
 Fixed-family view capture, cumulative Reader backing and cluster publication/
-replacement ownership use `make check RUN='^TestPGStat(Archiver|BGWriter)'`;
+replacement ownership use `make check RUN='^TestPGStat(Archiver|BGWriter|Checkpointer)'`;
 add `RACE=1` for the same families' synchronized ownership witnesses.
 
 Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and

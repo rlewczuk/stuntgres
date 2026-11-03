@@ -72,7 +72,7 @@ func TestPGStatArchiverCapture(t *testing.T) {
 			at := time.Unix(100, 123456000).UTC()
 			e.Statistics.ResetShared(statistics.Archiver, at)
 			var writer statistics.Writer
-			writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{3, 2, 99}, LastSuccess: "success", LastSuccessAt: at.Add(time.Second), LastFailure: "failure", LastFailureAt: at.Add(2 * time.Second)})
+			writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{3, 2, 99}, LastSuccess: "success", LastSuccessAt: at.Add(time.Second), LastFailure: "failure", LastFailureAt: at.Add(2 * time.Second)})
 			writer.Flush(&e.Statistics, at, true)
 			before := e.Statistics.ReadShared(statistics.Archiver)
 			capture := func() core.Result {
@@ -90,7 +90,7 @@ func TestPGStatArchiverCapture(t *testing.T) {
 			}
 			resetStatsExec(t, s, "SELECT pg_stat_reset_shared('archiver')")
 			after := e.Statistics.ReadShared(statistics.Archiver)
-			if after.Counters != [6]int64{} || after.LastSuccess != "" || after.LastFailure != "" || !after.LastSuccessAt.IsZero() || !after.LastFailureAt.IsZero() || after.ResetAt.IsZero() {
+			if after.Counters != [8]int64{} || after.LastSuccess != "" || after.LastFailure != "" || !after.LastSuccessAt.IsZero() || !after.LastFailureAt.IsZero() || after.ResetAt.IsZero() {
 				t.Fatal("genuine seeded reset", after)
 			}
 			archiverOwnerRow(t, old, before)
@@ -117,7 +117,7 @@ func TestPGStatArchiverReaderOwnership(t *testing.T) {
 				statsFunctionExec(t, s, "SET stats_fetch_consistency="+mode, "BEGIN")
 				defer statsFunctionExec(t, s, "ROLLBACK")
 				var writer statistics.Writer
-				writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{3, 2}})
+				writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{3, 2}})
 				writer.Add(&e.Statistics, key, statistics.Fact{Inserts: 9})
 				writer.Flush(&e.Statistics, time.Unix(100, 0), true)
 				ast, d := enginetest.PreparedDescription(t, e, s, "SELECT * FROM pg_catalog.pg_stat_archiver")

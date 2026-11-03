@@ -30,17 +30,17 @@ func TestPGStatBGWriterConstantRejection(t *testing.T) {
 	root := &plan.FilterNode{Child: &plan.SourceNode{Ref: ref}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 	leaf := exec.Leaf{Ref: ref, Relation: d, Table: &parser.TableReference{}}
 	query := catalogrt.KeepQuery{Root: root, Leaves: []exec.Leaf{leaf}}
-	if !query.BGWriterReadSuppressed([]exec.Leaf{leaf}, 0, plan.RowMark{}) {
+	if !query.ScalarStatsReadSuppressed([]exec.Leaf{leaf}, 0, plan.RowMark{}) {
 		t.Fatal("matching query ownership lost direct false proof")
 	}
 	wrong := leaf
 	wrong.Table = &parser.TableReference{}
-	if query.BGWriterReadSuppressed([]exec.Leaf{wrong}, 0, plan.RowMark{}) {
+	if query.ScalarStatsReadSuppressed([]exec.Leaf{wrong}, 0, plan.RowMark{}) {
 		t.Fatal("proof crossed nested table occurrence ownership")
 	}
 	wrong = leaf
 	wrong.Ref.Epoch++
-	if query.BGWriterReadSuppressed([]exec.Leaf{wrong}, 0, plan.RowMark{}) || (*catalogrt.KeepQuery)(nil).BGWriterReadSuppressed([]exec.Leaf{leaf}, 0, plan.RowMark{}) {
+	if query.ScalarStatsReadSuppressed([]exec.Leaf{wrong}, 0, plan.RowMark{}) || (*catalogrt.KeepQuery)(nil).ScalarStatsReadSuppressed([]exec.Leaf{leaf}, 0, plan.RowMark{}) {
 		t.Fatal("proof crossed query/epoch ownership")
 	}
 	for _, retained := range []bool{false, true} {
@@ -50,7 +50,7 @@ func TestPGStatBGWriterConstantRejection(t *testing.T) {
 			statsFunctionExec(t, s, "SET stats_fetch_consistency=snapshot", "BEGIN")
 			defer statsFunctionExec(t, s, "ROLLBACK")
 			var writer statistics.Writer
-			writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7}})
+			writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7}})
 			writer.Flush(&e.Statistics, time.Unix(100, 0), true)
 			owned := reflect.ValueOf(core.PayloadOf(s)).Elem().FieldByName("statsReader")
 			if retained {

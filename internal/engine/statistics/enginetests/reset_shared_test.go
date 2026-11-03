@@ -9,7 +9,7 @@ import (
 )
 
 func sharedVector(n int64) statistics.SharedFact {
-	return statistics.SharedFact{Counters: [6]int64{n, n + 1, n + 2, n + 3, n + 4, n + 5}, TotalTime: time.Duration(n) * time.Millisecond}
+	return statistics.SharedFact{Counters: [8]int64{n, n + 1, n + 2, n + 3, n + 4, n + 5}, TotalTime: time.Duration(n) * time.Millisecond}
 }
 func slruVector(n int64) statistics.SLRUFact {
 	return statistics.SLRUFact{Counters: [7]int64{n, n + 1, n + 2, n + 3, n + 4, n + 5, n + 6}}
@@ -119,7 +119,7 @@ func TestStatsProviderResetShared(t *testing.T) {
 		var invalid statistics.SharedFact
 		for range 100 {
 			f := p.ReadShared(statistics.Checkpointer)
-			zero := f.Counters == ([6]int64{}) && f.TotalTime == 0
+			zero := f.Counters == ([8]int64{}) && f.TotalTime == 0
 			positive := f.Counters == sharedVector(11).Counters && f.TotalTime == 11*time.Millisecond
 			if !zero && !positive {
 				invalid = f

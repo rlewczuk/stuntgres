@@ -64,7 +64,7 @@ func TestPGStatRecoveryPrefetchCapture(t *testing.T) {
 			t1, t2, t3 := time.Unix(100, 0).UTC(), time.Unix(200, 0).UTC(), time.Unix(300, 0).UTC()
 			e.Statistics.ResetShared(statistics.RecoveryPrefetch, t1)
 			var writer statistics.Writer
-			writer.Shared(&e.Statistics, statistics.RecoveryPrefetch, statistics.SharedFact{Counters: [6]int64{11, 13, 17, 19, 23, 29}})
+			writer.Shared(&e.Statistics, statistics.RecoveryPrefetch, statistics.SharedFact{Counters: [8]int64{11, 13, 17, 19, 23, 29}})
 			writer.Flush(&e.Statistics, t1, true)
 			e.Statistics.ReportPrefetchGauges(3, 5, 7)
 			published := e.Statistics.ReadShared(statistics.RecoveryPrefetch)
@@ -98,7 +98,7 @@ func TestPGStatRecoveryPrefetchCapture(t *testing.T) {
 				t.Fatal("missing metadata read initialized provider", got)
 			}
 			e.Statistics.ReportPrefetchGauges(1<<31-1, 1<<31-1, 1<<31-1)
-			prefetchOwnerRow(t, capture(), time.Time{}, [9]int64{0, 0, 0, 0, 0, 0, 1<<31-1, 1<<31-1, 1<<31-1})
+			prefetchOwnerRow(t, capture(), time.Time{}, [9]int64{0, 0, 0, 0, 0, 0, 1<<31 - 1, 1<<31 - 1, 1<<31 - 1})
 			for _, gauges := range [][3]int64{{1 << 31, 0, 0}, {0, 1 << 31, 0}, {0, 0, 1 << 31}} {
 				activityOwnerRun(t, e, s, "SAVEPOINT prefetch_overflow")
 				e.Statistics.ReportPrefetchGauges(gauges[0], gauges[1], gauges[2])

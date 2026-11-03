@@ -98,6 +98,13 @@ lookup, current default-PUBLIC EXECUTE, GRANT/REVOKE and native ACL replay.
 Its shared immutable declaration and per-engine descriptor do not grant callable
 provider capability or imply an apply-worker publisher.
 
+The eleven checkpointer view getters use that same scalar-only metadata contract:
+eight INT8 counters, two FLOAT8 times and a TIMESTAMPTZ reset, in view order
+2769/2770/6377/6327/6328/6329/3160/3161/2771/6366/6314.
+All remain implicit PUBLIC EXECUTE, zero-input strict STABLE and parallel
+restricted, without callable provider flags. Their live ACL descriptors are
+independent of retained statistics and current view/column SELECT.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

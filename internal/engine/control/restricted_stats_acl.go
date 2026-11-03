@@ -35,6 +35,28 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_bgwriter_stat_reset_time", 0
 		case 6118:
 			name, entries = "pg_stat_get_subscription", 0
+		case 2769:
+			name, entries = "pg_stat_get_checkpointer_num_timed", 0
+		case 2770:
+			name, entries = "pg_stat_get_checkpointer_num_requested", 0
+		case 6377:
+			name, entries = "pg_stat_get_checkpointer_num_performed", 0
+		case 6327:
+			name, entries = "pg_stat_get_checkpointer_restartpoints_timed", 0
+		case 6328:
+			name, entries = "pg_stat_get_checkpointer_restartpoints_requested", 0
+		case 6329:
+			name, entries = "pg_stat_get_checkpointer_restartpoints_performed", 0
+		case 3160:
+			name, entries = "pg_stat_get_checkpointer_write_time", 0
+		case 3161:
+			name, entries = "pg_stat_get_checkpointer_sync_time", 0
+		case 2771:
+			name, entries = "pg_stat_get_checkpointer_buffers_written", 0
+		case 6366:
+			name, entries = "pg_stat_get_checkpointer_slru_written", 0
+		case 6314:
+			name, entries = "pg_stat_get_checkpointer_stat_reset_time", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:

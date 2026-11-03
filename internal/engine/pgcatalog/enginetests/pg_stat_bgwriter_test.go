@@ -65,7 +65,7 @@ func TestPGStatBGWriterProjection(t *testing.T) {
 	at := time.Date(2025, 7, 8, 9, 10, 11, 123456000, time.FixedZone("event", 7200))
 	provider.ResetShared(statistics.BGWriter, at)
 	var writer statistics.Writer
-	writer.Shared(&provider, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7, 91, 92, 93}, LastSuccess: "00000001000000000000002A", LastSuccessAt: at, LastFailure: "00000001000000000000002B", LastFailureAt: at.Add(time.Second)})
+	writer.Shared(&provider, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7, 91, 92, 93}, LastSuccess: "00000001000000000000002A", LastSuccessAt: at, LastFailure: "00000001000000000000002B", LastFailureAt: at.Add(time.Second)})
 	writer.Flush(&provider, at, true)
 	fact := provider.ReadShared(statistics.BGWriter)
 	old := check(fact)

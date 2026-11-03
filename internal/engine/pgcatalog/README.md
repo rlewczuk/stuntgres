@@ -148,6 +148,7 @@ type Input struct {
     Archiver statistics.SharedFact // detached admitted cumulative Reader cut
     SLRU [statistics.SLRUCount]statistics.SLRUFact // detached cumulative family
     BGWriter statistics.SharedFact // detached demand-admitted cumulative Reader cut
+    Checkpointer statistics.SharedFact // detached demand-admitted cumulative Reader cut
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -204,6 +205,20 @@ presence-only, FALSE-input and denied-admission paths remain noncapturing.
 Authorized rows have no role-dependent masking. The scalar no-FROM definition
 is display metadata, not a callable getter implementation; ordinary virtual-view
 mutation diagnostics remain authoritative.
+
+The checkpointer singleton (relation12297, composite12299, array12298) uses the
+same scalar admission and suppression policy. Its eleven nullable attributes are
+`num_timed`, `num_requested`, `num_done`, `restartpoints_timed`,
+`restartpoints_req`, `restartpoints_done`, `write_time`, `sync_time`,
+`buffers_written`, `slru_written`, `stats_reset`: eight INT8 counters, two FLOAT8
+millisecond totals and a genuine TIMESTAMPTZ reset instant. Counters0–5 and6–7
+project independently around the two fractional-millisecond times. Without
+physical checkpoint/restartpoint, buffer, SLRU or IO events all ten technical
+estimates are zero, never inferred from logical SQL work. Uninitialized ResetAt
+is typed NULL. Public reads have no role masking; demanded getter ACL denial
+rejects rather than redacts. Metadata-only getter identities remain noncallable.
+Rows are detached; singleton cardinality adds no ordering contract for joins.
+
 
 `pg_stat_replication_slots` (12266) validates current registered catalog/source
 and paired role authority for ten nullable attributes: TEXT identity, eight INT8

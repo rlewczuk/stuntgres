@@ -25,15 +25,16 @@ type DatabaseCluster struct {
 	ConfigLoadedAt int64
 	// Cluster reset authorities, guarded by Mu. Database providers mirror these
 	// instants; local catalog replacement is not a shared reset.
-	ArchiverResetAt time.Time
-	BGWriterResetAt time.Time
-	Mu              sync.Mutex
-	Roles           access.RoleStore
-	Locks           *lock.Manager
-	RoleDomain      ids.Domain
-	DefaultTarget   *Engine
-	Targets         map[string]*Engine
-	NextOID         ids.OID
+	ArchiverResetAt     time.Time
+	BGWriterResetAt     time.Time
+	CheckpointerResetAt time.Time
+	Mu                  sync.Mutex
+	Roles               access.RoleStore
+	Locks               *lock.Manager
+	RoleDomain          ids.Domain
+	DefaultTarget       *Engine
+	Targets             map[string]*Engine
+	NextOID             ids.OID
 	// StatementStatistics survives database catalog replacement and session end.
 	// Its private mutex is a leaf beneath every runtime/authority lock.
 	StatementStatistics *statistics.Statements

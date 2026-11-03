@@ -8,6 +8,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatReplicationSlotsOID, parts: replicationSlotsViewParts, prettyParts: replicationSlotsViewParts},
 	{oid: StatArchiverOID, parts: archiverViewParts, prettyParts: archiverViewParts},
 	{oid: StatBGWriterOID, parts: bgwriterViewParts, prettyParts: bgwriterViewParts},
+	{oid: StatCheckpointerOID, parts: checkpointerViewParts, prettyParts: checkpointerViewParts},
 	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},
 	{oid: PoliciesOID, parts: policiesViewParts(false), prettyParts: policiesViewParts(true)},
 	{oid: StatsOID, parts: statisticsViewParts(false), prettyParts: statisticsViewParts(true)},

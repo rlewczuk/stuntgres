@@ -35,10 +35,15 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		signature  catalog.ProcedureSignature
 	}{
 		{2306, "pg_stat_get_slru", 2249, true, 0, ""},
+		{2769, "pg_stat_get_checkpointer_num_timed", 20, false, 0, ""},
+		{2770, "pg_stat_get_checkpointer_num_requested", 20, false, 0, ""},
+		{2771, "pg_stat_get_checkpointer_buffers_written", 20, false, 0, ""},
 		{2772, "pg_stat_get_bgwriter_buf_written_clean", 20, false, 0, ""},
 		{2773, "pg_stat_get_bgwriter_maxwritten_clean", 20, false, 0, ""},
 		{2859, "pg_stat_get_buf_alloc", 20, false, 0, ""},
 		{3075, "pg_stat_get_bgwriter_stat_reset_time", 1184, false, 0, ""},
+		{3160, "pg_stat_get_checkpointer_write_time", 701, false, 0, ""},
+		{3161, "pg_stat_get_checkpointer_sync_time", 701, false, 0, ""},
 		{3195, "pg_stat_get_archiver", 2249, false, 0, ""},
 		{3329, "pg_show_all_file_settings", 2249, true, 1, ""},
 		{3400, "pg_config", 2249, true, 1, ""},
@@ -46,6 +51,12 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		{5052, "pg_get_shmem_allocations", 2249, true, 2, ""},
 		{6118, "pg_stat_get_subscription", 2249, true, 0, "26"},
 		{6250, "pg_ident_file_mappings", 2249, true, 1, ""},
+		{6314, "pg_stat_get_checkpointer_stat_reset_time", 1184, false, 0, ""},
+		{6327, "pg_stat_get_checkpointer_restartpoints_timed", 20, false, 0, ""},
+		{6328, "pg_stat_get_checkpointer_restartpoints_requested", 20, false, 0, ""},
+		{6329, "pg_stat_get_checkpointer_restartpoints_performed", 20, false, 0, ""},
+		{6366, "pg_stat_get_checkpointer_slru_written", 20, false, 0, ""},
+		{6377, "pg_stat_get_checkpointer_num_performed", 20, false, 0, ""},
 		{6399, "pg_get_aios", 2249, true, 2, ""},
 	} {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: want.oid})
@@ -64,7 +75,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		if want.result != 2249 {
 			if !p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.OutputDeclaration() != nil || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 || p.CostEstimate() != 1 || p.RowEstimate() != 0 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
-				t.Fatal("released zero-input scalar bgwriter declaration", p)
+				t.Fatal("released zero-input scalar statistics declaration", p)
 			}
 		}
 		if want.oid == 3195 {
@@ -102,7 +113,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 			}
 			for i, field := range [...]struct {
 				name string
-				typ ids.OID
+				typ  ids.OID
 			}{
 				{"subid", 26}, {"relid", 26}, {"pid", 23}, {"leader_pid", 23},
 				{"received_lsn", 3220}, {"last_msg_send_time", 1184}, {"last_msg_receipt_time", 1184},

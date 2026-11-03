@@ -247,8 +247,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// no OUT fields/defaults and ordinary implicit PUBLIC EXECUTE authority.
 	// Subscription monitoring adds non-strict STABLE/restricted SETOF RECORD
 	// declaration6118, one named IN OID, ten OUT fields and rows10.
-	if len(facts) != 2257 {
-		t.Fatalf("released represented overloads: got %d, want 2257", len(facts))
+	// Checkpointer adds eleven metadata-only strict STABLE/restricted zero-input
+	// scalar declarations: eight INT8 counters, two FLOAT8 times and TIMESTAMPTZ
+	// reset, with no OUT fields/defaults and default PUBLIC EXECUTE authority.
+	if len(facts) != 2268 {
+		t.Fatalf("released represented overloads: got %d, want 2268", len(facts))
 	}
 	return facts
 }

@@ -1,7 +1,8 @@
 # Statistics reference scenarios
 
 This bounded feature package owns public SQL scenarios for the seven-column
-cluster archiver, four-column cluster bgwriter, nine-column `pg_stat_all_indexes` and 30-column
+cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
+nine-column `pg_stat_all_indexes` and 30-column
 `pg_stat_all_tables` views. All Go tests are untagged external tests using public
 stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
@@ -89,9 +90,22 @@ physical counters may drift while reset instants, metadata, privileges and cache
 cuts stay exact. Four raw backing ACLs exercise the existing serializer/replay
 authority without exposing callable getters.
 
+Checkpointer scenarios extend the same scalar-singleton contract to eight
+independent BIGINT counters and two independent FLOAT8 millisecond totals.
+Public reads are unmasked, while demanded output/predicate/sort getters retain
+current EXECUTE checks even for false input. Presence-only reads do not capture
+statistics. Native technical estimates are zero without physical checkpoint,
+restartpoint, buffer, SLRU or IO events; PostgreSQL's physical quantities may
+drift independently. Exact cluster startup/reset metadata survives late database
+publication and accepted native replacement. Selected, NULL and omitted shared
+resets honor existing Reader lifetime and survive rollback. Eleven raw getter
+ACLs round-trip implicit/explicit distinctions through real controls; no callable
+getter or serialized monitoring history is introduced. Owning internal tests
+seed all eight counters and both sub-millisecond times independently.
+
 ## Testing
 
-The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|BGWriter)'`
+The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|BGWriter|Checkpointer)'`
 and the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
 
 Selected bgwriter admission/aggregate proofs (both modes are required):

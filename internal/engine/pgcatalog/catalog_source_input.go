@@ -40,6 +40,8 @@ type Input struct {
 	SLRU [statistics.SLRUCount]statistics.SLRUFact
 	// BGWriter is detached after demand-scoped backing EXECUTE admission.
 	BGWriter statistics.SharedFact
+	// Checkpointer is detached after demand-scoped backing EXECUTE admission.
+	Checkpointer statistics.SharedFact
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress

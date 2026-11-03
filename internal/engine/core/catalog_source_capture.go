@@ -19,14 +19,27 @@ import (
 
 // Scalar getter authority is shared by whole-query preparation and low-level
 // capture rechecks. nil means full projection; nonnil empty is presence-only.
-func admitBGWriterGetters(auth AuthorizationView, uses []int) error {
-	procedures := [...]ids.OID{2772, 2773, 2859, 3075}
+func admitScalarStatsGetters(auth AuthorizationView, oid ids.OID, uses []int) error {
+	var procedures []ids.OID
+	switch oid {
+	case pgcatalog.StatBGWriterOID:
+		procedures = []ids.OID{2772, 2773, 2859, 3075}
+	case pgcatalog.StatCheckpointerOID:
+		procedures = []ids.OID{2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314}
+	default:
+		return fmt.Errorf("stuntgres: invalid scalar statistics source")
+	}
 	if uses == nil {
-		uses = []int{0, 1, 2, 3}
+		for _, procedure := range procedures {
+			if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedure}), Privileges: authorization.ExecutePrivilege}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	for _, column := range uses {
 		if column < 0 || column >= len(procedures) {
-			return fmt.Errorf("stuntgres: invalid bgwriter column demand")
+			return fmt.Errorf("stuntgres: invalid scalar statistics column demand")
 		}
 		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedures[column]}), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return err
@@ -37,7 +50,7 @@ func admitBGWriterGetters(auth AuthorizationView, uses []int) error {
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressBGWriterRead bool) (*exec.Source, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressScalarStatsRead bool) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	if oid == pgcatalog.StatActivityOID {
 		return e.capturePGStatActivityLocked(scope, ref, source, keep)
@@ -64,21 +77,25 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
-	case pgcatalog.StatBGWriterOID:
+	case pgcatalog.StatBGWriterOID, pgcatalog.StatCheckpointerOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
 			return nil, err
 		}
-		if err := admitBGWriterGetters(auth, outputUses); err != nil {
+		if err := admitScalarStatsGetters(auth, oid, outputUses); err != nil {
 			e.Mu.Unlock()
 			return nil, err
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
-		if (outputUses == nil || len(outputUses) != 0) && !suppressBGWriterRead {
+		if (outputUses == nil || len(outputUses) != 0) && !suppressScalarStatsRead {
 			reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
 			captureDatabaseStats(e, reader)
-			in.BGWriter = reader.ReadShared(&e.Statistics, statistics.BGWriter, time.Time{})
+			if oid == pgcatalog.StatCheckpointerOID {
+				in.Checkpointer = reader.ReadShared(&e.Statistics, statistics.Checkpointer, time.Time{})
+			} else {
+				in.BGWriter = reader.ReadShared(&e.Statistics, statistics.BGWriter, time.Time{})
+			}
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)

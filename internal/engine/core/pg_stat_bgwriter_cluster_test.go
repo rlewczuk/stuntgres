@@ -142,7 +142,7 @@ func TestPGStatBGWriterClusterAuthority(t *testing.T) {
 			session := enginetest.StartSession(t, target, nil)
 			resetStatsExec(t, session, "SELECT pg_stat_reset_shared('bgwriter')")
 			var writer statistics.Writer
-			writer.Shared(&target.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7}})
+			writer.Shared(&target.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7}})
 			writer.Flush(&target.Statistics, time.Now(), true)
 			before := target.Statistics.ReadShared(statistics.BGWriter)
 			authority := target.Cluster.BGWriterResetAt

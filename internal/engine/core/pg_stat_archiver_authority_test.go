@@ -64,7 +64,7 @@ func TestPGStatArchiverReaderAuthority(t *testing.T) {
 				statsFunctionExec(t, reader, "SET ROLE archiver_authority_reader", "SET stats_fetch_consistency="+mode, "BEGIN")
 				defer statsFunctionExec(t, reader, "ROLLBACK")
 				var writer statistics.Writer
-				writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{3, 2}})
+				writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{3, 2}})
 				writer.Flush(&e.Statistics, time.Unix(100, 0), true)
 				owned := reflect.ValueOf(core.PayloadOf(reader)).Elem().FieldByName("statsReader")
 				capture := func(denied bool) {
@@ -111,7 +111,7 @@ func TestPGStatArchiverReaderAuthority(t *testing.T) {
 					if owned.FieldByName("full").Bool() != (mode == "snapshot") || owned.FieldByName("shared").Index(int(statistics.Archiver)).FieldByName("Counters").Index(0).Int() != 3 {
 						t.Fatal("actual private Reader cut absent")
 					}
-					writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{5, 5}})
+					writer.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{5, 5}})
 					writer.Flush(&e.Statistics, time.Unix(200, 0), true)
 					if e.Statistics.ReadShared(statistics.Archiver).Counters[0] != 8 {
 						t.Fatal("current provider did not diverge from retained cut")

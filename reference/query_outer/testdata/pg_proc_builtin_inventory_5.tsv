@@ -137,3 +137,14 @@
 2859	pg_stat_get_buf_alloc	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_buf_alloc	\N	false	\N
 3075	pg_stat_get_bgwriter_stat_reset_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_stat_get_bgwriter_stat_reset_time	\N	false	\N
 6118	pg_stat_get_subscription	11	12	1	10	0	0	f	false	false	false	true	s	r	1	0	2249	26	{26,26,26,23,23,3220,1184,1184,3220,1184,25}	{i,o,o,o,o,o,o,o,o,o,o}	{subid,subid,relid,pid,leader_pid,received_lsn,last_msg_send_time,last_msg_receipt_time,latest_end_lsn,latest_end_time,worker_type}	false	\N	pg_stat_get_subscription	\N	false	\N
+2769	pg_stat_get_checkpointer_num_timed	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_num_timed	\N	false	\N
+2770	pg_stat_get_checkpointer_num_requested	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_num_requested	\N	false	\N
+6377	pg_stat_get_checkpointer_num_performed	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_num_performed	\N	false	\N
+6327	pg_stat_get_checkpointer_restartpoints_timed	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_restartpoints_timed	\N	false	\N
+6328	pg_stat_get_checkpointer_restartpoints_requested	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_restartpoints_requested	\N	false	\N
+6329	pg_stat_get_checkpointer_restartpoints_performed	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_restartpoints_performed	\N	false	\N
+3160	pg_stat_get_checkpointer_write_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	701		\N	\N	\N	false	\N	pg_stat_get_checkpointer_write_time	\N	false	\N
+3161	pg_stat_get_checkpointer_sync_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	701		\N	\N	\N	false	\N	pg_stat_get_checkpointer_sync_time	\N	false	\N
+2771	pg_stat_get_checkpointer_buffers_written	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_buffers_written	\N	false	\N
+6366	pg_stat_get_checkpointer_slru_written	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	20		\N	\N	\N	false	\N	pg_stat_get_checkpointer_slru_written	\N	false	\N
+6314	pg_stat_get_checkpointer_stat_reset_time	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_stat_get_checkpointer_stat_reset_time	\N	false	\N

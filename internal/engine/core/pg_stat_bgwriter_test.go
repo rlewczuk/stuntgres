@@ -53,7 +53,7 @@ func testBGWriterCapture(t *testing.T) {
 			at := time.Unix(100, 123456000).UTC()
 			e.Statistics.ResetShared(statistics.BGWriter, at)
 			var writer statistics.Writer
-			writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7, 91, 92, 93}, LastSuccess: "success", LastSuccessAt: at.Add(time.Second), LastFailure: "failure", LastFailureAt: at.Add(2 * time.Second)})
+			writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7, 91, 92, 93}, LastSuccess: "success", LastSuccessAt: at.Add(time.Second), LastFailure: "failure", LastFailureAt: at.Add(2 * time.Second)})
 			writer.Flush(&e.Statistics, at, true)
 			before := e.Statistics.ReadShared(statistics.BGWriter)
 			capture := func() core.Result {
@@ -71,7 +71,7 @@ func testBGWriterCapture(t *testing.T) {
 			}
 			resetStatsExec(t, s, "SELECT pg_stat_reset_shared('bgwriter')")
 			after := e.Statistics.ReadShared(statistics.BGWriter)
-			if after.Counters != [6]int64{} || after.LastSuccess != "" || after.LastFailure != "" || !after.LastSuccessAt.IsZero() || !after.LastFailureAt.IsZero() || after.ResetAt.IsZero() {
+			if after.Counters != [8]int64{} || after.LastSuccess != "" || after.LastFailure != "" || !after.LastSuccessAt.IsZero() || !after.LastFailureAt.IsZero() || after.ResetAt.IsZero() {
 				t.Fatal("genuine seeded reset", after)
 			}
 			bgwriterOwnerRow(t, old, before)

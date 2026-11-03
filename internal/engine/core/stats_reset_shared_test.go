@@ -33,7 +33,7 @@ func sharedStatsSeed(e *core.Engine, key statistics.Key) {
 	at := time.Unix(100, 0).UTC()
 	e.Statistics.Reset(at)
 	for k := statistics.SharedKind(0); k < statistics.SharedKindCount; k++ {
-		w.Shared(&e.Statistics, k, statistics.SharedFact{Counters: [6]int64{int64(k+1) * 11}, TotalTime: time.Millisecond})
+		w.Shared(&e.Statistics, k, statistics.SharedFact{Counters: [8]int64{int64(k+1) * 11}, TotalTime: time.Millisecond})
 	}
 	for k := statistics.SLRUKind(0); k < statistics.SLRUCount; k++ {
 		w.SLRU(&e.Statistics, k, statistics.SLRUFact{Counters: [7]int64{int64(k) + 1}})
@@ -74,7 +74,7 @@ func TestStatsResetSharedRuntime(t *testing.T) {
 			for k, want := range before {
 				got := e.Statistics.ReadShared(statistics.SharedKind(k))
 				if statistics.SharedKind(k) == target {
-					if got.Counters != ([6]int64{}) || got.TotalTime != 0 || got.ResetAt.IsZero() {
+					if got.Counters != ([8]int64{}) || got.TotalTime != 0 || got.ResetAt.IsZero() {
 						t.Fatal("selected", target, got)
 					}
 				} else if got != want {
@@ -109,7 +109,7 @@ func TestStatsResetSharedRuntime(t *testing.T) {
 		resetStatsExec(t, s, q)
 		for _, target := range []*core.Engine{e, peer} {
 			for k := statistics.SharedKind(0); k < statistics.SharedKindCount; k++ {
-				if f := target.Statistics.ReadShared(k); f.Counters != ([6]int64{}) || f.ResetAt.IsZero() {
+				if f := target.Statistics.ReadShared(k); f.Counters != ([8]int64{}) || f.ResetAt.IsZero() {
 					t.Fatal("all", k, f)
 				}
 			}
@@ -335,11 +335,11 @@ func TestStatsResetSharedProviderSmoke(t *testing.T) {
 	e.Statistics.ReportPrefetchGauges(3, 5, 7)
 	resetStatsExec(t, s, "SELECT pg_stat_reset_shared('recovery_prefetch')")
 	f := e.Statistics.ReadShared(statistics.RecoveryPrefetch)
-	if f.Counters != ([6]int64{}) || f.WALDistance != 3 || f.BlockDistance != 5 || f.IODepth != 7 {
+	if f.Counters != ([8]int64{}) || f.WALDistance != 3 || f.BlockDistance != 5 || f.IODepth != 7 {
 		t.Fatal("prefetch", f)
 	}
 	var w statistics.Writer
-	w.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{LastSuccess: "wal", LastSuccessAt: time.Unix(100, 0), Counters: [6]int64{1}})
+	w.Shared(&e.Statistics, statistics.Archiver, statistics.SharedFact{LastSuccess: "wal", LastSuccessAt: time.Unix(100, 0), Counters: [8]int64{1}})
 	w.Flush(&e.Statistics, time.Now(), true)
 	resetStatsExec(t, s, "SELECT pg_stat_reset_shared('archiver')")
 	arch := e.Statistics.ReadShared(statistics.Archiver)

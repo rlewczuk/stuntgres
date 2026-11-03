@@ -67,13 +67,13 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
 - `KeepQuery.Keep` returns the producer row test for a leaf of the SELECT
   being captured (system relations with `pgcatalog.KeyColumns` only); nested
   view and policy captures number their occurrences separately.
-  `KeepQuery.BGWriterReadSuppressed` uses the same captured-leaf ownership guard
+  `KeepQuery.ScalarStatsReadSuppressed` uses the same captured-leaf ownership guard
   before the literal-only `exec.CatalogSourceFalse` proof. A proven direct false
   input can pass through ordinary aggregates with no ordered-set direct arguments:
   synthesized aggregate output does not demand input-source values. Identity reads,
   subqueries and unsupported boundaries reject the proof. It suppresses only
-  cumulative bgwriter evaluation, never current getter ACLs, whose recursive
-  query-source admission finishes before any policy/source capture.
+  cumulative bgwriter/checkpointer evaluation, never current getter ACLs, whose
+  recursive query-source admission finishes before any policy/source capture.
 - `KeepQuery.RejectsInput` reuses the executor's literal/imported-parameter WHERE
   proof only for this SELECT's exact single Source under Project→Filter. FALSE
   and Boolean NULL can elide eager catalog production after common SELECT
@@ -81,9 +81,9 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   execution; no rejected-demand decision is retained. Nested/CTE/rule frames,
   samples, row marks, locks and other topology conservatively keep capture.
   Arbitrary expressions are never evaluated as proof. Cancellation and invalid
-  parameter frames remain errors, not successful empty results. Bgwriter's scalar
-  getter ACLs remain admitted before this proof; its broader aggregate read-only
-  suppression remains independent of direct-input source elision.
+  parameter frames remain errors, not successful empty results. Bgwriter and
+  checkpointer scalar getter ACLs remain admitted before this proof; their broader
+  aggregate read-only suppression remains independent of direct-input source elision.
 - `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links. It copies relation
   templates built once per process and sets this engine's owner, ACL and

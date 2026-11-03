@@ -61,6 +61,9 @@ func (h *statementHost) StatsResetShared(kind functions.StatsResetSharedKind, ar
 			if argument.IsNull() || target == statistics.BGWriter {
 				e.Cluster.BGWriterResetAt = at
 			}
+			if argument.IsNull() || target == statistics.Checkpointer {
+				e.Cluster.CheckpointerResetAt = at
+			}
 		}
 		reset := func(p *statistics.Provider) {
 			if kind == functions.ResetSLRU {

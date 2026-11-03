@@ -150,6 +150,12 @@ BIGINT/BIGINT/BIGINT/TIMESTAMPTZ fields and view classification to the complete
 native bag. Its full columns projection checks precision, absent defaults and
 non-updatability through direct, prepared and retained statements, without
 oracle-side column filtering.
+`pg_stat_checkpointer` contributes all eleven nullable release-ordered fields
+and view classification to the same complete native bag. Full direct, prepared
+and held projections independently check eight BIGINT precision/scale facts,
+two DOUBLE PRECISION fields with precision53/radix2 and absent scale, and the
+TIMESTAMPTZ reset with datetime precision6. All fields have absent defaults and
+are non-updatable; the oracle projection does not filter column names.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and

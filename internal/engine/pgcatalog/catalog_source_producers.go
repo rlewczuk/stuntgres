@@ -125,6 +125,7 @@ var producers = [...]Registration{
 	{StatReplicationSlotsOID, capturePGStatReplicationSlots},
 	{StatArchiverOID, capturePGStatArchiver},
 	{StatBGWriterOID, capturePGStatBGWriter},
+	{StatCheckpointerOID, capturePGStatCheckpointer},
 	{WaitEventsOID, capturePGWaitEvents},
 	{AIOSOID, captureAIOS},
 	{StatioAllIndexesOID, captureStatioIndexes},

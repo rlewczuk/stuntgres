@@ -428,7 +428,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 					}
 					capture = !rejects
 				}
-				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogKeep.Keep(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks), capture, scope.catalogKeep.BGWriterReadSuppressed(leaves, i, mark))
+				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogKeep.Keep(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks), capture, scope.catalogKeep.ScalarStatsReadSuppressed(leaves, i, mark))
 				e.Mu.Lock()
 			}
 		}

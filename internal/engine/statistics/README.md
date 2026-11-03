@@ -68,33 +68,44 @@ Full Reset/Replace clear fixed/backend history with the database incarnation,
 retain current live registrations and advance the existing pending-generation
 fence. New actual target publication inherits only positive registrations under
 cluster serialization, using separate provider lock acquisitions, never metric
-history. Archiver and bgwriter reset metadata have explicit cluster authority:
-core initializes `DatabaseCluster.ArchiverResetAt` and `BGWriterResetAt` from
+history. Archiver, bgwriter and checkpointer reset metadata have explicit cluster
+authority: core initializes `DatabaseCluster.ArchiverResetAt`, `BGWriterResetAt`
+and `CheckpointerResetAt` from
 genuine startup and mirrors each through `ResetShared` at target publication
 and after accepted local replacement. The selected family or all-family shared
 reset updates its authority and every current mirror at one instant. This bounded
-exception is valid because neither family has a production physical event writer;
+exception is valid because none of these families has a physical event writer;
 future physical events require cluster event ownership, not independent counters.
 Other fixed families retain their existing local replacement/publication rules.
 No monitoring history is serialized or activity manufactured.
 The provider remains zero-value-ready: reads never initialize reset metadata.
 The completed engine owner records recovery-prefetch and SLRU initialization
-once through targeted ResetShared and mirrors genuine archiver and bgwriter
-initialization, without changing unrelated families or generation.
-Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–5
+once through targeted ResetShared and mirrors genuine archiver, bgwriter and
+checkpointer initialization, without changing unrelated families or generation.
+Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–7
 are unused by its view. Both technical estimates are zero without a physical
 producer, never query-derived activity. Exact last-success/failure names and
 instants are independently NULL when absent. Projection consumes copied facts.
 SLRU uses dedicated `SLRUFact` values with seven counters in SQL order
-zeroed/hit/read/written/exists/flushes/truncates; unrelated SharedFact stays six-slot.
+zeroed/hit/read/written/exists/flushes/truncates; SharedFact has eight counter slots.
 Publication adds each admitted counter and never adopts pending reset metadata.
 No corresponding physical event means deterministic zero technical estimates,
 never physical measurements, query-derived activity or read-time reset clocks.
 
 Bgwriter slots0/1/2 are cleaned buffers, cleaning-limit stops and allocated buffers;
-slots3–5 and last-event fields are unused by the view. Each technical estimate is
+slots3–7 and last-event fields are unused by the view. Each technical estimate is
 zero while its physical facility/events are absent, never inferred from logical
 SQL work, elapsed time or buffercache occupancy. ResetAt remains exact event metadata.
+
+Checkpointer slots0–5 hold timed/requested/performed checkpoints and
+timed/requested/performed restartpoints; slots6/7 hold written shared/SLRU buffers.
+`WriteTime` and `SyncTime` accumulate independently; projection converts durations
+to fractional milliseconds, never aliases `TotalTime` or derives performed counts.
+All ten technical estimates are zero without the corresponding physical events.
+Selected/all reset clears the complete vector atomically; pending work and old
+Reader cuts remain owned by their existing publication/snapshot generations.
+Catalog replacement clears local history but core restores genuine cluster reset
+metadata. No monitoring history enters Dump.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.
@@ -371,7 +382,7 @@ independent of cross-engine clocks and physical planning invocation frequency.
 ## Testing
 
 Deterministic publication, reader, suppression, identity/reset and concurrent
-merge tests use `make check RUN='^TestStatsProvider'`; add `RACE=1` for concurrency.
+merge tests use `make check RUN='^TestStats(Provider|Checkpointer)'`; add `RACE=1` for concurrency.
 Sequence encounter merging, reader snapshots and identity/reset fencing use
 `make check RUN='^TestStatsSequence'`, also with `RACE=1`.
 Pending block arithmetic, generation/retirement fences and allocation-free lookup

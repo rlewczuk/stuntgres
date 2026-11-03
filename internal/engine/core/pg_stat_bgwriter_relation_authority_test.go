@@ -24,7 +24,7 @@ func testBGWriterRelationAuthority(t *testing.T) {
 				statsFunctionExec(t, reader, "SET ROLE bgwriter_column_reader", "SET stats_fetch_consistency="+mode, "BEGIN")
 				defer statsFunctionExec(t, reader, "ROLLBACK")
 				var writer statistics.Writer
-				writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [6]int64{3, 5, 7}})
+				writer.Shared(&e.Statistics, statistics.BGWriter, statistics.SharedFact{Counters: [8]int64{3, 5, 7}})
 				writer.Flush(&e.Statistics, time.Unix(100, 0), true)
 				fact := e.Statistics.ReadShared(statistics.BGWriter)
 				ast, description := enginetest.PreparedDescription(t, e, reader, "SELECT * FROM pg_stat_bgwriter")

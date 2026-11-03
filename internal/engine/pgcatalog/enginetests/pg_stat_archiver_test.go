@@ -77,7 +77,7 @@ func TestPGStatArchiverProjection(t *testing.T) {
 	}
 	at := time.Date(2025, 7, 8, 9, 10, 11, 123456000, time.FixedZone("event", 7200))
 	var writer statistics.Writer
-	writer.Shared(&provider, statistics.Archiver, statistics.SharedFact{Counters: [6]int64{3, 2, 99, 98, 97, 96}, LastSuccess: "00000001000000000000002A", LastSuccessAt: at, LastFailure: "00000001000000000000002B", LastFailureAt: at.Add(time.Second)})
+	writer.Shared(&provider, statistics.Archiver, statistics.SharedFact{Counters: [8]int64{3, 2, 99, 98, 97, 96}, LastSuccess: "00000001000000000000002A", LastSuccessAt: at, LastFailure: "00000001000000000000002B", LastFailureAt: at.Add(time.Second)})
 	writer.Flush(&provider, at, true)
 	fact := provider.ReadShared(statistics.Archiver)
 	old := check(fact)

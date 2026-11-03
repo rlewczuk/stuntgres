@@ -47,6 +47,7 @@ func icProviderInventory(c *icCase) {
 		"pg_stat_activity":                  strings.Fields("datid datname pid leader_pid usesysid usename application_name client_addr client_hostname client_port backend_start xact_start query_start state_change wait_event_type wait_event state backend_xid backend_xmin query_id query backend_type"),
 		"pg_stat_archiver":                  strings.Fields("archived_count last_archived_wal last_archived_time failed_count last_failed_wal last_failed_time stats_reset"),
 		"pg_stat_bgwriter":                  strings.Fields("buffers_clean maxwritten_clean buffers_alloc stats_reset"),
+		"pg_stat_checkpointer":              strings.Fields("num_timed num_requested num_done restartpoints_timed restartpoints_req restartpoints_done write_time sync_time buffers_written slru_written stats_reset"),
 		"pg_stat_database":                  strings.Fields("datid datname numbackends xact_commit xact_rollback blks_read blks_hit tup_returned tup_fetched tup_inserted tup_updated tup_deleted conflicts temp_files temp_bytes deadlocks checksum_failures checksum_last_failure blk_read_time blk_write_time session_time active_time idle_in_transaction_time sessions sessions_abandoned sessions_fatal sessions_killed parallel_workers_to_launch parallel_workers_launched stats_reset"),
 		"pg_stat_recovery_prefetch":         strings.Fields("stats_reset prefetch hit skip_init skip_new skip_fpw skip_rep wal_distance block_distance io_depth"),
 		"pg_stat_slru":                      strings.Fields("name blks_zeroed blks_hit blks_read blks_written blks_exists flushes truncates stats_reset"),
@@ -198,7 +199,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
 			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
-			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription")
+			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription", "pg_stat_checkpointer")
 			views = append(views, "pg_stat_database")
 			for _, view := range views {
 				if view == table {
@@ -274,6 +275,28 @@ func icProviderInventory(c *icCase) {
 				// The released singleton view has exactly these four attributes;
 				// retain the full projection without oracle-side column filtering.
 				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_bgwriter'", rows)
+				child.run(child.conn, s)
+				child.run(child.conn, fixture.Prepared(s))
+				child.run(child.hold(s.Query), s)
+			}
+			if table == "pg_stat_checkpointer" {
+				var rows [][]any
+				for i, field := range inventory[table] {
+					dataType, udt := "bigint", "int8"
+					facts := map[string]any{"is_updatable": "NO", "numeric_precision": int64(64), "numeric_precision_radix": int64(2), "numeric_scale": int64(0)}
+					switch i {
+					case 6, 7:
+						dataType, udt = "double precision", "float8"
+						facts = map[string]any{"is_updatable": "NO", "numeric_precision": int64(53), "numeric_precision_radix": int64(2)}
+					case 10:
+						dataType, udt = "timestamp with time zone", "timestamptz"
+						facts = map[string]any{"is_updatable": "NO", "datetime_precision": int64(6)}
+					}
+					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataType, "pg_catalog", udt, facts))
+				}
+				// All eleven released fields, including both independent FLOAT8
+				// times: no oracle-side column-name restriction.
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_checkpointer'", rows)
 				child.run(child.conn, s)
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)

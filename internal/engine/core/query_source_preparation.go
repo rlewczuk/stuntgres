@@ -83,7 +83,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		if p.occurrences[i].program.Denied() {
 			continue
 		}
-		if leaf.Relation.Address().ObjectID == pgcatalog.StatBGWriterOID {
+		if oid := leaf.Relation.Address().ObjectID; oid == pgcatalog.StatBGWriterOID || oid == pgcatalog.StatCheckpointerOID {
 			uses := leaf.Uses
 			if uses == nil {
 				uses = []int{}
@@ -91,7 +91,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 			// This recursive metadata frontier completes for the whole selected
 			// query/policy/view closure before any source can populate a Reader.
 			// Scalar execution keeps the current invoker, not the view owner.
-			if err := admitBGWriterGetters(auth, uses); err != nil {
+			if err := admitScalarStatsGetters(auth, leaf.Relation.Address().ObjectID, uses); err != nil {
 				return nil, err
 			}
 		}

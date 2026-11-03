@@ -16,8 +16,8 @@ import (
 // principals affect ACL and row-security checks; expressions keep the invoker.
 // keep is the catalog producer row test (see catalogSourceKeep), or zero.
 // capture is false only for this SELECT's proven undemanded catalog input.
-// Bgwriter read suppression preserves its separately admitted scalar getter ACLs.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep, capture, suppressBGWriterRead bool) (*exec.Source, error) {
+// Scalar statistics suppression preserves separately admitted getter ACLs.
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep, capture, suppressScalarStatsRead bool) (*exec.Source, error) {
 	ctx := scope.Op.Context()
 	if err := ctx.Err(); err != nil {
 		e.Mu.Unlock()
@@ -40,12 +40,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 	case catalog.CatalogRelation:
 		// Common SELECT admission and current descriptor/view validation remain
 		// mandatory. Only a proven undemanded input elides its producer/getter.
-		// Scalar bgwriter getter ACLs were already admitted during preparation.
+		// Scalar statistics getter ACLs were already admitted during preparation.
 		if !capture {
 			e.Mu.Unlock()
 			return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(d.Columns)}, nil
 		}
-		return e.openCatalogSourceLocked(scope, ref, d, keep, outputUses, suppressBGWriterRead)
+		return e.openCatalogSourceLocked(scope, ref, d, keep, outputUses, suppressScalarStatsRead)
 	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
 		e.Mu.Unlock()

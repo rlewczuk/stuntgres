@@ -35,10 +35,14 @@ func (q *KeepQuery) Keep(ctx context.Context, input sqltype.InputEnvironment, ou
 	return pgcatalog.Keep{}
 }
 
-// BGWriterReadSuppressed preserves scalar getter ACL demand while proving that
-// no bgwriter expression is evaluated. Other sources retain their capture policy.
-func (q *KeepQuery) BGWriterReadSuppressed(leaves []exec.Leaf, i int, mark plan.RowMark) bool {
-	if q == nil || mark.Mode != 0 || leaves[i].Relation.Address().ObjectID != pgcatalog.StatBGWriterOID || !sameLeafTables(q.Leaves, leaves) {
+// ScalarStatsReadSuppressed preserves scalar getter ACL demand while proving
+// that no expression is evaluated. Other sources retain their capture policy.
+func (q *KeepQuery) ScalarStatsReadSuppressed(leaves []exec.Leaf, i int, mark plan.RowMark) bool {
+	if q == nil || mark.Mode != 0 || !sameLeafTables(q.Leaves, leaves) {
+		return false
+	}
+	oid := leaves[i].Relation.Address().ObjectID
+	if oid != pgcatalog.StatBGWriterOID && oid != pgcatalog.StatCheckpointerOID {
 		return false
 	}
 	return exec.CatalogSourceFalse(q.Root, i, leaves[i].Ref)
@@ -67,7 +71,7 @@ func (q *KeepQuery) RejectsInput(ctx context.Context, input sqltype.InputEnviron
 		return false, nil
 	}
 	evaluation := exec.Context{
-		EvalFrame: exec.EvalFrame{Scope: 1, Frame: project.Frame},
+		EvalFrame:     exec.EvalFrame{Scope: 1, Frame: project.Frame},
 		EvalStatement: exec.EvalStatement{Context: ctx, Parameters: q.Parameters, Input: input, Output: output},
 	}
 	return exec.QueryPredicateRejectsAll(&evaluation, filter.Predicate)
