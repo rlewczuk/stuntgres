@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/core/contrib"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -418,6 +419,7 @@ func TestPgvisibilityCaptureLifecycle(t *testing.T) {
 		}{
 			{"pg_visibility_map", false}, {"pg_visibility", false}, {"pg_visibility_map_summary", false},
 			{"pg_visibility_map", true}, {"pg_visibility", true},
+			{"pg_check_visible", false}, {"pg_check_frozen", false}, {"pg_truncate_visibility_map", false},
 		} {
 			binder := enginetest.ExpressionBinder(t, t.Context(), e, sqltype.InputEnvironment{}, nil)
 			binder.Clause.AggregateClause = "FROM"
@@ -431,7 +433,20 @@ func TestPgvisibilityCaptureLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope, finish := visibilityScope(t, e, observer)
-			capture, err := contrib.Pgvisibility(visibilityHost(scope), node.(plan.InstalledPgvisibilityExpr), uint32(index.Address.ObjectID), -1)
+			installed := node.(plan.InstalledPgvisibilityExpr)
+			var capture storage.VisibilityMap
+			switch {
+			case installed.Kind.Check():
+				var findings []ids.VersionID
+				findings, err = core.HostOf(scope).Contrib().PgvisibilityCheck(installed, uint32(index.Address.ObjectID))
+				if findings != nil {
+					t.Fatal("wrong-kind check published findings", findings)
+				}
+			case installed.Kind == functions.VisibilityTruncateMap:
+				err = core.HostOf(scope).Contrib().PgvisibilityTruncate(installed, uint32(index.Address.ObjectID))
+			default:
+				capture, err = contrib.Pgvisibility(visibilityHost(scope), installed, uint32(index.Address.ObjectID), -1)
+			}
 			err = finish(err)
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `relation "visibility_index" is of wrong relation kind`, Detail: "This operation is not supported for partitioned indexes."}
 			var diagnostic *sqlstate.Error

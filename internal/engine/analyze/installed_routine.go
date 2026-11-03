@@ -279,10 +279,15 @@ func (r installedExtensionRoutine) PgFreespaceDeclaration() (functions.PgFreespa
 }
 func (r installedExtensionRoutine) PgvisibilityDeclaration() (functions.PgvisibilityKind, []sqltype.CompositeMember) {
 	member := extension.PgvisibilityMembers[r.procedure.Origin.Declaration]
-	outputs := r.procedure.OutputDeclaration()
-	members := make([]sqltype.CompositeMember, outputs.Len())
-	for i := range outputs.Len() {
-		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(outputs.Inputs() + i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+	if member.Result != 2249 {
+		return member.Kind, nil
+	}
+	var members []sqltype.CompositeMember
+	if outputs := r.procedure.OutputDeclaration(); outputs != nil {
+		members = make([]sqltype.CompositeMember, outputs.Len())
+		for i := range outputs.Len() {
+			members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(outputs.Inputs() + i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+		}
 	}
 	return member.Kind, members
 }

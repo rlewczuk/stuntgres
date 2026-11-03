@@ -247,9 +247,13 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   known-NULL scalar, never the non-STRICT wrapper or a non-NULL state inquiry.
   Nodes retain no execution host, capture roots or authority.
   `InstalledPgvisibilityExpr` retains its authentic procedure/reference,
-  operation, lexical formal slots and result shape through rebuilding and source
-  occurrence matching. Its runtime distinguishes scalar-once NULL records from
-  empty STRICT sets; neither analyzed nodes nor cursors retain live authority.
+  operation, lexical formal slots and nominal TID/VOID or record usage through
+  rebuilding and source occurrence matching. Its runtime distinguishes scalar-once
+  NULL from empty STRICT sets; nodes/cursors retain no live execution authority.
+  The shared scalar-source OUT-name hook presents the checks' genuine `t_ctid`
+  declaration without turning their nominal TID into RECORD. A range alias does
+  not replace that OUT label; VOID has no OUT name and retains ordinary scalar
+  alias naming.
   `InstalledXML2Expr` preserves exact procedure/reference identity and ordered
   TEXT children through rebuild, retag, substitution, grouping and stored
   rendering. Its shared scalar protocols retain current validation mode for the

@@ -7,8 +7,8 @@ import (
 )
 
 // RecordRowShapes records a catalog stage's heap replacements in c.Storage.
-// A first change keeps the shape's observed predecessor; a later one keeps
-// the journal's first predecessor and replaces only the latest private store.
+// A first change keeps the tuple predecessor; later changes preserve that first
+// tuple observation. VM authority starts only at the first actual codec copy.
 // A new replacement clears truncation and materialized provenance, and a
 // rewrite records its frontier and drops the snapshot. Each change carries
 // the staged relation, else the base one. It takes no lock.
@@ -16,7 +16,15 @@ func (c *Journal) RecordRowShapes(shapes map[ids.ObjectAddress]storage.RowShape,
 	for a, rowShape := range shapes {
 		shape, exists := c.Storage[a]
 		if !exists {
-			shape = StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, Generation: rowShape.Generation}
+			shape = StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, ObservedVisibility: rowShape.ObservedVisibility, PreservesVisibility: rowShape.PreservesVisibility, Generation: rowShape.Generation}
+		} else if shape.Replacement == shape.Original {
+			shape.PreservesVisibility = rowShape.PreservesVisibility
+			if rowShape.PreservesVisibility {
+				// This is the first actual VM copy, not the earlier metadata step.
+				shape.ObservedVisibility = rowShape.ObservedVisibility
+			}
+		} else if rowShape.Replacement != rowShape.Original {
+			shape.PreservesVisibility = shape.PreservesVisibility && rowShape.PreservesVisibility
 		}
 		if shape.Replacement != rowShape.Replacement {
 			if shape.TruncateScanReset && shape.Replacement != nil {
@@ -28,6 +36,7 @@ func (c *Journal) RecordRowShapes(shapes map[ids.ObjectAddress]storage.RowShape,
 		}
 		shape.Replacement = rowShape.Replacement
 		if rowShape.Rewritten {
+			shape.PreservesVisibility = false
 			shape.Rewritten, shape.Frontier = true, rowShape.Frontier
 			shape.Snapshot, shape.HasSnapshot = nil, false
 		}
@@ -74,6 +83,7 @@ func (c *Journal) RecordMaterializedRefresh(r MaterializedRefresh) {
 	shape.MaterializedConcurrent = r.Concurrent
 	shape.Replacement, shape.Relation = r.Storage, r.Descriptor
 	shape.Truncated = false
+	shape.PreservesVisibility = false
 	shape.Rewritten, shape.Frontier = true, r.Frontier
 	shape.Snapshot, shape.HasSnapshot = nil, false
 	c.Storage[r.Address] = shape

@@ -210,6 +210,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				return err
 			}
 			if materialize {
+				if err = e.catalogVisibilityPreflightLocked(c); err != nil {
+					e.Mu.Unlock()
+					return err
+				}
 				for address, shape := range c.Storage {
 					if shape.MaterializedContinuous && shape.Original != nil {
 						if materializedTokens == nil {
@@ -449,6 +453,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		if err == nil && !changed && c != nil {
 			err = e.CatalogPreflightLocked(c)
+			if err == nil && materialize {
+				err = e.catalogVisibilityPreflightLocked(c)
+			}
 			if err == nil {
 				err = e.roleRetirementPreflightLocked(c, nextCatalog)
 			}

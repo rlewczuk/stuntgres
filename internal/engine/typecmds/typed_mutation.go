@@ -174,6 +174,10 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	e.Mu.Lock()
 	store := e.StageStorageLocked(stage, old.Address())
 	frontier := e.Visibility.CommitSeq()
+	var observedVisibility *storage.VisibilityRoot
+	if store != nil {
+		observedVisibility = store.Visibility
+	}
 	e.Mu.Unlock()
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
@@ -243,17 +247,22 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if err != nil {
 		return err
 	}
+	preservesVisibility := false
 	if !rewrite {
 		e.Mu.Lock()
 		replacementRows, reownErr := stored.ReownVersions(e.StageRead(stage).State(), replacement.Versions)
+		if reownErr == nil && len(replacementRows) != 0 && &replacementRows[0] != &replacement.Versions[0] {
+			preservesVisibility = replacement == store
+			owned := *replacement
+			if preservesVisibility {
+				observedVisibility = owned.Visibility
+			}
+			owned.Versions = replacementRows
+			replacement = &owned
+		}
 		e.Mu.Unlock()
 		if reownErr != nil {
 			return reownErr
-		}
-		if len(replacementRows) != 0 && &replacementRows[0] != &replacement.Versions[0] {
-			owned := *replacement
-			owned.Versions = replacementRows
-			replacement = &owned
 		}
 		e.Mu.Lock()
 		projectedWrites, err = stored.ReownVersions(e.StageRead(stage).State(), projectedWrites)
@@ -307,7 +316,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		if stage.RowShapes == nil {
 			stage.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 		}
-		stage.RowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
+		stage.RowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, ObservedVisibility: observedVisibility, PreservesVisibility: preservesVisibility, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
 		if stage.AlterRowSources == nil {
 			stage.AlterRowSources = make(map[ids.ObjectAddress]*catalog.Relation)
 		}

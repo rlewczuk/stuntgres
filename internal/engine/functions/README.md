@@ -1039,11 +1039,12 @@ reviewed decision:
   Volatile stage-dependent calls never fold state results; scalar known-NULL
   simplification uses the shared strict planner, while the non-STRICT wrapper
   retains execution admission. Rebuilding owns children, never execution grants.
-  `Pgvisibility` carries a selected block/map/page/summary operation and typed
-  OUT shape. REGCLASS/INT8 inputs use the shared callable/coercion hooks; lexical
-  children and checked formal slots preserve evaluation order. Scalar records
-  and relation sets have separate source cardinality. Calls remain VOLATILE,
-  stage dependent and nonfolding; authority precedes runtime STRICT handling.
+  `Pgvisibility` carries sealed map/page/summary/check/truncate operations,
+  nominal TID/VOID or typed record usage. REGCLASS/INT8 inputs use shared callable
+  and coercion hooks; lexical children and checked formal slots preserve once-only
+  evaluation. Scalar records/VOID and record/TID sets have separate cardinality.
+  Calls remain VOLATILE, stage dependent and nonfolding; current authority
+  precedes child demand and runtime STRICT handling.
   `Pgsurgery` binds the sealed freeze declaration through ordinary REGCLASS and
   TID-array coercion. Named `reloid`/`tids` inputs retain lexical order with checked
   formal slots. The VOID recipe remains volatile, stage dependent and nonfolding;

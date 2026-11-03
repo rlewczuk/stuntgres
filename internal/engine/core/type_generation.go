@@ -140,12 +140,18 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	}
 	for address, replacement := range stores {
 		if shape, ok := stage.RowShapes[address]; ok {
+			// A metadata-only stage can become its first preserving copy here.
+			// An already destructive replacement must not regain provenance.
+			if !shape.Rewritten && shape.Replacement == shape.Original && replacement != shape.Original {
+				shape.PreservesVisibility = true
+				shape.ObservedVisibility = replacement.Visibility
+			}
 			shape.Replacement = replacement
 			stage.RowShapes[address] = shape
 			continue
 		}
 		original := e.StageStorageLocked(stage, address)
-		stage.RowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation}
+		stage.RowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, ObservedVisibility: original.Visibility, PreservesVisibility: replacement != original, Generation: original.Generation}
 	}
 	return nil
 }

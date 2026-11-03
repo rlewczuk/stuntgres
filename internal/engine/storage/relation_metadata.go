@@ -1,6 +1,9 @@
 package storage
 
-import "time"
+import (
+	"stuntgres/internal/engine/catalog"
+	"time"
+)
 
 // RelationMetadata is the canonical immutable ANALYZE publication for every
 // relation kind. Store.RelationMetadata owns these records independently of
@@ -20,6 +23,10 @@ type RelationMetadata struct {
 	InheritedTuples  int64
 	AnalyzeCount     int64
 	LastAnalyze      time.Time
+	// Producer-backed catalog heaps have no ordinary Relation. Their VM fence
+	// lives only here, anchored to the admitted actual descriptor.
+	Visibility       *VisibilityRoot
+	VisibilityTarget *catalog.Relation
 }
 
 // ForeignAnalyzeStatistics keeps actual sample size separate from provider

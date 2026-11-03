@@ -294,7 +294,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			shape, exists = changes.Storage[ref.Address]
 		}
 		if !exists {
-			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
+			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, ObservedVisibility: original.Visibility, Generation: original.Generation, Replacement: store, Relation: old}
 		}
 		if validityOnly {
 			changes.AddFence(session.NewStorageIdentityFence(ref.Address, original))

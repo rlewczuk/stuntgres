@@ -108,6 +108,11 @@ type Host[A Authority] interface {
 	HeapStatisticsPrivateWritesLocked(owners []*session.TransactionOwner, store *storage.Relation, address ids.ObjectAddress, writes []storage.RowVersion) []storage.RowVersion
 	// PgvisibilityHorizonLocked shares the same cohort/Engine capture window.
 	PgvisibilityHorizonLocked(owners []*session.TransactionOwner) storage.VisibilityHorizon
+	PgvisibilityCheckHorizonLocked() storage.VisibilityCheckHorizon
+	// Map roots are incarnation-owned. Producer-only catalog heaps use the
+	// existing relation metadata, never synthetic tuples or a session registry.
+	PgvisibilityMapLocked(target *catalog.Relation, store *storage.Relation) *storage.VisibilityRoot
+	SetPgvisibilityMapLocked(target *catalog.Relation, store *storage.Relation, root *storage.VisibilityRoot)
 	// PgvisibilityCatalogBytes enters with no mutex and consumes a real
 	// registered catalog producer, without inheriting SQL projection filters.
 	PgvisibilityCatalogBytes(ref ids.ObjectRef, target *catalog.Relation) (int64, error)

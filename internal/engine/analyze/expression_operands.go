@@ -335,6 +335,11 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 	if argument.Usage == request.Target {
 		return node, nil
 	}
+	if request.Target.Type.ContainsCatalogIdentifier() {
+		if err := b.captureElementInput(); err != nil {
+			return nil, err
+		}
+	}
 	if selected, handled, selectionErr := b.declaredCoercion(node, request.Target, sqltype.Implicit, pos, argument.Raw); handled {
 		return selected, selectionErr
 	}

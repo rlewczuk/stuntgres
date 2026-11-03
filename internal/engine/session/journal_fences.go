@@ -42,7 +42,7 @@ func (f StorageReadFence) Address() ids.ObjectAddress { return f.address }
 
 // Matches checks the recorded incarnation and, for strict reads, tuple evolution.
 func (f StorageReadFence) Matches(s *storage.Relation) bool {
-	return s == f.storage && (s == nil || f.identityOnly || s.Generation == f.generation && len(s.Versions) == f.length && s.Ends == f.ends)
+	return s == f.storage && (s == nil || f.identityOnly || (len(s.Versions) == f.length && s.Ends == f.ends && s.Generation == f.generation))
 }
 
 func (f StorageReadFence) Current(_ *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) error {

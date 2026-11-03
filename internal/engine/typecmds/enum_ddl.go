@@ -122,7 +122,7 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 			if stage.RowShapes == nil {
 				stage.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 			}
-			stage.RowShapes[a] = storage.RowShape{Original: shape.Original, Replacement: shape.Replacement, Generation: shape.Generation, ObservedEnds: shape.Ends, ObservedLength: len(shape.Root)}
+			stage.RowShapes[a] = storage.RowShape{Original: shape.Original, Replacement: shape.Replacement, Generation: shape.Generation, ObservedEnds: shape.Ends, ObservedVisibility: shape.ObservedVisibility, PreservesVisibility: shape.PreservesVisibility, ObservedLength: len(shape.Root), Rewritten: shape.Rewritten}
 		}
 		if err := e.ReownStagedTypeGenerationsLocked(stage); err != nil {
 			return core.Result{}, err

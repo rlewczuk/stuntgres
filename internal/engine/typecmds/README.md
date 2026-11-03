@@ -36,6 +36,14 @@ ALTER does. Only selected builds enter that environment; initiating disclosure,
 historical row work, produced-entry reuse and final publication fences remain
 separate. Composite/source-type ownership never substitutes for table ownership.
 
+Enum generation adoption carries the heap candidate's observed VM root and
+actual preserving-copy provenance into the transaction journal without replacing
+its earlier authoritative observation. Typed mutation mints that provenance
+only when codec reowning copies the unchanged observed heap; the copied root and
+VM observation are sampled in the same `Engine.Mu` window. A projected/rewrite
+candidate starts its own modeled VM and cannot regain committed-predecessor
+continuity merely because a later enum generation transports its datums.
+
 ## Entry points
 
 - Dispatch (`core.Statements.Execute`): `ExecuteAlterDomain`,
@@ -74,6 +82,11 @@ domain replay units that stage through the schema statements live in
 [`schemacmds`](../schemacmds/README.md#testing). Public SQL lives in
 [reference/domain_types](../../../reference/domain_types/README.md#testing)
 and [reference/types](../../../reference/types/README.md#testing).
+
+`TestPgvisibilityCheckTypedMutationProducer` consumes genuinely deferred metadata
+before actual typed row production. Its old-codec heap must remain unchanged until
+that producer makes the preserving copy; the destructive rewrite control cannot
+inherit VM provenance merely from a later codec transport.
 
 The native-private `TestTypedPublicationCallbackReplacement` retains five real
 registered-provider routes: ALTER, DROP with a surviving holder, CREATE,

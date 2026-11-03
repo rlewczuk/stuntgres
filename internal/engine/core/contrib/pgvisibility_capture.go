@@ -2,6 +2,7 @@ package contrib
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -74,8 +75,24 @@ func pgvisibilityTargetCheckable(v catalog.Read, target *catalog.Relation) error
 }
 
 func Pgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
+	if n.Kind.Check() || n.Kind == functions.VisibilityTruncateMap {
+		return storage.VisibilityMap{}, fmt.Errorf("stuntgres: invalid pg_visibility READ operation")
+	}
+	result, _, err := capturePgvisibility(h, n, oid, block)
+	return result, err
+}
+
+func PgvisibilityCheck[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid uint32) ([]ids.VersionID, error) {
+	if !n.Kind.Check() {
+		return nil, fmt.Errorf("stuntgres: invalid pg_visibility check operation")
+	}
+	_, findings, err := capturePgvisibility(h, n, oid, 0)
+	return findings, err
+}
+
+func capturePgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, []ids.VersionID, error) {
 	if err := h.Active(); err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
 	h.ReacquireEngine()
 	auth, err := h.RoutineAuthorizationLocked()
@@ -93,18 +110,18 @@ func Pgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid 
 	epoch := h.CatalogEpochLocked()
 	h.ReleaseEngineLocked()
 	if err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
 	ref := h.CatalogDomain().Ref(epoch, target.Address())
 	var contribution lock.RelationContribution
 	defer h.LockManager().ReleaseRelation(&contribution)
 	if err := h.AcquireRelationContribution(ref, lock.AccessShare, &contribution); err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
 	writes, deletes := h.ColumnProjectionRoots(target.Address())
 	owners, err := h.LockHeapStatisticsCohort()
 	if err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
 	auth, err = h.RoutineAuthorizationLocked()
 	if err == nil && auth.Access().Catalog.Epoch() != epoch {
@@ -125,75 +142,104 @@ func Pgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid 
 	}
 	var facts []storage.HeapTupleFact
 	var horizon storage.VisibilityHorizon
-	var headers *storage.HeapHeaderRoot
-	var frozenXID uint64
+	var checkHorizon storage.VisibilityCheckHorizon
+	var snapshot storage.Relation
+	var root *storage.VisibilityRoot
 	foreign := false
 	if err == nil {
+		root = h.PgvisibilityMapLocked(target, store)
 		if namespace, ok := auth.Access().Catalog.Namespace(target.Namespace()); ok {
 			foreign = namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != h.Operation().Session.SessionToken
 		}
 		if store != nil {
+			snapshot = *store
 			facts = h.HeapStatisticsFactsLocked(owners, store, target.Address(), writes, deletes)
-			headers = store.Headers
-			frozenXID = store.Maintenance.FrozenXID
 			horizon = h.PgvisibilityHorizonLocked(owners)
+			checkHorizon = h.PgvisibilityCheckHorizonLocked()
 		} else if target.RelationKind != catalog.CatalogRelation {
 			err = ids.ErrCatalogReplaced
 		}
 	}
 	h.UnlockHeapStatisticsCohortLocked(owners)
 	if err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
-	var result storage.VisibilityMap
+	if foreign && n.Kind.Check() {
+		return storage.VisibilityMap{}, nil, sqlError("0A000", "cannot access temporary tables of other sessions")
+	}
+	var heap storage.VisibilityMap
+	var prepared storage.PreparedVisibilityFacts
 	if store == nil {
 		bytes, failure := h.PgvisibilityCatalogBytes(ref, target)
 		err = failure
 		if err == nil {
-			result, err = storage.CatalogVisibility(bytes)
+			heap, err = storage.CatalogVisibility(bytes)
 		}
 	} else {
-		maintenance := make([]lock.TupleMaintenance, len(facts))
+		prepared = storage.PrepareVisibilityFacts(facts, snapshot.Headers)
+		facts = prepared
+		count := 0
+		for _, fact := range facts {
+			if !fact.LinePointerOnly {
+				count++
+			}
+		}
+		maintenance := make([]lock.TupleMaintenance, count)
+		at := 0
 		for i := range facts {
-			resource, failure := exec.TupleResource(ref, facts[i].Version, headers)
+			if facts[i].LinePointerOnly {
+				continue
+			}
+			resource, failure := exec.TupleResource(ref, facts[i].Version, snapshot.Headers)
 			if failure != nil {
-				return storage.VisibilityMap{}, failure
+				return storage.VisibilityMap{}, nil, failure
 			}
-			maintenance[i].Tuple = lock.MultiTuple{Resource: resource, Version: facts[i].Version.Version}
+			maintenance[at].Tuple = lock.MultiTuple{Resource: resource, Version: facts[i].Version.Version}
+			at++
 		}
-		// Manager.mu is never nested under owner/Engine mutexes. Unlike
-		// Pgrowlocks this batch includes private/updater/predecessor versions.
-		err = h.LockManager().CaptureTupleMaintenance(h.Operation().Context(), h.Ticket(), maintenance)
+		// Manager sampling is outside every owner/Engine mutex. Raw xmax
+		// maintenance outlives its owner until successful full-XID retirement.
+		if len(maintenance) != 0 {
+			err = h.LockManager().CaptureTupleMaintenance(h.Operation().Context(), h.Ticket(), maintenance)
+		}
 		if err == nil {
+			at = 0
 			for i := range facts {
-				// Raw xmax history outlives its owner. It stops requiring
-				// maintenance only after a successful VACUUM has passed every
-				// genuine full-XID owner; neither raw xmin nor MultiXact IDs
-				// provide that provenance. A still-active contribution wins.
-				raw := maintenance[i]
-				facts[i].LockMaintenance = raw.Present && (raw.Active || raw.NewestFullXID == 0 || raw.NewestFullXID >= frozenXID)
+				if facts[i].LinePointerOnly {
+					continue
+				}
+				raw := maintenance[at]
+				at++
+				facts[i].LockMaintenance = raw.Present && (raw.Active || raw.NewestFullXID == 0 || raw.NewestFullXID >= snapshot.Maintenance.FrozenXID)
 			}
-			result, err = storage.CaptureVisibility(h.Operation().Context(), facts, horizon, false)
+			heap, err = prepared.Capture(h.Operation().Context(), horizon, false)
 		}
 	}
 	if err != nil {
-		return storage.VisibilityMap{}, err
+		return storage.VisibilityMap{}, nil, err
 	}
-	h.ReacquireEngine()
-	auth, err = h.RoutineAuthorizationLocked()
-	if err == nil {
-		err = pgvisibilityAuthority(auth, n)
+	result := heap
+	var publish *storage.VisibilityRoot
+	if root != nil && root.Invalidated {
+		result = storage.SuppressedVisibility(heap)
+	} else if store != nil {
+		if root != nil && root.Basis.Same(&snapshot, facts) {
+			// A READ sufficiency frontier cannot erase a physical marked claim
+			// before a consistency check independently tests its tuple truth.
+			if n.Kind.Check() || root.Proof == horizon {
+				result = root.Map
+				result.PageRuns = heap.Runs
+			}
+		} else {
+			publish = &storage.VisibilityRoot{Map: heap, Basis: prepared.Basis(&snapshot), Proof: horizon}
+		}
 	}
-	valid := err == nil && h.CatalogEpochLocked() == epoch && auth.Access().Catalog.Get(target.Address()) == target && h.PrivateStorageLocked(target.Address()) == store && (store == nil || store.Headers == headers)
-	h.ReleaseEngineLocked()
-	if err != nil {
-		return storage.VisibilityMap{}, err
-	}
-	if !valid {
-		return storage.VisibilityMap{}, ids.ErrCatalogReplaced
-	}
-	if err := h.Operation().Context().Err(); err != nil {
-		return storage.VisibilityMap{}, err
+	var findings []ids.VersionID
+	if n.Kind.Check() {
+		findings, err = prepared.Check(h.Operation().Context(), snapshot.Headers, result, checkHorizon, n.Kind == functions.VisibilityCheckFrozen)
+		if err != nil {
+			return storage.VisibilityMap{}, nil, err
+		}
 	}
 	if foreign {
 		buffer := n.Kind == functions.VisibilityPageRelation
@@ -203,8 +249,54 @@ func Pgvisibility[A Authority](h Host[A], n plan.InstalledPgvisibilityExpr, oid 
 			buffer = buffer || result.Blocks != 0 && result.MappedBlocks != 0
 		}
 		if buffer {
-			return storage.VisibilityMap{}, sqlError("0A000", "cannot access temporary tables of other sessions")
+			return storage.VisibilityMap{}, nil, sqlError("0A000", "cannot access temporary tables of other sessions")
 		}
 	}
-	return result, nil
+	// Final readmission uses the current exact owner cohort. Neither payload
+	// allocation/codec work nor Manager calls occur inside this window.
+	owners, err = h.LockHeapStatisticsCohort()
+	if err != nil {
+		return storage.VisibilityMap{}, nil, err
+	}
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil {
+		err = pgvisibilityAuthority(auth, n)
+	}
+	valid := err == nil && h.CatalogEpochLocked() == epoch && auth.Access().Catalog.Get(target.Address()) == target && h.PrivateStorageLocked(target.Address()) == store
+	if valid && store != nil {
+		valid = storage.SameVersionRoot(snapshot.Versions, store.Versions) && snapshot.Ends == store.Ends && snapshot.Retained == store.Retained && snapshot.Discarded == store.Discarded && snapshot.Headers == store.Headers && snapshot.Generation == store.Generation && snapshot.Maintenance.FrozenXID == store.Maintenance.FrozenXID
+		if valid {
+			latest := h.HeapStatisticsFactsLocked(owners, store, target.Address(), writes, deletes)
+			latest = storage.PrepareVisibilityFacts(latest, store.Headers)
+			valid = storage.SameVisibilityFacts(facts, latest) && h.PgvisibilityHorizonLocked(owners) == horizon && (!n.Kind.Check() || h.PgvisibilityCheckHorizonLocked() == checkHorizon)
+		}
+	}
+	if valid {
+		current := h.PgvisibilityMapLocked(target, store)
+		if current != root {
+			// Concurrent first captures may publish identical safe claims. Only
+			// that benign materialization can share admission; truncation or
+			// replacement of any already captured root always fences the result.
+			valid = root == nil && publish != nil && current != nil && !current.Invalidated && current.Proof == publish.Proof && current.Basis.Same(&snapshot, facts) && sameVisibilityClaims(current.Map, publish.Map)
+			publish = nil
+		}
+	}
+	if err == nil {
+		err = h.Operation().Context().Err()
+	}
+	if err == nil && !valid {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil && publish != nil {
+		h.SetPgvisibilityMapLocked(target, store, publish)
+	}
+	h.UnlockHeapStatisticsCohortLocked(owners)
+	if err != nil {
+		return storage.VisibilityMap{}, nil, err
+	}
+	return result, findings, nil
+}
+
+func sameVisibilityClaims(a, b storage.VisibilityMap) bool {
+	return a.Blocks == b.Blocks && a.MappedBlocks == b.MappedBlocks && a.AllVisible == b.AllVisible && a.AllFrozen == b.AllFrozen && slices.Equal(a.Runs, b.Runs)
 }

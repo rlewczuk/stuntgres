@@ -211,6 +211,22 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	return nil
 }
 
+// catalogVisibilityPreflightLocked fences only physical preserving-copy
+// publication. Private statement adoption and PREPARE carry the first-copy
+// observation unchanged; neither installs a physical VM over its predecessor.
+func (e *Engine) catalogVisibilityPreflightLocked(c *session.Journal) error {
+	for address, shape := range c.Storage {
+		if !shape.PreservesVisibility || shape.Rewritten || shape.Original == nil || shape.Replacement == nil || shape.Replacement == shape.Original || shape.Replacement.Generation != shape.Generation {
+			continue
+		}
+		current := e.Storage.Relations[address]
+		if current != shape.Original || current.Visibility != shape.ObservedVisibility {
+			return catalog.Conflict{}
+		}
+	}
+	return nil
+}
+
 // Both private preparation and final publication fence the same committed
 // originals and names. Private descriptors never replace these observations.
 func (e *Engine) catalogJournalPredecessorsCurrentLocked(c *session.Journal) error {

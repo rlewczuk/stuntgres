@@ -168,9 +168,11 @@ engine.
   never tickets or queues. Capture assigns nothing, settles nothing and runs
   no callbacks. The engine releases Engine.Mu before entering this manager.
   `StartAcquireRelation` records a caller-owned `RelationContribution`, released
-  by `ReleaseRelation` after its request is terminal. Scoped AccessShare, Share
-  and RowExclusive ownership is counted separately from idempotent ordinary grants;
-  their union supplies conflict and inquiry modes. Cleanup preserves ordinary
+  by `ReleaseRelation` after its request is terminal. Scoped AccessShare, Share,
+  RowExclusive and AccessExclusive ownership is counted separately from idempotent
+  ordinary grants; their union supplies conflict and inquiry modes. The physical
+  visibility-map truncator owns an independent scoped AccessExclusive contribution,
+  not a transaction-long lock or a substitute reservation. Cleanup preserves ordinary
   same-mode grants acquired before or during verification and other nested
   scopes. Savepoint checkpoints never promote active scoped contributions into
   ordinary ownership. Canceled upgrades do not remove an earlier hold; retired

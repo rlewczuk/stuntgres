@@ -71,9 +71,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	store, storageOwner, shape := work.store, work.storageOwner, work.shape
 	var versions []storage.RowVersion
 	var ends *storage.DeletionRoot
+	var observedVisibility *storage.VisibilityRoot
 	if store != nil {
 		e.Mu.Lock()
 		versions, ends = store.Versions, store.Ends
+		observedVisibility = store.Visibility
 		e.Mu.Unlock()
 	}
 	frontier, snapshot, snapshotExists := work.frontier, work.snapshot, work.snapshotExists
@@ -168,9 +170,14 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 		replacement = shape.Replacement
 		versions, ends = replacement.Versions, replacement.Ends
 	}
+	preservesVisibility := false
 	if physicalRows && !rewrite {
 		e.Mu.Lock()
 		owned, reownErr := stored.ReownRelation(e.StageRead(stage).State(), replacement)
+		if reownErr == nil && replacement == store && owned != store {
+			preservesVisibility = true
+			observedVisibility = owned.Visibility
+		}
 		e.Mu.Unlock()
 		if reownErr != nil {
 			return core.Result{}, reownErr
@@ -231,7 +238,7 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	}
 	if record {
 		stage.RowShapes = map[ids.ObjectAddress]storage.RowShape{
-			ref.Address: {Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: shape.Fills},
+			ref.Address: {Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, ObservedVisibility: observedVisibility, PreservesVisibility: preservesVisibility, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: shape.Fills},
 		}
 		stage.AlterRowSources = map[ids.ObjectAddress]*catalog.Relation{ref.Address: storageOwner}
 	}

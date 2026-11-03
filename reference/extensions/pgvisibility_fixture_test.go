@@ -34,7 +34,9 @@ func pvCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, 
 					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "DROP EXTENSION IF EXISTS pg_visibility CASCADE", "DROP SCHEMA IF EXISTS pv_part CASCADE", "DROP SCHEMA IF EXISTS pv_moved CASCADE"} {
-						if _, err := c.ExecContext(ctx, q); err != nil { t.Error(q, err) }
+						if _, err := c.ExecContext(ctx, q); err != nil {
+							t.Error(q, err)
+						}
 					}
 				}
 				clean()
@@ -51,7 +53,9 @@ func pvCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, 
 func pvConn(t *testing.T, p *fixture.Pair, b fixture.Backend) *sql.Conn {
 	t.Helper()
 	c, err := b.DB.Conn(p.Ctx)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	return c
 }
 
@@ -97,34 +101,60 @@ func pvOneFrozen(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) 
 	pvBoth(t, p, b, c, fixture.Select("SELECT * FROM pv_part.pg_visibility_map_summary('pv_part.heap'::regclass)", pvMapNames, pvSummaryTypes, [][]any{{int64(1), int64(1)}}))
 }
 
-type pvBits struct { block int64; av, af, pd bool }
+type pvBits struct {
+	block      int64
+	av, af, pd bool
+}
 
 // Physical layout is not parity data. Each backend must independently satisfy
 // the released bit implications, contiguous block domain, scalar/SRF agreement,
-// and exact summary counts. Native additionally specifies coherent page bits.
+// and exact summary counts. Callers here have healthy, non-truncated maps;
+// that precondition additionally requires native PD=VM. Explicit truncation
+// scenarios instead assert the independent false/false/true page contract.
 func pvCoherent(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, target string) []pvBits {
 	t.Helper()
 	q := "SELECT * FROM pv_part.pg_visibility($1::regclass) ORDER BY blkno"
 	rows, err := c.QueryContext(p.Ctx, q, target)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer rows.Close()
 	columns, err := rows.ColumnTypes()
-	if err != nil { t.Fatal(err) }
-	for i, col := range columns {
-		if i >= len(pvPageRowsNames) || col.Name() != pvPageRowsNames[i] || col.DatabaseTypeName() != pvPageRowsTypes[i] { t.Fatal("page metadata", columns) }
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(columns) != 4 { t.Fatal("page column count", len(columns)) }
+	for i, col := range columns {
+		if i >= len(pvPageRowsNames) || col.Name() != pvPageRowsNames[i] || col.DatabaseTypeName() != pvPageRowsTypes[i] {
+			t.Fatal("page metadata", columns)
+		}
+	}
+	if len(columns) != 4 {
+		t.Fatal("page column count", len(columns))
+	}
 	var bits []pvBits
 	var avCount, afCount int64
 	for rows.Next() {
 		var v pvBits
-		if err := rows.Scan(&v.block, &v.av, &v.af, &v.pd); err != nil { t.Fatal(err) }
-		if v.block != int64(len(bits)) || v.af && !v.av || !b.PG && v.pd != v.av { t.Fatal("incoherent block", v) }
-		if v.av { avCount++ }; if v.af { afCount++ }
+		if err := rows.Scan(&v.block, &v.av, &v.af, &v.pd); err != nil {
+			t.Fatal(err)
+		}
+		if v.block != int64(len(bits)) || v.af && !v.av || !b.PG && v.pd != v.av {
+			t.Fatal("incoherent block", v)
+		}
+		if v.av {
+			avCount++
+		}
+		if v.af {
+			afCount++
+		}
 		bits = append(bits, v)
 	}
-	if err := rows.Err(); err != nil { t.Fatal(err) }
-	if err := rows.Close(); err != nil { t.Fatal(err) }
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	var mapRows [][]any
 	for _, v := range bits {
 		mapRows = append(mapRows, []any{v.block, v.av, v.af})
@@ -139,28 +169,55 @@ func pvCoherent(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, t
 func pvNoUniversal(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
 	bits := pvCoherent(t, p, b, c, "pv_part.heap")
-	if len(bits) == 0 { t.Fatal("represented private tuple disappeared") }
-	for _, v := range bits { if v.av || v.af || v.pd { t.Fatal("unresolved one-page fixture declared universal", v) } }
+	if len(bits) == 0 {
+		t.Fatal("represented private tuple disappeared")
+	}
+	for _, v := range bits {
+		if v.av || v.af || v.pd {
+			t.Fatal("unresolved one-page fixture declared universal", v)
+		}
+	}
 }
 
 func pvMetadata(s fixture.Step, pg bool) fixture.Step {
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		cols, err := rows.ColumnTypes()
-		if err != nil { t.Fatal(err) }
-		if len(cols) != len(s.Columns) { t.Fatal("metadata width", len(cols), len(s.Columns)) }
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cols) != len(s.Columns) {
+			t.Fatal("metadata width", len(cols), len(s.Columns))
+		}
 		for i, col := range cols {
-			if col.Name() != s.Columns[i] || col.DatabaseTypeName() != s.Types[i] { t.Fatal("metadata", i, col.Name(), col.DatabaseTypeName()) }
+			if col.Name() != s.Columns[i] || col.DatabaseTypeName() != s.Types[i] {
+				t.Fatal("metadata", i, col.Name(), col.DatabaseTypeName())
+			}
 			var scan reflect.Type
 			switch s.Types[i] {
-			case "BOOL": scan = reflect.TypeFor[bool]()
-			case "INT8": scan = reflect.TypeFor[int64]()
-			case "RECORD": scan = reflect.TypeFor[string](); if pg { scan = reflect.TypeFor[any]() }
-			default: t.Fatal("unmapped metadata", s.Types[i])
+			case "BOOL":
+				scan = reflect.TypeFor[bool]()
+			case "INT8":
+				scan = reflect.TypeFor[int64]()
+			case "RECORD", "TID", "VOID":
+				scan = reflect.TypeFor[string]()
+				if pg {
+					scan = reflect.TypeFor[any]()
+				}
+			default:
+				t.Fatal("unmapped metadata", s.Types[i])
 			}
-			if col.ScanType() != scan { t.Fatal("scan type", i, col.ScanType(), scan) }
-			if n, known := col.Nullable(); n || known { t.Fatal("computed nullability", i, n, known) }
-			if n, known := col.Length(); n != 0 || known { t.Fatal("length", i, n, known) }
-			if precision, scale, known := col.DecimalSize(); precision != 0 || scale != 0 || known { t.Fatal("precision", i, precision, scale, known) }
+			if col.ScanType() != scan {
+				t.Fatal("scan type", i, col.ScanType(), scan)
+			}
+			if n, known := col.Nullable(); n || known {
+				t.Fatal("computed nullability", i, n, known)
+			}
+			if n, known := col.Length(); n != 0 || known {
+				t.Fatal("length", i, n, known)
+			}
+			if precision, scale, known := col.DecimalSize(); precision != 0 || scale != 0 || known {
+				t.Fatal("precision", i, precision, scale, known)
+			}
 		}
 	}
 	return s
@@ -169,7 +226,9 @@ func pvMetadata(s fixture.Step, pg bool) fixture.Step {
 func pvOID(t *testing.T, p *fixture.Pair, c *sql.Conn, name string) int64 {
 	t.Helper()
 	var oid int64
-	if err := c.QueryRowContext(p.Ctx, "SELECT $1::regclass::oid", name).Scan(&oid); err != nil { t.Fatal(err) }
+	if err := c.QueryRowContext(p.Ctx, "SELECT $1::regclass::oid", name).Scan(&oid); err != nil {
+		t.Fatal(err)
+	}
 	return oid
 }
 
@@ -181,8 +240,12 @@ func pvRollback(c *sql.Conn) {
 
 func pvPreparedCleanup(t *testing.T, c *sql.Conn, gid string, active *bool) {
 	t.Helper()
-	if !*active { return }
+	if !*active {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
-	if _, err := c.ExecContext(ctx, fmt.Sprintf("ROLLBACK PREPARED '%s'", gid)); err != nil { t.Error(err) }
+	if _, err := c.ExecContext(ctx, fmt.Sprintf("ROLLBACK PREPARED '%s'", gid)); err != nil {
+		t.Error(err)
+	}
 }

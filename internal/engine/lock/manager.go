@@ -171,7 +171,7 @@ type Hold struct {
 	Mode              Mode
 	Shared, Exclusive uint64
 	ordinary          Mode
-	scoped            [3]uint64
+	scoped            [4]uint64
 }
 
 type relationEntry struct {

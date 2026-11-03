@@ -1445,9 +1445,12 @@ and complete reference/literal/dependency/remap/retag traversal. Scalar and set
 operations retain distinct result usages and genuine sealed overloads.
 Stored carrier validation requires current domain/epoch reference authority;
 zero or future epochs cannot borrow an otherwise genuine installed declaration.
-Rendering uses current authentic names while preserving the unnamed first input
-and lexical argument order; only named formals receive `=>`. Views, scalar
-defaults/checks and independent destination remapping never retain execution ACLs.
+Rendering uses current authentic names while preserving unnamed inputs (including
+the no-OUT VOID recipe) and lexical argument order; only named formals receive
+`=>`. Stored scalar-TID sources and BOOL projections over genuine VOID mutators
+retain nominal usage, dependencies and current names through replay/remap/retag.
+Definition/Dump inspection does not execute volatile children. Views and
+independent destinations retain symbolic identity, never execution grants.
 
 `InstalledPgsurgeryExpr` uses the same reference/literal/dependency, remap, retag
 and rendering lanes. Both genuine input names render in lexical order; the

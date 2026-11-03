@@ -57,6 +57,15 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on
   the same connection. All borrowers, Rows and workers must be returned, closed or
   joined first.
+- `OfflineVisibilityMap` owns a single relation's bounded stopped-archive witness
+  on the same pinned container. Return all oracle borrowers/workers before every
+  operation and reacquire Backend/Conn/Stmt values afterward. It closes and
+  reconstructs the pair's PG/COPY pools and global admin pool using the current
+  mapped port, preserving recorders/native pools without rerunning initialization.
+  Copying requires a verified clean stop (no forced kill); recovery registered
+  before the first stop restores saved healthy post-DML bytes offline and
+  restarts/reconnects with an independent bounded context. Cleanup failures fail
+  visibly. It never patches a running server or starts another image/server.
 - Public-schema owners differ by design: native `public` is owned by 6171
   (`pg_database_owner`), the oracle's rebuilt `public` by its bootstrap role 10.
   Never invent a common owner.

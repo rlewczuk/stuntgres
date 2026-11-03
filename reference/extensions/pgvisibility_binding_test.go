@@ -23,16 +23,18 @@ func TestReferencePgvisibilityMetadata(t *testing.T) {
 				{"pg_visibility_map_summary", int64(1), "2205", int64(2249), "{2205,20,20}", "{i,o,o}", "{\"\",all_visible,all_frozen}", false, true, "v", "u", false, "pg_visibility_map_summary", "$libdir/pg_visibility", "c"},
 			}))
 		pvBoth(t, p, b, c, fixture.Select("SELECT extversion,extrelocatable,obj_description(oid,'pg_extension') AS description FROM pg_extension WHERE extname='pg_visibility'", []string{"extversion", "extrelocatable", "description"}, []string{"TEXT", "BOOL", "TEXT"}, [][]any{{"1.2", true, "examine the visibility map (VM) and page-level visibility info"}}))
-		pvBoth(t,p,b,c,fixture.Select("SELECT version,superuser,trusted,relocatable FROM pg_available_extension_versions WHERE name='pg_visibility' AND version='1.2'",[]string{"version","superuser","trusted","relocatable"},[]string{"TEXT","BOOL","BOOL","BOOL"},[][]any{{"1.2",true,false,true}}))
-		pvBoth(t,p,b,c,fixture.Select("SELECT name::text AS name,default_version FROM pg_available_extensions WHERE name IN ('pg_visibility','pgvisibility') ORDER BY name",[]string{"name","default_version"},[]string{"TEXT","TEXT"},[][]any{{"pg_visibility","1.2"}}))
-		// The oracle owns eight members; native deliberately owns only five. The
-		// selected five each require real membership and initial-ACL records.
+		pvBoth(t, p, b, c, fixture.Select("SELECT version,superuser,trusted,relocatable FROM pg_available_extension_versions WHERE name='pg_visibility' AND version='1.2'", []string{"version", "superuser", "trusted", "relocatable"}, []string{"TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{"1.2", true, false, true}}))
+		pvBoth(t, p, b, c, fixture.Select("SELECT name::text AS name,default_version FROM pg_available_extensions WHERE name IN ('pg_visibility','pgvisibility') ORDER BY name", []string{"name", "default_version"}, []string{"TEXT", "TEXT"}, [][]any{{"pg_visibility", "1.2"}}))
+		// All installed members are released declarations; the selected five
+		// retain their membership and initial-ACL assertions below.
 		q = "SELECT count(*) AS n FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_depend d ON d.objid=p.oid AND d.classid='pg_proc'::regclass AND d.deptype='e' JOIN pg_extension e ON e.oid=d.refobjid JOIN pg_init_privs i ON i.objoid=p.oid AND i.classoid='pg_proc'::regclass AND i.objsubid=0 AND i.privtype='e' WHERE n.nspname='pv_part' AND e.extname='pg_visibility' AND p.proname IN ('pg_visibility','pg_visibility_map','pg_visibility_map_summary') AND i.initprivs=p.proacl AND has_function_privilege('pg_stat_scan_tables',p.oid,'EXECUTE') AND has_function_privilege('pg_monitor',p.oid,'EXECUTE')"
 		pvBoth(t, p, b, c, fixture.Select(q, []string{"n"}, []string{"INT8"}, [][]any{{int64(5)}}))
 		if !b.PG {
-			pvBoth(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='pg_visibility' AND d.classid='pg_proc'::regclass AND d.deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(5)}}))
+			pvBoth(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='pg_visibility' AND d.classid='pg_proc'::regclass AND d.deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}}))
 		}
-		for _, q := range []string{"CREATE ROLE pv_default", "DROP EXTENSION pg_visibility", "ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO pv_default", "CREATE EXTENSION pg_visibility SCHEMA pv_part"} { pvRun(t, p, b, c, fixture.Exec(q, 0)) }
+		for _, q := range []string{"CREATE ROLE pv_default", "DROP EXTENSION pg_visibility", "ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO pv_default", "CREATE EXTENSION pg_visibility SCHEMA pv_part"} {
+			pvRun(t, p, b, c, fixture.Exec(q, 0))
+		}
 		defer c.ExecContext(p.Ctx, "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM pv_default")
 		pvBoth(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pv_part' AND p.proname IN ('pg_visibility','pg_visibility_map','pg_visibility_map_summary') AND has_function_privilege('pv_default',p.oid,'EXECUTE')", []string{"n"}, []string{"INT8"}, [][]any{{int64(5)}}))
 		for _, s := range []fixture.Step{
@@ -44,7 +46,8 @@ func TestReferencePgvisibilityMetadata(t *testing.T) {
 			fixture.Select("SELECT pv_part.pg_visibility_map(NULL::regclass,0) AS result", []string{"result"}, []string{"RECORD"}, [][]any{{nil}}),
 		} {
 			pvBoth(t, p, b, c, pvMetadata(s, b.PG))
-			s.Query += " WHERE false"; s.Rows = nil
+			s.Query += " WHERE false"
+			s.Rows = nil
 			pvBoth(t, p, b, c, pvMetadata(s, b.PG))
 		}
 	})
@@ -66,13 +69,19 @@ func TestReferencePgvisibilityBinding(t *testing.T) {
 		pvBoth(t, p, b, c, fixture.Select("SELECT (pv_part.pg_visibility_map_summary('pv_part.heap')).*", pvMapNames, pvSummaryTypes, [][]any{{int64(0), int64(0)}}))
 		q := "SELECT * FROM pv_part.pg_visibility($1::regclass,$2::bigint)"
 		st, err := c.PrepareContext(p.Ctx, q)
-		if err != nil { t.Fatal(err) }; defer st.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer st.Close()
 		held := fixture.HeldStatement{Executor: c, Statement: st, SQL: q}
 		for _, s := range []fixture.Step{
 			fixture.Select(q, pvPageNames, pvPageTypes, [][]any{{false, false, false}}, "pv_part.heap", int64(0)),
 			fixture.Select(q, pvPageNames, pvPageTypes, [][]any{{nil, nil, nil}}, nil, int64(0)),
 			fixture.Select(q, pvPageNames, pvPageTypes, [][]any{{nil, nil, nil}}, "pv_part.heap", nil),
-		} { pvBoth(t, p, b, c, s); fixture.RunStep(t, p.Ctx, held, b.Recorder, s) }
+		} {
+			pvBoth(t, p, b, c, s)
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+		}
 		pvRun(t, p, b, c, fixture.Exec("INSERT INTO pv_part.heap VALUES(1)", 1))
 		pvFreeze(t, p, b, c)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, pvPageNames, pvPageTypes, [][]any{{true, true, true}}, "pv_part.heap", int64(0)))
@@ -86,33 +95,43 @@ func TestReferencePgvisibilityBinding(t *testing.T) {
 		pvRun(t, p, b, c, fixture.Select("SELECT currval('pv_part.eval_once') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(4)}}))
 		for _, spec := range []struct {
 			name, suffix, sequence string
-			names, types []string
-			values [][]any
-			set bool
+			names, types           []string
+			values                 [][]any
+			set                    bool
 		}{
-			{"pg_visibility", ",0", "page_once", pvPageNames, pvPageTypes, [][]any{{true,true,true}}, false},
-			{"pg_visibility_map", "", "map_once", pvMapRowsNames, pvMapRowsTypes, [][]any{{int64(0),true,true}}, true},
-			{"pg_visibility", "", "rows_once", pvPageRowsNames, pvPageRowsTypes, [][]any{{int64(0),true,true,true}}, true},
-			{"pg_visibility_map_summary", "", "summary_once", pvMapNames, pvSummaryTypes, [][]any{{int64(1),int64(1)}}, false},
+			{"pg_visibility", ",0", "page_once", pvPageNames, pvPageTypes, [][]any{{true, true, true}}, false},
+			{"pg_visibility_map", "", "map_once", pvMapRowsNames, pvMapRowsTypes, [][]any{{int64(0), true, true}}, true},
+			{"pg_visibility", "", "rows_once", pvPageRowsNames, pvPageRowsTypes, [][]any{{int64(0), true, true, true}}, true},
+			{"pg_visibility_map_summary", "", "summary_once", pvMapNames, pvSummaryTypes, [][]any{{int64(1), int64(1)}}, false},
 		} {
-			pvRun(t,p,b,c,fixture.Exec("CREATE SEQUENCE pv_part."+spec.sequence,0))
-			once := "SELECT * FROM pv_part."+spec.name+"(CASE WHEN nextval('pv_part."+spec.sequence+"')>0 THEN 'pv_part.heap'::regclass ELSE NULL END"+spec.suffix+")"
-			if spec.set { once += " ORDER BY blkno" }
-			pvBoth(t,p,b,c,fixture.Select(once,spec.names,spec.types,spec.values))
-			pvRun(t,p,b,c,fixture.Select("SELECT currval('pv_part."+spec.sequence+"') AS n",[]string{"n"},[]string{"INT8"},[][]any{{int64(2)}}))
-			parameterized := "SELECT * FROM pv_part."+spec.name+"($1::regclass"+spec.suffix+")"
-			if spec.set { parameterized += " ORDER BY blkno" }
-			statement,err:=c.PrepareContext(p.Ctx,parameterized)
-			if err!=nil {t.Fatal(err)}
+			pvRun(t, p, b, c, fixture.Exec("CREATE SEQUENCE pv_part."+spec.sequence, 0))
+			once := "SELECT * FROM pv_part." + spec.name + "(CASE WHEN nextval('pv_part." + spec.sequence + "')>0 THEN 'pv_part.heap'::regclass ELSE NULL END" + spec.suffix + ")"
+			if spec.set {
+				once += " ORDER BY blkno"
+			}
+			pvBoth(t, p, b, c, fixture.Select(once, spec.names, spec.types, spec.values))
+			pvRun(t, p, b, c, fixture.Select("SELECT currval('pv_part."+spec.sequence+"') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(2)}}))
+			parameterized := "SELECT * FROM pv_part." + spec.name + "($1::regclass" + spec.suffix + ")"
+			if spec.set {
+				parameterized += " ORDER BY blkno"
+			}
+			statement, err := c.PrepareContext(p.Ctx, parameterized)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer statement.Close()
-			h:=fixture.HeldStatement{Executor:c,Statement:statement,SQL:parameterized}
+			h := fixture.HeldStatement{Executor: c, Statement: statement, SQL: parameterized}
 			var nullRows [][]any
-			if !spec.set {nullRows=[][]any{make([]any,len(spec.names))}}
-			for _, s:=range []fixture.Step{
-				fixture.Select(parameterized,spec.names,spec.types,spec.values,"pv_part.heap"),
-				fixture.Select(parameterized,spec.names,spec.types,nullRows,nil),
-				fixture.Select(parameterized,spec.names,spec.types,spec.values,"pv_part.heap"),
-			} {fixture.RunStep(t,p.Ctx,h,b.Recorder,pvMetadata(s,b.PG))}
+			if !spec.set {
+				nullRows = [][]any{make([]any, len(spec.names))}
+			}
+			for _, s := range []fixture.Step{
+				fixture.Select(parameterized, spec.names, spec.types, spec.values, "pv_part.heap"),
+				fixture.Select(parameterized, spec.names, spec.types, nullRows, nil),
+				fixture.Select(parameterized, spec.names, spec.types, spec.values, "pv_part.heap"),
+			} {
+				fixture.RunStep(t, p.Ctx, h, b.Recorder, pvMetadata(s, b.PG))
+			}
 		}
 		for _, tc := range []struct{ call, signature string }{
 			{"pg_visibility()", "pv_part.pg_visibility()"},
@@ -124,19 +143,25 @@ func TestReferencePgvisibilityBinding(t *testing.T) {
 			{"pg_visibility_map('pv_part.heap'::name,0)", "pv_part.pg_visibility_map(name, integer)"},
 			{"pg_visibility_map_summary(blkno => 'pv_part.heap'::regclass)", "pv_part.pg_visibility_map_summary(blkno => regclass)"},
 		} {
-			q = "SELECT * FROM pv_part."+tc.call
+			q = "SELECT * FROM pv_part." + tc.call
 			s := pvError(q, "42883", "function "+tc.signature+" does not exist")
 			s.Diagnostic.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 			s.Diagnostic.Position = "15"
 			pvRun(t, p, b, c, s)
 			bad, err := c.PrepareContext(p.Ctx, q)
-			if bad != nil { bad.Close() }
+			if bad != nil {
+				bad.Close()
+			}
 			fixture.AssertDiagnostic(t, err, s.Diagnostic)
 		}
 		q = "SELECT * FROM pv_part.pg_visibility_map('pv_part.heap',blkno => 0,blkno => 1)"
 		s := pvError(q, "42601", "argument name \"blkno\" used more than once")
 		s.Diagnostic.Position = fixture.Position(strings.LastIndex(q, "blkno") + 1)
 		pvRun(t, p, b, c, s)
-		bad, err := c.PrepareContext(p.Ctx, q); if bad != nil { bad.Close() }; fixture.AssertDiagnostic(t, err, s.Diagnostic)
+		bad, err := c.PrepareContext(p.Ctx, q)
+		if bad != nil {
+			bad.Close()
+		}
+		fixture.AssertDiagnostic(t, err, s.Diagnostic)
 	})
 }

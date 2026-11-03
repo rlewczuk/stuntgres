@@ -557,14 +557,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   provenance. Stored caller definitions survive ordinary expression remapping;
   execution validates current authority before anonymous-record/count/type errors.
   The core-owned logical read cache is not PostgreSQL shared memory or a C ABI.
-- **pg_visibility** (`pgvisibility_provider.go`) owns five read declarations:
-  the block and relation overloads of `pg_visibility_map` and `pg_visibility`,
-  and `pg_visibility_map_summary`. Immutable slots retain their released C
-  symbols, unnamed first input, typed OUT fields and scalar/set cardinality.
-  The relocatable 1.2 provider is superuser-required and untrusted; members are
-  STRICT VOLATILE PARALLEL UNSAFE invokers. Installation preserves unrelated
-  default grants, revokes PUBLIC EXECUTE, grants the genuine scan principal and
-  records the final initial ACLs. Current membership never selects execution.
+- **pg_visibility** (`pgvisibility_provider.go`) seals eight declarations: the
+  five map/page/summary read recipes, two scalar TID set checks, and a scalar VOID
+  map truncator with no OUT declaration. Incumbent slots remain stable. Immutable
+  recipes retain released C symbols, unnamed inputs, exact result/OUT usage and
+  source cardinality. The relocatable 1.2 provider is superuser-required and
+  untrusted; members are STRICT VOLATILE PARALLEL UNSAFE invokers. Installation
+  preserves other default grants/options, revokes PUBLIC EXECUTE, grants the
+  scan principal to reads/checks but not truncate, and records real initial ACLs.
+  Explicit EXECUTE can authorize truncate; current membership/spelling never
+  selects execution or grants authority.
 - **pg_surgery** (`pgsurgery_provider.go`) owns the single sealed
   `heap_force_freeze(reloid regclass, tids tid[]) RETURNS void` declaration.
   The relocatable 1.0 provider is superuser-required and untrusted; its C member

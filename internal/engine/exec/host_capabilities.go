@@ -47,6 +47,8 @@ type ContribRuntime interface {
 	DblinkBuildSQLInsert(n plan.InstalledDblinkBuildSQLInsertExpr, values [5]sqltype.Value) (string, error)
 	DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateExpr, values [5]sqltype.Value) (string, error)
 	Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error)
+	PgvisibilityCheck(n plan.InstalledPgvisibilityExpr, oid uint32) ([]ids.VersionID, error)
+	PgvisibilityTruncate(n plan.InstalledPgvisibilityExpr, oid uint32) error
 	Pgsurgery(n plan.InstalledPgsurgeryExpr, oid uint32, tids sqltype.Value) error
 	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
 	PageinspectHeap(n plan.InstalledPageinspectExpr, relation uint32) ([]sqltype.HeapStoredColumn, error)

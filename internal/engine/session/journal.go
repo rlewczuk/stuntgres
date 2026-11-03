@@ -51,16 +51,22 @@ type Journal struct {
 
 // StorageChange is a relation's private storage in the journal.
 type StorageChange struct {
-	Original    *storage.Relation
-	Root        []storage.RowVersion
-	Ends        *storage.DeletionRoot
-	Generation  uint64
-	Replacement *storage.Relation
-	Relation    *catalog.Relation
-	Snapshot    []storage.RowVersion
-	HasSnapshot bool
-	Rewritten   bool
-	Truncated   bool
+	Original *storage.Relation
+	Root     []storage.RowVersion
+	Ends     *storage.DeletionRoot
+	// First actual preserving-copy VM observation. Earlier same-store metadata
+	// is not a VM snapshot; later copies/savepoints never refresh this authority.
+	ObservedVisibility *storage.VisibilityRoot
+	// PreservesVisibility records continuous codec-only transport from Original.
+	// A metadata-only same-pointer step keeps continuity; a destructive copy ends it.
+	PreservesVisibility bool
+	Generation          uint64
+	Replacement         *storage.Relation
+	Relation            *catalog.Relation
+	Snapshot            []storage.RowVersion
+	HasSnapshot         bool
+	Rewritten           bool
+	Truncated           bool
 	// Every actual TRUNCATE resets scan authority, independently of whether
 	// Truncated can certify uninterrupted original-to-final heap lineage.
 	TruncateScanReset bool

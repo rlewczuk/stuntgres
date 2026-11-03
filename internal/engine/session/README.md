@@ -40,6 +40,19 @@ separately from the pure-lineage `Truncated` flag. Compatible successors carry
 the actual private heap's post-truncate scan witness; savepoints/prepared owners
 retain that physical maintenance authority without making column facts
 nontransactional.
+`StorageChange.PreservesVisibility` records genuine continuous codec-only heap
+copy provenance, not generation equality. Its VM observation becomes authoritative
+at the first actual preserving copy: an earlier same-store metadata step has no
+VM snapshot. That first copy observation travels through statement transfer,
+savepoints and PREPARE; later copies cannot replace it. Same-pointer metadata
+steps do not copy a VM, while destructive projection, TRUNCATE and materialized
+refresh end preserving continuity. Publication fences only an actual preserving
+replacement, and never replaces its current private VM with the predecessor's.
+Private statement adoption and PREPARE retain that observation without treating
+VM-only predecessor maintenance as a tuple conflict. Actual materializing commit
+owns the VM fence; it checks again after detached publication preparation.
+Generic strict tuple-read and identity-only fences do not observe VM maintenance.
+
 Imported relation fields use the same journal with `ImportedReset` field masks
 and surviving later `Imported` writes. Semantic new-file staging discards earlier
 writes for reset fields and records defaults only for currently present imports;

@@ -32,6 +32,9 @@ type Relation struct {
 	RetainedOrigin   ids.OID
 	TruncateBoundary ids.CommitSeq
 	Maintenance      Maintenance
+	// Visibility is immutable modeled VM authority for this incarnation.
+	// Physical truncation publishes outside ordinary transaction undo.
+	Visibility *VisibilityRoot
 }
 
 // IndexIdentity is the storage an index root was built from: the origin for a

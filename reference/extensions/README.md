@@ -218,6 +218,13 @@ metadata and full diagnostics. Physical flags use independently specified
 ownership/maintenance fixtures; quiescent summary/scalar/SRF consistency is an
 additional invariant, never a substitute for those expectations. Native control
 witnesses remain phases of the same public dual-mode definitions.
+`pgvisibility_check_*` adds scalar-TID/VOID contracts, distinct check/truncate ACLs,
+persistent map invalidation with independent PD/MVCC, identity/stored-control
+transport, and admitted lock cancellation. Its oracle-first shared callback
+filters neither backend. The physical corruption case owns all PG borrowers
+across fixture-owned stopped archive copy/reconnect/recovery on the same pinned
+container; native contradictory-map proof belongs to actual installed-host units,
+not a public fake-corruption SQL path. Stored mutators project BOOL around VOID.
 
 Buffer-cache scenarios use `RUN='^TestReferencePgBuffercache'` with one shared
 public fixture. They assert exact caller-defined record/view metadata, catalog

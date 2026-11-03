@@ -208,6 +208,9 @@ func ProjectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	// Only consecutive TRUNCATE replacements share their bounded lineage.
 	// Transporting physical tuple history does not preserve that authority.
 	replacement.TruncateLineage = nil
+	// A physical shape rewrite starts its own modeled visibility incarnation.
+	replacement.Visibility = nil
+	shape.PreservesVisibility = false
 	replacement.Versions, replacement.Retained, replacement.Discarded, replacement.Headers = versions, retained, discarded, headers
 	replacement.Generation++
 	shape.Replacement = &replacement

@@ -269,6 +269,7 @@ func (s *CatalogStage) AlterRelation(ctx context.Context, ref ids.ObjectRef, d *
 		return fmt.Errorf("stuntgres: invalid metadata-only row shape")
 	}
 	beforeRows := original.Versions
+	observedVisibility := original.Visibility
 	e.Mu.Unlock()
 	if original != replacement {
 		for i, row := range replacement.Versions {
@@ -290,7 +291,7 @@ func (s *CatalogStage) AlterRelation(ctx context.Context, ref ids.ObjectRef, d *
 	if s.RowShapes == nil {
 		s.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 	}
-	s.RowShapes[ref.Address] = storage.RowShape{Original: original, Root: beforeRows, Replacement: replacement, ObservedLength: observedLength, ObservedEnds: observedEnds, Generation: observedGeneration}
+	s.RowShapes[ref.Address] = storage.RowShape{Original: original, Root: beforeRows, Replacement: replacement, ObservedLength: observedLength, ObservedEnds: observedEnds, ObservedVisibility: observedVisibility, Generation: observedGeneration}
 	return nil
 }
 

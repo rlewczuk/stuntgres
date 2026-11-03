@@ -15,6 +15,7 @@ func procedureReturnsSet(d *catalog.Procedure) bool {
 		extension.PgStatStatementsProviderOf(d) == extension.StockPgStatStatements && d.Installed.ReturnsSet ||
 		extension.TablefuncProviderOf(d) == extension.StockTablefunc && d.Installed.ReturnsSet ||
 		extension.AmcheckProviderOf(d) == extension.StockAmcheck && d.Installed.ReturnsSet ||
+		extension.PgvisibilityProviderOf(d) == extension.StockPgvisibility && d.Installed.ReturnsSet ||
 		extension.IntaggProviderOf(d) == extension.StockIntagg && d.RoutineKind == catalog.FunctionRoutine &&
 			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }

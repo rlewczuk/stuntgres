@@ -568,7 +568,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			return invalid()
 		}
 		m := PgvisibilityMembers[slot]
-		name, signature, result, volatility = m.Name, m.Signature, 2249, expr.Volatile
+		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
 		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pg_visibility", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}

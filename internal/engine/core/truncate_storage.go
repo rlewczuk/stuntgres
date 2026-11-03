@@ -95,7 +95,7 @@ func (s *StatementScope) stageTruncate() error {
 				err = ids.ErrCatalogReplaced
 				break
 			}
-			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation}
+			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, ObservedVisibility: original.Visibility, Generation: original.Generation}
 		}
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.
@@ -106,6 +106,7 @@ func (s *StatementScope) stageTruncate() error {
 			lineage = &storage.TruncateLineage{}
 		}
 		shape.Replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
+		shape.PreservesVisibility = false
 		shape.Relation = d
 		shape.Rewritten, shape.Frontier = true, e.Visibility.CommitSeq()
 		shape.Snapshot, shape.HasSnapshot = nil, false

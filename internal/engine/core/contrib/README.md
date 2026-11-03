@@ -200,8 +200,9 @@ and schema authority before and after scoped AccessShare admission. Descriptor
 kind precedes block bounds; target SELECT/ownership is not an inquiry gate.
 The shared owner cohort supplies genuine heads, ends, private predecessors and
 detached prepared versions together with actual advertised snapshot protection.
-Exact tuple-maintenance sampling runs outside owner/Engine mutexes, before the
-single detached storage kernel and final identity/cancellation readmission.
+Exact tuple-maintenance sampling runs outside owner/Engine mutexes. The prepared
+owned fact vector is canonicalized at one boundary, then shared by detached
+READ/check/basis consumers before final identity/cancellation readmission.
 Raw xmax presence remains distinct from active ownership and effective freezing.
 An ended raw header stops requiring maintenance only when its actual owners'
 full-XID provenance precedes the captured successful-VACUUM frozen bound.
@@ -209,12 +210,21 @@ Unknown provenance and active contributions remain conservative. Ordinary
 frozen xmin keeps its original SQL raw XID; no raw-XID value proves all-frozen.
 
 Valid catalog heaps consume their registered immutable catalog/RoleRead producer,
-without outer projection pruning or synthesized ownership. The checked stateless
-layout derives VM coverage from genuine frozen headers even when conservative
-proof clears bits. Foreign TEMP buffer restrictions depend on represented VM
-coverage and actual heap EOF; the page-reading relation source requires buffer
-authority even when empty. No provider path mutates a freezer, VM store or lock
-owner. Every exit releases only its own relation contribution.
+without outer projection pruning or synthesized ownership. The shared checked
+layout derives safe VM coverage and independent heap PD proof. Materialized
+claims retain exact layout/fact basis; READ horizon changes cannot erase actual
+marked claims before checks independently consume running-XID tuple truth.
+Foreign-TEMP checks reject even empty heaps; READ restrictions still depend on
+represented buffer access. Findings are exact physical VersionIDs, not exceptions.
+
+`pgvisibility_truncate.go` acquires scoped AccessExclusive, readmits current
+routine/schema/EXECUTE and target/store, then publishes explicit empty VM outside
+statement/savepoint/transaction undo. It changes no tuple/header/MVCC state and
+releases its own contribution before transaction end. Explicit invalidation
+dominates later captures and DML until successful VACUUM publication. Checks use
+scoped AccessShare; final cohort/root/horizon fences reject stale publication.
+Manager sampling and checked layout work remain outside every owner/Engine mutex.
+Every exit releases only the invocation's own relation contribution.
 
 ### pg_surgery
 

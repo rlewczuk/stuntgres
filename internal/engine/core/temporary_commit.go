@@ -53,9 +53,10 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 		shape, exists := next.Storage[a]
 		if !exists {
 			store := e.Storage.Relations[a]
-			shape = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
+			shape = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, ObservedVisibility: store.Visibility, Generation: store.Generation}
 		}
 		shape.Replacement = &storage.Relation{}
+		shape.PreservesVisibility = false
 		shape.Truncated = false
 		shape.Relation = base.MustRelation(a)
 		next.Storage[a] = shape

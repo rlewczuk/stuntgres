@@ -17,6 +17,9 @@ type HeapTupleFact struct {
 	// LockMaintenance is detached exact-version raw xmax evidence. It is
 	// independent of update/delete Ender and is retired by real maintenance.
 	LockMaintenance bool
+	// Visibility-only physical disposition: a real retained dead line pointer
+	// has no tuple payload or lock resource. Generic statistics never invent it.
+	LinePointerOnly bool
 }
 
 // HeapTupleLive implements Dirty (exact) and Vacuum (approximate) admission.

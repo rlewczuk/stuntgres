@@ -71,10 +71,13 @@ declaration and every caller argument; supported scalar wrappers do not admit
 row/parameter-dependent arguments or unrelated volatile producers. Execution
 uses the normal DEFAULT statement owner and live routine/schema ACL admission.
 Visibility calls use the same bounded scalar-statistics closure and live
-admission. Shared catalog overload selection supplies five authentic read
-declarations, ordinary REGCLASS/INT8 coercions, unnamed-first/named-block formals
-and exact typed OUT usages. Only the two relation-set operations enter SRF
-admission; scalar records never imply set cardinality.
+admission. Shared catalog overload selection supplies eight authentic declarations:
+five read recipes, two nominal TID check sets and one scalar VOID truncator.
+Ordinary REGCLASS/INT8 coercions retain unnamed-first/named-block formals and exact
+OUT usages. Both relation inquiries and both checks enter shared SRF admission;
+scalar records and VOID never imply set cardinality. Shared differing-usage
+formal coercion captures catalog-identifier input authority before creating the
+declared/implicit conversion, as normal casts do; identical usage stays a no-op.
 
 Single composite function sources retain their declared row type through range
 aliases and whole-row expressions; ROWS FROM combinations and WITH ORDINALITY

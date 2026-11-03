@@ -12,6 +12,7 @@ var (
 	AlterInheritanceDefaultLocked     = alterInheritanceDefaultLocked
 	AlterInheritanceLocked            = alterInheritanceLocked
 	BindCreateDefaults                = bindCreateDefaults
+	FinishAlterPhysical               = finishAlterPhysical
 	BindCreateGenerations             = bindCreateGenerations
 	TransformIndexExpression          = transformIndexExpression
 	CompleteIndexExpression           = completeIndexExpression

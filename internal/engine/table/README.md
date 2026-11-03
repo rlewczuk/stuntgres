@@ -305,7 +305,9 @@ call live here.
   breadth-first and OID-ordered per root) with `VacuumAllowed`, and the
   post-grant gates `VacuumWork`; the detached work pass `PrepareVacuumPass`
   over a `VacuumCapture` (`CaptureIndexesLocked`, `SameLocked`), plus
-  `DatabaseFrozenXIDLocked` and `VacuumReport`. Selection and gates return
+  `DatabaseFrozenXIDLocked` and `VacuumReport`. The immutable VM-root pointer
+  participates in `SameLocked` alongside heap and index roots, so pre-truncation
+  detached work cannot rebuild a later empty map. Selection and gates return
   `VacuumWarning`s, which [`tablecmds`](../tablecmds/README.md#vacuum) emits
   after unlocking, in order. The pass's `phase` callback takes `Engine.Mu`
   once per progress update, so callers hold nothing.

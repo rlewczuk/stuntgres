@@ -21,6 +21,7 @@ type VacuumCapture struct {
 	Retained   *storage.HeapPredecessor
 	Discarded  *storage.HeapPredecessor
 	Headers    *storage.HeapHeaderRoot
+	Visibility *storage.VisibilityRoot
 	KeepDead   bool
 	Generation uint64
 	Frontier   ids.CommitSeq
@@ -63,6 +64,7 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 // Engine.mu.
 func (c VacuumCapture) SameLocked(current VacuumCapture, store *storage.Store, rewritesCatalog bool) bool {
 	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Retained == c.Retained && current.Discarded == c.Discarded && current.Headers == c.Headers && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
+	same = same && current.Visibility == c.Visibility
 	if rewritesCatalog && current.Catalog != c.Catalog {
 		same = false
 	}

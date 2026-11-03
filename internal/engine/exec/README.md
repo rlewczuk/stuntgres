@@ -918,10 +918,11 @@ page vector, closure or retained host.
 
 `pgvisibility.go` admits current sealed identity and routine/schema ACLs before
 evaluating lexical children once into formal slots. It obtains one detached
-capture from `ContribRuntime`, then constructs typed records or an owned source.
-Scalar STRICT NULL retains one scalar-source row; a STRICT relation set retains
-its declared metadata with no rows. No child, context or physical root is retained
-by the completed result.
+capture from `ContribRuntime`, then constructs typed records or detached scalar-TID
+sources; truncation returns nonNULL VOID only after successful publication.
+Scalar STRICT NULL retains one scalar-source row; STRICT sets retain declared
+metadata with no rows. PD comes from the separate compressed current heap proof,
+not the VM flags. Completed results retain no child, host, actor, store or locks.
 
 The dblink DELETE/INSERT/UPDATE evaluators authenticate the demanded installed scalar
 and current schema/EXECUTE authority before evaluating their four/five written

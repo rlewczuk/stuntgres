@@ -31,12 +31,17 @@ func adoptEnumGenerationsLocked(e *core.Engine, scope *core.StatementScope, chan
 		}
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = session.StorageChange{Original: rebound.Original, Root: rebound.Original.Versions, Ends: rebound.ObservedEnds, Generation: rebound.Generation}
+			shape = session.StorageChange{Original: rebound.Original, Root: rebound.Original.Versions, Ends: rebound.ObservedEnds, ObservedVisibility: rebound.ObservedVisibility, Generation: rebound.Generation}
 		}
 		if shape.Replacement != rebound.Replacement {
 			shape.Truncated = false
 		}
+		if exists && shape.Replacement == shape.Original && rebound.PreservesVisibility {
+			shape.ObservedVisibility = rebound.ObservedVisibility
+		}
 		shape.Replacement, shape.Relation = rebound.Replacement, consumer
+		// Reowning seeded this stage with the existing chain's provenance.
+		shape.PreservesVisibility = rebound.PreservesVisibility
 		if shape.Fills != nil {
 			shape.Fills = maps.Clone(shape.Fills)
 			for attribute, value := range shape.Fills {

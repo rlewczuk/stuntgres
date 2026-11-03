@@ -15,7 +15,7 @@ func scopedRelationGrant(t *testing.T, m *Manager, owner *Ticket, resource Resou
 }
 
 func TestRelationContributionOwnership(t *testing.T) {
-	for _, mode := range []Mode{AccessShare, Share, RowExclusive} {
+	for _, mode := range []Mode{AccessShare, Share, RowExclusive, AccessExclusive} {
 		for _, ordinary := range []string{"none", "before", "during"} {
 			t.Run(deadlockMode(mode)+"/"+ordinary, func(t *testing.T) {
 				f := newLockFixture(t)
@@ -29,6 +29,9 @@ func TestRelationContributionOwnership(t *testing.T) {
 				var outer, inner RelationContribution
 				scopedRelationGrant(t, f.m, owner, resource, mode, &outer)
 				scopedRelationGrant(t, f.m, owner, resource, mode, &inner)
+				if !f.m.HasRelationMode(owner, resource, mode) {
+					t.Fatal("scoped grant advertised the wrong arbitration mode", deadlockMode(mode))
+				}
 				waiter := f.request(peer, resource, AccessExclusive)
 				if waiter == nil {
 					t.Fatal("scoped union did not block peer")
@@ -41,6 +44,9 @@ func TestRelationContributionOwnership(t *testing.T) {
 				// Independent contributions do not require LIFO cleanup.
 				f.m.ReleaseRelation(&outer)
 				f.m.ReleaseRelation(&outer)
+				if !f.m.HasRelationMode(owner, resource, mode) {
+					t.Fatal("outer cleanup removed nested arbitration mode")
+				}
 				select {
 				case <-waiter.Done():
 					t.Fatal("outer cleanup removed inner contribution")
@@ -64,7 +70,7 @@ func TestRelationContributionOwnership(t *testing.T) {
 }
 
 func TestRelationContributionCheckpoint(t *testing.T) {
-	for _, mode := range []Mode{AccessShare, Share, RowExclusive} {
+	for _, mode := range []Mode{AccessShare, Share, RowExclusive, AccessExclusive} {
 		t.Run(deadlockMode(mode), func(t *testing.T) {
 			f := newLockFixture(t)
 			owner, peer := f.tx(), f.tx()
@@ -96,50 +102,67 @@ func TestRelationContributionCheckpoint(t *testing.T) {
 }
 
 func TestRelationContributionQueueGeneration(t *testing.T) {
-	f := newLockFixture(t)
-	owner, blocker, peer := f.tx(), f.tx(), f.tx()
-	resource := f.relation()
-	if r := f.request(blocker, resource, RowExclusive); r != nil {
-		t.Fatal("blocker setup queued")
-	}
-	var initial RelationContribution
-	scopedRelationGrant(t, f.m, owner, resource, AccessShare, &initial)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var canceled RelationContribution
-	request, err := f.m.StartAcquireRelation(ctx, owner, resource, Share, Policy{}, &canceled)
-	if err != nil || request == nil {
-		t.Fatal("missing real scoped upgrade queue", err)
-	}
-	f.m.ReleaseRelation(&initial)
-	f.m.mu.Lock()
-	_, tracked := owner.resources[resource]
-	f.m.mu.Unlock()
-	if !tracked {
-		t.Fatal("scope release lost pending resource generation")
-	}
-	cancel()
-	if err := f.result(request); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
-	}
-	f.m.ReleaseRelation(&canceled)
-	f.m.End(blocker)
-	// A new grant on the same resource must not be touched by old handles.
-	var fresh RelationContribution
-	scopedRelationGrant(t, f.m, owner, resource, Share, &fresh)
-	waiter := f.request(peer, resource, AccessExclusive)
-	if waiter == nil {
-		t.Fatal("fresh scope did not block")
-	}
-	f.m.ReleaseRelation(&initial)
-	f.m.ReleaseRelation(&canceled)
-	select {
-	case <-waiter.Done():
-		t.Fatal("stale cleanup removed fresh generation")
-	default:
-	}
-	f.m.ReleaseRelation(&fresh)
-	if err := f.result(waiter); err != nil {
-		t.Fatal(err)
+	for _, mode := range []Mode{Share, AccessExclusive} {
+		for _, retainPrior := range []bool{false, true} {
+			t.Run(deadlockMode(mode)+"/"+map[bool]string{false: "released_prior", true: "retained_prior"}[retainPrior], func(t *testing.T) {
+				f := newLockFixture(t)
+				owner, blocker, peer := f.tx(), f.tx(), f.tx()
+				resource := f.relation()
+				if r := f.request(blocker, resource, RowExclusive); r != nil {
+					t.Fatal("blocker setup queued")
+				}
+				var initial RelationContribution
+				scopedRelationGrant(t, f.m, owner, resource, AccessShare, &initial)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				var canceled RelationContribution
+				request, err := f.m.StartAcquireRelation(ctx, owner, resource, mode, Policy{}, &canceled)
+				if err != nil || request == nil {
+					t.Fatal("missing real scoped upgrade queue", err)
+				}
+				if !retainPrior {
+					f.m.ReleaseRelation(&initial)
+				}
+				f.m.mu.Lock()
+				_, tracked := owner.resources[resource]
+				f.m.mu.Unlock()
+				if !tracked {
+					t.Fatal("scope release lost pending resource generation")
+				}
+				cancel()
+				if err := f.result(request); !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+				f.m.ReleaseRelation(&canceled)
+				if f.m.HasRelationMode(owner, resource, mode) {
+					t.Fatal("canceled upgrade retained its requested mode")
+				}
+				if retainPrior {
+					if !f.m.HasRelationMode(owner, resource, AccessShare) {
+						t.Fatal("canceled upgrade removed the prior scoped hold")
+					}
+					f.m.ReleaseRelation(&initial)
+				}
+				f.m.End(blocker)
+				// A new grant on the same resource must not be touched by old handles.
+				var fresh RelationContribution
+				scopedRelationGrant(t, f.m, owner, resource, mode, &fresh)
+				waiter := f.request(peer, resource, AccessExclusive)
+				if waiter == nil {
+					t.Fatal("fresh scope did not block")
+				}
+				f.m.ReleaseRelation(&initial)
+				f.m.ReleaseRelation(&canceled)
+				select {
+				case <-waiter.Done():
+					t.Fatal("stale cleanup removed fresh generation")
+				default:
+				}
+				f.m.ReleaseRelation(&fresh)
+				if err := f.result(waiter); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
 	}
 }

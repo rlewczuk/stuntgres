@@ -90,6 +90,13 @@ A later phase cannot upgrade an already fixed pair with current roots.
   metadata is installed privately before any rewrite callback or heap work.
   Physical work retains its original source layout and storage fences, and
   merges only into the latest private journal.
+  A codec-only `ReownRelation` copy of that unchanged source records actual
+  VM-preserving provenance and its copied root under `Engine.Mu`. Physical
+  projection/rewrite candidates instead start a fresh model; equal generations
+  alone never authorize preserving-copy publication.
+  `TestPgvisibilityCheckAlterPhysicalProducer` consumes real collected TYPE work
+  and deferred metadata before the actual physical continuation; it distinguishes
+  unchanged-heap codec transport from destructive rewrite.
   Its optional admitted-ADD collector reports original action indexes only for
   successful, non-skipped ADDs in the evolving phased relation, including cached
   inheritance actions. Inheritance forwards it only to the named root, never
@@ -276,6 +283,11 @@ holds return to lock manager checkpoints outside engine and session locks.
 tokens before atomic installation; peer DML causes recapture, never SQL
 replay. The VACUUM barrier and progress tests park the statement at the
 `vacuumCompletion` frame and at `storage`'s scan frames: keep those names.
+The captured VM-root pointer is also a publication fence: an older detached pass
+cannot undo later map truncation. After all fallible/final gates, every successful
+ordinary pass re-enables VM rebuilding, including already-frozen passes with
+unchanged tuple/header roots and generation. Skipped, unauthorized, failed and
+canceled work never clears explicit invalidation.
 Progress snapshots flow from actual completed storage prefixes and index loops
 through `table.VacuumProgress`, outside engine/session/install locks. The existing
 engine-owned row is updated coherently, never reinserted after replacement.

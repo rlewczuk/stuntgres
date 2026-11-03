@@ -101,7 +101,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 			e.Mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
 		}
-		shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: storageOwner}
+		shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, ObservedVisibility: original.Visibility, Generation: original.Generation, Replacement: store, Relation: storageOwner}
 	}
 	e.Mu.Unlock()
 	sourceWrites := writes

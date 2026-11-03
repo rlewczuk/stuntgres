@@ -218,7 +218,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 	}
 	for address, shape := range stage.RowShapes {
 		store := e.Storage.Relations[address]
-		if store != shape.Original || store == nil || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
+		if store != shape.Original || store == nil || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || (shape.PreservesVisibility && !shape.Rewritten && shape.Replacement != nil && shape.Replacement != shape.Original && shape.Replacement.Generation == shape.Generation && store.Visibility != shape.ObservedVisibility) || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return true
 		}
 	}
@@ -252,7 +252,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	}
 	for address, shape := range stage.RowShapes {
 		store := e.Storage.Relations[address]
-		if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
+		if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || (shape.PreservesVisibility && !shape.Rewritten && shape.Replacement != nil && shape.Replacement != shape.Original && shape.Replacement.Generation == shape.Generation && store.Visibility != shape.ObservedVisibility) || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return false, nil
 		}
 	}

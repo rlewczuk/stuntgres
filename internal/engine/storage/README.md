@@ -122,6 +122,11 @@ and the standard library, and never the engine.
 - **Catalog publication values** (`row_shape.go`, `publication.go`): a
   stage's planned heap replacement `RowShape`, whose `Matches` fences store,
   generation and row count and `MatchesWithEnds` also the deletion ends;
+  actual codec-preserving copies additionally compare their observed immutable
+  VM root. `PreservesVisibility` comes from the genuine copy-producing seam,
+  with same-generation consistency, never from generation equality alone.
+  Metadata-only same-pointer candidates and destructive fresh heaps do not take
+  this additional fence; their existing tuple guards remain unchanged.
   `Publication` (initial tables, row shapes, refreshed store) and its
   `CandidateRelations`, the detached relation-map candidate, and
   `PreserveUnchangedRelations`, which refreshes its borrowed heap pointers under
@@ -408,6 +413,12 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   only physical identity, and packs checked `RowAllocation+4` weights into
   8168-byte page payloads. Compressed immutable runs supply probes, relation rows
   and exact flag counts without expanding pages for scalar/summary calls.
+  `PrepareVisibilityFacts` owns canonical ordering in `PreparedVisibilityFacts`.
+  Its Capture/Check/Basis consumers reuse that vector; maintenance sampling may
+  update nonidentity facts, but cannot append/reorder them or change VersionIDs.
+  Only appended genuine dead pointers require a second preparation sort.
+  Standalone capture/check/basis functions still accept arbitrary fact order and
+  canonicalize safely. The wrapper owns no cache, payload copy or new authority.
   Universal proof requires genuine committed frozen provenance, no unresolved end
   and every known protected CommitSeq; unknown snapshots clear positive flags.
   Effective tuple-maintenance evidence independently clears all-frozen; the
@@ -416,6 +427,23 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   VM layout is derived from frozen headers, not from positive flags: coverage
   rounds the highest intersected frozen block to a 32672-block VM page.
   Unknown catalog provenance uses actual producer allocation with conservative false bits.
+  `VisibilityRoot` is immutable relation-incarnation VM authority: nil enables
+  rebuilding, materialized claims retain exact physical/fact layout basis, and an
+  explicit invalidated root suppresses all bits/extent across DML/header changes.
+  Only successful VACUUM publication re-enables rebuilding, even on a no-op pass.
+  Separate compressed page-proof runs preserve PD independently of VM claims.
+  Checks share checked layout traversal but test positive contradictions, not the
+  inverse READ proof: old committed unfrozen tuples can be all-visible. Only
+  selected claims produce exact VersionID findings; unused/redirect slots are
+  ignored, dead slots reported, continuation allocations emitted once. Running
+  full-XID horizons and actual raw xmax maintenance stay distinct from advertised
+  CommitSeq READ protection. No map operation changes ordinary MVCC admission.
+  Visibility-only preparation adds actual retained header-only dead slots as
+  four-byte line pointers, deduplicated against payload versions. They establish
+  no tuple/frozen/PD proof and acquire no fabricated tuple-lock resource.
+  Persistent private-fact keys retain only scalar Domain/epoch/diagnostic identity,
+  never TxRef/SessionToken owner attachments; unknown identities cannot reuse a
+  materialized basis. Current capture truth still uses exact genuine owner refs.
   FULL instead uses `RewriteVacuum` and `NewRewriteRelation`: always fresh
   incarnation/header/end containers, dense surviving placement, stable row,
   version and insertion identities, and shared immutable datum backing.

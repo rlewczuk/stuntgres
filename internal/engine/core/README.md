@@ -19,6 +19,28 @@ keep their private birth metadata after commit. Physical-session TEMP collation
 maintenance uses this same path: retiring one owner's objects must preserve
 unrelated committed heap replacements and peer TEMP objects. Fallible preparation
 and expression evaluation stay outside the installation lock.
+Codec-only heap transports retain the modeled physical VM. Their actual copy
+provenance and captured predecessor VM root cross stage/journal/savepoint
+boundaries into final publication, so a stale preserving copy cannot erase a
+later physical truncation. This is not a blanket VM revision conflict:
+metadata-only same-pointer commits remain legal after truncate, fresh destructive
+heaps own a new model, and publication retains a private replacement's own VM.
+Generated restore's TEMP preservation grafts the current live TEMP heap pointers
+under `Engine.Mu`; it does not publish an earlier copied TEMP VM snapshot.
+The shared routine-cardinality classifier recognizes the genuine visibility
+provider's set declarations before strict scalar NULL folding, including nominal
+TID checks. A strict NULL check stays a source invocation, not a scalar NULL row.
+Preserving VM observations are fenced at both actual materializing publication
+windows, including final readmission after unlocked work. Ordinary private
+statement adoption and PREPARE only carry that immutable observation forward;
+COMMIT and COMMIT PREPARED check it before physical installation.
+Distinguishing native witnesses use
+`RUN='^TestPgvisibilityCheck(PreparedPublication|DetachedPublication|GeneratedTempGraft)$'`:
+actual prepared journal transfer/materialization, index-merge and real foreign
+settlement reentry, and demanded generated repair followed by current live-TEMP
+pointer graft. Their mutation occurs at the named ownership boundary, not merely
+before COMMIT or on a synthetic TEMP heap.
+
 MERGE latest-row admission preserves transaction-local replacements and the
 retained snapshot frontier. A later committed target update or deletion raises
 serialization failure through the shared visibility conflict check; ordinary
@@ -983,6 +1005,11 @@ adapters and `PageinspectNotice`, and these host pieces:
   immutable catalog/RoleRead producer capture with zero Keep, not SQL or
   fabricated version headers. Exact tuple-maintenance sampling happens only after
   releasing the cohort and Engine mutexes.
+  The independent consistency horizon follows running assigned full XIDs, not
+  read-only advertised snapshots. Real incarnation VM roots live on storage;
+  producer-backed catalog heaps use descriptor-anchored RelationMetadata without
+  invented tuples. Final cohort readmission fences physical facts, horizon,
+  map root, descriptor, domain/epoch, storage and headers before publication.
 - freespace capture uses the caller's ordinary retained data view rather than the
   dirty-statistics cohort. Existing catalog producer sizing and genuine index
   Allocation roots are shared through the leaf host, with no new store or global
