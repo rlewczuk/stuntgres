@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -11,6 +12,7 @@ import (
 // Relation identity follows docs/design/regtype-pg18-inventory.tsv, not a
 // claim that PostgreSQL initdb-generated view OIDs are portable.
 const StatAllIndexesOID ids.OID = 12187
+const StatSysIndexesOID ids.OID = 12192
 
 type IndexStatisticsFact struct {
 	Scans, Entries, Fetches int64
@@ -48,6 +50,9 @@ func captureIndexStatistics(in Input) ([][]sqltype.Value, error) {
 		ns, ok := in.Catalog.Namespace(parent.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing statistics index namespace")
+		}
+		if in.Source.Address().ObjectID == StatSysIndexesOID && ns.Name() != "pg_catalog" && ns.Name() != "information_schema" && !strings.HasPrefix(ns.Name(), "pg_toast") {
+			continue
 		}
 		row := make([]sqltype.Value, len(indexStatisticsColumns))
 		var err error

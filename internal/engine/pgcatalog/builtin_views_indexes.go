@@ -26,3 +26,28 @@ func indexStatisticsViewParts(pretty bool) []builtinViewPart {
 		viewText(where), viewIdentifier("c"), viewText("."), viewIdentifier("relkind"), viewText(" = ANY (ARRAY['r'::"), viewType("\"char\""), viewText(", 't'::"), viewType("\"char\""), viewText(", 'm'::"), viewType("\"char\""), viewText(tail),
 	)
 }
+
+func sysIndexStatisticsViewParts(pretty bool) []builtinViewPart {
+	parts := []builtinViewPart{viewText(" SELECT ")}
+	for i, column := range indexStatisticsColumns {
+		if i != 0 {
+			parts = append(parts, viewText("    "))
+		}
+		parts = append(parts, viewIdentifier(column.Name))
+		if i != len(indexStatisticsColumns)-1 {
+			parts = append(parts, viewText(",\n"))
+		} else {
+			parts = append(parts, viewText("\n"))
+		}
+	}
+	if pretty {
+		return append(parts,
+			viewText("   FROM "), viewClass("pg_stat_all_indexes"), viewText("\n"),
+			viewText("  WHERE ("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR "), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText(";"),
+		)
+	}
+	return append(parts,
+		viewText("   FROM "), viewClass("pg_stat_all_indexes"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR ("), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText("));"),
+	)
+}

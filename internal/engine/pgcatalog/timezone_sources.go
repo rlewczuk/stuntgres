@@ -62,6 +62,9 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	if d.Address().ObjectID == StatioUserIndexesOID {
 		name = "pg_statio_all_indexes"
 	}
+	if d.Address().ObjectID == StatSysIndexesOID {
+		name = "pg_stat_all_indexes"
+	}
 	if d.Address().ObjectID == StatXactSysTablesOID {
 		name = "pg_stat_xact_all_tables"
 	}

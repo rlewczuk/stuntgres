@@ -13,6 +13,16 @@
   of genuine positive maintenance history without losing physical maintenance,
   optimizer data or rows. Later ANALYZE derives fresh estimates from that state.
 
+- Add the nine-column `pg_catalog.pg_stat_sys_indexes` monitoring view on the
+  existing ALL index-event provider and transaction Reader. Preserve actual
+  parent/index identities, exact case-sensitive system namespace membership,
+  nullable typed metadata, absent0/NULL activity and live own-view SELECT ACLs
+  without parent redaction. Apply namespace/kind rejection before fact demand;
+  use underlying-ALL DML diagnostics but SYS TRUNCATE/COPY identity. Add bounded
+  native membership/Reader tests and six independent dual-mode identity, real
+  access/publication, lifecycle, privilege, read-only and feature-smoke scenarios;
+  the named USER counterpart remains unregistered.
+
 - Add the eleven-column `pg_catalog.pg_statio_user_tables` on the existing
   ALL/SYS producer, events and transaction Reader, with the exact complementary
   namespace predicate before identity allocation or fact demand. Preserve typed

@@ -159,6 +159,7 @@ var pgBuiltinViews = [...]builtinView{
 	}},
 	// pg_catalog.pg_stat_all_indexes — REL_18_6 system_views.sql.
 	{oid: StatAllIndexesOID, parts: indexStatisticsViewParts(false), prettyParts: indexStatisticsViewParts(true)},
+	{oid: StatSysIndexesOID, parts: sysIndexStatisticsViewParts(false), prettyParts: sysIndexStatisticsViewParts(true)},
 	{oid: StatXactAllTablesOID, parts: xactTableStatisticsViewParts()},
 	{oid: StatXactSysTablesOID, parts: xactSysTableStatisticsViewParts(false), prettyParts: xactSysTableStatisticsViewParts(true)},
 	// pg_catalog.pg_stat_all_tables — REL_18_6 system_views.sql; pinned 18.6 display.

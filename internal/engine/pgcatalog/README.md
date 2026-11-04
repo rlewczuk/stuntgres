@@ -1463,9 +1463,20 @@ catalog writes or bypass a provider's independent backing-source checks.
   Dynamic statistics never enter the catalog-state CaptureCache. Exact displayed
   current names/identities follow rename/move/drop without changing retained
   result values. Bootstrap HasIndexes flags do not create native index inventory.
-  Sys/user are complementary schema predicates over this one unordered view,
-  including the entire `^pg_toast` prefix, not neighboring registered views.
-  Canonical display and read-only event classification share builtinViews.
+  `pg_stat_sys_indexes` (relation12192, rowtype12194, array12193) is registered
+  on that same producer and Reader, with all nine typed columns. SYS admits
+  exactly parent namespaces `pg_catalog`, `information_schema`, or the entire
+  case-sensitive `^pg_toast` prefix (including `pg_toasty`), before allocating
+  a row or demanding statistics. ALL remains unfiltered; the complementary USER
+  predicate can be queried over ALL but no named USER view is registered.
+  The shared r/t/m parent-kind check precedes demand; native has no physical
+  TOAST relation descriptors. Neither view invents ordering or bootstrap indexes.
+  SYS's own current SELECT ACL applies even to prepared/WHERE FALSE reads,
+  without parent redaction or requiring the caller's ALL SELECT privilege.
+  Missing counters/time remain0/NULL/0/0. Canonical/pretty dependency-aware
+  display and read-only events share builtinViews. SYS INSERT/UPDATE/DELETE
+  diagnostics name the underlying `pg_stat_all_indexes` join view; TRUNCATE
+  and COPY diagnostics retain `pg_stat_sys_indexes`.
 - `pg_stat_all_tables` (registry relation12146, rowtype12148, array12147):
   exactly 30 nullable typed columns in PostgreSQL 18 order. The current catalog
   supplies r/t/m/p membership and names, including inaccessible schemas/tables;

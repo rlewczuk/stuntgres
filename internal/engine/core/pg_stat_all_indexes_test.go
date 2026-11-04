@@ -109,7 +109,7 @@ func TestPGStatAllIndexesCatalog(t *testing.T) {
 		}
 	}
 	for _, spec := range pgcatalog.Specs {
-		if spec.Name == "pg_stat_sys_indexes" || spec.Name == "pg_stat_user_indexes" {
+		if spec.Name == "pg_stat_user_indexes" {
 			t.Fatal("neighbor view registered")
 		}
 	}
