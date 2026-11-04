@@ -437,9 +437,9 @@ diagnostics; retained rows own their original immutable typed backing.
   remain immutable; native controls reuse bootstrap and symbolic ACL replay.
 
 - `pg_ident_file_mappings` (12118) captures current actual files only through the
-  immutable Driver `ConfigureIdentFile` capability. The `identfile` package owns
-  lexing, shared-depth includes/@ expansion, provenance, PostgreSQL ARE validation
-  and diagnostics; the catalog producer owns seven nullable typed SQL fields.
+  immutable Driver `ConfigureIdentFile` capability. `authfile` owns the shared
+  lexer, quoted tokens and include graph; `identfile` owns mapping parsing and
+  PostgreSQL ARE validation. The producer owns seven nullable typed SQL fields.
   No native attachment means no rows; explicit top-file ENOENT raises 58P01.
   Current view/column SELECT and independent routine 6250 EXECUTE admission occur
   before filesystem access. Parsing runs outside `Engine.Mu`, without producer
@@ -451,6 +451,19 @@ diagnostics; retained rows own their original immutable typed backing.
   Reset/Restore retain destination startup authority and replay symbolic ACLs;
   Dump neither reads nor serializes filesystem authority. No authentication,
   identity matching, role lookup or backreference substitution is performed.
+
+- `pg_hba_file_rules` (12114, row 12116/array 12115) consumes an immutable
+  `hbarules.Snapshot` captured by core after current view/used-column SELECT and
+  independent routine 3401 EXECUTE. No file/context/parser is involved. The
+  producer validates registered descriptor/ref/type ownership, then materializes
+  invocation-owned eleven-cell typed rows from independent nullable facts.
+  Nil pointers/slices remain NULL; zero/empty scalars remain present; nonnil
+  empty arrays use rank zero and nonempty arrays rank one/lower one with current
+  source-owned TEXT[]/element descriptors. Facts retain no catalog types.
+  Unconfigured/cleared state gives typed zero rows; old rows/types remain owned
+  across Set and catalog replacement. Both ACLs start owner-only; initprivs stay
+  historical and deviations dump symbolically. No authentication, DNS or reload
+  occurs. The zero-provider backing declaration grants no callable SRF authority.
 
 - `pg_rewrite` (2618) projects all eight nonnullable attributes from actual
   immutable view/materialized-view and ordinary-rule owners. `VisitRewriteCatalog`
@@ -2215,6 +2228,11 @@ Parser lexical/include/depth/cancellation/large-line units use
 `make check RUN='^TestIdentFileParser'`. SQL acceptance and feature smoke live in
 `reference/catalogs` under `TestReferencePGIdentFileMappings`, in both selected
 native and pinned-reference modes.
+
+Simulated HBA producer authority, NULL/empty facts, cancellation, invocation cell
+ownership and retained catalog/type generation units use
+`make check RUN='^TestPGHBAFileRules'`. Public SQL acceptance stays in the shared
+`reference/catalogs` HBA scenarios; no parser or private SQL suite is involved.
 
 Rewrite schema, sealed builtin declaration and atomic-capture units use
 `make check RUN='^TestPGRewrite'`.

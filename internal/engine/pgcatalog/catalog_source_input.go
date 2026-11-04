@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/hbarules"
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
@@ -25,6 +26,7 @@ type Input struct {
 	Runtime       Runtime
 	RoleSettings  RoleSettingsProjection
 	IdentFile     *identfile.Source
+	HBARules      *hbarules.Snapshot
 	BackendMemory BackendMemorySnapshot
 	// ReplicationOriginProgress is copied with the captured catalog under the
 	// cluster mutex. Presence, including zero, denotes an allocated state slot.

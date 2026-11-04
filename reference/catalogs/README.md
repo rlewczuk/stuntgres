@@ -164,6 +164,31 @@ A, A, C, not a deduplicated failure list.
 API-only registration uses `make check RUN='^TestIdentFileStartupAPI$'`; selected
 Lifecycle/Controls plus that API test may add `RACE=1`.
 
+HBA diagnostic scenarios use `make check RUN='^TestReferencePGHBAFileRules'`
+and the same selector with `REFERENCE=1` (real pinned PostgreSQL first).
+Paired `HBARuleSet` declarations provide genuine PostgreSQL bytes and separately
+authored simulated `HBARule` facts through public `Driver.SetHBARules`; no
+fixture parser, native HBA file, network mechanism or authentication reload exists.
+Independent expectations retain canonical valid/error rows, parsed warnings,
+numbered artifacts, exact eleven-field metadata, current view/used-column/routine
+ACLs, binding/read-only diagnostics and detached retained results.
+View/used-column SELECT remains required for a proven-false filter; once admitted,
+that filter returns typed zero rows without opening the backing routine. Constant
+projection without that filter independently requires routine EXECUTE, including
+after clearing all rules.
+
+Explicit native phases in the shared Rows/Freshness/Controls/FeatureSmoke definitions
+additionally cover arbitrary NULL/empty/zero facts, nil versus empty arrays, late installation,
+caller ownership, direct/held/SQL-prepared freshness, clear/reinstall, complete
+concurrent batches, Driver/logical-database scope and destination-only native
+controls. Controls retains raw absent routine ACL/PUBLIC authority and exact
+canonical Dump repair through rounds 0/1/2, historical ACLs and Reset seed rights.
+Dump excludes all diagnostic labels and secrets. Physical parser/options/LDAP/
+RADIUS/include/address echo suites were removed with the superseded native
+parser, not replaced by fake exceptions. Ident retains its genuine file behavior.
+Pure API/ownership tests use `TestHBARules`; race proof may select Freshness with
+`RACE=1`. `TestReferencePGHBAFileRulesFeatureSmoke` is the feature smoke.
+
 File-settings scenarios use `make check RUN='^TestReferencePGFileSettings'`
 (also with `REFERENCE=1`). Native-control lifecycle proof retains empty-result
 descriptors while separately exercising unpruned direct, new-prepared and held

@@ -147,6 +147,11 @@ even though the native runtime has no parsed file assignments.
 The same inventory includes `pg_ident_file_mappings` as a view with its seven
 release-ordered mapping/provenance/error columns, independently checking both
 the complete native provider-name bag and direct/prepared attribute metadata.
+The `pg_hba_file_rules` view likewise participates with exact SQL metadata for
+its eleven release-ordered rule/provenance/array/diagnostic columns over the
+supported simulated diagnostic source supplied by mutable public
+`Driver.SetHBARules`, independently of SSL and OAuth settings. `SHOW hba_file`
+remains only a simulated label, not the source of those facts.
 `pg_stat_activity` is likewise in the complete provider bag and view-kind
 classification, with all 22 release-ordered column names and ordinals checked
 through direct and prepared information_schema.columns reads. Its addition is

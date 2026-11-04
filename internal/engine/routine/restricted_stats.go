@@ -15,6 +15,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 6399, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_get_aios"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 23, 20, 25, 25, 20, 20, 25, 21, 23, 25, 25, 16, 16, 16}, "pid", "io_id", "io_generation", "state", "operation", "off", "length", "target", "handle_data_len", "raw_result", "result", "target_desc", "f_sync", "f_localmem", "f_buffered")},
 	{Identity: catalog.RoutineIdentity{ID: 3400, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_config"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{25, 25}, "name", "setting")},
 	{Identity: catalog.RoutineIdentity{ID: 3329, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_show_all_file_settings"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{25, 23, 23, 25, 25, 16, 25}, "sourcefile", "sourceline", "seqno", "name", "setting", "applied", "error")},
+	{Identity: catalog.RoutineIdentity{ID: 3401, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_hba_file_rules"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 25, 23, 25, 1009, 1009, 25, 25, 25, 1009, 25}, "rule_number", "file_name", "line_number", "type", "database", "user_name", "address", "netmask", "auth_method", "options", "error")},
 	{Identity: catalog.RoutineIdentity{ID: 6250, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_ident_file_mappings"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Volatile, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 25, 23, 25, 25, 25, 25}, "map_number", "file_name", "line_number", "map_name", "sys_name", "pg_username", "error")},
 	{Identity: catalog.RoutineIdentity{ID: 3195, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_archiver"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 25, 1184, 20, 25, 1184, 1184}, "archived_count", "last_archived_wal", "last_archived_time", "failed_count", "last_failed_wal", "last_failed_time", "stats_reset")},
 	{Identity: catalog.RoutineIdentity{ID: 1136, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_wal"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 20, 1700, 20, 1184}, "wal_records", "wal_fpi", "wal_bytes", "wal_buffers_full", "stats_reset")},
@@ -47,7 +48,8 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
-// pg_config, pg_show_all_file_settings, pg_ident_file_mappings and origin status retain owner-only EXECUTE.
+// pg_config, pg_show_all_file_settings, pg_ident_file_mappings,
+// pg_hba_file_rules and origin status retain owner-only EXECUTE.
 // Archiver, WAL, SLRU, bgwriter, checkpointer, subscription and slots retain PUBLIC EXECUTE.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
@@ -56,7 +58,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 		var acl authorization.ACLValue
 		if id := declaration.Identity.ID; !publicStatsGetter(id) {
 			count := 2
-			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 || RestrictedReplicationOriginRoutine(declaration.Identity.ID) {
+			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 || declaration.Identity.ID == 3401 || RestrictedReplicationOriginRoutine(declaration.Identity.ID) {
 				count = 1
 			}
 			entries := make([]authorization.ACLEntry, count)

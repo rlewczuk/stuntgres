@@ -350,8 +350,36 @@ func TestSystemTimeNestedSetDeadline(t *testing.T) {
 						policy := f.project.Expressions[3].(plan.SubqueryExpr)
 						f.install(policy, true)
 						defer f.program.Close()
+						// Prepare the genuine borrowed capture and independently check
+						// the scalar before starting the sample clock. The timed pass
+						// still executes both set arms and expands their multiplicities:
+						// a separate state keeps the prewarm's InitPlan result isolated.
+						warmState := exec.State{Source: f.input, SourceMode: exec.SourceBorrowed}
+						warm := warmState.Evaluation(ctx)
+						warm.Row = f.rows[0]
+						value, warmErr := policy.Eval(&warm)
+						warmState.ReleaseMemberships()
+						truth, boolErr := value.Boolean()
+						if warmErr != nil || boolErr != nil || truth || f.input.FlatCount != wantLeft {
+							t.Fatal("real set prewarm did not validate scalar and populate capture", warmErr, boolErr, truth, f.input.FlatCount)
+						}
 						outputChecks, sets, leftCalls, rightCalls := 0, 0, 0, 0
 						primary := errors.New("genuine nested set arm failure")
+						observeOutput := func(caller string, _ bool) {
+							if caller != "stuntgres/internal/engine/exec.OpenSetNode" || leftCalls != wantLeft || rightCalls != wantRight {
+								return
+							}
+							outputChecks++
+							if outputChecks == 3 {
+								// The TRUE bucket checkpoint and first copy checkpoint
+								// precede the first append. The third checkpoint is
+								// after that append, before the next copy or bucket.
+								_ = timeWorkPastBudget(base)
+								if mode == "expired_cancel" || mode == "infinity_cancel" {
+									cancel()
+								}
+							}
+						}
 						plan.VisitExecutableQuery(policy.QueryPlan.Root, func(node plan.Node) {
 							if n, ok := node.(*plan.SetNode); ok {
 								sets++
@@ -378,6 +406,12 @@ func TestSystemTimeNestedSetDeadline(t *testing.T) {
 									value, err := rightExpression.Eval(c)
 									if err == nil {
 										rightCalls++
+										if rightCalls == wantRight {
+											// Arm stack inspection only once genuine input
+											// production reaches the output phase. Its setup
+											// cost must not consume the sample's short budget.
+											ctx.observe = observeOutput
+										}
 									}
 									return value, err
 								})
@@ -385,21 +419,6 @@ func TestSystemTimeNestedSetDeadline(t *testing.T) {
 						}, func(_ expr.Expr) {})
 						if sets != 1 {
 							t.Fatal("fixture missed the genuine nested set executor", sets)
-						}
-						ctx.observe = func(caller string, _ bool) {
-							if caller != "stuntgres/internal/engine/exec.OpenSetNode" || leftCalls != wantLeft || rightCalls != wantRight {
-								return
-							}
-							outputChecks++
-							if outputChecks == 3 {
-								// The TRUE bucket checkpoint and first copy checkpoint
-								// precede the first append. The third checkpoint is
-								// after that append, before the next copy or bucket.
-								_ = timeWorkPastBudget(base)
-								if mode == "expired_cancel" || mode == "infinity_cancel" {
-									cancel()
-								}
-							}
 						}
 						leaf := f.leaf
 						if mode == "infinity" || mode == "infinity_cancel" {

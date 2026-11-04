@@ -147,6 +147,12 @@ All remain implicit PUBLIC EXECUTE, zero-input strict STABLE and parallel
 restricted, without callable provider flags. Their live ACL descriptors are
 independent of retained statistics and current view/column SELECT.
 
+`pg_hba_file_rules` (3401) follows that zero-provider convention with eleven
+named OUT fields, including three TEXT[] outputs, strict VOLATILE/parallel-safe
+SETOF record, cost 1, rows 1000 and matching internal source. Owner-only EXECUTE
+is separate from view/column SELECT. Historical privileges and symbolic current
+ACL replay use the same declaration; it never loads authentication providers.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

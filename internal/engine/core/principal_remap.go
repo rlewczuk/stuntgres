@@ -132,6 +132,7 @@ func (e *Engine) RestoreStage() *Engine {
 	}
 	stage.TextSearchFiles = e.TextSearchFiles
 	stage.IdentFile = e.IdentFile
+	stage.HBARules = e.HBARules
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
 	stage.ImportParameterPredecessor = parameterPredecessor
 	stage.importOriginProgressPredecessor = &originPredecessor

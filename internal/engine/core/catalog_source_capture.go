@@ -53,8 +53,12 @@ func admitScalarStatsGetters(auth AuthorizationView, oid ids.OID, uses []int) er
 
 func admitFunctionStatsGetters(auth AuthorizationView, mask uint8) error {
 	for i, oid := range [...]ids.OID{2978, 2979, 2980} {
-		if mask & (1 << i) == 0 { continue }
-		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}), Privileges: authorization.ExecutePrivilege}); err != nil { return err }
+		if mask&(1<<i) == 0 {
+			continue
+		}
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -225,7 +229,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
-	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.BackendMemoryContextsOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID:
+	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.BackendMemoryContextsOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID, pgcatalog.HBAFileRulesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -244,6 +248,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			procedure = 3329
 		} else if oid == pgcatalog.IdentFileMappingsOID {
 			procedure = 6250
+		} else if oid == pgcatalog.HBAFileRulesOID {
+			procedure = 3401
 		}
 		// The common query manifest has already admitted view SELECT. Its
 		// backing routine has independent current EXECUTE authority; no
@@ -271,6 +277,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			in.IdentFile = e.IdentFile
 			unlockBefore = true
 		}
+		if oid == pgcatalog.HBAFileRulesOID {
+			in.HBARules = e.HBARules.Capture()
+			unlockBefore = true
+		}
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatSysIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
 		fallthrough
 	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserTablesOID, pgcatalog.StatXactUserFunctionsOID, pgcatalog.StatUserFunctionsOID:
@@ -281,8 +291,13 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		if oid == pgcatalog.StatUserFunctionsOID {
 			demand := catalogrt.FunctionStatsOrdinary(nil)
-			if functionStats != nil { demand = *functionStats }
-			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil { e.Mu.Unlock(); return nil, err }
+			if functionStats != nil {
+				demand = *functionStats
+			}
+			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil {
+				e.Mu.Unlock()
+				return nil, err
+			}
 			if !demand.ReadInput {
 				e.Mu.Unlock()
 				return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(source.Columns), Anonymous: [][]sqltype.Value{}}, nil

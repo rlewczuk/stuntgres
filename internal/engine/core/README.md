@@ -3146,6 +3146,16 @@ Producers, the OID registry and descriptor specs live in
   Physical/stored/foreign/sequence paths are unchanged; unsupported topology and
   locking keep ordinary capture. A held statement recomputes demand from this
   execution's imported parameters rather than retaining an earlier FALSE.
+  Ident and simulated HBA diagnostic sources apply the same current view/column
+  gate and independent routine 6250/3401 EXECUTE gate. Ident retains its immutable
+  startup filesystem capability, with file/include/ARE work outside Engine.Mu.
+  HBA captures its Driver-wide holder's immutable fact snapshot only after ACL
+  admission, then materializes typed rows unlocked. Set takes no Engine lock;
+  source publication never nests Driver/Engine locks. Prepare and metadata do
+  not capture facts or access files. Exact-DSN/logical runtimes and template seeds
+  share the destination holder, including across Reset and staged Restore, so a
+  completed Set during staging stays current. Dump never serializes these facts
+  or filesystem authority; ordinary symbolic ACL deviations replay.
 - The runtime producers read is [`core/catalogrt`](catalogrt/README.md):
   `catalogrt.Runtime` over `catalogrt.Host`, the shared capture cache
   (`Engine.catalogCaptures`, owned by `Engine.Mu`), keep filters and the
@@ -3622,6 +3632,11 @@ Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
+
+Simulated HBA holder ownership in `enginetests/pgcatalog` uses
+`make check RUN='^TestPGHBAFileRulesHolder'`: destination staging, replacement,
+Reset and current/future template/logical targets retain one live holder while
+old immutable snapshots survive. Public SQL outcomes remain in reference tests.
 
 WAL-name startup propagation, destination rebinding and accepted-fold ownership
 use `RUN='^TestWALNamesMetadata$'`.

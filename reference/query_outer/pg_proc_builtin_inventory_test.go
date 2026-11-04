@@ -207,6 +207,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Identity-file mappings adds its metadata-only backing declaration, OID6250:
 	// seven named OUT fields, strict VOLATILE/parallel-safe SETOF record, rows
 	// 1000 and internal source pg_ident_file_mappings (REL_18_6 pg_proc.dat).
+	// HBA diagnostics adds metadata-only OID3401, eleven named OUT fields,
+	// strict VOLATILE/parallel-safe SETOF record and source pg_hba_file_rules.
 	// Twelve comparison estimator declarations add their genuine strict/STABLE/
 	// parallel-safe INTERNAL metadata, without any scalar execution provider.
 	// Exported snapshots add the released zero-argument TEXT declaration OID3809.
@@ -263,8 +265,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// declaration3781, no inputs, twenty ordered OUT fields and rows10.
 	// WAL adds metadata-only non-strict STABLE/restricted scalar RECORD1136:
 	// no inputs, five OUT fields including exact NUMERIC bytes, and rows0.
-	if len(facts) != 2280 {
-		t.Fatalf("released represented overloads: got %d, want 2280", len(facts))
+	if len(facts) != 2281 {
+		t.Fatalf("released represented overloads: got %d, want 2281", len(facts))
 	}
 	return facts
 }

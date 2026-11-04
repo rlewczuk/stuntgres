@@ -101,6 +101,7 @@
 6399	pg_get_aios	11	12	1	100	0	0	f	false	false	true	true	v	r	0	0	2249		{23,23,20,25,25,20,20,25,21,23,25,25,16,16,16}	{o,o,o,o,o,o,o,o,o,o,o,o,o,o,o}	{pid,io_id,io_generation,state,operation,off,length,target,handle_data_len,raw_result,result,target_desc,f_sync,f_localmem,f_buffered}	false	\N	pg_get_aios	\N	false	\N
 3400	pg_config	11	12	1	23	0	0	f	false	false	true	true	s	r	0	0	2249		{25,25}	{o,o}	{name,setting}	false	\N	pg_config	\N	false	\N
 3329	pg_show_all_file_settings	11	12	1	1000	0	0	f	false	false	true	true	v	s	0	0	2249		{25,23,23,25,25,16,25}	{o,o,o,o,o,o,o}	{sourcefile,sourceline,seqno,name,setting,applied,error}	false	\N	show_all_file_settings	\N	false	\N
+3401	pg_hba_file_rules	11	12	1	1000	0	0	f	false	false	true	true	v	s	0	0	2249		{23,25,23,25,1009,1009,25,25,25,1009,25}	{o,o,o,o,o,o,o,o,o,o,o}	{rule_number,file_name,line_number,type,database,user_name,address,netmask,auth_method,options,error}	false	\N	pg_hba_file_rules	\N	false	\N
 6250	pg_ident_file_mappings	11	12	1	1000	0	0	f	false	false	true	true	v	s	0	0	2249		{23,25,23,25,25,25,25}	{o,o,o,o,o,o,o}	{map_number,file_name,line_number,map_name,sys_name,pg_username,error}	false	\N	pg_ident_file_mappings	\N	false	\N
 3809	pg_export_snapshot	11	12	1	0	0	0	f	false	false	true	false	v	u	0	0	25		\N	\N	\N	false	\N	pg_export_snapshot	\N	false	\N
 2931	xpath	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	143	25 142 1009	\N	\N	\N	false	\N	xpath	\N	false	\N

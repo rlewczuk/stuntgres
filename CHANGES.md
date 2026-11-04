@@ -240,6 +240,20 @@
   provenance, remapped user grants/options and restored direct/held view denial
   and recovery; omit unnecessary repair for the implicit PUBLIC default.
 
+- Expose mutable simulated HBA diagnostics through `Driver.SetHBARules` and the
+  eleven-column `pg_hba_file_rules` view. Copy complete caller-owned batches into
+  immutable snapshots, preserving independent nullable scalars, NULL/empty
+  arrays, supplied order and diagnostic cells. Existing and future exact-DSN
+  and logical engines share their Driver's stable holder; Reset/Restore retain
+  destination facts, while Dump excludes rules, labels and secrets.
+  Recheck current view/column and independent backing-routine privileges before
+  each capture, including held prepared executions; retain detached old results.
+  Remove HBA-only physical parsing/file/network machinery and startup attachment,
+  preserving ident's functional file reader. Add independent public PostgreSQL
+  18.6 scenarios and pure API/snapshot/capture/lifetime units.
+  Keep absent HBA backing-routine ACLs distinct from the owner-only baseline
+  and preserve them through Dump/Restore.
+
 - Add the nine-column typed, read-only `pg_catalog.pg_stat_all_indexes` view on
   the shared cumulative provider/Reader, exposing actual index/parent identities
   without parent privilege filtering or field redaction. Attribute searches,
@@ -405,6 +419,10 @@
   Keep nested hash/recursive support witnesses at actual operation admission,
   distinguishing one support call's entry/return context samples and post-success
   checkpoints from later evaluator work without relaxing untouched-tail assertions.
+  Prepare nested set deadline fixtures' genuine borrowed input prefix in an
+  isolated invocation before sampling, then arm stack observation at the last
+  right-arm value. Keep the real 100 ms budget and post-append expiry witness,
+  exact finite/Infinity multiplicities, cancellation and primary-error checks.
   Cover native Time read attribution on real heap/hierarchy captures: zero and
   invalid arguments stay unread, Infinity consumes visible rows, same-stage rewind
   reuses its read frontier, and fresh openings retain capture-owned pin cleanup.

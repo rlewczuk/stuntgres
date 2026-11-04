@@ -99,6 +99,7 @@ var producers = [...]Registration{
 	{12095, captureForeignCatalog},
 	{SeclabelsOID, capturePGSeclabels},
 	{FileSettingsOID, capturePGFileSettings},
+	{HBAFileRulesOID, capturePGHBAFileRules},
 	{IdentFileMappingsOID, capturePGIdentFileMappings},
 	{ConfigOID, capturePGConfig},
 	{ShmemAllocationsOID, capturePGShmemAllocations},

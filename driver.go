@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/hbarules"
 	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
@@ -49,6 +50,7 @@ type Driver struct {
 	textSearchResources *functions.DictionaryFiles
 	identFile           *identfile.Source
 	sepgsql             *sepgsql.Runtime
+	hbaRules            *hbarules.Source
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -78,6 +80,9 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	if d.engines == nil {
 		d.engines = make(map[string]*core.Engine)
 	}
+	if d.hbaRules == nil {
+		d.hbaRules = new(hbarules.Source)
+	}
 	e := d.engines[name]
 	if e == nil {
 		wrappers, err := fdw.BindExternalProviders(d.foreignWrappers, d.externalProviders)
@@ -99,6 +104,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 		}
 		e.TextSearchFiles = d.textSearchResources
 		e.IdentFile = d.identFile
+		e.HBARules = d.hbaRules
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}

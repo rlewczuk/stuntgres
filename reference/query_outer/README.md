@@ -80,6 +80,10 @@ fields, strict VOLATILE/parallel-safe SETOF record declaration, row estimate
 1000 and internal source `pg_ident_file_mappings`. It remains metadata-only;
 the complete membership and 28-field direct/prepared inventory include it,
 as does the shared builtin routine-deparse inventory.
+HBA diagnostics adds OID 3401 with eleven named OUT fields (including three
+TEXT[] outputs), strict VOLATILE/parallel-safe SETOF record, cost 1, rows 1000
+and internal source `pg_hba_file_rules`. It also remains metadata-only and is
+included in the complete membership and 28-field inventory.
 The fourteen XML mapping declarations (2923–2930 and 2933–2938) retain explicit
 cost 100, strict XML results and named all-IN formals. Table/schema/database
 functions are STABLE/parallel-restricted; query and cursor functions are
@@ -176,7 +180,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2274 rows, all backed
+supplements. The complete released inventory contains 2281 rows, all backed
 by actual descriptors, including GIN handler333, ten genuine internal
 extraction/consistency support declarations and callable strict volatile
 parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership

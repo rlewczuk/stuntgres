@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/hbarules"
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/role"
@@ -76,8 +77,9 @@ type Engine struct {
 	IdentFile                       *identfile.Source          // Immutable destination startup filesystem authority.
 	Sepgsql                         *sepgsql.Runtime           // Immutable Driver simulation, never a SQL bypass.
 	routineInitializationSequence   uint64                     // Mu; inert unique runtime frame identity, never a grant.
+	HBARules                        *hbarules.Source           // Stable destination holder; immutable snapshots published independently.
 	DatabaseFrozenXID               uint64
-	VacuumProgress                  map[ids.TxRef]VacuumProgress  // Engine.mu; only actual work.
+	VacuumProgress                  map[ids.TxRef]VacuumProgress   // Engine.mu; only actual work.
 	ClusterProgress                 map[ids.TxRef]*ClusterProgress // Engine.Mu membership; entry-local facts.
 	Statistics                      statistics.Provider
 	catalogCaptures                 catalogrt.CaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.

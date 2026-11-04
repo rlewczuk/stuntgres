@@ -29,6 +29,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: BackendMemoryContextsOID, parts: backendMemoryViewParts, prettyParts: backendMemoryViewParts},
 	{oid: ConfigOID, parts: configViewParts, prettyParts: configViewParts},
 	{oid: FileSettingsOID, parts: fileSettingsViewParts, prettyParts: fileSettingsViewParts},
+	{oid: HBAFileRulesOID, parts: hbaFileRulesViewParts, prettyParts: hbaFileRulesViewParts},
 	{oid: IdentFileMappingsOID, parts: identFileMappingsViewParts, prettyParts: identFileMappingsViewParts},
 	{oid: WaitEventsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("type"), viewText(",\n"),

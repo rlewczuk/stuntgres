@@ -58,6 +58,7 @@ func resetCatalogContents(ctx context.Context, e *core.Engine, origin controlOri
 	fresh.InitializeSepgsqlSeedLabels()
 	fresh.TextSearchFiles = e.TextSearchFiles
 	fresh.IdentFile = e.IdentFile
+	fresh.HBARules = e.HBARules
 	if origin == detachedPublicControl {
 		_, err := e.ReplaceCatalogWithControl(ctx, fresh, fresh.CatalogRead(), nil, authority)
 		return err

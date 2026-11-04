@@ -85,6 +85,7 @@ var Specs = [...]Spec{
 	{BackendMemoryContextsOID, ids.PGCatalogNamespaceOID, "pg_backend_memory_contexts", backendMemoryColumns, true, false, true, true, "stuntgres: missing backend memory source type"},
 	{ConfigOID, ids.PGCatalogNamespaceOID, "pg_config", configColumns, true, false, true, true, "stuntgres: missing configuration source type"},
 	{FileSettingsOID, ids.PGCatalogNamespaceOID, "pg_file_settings", fileSettingsColumns, true, false, true, true, "stuntgres: missing file settings source type"},
+	{HBAFileRulesOID, ids.PGCatalogNamespaceOID, "pg_hba_file_rules", hbaFileRulesColumns, true, false, true, true, "stuntgres: missing HBA rules source type"},
 	{IdentFileMappingsOID, ids.PGCatalogNamespaceOID, "pg_ident_file_mappings", identFileMappingsColumns, true, false, true, true, "stuntgres: missing identity mappings source type"},
 	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},

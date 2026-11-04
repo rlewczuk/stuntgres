@@ -88,6 +88,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_show_all_file_settings", 1
 		case 6250:
 			name, entries = "pg_ident_file_mappings", 1
+		case 3401:
+			name, entries = "pg_hba_file_rules", 1
 		default:
 			return false
 		}
@@ -115,6 +117,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		case pgcatalog.ReplicationSlotsOID:
 			name = "pg_replication_slots"
 			reader = authorization.ACLGrantee{Public: true}
+		case pgcatalog.HBAFileRulesOID:
+			name, entries = "pg_hba_file_rules", 1
 		default:
 			return false
 		}

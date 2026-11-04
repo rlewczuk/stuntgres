@@ -113,6 +113,7 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 			if candidate != nil {
 				candidate.TextSearchFiles = e.TextSearchFiles
 				candidate.IdentFile = e.IdentFile
+				candidate.HBARules = e.HBARules
 			}
 			e.Cluster.Seed, e.Cluster.SeedError = candidate, err
 		})

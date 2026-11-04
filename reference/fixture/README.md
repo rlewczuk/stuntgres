@@ -187,6 +187,21 @@ not implicitly register native providers.
   No permission error is synthesized and no privileged-run skip is used.
   Permission changes save the actual prior mode and register restoration before
   mutation; subtest cleanup restores modes before scenario-owned trees are removed.
+- `NewHBAFileScenario(t, HBARuleSet{Contents: ..., Manifest: ..., Rules: ...})`
+  pairs literal PostgreSQL bytes with independently authored public
+  `[]stuntgres.HBARule` facts. Native setup and `HBAFiles.Install` call only
+  `Driver.SetHBARules`; they never create/read native HBA files, parse input,
+  derive facts from SQL, or reload authentication. `Path` supplies explicit
+  provenance labels: `{MAIN}` and `{ROOT}` in native FileName facts are literal
+  label substitutions, not content decoding. Updates can also supply literal
+  native labels independently of PostgreSQL's actual file paths.
+  Real mode discovers `SHOW hba_file` and reuses the ident fixture's PostgreSQL
+  backup/install/restore owner: genuine bytes, owner/group and mode are saved
+  before mutation and restored with independent bounded cleanup, even on failure.
+  Only current diagnostic bytes change; no HBA is reloaded. HBAFiles exposes no
+  native file mutation, permission, interface or parser helpers. All scenarios
+  use `p.Backends()` and independent literal SQL expectations, with explicit
+  native API/control phases inside those same shared definitions.
 
 ### Test-only legacy crypto oracle
 

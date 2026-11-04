@@ -765,11 +765,17 @@ No physical WAL position or flush guarantee is serialized.
   bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
   This includes `pg_backend_memory_contexts` and its canonical callable routine;
   session layouts and installed prepared definitions themselves are never dumped.
-  The `pg_config`, `pg_file_settings`, `pg_ident_file_mappings` and
-  `pg_replication_origin_status` views and their noncallable backing routines use
-  the same exact comparison with their explicit owner-only table/EXECUTE baseline,
-  not a statistics-role grant. Relation, column and routine deviations retain
-  symbolic ACL repairs, including raw absence and explicit-empty authority.
+  The `pg_config`, `pg_file_settings`, `pg_ident_file_mappings`,
+  `pg_replication_origin_status` and `pg_hba_file_rules` views and their
+  noncallable backing routines use the same exact comparison with their explicit
+  owner-only table/EXECUTE baseline, not a statistics-role grant. Relation, column
+  and routine deviations retain symbolic ACL repairs, including raw absence and
+  explicit-empty authority.
+  An absent HBA backing-routine ACL remains distinct from its owner-only baseline
+  and is preserved through Dump/Restore.
+  Simulated HBA facts themselves are not catalog state: Reset and staged Restore
+  retain the destination's stable Driver holder and latest publication, including
+  Set calls completed during input reading. No labels, rules or secrets are dumped.
   Changed raw authority uses the existing repairs; reordering, duplicates and
   explicit absence/emptiness are not effective-rights normalization. Defaults
   therefore add no dump noise, while custom SELECT/EXECUTE grants survive replay.

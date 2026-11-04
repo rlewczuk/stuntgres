@@ -636,6 +636,11 @@ Startup/sighup providers may supply only normalized equivalents of the immutable
 initial value, including permissions `511`/`0777` and authentication timeout
 `60s`/`1min`. User defaults are captured once per physical session; RESET does not
 reenter the provider and replacement captures fresh defaults.
+HBA diagnostic facts are supplied through the mutable public
+`Driver.SetHBARules` API independently of SSL and OAuth settings.
+`SHOW hba_file` is only a simulated label, not filesystem authority or the
+source of those facts. No setting here enables authentication, SSL, reload
+or validator loading.
 
 Exactly ten names restrict reads: `unix_socket_directories`, `krb_server_keyfile`,
 `oauth_validator_libraries`, `ssl_ciphers`, `ssl_dh_params_file`, `ssl_groups`,

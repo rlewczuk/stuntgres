@@ -35,7 +35,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			capture(address, d.ACL)
 		case *catalog.Procedure:
 			// Restricted builtin declarations encode the released REVOKE/GRANTs.
-			if routine.RestrictedStatsResetRoutine(address.ObjectID) || routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 2282 || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 {
+			if routine.RestrictedStatsResetRoutine(address.ObjectID) || routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 2282 || address.ObjectID == 5052 || address.ObjectID == 4100 || address.ObjectID == 6399 || address.ObjectID == 3400 || address.ObjectID == 3329 || address.ObjectID == 6250 || address.ObjectID == 3401 {
 				capture(address, d.ACL)
 			}
 		case *catalog.Relation:
@@ -47,7 +47,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			}}
 			public := authorization.SelectPrivilege
 			switch d.Name() {
-			case "pg_authid", "pg_shadow", "pg_statistic_ext_data", "pg_largeobject", "pg_subscription", "pg_replication_origin_status", "pg_user_mapping", "pg_config", "pg_file_settings", "pg_ident_file_mappings":
+			case "pg_authid", "pg_shadow", "pg_statistic_ext_data", "pg_largeobject", "pg_subscription", "pg_replication_origin_status", "pg_user_mapping", "pg_config", "pg_file_settings", "pg_ident_file_mappings", "pg_hba_file_rules":
 				public = 0
 			case "pg_settings":
 				public |= authorization.UpdatePrivilege
@@ -93,7 +93,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}
-	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 6014, 2282, 5052, 4100, 6399, 3400, 3329, 6250} {
+	for _, oid := range [...]ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 6014, 2282, 5052, 4100, 6399, 3400, 3329, 6250, 3401} {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}

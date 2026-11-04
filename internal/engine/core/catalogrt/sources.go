@@ -29,7 +29,7 @@ func InitializeSources(store *catalog.Store, roles authorization.Read, bootstrap
 		if spec.NoPublic {
 			d.Security.ACL = authorization.ACLValue{}
 		}
-		if spec.OID == pgcatalog.ConfigOID || spec.OID == pgcatalog.FileSettingsOID || spec.OID == pgcatalog.IdentFileMappingsOID || spec.OID == pgcatalog.ReplicationOriginStatusOID {
+		if spec.OID == pgcatalog.ConfigOID || spec.OID == pgcatalog.FileSettingsOID || spec.OID == pgcatalog.IdentFileMappingsOID || spec.OID == pgcatalog.ReplicationOriginStatusOID || spec.OID == pgcatalog.HBAFileRulesOID {
 			d.Security.ACL = authorization.MaterializeRelationACL(d.Security.ACL, d.Owner)
 			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {
 				return err

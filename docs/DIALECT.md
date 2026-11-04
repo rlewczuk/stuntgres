@@ -4,6 +4,26 @@ This document records logical SQL versus external-mechanism ownership boundaries
 Other feature contracts remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md)
 and the owning reference package documentation.
 
+## Authentication-file diagnostics
+
+`pg_catalog.pg_hba_file_rules` exposes eleven nullable diagnostic facts supplied
+through the mutable public `Driver.SetHBARules` API. Scalar pointers distinguish
+NULL from zero/empty text; arrays distinguish NULL from `{}` and `{""}`.
+Labels, ordering, numbering, parsed fields and error cells are verbatim facts,
+not instructions to an authentication mechanism. Unconfigured or cleared state
+is typed zero rows with full metadata.
+
+Current view/used-column SELECT and independent routine 3401 EXECUTE precede
+snapshot capture. Direct and held prepared executions recapture current facts
+and rights; retained results stay detached. The
+[Driver contract](DRIVER.md#simulated-hba-diagnostics) defines batch copying,
+Driver-wide scope and destination native-control lifetime.
+
+No physical HBA source, parser, authentication, DNS, network or reload is involved.
+Function 3401 retains its exact metadata and mutable ACL independently of the
+view, without acquiring a callable native SRF provider. The separate ident
+diagnostic source continues to use its explicitly attached actual file reader.
+
 ## Activity monitoring
 
 `pg_catalog.pg_stat_activity` is a typed, read-only 22-column system view of real

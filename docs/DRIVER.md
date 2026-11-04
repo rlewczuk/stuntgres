@@ -84,6 +84,57 @@ PostgreSQL shared-object ABI/hook chaining, postmaster/backend processes,
 OS loader resources and optional CrackLib/custom-source builds are external
 mechanisms. Native trusted-host admission is not password authentication.
 
+### Simulated HBA diagnostics
+
+`Driver.SetHBARules` replaces the eleven-column `pg_catalog.pg_hba_file_rules`
+facts before or after opening connectors. It returns no error and performs no
+validation, normalization, numbering or sorting. For example:
+
+```go
+d := stuntgres.NewDriver()
+number, line := int32(1), int32(7)
+label, kind, method := "unit-test rules", "local", "peer"
+d.SetHBARules([]stuntgres.HBARule{{
+    RuleNumber: &number, FileName: &label, LineNumber: &line,
+    Type: &kind, Database: []string{"all"}, UserName: []string{"all"},
+    AuthMethod: &method, Options: []string{"map=unit"},
+}})
+// Replacement is allowed at any time, including on existing pools/statements.
+d.SetHBARules(nil) // clear all diagnostic rows
+```
+
+All fields are independent diagnostic facts. Nil scalar pointers mean SQL NULL;
+nonnull pointers preserve zero and empty strings. Nil arrays mean SQL NULL,
+nonnull empty slices mean `{}`, and `[]string{""}` means one empty element.
+Supplied sequence, duplicate rows, labels, line/rule numbers, options and errors
+are preserved verbatim, including parsed fields alongside an error. An Error
+field is a text cell, not a raised SQL exception. Arbitrary simulated combinations
+need not correspond to a PostgreSQL file-parser result.
+
+Set copies the whole batch, every scalar pointee and every array once before
+publishing an immutable snapshot. Callers may mutate inputs after return, but
+not concurrently with Set. Each execution captures one complete current batch;
+Prepare and metadata never freeze facts. Retained Rows own their old values,
+arrays and metadata across replacement, clear, controls and pool closure.
+Unconfigured and cleared state give typed zero rows with the full schema.
+
+Current view/used-column SELECT and backing routine 3401 EXECUTE remain separate
+owner-only initial grants, rechecked on every direct/held/prepared execution
+before capturing facts. Secrets are not redacted. Statistics/monitor/settings
+roles have no implicit access. The backing routine provides metadata/ACL
+authority, not a separately callable native SRF.
+
+A stable holder is shared by every exact DSN and current/future logical database
+on this Driver, including a zero Driver; independent Drivers isolate state.
+Reset and Restore retain the destination holder and latest facts, never a source
+Driver's facts. Dump excludes rules, labels and secrets while replaying modified
+view/column/routine ACLs symbolically. Failed/cancelled Restore preserves data,
+ACLs, facts and retained Rows.
+
+This API does no file access, parsing, DNS, authentication, network connection or
+reload. FileName is a diagnostic label, not a path capability; `SHOW hba_file`
+remains an unrelated simulated setting. Trusted-host role admission is unchanged.
+
 ### Native identity-file inspection
 
 ```go
