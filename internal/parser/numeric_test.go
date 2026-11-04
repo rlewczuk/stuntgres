@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -61,11 +62,33 @@ func TestNumericLiteralSyntaxAndModifierList(t *testing.T) {
 			t.Fatal(q, got, err, want)
 		}
 	}
-	for _, literal := range []string{"1.5", ".5", "1e2"} {
-		_, err := Parse("SET application_name TO " + literal)
+	// NumericOnly settings retain FCONST spelling; only the unary sign changes.
+	for _, tc := range []struct{ value, want string }{
+		{"0.5", "0.5"}, {"1.50", "1.50"}, {".5", ".5"}, {"5.", "5."}, {"1E2", "1E2"}, {"1.5e-3", "1.5e-3"},
+		{"+2.5e+1", "2.5e+1"}, {"-.5", "-.5"}, {"-0.0", "-0.0"}, {"1_000.5", "1_000.5"}, {"1e999", "1e999"},
+	} {
+		for _, assign := range []string{"SET auto_explain.sample_rate = ", "SET SESSION auto_explain.sample_rate TO "} {
+			stmts, err := Parse(assign + tc.value)
+			if err != nil || len(stmts) != 1 {
+				t.Fatal(tc.value, stmts, err)
+			}
+			if got := stmts[0].(*Set); !reflect.DeepEqual(got.Values, []string{tc.want}) || got.ValuePosition.Offset != len(assign) {
+				t.Fatalf("%s%s: %#v", assign, tc.value, got)
+			}
+		}
+	}
+	for _, tc := range []struct{ query, message, position string }{
+		{"SET auto_explain.sample_rate = 1.5abc", `trailing junk after numeric literal at or near "1.5abc"`, "32"},
+		{"SET auto_explain.sample_rate = 1e+", `trailing junk after numeric literal at or near "1e+"`, "32"},
+		{"SET auto_explain.sample_rate = 1.5 2", `syntax error at or near "2"`, "36"},
+		{"SET auto_explain.sample_rate = - -1.5", `syntax error at or near "-"`, "34"},
+		{"SET NAMES 1.5", `syntax error at or near "1.5"`, "11"},
+		{"SET SESSION NAMES -1.5", `syntax error at or near "-"`, "19"},
+	} {
+		_, err := Parse(tc.query)
 		var got *sqlstate.Error
-		if !errors.As(err, &got) || got.Code != "0A000" || got.Message != "non-decimal-integer literal is unsupported" {
-			t.Fatal(got, err)
+		if !errors.As(err, &got) || got.Code != "42601" || got.Message != tc.message || got.Position != tc.position {
+			t.Fatal(tc.query, got, err)
 		}
 	}
 }

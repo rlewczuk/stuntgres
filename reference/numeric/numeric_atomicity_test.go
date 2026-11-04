@@ -38,13 +38,3 @@ func TestReferenceNumericStatementAtomicity(t *testing.T) {
 		})
 	}
 }
-
-func TestReferenceNumericSettingExclusions(t *testing.T) {
-	p := fixture.NewScenario(t)
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Exec("SET application_name TO 'before'", 0))
-	for _, literal := range []string{"1.5", ".5", "1e2"} {
-		failure := fixture.ImplicitError("SET application_name TO "+literal, fixture.Diagnostic{Code: "0A000", Message: "non-decimal-integer literal is unsupported", Position: "25"})
-		fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, failure)
-		fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{"before"}}))
-	}
-}

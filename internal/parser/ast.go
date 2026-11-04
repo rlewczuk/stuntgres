@@ -2785,6 +2785,8 @@ type settingAtom struct {
 	text     string
 	isString bool
 	position Position
+	// fraction is the first token of a fractional NumericOnly value.
+	fraction *lexeme
 }
 
 func settingIdentifier(value string) string {

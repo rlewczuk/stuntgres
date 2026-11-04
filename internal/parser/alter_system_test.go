@@ -23,10 +23,10 @@ func TestAlterSystemParser(t *testing.T) {
 	}
 	for _,value := range []string{"1.25","-2e3","+0.5","0x2a","1_000","999999999999999999999999999999999999999999"} {
 		if _,err := Parse("ALTER SYSTEM SET work_mem="+value); err != nil { t.Fatalf("external numeric %s: %v",value,err) }
-		if value != "999999999999999999999999999999999999999999" {
+		if value == "0x2a" || value == "1_000" {
 			if _,err := Parse("SET work_mem="+value); err == nil { t.Fatalf("session numeric guard broadened for %s",value) }
 		} else if _,err := Parse("SET work_mem="+value); err != nil {
-			t.Fatalf("existing session integer syntax narrowed: %v",err)
+			t.Fatalf("existing session numeric syntax narrowed: %v",err)
 		}
 	}
 	statements,err := Parse("/*é*/ ALTER SYSTEM RESET ALL")

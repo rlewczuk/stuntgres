@@ -1707,11 +1707,11 @@ set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier
  | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
  | SET LOCAL local_setting_name setting_assignment setting_values { s:=parsedSet($3.identifier(),$5,$1.pos);s.Local=true;$$=s }
  | SET LOCAL local_setting_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Local:true,Pos:$1.pos} }
- | SET NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{$3.isString},position:$3.position},$1.pos) }
+ | SET NAMES setting_value { if !namesValue(sqllex,$3) { return 1 }; $$=parsedSet(Identifier{Text:"client_encoding",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{$3.isString},position:$3.position},$1.pos) }
  | SET NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$2.pos},Default:true,Pos:$1.pos} }
- | SET SESSION NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos) }
+ | SET SESSION NAMES setting_value { if !namesValue(sqllex,$4) { return 1 }; $$=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos) }
  | SET SESSION NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Pos:$1.pos} }
- | SET LOCAL NAMES setting_value { s:=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos);s.Local=true;$$=s }
+ | SET LOCAL NAMES setting_value { if !namesValue(sqllex,$4) { return 1 }; s:=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos);s.Local=true;$$=s }
  | SET LOCAL NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Local:true,Pos:$1.pos} }
  | SET SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{true},position:$3.pos},$1.pos) }
  | SET SESSION SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true},position:$4.pos},$1.pos) }
@@ -1732,9 +1732,9 @@ setting_values: setting_value { $$=settingList{values:[]string{$1.text},stringVa
 setting_value: STRING { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} } | name { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} }
  | TRUE { $$=settingAtom{text:"true",isString:true,position:$1.pos} } | FALSE { $$=settingAtom{text:"false",isString:true,position:$1.pos} }
  | ON { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} }
- | NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$1,false);$$.position=$1.pos; if !ok { return 1 } }
- | '+' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,false);$$.position=$1.pos; if !ok { return 1 } }
- | '-' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,true);$$.position=$1.pos; if !ok { return 1 } } ;
+ | NUMBER { var ok bool; $$, ok=settingNumber(sqllex,$1,$1,false); if !ok { return 1 } }
+ | '+' NUMBER { var ok bool; $$, ok=settingNumber(sqllex,$1,$2,false); if !ok { return 1 } }
+ | '-' NUMBER { var ok bool; $$, ok=settingNumber(sqllex,$1,$2,true); if !ok { return 1 } } ;
 zone_setting: STRING { $$=&Set{Values:[]string{$1.text}} }
  | NUMBER { $$=&Set{Values:[]string{$1.text}} }
  | '+' NUMBER { $$=&Set{Values:[]string{$2.text}} }

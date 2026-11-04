@@ -318,6 +318,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Settings SQL, registry, SHOW ALL: `RUN='^TestReferenceSettings'`
 - SET LOCAL and transaction-scoped settings: `RUN='^TestReferenceSettingsLocal'`
+- Unquoted fractional SET values: `RUN='^TestReferenceSettingsFractional'`
 - Planner constants: `RUN='^TestReferencePlannerCosts'` covers all thirteen
   independent descriptor rows, numeric diagnostics, authority and transactional
   lifetimes, supported access-method choices, local-worker cost profiles and

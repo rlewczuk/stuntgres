@@ -196,7 +196,11 @@ ordinary assignments to an unreserved `security` variable.
   `ForeignDDL.VersionSet`; CREATE and ALTER share the nullable version grammar.
 - ALTER SYSTEM owns a syntax-only AST distinct from session SET/RESET. External
   value lists are consumed without retention or normalization; signed numeric
-  tokens use lexer syntax, not the session setting integer consumer.
+  tokens use lexer syntax, not the session setting number consumer.
+- Generic SET values (SET, routine SET, ALTER ROLE/DATABASE SET) flatten
+  NumericOnly tokens as PostgreSQL does: fractional and exponent tokens keep
+  their exact spelling, `+` drops and `-` prefixes, and int32 integers are
+  canonical. Setting conversion and validation happen at execution.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
 - Selected logical-message and slot-synchronization calls retain failure-only

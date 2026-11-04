@@ -389,14 +389,36 @@ func negateExpr(l sqlLexer, tok lexeme, child Expr) Expr {
 	return LiteralExpr{Value: v}
 }
 
+// settingNumber flattens a NumericOnly setting value starting at first. A
+// fractional or exponent token (FCONST) keeps its exact source spelling: '+'
+// drops, '-' prefixes. Setting-specific conversion validates that text later.
+func settingNumber(l sqlLexer, first, tok lexeme, negative bool) (settingAtom, bool) {
+	atom := settingAtom{position: first.pos}
+	if tok.numeric {
+		atom.text, atom.fraction = tok.text, &first
+		if negative {
+			atom.text = "-" + tok.text
+		}
+		return atom, true
+	}
+	var ok bool
+	atom.text, ok = settingInteger(l, tok, negative)
+	return atom, ok
+}
+
+// SET NAMES has no NumericOnly form; reject fractions as release syntax errors.
+func namesValue(l sqlLexer, atom settingAtom) bool {
+	if atom.fraction != nil {
+		l.(*lexer).syntax(*atom.fraction)
+		return false
+	}
+	return true
+}
+
 func settingInteger(l sqlLexer, tok lexeme, negative bool) (string, bool) {
 	text := tok.text
-	if tok.numeric {
-		l.(*lexer).failAt("0A000", "non-decimal-integer literal is unsupported", tok.pos.Offset)
-		return "", false
-	}
 	// NUMBER is shared with INSERT/SELECT, which also accept radix/separator
-	// spellings. Settings deliberately support decimal digits only.
+	// spellings. Integer setting tokens deliberately support decimal digits only.
 	for i := range text {
 		if text[i] < '0' || text[i] > '9' {
 			l.(*lexer).failAt("0A000", "non-decimal setting integers are unsupported", tok.pos.Offset)

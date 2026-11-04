@@ -34,7 +34,7 @@ func TestSessionGrammar(t *testing.T) {
 			t.Fatalf("%q: %#v (%v)", tc.query, diagnostic, err)
 		}
 	}
-	for _, q := range []string{"SET application_name TO 1.5", "SET application_name TO 1e2", "SHOW application_name ignored", "SET application_name TO x; nonsense"} {
+	for _, q := range []string{"SHOW application_name ignored", "SET application_name TO x; nonsense", "SET application_name TO 1.5 x", "SET application_name TO 1.5::float8"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatalf("accepted unsupported %q", q)
 		}

@@ -24595,6 +24595,9 @@ sqldefault:
 	case 749:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
+			if !namesValue(sqllex, sqlDollar[3].settingValue) {
+				return 1
+			}
 			sqlVAL.stmt = parsedSet(Identifier{Text: "client_encoding", Pos: sqlDollar[2].tok.pos}, settingList{values: []string{sqlDollar[3].settingValue.text}, stringValues: []bool{sqlDollar[3].settingValue.isString}, position: sqlDollar[3].settingValue.position}, sqlDollar[1].tok.pos)
 		}
 	case 750:
@@ -24605,6 +24608,9 @@ sqldefault:
 	case 751:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
+			if !namesValue(sqllex, sqlDollar[4].settingValue) {
+				return 1
+			}
 			sqlVAL.stmt = parsedSet(Identifier{Text: "client_encoding", Pos: sqlDollar[3].tok.pos}, settingList{values: []string{sqlDollar[4].settingValue.text}, stringValues: []bool{sqlDollar[4].settingValue.isString}, position: sqlDollar[4].settingValue.position}, sqlDollar[1].tok.pos)
 		}
 	case 752:
@@ -24615,6 +24621,9 @@ sqldefault:
 	case 753:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
+			if !namesValue(sqllex, sqlDollar[4].settingValue) {
+				return 1
+			}
 			s := parsedSet(Identifier{Text: "client_encoding", Pos: sqlDollar[3].tok.pos}, settingList{values: []string{sqlDollar[4].settingValue.text}, stringValues: []bool{sqlDollar[4].settingValue.isString}, position: sqlDollar[4].settingValue.position}, sqlDollar[1].tok.pos)
 			s.Local = true
 			sqlVAL.stmt = s
@@ -24727,8 +24736,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.settingValue.text, ok = settingInteger(sqllex, sqlDollar[1].tok, false)
-			sqlVAL.settingValue.position = sqlDollar[1].tok.pos
+			sqlVAL.settingValue, ok = settingNumber(sqllex, sqlDollar[1].tok, sqlDollar[1].tok, false)
 			if !ok {
 				return 1
 			}
@@ -24737,8 +24745,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.settingValue.text, ok = settingInteger(sqllex, sqlDollar[2].tok, false)
-			sqlVAL.settingValue.position = sqlDollar[1].tok.pos
+			sqlVAL.settingValue, ok = settingNumber(sqllex, sqlDollar[1].tok, sqlDollar[2].tok, false)
 			if !ok {
 				return 1
 			}
@@ -24747,8 +24754,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
-			sqlVAL.settingValue.text, ok = settingInteger(sqllex, sqlDollar[2].tok, true)
-			sqlVAL.settingValue.position = sqlDollar[1].tok.pos
+			sqlVAL.settingValue, ok = settingNumber(sqllex, sqlDollar[1].tok, sqlDollar[2].tok, true)
 			if !ok {
 				return 1
 			}
