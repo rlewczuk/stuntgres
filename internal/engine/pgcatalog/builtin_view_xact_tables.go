@@ -35,7 +35,7 @@ func xactTableStatisticsViewParts() []builtinViewPart {
 	)
 }
 
-func sysTableStatisticsViewParts(columns []ColumnSpec, source string, pretty bool) []builtinViewPart {
+func tableStatisticsSelectParts(columns []ColumnSpec) []builtinViewPart {
 	parts := make([]builtinViewPart, 1, 3*len(columns)+14)
 	parts[0] = viewText(" SELECT ")
 	for i, column := range columns {
@@ -49,6 +49,11 @@ func sysTableStatisticsViewParts(columns []ColumnSpec, source string, pretty boo
 			parts = append(parts, viewText("\n"))
 		}
 	}
+	return parts
+}
+
+func sysTableStatisticsViewParts(columns []ColumnSpec, source string, pretty bool) []builtinViewPart {
+	parts := tableStatisticsSelectParts(columns)
 	if pretty {
 		return append(parts,
 			viewText("   FROM "), viewClass(source), viewText("\n"),
@@ -58,5 +63,19 @@ func sysTableStatisticsViewParts(columns []ColumnSpec, source string, pretty boo
 	return append(parts,
 		viewText("   FROM "), viewClass(source), viewText("\n"),
 		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR ("), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText("));"),
+	)
+}
+
+func xactUserTableStatisticsViewParts(pretty bool) []builtinViewPart {
+	parts := tableStatisticsSelectParts(xactTableStatisticsColumns)
+	if pretty {
+		return append(parts,
+			viewText("   FROM "), viewClass("pg_stat_xact_all_tables"), viewText("\n"),
+			viewText("  WHERE ("), viewIdentifier("schemaname"), viewText(" <> ALL (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) AND "), viewIdentifier("schemaname"), viewText(" !~ '^pg_toast'::"), viewType("text"), viewText(";"),
+		)
+	}
+	return append(parts,
+		viewText("   FROM "), viewClass("pg_stat_xact_all_tables"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" <> ALL (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) AND ("), viewIdentifier("schemaname"), viewText(" !~ '^pg_toast'::"), viewType("text"), viewText("));"),
 	)
 }

@@ -240,7 +240,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatSysIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
 		fallthrough
-	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserFunctionsOID:
+	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserTablesOID, pgcatalog.StatXactUserFunctionsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()

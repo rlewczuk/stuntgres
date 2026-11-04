@@ -1,5 +1,18 @@
 # Changes
 
+- Add exactly the twelve-column `pg_catalog.pg_stat_xact_user_tables` view
+  (relation12170, rowtype12172, array12171) on the unchanged ALL/SYS pending
+  provider. Apply the exact case-sensitive USER namespace complement and key
+  rejection before table/index inquiries. Preserve live own-view/column ACLs
+  without underlying-object redaction, typed no-index NULLs, exact executed
+  scans/tuple attempts, retained values and current DDL membership.
+  Render dependency-aware default/pretty definitions and grouped-ALL mutation
+  diagnostics while retaining USER TRUNCATE/COPY identity. Document publication,
+  not unconditional transaction end, as the pending-clearing boundary; only
+  HOT/newpage remain declared zero physical estimates. Add independent public
+  dual-mode scenarios, composed identity/inquiry coverage and a genuine rollback/
+  scan/publication/diagnostic/maintenance smoke; preserve the PostgreSQL18.6 pin.
+
 - Add typed database, relation and function statistics resets with ordinary
   mutable owner-only EXECUTE seeds and complete routine inventory metadata.
   Reset only published qualified facts, stamp the correct local/shared database

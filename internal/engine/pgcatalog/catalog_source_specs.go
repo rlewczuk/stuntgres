@@ -208,6 +208,7 @@ var Specs = [...]Spec{
 	{StatAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_all_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatXactAllTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_xact_all_tables", xactTableStatisticsColumns, true, false, false, false, "stuntgres: missing transaction statistics source type"},
 	{StatXactSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_xact_sys_tables", xactTableStatisticsColumns, true, false, false, false, "stuntgres: missing transaction statistics source type"},
+	{StatXactUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_xact_user_tables", xactTableStatisticsColumns, true, false, false, false, "stuntgres: missing transaction statistics source type"},
 	{StatXactUserFunctionsOID, ids.PGCatalogNamespaceOID, "pg_stat_xact_user_functions", xactFunctionStatisticsColumns, true, false, false, false, "stuntgres: missing transaction function statistics source type"},
 	{StatSysTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_sys_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{StatUserTablesOID, ids.PGCatalogNamespaceOID, "pg_stat_user_tables", tableStatisticsColumns, true, false, false, false, "stuntgres: missing maintenance source type"},

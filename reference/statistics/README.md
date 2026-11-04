@@ -3,8 +3,9 @@
 This bounded feature package owns public SQL scenarios for the seven-column
 cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
 nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`, 30-column `pg_stat_all_tables` and twelve-column
-`pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables` views. All Go tests are untagged external tests using public
-stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
+`pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables`/`pg_stat_xact_user_tables` views.
+All Go tests are untagged external tests using public stuntgres and
+`reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
 native-only phases, not a simulated PostgreSQL Restore or Reset API.
 
@@ -293,10 +294,64 @@ ordinary information_schema tables, with setup borrowers held while acquiring a
 fresh reporter and bounded cleanup registered before creation. They never reset
 information_schema or fabricate physical catalog scans.
 
-The reusable family selector is `make check RUN='^TestReferencePGStatXact(All|Sys)Tables'`
+USER uses the same twelve typed columns and pending authority, with fixed native
+relation12170, rowtype12172 and array12171. Its namespace predicate is exactly
+`schemaname NOT IN ('pg_catalog','information_schema') AND schemaname !~ '^pg_toast'`,
+the case-sensitive complement of SYS; TEMP tables qualify. Both namespace and
+identity/schema/name selection reject before any table/index runtime inquiry.
+Current rename and schema movement, including savepoint rollback, preserve OIDs
+while changing membership. Neither base-table ownership nor inaccessible schema
+USAGE redacts identities/counters. The USER view's own current SELECT/column ACL
+still applies to direct, prepared, held and FALSE reads independently of ALL.
+No-index index counters are typed INT8 NULLs; all other absent counters are zero.
+Native OID/INT8 values use int64 and NAME uses string; pq's OID/NAME use []byte.
+Retained rows and metadata survive closure and later DDL/replacement unchanged.
+Dependency-aware default/pretty view definitions preserve quoting and resolve
+the real ALL dependency under search-path shadows.
+
+USER tests independently exercise two-row INSERT with a NULL payload, writer2/
+peer0 isolation, synchronized rollback/commit publication, cumulative aborted
+attempts versus physical data, continuous none/cache/snapshot state, tracking
+gates, demanded sequential/index accesses and retained/native-control lifetime.
+Positive hash cases retain all four hit/miss accesses and their pending captures
+in one implicit message, with genuine index plans and exact cumulative vectors.
+ACL scenarios keep the held role reader and same-role writer physically distinct,
+assert both reader/admin peers remain zero, then retire the reporting writer.
+The zero-after-end witness requires actual publication, not unconditional
+transaction reset: throttled unreported pending batches can cross transaction
+ends. Repeated USER reads leave maintenance history unchanged; only completed
+ANALYZE/VACUUM change the existing cumulative counts/timestamps. HOT/newpage alone
+retain deterministic native zero physical-optimization estimates. DML rejects
+with 55000 naming grouped ALL, exact GROUP BY detail and operation-specific hint;
+TRUNCATE/COPY retain USER's identity and 42809 diagnostics.
+
+Run each small USER selection in native mode and again with `REFERENCE=1`
+against the pinned PostgreSQL 18.6 fixture, without substituting parity for the
+independent assertions:
+
+```sh
+make check RUN='^(TestReferencePGStatXactUserTablesIdentityAndMetadata|TestReferencePGStatXactUserTablesMembership)$'
+make check RUN='^(TestReferencePGStatXactUserTablesTransactions|TestReferencePGStatXactUserTablesCurrentState)$'
+make check RUN='^TestReferencePGStatXactUserTablesAccess$'
+make check RUN='^(TestReferencePGStatXactUserTablesPrivileges|TestReferencePGStatXactUserTablesReadOnly)$'
+make check RUN='^(TestReferencePGStatXactUserTablesLifetime|TestReferencePGStatXactUserTablesCancellation)$'
+make check RUN='^TestReferencePGStatXactUserTablesMaintenanceIsolation$'
+make check RUN='^TestReferencePGStatXactUserTablesFeatureSmoke$'
+make check RUN='^(TestPGStatXactUserTablesCatalogIdentity|TestPGStatXactUserTablesSourceSelection|TestPGStatXactAllTablesPendingProvider)$'
+make check RACE=1 RUN='^(TestPGStatXactUserTablesSourceSelection|TestPGStatXactAllTablesPendingProvider)$'
+```
+
+Only the public `TestReference...` selections take `REFERENCE=1`. The genuine
+USER feature smoke has its own body: twelve-column metadata/no-index NULLs;
+ALL/USER1, SYS0 membership; INSERT2 including NULL with peer0; demanded ordered
+scan1/read2; synchronized ROLLBACK then pending0, cumulative inserts2 and data0;
+grouped-ALL UPDATE FALSE rejection; and maintenance unchanged by repeated reads.
+These are expected observations, not a verification claim.
+
+The reusable family selector is `make check RUN='^TestReferencePGStatXact(All|Sys|User)Tables'`
 and the same command with `REFERENCE=1`; both use the existing PostgreSQL18.6
 fixture policy. Internal provider/core supplements use
-`make check RUN='^TestPGStatXact(All|Sys)Tables'`, with `RACE=1` for synchronized
+`make check RUN='^TestPGStatXact(All|Sys|User)Tables'`, with `RACE=1` for synchronized
 ownership coverage.
 
 ## Transaction-local user function statistics

@@ -11,6 +11,7 @@ import (
 
 const StatXactAllTablesOID ids.OID = 12151
 const StatXactSysTablesOID ids.OID = 12161
+const StatXactUserTablesOID ids.OID = 12170
 
 // XactRelationFact is a detached owner-local value, not cumulative history.
 // Index searches/simple fetches use index identities; bitmap fetches use tables.
@@ -64,8 +65,11 @@ func captureXactTableStatistics(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing transaction statistics namespace")
 		}
-		if in.Source.Address().ObjectID == StatXactSysTablesOID && ns.Name() != "pg_catalog" && ns.Name() != "information_schema" && !strings.HasPrefix(ns.Name(), "pg_toast") {
-			continue
+		if source := in.Source.Address().ObjectID; source == StatXactSysTablesOID || source == StatXactUserTablesOID {
+			system := ns.Name() == "pg_catalog" || ns.Name() == "information_schema" || strings.HasPrefix(ns.Name(), "pg_toast")
+			if system != (source == StatXactSysTablesOID) {
+				continue
+			}
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))
 		if err != nil {

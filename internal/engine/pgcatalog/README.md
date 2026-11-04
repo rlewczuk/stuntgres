@@ -1522,8 +1522,9 @@ catalog writes or bypass a provider's independent backing-source checks.
   fragment formatter. Canonical and pretty forms retain dependency-aware
   identifier quoting and search-path qualification; pretty removes the
   redundant outer predicate parentheses without changing membership.
-- `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152)
-  and `pg_stat_xact_sys_tables` (relation12161, rowtype12163, array12162) share
+- `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152),
+  `pg_stat_xact_sys_tables` (relation12161, rowtype12163, array12162) and
+  `pg_stat_xact_user_tables` (relation12170, rowtype12172, array12171) share
   the owner-local pending provider without acquiring a cumulative Reader:
   twelve nullable columns: OID relid, NAME schemaname/relname, then INT8
   seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd,
@@ -1535,11 +1536,25 @@ catalog writes or bypass a provider's independent backing-source checks.
   index simple fetches and table bitmap fetches. HOT/newpage are deterministic
   zero physical optimization estimates. Rows are detached values with no
   portable order absent ORDER BY. SYS admits only namespace names pg_catalog,
-  information_schema and the case-sensitive prefix pg_toast before runtime
-  inquiries. Its own current SELECT ACL does not require SELECT on ALL or on
-  underlying tables/schemas. Both consume the current qualified physical writer
-  plus live owner/stage counts, never peer or published history. SYS's simple
-  dependency-aware display rewrites mutation diagnostics to grouped ALL.
+  information_schema and the case-sensitive prefix pg_toast; USER admits their
+  exact complement, including TEMP namespaces. Namespace exclusion precedes
+  identity allocation and runtime inquiries, not just output filtering. Current
+  rename/schema moves and rollback change names/membership without changing OIDs.
+  Each view's own current relation/column SELECT ACL applies, including held
+  prepared and WHERE FALSE reads, without requiring SELECT on ALL or access to
+  underlying tables/schemas. All three consume the authenticated physical writer
+  plus live owner/stage counts exactly once, never peer or published history.
+  Executed attempts, including NULL payloads and aborted child work, are not
+  committed row counts. Successful publication removes pending facts; a throttled
+  unreported batch can cross COMMIT/ROLLBACK. Reader modes/clear neither freeze
+  nor flush them; collection settings gate new events, not collected visibility.
+  Repeated reads never synthesize maintenance timestamps/counts; those exist only
+  in cumulative views and change on actual command completion.
+  SYS/USER have dependency-aware default/pretty definitions over ALL, including
+  quote_all_identifiers and search-path shadow handling. Their INSERT/UPDATE/DELETE
+  diagnostics name grouped `pg_stat_xact_all_tables` (55000, GROUP BY detail and
+  operation-specific trigger/rule hint), even for empty mutations. TRUNCATE and
+  COPY FROM retain the named view's own identity and 42809 diagnostics.
 - `pg_stat_xact_user_functions` (relation12284, rowtype12286, array12285):
   six nullable attributes in released order: OID funcid, NAME schemaname/funcname,
   INT8 calls, FLOAT8 total_time/self_time. Current non-INTERNAL procedures with a

@@ -118,11 +118,11 @@ table SELECT.
 Database-local `pg_publication_namespace` contributes three ordered OID real-table
 columns (`oid`, `pnpubid`, `pnnspid`), with PUBLIC visibility from table SELECT.
 The maintenance provider inventory includes `pg_stat_progress_cluster` as a view
-with all twelve release-ordered columns, and `pg_stat_xact_all_tables` and
-`pg_stat_xact_sys_tables` with their twelve ordered nullable identity/access/tuple
+with all twelve release-ordered columns, and `pg_stat_xact_all_tables`,
+`pg_stat_xact_sys_tables` and `pg_stat_xact_user_tables` with twelve nullable identity/access/tuple
 columns and view classification. These are checked through direct and prepared
 information-schema consumers alongside the other progress and statistics sources.
-SYS also has a full 44-field columns projection: nullable OID/NAME/INT8 facts,
+SYS and USER also have a full 44-field columns projection: nullable OID/NAME/INT8 facts,
 NAME C collation, absent defaults/identity/generation and no updatable columns.
 The same full projection includes `pg_stat_xact_user_functions` as a six-column
 view: OID/NAME/NAME/INT8/FLOAT8/FLOAT8, nullable YES and updatable NO, NAME C

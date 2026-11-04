@@ -108,6 +108,7 @@ var producers = [...]Registration{
 	{StatXactAllTablesOID, captureXactTableStatistics},
 	{StatSysTablesOID, captureTableStatistics},
 	{StatXactSysTablesOID, captureXactTableStatistics},
+	{StatXactUserTablesOID, captureXactTableStatistics},
 	{StatioAllTablesOID, captureStatioTables},
 	{StatioSysTablesOID, captureStatioTables},
 	{StatioUserTablesOID, captureStatioTables},
