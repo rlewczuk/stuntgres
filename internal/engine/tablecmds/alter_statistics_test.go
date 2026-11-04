@@ -271,6 +271,96 @@ func TestAlterStatisticsPublication(t *testing.T) {
 			t.Fatal("type transition lost configuration or retained incompatible fact")
 		}
 	})
+	t.Run("extended_scalar_admission", func(t *testing.T) {
+		e := engine.New()
+		s := enginetest.StartSession(t, e, nil)
+		for _, q := range []string{
+			"CREATE TABLE statistics_gate(a integer,b integer)",
+			"INSERT INTO statistics_gate VALUES(1,1),(2,2)",
+			"CREATE STATISTICS statistics_gate_joint(ndistinct,dependencies,mcv) ON a,b FROM statistics_gate",
+			"CREATE STATISTICS statistics_gate_expr ON (a+b) FROM statistics_gate",
+			"ANALYZE statistics_gate",
+		} {
+			enginetest.SessionSQL(t, s, q)
+		}
+		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "statistics_gate")
+		var jointKey, expressionKey storage.ExtendedStatisticsKey
+		read := e.CatalogRead()
+		for _, raw := range read.Descriptors() {
+			if d, ok := raw.(*catalog.Statistics); ok && d.Relation.Address == ref.Address {
+				key := storage.ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address())}
+				switch d.Name() {
+				case "statistics_gate_joint":
+					jointKey = key
+				case "statistics_gate_expr":
+					expressionKey = key
+				}
+			}
+		}
+		before := e.Storage.RelationMetadata[ref.Address].Statistics
+		joint, expression := before.Extended[jointKey], before.Extended[expressionKey]
+		if joint == nil || expression == nil || len(joint.Items) != 1 || joint.Items[0].Value != 2 || expression.Expression(0).Rows != 2 {
+			t.Fatal("missing genuine full-native extended baseline")
+		}
+		analyze := func(columns string, warning bool) {
+			t.Helper()
+			op, err := s.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = e.Execute(op, enginetest.Statement(t, "ANALYZE statistics_gate"+columns), 0, nil)
+			notices := op.DetachNotices()
+			op.Done()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want []sqlstate.Error
+			if warning {
+				want = []sqlstate.Error{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42P17", Message: `statistics object "public.statistics_gate_joint" could not be computed for relation "public.statistics_gate"`, Schema: "public", Table: "statistics_gate"}}
+			}
+			if !reflect.DeepEqual(notices, want) {
+				t.Fatal("wrong extended admission diagnostics", notices)
+			}
+		}
+		enginetest.SessionSQL(t, s, "ALTER TABLE statistics_gate ALTER a SET STATISTICS 0")
+		enginetest.SessionSQL(t, s, "INSERT INTO statistics_gate VALUES(3,3)")
+		analyze("", true)
+		after := e.Storage.RelationMetadata[ref.Address].Statistics
+		enabledExpression := after.Extended[expressionKey]
+		if after.Extended[jointKey] != joint || joint.Items[0].Value != 2 || enabledExpression == expression || enabledExpression.Expression(0).Rows != 3 || after.Columns[storage.StatisticsKey{Attribute: 1}] != before.Columns[storage.StatisticsKey{Attribute: 1}] {
+			t.Fatal("disabled simple key rebuilt joint facts or suppressed eligible expressions")
+		}
+		// An object's own disabled target cannot hide missing simple-key
+		// diagnostics. Its compatible old payload remains exactly retained.
+		enginetest.SessionSQL(t, s, "ALTER STATISTICS statistics_gate_joint SET STATISTICS 0")
+		analyze("", true)
+		after = e.Storage.RelationMetadata[ref.Address].Statistics
+		if after.Extended[jointKey] != joint || joint.Items[0].Value != 2 {
+			t.Fatal("disabled object suppressed key admission or replaced old payload")
+		}
+		enabledExpression = after.Extended[expressionKey]
+		enginetest.SessionSQL(t, s, "ALTER STATISTICS statistics_gate_joint SET STATISTICS 2")
+		enginetest.SessionSQL(t, s, "ALTER TABLE statistics_gate ALTER b SET STATISTICS 0")
+		enginetest.SessionSQL(t, s, "INSERT INTO statistics_gate VALUES(4,4)")
+		analyze("", false)
+		after = e.Storage.RelationMetadata[ref.Address].Statistics
+		if after.Extended[jointKey] != joint || after.Extended[expressionKey] != enabledExpression || enabledExpression.Expression(0).Rows != 3 || e.Storage.Relations[ref.Address].Maintenance.Tuples != 4 {
+			t.Fatal("empty scalar admission rebuilt extended facts or lost genuine population")
+		}
+		enginetest.SessionSQL(t, s, "ALTER TABLE statistics_gate ALTER b SET STATISTICS 1")
+		analyze("(b)", true)
+		after = e.Storage.RelationMetadata[ref.Address].Statistics
+		if after.Extended[jointKey] != joint || after.Extended[expressionKey] == enabledExpression || after.Extended[expressionKey].Expression(0).Rows != 4 {
+			t.Fatal("enabled selected scalar failed to admit expression-only collection")
+		}
+		enginetest.SessionSQL(t, s, "ALTER TABLE statistics_gate ALTER a SET STATISTICS 1")
+		analyze("", false)
+		after = e.Storage.RelationMetadata[ref.Address].Statistics
+		if refreshed := after.Extended[jointKey]; refreshed == joint || len(refreshed.Items) != 1 || refreshed.Items[0].Value != 4 || joint.Items[0].Value != 2 || expression.Expression(0).Rows != 2 {
+			t.Fatal("reenabled simple key did not rebuild from actual changed groups")
+		}
+		enginetest.LockEmpty(t, e)
+	})
 	t.Run("targets_and_flavors", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)

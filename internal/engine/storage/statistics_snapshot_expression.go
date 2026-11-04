@@ -19,17 +19,19 @@ type StatisticsSnapshotCodec interface {
 }
 
 type StatisticsExpressionSnapshot struct {
-	Definition    string                  `json:"definition"`
-	Usage         NDistinctUsageRecord    `json:"usage"`
-	Inputs        []int32                 `json:"inputs"`
-	InputUsages   []NDistinctUsageRecord  `json:"input_usages"`
-	Rows          uint64                  `json:"rows"`
-	NullCount     uint64                  `json:"null_count"`
-	DistinctCount uint64                  `json:"distinct_count"`
-	DistinctKnown bool                    `json:"distinct_known"`
-	AverageWidth  int32                   `json:"average_width"`
-	MCV           []StatisticsMCVSnapshot `json:"mcv"`
-	Histogram     []json.RawMessage       `json:"histogram"`
+	Definition    string                 `json:"definition"`
+	Usage         NDistinctUsageRecord   `json:"usage"`
+	Inputs        []int32                `json:"inputs"`
+	InputUsages   []NDistinctUsageRecord `json:"input_usages"`
+	Rows          uint64                 `json:"rows"`
+	NullCount     uint64                 `json:"null_count"`
+	DistinctCount uint64                 `json:"distinct_count"`
+	DistinctKnown bool                   `json:"distinct_known"`
+	// IEEE754 bits preserve the signed estimate independently of sample counts.
+	DistinctOverride uint64                  `json:"distinct_override,omitempty"`
+	AverageWidth     int32                   `json:"average_width"`
+	MCV              []StatisticsMCVSnapshot `json:"mcv"`
+	Histogram        []json.RawMessage       `json:"histogram"`
 }
 
 type StatisticsMCVSnapshot struct {
@@ -65,6 +67,7 @@ func captureExpressionSnapshots(ctx context.Context, read catalog.Read, relation
 			r.Inputs[j], r.InputUsages[j] = attribute, ndistinctUsageRecord(read, relation.Columns[slot].Usage)
 		}
 		r.Rows, r.NullCount, r.DistinctCount, r.DistinctKnown = column.Rows, column.NullCount, column.DistinctCount, column.DistinctKnown
+		r.DistinctOverride = math.Float64bits(column.DistinctOverride)
 		r.AverageWidth = column.AverageWidth
 		r.MCV = make([]StatisticsMCVSnapshot, len(column.MCV))
 		for j, mcv := range column.MCV {
@@ -91,6 +94,11 @@ func (r StatisticsExpressionSnapshot) validate() error {
 		return invalid()
 	}
 	if r.AverageWidth < 0 {
+		return invalid()
+	}
+	distinct := math.Float64frombits(r.DistinctOverride)
+	if math.IsNaN(distinct) || math.IsInf(distinct, 0) || distinct < -1 ||
+		distinct != 0 && (!r.DistinctKnown || r.DistinctCount == 0) {
 		return invalid()
 	}
 	if !r.DistinctKnown && (r.DistinctCount != 0 || len(r.MCV) != 0 || len(r.Histogram) != 0) {
@@ -151,7 +159,7 @@ func restoreExpressionSnapshots(ctx context.Context, read catalog.Read, relation
 				inputs[attribute] = true
 			}
 		}
-		column := &ColumnStatistics{Usage: recipe.Usage(), Rows: r.Rows, NullCount: r.NullCount, DistinctCount: r.DistinctCount, DistinctKnown: r.DistinctKnown}
+		column := &ColumnStatistics{Usage: recipe.Usage(), Rows: r.Rows, NullCount: r.NullCount, DistinctCount: r.DistinctCount, DistinctKnown: r.DistinctKnown, DistinctOverride: math.Float64frombits(r.DistinctOverride)}
 		column.AverageWidth = r.AverageWidth
 		column.MCV = make([]StatisticMCV, len(r.MCV))
 		for j, mcv := range r.MCV {

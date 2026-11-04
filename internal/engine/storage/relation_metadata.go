@@ -20,7 +20,7 @@ type RelationMetadata struct {
 	Scanned          bool
 	Tuples           int64
 	InheritedScanned bool
-	InheritedTuples  int64
+	InheritedTuples  float64 // Acquired population; mixed samples may estimate it.
 	AnalyzeCount     int64
 	LastAnalyze      time.Time
 	// Producer-backed catalog heaps have no ordinary Relation. Their VM fence

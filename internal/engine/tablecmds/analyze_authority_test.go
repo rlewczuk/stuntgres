@@ -157,8 +157,8 @@ func TestAnalyzePublicationAuthority(t *testing.T) {
 	}
 }
 
-// Unlike the detached-work barrier, this Context cancels at the direct
-// analyzeRelation checkpoint after candidates and final authority checks exist.
+// Unlike the detached-work barrier, this Context cancels at the completed-local
+// authority gate after candidates exist but before any maintenance is installed.
 // Stack inspection is test-owned, like vacuumBarrierContext; production gains
 // no hooks or observation exports, and no source line number is pinned here.
 type analyzeInstallContext struct {
@@ -168,11 +168,14 @@ type analyzeInstallContext struct {
 }
 
 func (c *analyzeInstallContext) Err() error {
-	var pcs [1]uintptr
+	var pcs [2]uintptr
 	n := runtime.Callers(2, pcs[:])
-	if n != 0 {
-		frame, _ := runtime.CallersFrames(pcs[:n]).Next()
-		if frame.Function == "stuntgres/internal/engine/tablecmds.analyzeRelation" {
+	if n == len(pcs) {
+		frames := runtime.CallersFrames(pcs[:n])
+		checkpoint, _ := frames.Next()
+		owner, _ := frames.Next()
+		if checkpoint.Function == "stuntgres/internal/engine/tablecmds.(*analyzeRun).authorityLocked" &&
+			owner.Function == "stuntgres/internal/engine/tablecmds.(*analyzeRun).publishLocal" {
 			c.fired = true
 			c.cancel()
 		}

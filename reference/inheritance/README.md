@@ -123,9 +123,25 @@ stable identity, selected/unselected column retirement and routine RESTRICT/CASC
 Full diagnostics cover prohibited nodes, name resolution and nonowner admission.
 The mixed/dual-expression witnesses require real NULL-inclusive joint ndistinct;
 the dependencies and MCV families also cover these dimensions.
-Selected-column ANALYZE checks simple statistics keys, while expression-only
-and mixed definitions evaluate their expressions from full captured rows even
-when expression input columns are not selected for scalar collection.
+Selected-column ANALYZE admits enabled scalar columns first. Every simple
+statistics key must be present in that set: a disabled or unselected required
+key emits exact WARNING42P17 for each nonempty collected flavor and retains its
+compatible old payload. Missing-key admission/warning precedes the object's
+own target0 skip, so disabling the object does not suppress that warning while
+other scalars remain admitted. If no scalar is admitted, all old extended
+payloads, including expression summaries, remain unchanged without that warning.
+Expression-only and mixed definitions evaluate expressions from full captured
+rows even when expression input columns are unselected or disabled, provided a
+genuinely enabled selected scalar remains and the simple keys are eligible.
+`make check RUN='^TestReferenceStatisticsAnalyzeEligibility$'` (also
+`REFERENCE=1`) distinguishes baseline joint2 from actual changed4 on local,
+ordinary inherited and partition-parent full-native paths. Disabling a required
+key retains complete prior ndistinct/dependency/MCV payloads; reenable refreshes4.
+Disabling every scalar and changing actual expression values retains complete
+old joint/expression payloads. Reenabling only selected label collects the actual
+expression99 while the still-ineligible joint payload remains unchanged. Both
+direct and prepared routes use existing public `pg_statistic_ext_data` projections,
+not a new native scalar-statistics reader.
 Native-control phases retain deliberately stale expression summaries through
 Dump/Reset/Restore, sparse input layouts, mixed owners and destination reminting;
 malformed/canceled imports retain destination data and old facts. PostgreSQL

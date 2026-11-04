@@ -2,6 +2,7 @@ package storage
 
 import (
 	"maps"
+	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -174,6 +175,23 @@ func StatisticsHierarchyCurrent(hierarchy *StatisticsHierarchy, root *catalog.Re
 		if !ok || len(old.Attributes) != len(relation.Attributes) {
 			return false
 		}
+		if (old.Partition == nil) != (relation.Partition == nil) ||
+			(old.Membership == nil) != (relation.Membership == nil) {
+			return false
+		}
+		if old.Membership != nil && old.Membership.Parent != relation.Membership.Parent {
+			return false
+		}
+		var oldParents, parents []catalog.InheritanceParent
+		if old.Inheritance != nil {
+			oldParents = old.Inheritance.Parents
+		}
+		if relation.Inheritance != nil {
+			parents = relation.Inheritance.Parents
+		}
+		if !slices.Equal(oldParents, parents) {
+			return false
+		}
 		for i, attribute := range old.Attributes {
 			slot := relation.IndexForAttribute(attribute)
 			if slot < 0 || !catalog.SamePartitionColumnUsage(old.Columns[i].Usage, relation.Columns[slot].Usage) {
@@ -191,7 +209,7 @@ func StatisticsHierarchyCurrent(hierarchy *StatisticsHierarchy, root *catalog.Re
 			}
 		}
 		for _, child := range children {
-			if child.Foreign == nil && !visit(child) {
+			if !visit(child) {
 				return false
 			}
 		}

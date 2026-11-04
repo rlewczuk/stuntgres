@@ -448,14 +448,19 @@ committed descriptor and optional real-heap identity, then merge selected
 compatible attributes at the no-failure boundary without row-root replacement
 or DML counters. Clone/savepoint/prepared ownership
 uses the ordinary Journal lifecycle. Relation scan estimates remain independent
-nontransactional maintenance metadata. EXPLAIN captures immutable compatible
-typed facts by stable attribute and SQL occurrence, compares detached values
-without evaluating expressions, and preserves fallback estimates for unsupported
-predicates. Equality/NULL inputs use actual collected-row fractions; foreign
-samples have a separate population record. Measured count estimates scale to
-that population before sample division, without snapping fractional estimates.
-Bounded distribution/range and independence assumptions are logical
-approximations, not physical plan costs.
+nontransactional maintenance metadata. A completed existing-object local pass
+publishes its scan/count/time before inherited work; later inherited failure
+preserves that maintenance but rejects both typed deltas and unfinished inherited
+population. Ordinary/foreign inherited success does not count a second analyze;
+partition success reports one analyze with local0/0. EXPLAIN captures immutable
+compatible typed facts by stable attribute and SQL occurrence and compares
+detached values without evaluating expressions. Equality/NULL fractions use
+actual collector rows: full-native captures remain exact, while mixed inherited
+and direct foreign samples retain separate population estimates. One float64
+InheritedTuples supplies inherited estimates without snapping fractional values.
+Bounded distributions/ranges and independence assumptions remain logical
+approximations, not physical plan costs. Compatibility, restore and planning
+traverse structural hierarchy metadata without renegotiating foreign capability.
 Partition parents never own entries in the physical `Storage.Relations` map.
 Their statistics, row estimates and analyze counters live in the same metadata
 root as other relations. New private-object metadata remains on its creation
@@ -3941,10 +3946,13 @@ in `reference/tables`; prepared definitions retain no provider plans or sampler
 closures.
 Detached foreign publication units gate actual typed comparison entry with the
 existing installed-comparison context seam. Peer work must complete during the
-gate; failures preserve complete canonical headers, count/time, population and
-selected/unselected backing with no journal delta or tuple allocation. Native
-replacement is checked against its newly admitted state as well as immutable
-old records, not against intentionally retired persistent statistics.
+gate. Local-pass rejection preserves complete canonical headers/count/time/
+population/backing; inherited rejection retains only authorized completed-local
+maintenance, never partial typed or inherited success. Mixed allocation, actual
+sample/backing ownership, foreign-root passes and Journal/savepoint/prepared
+completion use `RUN='^TestAnalyzeInheritedForeign'`. Native replacement checks
+the newly admitted state as well as immutable old records, not intentionally
+retired persistent statistics. Prepared definitions retain no sampler closures.
 
 EXPLAIN ownership/presentation, nonexecution and actual-execution boundaries use
 `RUN='^TestExplain'`. Prepared wrapper owners retain no accepted child fold group.

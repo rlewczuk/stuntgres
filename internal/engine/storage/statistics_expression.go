@@ -21,6 +21,9 @@ type ExtendedInput struct {
 	DependenciesType *sqltype.Descriptor
 	MCVType          *sqltype.Descriptor
 	MCVTarget        int
+	// SamplePopulation applies only to projected expression scalar summaries;
+	// joint kinds continue to describe the actual accepted sample.
+	SamplePopulation *float64
 }
 
 type ExtendedCollector struct {
@@ -65,6 +68,7 @@ func NewExtendedCollector(input ExtendedInput) (*ExtendedCollector, error) {
 		if err := c.expressions[i].initialize(input.Definition.Expressions.At(i).Usage()); err != nil {
 			return nil, err
 		}
+		c.expressions[i].scalar.column.SamplePopulation = input.SamplePopulation
 	}
 	return c, nil
 }

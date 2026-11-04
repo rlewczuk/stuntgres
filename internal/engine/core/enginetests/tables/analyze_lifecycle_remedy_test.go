@@ -58,7 +58,7 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 			persistentRef, persistentStore := enginetest.VacuumStore(t, e, "analyze_persistent")
 			persistentFacts := enginetest.AnalyzeFacts(e, persistentRef.Address)
 			persistentParent := enginetest.CatalogRef(t, e, e.CatalogRead(), "analyze_replaced_parent")
-			if metadata := e.Storage.RelationMetadata[persistentParent.Address]; metadata == nil || metadata.Statistics == nil || metadata.Tuples != 2 || e.Storage.Relations[persistentParent.Address] != nil {
+			if metadata := e.Storage.RelationMetadata[persistentParent.Address]; metadata == nil || metadata.Statistics == nil || metadata.Scanned || metadata.Tuples != 0 || !metadata.InheritedScanned || metadata.InheritedTuples != 2 || e.Storage.Relations[persistentParent.Address] != nil {
 				t.Fatal("persistent partition fixture omitted real metadata-only authority")
 			}
 			heap := analyzeTemporaryRelation(t, e, s, "analyze_kept_heap")

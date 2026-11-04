@@ -15,7 +15,9 @@ import (
 // Source statistics use only metadata in the admitted catalog window. Hierarchy
 // identities follow the same metadata closure as query admission; no source is
 // opened, counted, captured or sampled.
-func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relation *catalog.Relation) (float64, error) {
+// The boolean identifies a retained whole-source inherited population, which a
+// foreign provider's local relation size must not replace.
+func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relation *catalog.Relation) (float64, bool, error) {
 	only := r.targetOnly && relation.Address() == r.policyTarget
 	if source.Occurrence >= 0 && source.Occurrence < len(r.leaves) {
 		leaf := r.leaves[source.Occurrence]
@@ -67,28 +69,28 @@ func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relatio
 	var err error
 	if relation.RelationKind == catalog.PartitionedRelation {
 		err = partitionTree(relation)
-	} else if relation.RelationKind == catalog.TableRelation && !only {
+	} else if (relation.RelationKind == catalog.TableRelation || relation.Foreign != nil) && !only {
 		err = table.InheritanceQueryClosure(read, relation, r.host.Operation().Session.SessionToken, visit)
 	} else {
 		err = visit(relation)
 	}
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if len(names) > 1 || relation.RelationKind == catalog.PartitionedRelation {
 		tree.details = append(tree.details, "Planned Sources: "+strings.Join(names, ", "))
 		r.property(tree, "Planned Sources", identities)
 	}
 	if err := r.sourcePruning(tree, source, relation, read, physicals, !only && (len(physicals) > 1 || relation.Partition != nil)); err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if !only && (relation.Partition != nil || catalog.InheritanceHasChildren(read, relation.Address())) {
 		metadata := r.statisticsMetadata(relation.Address())
 		if metadata != nil && metadata.InheritedScanned {
-			rows = min(plan.ExplainEstimateLimit, float64(metadata.InheritedTuples))
+			return min(plan.ExplainEstimateLimit, metadata.InheritedTuples), true, nil
 		}
 	}
-	return rows, nil
+	return rows, false, nil
 }
 
 // filterEstimate captures only immutable column metadata. Comparisons are
@@ -134,7 +136,7 @@ func (r *Renderer) filterEstimate(context plan.Node, predicate expr.Expr, estima
 					population = metadata.ForeignAnalyze.TotalRows
 				}
 				if inherited && metadata != nil && metadata.InheritedScanned {
-					population = min(plan.ExplainEstimateLimit, float64(metadata.InheritedTuples))
+					population = min(plan.ExplainEstimateLimit, metadata.InheritedTuples)
 				}
 				inputs = append(inputs, plan.ColumnStatisticInput{Column: column, Statistics: fact, SourceRows: population})
 			}

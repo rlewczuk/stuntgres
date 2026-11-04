@@ -85,6 +85,25 @@
   Attach UPDATE's original prepared owner/catalog to its captured target source,
   keeping strict source-opening guards and original INTERNAL no-FHET behavior.
 
+- Complete inherited ANALYZE acquisition for supported foreign descendants and
+  foreign partitions using real owner-mapped records, canonical typed import and
+  parent layouts. Mixed passes proportionately sample native and foreign records
+  with explicit negotiation weights, preserve fractional acquired populations and
+  project partition estimates without synthetic heaps. Completed existing-object
+  local maintenance/count/time survives later inherited failure while typed facts
+  stay transactional. Apply PostgreSQL extended-statistics eligibility before
+  sampling: disabled required scalar keys warn before object-target-zero skipping
+  and retain compatible payload;
+  no selected enabled scalar retains all extended payload, including expressions.
+  Bind direct and inherited sample domain checks to the detached pass's captured
+  live routine authority and activated context, preserving genuine conversion
+  diagnostics before publication. Preserve sampled expression distinct estimates
+  through typed snapshot capture and restore independently of measured group
+  counts, without transporting ANALYZE maintenance state.
+  Keep retained foreign-root inherited population authoritative over the FDW's
+  local size estimate when scaling scalar selectivity, while preserving provider
+  planning, labelled estimates, errors and fences.
+
 - Close dedicated `pg_catalog.pg_publication_tables` acceptance coverage on the
   existing membership producer: exact raw shape and column/filter projection,
   per-publication overlap deduplication, live held/transaction membership,

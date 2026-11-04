@@ -275,6 +275,9 @@ func TestReferenceSepgsqlSimulationForeignFactory(t *testing.T) {
 		if _, ok := any(wrapper).(stuntgres.ForeignSchemaImporter); ok {
 			t.Fatal("scan-only wrapper exposes optional importer")
 		}
+		if _, ok := any(wrapper).(stuntgres.ForeignAnalyzeProvider); ok {
+			t.Fatal("scan-only wrapper exposes optional analysis")
+		}
 		var events []stuntgres.SepgsqlAuditEvent
 		config := sepgsqlConfig()
 		config.AuditAllowed = true
@@ -291,21 +294,21 @@ func TestReferenceSepgsqlSimulationForeignFactory(t *testing.T) {
 			if backend.PG {
 				continue
 			}
-			c, err := backend.DB.Conn(p.Ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer c.Close()
-			run := func(step fixture.Step) { fixture.RunStep(t, p.Ctx, c, backend.Recorder, step) }
+			var notices []fixture.Diagnostic
+			_, c, recorder := fixture.NoticeReferencePool(t, p, false, &notices)
+			run := func(step fixture.Step) { fixture.RunStep(t, p.Ctx, c, recorder, step) }
 			for _, query := range []string{
 				`CREATE FOREIGN DATA WRAPPER "SQL import alias" HANDLER sepgsql_scan_only_handler`,
 				`CREATE SERVER sepgsql_no_import FOREIGN DATA WRAPPER "SQL import alias"`,
+				// No mapping: unsupported ANALYZE must stop after the real factory.
+				"CREATE FOREIGN TABLE sepgsql_analyze_unsupported(id integer) SERVER sepgsql_no_import",
 				"CREATE SCHEMA sepgsql_import",
 				"CREATE TABLE sepgsql_import.sentinel(id integer)",
 				"INSERT INTO sepgsql_import.sentinel VALUES(7)",
 				"CREATE ROLE sepgsql_import_reader",
 				"GRANT USAGE ON FOREIGN SERVER sepgsql_no_import TO sepgsql_import_reader",
 				"GRANT USAGE,CREATE ON SCHEMA sepgsql_import TO sepgsql_import_reader",
+				"GRANT MAINTAIN ON sepgsql_analyze_unsupported TO sepgsql_import_reader",
 				"REVOKE ALL ON FUNCTION sepgsql_scan_only_handler() FROM PUBLIC",
 				"SECURITY LABEL ON FUNCTION sepgsql_scan_only_handler() IS '" + sepgsqlS + "'",
 			} {
@@ -349,7 +352,7 @@ func TestReferenceSepgsqlSimulationForeignFactory(t *testing.T) {
 					step := failure
 					step.Prepared = route == "prepared"
 					if route == "held" {
-						fixture.RunStep(t, p.Ctx, held, backend.Recorder, step)
+						fixture.RunStep(t, p.Ctx, held, recorder, step)
 					} else {
 						run(step)
 					}
@@ -368,6 +371,40 @@ func TestReferenceSepgsqlSimulationForeignFactory(t *testing.T) {
 					}
 					if !entry || phase.code == "HV00P" && !transition || provider.calls != 0 || len(provider.rows) != 1 {
 						t.Fatal("missing factory phase or partial provider effects", route, events, provider.calls, provider.rows)
+					}
+					run(sepgsqlText("SELECT sepgsql_getcon() AS context", "context", sepgsqlR))
+				}
+				// The same scan-only registered table has no analyzer. This is a
+				// native simulation witness, not an invented stock PostgreSQL FDW.
+				for _, prepared := range []bool{false, true} {
+					const analyze = "ANALYZE sepgsql_analyze_unsupported(no_such_column)"
+					step := sepgsqlDenied(analyze)
+					if phase.code == "HV00P" {
+						step = fixture.Exec(analyze, 0)
+					}
+					step.Prepared = prepared
+					events, notices = nil, nil
+					run(step)
+					if phase.code == "HV00P" {
+						want := fixture.Diagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: `skipping "sepgsql_analyze_unsupported" --- cannot analyze this foreign table`}
+						if len(notices) != 1 || notices[0] != want {
+							t.Fatal("unsupported analyzer lost exact warning precedence", notices)
+						}
+					} else if len(notices) != 0 {
+						t.Fatal("denied analyzer emitted an unsupported warning", notices)
+					}
+					entry, transition := false, false
+					for _, event := range events {
+						if event.Class == "db_procedure" {
+							if event.Subject != sepgsqlR || event.Target != phase.label || slices.Contains(event.Required, "execute") || !slices.Contains(event.Required, "entrypoint") || (phase.code == "42501") != slices.Contains(event.Denied, "entrypoint") {
+								t.Fatal("wrong analyzer factory audit", event)
+							}
+							entry = true
+						}
+						transition = transition || event.Class == "process" && slices.Contains(event.Required, "transition")
+					}
+					if !entry || phase.code == "HV00P" && !transition || provider.calls != 0 || len(provider.rows) != 1 {
+						t.Fatal("missing analyzer factory or partial provider effects", events, provider.calls, provider.rows)
 					}
 					run(sepgsqlText("SELECT sepgsql_getcon() AS context", "context", sepgsqlR))
 				}
@@ -397,7 +434,7 @@ func TestReferenceSepgsqlSimulationForeignFactory(t *testing.T) {
 					step := failure
 					step.Prepared = route == "prepared"
 					if route == "held" {
-						fixture.RunStep(t, p.Ctx, held, backend.Recorder, step)
+						fixture.RunStep(t, p.Ctx, held, recorder, step)
 					} else {
 						run(step)
 					}

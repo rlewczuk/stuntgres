@@ -159,16 +159,24 @@ and the standard library, and never the engine.
   `CollectStatistics` consumes caller-owned visible/layout-mapped borrowed rows
   outside engine locks. Actual grouping/hash/ordering bind once per column.
   NULLs, supported non-NULL distinct and MCV counts describe actual collector
-  input: full visible heap rows or genuine foreign sample rows. ForeignAnalyze
-  separately owns sample size and estimated live/dead/page population, never
-  fake heap maintenance. Unknown distinct is not measured zero.
+  input: full visible native passes, direct foreign samples, or the same bounded
+  projected sample shared by mixed inherited scalar and extended collectors.
+  ForeignAnalyze separately owns direct sample size and estimated live/dead/page
+  population, never fake heap maintenance. InheritedTuples is the sole float64
+  acquired population: exact for full-native capture, estimated and possibly
+  incomplete for mixed visits that legitimately perform no acquisition. Partition
+  parents project it without setting local Scanned/Tuples. Unknown distinct is
+  not measured zero. Provider-free structural authority includes foreign nodes
+  regardless of current capability; graph/layout changes invalidate old facts.
   `DistinctOverride` is a separate signed estimate: it never changes measured
   distinct/NULL/MCV counts or histogram construction. Zero retains ordinary
   measured encoding; negative estimates require current source-population
   authority from the planner caller.
   SamplePopulation enables singleton-sensitive sampled-distinct estimation from
-  the collector's existing groups without changing literal counts. NULL/MCV
-  frequencies always use sample Rows; empty samples replace no distributions.
+  the collector's existing groups without changing literal counts. ExtendedInput
+  carries it into projected expression summaries, not joint counts or degrees.
+  NULL/MCV frequencies always use accepted sample Rows; empty samples replace
+  no compatible distributions.
   Each StatisticsColumn carries the admitted target (1..10000): at most target repeated MCV groups and
   target+1 weighted residual quantile endpoints are retained. Target1 still
   collects statistics. Deterministic membership/ties and residual summaries are
@@ -176,14 +184,21 @@ and the standard library, and never the engine.
   not PostgreSQL physical samples. Frequencies use all rows as denominator.
   Missing equality keeps NULL facts; missing ordering keeps grouping facts.
   Empty collection returns no replacements, preserving prior distributions.
+  ANALYZE callers admit selected enabled scalar columns before extended inputs.
+  Missing required simple keys retain compatible old extended backing; an empty
+  scalar admission retains all extended backing, including expression summaries.
+  Only admitted extended objects contribute to mixed sampling requirements.
   `MergeStatistics` replaces selected columns without mutating older roots or
   unselected payloads; `CompatibleStatistics` filters dropped/type/collation
   incompatible attributes. Callers own transactional column deltas, authority
   revalidation, lifecycle retention and record replacement under `Engine.mu`.
-  Successful heap ANALYZE also updates existing physical maintenance scan facts
-  and resets only the since-analyze modification counter, retaining cumulative
-  DML/VACUUM and since-vacuum counters. Physical `Relation.Maintenance` does not
-  duplicate typed statistics or ANALYZE count/time/inherited publications.
+  Completed local heap ANALYZE updates physical maintenance scan facts and, for
+  no-list collection, resets only the since-analyze modification counter. It
+  retains cumulative DML/VACUUM and since-vacuum counters. That maintenance and
+  count/time survive a later inherited failure for an existing object, while
+  both typed flavors stay transactional and unfinished inherited estimates
+  never publish. Physical Relation.Maintenance does not duplicate typed
+  statistics, ANALYZE count/time or inherited population.
   Imported column facts share that same canonical root. `ImportedStatistics`
   has explicit scalar presence and five immutable typed kind slots, so zero
   distinct estimates and arbitrary FLOAT4 probability mass never require fake
@@ -232,8 +247,9 @@ and the standard library, and never the engine.
   estimate does not emulate PostgreSQL sampling or physical TOAST-width filtering.
   Joint MCV counts every joint and marginal group before applying the captured
   target. Singleton groups are eligible; ties retain first captured occurrence.
-  Frequencies use the full population, and baselines multiply full-population
-  marginal fractions, never renormalized retained counts. `ExtendedMCV` owns
+  Frequencies use all accepted collector rows, and baselines multiply those
+  marginal fractions, never renormalized retained counts. Mixed population
+  estimates never inflate integer joint counts. `ExtendedMCV` owns
   compact non-NULL typed dictionaries, explicit NULL flags and integer joint/
   marginal counts; `BuildExtendedMCV` derives the single immutable native value.
   MCV-only definitions do no ndistinct subset work.
@@ -251,6 +267,11 @@ and the standard library, and never the engine.
   never formatted wire size; all-NULL/unsupported variable-width models remain0.
   The strict `stuntgres-ndistinct-v1` channel transports checked extended facts,
   including optional typed expression summaries and semantic recipes.
+  Expression summaries preserve the signed sampled distinct estimate as exact
+  IEEE754 bits separately from literal sample rows and distinct counts. Zero
+  retains measured encoding; nonzero estimates require known non-NULL groups
+  and finite values at least -1. Restoring that typed estimate transports no
+  scan, inherited-population or maintenance count/time authority.
   A dependencies array is mandatory exactly for f records. Optional joint MCV
   records denote built state, not merely a requested kind; non-MCV records keep
   their prior bytes. MCV snapshots retain population, full marginal and joint

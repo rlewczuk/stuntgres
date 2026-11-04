@@ -2652,16 +2652,30 @@ network/TLS/authentication mechanics remain the host's responsibility.
 - **ANALYZE.** Optional `ForeignAnalyzeProvider.AnalyzeForeignTable` negotiates
   capability with owned relation metadata and owner identity, but empty mapping
   fields and no transaction. It must not perform mapping-dependent I/O.
-  Unsupported capability emits the ordinary warning without requiring a mapping.
-  Supported capability supplies a nonnil `ForeignSampleRowsFunc`; acquisition
-  receives the table owner's exact-then-PUBLIC mapping, not the MAINTAIN actor's.
-  Return at most the requested number of genuine random sample rows in required
-  attribute order, and separate finite nonnegative `TotalRows`, `TotalDeadRows`
-  and `TotalPages` estimates. Close all external resources before returning,
-  including on cancellation/error. No scan fallback, repeated rows or padding
-  supplies absent samples. Column counts/fractions describe the actual sample;
-  population estimates never become exact heap counters. Failed collection or
-  final authority checks preserve the prior target's facts.
+  Unsupported direct capability emits the ordinary warning without a mapping;
+  inherited collection silently excludes that contributor but still traverses
+  its descendants. Supported ForeignAnalyzeInfo supplies a nonnil sampler and
+  finite nonnegative TotalPages allocation weight from provider-owned metadata.
+  Zero means zero inherited allocation, not a default or inferred row count.
+  Acquisition receives each table owner's exact-then-PUBLIC mapping, not the
+  root owner's or MAINTAIN actor's. Direct ANALYZE still acquires at zero weight;
+  inherited zero/rounded-zero visits need neither acquisition nor a mapping.
+  Return at most the requested genuine sample rows in required-attribute order,
+  plus finite nonnegative TotalRows, TotalDeadRows and TotalPages estimates.
+  Returned pages are independent of negotiation weight. Close all external
+  resources before returning, including on cancellation/error. No scan fallback,
+  repeated rows or padding supplies absent samples. Mixed inheritance uses one
+  bounded proportionate native/foreign sample for scalar and eligible extended
+  facts; full-native passes remain full captures. Disabled required scalar keys
+  skip extended rebuilding with WARNING42P17 and retain compatible old payload.
+  With no selected enabled scalar, all extended payload is retained, including
+  expression summaries; skipped objects do not increase the mixed sample budget.
+  Counts/fractions describe actual accepted records; separate fractional
+  population estimates are not heap
+  counters. A completed local pass's existing-object maintenance/count/time
+  survives later inherited failure, while all typed facts remain transactional
+  and no unfinished inherited population publishes. Failed local collection or
+  its authority gate preserves the prior local maintenance as well.
 - **Writes.** Optional interfaces enable each command: `ForeignInserter`,
   `ForeignUpdater`, `ForeignDeleter`, `ForeignTruncater`, batching
   (`ForeignBatchSizer` + `ForeignBatchInserter`), and row identity for UPDATE/DELETE

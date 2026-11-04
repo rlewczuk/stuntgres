@@ -155,8 +155,17 @@ func DecodeExtendedStatisticsSnapshot(comment string) (ExtendedStatisticsSnapsho
 			return invalid()
 		}
 		for _, expression := range expressions {
-			if len(expression) != 11 {
+			expectedFields := 11
+			if _, exists := expression["distinct_override"]; exists {
+				expectedFields++
+			}
+			if len(expression) != expectedFields {
 				return invalid()
+			}
+			for _, key := range []string{"definition", "usage", "inputs", "input_usages", "rows", "null_count", "distinct_count", "distinct_known", "average_width", "mcv", "histogram"} {
+				if _, exists := expression[key]; !exists {
+					return invalid()
+				}
 			}
 			var usage map[string]json.RawMessage
 			if err := json.Unmarshal(expression["usage"], &usage); err != nil || len(usage) != 5 {

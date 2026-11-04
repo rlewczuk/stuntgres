@@ -313,8 +313,19 @@ func RestoreExtendedStatisticsSnapshots(ctx context.Context, read catalog.Read, 
 func restoredNDistinctHierarchy(read catalog.Read, relation *catalog.Relation) (*StatisticsHierarchy, error) {
 	visited := make(map[ids.ObjectAddress]bool)
 	var closure []*catalog.Relation
+	var token ids.SessionToken
+	if namespace, ok := read.Namespace(relation.Namespace()); ok {
+		token = namespace.Temporary
+	}
 	var visit func(*catalog.Relation) error
 	visit = func(rel *catalog.Relation) error {
+		namespace, ok := read.Namespace(rel.Namespace())
+		if !ok {
+			return fmt.Errorf("stuntgres: missing ndistinct hierarchy namespace")
+		}
+		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token {
+			return nil
+		}
 		if visited[rel.Address()] {
 			return nil
 		}
@@ -331,10 +342,8 @@ func restoredNDistinctHierarchy(read catalog.Read, relation *catalog.Relation) (
 			}
 		}
 		for _, child := range children {
-			if child.Foreign == nil {
-				if err := visit(child); err != nil {
-					return err
-				}
+			if err := visit(child); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -345,7 +354,7 @@ func restoredNDistinctHierarchy(read catalog.Read, relation *catalog.Relation) (
 	if len(closure) < 2 && relation.Partition == nil {
 		return nil, fmt.Errorf("stuntgres: incompatible ndistinct hierarchy")
 	}
-	return &StatisticsHierarchy{Relations: closure}, nil
+	return &StatisticsHierarchy{Relations: closure, Session: token}, nil
 }
 
 func ndistinctUsageRecord(read catalog.Read, u sqltype.Usage) NDistinctUsageRecord {

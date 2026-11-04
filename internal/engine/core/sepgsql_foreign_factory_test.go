@@ -171,6 +171,91 @@ func TestSepgsqlSimulationForeignFactory(t *testing.T) {
 		enginetest.SessionSQL(t, physical, "SELECT sepgsql_setcon('R')")
 		check(query, "HV00P", `foreign-data wrapper "Renamed SQL alias" does not support IMPORT FOREIGN SCHEMA`, "S")
 	})
+	t.Run("no_analyzer_factory_before_capability", func(t *testing.T) {
+		e, provider, _ := sepgsqlForeignFactoryEngine(t)
+		if _, ok := any(provider).(catalog.ForeignAnalyzeProvider); ok {
+			t.Fatal("fixture unexpectedly implements analysis")
+		}
+		physical := enginetest.StartSession(t, e, nil)
+		for _, query := range []string{
+			"DROP USER MAPPING FOR PUBLIC SERVER sepgsql_factory",
+			"CREATE FOREIGN DATA WRAPPER sepgsql_no_analyze_handler NO HANDLER",
+			"CREATE SERVER sepgsql_no_analyze_handler FOREIGN DATA WRAPPER sepgsql_no_analyze_handler",
+			"CREATE FOREIGN TABLE sepgsql_no_analyze_handler() SERVER sepgsql_no_analyze_handler",
+			"CREATE ROLE sepgsql_analyze_reader",
+			"GRANT MAINTAIN ON sepgsql_factory,sepgsql_no_analyze_handler TO sepgsql_analyze_reader",
+			"REVOKE ALL ON FUNCTION sepgsql_foreign_handler() FROM PUBLIC",
+			"SELECT sepgsql_setcon('R')",
+			"SET ROLE sepgsql_analyze_reader",
+		} {
+			enginetest.SessionSQL(t, physical, query)
+		}
+		check := func(query, code, message, target string) {
+			t.Helper()
+			before, roles := e.CatalogRead().State(), e.RoleStore.Published
+			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "sepgsql_factory")
+			metadata := e.Storage.RelationMetadata[ref.Address]
+			metadataCount := len(e.Storage.RelationMetadata)
+			rows, versions := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
+			provider.events = nil
+			func() {
+				op, err := physical.Acquire(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
+				if code == "01000" {
+					result := enginetest.RoleExecute(t, e, op, query)
+					want := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message}
+					notices := op.DetachNotices()
+					if result.Count != 0 || result.Rows != nil || len(notices) != 1 || notices[0] != want {
+						t.Fatal("unsupported analysis did not preserve its complete warning", result, notices)
+					}
+				} else {
+					enginetest.RoleError(t, e, op, query, code, message, "")
+				}
+				if op.Session.Sepgsql.Current() != "R" {
+					t.Fatal("analysis factory leaked its trusted subject")
+				}
+			}()
+			if e.CatalogRead().State() != before || e.RoleStore.Published != roles ||
+				e.Storage.RelationMetadata[ref.Address] != metadata || len(e.Storage.RelationMetadata) != metadataCount ||
+				e.Storage.RowFrontier() != rows || e.Storage.VersionFrontier() != versions || e.Storage.Relations[ref.Address] != nil {
+				t.Fatal("unsupported/denied analysis changed immutable authority or published statistics")
+			}
+			if provider.scan.position != 3 || provider.scan.ends != 0 || provider.chosen.Attributes != nil {
+				t.Fatal("unsupported analysis invoked raw scan methods")
+			}
+			entry, transition := false, false
+			for _, event := range provider.events {
+				if event.Class == "db_procedure" {
+					if target == "" || event.Subject != "R" || event.Target != target || slices.Contains(event.Required, "execute") {
+						t.Fatal("analysis fabricated handler execution authority", event)
+					}
+					if slices.Contains(event.Required, "entrypoint") {
+						entry = true
+						if (code == "42501") != slices.Contains(event.Denied, "entrypoint") {
+							t.Fatal("wrong analysis factory entry audit", event)
+						}
+					}
+				}
+				transition = transition || event.Class == "process" && slices.Contains(event.Required, "transition")
+			}
+			if target != "" && (!entry || code == "01000" && !transition) || target == "" && (entry || transition) {
+				t.Fatal("missing or premature analysis factory entry", provider.events)
+			}
+			enginetest.LockEmpty(t, e)
+		}
+		const query = "ANALYZE sepgsql_factory(no_such_column)"
+		check(query, "01000", `skipping "sepgsql_factory" --- cannot analyze this foreign table`, "S")
+		enginetest.SessionSQL(t, physical, "RESET ROLE")
+		enginetest.SessionSQL(t, physical, "SELECT sepgsql_setcon(NULL)")
+		enginetest.SessionSQL(t, physical, "SECURITY LABEL ON FUNCTION sepgsql_foreign_handler() IS 'U'")
+		enginetest.SessionSQL(t, physical, "SELECT sepgsql_setcon('R')")
+		enginetest.SessionSQL(t, physical, "SET ROLE sepgsql_analyze_reader")
+		check(query, "42501", "SELinux: security policy violation", "U")
+		check("ANALYZE sepgsql_no_analyze_handler(no_such_column)", "55000", `foreign-data wrapper "sepgsql_no_analyze_handler" has no handler`, "")
+	})
 	t.Run("actual_table_restores_before_methods_and_unused_capture", func(t *testing.T) {
 		e, provider, selected := sepgsqlForeignFactoryEngine(t)
 		op, done := enginetest.RoleOperation(t, e, "postgres")

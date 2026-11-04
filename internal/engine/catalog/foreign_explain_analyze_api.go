@@ -17,7 +17,7 @@ type ForeignExplainProperty struct{ Name, Value string }
 // Query is nonnil; its ForeignRequest anchors the first genuine source.
 type ForeignExplainQueryPlan struct {
 	Request ForeignQueryRequest
-	Path ForeignQueryPath
+	Path    ForeignQueryPath
 }
 
 type ForeignExplainScanRequest struct {
@@ -53,11 +53,15 @@ type ForeignSample struct {
 type ForeignSampleRowsFunc func(context.Context, ForeignRequest, int) (ForeignSample, error)
 
 type ForeignAnalyzeInfo struct {
+	// TotalPages is a finite nonnegative allocation estimate available before
+	// acquisition. Zero is meaningful; it is not a missing-value default.
+	TotalPages        float64
 	AcquireSampleRows ForeignSampleRowsFunc
 }
 
 // False means unsupported, distinct from an error obtaining provider facts.
-// A supported result must supply a nonnil acquisition function.
+// A supported result must supply a nonnil acquisition function and finite,
+// nonnegative TotalPages. Sample.TotalPages remains a separate acquired estimate.
 // Negotiation receives owner identity and relation metadata but no mapping or
 // transaction; it must not perform mapping-dependent I/O. Only successful
 // acquisition receives the full owner's exact/PUBLIC-mapped request.

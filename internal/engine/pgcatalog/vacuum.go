@@ -34,7 +34,7 @@ type MaintenanceFact struct {
 	AnalyzeCount                                           int64
 	LastAnalyze                                            time.Time
 	InheritedScanned                                       bool
-	InheritedTuples                                        int64
+	InheritedTuples                                        float64
 	ForeignAnalyzed                                        bool
 	ForeignRows, ForeignDeadRows, ForeignPages             float64
 	VacuumTime, AnalyzeTime                                time.Duration

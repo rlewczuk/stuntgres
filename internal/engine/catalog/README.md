@@ -29,10 +29,13 @@ neither owns catalog authority.
   `ForeignExplainQueryPlan`; its base estimate/path/plan fields are unused.
   Required attributes, mark and identity reflect planning's effective complete
   tuple, never runtime locking or a synthetic joined relation.
-  Optional analysis first negotiates from metadata with owner identity and no
-  mapping; its sampler receives full owner mapping authority.
+  Optional analysis negotiates from metadata with owner identity and no mapping.
+  Supported ForeignAnalyzeInfo supplies a nonnil sampler and finite nonnegative
+  TotalPages allocation weight; zero is meaningful. The sampler receives full
+  child-owner exact/PUBLIC mapping authority only for actual acquisition.
   ForeignSample owns actual required-attribute rows and separate live/dead/page
-  estimates. No callback, private plan or sample is persistent catalog data.
+  estimates; acquired pages need not equal negotiation weight. No callback,
+  private plan or sample is persistent catalog data.
   `external_sql_api.go` defines host external connection/result/notification
   records with standard Go values only. An authentic ForeignProcedure can bind
   an immutable registered provider token; ForeignRequest carries its opener only

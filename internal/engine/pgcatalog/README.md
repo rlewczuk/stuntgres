@@ -119,6 +119,10 @@ is introduced by this source.
 `PartitionBoundParts` exposes those borrowed roots only for its genuine bound
 carrier so the partition inquiry owner can render SQL without parsing structural
 output or consulting a newer parent descriptor.
+`pg_class.reltuples` projects a scanned partition parent's sole floating inherited
+population, not a synthetic local heap or integer copy. Ordinary heaps retain
+local maintenance authority, and direct foreign targets retain ForeignAnalyze
+population. Existing explicit imported overrides retain their later precedence.
 
 `element_types` projects actual array declarations into 28 nullable source-owned
 domain cells. Nominal `TypeFacts.Element` and variable length determine admission;

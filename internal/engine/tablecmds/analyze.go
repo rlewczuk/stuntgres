@@ -86,9 +86,6 @@ func analyzeClosure(read catalog.Read, root *catalog.Relation, token ids.Session
 			return nil
 		}
 		seen[relation.Address()] = true
-		if relation.Foreign != nil {
-			return nil
-		}
 		result = append(result, relation)
 		children := catalog.InheritanceChildren(read, relation.Address())
 		if relation.Partition != nil {

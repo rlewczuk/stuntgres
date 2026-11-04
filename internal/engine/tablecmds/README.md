@@ -190,10 +190,11 @@ A later phase cannot upgrade an already fixed pair with current roots.
   publication, never a row rewrite. Deferred statistics actions prevent pre-misc
   no-op elision, and changed candidates receive final revision publication after
   misc. Pure statistics lists omit heap capture. ANALYZE captures each effective
-  target once,
-  omits disabled scalar columns while retaining old facts, and collects extended
-  inputs independently. Flavor-specific distinctness overrides attach only after
-  distribution collection; descriptor changes alone never recompute statistics.
+  target once and admits selected enabled scalar columns before extended inputs.
+  Disabled scalars retain old facts; missing required simple keys warn and retain
+  compatible extended payload. No admitted scalar means no extended rebuild.
+  Flavor-specific distinctness overrides attach only after distribution collection;
+  descriptor changes alone never recompute statistics.
   Trigger-mode lists use one statement-private metadata stage across the addressed
   relation, partition clones and referenced-side FK owners. The target holds
   SHARE ROW EXCLUSIVE (or a stronger companion grant); additional owner grants
@@ -458,28 +459,70 @@ the executor's visible-head selection once per physical segment, including own
 replacement substitution; a raw union filtered only by LiveVersion would count
 replaced committed predecessors twice.
 
-Explicit foreign targets negotiate optional analysis from owned metadata before
-resolving a mapping. Unsupported capability warns without sampling. Acquisition
+Explicit foreign targets invoke the selected handler with the live trusted
+initializer before checking optional analysis support; the handler's subject
+unwinds before provider callbacks, and ordinary handler errors retain precedence.
+Only a registered analyzer needs restore-effect admission and owned negotiation
+metadata; neither negotiation nor unsupported capability resolves a mapping.
+Unsupported direct capability warns without sampling. Acquisition
 uses the table owner's exact-then-PUBLIC mapping, independently of the caller's
 MAINTAIN authority. Both callbacks and codec/grouping/ordering work run outside
 engine/replacement locks. The target is at least100, otherwise300 times the
 greatest enabled scalar statistics target. Actual bounded sample rows feed the
 shared collector; separate provider population/pages and literal sample size
 publish on the same canonical RelationMetadata, never a synthetic heap.
-Final catalog, owner/handler/mapping/type/permission/context fences precede the
-atomic selected-column/count/time/population publication. Empty samples retain
-compatible old distributions while updating genuine relation estimates.
+Direct and inherited sample import use the pass's activated executor context and
+captured catalog/routine authority, including its domain CHECK evaluator.
+Domain/typmod failures propagate before publication; utility input must not
+fall back to an uninitialized generic statement-domain evaluator.
+Catalog, owner/handler/mapping/type/permission/context fences precede each
+completed pass's maintenance publication and the final typed publication.
+Empty samples retain compatible old distributions while updating genuine estimates.
 An explicit zero n_distinct option retains the collector's normal sample
 estimator, just like RESET; only a nonzero user option replaces that estimate.
 Literal sample counts and MCV frequencies remain unchanged by every override.
 
+Structural traversal includes foreign descendants and partition intermediates,
+deduplicates diamonds and excludes peer TEMP branches. Unsupported foreign
+contributors are silently omitted from inherited acquisition, not from traversal;
+their separate recursive targets retain the ordinary warning. Database-wide
+enumeration does not independently select foreign tables. ONLY suppresses those
+separate targets, never inherited sampling, including for supported foreign roots.
+Descendant AccessShare locks wait normally even under target SKIP_LOCKED.
+Local collection completes before descendant waits or inherited negotiation.
 
-Standalone column facts install per completed target; explicit transactions
-record immutable selected-attribute Journal deltas. Maintenance row estimates
-and actual analyze count/time update independently and survive rollback for
-existing committed relations. No row rewrite or DML counters accompany a
-statistics-only publication. Valid BUFFER_USAGE_LIMIT controls are physically
-inapplicable; ordinary execution invents no physical progress.
+All-native passes retain exact full-visible-input collection. An inherited pass
+with any supported foreign contributor instead shares one bounded genuine sample
+between scalar and extended collectors. Its target is at least100, otherwise300
+times the largest relevant enabled scalar/object target (expression summaries
+retain their fixed100 target). Native allocation weight is ceil(visible rows/128);
+foreign weight is negotiation's finite nonnegative TotalPages. Weights are
+normalized before summing. In structural visit order, quotas use round-to-even
+of target times weight/total, capped by target minus actual accepted rows.
+Zero weight or rounded-zero quota performs no acquisition, needs no mapping and
+contributes no inferred population. Native rows use distinct evenly spaced
+midpoint ranks, not duplicated weights; foreign underfill is never padded.
+Foreign records import once in child required-attribute order before parent
+layout projection, including extra/reordered columns. No child facts publish
+from inherited acquisition. Literal Rows/NULL/distinct/MCV counts describe the
+accepted sample. Its acquired population sums genuine native counts and returned
+foreign estimates, can be fractional or incomplete after skipped visits, and
+feeds scalar/expression sample estimation. Joint kinds describe that same sample.
+The sole float64 InheritedTuples supplies inherited planning and partition
+reltuples; partition parents have no local scan or integer population copy.
+Allocation weights and estimates assert no physical pages, AIO or progress.
+
+
+Typed column facts install only after all required target passes complete;
+explicit transactions retain immutable selected-attribute Journal deltas.
+Existing-object local maintenance/count/time publish after a successful local
+pass and survive a later inherited failure, cancellation or transaction rollback.
+That failure preserves all previous local/inherited typed backing and inherited
+population. Ordinary and foreign roots increment once at local completion, not
+again for inherited success; partition roots increment only after inherited
+completion and report local0/0. New private-object metadata stays on its creation
+Journal. No row rewrite or DML counters accompany statistics-only publication.
+Valid BUFFER_USAGE_LIMIT controls are physically inapplicable.
 A last-child removal followed by local-only collection clears obsolete inherited
 population authority and records inherited-column deletions through the ordinary
 canonical/Journal paths, independent of the selected column list. When scanning
@@ -488,13 +531,18 @@ this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
 Requested ndistinct, dependencies, MCV and automatic expression definitions are captured with the
 same relation/selection authority. Scalar and extended collectors consume one
-traversal per population. Every simple key must occur in the current column
-selection; ineligible definitions warn without combining old column facts.
-Expressions evaluate against full rows regardless of selected expression inputs,
+traversal per population. Every simple key must occur in the admitted selected
+enabled scalar set; missing keys emit WARNING42P17 for each completed nonempty
+collection pass and retain compatible old payload without charging the mixed
+sample budget. With no admitted scalar, all
+extended payload remains unchanged, including expression summaries. Expressions
+otherwise evaluate against full rows regardless of selected expression inputs,
 whose stable usages and recipe/provider authority remain captured independently.
-Expression-only objects need no selected source column. Object target
-zero skips rebuilding without clearing its payload. Empty populations retain
-prior payloads. Ordinary parents collect separate local/inherited facts;
+Expression-only objects require no selected simple key but still require an
+admitted enabled scalar. Required simple-key admission and its warning precede an
+object's own target-zero skip; that skip rebuilds nothing and clears no payload.
+Empty populations retain prior payloads. Ordinary parents collect
+separate local/inherited facts;
 partitioned parents collect only inherited facts and never gain synthetic storage.
 Each retained expression executes once per row through the ordinary executor;
 the resulting typed value feeds the ordinary scalar and requested multivariate
@@ -503,12 +551,13 @@ without reparsing SQL or copying complete rows separately for each expression.
 Tuple values use typed NULL-inclusive grouping and signed canonical dimensions:
 positive simple attribute numbers and expression identities -1, -2, ... .
 Selected extended deltas follow the same transactional Journal path.
-The full-data tuple scan is deterministic. Ndistinct counts and measured
-functional-dependency strengths are technical estimates relative to PostgreSQL
-sampling. Dependencies measure the fraction of rows whose determinant group
-has one dependent value, including NULL, never constraint-based confidence.
-Native collection uses all logical projected rows without fictional physical
-varlena width filtering. Definition identity, built-row existence, inheritance,
+The all-native full-data traversal is deterministic. Mixed inherited and direct
+foreign distributions are genuine sample-based approximations; native full-input
+counts remain exact. Ndistinct and measured functional-dependency strengths are
+technical estimates relative to PostgreSQL sampling. Dependencies measure the
+fraction of accepted rows whose determinant group has one dependent value,
+including NULL, never constraint-based confidence. Collection applies no fictional
+physical varlena width filtering. Definition identity, built-row existence, inheritance,
 visibility, privileges and types are exact. Automatic expression facts and all
 multivariate kinds share one immutable Extended root. Single-expression (`e`-only)
 objects have no joint payload; definitions with multiple expression dimensions

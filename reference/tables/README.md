@@ -172,14 +172,111 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'`.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - Foreign explain and sampled analysis: `RUN='^TestReferenceFDW(Explain|Analyze)'`.
-  The real SQL reader uses reservoir sampling with separate population estimates;
-  explain plans share execution's actual non-first minimum path. Gated native
-  capability phases prove lock-free callbacks and failed-publication boundaries;
-  Modification explain gates also cover provider errors, cancellation and
-  authority replacement without writing startup. Foreign statistics options
-  exercise default/-1, exact clamp warnings and atomic invalid-option rejection;
-  unsupported negotiation preserves precedence through direct/fresh/held routes.
-  PostgreSQL uses genuine loopback postgres_fdw estimates and sampling.
+  The real SQL reader uses reservoir sampling with a separately counted source
+  population. Its explicit negotiation `TotalPages` is provider-owned logical
+  metadata (normally one segment, configurable for allocation scenarios), not a
+  mapped source query or a physical-page claim. Mapping-dependent SQL and import
+  happen only during acquisition. Zero negotiation weight is meaningful for
+  inherited visits; unchanged direct foreign ANALYZE still acquires at zero.
+  Ordinary and partitioned parents acquire actual supported foreign descendants;
+  supported foreign roots retain their direct local pass and also acquire their
+  inherited population. Child descriptors project into parent order, including
+  an existing extra/reordered foreign descriptor attached by ALTER INHERIT.
+  ONLY suppresses separate descendant refresh, not inherited acquisition.
+  `make check RUN='^TestReferenceFDWAnalyze(Inherited|Partition|ForeignRoot)$'`
+  covers genuine local10/foreign30, ordinary local10 versus inherited40,
+  partition reltuples40 without local monitoring tuples, foreign-root local30,
+  untouched child estimates before recursive refresh, exact ordered results,
+  selected-column staleness, NULL/empty retention and immutable held output.
+  The partition empty-input phase really truncates its local leaf on both
+  backends, then analyzes empty input, checks zero actual rows and retained
+  compatible parent distributions, and repopulates before singleton import.
+  Successful ordinary/foreign targets report one local count/time event, not two;
+  partition roots report one inherited event. Foreign count/time getters are
+  exercised on PostgreSQL only; internal native canonical-ownership tests cover
+  that field because the released table-stat view excludes foreign relations.
+  `make check RUN='^TestReferenceFDWAnalyzeMixedSampling$'` distinguishes native
+  K300/weights8:24/allocation75:225 from a biased full-native-plus-foreign cap.
+  Literal accepted-record counts are exact; inherited population, scalar and
+  extended estimates describe that genuine bounded sample and can be fractional
+  or incomplete after zero-work visits. Underfill, rounded-zero/no-mapping,
+  fractional4000.5 and direct-zero acquisition are explicit native controls,
+  not assertions of PostgreSQL's physical/random sample allocation.
+  `make check RUN='^TestReferenceFDWAnalyzeInheritedExtended$'` uses shared
+  genuine scalar/joint/expression input, target2 K600, actual joint2 changed to4,
+  disabled required-key WARNING42P17 with compatible complete payload retained2.
+  Missing-key42P17 precedes the object's own target0 skip: both target2 and
+  target0 retain the complete old payload without raising the mixed budget.
+  The native fixture reservoir uses a per-acquisition seeded generator for
+  reproducible genuine-record joint-group coverage; ineligible samples need not
+  contain every group to prove skip-and-retain behavior.
+  Reenabled-key collection refreshes4. Append-only mutation grows native1000/foreign3000
+  to1024/3072 while retaining weights8:24 and the 1:3 population ratio; it needs
+  no native partition DELETE/UPDATE support. With every scalar disabled, actual
+  remote expression3 becomes4 while the complete old3/2 array stays retained;
+  a genuinely enabled selected label refreshes4/2 at frequencies.75/.25.
+  All-native eligibility has its own
+  `TestReferenceStatisticsAnalyzeEligibility` local/inherited/partition coverage.
+  `make check RUN='^TestReferenceFDWAnalyzeInheritedExpressionSnapshot$'` separates
+  actual records from estimated expression distinctness. Ten native1s plus990
+  distinct remote values produce a genuine controlled native40-record sample
+  (d31, thirty singletons, acquired population1000): the estimator rounds
+  `40*31/(10+30*40/1000)` to111, encoding-.111 rather than raw sample-.775.
+  PostgreSQL independently collects this complete1000-row fixture and expects
+  D991/N1000=-.991; its physical sample is not the native underfill control.
+  The explicitly native-only public Dump/Restore phase uses a separate registered
+  destination provider, retaining-.111, actual MCV counts/frequencies and all
+  thirty genuine histogram values after local/external source mutations.
+  Import and statistics reads must not negotiate, query or reacquire foreign
+  samples; actual later queries use destination-owned callbacks/current data.
+  Typed semantic snapshots do not transport canonical inherited population,
+  scan state, analyze count or last-analyze time. Run native and `REFERENCE=1`.
+  `make check RUN='^TestReferenceFDWAnalyzeInherited(Lifecycle|Cancellation|Transactions)$'`
+  checks ordinary local30/count+1 surviving later inherited42704 or actual child
+  lock cancellation with old inherited40/typed backing, partition failure with
+  no completion, and foreign local50 surviving later inherited failure. Repaired
+  success publishes inherited60 once. Transaction rollback/savepoint/commit keep
+  typed publication separate from completed existing-object maintenance; genuine
+  new private targets leave no ghost. PostgreSQL's actual postgres_fdw two-phase
+  refusal is checked separately from native prepared completion, not hidden.
+  Transaction mutations use UPDATE ONLY on the intended local10 records.
+  Partition mapping setup changes the real foreign leaf owner while detached,
+  then reattaches the same bounds before baseline collection. Partition child-lock
+  cancellation uses a real leaf TRUNCATE inside the holder transaction and rolls
+  it back, preserving both actual blocking and records without new LOCK TABLE
+  partition-hierarchy support. These setup choices are shared by both backends.
+  `make check RUN='^TestReferenceFDWAnalyzeInheritedDomain$'` uses a real positive
+  integer domain on an ordinary parent and its supported foreign child, over
+  independently queried remote base-integer records. Direct/prepared collection
+  derives genuine typed domain scalar/joint/expression facts and ordered query
+  rows; planner witnesses use supported plain-text label predicates, not a new
+  domain-literal estimator. Actual invalid remote values produce exact23514 with
+  common message and Schema/DataType/Constraint fields. A real restricted caller
+  search_path plus qualified ANALYZE requires the common domain name
+  `public.fdw_analyze_positive`, without backend-specific message goldens.
+  Only PostgreSQL adds postgres_fdw's
+  `column "id" of foreign table "fdw_analyze_foreign"` conversion Context; native
+  typed Go-provider utility import asserts exact empty Context, not omitted fields.
+  After that inherited import failure, completed local30/count+1/time survives
+  with old inherited40 and complete old local/inherited joint/expression payloads.
+  Restoring remote values and retrying collects inherited60, joint3 and actual
+  expression values5/4/2 without independently publishing the child. Run both modes.
+  `make check RUN='^TestReferenceFDWAnalyzeInherited(Eligibility|Authority)$'`
+  covers child-owner exact/PUBLIC mapping rather than the MAINTAIN actor,
+  foreign-node diamond traversal, real admission diagnostics, and explicit native
+  capability/provider/import/authority/cancel/Reset/Restore gates with released
+  source resources. No internal packages or invented statistics reader are used.
+  Every changed public definition requires both native and `REFERENCE=1` modes.
+  PostgreSQL runs genuine loopback postgres_fdw sampling; native EXPLAIN and
+  PostgreSQL parent `pg_stats` observations have independently stated expectations.
+  Existing direct regression selectors remain
+  `RUN='^TestReferenceFDW(AnalyzeDistributions|ExplainAnalyzePermissions|ExplainAnalyzeLifecycle)$'`;
+  preserve their exact distributions, selected facts and lifecycle assertions.
+  Explain plans share execution's actual non-first minimum path. Modification
+  explain gates also cover provider errors, cancellation and authority replacement
+  without writing startup. Foreign statistics options exercise default/-1, exact
+  clamp warnings and atomic invalid-option rejection; unsupported negotiation
+  preserves precedence through direct/fresh/held routes.
   `TestReferenceFDWExplainCompositePlans` enables the real join/upper provider,
   ties execution to explained stages and distinguishes local residual/declined/
   incompatible fallback. `TestReferenceFDWExplainRowMarkPlans` checks projected

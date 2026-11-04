@@ -14,7 +14,13 @@ import (
 type fdwAdvancedState struct {
 	mu                sync.Mutex
 	limit             int
+	sampleSeed        *[2]uint64
 	sample            stuntgres.ForeignSample
+	negotiations      []stuntgres.ForeignRequest
+	acquisitions      []fdwSampleAcquisition
+	analyzePages      func(stuntgres.ForeignRequest) float64
+	analyzeSupported  func(stuntgres.ForeignRequest) bool
+	sampleTransform   func(stuntgres.ForeignRequest, stuntgres.ForeignSample) (stuntgres.ForeignSample, error)
 	requests          []stuntgres.ForeignRequest
 	scanRequests      []stuntgres.ForeignRequest
 	queryPlans        []stuntgres.ForeignExplainQueryPlan
@@ -23,6 +29,12 @@ type fdwAdvancedState struct {
 	basePlans         []stuntgres.ForeignExplainScanRequest
 	baseExecutions    []fdwExplainBaseExecution
 	explainProperties []stuntgres.ForeignExplainProperty
+}
+
+type fdwSampleAcquisition struct {
+	request stuntgres.ForeignRequest
+	target  int
+	sample  stuntgres.ForeignSample
 }
 
 type fdwExplainBaseExecution struct {
@@ -126,12 +138,27 @@ func (r *fdwSQLReader) AnalyzeForeignTable(ctx context.Context, request stuntgre
 	if r.advanced == nil {
 		return stuntgres.ForeignAnalyzeInfo{}, false, nil
 	}
-	return stuntgres.ForeignAnalyzeInfo{AcquireSampleRows: r.acquireForeignSample}, true, nil
+	// One provider-owned logical segment is the ordinary fixture's explicit
+	// estimate. Controlled allocation cases supply their own metadata weights;
+	// negotiation never opens a pool or depends on a user mapping.
+	r.advanced.mu.Lock()
+	pages, supported := r.advanced.analyzePages, r.advanced.analyzeSupported
+	r.advanced.negotiations = append(r.advanced.negotiations, request)
+	r.advanced.mu.Unlock()
+	if supported != nil && !supported(request) {
+		return stuntgres.ForeignAnalyzeInfo{}, false, nil
+	}
+	weight := float64(1)
+	if pages != nil {
+		weight = pages(request)
+	}
+	return stuntgres.ForeignAnalyzeInfo{TotalPages: weight, AcquireSampleRows: r.acquireForeignSample}, true, nil
 }
 
 // Reservoir sampling reads genuine source tuples once and closes rows and pool
 // before returning. Population is counted independently of retained sample size.
 func (r *fdwSQLReader) acquireForeignSample(ctx context.Context, request stuntgres.ForeignRequest, target int) (sample stuntgres.ForeignSample, err error) {
+	allocated := target
 	if err = r.call(ctx, "AcquireSampleRows"); err != nil {
 		return sample, err
 	}
@@ -147,9 +174,20 @@ func (r *fdwSQLReader) acquireForeignSample(ctx context.Context, request stuntgr
 	defer rows.Close()
 	r.advanced.mu.Lock()
 	limit := r.advanced.limit
+	var seed [2]uint64
+	seeded := r.advanced.sampleSeed != nil
+	if seeded {
+		seed = *r.advanced.sampleSeed
+	}
 	r.advanced.mu.Unlock()
 	if limit > 0 {
 		target = min(target, limit)
+	}
+	sampleIndex := rand.Int64N
+	if seeded {
+		// Every acquisition owns its generator; fixture configuration never
+		// shares mutable PRNG state across callbacks or concurrent requests.
+		sampleIndex = rand.New(rand.NewPCG(seed[0], seed[1])).Int64N
 	}
 	for rows.Next() {
 		values := make([]any, len(request.RequiredAttributes))
@@ -182,7 +220,7 @@ func (r *fdwSQLReader) acquireForeignSample(ctx context.Context, request stuntgr
 		sample.TotalRows++
 		if len(sample.Rows) < target {
 			sample.Rows = append(sample.Rows, row)
-		} else if index := rand.Int64N(int64(sample.TotalRows)); index < int64(target) {
+		} else if index := sampleIndex(int64(sample.TotalRows)); index < int64(target) {
 			sample.Rows[index] = row
 		}
 	}
@@ -192,9 +230,28 @@ func (r *fdwSQLReader) acquireForeignSample(ctx context.Context, request stuntgr
 	if err = ctx.Err(); err != nil {
 		return sample, err
 	}
+	if err = rows.Close(); err != nil {
+		return sample, err
+	}
+	if err = pool.Close(); err != nil {
+		return sample, err
+	}
+	if err = r.call(ctx, "AcquireSampleRowsResult"); err != nil {
+		return sample, err
+	}
+	r.advanced.mu.Lock()
+	transformSample := r.advanced.sampleTransform
+	r.advanced.mu.Unlock()
+	if transformSample != nil {
+		sample, err = transformSample(request, sample)
+		if err != nil {
+			return sample, err
+		}
+	}
 	r.advanced.mu.Lock()
 	r.advanced.sample = sample
 	r.advanced.requests = append(r.advanced.requests, request)
+	r.advanced.acquisitions = append(r.advanced.acquisitions, fdwSampleAcquisition{request: request, target: allocated, sample: sample})
 	r.advanced.mu.Unlock()
 	return sample, nil
 }

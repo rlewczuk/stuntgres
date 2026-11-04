@@ -53,7 +53,7 @@ func TestStatsSnapshotMaintenanceReportingAuthority(t *testing.T) {
 		}
 		e.Mu.Lock()
 		metadata := e.Storage.RelationMetadata[parent.Address]
-		validOptimizer := metadata != nil && metadata.Scanned && metadata.Tuples == 2 && metadata.InheritedScanned && metadata.InheritedTuples == 2
+		validOptimizer := metadata != nil && !metadata.Scanned && metadata.Tuples == 0 && metadata.InheritedScanned && metadata.InheritedTuples == 2
 		e.Mu.Unlock()
 		if !validOptimizer {
 			t.Fatal("local monitoring correction changed inherited optimizer cardinality", metadata)

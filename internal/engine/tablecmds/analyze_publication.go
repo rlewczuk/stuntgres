@@ -2,9 +2,10 @@ package tablecmds
 
 import (
 	"fmt"
+	"time"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -12,18 +13,28 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
-	"time"
 )
 
-type analyzeSegment struct {
-	relation *catalog.Relation
-	store    *storage.Relation
-	layout   []int
+// A target owns its captures and typed deltas. Only completed local maintenance
+// crosses the first publication boundary; typed facts cross the final one.
+type analyzeRun struct {
+	e                *core.Engine
+	s                *core.StatementScope
+	target           analyzeTarget
+	auth             core.AuthorizationView
+	relation         *catalog.Relation
+	closure          []*catalog.Relation
+	columns          []storage.StatisticsColumn
+	extended         []capturedExtendedInput
+	extendedWarnings []sqlstate.Error
+	segments         []*analyzeSegment
+	delta            map[storage.StatisticsKey]*storage.ColumnStatistics
+	extendedDelta    map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics
+	hierarchy        *storage.StatisticsHierarchy
+	started          time.Time
 }
 
 func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarget, options table.AnalyzeOptions) error {
-	started := time.Now()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
@@ -49,369 +60,300 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		e.Mu.Unlock()
 		return nil
 	}
-	if relation.Foreign != nil {
-		return analyzeForeign(e, s, target, options, auth, relation)
-	}
-	if relation.Foreign != nil || !table.VacuumHeap(relation) && relation.Partition == nil {
+	if relation.Foreign == nil && !table.VacuumHeap(relation) && relation.Partition == nil {
 		e.Mu.Unlock()
 		analyzeWarning(s, "01000", fmt.Sprintf(`skipping "%s" --- cannot analyze non-tables or special system tables`, relation.Name()))
 		return nil
 	}
-	columns := make([]storage.StatisticsColumn, 0, len(relation.Columns))
-	selected := make(map[string]bool)
-	for _, name := range target.columns {
-		if _, ok := relation.Index[name.Text]; !ok {
-			e.Mu.Unlock()
-			return core.SQLError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name.Text, relation.Name()))
-		}
-		if selected[name.Text] {
-			e.Mu.Unlock()
-			return core.SQLError("42701", fmt.Sprintf(`column "%s" of relation "%s" appears more than once`, name.Text, relation.Name()))
-		}
-		selected[name.Text] = true
-	}
-	for slot, column := range relation.Columns {
-		if len(target.columns) != 0 && !selected[column.Name] {
-			continue
-		}
-		attribute := relation.Attributes[slot]
-		if relation.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual {
-			continue
-		}
-		config := relation.ColumnMeta.Statistics[attribute]
-		columnTarget := s.Op.StatisticsTarget
-		if config.TargetSet {
-			columnTarget = int(config.Target)
-		}
-		input := storage.StatisticsColumn{Key: storage.StatisticsKey{Attribute: attribute}, Usage: column.Usage, Slot: slot, Target: max(1, columnTarget)}
-		columns = append(columns, input)
-	}
 	closure, err := analyzeClosure(auth.Catalog, relation, s.Op.Session.SessionToken)
+	e.Mu.Unlock()
 	if err != nil {
-		e.Mu.Unlock()
 		return err
 	}
-	capturedCatalog := auth.Catalog.State()
-	qualified := relation.Name()
-	if ns, ok := auth.Catalog.Namespace(relation.Namespace()); ok {
-		qualified = ns.Name() + "." + qualified
-	}
-	extendedInputs, err := captureExtendedStatistics(s, auth.Catalog, relation, columns)
-	if err != nil {
-		e.Mu.Unlock()
-		return err
-	}
-	// Extended definitions own their own targets and captured column values.
-	// Compact only the scalar input list after that independent capture.
-	enabled := columns[:0]
-	for _, column := range columns {
-		config := relation.ColumnMeta.Statistics[column.Key.Attribute]
-		if !config.TargetSet || config.Target != 0 {
-			enabled = append(enabled, column)
+	r := &analyzeRun{e: e, s: s, target: target, auth: auth, relation: relation, closure: closure, started: time.Now(), extendedDelta: make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics)}
+	defer r.close()
+	var foreign *analyzeForeignSource
+	if relation.Foreign != nil {
+		foreign, err = captureAnalyzeForeign(e, s, auth, relation)
+		if err != nil {
+			return err
+		}
+		if foreign == nil {
+			analyzeWarning(s, "01000", fmt.Sprintf(`skipping "%s" --- cannot analyze this foreign table`, relation.Name()))
+			return nil
 		}
 	}
-	columns = enabled
-	e.Mu.Unlock()
-	// Descendant DDL is fenced by real locks. Data roots are then captured in one
-	// short metadata window, and all typed comparison/collection runs detached.
-	for _, child := range closure {
-		if child.Address() != relation.Address() {
-			if err := vacuumAcquire(s, auth.Ref(child.Address()), lock.AccessShare, options.SkipLocked); err != nil {
+	r.columns, err = analyzeColumns(s, relation, target)
+	if err != nil {
+		return err
+	}
+	inherited := len(closure) > 1 || relation.Partition != nil
+	if inherited {
+		r.hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
+	}
+	// Foreign local passes intentionally retain their scalar-only contract.
+	if relation.Foreign == nil || inherited {
+		r.extended, r.extendedWarnings, err = captureExtendedStatistics(s, auth.Catalog, relation, r.columns)
+		if err != nil {
+			return err
+		}
+	}
+	if relation.Partition == nil {
+		var local *storage.RelationStatistics
+		var rows uint64
+		var foreignFact *storage.ForeignAnalyzeStatistics
+		if foreign != nil {
+			local, foreignFact, err = collectAnalyzeForeign(e, s, r.columns, options, auth, foreign)
+		} else {
+			err = r.captureNative([]*catalog.Relation{relation})
+			if err == nil {
+				if options.Verbose {
+					r.notice()
+				}
+				local, rows, err = r.collect(false, r.segments, nil)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		if local != nil {
+			r.delta = local.Columns
+		}
+		// A leaf has one final boundary. A root completes local maintenance
+		// first, retaining both typed flavors privately until inherited success.
+		if err := r.publishLocal(rows, foreignFact, !inherited); err != nil {
+			return err
+		}
+		if !inherited {
+			return nil
+		}
+	} else if options.Verbose {
+		r.notice()
+	}
+	var population float64
+	if inherited {
+		// Child AccessShare waits are never SKIP_LOCKED: that option controls
+		// target admission, not inherited sampling.
+		for _, child := range closure {
+			if child.Address() != relation.Address() {
+				if err := vacuumAcquire(s, auth.Ref(child.Address()), lock.AccessShare, false); err != nil {
+					return err
+				}
+			}
+		}
+		visits, mixed, err := r.inheritedSegments()
+		if err != nil {
+			return err
+		}
+		var sampled *float64
+		if mixed {
+			population, err = r.allocate(visits)
+			if err != nil {
 				return err
 			}
+			sampled = &population
 		}
-	}
-	e.Mu.Lock()
-	current, err := e.AuthorizationLocked(s.Op)
-	if err != nil || current.Catalog.State() != capturedCatalog {
-		e.Mu.Unlock()
+		facts, count, err := r.collect(true, visits, sampled)
 		if err != nil {
 			return err
 		}
+		if !mixed {
+			population = float64(count)
+		}
+		if facts != nil {
+			if r.delta == nil {
+				r.delta = facts.Columns
+			} else {
+				for key, fact := range facts.Columns {
+					r.delta[key] = fact
+				}
+			}
+		}
+	}
+	return r.publishFinal(population)
+}
+
+func (r *analyzeRun) notice() {
+	qualified := r.relation.Name()
+	if ns, ok := r.auth.Catalog.Namespace(r.relation.Namespace()); ok {
+		qualified = ns.Name() + "." + qualified
+	}
+	r.s.Op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: fmt.Sprintf(`analyzing "%s"`, qualified)})
+}
+
+// Called only in short metadata windows; all callbacks and waits are detached.
+func (r *analyzeRun) authorityLocked() error {
+	current, err := r.e.AuthorizationLocked(r.s.Op)
+	if err != nil {
+		return err
+	}
+	if current.Catalog.State() != r.auth.Catalog.State() || current.Roles != r.auth.Roles {
 		return ids.ErrCatalogReplaced
 	}
-	refs := make([]ids.ObjectRef, 0, len(closure))
-	segments := make([]analyzeSegment, 0, len(closure))
-	var sampledDead int64
-	for _, physical := range closure {
-		if physical.Partition != nil {
-			continue
-		}
-		store := e.PrivateStorageLocked(s.PendingCatalog(), physical.Address())
-		if store == nil {
-			e.Mu.Unlock()
-			return ids.ErrCatalogReplaced
-		}
-		if physical.Address() == relation.Address() {
-			// The in-memory maintenance estimate is the supported dead sample;
-			// invisible raw versions are not all dead (birth frontiers matter).
-			sampledDead = store.Maintenance.Dead
-		}
-		layout, err := catalog.InheritanceQueryLayout(relation, physical)
-		if err != nil {
-			e.Mu.Unlock()
-			return err
-		}
-		refs = append(refs, current.Ref(physical.Address()))
-		segments = append(segments, analyzeSegment{physical, store, layout})
-	}
-	view, err := s.CaptureMaintenanceDataViewsLocked(e, refs)
-	e.Mu.Unlock()
-	if err != nil {
-		return err
-	}
-	defer view.Release()
-	if options.Verbose {
-		s.Op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: fmt.Sprintf(`analyzing "%s"`, qualified)})
-	}
-	// Reuse the executor's real visible-head selection, including replacement
-	// substitution. LiveVersion alone does not suppress a replaced predecessor.
-	sources := make([]*exec.Source, len(segments))
-	scratch := make([][]sqltype.Value, len(segments))
-	for i, segment := range segments {
-		if segment.relation.Partition != nil {
-			continue
-		}
-		source, err := exec.CaptureSource(s.Op.Context(), view, auth.Ref(segment.relation.Address()))
-		if err != nil {
-			return err
-		}
-		sources[i] = source
-		defer source.Close()
-		if segment.layout != nil {
-			scratch[i] = make([]sqltype.Value, len(segment.layout))
-		}
-	}
-	extendedDelta := make(map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics)
-	var hierarchy *storage.StatisticsHierarchy
-	if len(closure) > 1 || relation.Partition != nil {
-		hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
-	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.Op.Context()), Host: core.HostOf(s), Input: s.Input, Output: s.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.RoutineAuthority = &auth
-	collect := func(inherited bool) (*storage.RelationStatistics, uint64, error) {
-		inputs := columns
-		for i := range inputs {
-			inputs[i].Key.Inherited = inherited
-		}
-		collectors := make([]*storage.ExtendedCollector, len(extendedInputs))
-		for i := range extendedInputs {
-			input := extendedInputs[i].ExtendedInput
-			input.Key.Inherited = inherited
-			collectors[i], err = storage.NewExtendedCollector(input)
-			if err != nil {
-				return nil, 0, err
-			}
-		}
-		stats, population, err := storage.CollectStatistics(s.Op.Context(), inputs, func(yield func([]sqltype.Value) error) error {
-			for i, segment := range segments {
-				if !inherited && segment.relation.Address() != relation.Address() {
-					continue
-				}
-				source := sources[i]
-				if source == nil {
-					continue
-				}
-				for ordinal := range source.Count() {
-					if err := s.Op.Context().Err(); err != nil {
-						return err
-					}
-					values := source.VersionAt(source.RawIndex(ordinal)).Values
-					if segment.layout != nil {
-						for slot, physical := range segment.layout {
-							scratch[i][slot] = values[physical]
-						}
-						values = scratch[i]
-					}
-					for j, collector := range collectors {
-						if err := extendedInputs[j].add(&evaluation, collector, values); err != nil {
-							return err
-						}
-					}
-					if err := yield(values); err != nil {
-						return err
-					}
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, 0, err
-		}
-		if stats != nil {
-			optionName := "n_distinct"
-			if inherited {
-				optionName = "n_distinct_inherited"
-			}
-			for key, fact := range stats.Columns {
-				for _, option := range relation.ColumnMeta.Statistics[key.Attribute].Options {
-					if option.Name == optionName {
-						fact.DistinctOverride, _ = catalog.ParseColumnDistinct(option.Value)
-					}
-				}
-			}
-		}
-		for i, collector := range collectors {
-			fact, err := collector.Finish(s.Op.Context())
-			if err != nil {
-				return nil, 0, err
-			}
-			if fact != nil {
-				key := extendedInputs[i].Key
-				key.Inherited = inherited
-				if inherited {
-					fact.Hierarchy = hierarchy
-				}
-				extendedDelta[key] = fact
-			}
-		}
-		return stats, population, nil
-	}
-	var local *storage.RelationStatistics
-	var rows uint64
-	if relation.Partition == nil {
-		local, rows, err = collect(false)
-	}
-	if err != nil {
-		return err
-	}
-	// Preserve the local sample independently of rows, which the inherited
-	// pass also uses for partition-parent optimizer cardinality below.
-	sampledLive := int64(rows)
-	var delta map[storage.StatisticsKey]*storage.ColumnStatistics
-	if local != nil {
-		delta = local.Columns
-	}
-	var inheritedRows uint64
-	if len(closure) > 1 || relation.Partition != nil {
-		inherited, population, err := collect(true)
-		if err != nil {
-			return err
-		}
-		inheritedRows = population
-		if inherited != nil {
-			for _, fact := range inherited.Columns {
-				fact.Hierarchy = hierarchy
-			}
-			merged := storage.MergeStatistics(local, inherited.Columns)
-			delta = merged.Columns
-		}
-		if relation.Partition != nil {
-			rows = population
-		}
-	}
-	completed := time.Now().UTC().Truncate(time.Microsecond)
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	current, err = e.AuthorizationLocked(s.Op)
-	if err != nil {
-		return err
-	}
-	now, ok := current.Catalog.Relation(relation.Address())
-	if !ok || current.Catalog.State() != capturedCatalog || !index.SameRelationRowShape(now, relation) {
+	now, ok := current.Catalog.Relation(r.relation.Address())
+	if !ok || !index.SameRelationRowShape(now, r.relation) {
 		return ids.ErrCatalogReplaced
 	}
-	for _, segment := range segments {
-		if e.PrivateStorageLocked(s.PendingCatalog(), segment.relation.Address()) != segment.store {
+	for _, segment := range r.segments {
+		if segment.store != nil && r.e.PrivateStorageLocked(r.s.PendingCatalog(), segment.relation.Address()) != segment.store {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	allowed, err = table.VacuumAllowed(s.Op.Context(), current.View, current, now)
+	allowed, err := table.VacuumAllowed(r.s.Op.Context(), current.View, current, now)
 	if err != nil {
 		return err
 	}
 	if !allowed {
 		return core.SQLError("42501", fmt.Sprintf(`permission denied for table %s`, now.Name()))
 	}
-	if err := s.Op.Context().Err(); err != nil {
-		return err
-	}
-	store := e.PrivateStorageLocked(s.PendingCatalog(), relation.Address())
-	if relation.RelationKind.Stored() && store == nil {
-		return ids.ErrCatalogReplaced
-	}
-	originalRelation, _ := e.Catalog.State.Relation(relation.Address())
-	previous := session.ResolveRelationMetadata(s.PendingCatalog(), e.Storage.RelationMetadata, relation.Address())
+	return r.s.Op.Context().Err()
+}
+
+func (r *analyzeRun) metadataLocked() (*storage.RelationMetadata, *catalog.Relation) {
+	original, _ := r.e.Catalog.State.Relation(r.relation.Address())
 	metadata := &storage.RelationMetadata{}
-	if previous != nil {
+	if previous := session.ResolveRelationMetadata(r.s.PendingCatalog(), r.e.Storage.RelationMetadata, r.relation.Address()); previous != nil {
 		*metadata = *previous
 	}
-	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationTuples)
-	if pending := s.PendingCatalog(); pending != nil {
-		if s.Catalog == nil {
-			s.Catalog = pending.Clone()
-		}
-		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationTuples)
-	}
-	metadata.AnalyzeCount++
-	metadata.LastAnalyze = completed
-	if !relation.RelationKind.Stored() {
-		metadata.Scanned, metadata.Tuples = true, int64(rows)
-	}
-	if len(closure) > 1 || relation.Partition != nil {
-		metadata.InheritedScanned, metadata.InheritedTuples = true, int64(inheritedRows)
-	} else {
-		metadata.InheritedScanned, metadata.InheritedTuples = false, 0
-		clearInherited := func(columns map[storage.StatisticsKey]*storage.ColumnStatistics) {
-			for key := range columns {
-				if key.Inherited {
-					if delta == nil {
-						delta = make(map[storage.StatisticsKey]*storage.ColumnStatistics)
-					}
-					delta[key] = nil
-				}
-			}
-		}
-		if previous != nil && previous.Statistics != nil {
-			clearInherited(previous.Statistics.Columns)
-		}
-		if pending := s.PendingCatalog(); pending != nil {
-			clearInherited(pending.Statistics[relation.Address()].Columns)
+	return metadata, original
+}
+
+func (r *analyzeRun) journalLocked() *session.Journal {
+	if r.s.Catalog == nil {
+		pending := r.s.PendingCatalog()
+		r.s.Catalog = pending.Clone()
+		// Statistics-only writes do not change catalog authority. Keep the exact
+		// cached private read, rather than manufacturing a new descriptor root.
+		if pending != nil {
+			r.s.Catalog.CachedBase, r.s.Catalog.Cached = pending.CachedBase, pending.Cached
 		}
 	}
+	return r.s.Catalog
+}
+
+func (r *analyzeRun) installLocked(metadata *storage.RelationMetadata, original *catalog.Relation, typed bool) {
+	s, e, relation := r.s, r.e, r.relation
 	if s.Owner.InBlock() || s.PendingCatalog() != nil {
-		if s.Catalog == nil {
-			s.Catalog = s.PendingCatalog().Clone()
-		}
+		r.journalLocked()
 		var private *storage.RelationMetadata
-		if originalRelation == nil {
+		if original == nil {
 			private = metadata
 		}
-		s.Catalog.RecordStatistics(relation.Address(), e.Storage.Relations[relation.Address()], originalRelation, relation, delta, extendedDelta, private)
-	} else {
-		metadata.Statistics = storage.MergeStatistics(metadata.Statistics, delta)
-		metadata.Statistics = storage.MergeExtendedStatistics(metadata.Statistics, extendedDelta)
+		if typed {
+			s.Catalog.RecordStatistics(relation.Address(), e.Storage.Relations[relation.Address()], original, relation, r.delta, r.extendedDelta, private)
+		} else if private != nil {
+			s.Catalog.RecordStatistics(relation.Address(), e.Storage.Relations[relation.Address()], original, relation, nil, nil, private)
+		}
+	} else if typed {
+		metadata.Statistics = storage.MergeStatistics(metadata.Statistics, r.delta)
+		metadata.Statistics = storage.MergeExtendedStatistics(metadata.Statistics, r.extendedDelta)
 	}
-	// Existing-object maintenance survives rollback. New-object metadata stays
-	// on the actual creation journal until its normal publication boundary.
-	if originalRelation != nil {
+	if original != nil {
 		if e.Storage.RelationMetadata == nil {
 			e.Storage.RelationMetadata = make(map[ids.ObjectAddress]*storage.RelationMetadata)
 		}
 		e.Storage.RelationMetadata[relation.Address()] = metadata
 	}
-	maintenance := e.Storage.Relations[relation.Address()]
-	if maintenance == nil {
-		maintenance = store
+}
+
+func (r *analyzeRun) forgetImportedLocked(metadata *storage.RelationMetadata, mask uint8) {
+	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, mask)
+	if r.s.PendingCatalog() != nil {
+		r.journalLocked().ForgetRelationStatistics(r.relation.Address(), mask)
 	}
-	if maintenance != nil {
-		maintenance.Maintenance.Scanned = true
-		maintenance.Maintenance.Tuples = int64(rows)
-		if len(target.columns) == 0 {
+}
+
+func (r *analyzeRun) publishLocal(rows uint64, foreign *storage.ForeignAnalyzeStatistics, final bool) error {
+	r.e.Mu.Lock()
+	defer r.e.Mu.Unlock()
+	if err := r.authorityLocked(); err != nil {
+		return err
+	}
+	metadata, original := r.metadataLocked()
+	mask := uint8(storage.RelationTuples)
+	if foreign != nil {
+		mask |= storage.RelationPages
+		metadata.ForeignAnalyze = foreign
+	}
+	r.forgetImportedLocked(metadata, mask)
+	completed := time.Now().UTC().Truncate(time.Microsecond)
+	metadata.AnalyzeCount++
+	metadata.LastAnalyze = completed
+	if foreign == nil {
+		store := r.e.PrivateStorageLocked(r.s.PendingCatalog(), r.relation.Address())
+		if store == nil {
+			return ids.ErrCatalogReplaced
+		}
+		maintenance := r.e.Storage.Relations[r.relation.Address()]
+		if maintenance == nil {
+			maintenance = store
+		}
+		maintenance.Maintenance.Scanned, maintenance.Maintenance.Tuples = true, int64(rows)
+		if len(r.target.columns) == 0 {
 			maintenance.Maintenance.Modifications = 0
 		}
+		if store != maintenance {
+			store.Maintenance.Scanned, store.Maintenance.Tuples = true, int64(rows)
+			if len(r.target.columns) == 0 {
+				store.Maintenance.Modifications = 0
+			}
+		}
+		var dead int64
+		for _, segment := range r.segments {
+			if segment.relation.Address() == r.relation.Address() {
+				dead = segment.dead
+				break
+			}
+		}
+		r.s.RecordStatsMaintenance(r.auth.Ref(r.relation.Address()), true, r.started, completed, int64(rows), dead, len(r.target.columns) == 0)
 	}
-	if store != nil && store != maintenance {
-		store.Maintenance.Scanned = true
-		store.Maintenance.Tuples = int64(rows)
-		if len(target.columns) == 0 {
-			store.Maintenance.Modifications = 0
+	if final {
+		r.clearInheritedLocked(metadata)
+	}
+	r.installLocked(metadata, original, final)
+	return nil
+}
+
+func (r *analyzeRun) clearInheritedLocked(metadata *storage.RelationMetadata) {
+	metadata.InheritedScanned, metadata.InheritedTuples = false, 0
+	clear := func(columns map[storage.StatisticsKey]*storage.ColumnStatistics) {
+		for key := range columns {
+			if key.Inherited {
+				if r.delta == nil {
+					r.delta = make(map[storage.StatisticsKey]*storage.ColumnStatistics)
+				}
+				r.delta[key] = nil
+			}
 		}
 	}
-	// Live population comes from the actual captured collector, including own
-	// visible writes. The core reporter subtracts unresolved/current deltas and
-	// pending dead estimates before updating shared statistics immediately.
-	// Partition parents report their zero local sample, not inherited tuples.
-	s.RecordStatsMaintenance(auth.Ref(relation.Address()), true, started, completed, sampledLive, sampledDead, len(target.columns) == 0)
+	if metadata.Statistics != nil {
+		clear(metadata.Statistics.Columns)
+	}
+	if pending := r.s.PendingCatalog(); pending != nil {
+		clear(pending.Statistics[r.relation.Address()].Columns)
+	}
+}
+
+func (r *analyzeRun) publishFinal(population float64) error {
+	if !validForeignEstimate(population) {
+		return fmt.Errorf("stuntgres: invalid inherited ANALYZE population")
+	}
+	r.e.Mu.Lock()
+	defer r.e.Mu.Unlock()
+	if err := r.authorityLocked(); err != nil {
+		return err
+	}
+	metadata, original := r.metadataLocked()
+	metadata.InheritedScanned, metadata.InheritedTuples = true, population
+	if r.relation.Partition != nil {
+		r.forgetImportedLocked(metadata, storage.RelationTuples)
+		// There is no local heap scan or second integer population authority.
+		metadata.Scanned, metadata.Tuples = false, 0
+		completed := time.Now().UTC().Truncate(time.Microsecond)
+		metadata.AnalyzeCount++
+		metadata.LastAnalyze = completed
+		r.s.RecordStatsMaintenance(r.auth.Ref(r.relation.Address()), true, r.started, completed, 0, 0, len(r.target.columns) == 0)
+	}
+	r.installLocked(metadata, original, true)
 	return nil
 }

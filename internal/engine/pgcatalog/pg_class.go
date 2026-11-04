@@ -137,6 +137,9 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 			if fact.Scanned {
 				tuples = float64(fact.Tuples)
 			}
+			if relation.Partition != nil && fact.InheritedScanned {
+				tuples = fact.InheritedTuples
+			}
 			if fact.ForeignAnalyzed {
 				tuples = fact.ForeignRows
 				pages = int64(min(float64(2147483647), fact.ForeignPages))

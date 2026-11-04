@@ -39,7 +39,7 @@ func (w *foreignAnalyzeOwnerWrapper) AnalyzeForeignTable(ctx context.Context, re
 	if w.nilSampler {
 		return catalog.ForeignAnalyzeInfo{}, true, nil
 	}
-	return catalog.ForeignAnalyzeInfo{AcquireSampleRows: func(ctx context.Context, request catalog.ForeignRequest, target int) (catalog.ForeignSample, error) {
+	return catalog.ForeignAnalyzeInfo{TotalPages: 1, AcquireSampleRows: func(ctx context.Context, request catalog.ForeignRequest, target int) (catalog.ForeignSample, error) {
 		if w.hook != nil {
 			if err := w.hook(ctx, "AcquireSampleRows"); err != nil {
 				return catalog.ForeignSample{}, err

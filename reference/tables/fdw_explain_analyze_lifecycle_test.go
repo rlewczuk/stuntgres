@@ -77,7 +77,7 @@ func TestReferenceFDWExplainAnalyzeLifecycle(t *testing.T) {
 	})
 }
 
-func fdwGatedInformation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, phase, action string, replacement []byte) {
+func fdwGatedInformation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, phase, action string, replacement []byte, statements ...string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(p.Ctx)
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -113,6 +113,9 @@ func fdwGatedInformation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	}
 	if phase == "ExplainForeignModify" {
 		query = "EXPLAIN (VERBOSE) UPDATE fdw_data SET label='never' WHERE id=1"
+	}
+	if len(statements) > 0 {
+		query = statements[0]
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -155,7 +158,11 @@ func fdwGatedInformation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 		}
 		unblock()
 	case "revoke":
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("REVOKE MAINTAIN ON fdw_data FROM fdw_other", 0))
+		target := "fdw_data"
+		if len(statements) > 1 {
+			target = statements[1]
+		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("REVOKE MAINTAIN ON "+target+" FROM fdw_other", 0))
 		unblock()
 	default:
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER USER MAPPING FOR CURRENT_USER SERVER fdw_live OPTIONS(ADD user 'postgres')", 0))

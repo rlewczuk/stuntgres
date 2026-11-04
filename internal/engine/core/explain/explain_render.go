@@ -302,7 +302,8 @@ func (r *Renderer) node(root plan.Node, synthetic ...plan.Node) (*Tree, error) {
 			tree.label += " AS " + catalog.Identifier(n.RangeName)
 		}
 		var err error
-		sourceRows, err = r.sourceStatistics(tree, n, relation)
+		var inheritedPopulation bool
+		sourceRows, inheritedPopulation, err = r.sourceStatistics(tree, n, relation)
 		if err != nil {
 			return nil, err
 		}
@@ -316,9 +317,15 @@ func (r *Renderer) node(root plan.Node, synthetic ...plan.Node) (*Tree, error) {
 				tree.label += " AS " + catalog.Identifier(n.RangeName)
 			}
 			if r.Observation == nil {
-				sourceRows, err = r.foreignScan(tree, n, relation)
+				var providerRows float64
+				providerRows, err = r.foreignScan(tree, n, relation)
 				if err != nil {
 					return nil, err
+				}
+				// The provider plans this foreign relation's local contribution.
+				// A retained inherited population already covers the whole source.
+				if !inheritedPopulation {
+					sourceRows = providerRows
 				}
 			} else {
 				tree.unknownEstimate = true

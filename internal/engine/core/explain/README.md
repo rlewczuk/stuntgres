@@ -94,6 +94,15 @@ heuristics. It never executes child expressions or opens child scans; providers
 may obtain genuine remote estimates during planning. Before publishing owned output
 it fences catalog, context and current authority again, including after unlocked
 typed comparisons.
+Retained ANALYZE facts, including mixed native/foreign inherited samples, use
+provider-free hierarchy compatibility. The sole float64 inherited population
+scales accepted-row fractions for ordinary, supported foreign and partition
+roots; ONLY uses local authority. Rendering never negotiates ANALYZE capability,
+acquires samples or recomputes distributions.
+Foreign size/path/plan and explain-property callbacks still run with their usual
+errors and fences, but their local relation size cannot replace an applicable
+retained whole-hierarchy population. Provider estimates remain separately labelled;
+ONLY and sources without retained inherited authority keep their existing sizing.
 
 TEXT physical-line rows and one non-NULL XML/JSON/YAML document row publish
 through one output owner. `Output` splits every logical TEXT string at LF,

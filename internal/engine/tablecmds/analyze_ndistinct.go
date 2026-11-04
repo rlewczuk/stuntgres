@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,31 +22,37 @@ type capturedExtendedInput struct {
 	dimensions  [8]sqltype.Value
 }
 
-func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relation *catalog.Relation, columns []storage.StatisticsColumn) ([]capturedExtendedInput, error) {
+func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relation *catalog.Relation, columns []storage.StatisticsColumn) ([]capturedExtendedInput, []sqlstate.Error, error) {
+	// PostgreSQL does not enter extended collection without an admitted
+	// selected scalar, including for expression-only definitions.
+	if len(columns) == 0 {
+		return nil, nil, nil
+	}
 	typ, ok := read.LookupType(sqltype.PgNDistinct)
 	if !ok {
-		return nil, fmt.Errorf("missing pg_ndistinct type")
+		return nil, nil, fmt.Errorf("missing pg_ndistinct type")
 	}
 	dependencyType, ok := read.LookupType(sqltype.PgDependencies)
 	if !ok {
-		return nil, fmt.Errorf("missing pg_dependencies type")
+		return nil, nil, fmt.Errorf("missing pg_dependencies type")
 	}
 	mcvType, ok := read.LookupType(sqltype.PgMCVList)
 	if !ok {
-		return nil, fmt.Errorf("missing pg_mcv_list type")
+		return nil, nil, fmt.Errorf("missing pg_mcv_list type")
 	}
 	available := make(map[int32]storage.StatisticsColumn, len(columns))
 	for _, column := range columns {
 		available[column.Key.Attribute] = column
 	}
 	var inputs []capturedExtendedInput
+	var warnings []sqlstate.Error
 	for _, raw := range read.Descriptors() {
 		d, ok := raw.(*catalog.Statistics)
-		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "defm") || d.TargetSet && d.Target == 0 {
+		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "defm") {
 			continue
 		}
 		if err := (catalog.StatisticsProvider{}).Validate(read, d); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		input := capturedExtendedInput{ExtendedInput: storage.ExtendedInput{Key: storage.ExtendedStatisticsKey{Definition: read.Domain().Ref(read.Epoch(), d.Address())}, Definition: d, Type: typ, DependenciesType: dependencyType}}
 		input.MCVType = mcvType
@@ -55,9 +60,7 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 		if d.TargetSet && d.Target > 0 {
 			input.MCVTarget = int(d.Target)
 		}
-		input.Providers = storage.CaptureStatisticsProviders(read, d)
 		eligible := true
-		required := make(map[int32]bool)
 		for i := range d.Selection.Len() {
 			column, ok := available[d.Selection.Key(i)]
 			if !ok {
@@ -68,6 +71,18 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 			column.Slot = i
 			input.Columns = append(input.Columns, column)
 		}
+		if !eligible {
+			ns, _ := read.Namespace(d.Namespace())
+			relns, _ := read.Namespace(relation.Namespace())
+			warnings = append(warnings, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42P17", Message: fmt.Sprintf(`statistics object "%s.%s" could not be computed for relation "%s.%s"`, ns.Name(), d.Name(), relns.Name(), relation.Name()), Schema: relns.Name(), Table: relation.Name()})
+			continue
+		}
+		// Missing required scalar keys warn before an object's own target0
+		// skip. Neither case captures expressions or raises the sample budget.
+		if d.TargetSet && d.Target == 0 {
+			continue
+		}
+		required := make(map[int32]bool)
 		input.layouts = make([][]int, d.Expressions.Len())
 		input.frames = make([][]sqltype.Value, d.Expressions.Len())
 		input.references = make([][]ids.ObjectRef, d.Expressions.Len())
@@ -117,15 +132,10 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 				})
 			}
 		}
-		if !eligible {
-			ns, _ := read.Namespace(d.Namespace())
-			relns, _ := read.Namespace(relation.Namespace())
-			s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42P17", Message: fmt.Sprintf(`statistics object "%s.%s" could not be computed for relation "%s.%s"`, ns.Name(), d.Name(), relns.Name(), relation.Name()), Schema: relns.Name(), Table: relation.Name()})
-			continue
-		}
+		input.Providers = storage.CaptureStatisticsProviders(read, d)
 		inputs = append(inputs, input)
 	}
-	return inputs, nil
+	return inputs, warnings, nil
 }
 
 func (input *capturedExtendedInput) add(evaluation *exec.Context, collector *storage.ExtendedCollector, row []sqltype.Value) error {

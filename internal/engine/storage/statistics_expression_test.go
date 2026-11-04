@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -108,6 +109,49 @@ func TestStatisticsExpressionSnapshotCodec(t *testing.T) {
 	if err != nil || !recognized || len(decoded.Expressions) != 1 || decoded.Expressions[0].MCV[0].Count != 14 {
 		t.Fatal(decoded, recognized, err)
 	}
+	// Expression samples retain their signed population estimate separately
+	// from the literal measured group count, including exact floating bits.
+	for _, estimate := range []float64{0, math.Copysign(0, -1), 2, 7, -104 / 1000.5, -1} {
+		sampled := expressionSnapshotFixture()
+		bits := math.Float64bits(estimate)
+		sampled.Expressions[0].DistinctOverride = bits
+		encoded, err := EncodeExtendedStatisticsSnapshot(sampled)
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, recognized, err := DecodeExtendedStatisticsSnapshot(strings.TrimPrefix(encoded, "-- "))
+		if err != nil || !recognized || restored.Expressions[0].DistinctOverride != bits || restored.Expressions[0].DistinctCount != 2 {
+			t.Fatal("sample estimate was dropped, rounded or substituted for measured groups", estimate, restored, recognized, err)
+		}
+	}
+	for _, estimate := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), -1.01} {
+		invalid := expressionSnapshotFixture()
+		invalid.Expressions[0].DistinctOverride = math.Float64bits(estimate)
+		if err := invalid.Validate(); err == nil {
+			t.Fatal("accepted invalid signed expression estimate", estimate)
+		}
+		raw, err := json.Marshal(invalid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, recognized, err := DecodeExtendedStatisticsSnapshot(NDistinctSnapshotMarker + " " + base64.StdEncoding.EncodeToString(raw)); !recognized || err == nil {
+			t.Fatal("decoded invalid signed expression estimate", estimate, recognized, err)
+		}
+	}
+	for _, unknown := range []bool{false, true} {
+		invalid := expressionSnapshotFixture()
+		column := &invalid.Expressions[0]
+		column.DistinctOverride = math.Float64bits(2)
+		column.DistinctCount, column.MCV, column.Histogram = 0, nil, nil
+		if unknown {
+			column.DistinctKnown = false
+		} else {
+			column.NullCount = column.Rows
+		}
+		if err := invalid.Validate(); err == nil {
+			t.Fatal("accepted expression estimate without known non-NULL groups", unknown)
+		}
+	}
 	raw, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(strings.TrimPrefix(encoded, "-- "+NDistinctSnapshotMarker+" ")))
 	for _, bad := range []string{
 		strings.Replace(string(raw), `"rows":20`, `"rows":3`, 1),
@@ -116,6 +160,7 @@ func TestStatisticsExpressionSnapshotCodec(t *testing.T) {
 		strings.Replace(string(raw), `"distinct_known":true`, `"distinct_known":false`, 1),
 		strings.Replace(string(raw), `"mcv":[`, `"mcv":null,"ignored":[`, 1),
 		strings.Replace(string(raw), `"average_width":4`, `"average_width":-1`, 1),
+		strings.Replace(string(raw), `"average_width":4`, `"distinct_override":0`, 1),
 		strings.Replace(string(raw), `"inputs":[1]`, `"inputs":[1,1]`, 1),
 		strings.Replace(string(raw), `"definition":"(a + 1)"`, `"definition":null`, 1),
 	} {
