@@ -77,12 +77,13 @@ func replicationSlotsMutationDiagnostic(operation string) fixture.Diagnostic {
 	return fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: message, Detail: "Views that do not select from a single table or view are not automatically updatable.", Hint: "To enable " + action + " the view, provide an INSTEAD OF " + operation + " trigger or an unconditional ON " + operation + " DO INSTEAD rule."}
 }
 
+// replicationSlotsBoundary is the native outcome of creating a slot: physical
+// slots are unsupported, and no native output plugin provides test_decoding.
 func replicationSlotsBoundary(logical bool) fixture.Diagnostic {
-	message := "pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode"
 	if logical {
-		message = "pg_create_logical_replication_slot logical decoding and WAL providers are unsupported in embedded mode"
+		return activityDiagnostic("58P01", `could not access file "test_decoding": No such file or directory`, 0)
 	}
-	return activityDiagnostic("0A000", message, 0)
+	return activityDiagnostic("0A000", "pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode", 0)
 }
 
 // Register before creating genuine permanent slots; the owner stays pinned until

@@ -66,7 +66,7 @@ func TestReferenceReplicationSlotFeatureSmoke(t *testing.T) {
   admin,err:=db.Conn(s.P.Ctx); if err!=nil { s.T.Fatal(err) }; defer admin.Close()
   s.Exec("SET ROLE rsl_actor"); logicalDecodingHeldFailure(s,held,logicalDecodingDenied(),"rsl_smoke")
   if _,err:=admin.ExecContext(s.P.Ctx,"ALTER ROLE rsl_actor REPLICATION"); err!=nil { s.T.Fatal(err) }
-  if s.Backend.PG { fixture.RunStep(s.T,s.P.Ctx,held,s.Record,fixture.Select(q,[]string{"slot_name","lsn"},[]string{"NAME","PG_LSN"},[][]any{{"rsl_smoke",nil}},"rsl_smoke")); slotDrop(s,"rsl_smoke") } else { logicalDecodingHeldFailure(s,held,slotBoundary(false),"rsl_smoke") }
+  if s.Backend.PG { fixture.RunStep(s.T,s.P.Ctx,held,s.Record,fixture.Select(q,[]string{"slot_name","lsn"},[]string{"NAME","PG_LSN"},[][]any{{"rsl_smoke",nil}},"rsl_smoke")); slotDrop(s,"rsl_smoke") } else { logicalDecodingHeldFailure(s,held,slotBoundary(),"rsl_smoke") }
   slotFailure(s,"SELECT pg_drop_replication_slot('rsl_smoke')",logicalDecodingMissing("rsl_smoke"))
   peerMissing:=func(name string){ d:=logicalDecodingMissing(name); d.Severity="ERROR"; d.SeverityUnlocalized="ERROR"; step:=fixture.ErrorDiagnostic("SELECT pg_drop_replication_slot('"+name+"')",d); step.SelectRows=true; fixture.RunStep(s.T,s.P.Ctx,admin,s.Record,step) }
   peerMissing("rsl_smoke")

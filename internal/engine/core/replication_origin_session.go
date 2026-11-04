@@ -178,9 +178,13 @@ func (e *Engine) advanceOriginSessionLocked(ref ids.TxRef, actor *session.Sessio
 
 const postgresEpochUnixMicros int64 = 946684800000000
 
-func (e *Engine) recordOriginCommitLocked(ref ids.TxRef, actor *session.Session) {
-	if e.Visibility.Entries[ref].AssignedXID == 0 {
-		return
+// recordOriginCommitLocked records the commit timestamp and origin of an
+// XID-bearing commit, which ends its XID assignment, and returns the XID with
+// them.
+func (e *Engine) recordOriginCommitLocked(ref ids.TxRef, actor *session.Session) (logicalCommitIdentity, bool) {
+	xid := e.Visibility.Entries[ref].AssignedXID
+	if xid == 0 {
+		return logicalCommitIdentity{}, false
 	}
 	origin := uint32(0)
 	var stamp int64
@@ -199,6 +203,7 @@ func (e *Engine) recordOriginCommitLocked(ref ids.TxRef, actor *session.Session)
 		}
 	}
 	e.Visibility.RecordCommitTimestampLocked(ref, stamp, origin)
+	return logicalCommitIdentity{xid: xid, stamp: stamp, origin: origin}, true
 }
 
 func (e *Engine) invalidateReplacedOriginSessionsLocked() {

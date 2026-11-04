@@ -100,7 +100,7 @@ func TestReferencePGReplicationSlotsLifecycle(t *testing.T) {
 		if s.Backend.PG {
 			var name string
 			if err := s.C.QueryRowContext(s.P.Ctx, query).Scan(&name, &logicalStart); err != nil || name != "slots_meta_logical" { s.T.Fatal(name, logicalStart, err) }
-		} else { slotFailure(s, query, slotBoundary(true)) }
+		} else { slotFailure(s, query, slotPluginMissing("test_decoding")) }
 		slotInventoryLogical(s, s.C, "slots_meta_logical", "test_decoding", logicalStart, false, true, true, s.C)
 		fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Exec("SET ROLE rsl_actor", 0))
 		slotInventoryLogical(s, peer, "slots_meta_logical", "test_decoding", logicalStart, false, true, true, s.C)

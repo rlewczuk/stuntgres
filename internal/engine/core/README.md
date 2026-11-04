@@ -2433,6 +2433,22 @@ The locked ALTER owner captures `ReferencePath` for column diagnostics and
 passes it through the ordinary stage/preparation adapters. Moved objects use
 the shared visibility-sensitive dependency labels, never a bare-name fallback.
 
+## Logical change stream and slots
+
+`DatabaseCluster.logical` holds the startup logical-WAL capability, the immutable
+output plugins, the cluster-wide position allocator and the slot registry; each
+`Engine` holds its database's `logical.History`. All are guarded by
+`Engine.Mu`. While the cluster has a slot, the four staging windows and
+TRUNCATE (`logical_capture.go`) append changes to `StatementScope.logicalChanges`,
+which follows `notificationEvents` through merge, savepoint and exception
+checkpoints, prepared entries and discard. The publishers append history
+(`logical_history.go`) beside `recordOriginCommitLocked`, which consumes the XID.
+Slot runtimes (`replication_slot_runtime.go`, `logical_decoding_runtime.go`)
+acquire a slot under `Engine.Mu`, run the plugin and the creation wait without
+it, and confirm and release under it on every exit. Session end and a top-level
+statement error (`Finish` of a `StartStatement` scope) drop the session's
+temporary slots; catalog replacement drops the database's slots.
+
 ## Lock order
 
 `replacementMu` and `TransactionOwner.Mu` precede `Engine.Mu`, which precedes
@@ -3710,8 +3726,12 @@ Engine tests whose code is mostly in a lower package or a `*cmds` family live
 in test-only `core/enginetests/<area>` packages (`functions`, `types`,
 `extension`, `textsearch`, `pgcatalog`, `infoschema`, `binder`, `executor`,
 `writes`, `locking`, `sessions`, `tables`, `indexes`, `views`, `schema`,
-`roles`, `stored`, `dump`, `routines`); `make check RUN=…` selects across
-packages, so the selectors below cover them too.
+`roles`, `stored`, `dump`, `routines`, `logical`); `make check RUN=…` selects
+across packages, so the selectors below cover them too.
+
+The logical change stream and slots use `RUN='^TestLogicalStream[A-Za-z]*$'` in
+`enginetests/logical`: SQL scenarios through `StartStatement`/`Finish` with a
+private recording output plugin registered at composition.
 
 Snowball provider authority, prepared ownership and publication units in
 `enginetests/functions` use the shared `enginetest` prepared-fold and catalog-stage

@@ -49,7 +49,7 @@ func WithCommitTimestampTracking() StartupOption {
 
 var logicalWAL bool
 
-// WithLogicalWAL enables logical decoding prerequisites on the package oracle.
+// WithLogicalWAL starts both backends with wal_level=logical.
 func WithLogicalWAL() StartupOption {
 	return func() { logicalWAL = true }
 }
@@ -215,7 +215,7 @@ func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stun
 		}
 		reset()
 	})
-	nativeDriver := stuntgres.NewDriverWithConfig(stuntgres.DriverConfig{TrackCommitTimestamp: trackCommitTimestamp})
+	nativeDriver := stuntgres.NewDriverWithConfig(stuntgres.DriverConfig{TrackCommitTimestamp: trackCommitTimestamp, LogicalWAL: logicalWAL})
 	if configure != nil {
 		if err := configure(nativeDriver); err != nil {
 			t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -33,6 +34,10 @@ type PreparedTransaction struct {
 	Roots       map[ids.ObjectAddress]visibility.Root
 	Frontier    ids.CommitSeq
 	Options     TxOptions
+	// LogicalChanges are the prepared transaction's captured changes;
+	// LogicalTxn is its history content once PREPARE recorded it.
+	LogicalChanges []logical.Change
+	LogicalTxn     *logical.Transaction
 }
 
 // PreparedPublication is the 2PC phase of one publication: PREPARE installs

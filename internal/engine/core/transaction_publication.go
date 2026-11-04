@@ -72,6 +72,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 	if err != nil {
 		return err
 	}
+	changes := logicalEffects(op, phase, scope)
 	if len(events) != 0 || publicationNeedsXID(writes, deletes, c, phase) {
 		e.Mu.Lock()
 		var err error
@@ -160,7 +161,8 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			} else {
 				e.installNotificationPublicationLocked(notifications)
 				e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
-				e.recordOriginCommitLocked(ref, op.Session)
+				commit, _ := e.recordOriginCommitLocked(ref, op.Session)
+				e.recordLogicalCommitLocked(commit, phase, changes, c)
 				publishTransactionStats(e, op.Session, ref, phase, scope)
 				e.finishPreparedLocked(phase)
 				op.FinishDiscardRoleResetLocked()
@@ -800,7 +802,8 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		e.Storage.ReplaceIndexRootsLocked(indexRoots)
 		publishTransactionStats(e, sess, ref, phase, scope)
 		e.Visibility.AdvanceCommitSeqLocked()
-		e.recordOriginCommitLocked(ref, op.Session)
+		commit, _ := e.recordOriginCommitLocked(ref, op.Session)
+		e.recordLogicalCommitLocked(commit, phase, changes, c)
 		e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
 		e.finishPreparedLocked(phase)
 		op.FinishDiscardRoleResetLocked()

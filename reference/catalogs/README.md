@@ -39,8 +39,9 @@ Replication-slot inventory scenarios use
 Catalog shape, nominal links, genuine join definitions and independent live
 view/column SELECT and backing EXECUTE gates share complete diagnostics and
 native no-state control roundtrips. Positive logical lifecycle and feature smoke
-belong to `reference/roles`, whose oracle enables logical WAL; native rejected
-creation never establishes a metadata row.
+belong to `reference/roles`, which starts both backends with logical WAL; this
+package keeps `wal_level=replica`, where every logical decoding operation fails
+first (`RUN='^TestReferenceLogicalSlotWALLevel$'`).
 Each pre-canceled inventory probe returns its borrower before independent health
 reads. Native requires ordinary cancellation with no rows; pq can instead finish
 a typed empty result or report the exact server user-request cancellation

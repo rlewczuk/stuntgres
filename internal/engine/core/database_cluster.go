@@ -58,6 +58,8 @@ type DatabaseCluster struct {
 	replicationOriginProgress           map[ids.OID]uint64
 	replicationOriginOwners             map[ids.OID]*replicationOriginSession
 	replicationOriginProgressGeneration map[ids.ObjectAddress]uint64
+	// Logical WAL capability, stream positions and the slot registry.
+	logical logicalCluster
 	// Exported cuts share this cluster mutex with all runtime publication.
 	snapshotSerial uint64
 	snapshots      map[string]*exportedSnapshot

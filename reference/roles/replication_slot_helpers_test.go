@@ -25,7 +25,10 @@ func slotCases(t *testing.T,body func(*fixture.RoleMembershipScenario,*sql.DB)) 
 func slotCall(sig slotSignature,args []string) string { return sig.name+"("+strings.Join(args,",")+")" }
 func slotFields(sig slotSignature) ([]string,[]string) { second:="lsn"; if sig.oid==3878 { second="end_lsn" }; return []string{"slot_name",second},[]string{"NAME","PG_LSN"} }
 func slotFailure(s *fixture.RoleMembershipScenario,q string,d fixture.Diagnostic) { s.T.Helper(); predefinedFailure(s,q,d,true,"execute") }
-func slotBoundary(logical bool) fixture.Diagnostic { message:="pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode"; if logical { message="pg_create_logical_replication_slot logical decoding and WAL providers are unsupported in embedded mode" }; return fixture.Diagnostic{Code:"0A000",Message:message} }
+func slotBoundary() fixture.Diagnostic { return fixture.Diagnostic{Code:"0A000",Message:"pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode"} }
+// slotPluginMissing is the native outcome of a logical slot naming a stock
+// plugin that no native output plugin provides.
+func slotPluginMissing(plugin string) fixture.Diagnostic { return fixture.Diagnostic{Code:"58P01",Message:`could not access file "`+plugin+`": No such file or directory`} }
 // Query the VOID result rather than comparing backend-specific SELECT command
 // tags exposed by database/sql Exec's RowsAffected.
 func slotDrop(s *fixture.RoleMembershipScenario,name string) { s.T.Helper(); predefinedSelect(s,"SELECT pg_drop_replication_slot("+fileListLiteral(name)+")",[]string{"pg_drop_replication_slot"},[]string{"VOID"},[][]any{{""}}) }
@@ -36,7 +39,7 @@ func slotCreate(s *fixture.RoleMembershipScenario,name string,logical,reserve,te
  s.T.Helper(); fn:="pg_create_physical_replication_slot"; args:=fmt.Sprintf("'%s',%t,%t",name,reserve,temporary)
  if logical { fn="pg_create_logical_replication_slot"; args=fmt.Sprintf("'%s','test_decoding',%t",name,temporary) }
  q:="SELECT * FROM "+fn+"("+args+")"
- if !s.Backend.PG { slotFailure(s,q,slotBoundary(logical)); return "" }
+ if !s.Backend.PG { d:=slotBoundary(); if logical { d=slotPluginMissing("test_decoding") }; slotFailure(s,q,d); return "" }
  var got string; var lsn sql.NullString
  if err:=s.C.QueryRowContext(s.P.Ctx,q).Scan(&got,&lsn); err!=nil { s.T.Fatal(q,err) }
  if got!=name || (logical||reserve)!=lsn.Valid { s.T.Fatalf("create %s = %s/%v",name,got,lsn) }

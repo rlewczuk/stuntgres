@@ -55,6 +55,7 @@ func (t *TransactionOwner) Clear() {
 	t.Catalog = nil
 	t.NotificationActions = nil
 	t.NotificationEvents = nil
+	t.LogicalChanges = nil
 	clear(t.Savepoints)
 	t.Savepoints = nil
 	t.AccessedTemporary = false
@@ -79,6 +80,7 @@ func (t *TransactionOwner) Abort() *lock.Ticket {
 	t.Catalog = nil
 	t.NotificationActions = nil
 	t.NotificationEvents = nil
+	t.LogicalChanges = nil
 	ticket := t.Ticket
 	t.Ticket = nil
 	return ticket
@@ -136,5 +138,5 @@ func (t *TransactionOwner) PrepareRefusal(gid string, withHold, foreign bool) er
 // ticket. The publication preflight rejects it if ref is no longer t.Ref.
 func (t *TransactionOwner) PreparedEntry(gid string, ref ids.TxRef, owner authorization.PrincipalRef, database string, at time.Time) *PreparedTransaction {
 	t.Stats.Release(0)
-	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, GinRevision: t.GinRevision, Deletes: t.Deletes, Stats: t.Stats, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, GinRevision: t.GinRevision, Deletes: t.Deletes, Stats: t.Stats, Catalog: t.Catalog, LogicalChanges: t.LogicalChanges, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 }

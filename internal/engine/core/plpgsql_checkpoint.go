@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -45,6 +46,7 @@ type plExceptionCheckpoint struct {
 	multiEvents                                 []lock.MultiEvent
 	notificationActions                         []session.NotificationAction
 	notificationEvents                          []session.Notification
+	logicalChanges                              []logical.Change
 	completed, sessionCompleted, ProjectedRoots bool
 	foreignModifications                        int
 	holdPromotions                              []*sqlCursor
@@ -142,6 +144,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, ProjectedRoots: s.ProjectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
 	c.discardedHeaps = s.Stage.DiscardedHeaps[:len(s.Stage.DiscardedHeaps):len(s.Stage.DiscardedHeaps)]
+	c.logicalChanges = s.logicalChanges[:len(s.logicalChanges):len(s.logicalChanges)]
 	c.sepgsql = s.MarkSepgsqlObservations()
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
 	c.afterTriggers = cloneAfterState(s.afterTriggers)
@@ -275,6 +278,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		}
 		s.multiEvents = c.multiEvents
 		s.notificationActions, s.notificationEvents = c.notificationActions, c.notificationEvents
+		s.logicalChanges = c.logicalChanges
 		s.Completed, s.sessionCompleted, s.ProjectedRoots = c.completed, c.sessionCompleted, c.ProjectedRoots
 	}
 	if !rollback && cleanup == nil {

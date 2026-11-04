@@ -16,10 +16,16 @@ type Registry struct {
 	defaults    *sessionDefaults
 }
 
+// Startup is the immutable startup configuration a registry boots from.
+type Startup struct {
+	TrackCommitTimestamps bool // track_commit_timestamp boots on.
+	LogicalWAL            bool // wal_level starts as logical, as with -c wal_level=logical.
+}
+
 // builtinRegistries holds the registry without registered definitions, built
-// once per track_commit_timestamp boot value. Registries are immutable, so
-// every engine shares it.
-var builtinRegistries [2]struct {
+// once per startup configuration. Registries are immutable, so every engine
+// shares it.
+var builtinRegistries [4]struct {
 	once     sync.Once
 	registry Registry
 }
@@ -27,18 +33,27 @@ var builtinRegistries [2]struct {
 // NewRegistry captures builtin boot values and adds validated registered
 // definitions. track_commit_timestamp boots from trackCommitTimestamps.
 func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
+	return NewStartupRegistry(registered, Startup{TrackCommitTimestamps: trackCommitTimestamps})
+}
+
+// NewStartupRegistry is NewRegistry for a complete startup configuration.
+func NewStartupRegistry(registered []Definition, startup Startup) Registry {
 	if len(registered) != 0 {
-		return newRegistry(registered, trackCommitTimestamps)
+		return newRegistry(registered, startup)
 	}
-	shared := &builtinRegistries[0]
-	if trackCommitTimestamps {
-		shared = &builtinRegistries[1]
+	index := 0
+	if startup.TrackCommitTimestamps {
+		index |= 1
 	}
-	shared.once.Do(func() { shared.registry = newRegistry(nil, trackCommitTimestamps) })
+	if startup.LogicalWAL {
+		index |= 2
+	}
+	shared := &builtinRegistries[index]
+	shared.once.Do(func() { shared.registry = newRegistry(nil, startup) })
 	return shared.registry
 }
 
-func newRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
+func newRegistry(registered []Definition, startup Startup) Registry {
 	groups := [...][]Definition{builtins, developerBuiltins, loggingBuiltins, plannerBuiltins, presetBuiltins, replicationBuiltins, resourceBuiltins, plannerCostBuiltins, plannerOtherBuiltins, geqoBuiltins, shortBuiltins, vacuumBuiltins, walBuiltins, pgStatStatementsDefinitions, registered}
 	r := Registry{defaults: &sessionDefaults{}, definitions: make(map[string]Definition, len(builtins)+len(developerBuiltins)+len(loggingBuiltins)+len(plannerBuiltins)+len(presetBuiltins)+len(replicationBuiltins)+len(resourceBuiltins)+len(plannerCostBuiltins)+len(plannerOtherBuiltins)+len(geqoBuiltins)+len(shortBuiltins)+len(vacuumBuiltins)+len(walBuiltins)+len(pgStatStatementsDefinitions)+len(registered))}
 	for i, list := range groups {
@@ -48,8 +63,11 @@ func newRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 				if i == 0 {
 					d = builtinMetadata(d)
 				}
-				if d.Name == "track_commit_timestamp" && trackCommitTimestamps {
+				if d.Name == "track_commit_timestamp" && startup.TrackCommitTimestamps {
 					d.BootDefault = "on"
+				}
+				if d.Name == "wal_level" && startup.LogicalWAL {
+					d.NativeStartup = &StartupDefault{Value: "logical", Source: "command line"}
 				}
 				// Boot metadata can predate database initialization and need not
 				// satisfy the live setter's capability checks.

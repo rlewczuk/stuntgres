@@ -96,6 +96,7 @@ func endTransactionSession(t *session.TransactionOwner, token ids.SessionToken) 
 	e := EngineOf(t.Session)
 	e.Mu.Lock()
 	e.releaseOriginSessionLocked(t.Session, token)
+	e.releaseSessionSlotsLocked(token)
 	e.Mu.Unlock()
 	t.Session.Settings.FinishTransaction(false)
 	clearTransaction(t, false)
@@ -218,7 +219,9 @@ func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) 
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, e.finishStatementAdmissionError(op, err, true)
 	}
-	return e.newStatementScope(op, t, start), nil
+	s := e.newStatementScope(op, t, start)
+	s.topLevel = true
+	return s, nil
 }
 
 // Held-cursor precommit borrows a fresh current operation/presentation scope

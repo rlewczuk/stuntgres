@@ -125,7 +125,8 @@ func TestLogicalDecodingOptionValidation(t *testing.T) {
 }
 
 func TestLogicalDecodingRuntimeOwnership(t *testing.T) {
-	e := engine.New()
+	// Logical WAL makes the argument checks reachable; replica fails first.
+	e := engine.NewWithStartup(nil, "", core.Startup{LogicalWAL: true})
 	admin := enginetest.StartSession(t,e,nil)
 	enginetest.SessionSQL(t,admin,"CREATE ROLE ld_unit_actor")
 	n := logicalDecodingUnitNode(t,e,logicalDecodingUnitNames[0])

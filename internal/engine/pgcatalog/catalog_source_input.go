@@ -31,6 +31,9 @@ type Input struct {
 	// ReplicationOriginProgress is copied with the captured catalog under the
 	// cluster mutex. Presence, including zero, denotes an allocated state slot.
 	ReplicationOriginProgress map[ids.OID]uint64
+	// ReplicationSlots is copied from the live slot registry under the cluster
+	// mutex; producers never inspect the registry.
+	ReplicationSlots []ReplicationSlot
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
 	SharedDependencies []SharedDependency

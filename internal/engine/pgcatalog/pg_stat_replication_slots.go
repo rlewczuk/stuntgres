@@ -38,10 +38,33 @@ func capturePGStatReplicationSlots(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: invalid replication slots source attribute")
 		}
 	}
-	// Native slot creation rejects before publishing inventory. Statistics keys
-	// alone cannot establish logical slots, so there is no qualifying fact to
-	// fetch, cumulative snapshot to establish, or absent-slot row to allocate.
-	return nil, in.Context.Err()
+	// Every logical slot has a statistics entry from creation. Decoding
+	// counters are not collected; they stay zero until reset.
+	if len(in.ReplicationSlots) == 0 {
+		return nil, in.Context.Err()
+	}
+	rows := make([][]sqltype.Value, 0, len(in.ReplicationSlots))
+	for _, slot := range in.ReplicationSlots {
+		row := make([]sqltype.Value, len(replicationSlotsColumns))
+		row[0] = sqltype.String(in.Source.Columns[0].Usage.Type, slot.Name)
+		for i := 1; i < 9; i++ {
+			v, err := sqltype.Integer(in.Source.Columns[i].Usage.Type, 0)
+			if err != nil {
+				return nil, err
+			}
+			row[i] = v
+		}
+		row[9] = sqltype.Null(in.Source.Columns[9].Usage.Type)
+		if !slot.StatsReset.IsZero() {
+			v, err := sqltype.TimestampValue(in.Source.Columns[9].Usage.Type, slot.StatsReset.UnixMicro()-postgresEpochUnixMicros)
+			if err != nil {
+				return nil, err
+			}
+			row[9] = v
+		}
+		rows = append(rows, row)
+	}
+	return rows, in.Context.Err()
 }
 
 // Display only: released PG18 logical-slot inventory and lateral statistics

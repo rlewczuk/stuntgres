@@ -157,6 +157,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	if s.foreignEffectRelevant(candidate.Ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		s.recordForeignEffect(candidate.Ref, original, storage.RowVersion{})
 	}
+	s.captureLogicalRow(candidate.Ref, original, storage.RowVersion{})
 	s.projectExclusionDeletionLocked(e, candidate)
 	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{Resource: s.admittedTuple(candidate.Ref, original), Version: original.Version}, Mode: lock.MultiUpdateAction})
 	e.initializeTemporaryBuffersLocked(s, candidate.Ref)

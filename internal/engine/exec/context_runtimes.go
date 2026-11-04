@@ -306,12 +306,12 @@ func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname st
 	return host.Contrib().GenericFileList(kind, dirname)
 }
 
-func (c *Context) LogicalDecoding(slot, options sqltype.Value) error {
+func (c *Context) LogicalDecoding(request functions.LogicalDecodingRequest) ([]functions.LogicalDecodingRow, error) {
 	host := c.LiveHost()
 	if host == nil {
-		return fmt.Errorf("stuntgres: missing logical decoding host")
+		return nil, fmt.Errorf("stuntgres: missing logical decoding host")
 	}
-	return host.LogicalDecoding(slot, options)
+	return host.LogicalDecoding(request)
 }
 
 func (c *Context) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
@@ -1255,12 +1255,12 @@ func (c *Context) HeadlineTextSearch(explicit bool, configuration, document, que
 	return host.TextSearch().HeadlineTextSearch(c.Context, explicit, configuration, document, query, options, result)
 }
 
-func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {
+func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {
-		return fmt.Errorf("stuntgres: missing replication slot host")
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing replication slot host")
 	}
-	return host.ReplicationSlot(kind, arity, values)
+	return host.ReplicationSlot(kind, arity, values, result)
 }
 
 func (c *Context) SyncReplicationSlots() error {

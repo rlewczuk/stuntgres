@@ -259,6 +259,7 @@ Re-run the census and `closure` before planning a move set; the sizes in §1 and
 | L1 | `engine/proc` | SQL routine definitions, PL/pgSQL programs, the statement walk and invocation frames |
 | L1 | `engine/host` | immutable application-provisioned scalar routine contracts and executable tokens |
 | L1 | `engine/replication` | pure replication slot and plugin argument validation |
+| L1 | `engine/logical` | the logical change stream: change and record types, per-database history, positions, output-plugin interfaces and the pure decode loop |
 | L1 | `engine/statistics` | cumulative statistics facts, the per-session writer and its ledger |
 | L2 | `engine/expr` | the expression contract and node protocol |
 | L2 | `engine/lock` | the heavyweight lock manager, with its own innermost mutex |

@@ -143,13 +143,28 @@ func (LogicalDecoding) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: logical decoding set used as scalar")
 }
 
-// LogicalDecodingRuntime is the used execution-authority bridge, not a slot or
-// decoder provider. Every demanded call reaches it after evaluating operands.
-type LogicalDecodingRuntime interface { LogicalDecoding(sqltype.Value, sqltype.Value) error }
+// LogicalDecodingRequest is one demanded get/peek call: its evaluated operands
+// in formal order and the function identity.
+type LogicalDecodingRequest struct {
+	Slot, UptoLSN, UptoChanges, Options sqltype.Value
+	Peek, Binary bool
+	Function string // format_procedure spelling for diagnostics.
+}
+
+// LogicalDecodingRow is one decoded output row.
+type LogicalDecodingRow struct {
+	LSN  uint64
+	XID  uint32
+	Data []byte
+}
+
+// LogicalDecodingRuntime decodes from live slot state. Every demanded call
+// reaches it after evaluating operands; the rows are materialized.
+type LogicalDecodingRuntime interface { LogicalDecoding(LogicalDecodingRequest) ([]LogicalDecodingRow, error) }
 
 func (n LogicalDecoding) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if _, err := evaluationContext(ctx); err != nil { return expr.SourceCursor{}, err }
-	var slot sqltype.Value
+	request := LogicalDecodingRequest{Peek: n.Kind >= 2, Binary: n.Kind%2 == 1, Function: logicalDecodingNames[n.Kind] + "(name,pg_lsn,integer,text[])"}
 	options := n.EmptyOptions
 	var expanded []sqltype.Value
 	if !n.Variadic && len(n.Args) > 3 { expanded = make([]sqltype.Value, len(n.Args)-3) }
@@ -158,7 +173,9 @@ func (n LogicalDecoding) OpenSource(ctx expr.Context) (expr.SourceCursor, error)
 		value, err := arg.Eval(ctx)
 		if err != nil { return expr.SourceCursor{}, err }
 		switch n.Slots[i] {
-		case 0: slot = value
+		case 0: request.Slot = value
+		case 1: request.UptoLSN = value
+		case 2: request.UptoChanges = value
 		case 3:
 			if n.Variadic { options = value } else { expanded[at] = value; at++ }
 		}
@@ -168,9 +185,32 @@ func (n LogicalDecoding) OpenSource(ctx expr.Context) (expr.SourceCursor, error)
 		options, err = sqltype.OwnedArrayValue(n.EmptyOptions.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(expanded))}}, expanded)
 		if err != nil { return expr.SourceCursor{}, err }
 	}
+	request.Options = options
 	runtime, ok := ctx.(LogicalDecodingRuntime)
 	if !ok { return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing logical decoding runtime") }
-	return expr.SourceCursor{}, runtime.LogicalDecoding(slot, options)
+	rows, err := runtime.LogicalDecoding(request)
+	if err != nil { return expr.SourceCursor{}, err }
+	return n.decodedSource(rows)
+}
+
+// decodedSource materializes rows as (lsn pg_lsn, xid xid, data text|bytea).
+func (n LogicalDecoding) decodedSource(rows []LogicalDecodingRow) (expr.SourceCursor, error) {
+	d := n.Usage.Type
+	values := make([]sqltype.Value, len(rows))
+	for i, row := range rows {
+		lsn, err := sqltype.PGLSNValue(d.CompositeMember(0).Usage.Type, row.LSN)
+		if err != nil { return expr.SourceCursor{}, err }
+		xid, err := sqltype.XIDValue(d.CompositeMember(1).Usage.Type, row.XID)
+		if err != nil { return expr.SourceCursor{}, err }
+		var data sqltype.Value
+		if n.Kind%2 == 1 {
+			if data, err = sqltype.Binary(d.CompositeMember(2).Usage.Type, string(row.Data)); err != nil { return expr.SourceCursor{}, err }
+		} else {
+			data = sqltype.String(d.CompositeMember(2).Usage.Type, string(row.Data))
+		}
+		if values[i], err = sqltype.OwnedCompositeValue(d, []sqltype.Value{lsn, xid, data}); err != nil { return expr.SourceCursor{}, err }
+	}
+	return expr.OwnedSource(d, values), nil
 }
 
 // CheckLogicalDecodingOptions applies pure checks after live replication

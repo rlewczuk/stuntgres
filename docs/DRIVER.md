@@ -15,7 +15,9 @@ later catalog replacement. Typed NULL operands still carry logical identity.
 - `stuntgres.NewDriver()` returns a Driver that owns independent in-memory
   clusters. `NewDriverWithConfig(DriverConfig{TrackCommitTimestamp: true})` fixes
   startup settings for every database on that Driver (the zero value leaves commit
-  timestamps off; `SET track_commit_timestamp` fails with 55P02).
+  timestamps off; `SET track_commit_timestamp` fails with 55P02). `LogicalWAL: true`
+  starts every cluster with `wal_level=logical` (source `command line`, boot value
+  `replica`), which logical replication slots require.
 - `d.OpenConnector(name)` opens a cluster's default database by an **exact opaque
   key** (not a connection string). Identical keys on one Driver share the cluster;
   different keys or Drivers are isolated. Clusters live as long as the Driver,
@@ -482,11 +484,11 @@ INSTEAD OF trigger/rule Hint, even with WHERE FALSE. TRUNCATE rejects with 42809
 `pg_catalog.pg_replication_slots` exposes the released 21 nullable typed fields,
 including NAME slot/plugin/database identities, OID database identity, XID
 horizons, PG_LSN retention/confirmation positions and TIMESTAMPTZ inactivity.
-Empty direct and prepared results preserve the full descriptors. Native create
-commands reject unavailable WAL/decoding machinery before publishing state, so
-the inventory is genuinely empty, not a NULL row or synthetic progress report.
-Dump/Reset/Restore preserve user-view recipes and edited metadata ACLs without
-creating slots or claiming replication transport.
+Empty direct and prepared results preserve the full descriptors. Rows are the
+cluster's actual logical slots (see [Logical replication slots](#logical-replication-slots-and-decoding))
+in creation order, including a slot still waiting for its consistent point
+(NULL `confirmed_flush_lsn`); no physical slot exists. Dump/Reset/Restore
+preserve user-view recipes and edited metadata ACLs; Dump never carries slots.
 
 PUBLIC SELECT exposes metadata without creator/database/monitor-role filtering.
 Current view/column SELECT and backing `pg_get_replication_slots` EXECUTE remain
@@ -503,11 +505,12 @@ path) is read-only with ten nullable columns: `slot_name text`, `spill_txns`,
 `total_txns`, `total_bytes` (all bigint), and `stats_reset timestamptz`.
 Empty results retain these descriptors, including held prepared executions.
 
-Rows require actual logical slots; physical slots and orphan statistics facts
-are not inventory. Native slot creation rejects before publishing inventory, so
-the view is empty, including after rejected starts or statistics resets. Reading
-or preparing it neither changes provider facts nor initializes cumulative
-statistics snapshots. There are no synthetic workers, progress rows or identities.
+Each actual logical slot has one row from its creation; physical slots and
+orphan statistics facts are not inventory. Decoding counters are not collected
+and read zero. `pg_stat_reset_replication_slot(name)` sets `stats_reset` of an
+existing slot (22023 for an absent one); NULL resets every slot. Reading or
+preparing the view neither changes provider facts nor initializes cumulative
+statistics snapshots.
 
 PUBLIC SELECT uses current ordinary relation/column ACLs, without role-dependent
 field masking. INSERT/UPDATE/DELETE, including zero-match mutations, reject with
@@ -2318,8 +2321,9 @@ These are explicit setting-only physical simulations, not durability,
 replication acknowledgements, commit delays, WAL generation/compression,
 checkpoints, flushes, archive commands/libraries, restore/recovery or summary
 workers. Logical data, constraints, transactions and ACLs remain active.
-External startup relationships (archive command versus library, WAL level and
-mutually exclusive recovery targets) do not establish a native startup API.
+External startup relationships (archive command versus library and mutually
+exclusive recovery targets) do not establish a native startup API; `wal_level`
+starts as `logical` only through `DriverConfig.LogicalWAL`.
 
 `CHECKPOINT` accepts no operands or options. Preparation has no physical effect
 and defers authority checks to execution: the effective current user must be a
@@ -2369,28 +2373,64 @@ fixture independently runs PostgreSQL 18.6 (180006); its vendor banner is not
 native identity. Logical Reset/Dump/Restore neither serialize nor reset live
 preset values, and restoring tables cannot allocate their simulated resources.
 
-## Replication-slot lifecycle boundary
+## Logical replication slots and decoding
 
 The six create/drop/copy/advance families expose all nine PostgreSQL declarations
 through ordinary typed SQL, including create defaults, copy overloads, NAME/PG_LSN
 record fields and VOID drop results. Strict NULLs bypass internal replication
 checks but not ordinary EXECUTE admission; FROM returns one NULL-fields row.
 Non-NULL calls require the current effective actor's own superuser or REPLICATION
-attribute, not inherited role membership. Creation validates NAME-converted slot
-names; logical creation additionally checks temporary/failover and the current,
-exact `output_plugin_libraries` list.
+attribute, not inherited role membership. Physical creation rejects unavailable
+WAL reservation with 0A000, so no physical slot exists.
 
-Embedded physical creation rejects unavailable replication-slot/WAL-reservation
-machinery with 0A000; logical creation rejects unavailable real decoding/WAL
-providers with 0A000. Even an unreserved or temporary request creates no slot,
-ownership record or LSN. Consequently drop and copy report missing slots (42704),
-with source lookup before destination/plugin checks. Advance rejects zero target
-(22023), otherwise reports missing slots; it never invents current WAL bounds.
-PostgreSQL instead creates real backend-owned temporary or persistent slots,
-copies actual source positions/options and advances against real WAL. Those
-effects and temporary-session cleanup are reference-only mechanism witnesses,
-not native simulated success. Logical Dump/Reset/Restore retains typed view
-recipes and routine privileges, never physical slots or replication positions.
+Logical slots require `wal_level=logical` (`DriverConfig.LogicalWAL`); otherwise
+create, copy and get/peek fail with 55000. Output plugins are embedded providers
+of the engine composition; no shared library is loaded, and a name allowed by the
+exact `output_plugin_libraries` list without a provider fails as a missing library
+(58P01). Creation checks, in order, the name, temporary/failover, duplicates
+(42710), `max_replication_slots` (53400), a transaction holding an XID (25001), the
+allow-list (42501) and the plugin, then waits, cancellably and under
+`lock_timeout`, for every transaction of the cluster holding an XID, prepared ones
+included. Those transactions are never decoded; the returned position is the
+slot's `confirmed_flush_lsn`. A failed or cancelled creation or copy leaves no
+slot. Slot changes are not transactional: ROLLBACK does not undo them.
+
+A slot decodes the committed changes of its own database's permanent user
+tables: INSERT, UPDATE and DELETE from every route (prepared statements, COPY,
+MERGE, conflict handling, triggers, rules, cascades, partition moves as DELETE
+plus INSERT, CREATE TABLE AS rows), and TRUNCATE once with its logged relations
+and CASCADE/RESTART IDENTITY. Temporary, unlogged, catalog and foreign relations
+are not decoded; a transaction with only catalog writes decodes as an empty
+transaction. Rolled-back statements, savepoints and exception blocks leave no
+changes. Old values follow the replica identity at the change; relation, column
+and type names are those of the change's time. Positions are `pg_lsn` values of
+one cluster-wide stream in commit order, not physical WAL (`pg_current_wal_lsn`
+stays 0A000).
+
+Get and peek follow PostgreSQL: limits are checked after each record, so a
+transaction is never split; NULL limits and a zero `upto_nchanges` are unlimited;
+rows are materialized, so LIMIT or an early close still consumes. Get confirms
+the reached position, never backward; peek leaves it. A decoder holds its slot:
+other get, peek, advance and drop calls fail with 55006 (`replication slot "%s"
+is active for PID %d`); copy reads the source without acquiring it and creates a
+non-two-phase, non-failover slot at the source's positions. A slot of another
+database fails get/peek with 55000 but may be dropped. Advance clamps to the
+stream end and rejects positions before the confirmed one (55000). Two-phase
+slots decode prepared transactions at PREPARE and report COMMIT/ROLLBACK
+PREPARED separately; other slots decode them at COMMIT PREPARED. A plugin asking
+for table rewrite changes, or for streaming when a transaction would be streamed
+(`logical_decoding_work_mem`, `debug_logical_replication_streaming=immediate`),
+fails with 0A000.
+
+Temporary slots belong to their session: active for it and busy for others,
+dropped when it ends and at any top-level error (an error caught inside the
+session's own PL/pgSQL exception block is not one). Persistent slots outlive
+connection pools within the Driver cluster; nothing survives process exit. A
+database keeps only the history some slot of its cluster has yet to confirm.
+
+Dump never serializes slots or positions. Reset and Restore replace a database's
+contents, so they drop that database's slots and history atomically; an active
+slot (decoding, or temporary) makes them fail with 55006 and nothing changes.
 
 ## Logical WAL messages and slot synchronization boundary
 

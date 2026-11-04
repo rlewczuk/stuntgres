@@ -28,9 +28,11 @@ import (
 type Error = sqlstate.Error
 
 // DriverConfig fixes engine startup settings for every database on a Driver.
-// The zero value leaves commit timestamp tracking disabled.
+// The zero value leaves commit timestamp tracking disabled and starts with
+// wal_level=replica; LogicalWAL starts every cluster with wal_level=logical.
 type DriverConfig struct {
 	TrackCommitTimestamp bool
+	LogicalWAL           bool
 }
 
 // Driver owns independent clusters keyed by exact, opaque DSN strings.
@@ -89,7 +91,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 		if err != nil {
 			return nil, err
 		}
-		e = engine.NewWithSettings(d.settings, name, d.config.TrackCommitTimestamp)
+		e = engine.NewWithStartup(d.settings, name, core.Startup{TrackCommitTimestamp: d.config.TrackCommitTimestamp, LogicalWAL: d.config.LogicalWAL})
 		if err := e.InstallForeignDefinitions(wrappers, d.foreignValidators, importParameter, exportValue); err != nil {
 			return nil, err
 		}

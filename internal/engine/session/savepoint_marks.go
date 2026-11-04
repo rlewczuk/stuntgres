@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
@@ -41,6 +42,7 @@ type SavepointMark struct {
 	Sepgsql             SepgsqlMark
 	NotificationActions []NotificationAction
 	NotificationEvents  []Notification
+	LogicalChanges      []logical.Change
 }
 
 type SettingsMark struct {
@@ -160,6 +162,7 @@ func (t *TransactionOwner) CaptureSavepoint(mark SavepointMark) SavepointMark {
 	mark.Isolation, mark.ReadOnly, mark.Deferrable = t.Isolation, t.ReadOnly, t.Deferrable
 	mark.NotificationActions = t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)]
 	mark.NotificationEvents = t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]
+	mark.LogicalChanges = t.LogicalChanges[:len(t.LogicalChanges):len(t.LogicalChanges)]
 	return mark
 }
 
@@ -185,6 +188,7 @@ func (t *TransactionOwner) RollbackToLocked(mark SavepointMark, settings Setting
 	}
 	t.Stats = mark.Stats.Clone()
 	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
+	t.LogicalChanges = mark.LogicalChanges
 	if mark.Invocation != nil {
 		mark.Invocation.Restore()
 		return

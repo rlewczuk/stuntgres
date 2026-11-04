@@ -262,6 +262,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			if relevant {
 				s.recordForeignEffect(ref, next.PrivateHistory.Version, next)
 			}
+			s.captureLogicalRow(ref, old[i], next)
 		}
 		e.initializeTemporaryBuffersLocked(s, ref)
 		s.recordStatsTuple(ref, 0, int64(len(versions)), 0, statsWriteStart.counts)
@@ -396,6 +397,9 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 			s.recordForeignEffect(ref, storage.RowVersion{}, next)
 		}
 	}
+	for _, next := range versions {
+		s.captureLogicalRow(ref, storage.RowVersion{}, next)
+	}
 	e.initializeTemporaryBuffersLocked(s, ref)
 	s.recordStatsTuple(ref, int64(len(versions)), 0, 0, statsWriteStart.counts)
 	s.finishDatabaseWrite(statsWriteStart)
@@ -485,6 +489,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if s.foreignEffectRelevant(ref, catalog) {
 		s.recordForeignEffect(ref, storage.RowVersion{}, version)
 	}
+	s.captureLogicalRow(ref, storage.RowVersion{}, version)
 	e.initializeTemporaryBuffersLocked(s, ref)
 	s.recordStatsTuple(ref, 1, 0, 0, statsWriteStart.counts)
 	s.finishDatabaseWrite(statsWriteStart)

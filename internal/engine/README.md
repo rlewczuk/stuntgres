@@ -23,11 +23,12 @@ for everything else.
 
 ## Composition
 
-`newEngine` (`composition.go`, behind `New`, `NewWithSettings` and
-`NewWithCatalogProviders`) seeds the state with `core.NewEngine` and then sets
+`newEngine` (`composition.go`, behind `New`, `NewWithSettings`, `NewWithStartup`
+and `NewWithCatalogProviders`) seeds the state with `core.NewEngine` and then sets
 `Engine.Statements` to `familyStatements` (`statements_dispatch.go`), which
 implements `Execute` and `ExecuteLocked` in the historical case order, and
-`Engine.Factory` to `newSettingsEngine`. `NewWithCatalogProviders` registers
+`Engine.Factory` to a constructor retaining the immutable `core.Startup`
+(logical WAL and output plugins) for template seeds and Restore stages. `NewWithCatalogProviders` registers
 feature-owned catalog providers before the builtin namespace descriptors.
 `Reset(ctx, e)`, `Dump(ctx, e, dst)` and `Restore(ctx, e, src)` (`control.go`)
 are composition functions over a `*core.Engine`; `Reset` and `Restore`

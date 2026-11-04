@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -91,6 +92,8 @@ type TransactionOwner struct {
 	NotificationEvents  []Notification
 	Extension           OwnerSlot // Root extension; see ownerExtensionOf.
 	SavepointSerial     uint64    // Advanced by every SAVEPOINT, never reset; names foreign savepoints.
+	// LogicalChanges are the successful statements' captured changes, in order.
+	LogicalChanges []logical.Change
 }
 
 func (s *Session) TransactionState() TxState {

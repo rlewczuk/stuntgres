@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
@@ -132,6 +133,7 @@ type CatalogStage struct {
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
 	initialTables     map[ids.ObjectAddress]*storage.Relation
+	logicalChanges    []logical.Change // CREATE TABLE AS rows captured with initialTables.
 	InitialTx         ids.TxRef
 	QuerySources      []catalog.Descriptor
 	definitionSources []catalog.Descriptor // Checked routine/operator definition inputs.
@@ -687,6 +689,10 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 	}
 	s := p.stage
 	changes := catalogStageChanges(s)
+	logicalChanges := logicalEffects(op, nil, scope)
+	if len(s.logicalChanges) != 0 {
+		logicalChanges = append(logicalChanges[:len(logicalChanges):len(logicalChanges)], s.logicalChanges...)
+	}
 	for {
 		e.Mu.Lock()
 		if s.Lifecycle != catalogValidated {
@@ -1066,7 +1072,8 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				if op != nil {
 					actor = op.Session
 				}
-				e.recordOriginCommitLocked(commitRef, actor)
+				commit, _ := e.recordOriginCommitLocked(commitRef, actor)
+				e.appendLogicalCommitLocked(commit, logicalChanges, true)
 			}
 			s.Lifecycle = catalogPublished
 			s.dictionaryInitializationOwned = false
@@ -1317,6 +1324,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		if err := e.validateReplacementReplicationOriginsLocked(next); err != nil {
 			return ChangeSet{}, err
 		}
+		if err := e.checkReplacementSlotsLocked(); err != nil {
+			return ChangeSet{}, err
+		}
 		progress, err := e.prepareReplacementOriginProgressLocked(next, originProgress)
 		if err != nil {
 			return ChangeSet{}, err
@@ -1424,6 +1434,9 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if err := e.validateReplacementReplicationOriginsLocked(next); err != nil {
 		return err
 	}
+	if err := e.checkReplacementSlotsLocked(); err != nil {
+		return err
+	}
 	metadata, err := e.prepareRetainedRelationMetadataLocked(ctx, next, relations)
 	if err != nil {
 		return err
@@ -1467,6 +1480,9 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if err := e.validateReplacementReplicationOriginsLocked(next); err != nil {
 		return err
 	}
+	if err := e.checkReplacementSlotsLocked(); err != nil {
+		return err
+	}
 	progress, err := e.prepareReplacementOriginProgressLocked(next, originProgress)
 	if err != nil {
 		return err
@@ -1499,6 +1515,7 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID, progress map[ids.OID]uint64) {
 	sharedRoots := e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 	e.invalidateReplacedOriginSessionsLocked()
+	e.dropReplacedSlotsLocked()
 	e.replaceStatsLocked(next, relations)
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)

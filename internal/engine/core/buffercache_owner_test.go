@@ -6,7 +6,7 @@ import (
 )
 
 func TestPgBuffercachePrivateOwnerBoundary(t *testing.T) {
-	e, err := NewEngine(nil, nil, "buffer_owner", false)
+	e, err := NewEngine(nil, nil, "buffer_owner", Startup{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -71,7 +71,7 @@ dependencies before restoring the oracle's originals.
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
-`fixture.WithLogicalWAL()` for the package-owned oracle. The logical-decoding
+`fixture.WithLogicalWAL()`, starting both backends with `wal_level=logical`. The logical-decoding
 family uses `make check RUN='^TestReferenceLogicalDecoding'` for signatures,
 typed metadata, options, diagnostics, live authority and unchanged-state witnesses.
 The replication-slot lifecycle family uses
@@ -81,12 +81,15 @@ authority, prepared/control ownership and temporary-slot lifecycle. Real-slot
 effects use independently asserted PostgreSQL branches with bounded cleanup,
 source/create and copy catalog positions, option resets, and dynamic flush/insert
 bounds for beyond-current physical advancement. Raw plugin lists preserve literal
-embedded quotes in unquoted elements while rejecting malformed quoted suffixes;
-native creates reject unavailable machinery and never publish slot state.
+embedded quotes in unquoted elements while rejecting malformed quoted suffixes.
+Native logical creation naming a stock plugin fails as a missing library (no
+native output plugin provides it) and publishes no slot; plugin and transaction
+admission (`RUN='^TestReferenceReplicationSlotPluginAdmission$'`) agree in both
+modes. Positive native slot behavior is covered by `TestLogicalStream` engine tests.
 Logical-slot monitoring lifecycle uses `RUN='^TestReferencePGStatReplicationSlots'`
 in both modes: genuine logical inclusion, physical exclusion, unredacted reader
-fields and held prepared disappearance after drop; native rejected creation
-leaves the inventory empty.
+fields and held prepared disappearance after drop; native failed creation leaves
+the inventory empty.
 Slot inventory lifecycle and feature composition use
 `RUN='^TestReferencePGReplicationSlots'` in both modes. Full metadata is public,
 without creator/database/statistics-role redaction; temporary active PID denotes

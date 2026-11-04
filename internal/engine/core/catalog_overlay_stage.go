@@ -83,6 +83,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		for a, store := range stage.initialTables {
 			scope.Stage.Rows[a] = store.Versions
 		}
+		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)
 	}
 	if err = e.prepareCatalogOverlayIndexes(scope, stage, changes); err != nil {
 		return err

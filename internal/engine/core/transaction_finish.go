@@ -27,6 +27,11 @@ func (s *StatementScope) Finish(err error) (result error) {
 		return s.result
 	}
 	defer func() { s.finishStatementStats(result == nil) }()
+	defer func() {
+		if result != nil && s.topLevel {
+			s.releaseSlotsAfterError()
+		}
+	}()
 	if f := s.statementStats; f != nil {
 		f.finishStart = time.Now()
 	}
@@ -57,6 +62,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 		s.Stage.DiscardedHeaps = nil
 		s.OwnWrites, s.OwnDeletes = nil, nil
 		s.notificationActions, s.notificationEvents = nil, nil
+		s.logicalChanges = nil
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0
 		s.exportCapture = nil
@@ -260,6 +266,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 	s.Stage.Stats = nil
 	s.notificationActions = nil
 	s.notificationEvents = nil
+	s.logicalChanges = nil
 	s.multiEvents = nil
 	s.tupleAdmissions = nil
 	s.OwnDeletes = nil
@@ -402,6 +409,7 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.Replacing)
 		}
 		notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
+		logicalChanges := t.MergeLogicalChanges(s.logicalChanges)
 		session := s.Op.Session
 		e.Mu.Lock()
 		err = s.validateInheritanceRelationshipsLocked(e)
@@ -447,6 +455,7 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			t.Stats.Take(&s.Stage.Stats)
 			t.NotificationActions = notificationActions
 			t.NotificationEvents = notificationEvents
+			t.LogicalChanges = logicalChanges
 			if s.IndexesOrZero().ConstraintsStarted {
 				ownerExtensionOf(t).constraintModes = s.IndexesOrZero().ConstraintModes
 			}
@@ -458,6 +467,7 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			s.Stage.Replacing, s.ProjectedRoots = false, false
 			s.OwnWrites, s.OwnDeletes = t.Writes, t.Deletes
 			s.notificationActions, s.notificationEvents = nil, nil
+			s.logicalChanges = nil
 		}
 		session.Mu.Unlock()
 		e.Mu.Unlock()

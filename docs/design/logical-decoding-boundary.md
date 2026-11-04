@@ -1,87 +1,78 @@
-# Logical decoding: current-catalog boundary
+# Logical decoding: native change stream and logical slots
 
 ## Decision
 
-User authorization, verbatim: **`Authorize current-catalog boundary`**.
+The native engine has a real logical change stream and real logical replication
+slots (catalog part `PG18-ADMIN-LOGICAL-STREAM`, which owns the logical-slot
+contracts of `PG18-ADMIN-LOGICAL-DECODING` and
+`PG18-ADMIN-REPLICATION-SLOT-LIFECYCLE`). Output plugins are embedded Go providers supplied
+at engine composition; this foundation registers none, and `test_decoding`
+belongs to `PG18-EXT-TEST-DECODING`. Streaming of in-progress transactions and
+table rewrite changes are not produced: a plugin that needs either fails with
+0A000 rather than receiving different output.
 
-The four logical-slot get/peek functions expose the released PostgreSQL identities,
-formal arguments, defaults and typed results. The native engine has no replication
-slots. Consequently every otherwise valid demanded request ends with truthful
-`42704`, `replication slot "NAME" does not exist`. No slot is invented to make a
-physical-decoding rejection reachable, and no empty successful stream stands in
-for decoding.
+The observable SQL contract is in [DRIVER.md](../DRIVER.md#logical-replication-slots-and-decoding).
+PostgreSQL 18.6 sources (`REL_18_6`) are the authority for ordering and edge
+cases: `logicalfuncs.c` (`pg_logical_slot_get_changes_guts`), `slotfuncs.c`
+(create, copy, advance, drop), `slot.c` (`ReplicationSlotCreate`,
+`ReplicationSlotAcquire`), `logical.c` (`CheckLogicalDecodingRequirements`,
+`CreateInitDecodingContext`, `StartupDecodingContext`,
+`LogicalConfirmReceivedLocation`), `decode.c`, `reorderbuffer.c` and
+`postgres.c` error recovery (`ReplicationSlotCleanup`).
 
-`ALTER TABLE ... REPLICA IDENTITY` configures actual row-identity catalog state:
-the parent mode and selected real index bit. It does not create slots, generate
-WAL, load output plugins, publish changes or deliver network replication.
+## Ownership
 
-This is an explicitly authorized interpretation of the physical-boundary
-requirement: a **physical-decoding `0A000` witness is publicly unreachable without
-real slots**. There is no unused decoder/provider interface or unreachable
-unsupported branch. Option-validation `0A000` errors are observable but are **not**
-proof of rejection by a physical decoder. Future real-slot support must separately
-resolve genuine decoder admission and physical rejection after successful lookup.
+| Owner | Responsibility |
+|---|---|
+| `internal/engine/logical` | Change, relation-snapshot and record types; per-database `History`; the position `Allocator`; the plugin interfaces; the pure `Decode` loop. No lock. |
+| `core` capture (`logical_capture.go`) | Ordered changes at the four staging windows and TRUNCATE; CREATE TABLE AS rows on the catalog stage. |
+| `session.TransactionOwner` | Merged successful statements' changes; savepoint marks keep clipped copies; prepared entries carry them. |
+| `core` history (`logical_history.go`) | Commit, prepare and prepared-finish records at the publishers' callback-free installation points. |
+| `core` slots (`logical_slots.go`, `replication_slot_runtime.go`, `logical_decoding_runtime.go`) | Cluster-wide registry, holder sessions, creation wait, get/peek/advance/copy/drop, session and error cleanup, catalog replacement. |
 
-## Observable contract and ownership
+`DatabaseCluster.Mu` (every `Engine.Mu`) guards slots, history and positions.
+Plugin callbacks and the creation wait run with no engine lock; a held slot is
+released under the lock on every exit path. Capture runs only while the cluster
+has a slot (WAL is cluster-wide, so a copy made in another database finds that
+database's history), and slots exist only with `wal_level=logical`, so the
+default configuration pays nothing.
 
-Each identity accepts `(slot_name name, upto_lsn pg_lsn, upto_nchanges integer,
-VARIADIC options text[] DEFAULT '{}')`, returning SETOF record with `lsn pg_lsn`,
-`xid xid`, and `data text` or `data bytea`. Positional three-argument calls use the
-empty-options default; expanded text arguments and explicit VARIADIC arrays use
-the same identity. PostgreSQL 18.6 does not resolve named calls with omitted
-variadic options: named success requires an explicit VARIADIC options array.
+## Stream model
 
-The non-strict typed source retains immutable operands in written order, their
-formal mapping and result descriptor. All supplied operands, including NULL or
-finite limits, evaluate once in that order before the live runtime bridge. Ordinary
-routine EXECUTE admission remains separate from replication authorization. Metadata
-and LIMIT 0 do not demand a source; their absence of rows is not decoding success.
+Every record (a captured change, a commit, a prepare, a prepared finish) takes
+one fixed span from the cluster allocator, so record boundaries follow from a
+position. Changes take their position when captured, in the statement's write
+order; failed or rolled-back changes leave gaps, as aborted WAL does. Changes
+follow NOTIFY events exactly: they merge into the owner on statement success,
+savepoints and PL/pgSQL exception blocks restore clipped copies, and failure or
+abort discards them. A commit appends one record holding the transaction's XID,
+timestamp, origin and changes; a transaction with catalog writes but no changes
+records an empty transaction, while one with neither (an XID only, temporary or
+unlogged writes) records nothing. PREPARE records its content on the prepared
+entry; COMMIT and ROLLBACK PREPARED reference it. Relation snapshots (schema,
+names, columns, types, replica identity key) are taken at capture, which gives
+PostgreSQL's historic-catalog results.
 
-After normal operand evaluation and routine admission, checks are:
+`Decode` mirrors the get/peek loop over an immutable history snapshot: it reads
+from the restart position to the frontier taken at call start and checks the
+limits after each record; a transaction is emitted when its record starts at or
+after `confirmed_flush`. Commit-ordered whole-transaction replay gives
+PostgreSQL's ordinary output; two-phase slots replay at PREPARE. Get confirms the
+end of the last processed record; peek does not.
 
-1. Executing current role is superuser or has its own REPLICATION attribute;
-   inherited membership alone does not suffice (`42501`, including Detail).
-2. Slot name is not NULL (`22004`).
-3. Options array is not NULL (`22004`).
-4. Options rank is at most one (`0A000`).
-5. No options element is NULL (`0A000`).
-6. Options contain an even number of elements (`0A000`).
-7. Slot is absent (`42704`). Decoded NAME coercion/truncation is reused; lookup
-   does not impose slot-creation naming rules.
+## Slots and lifecycle
 
-The statement host borrows live role authority under the engine lock; validation
-then uses immutable values without external I/O. The bridge is used by every
-demanded call, not a hypothetical successful slot provider. Empty/even options,
-nonstandard array lower bounds, duplicate/empty/unknown keys and all integer count
-values pass pure validation. Plugin-specific key policy is not invented.
+A new slot is published at once as in progress (capture starts and the name is
+taken), then starts its plugin, waits for every XID-holding transaction of the
+cluster and takes the stream end as its consistent point. A transaction without
+an XID at that moment is captured from its first write, so it is decoded whole
+when it commits after the consistent point and skipped when it commits before.
+A temporary slot stays held by its session; any top-level statement error and
+session end drop it.
 
-There is no mutable feature state, cursor, advancement counter or serializer.
-Get and peek failures preserve existing table/role/catalog state; installed builtin
-metadata uses the existing declaration/default owners and native replay machinery.
-
-## Stock semantics and unavailable physical work
-
-[PostgreSQL 18 Table 9.101](https://www.postgresql.org/docs/18/functions-admin.html#FUNCTIONS-REPLICATION-TABLE)
-and [logical decoding examples](https://www.postgresql.org/docs/18/logicaldecoding-example.html)
-define actual decoding behavior: get consumes changes; peek does not. NULL limits
-are unrestricted. The LSN boundary concerns transactions committed before that
-LSN; the count limit is checked after a transaction and can be exceeded by its
-changes. Failover slots wait for synchronized physical standbys. These are stock
-semantics, not operations performed by the native missing-slot path.
-
-Physical WAL generation/replay, durable slot positions, output-plugin execution
-and standby synchronization are unavailable here. No arbitrary plugin executable
-is loaded, and no LSN, XID, decoded row, wait or consumption is fabricated.
-
-The oracle needs `wal_level=logical` and positive `max_replication_slots`; stock
-configuration errors otherwise precede NULL/options/lookup. The package fixture
-sets logical WAL on its unchanged pinned PostgreSQL 18.6 image. Native code does
-not invent corresponding physical settings.
-
-Source precedence follows
-[logicalfuncs.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/replication/logical/logicalfuncs.c),
-[slot.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/replication/slot.c),
-and [logical.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/replication/logical/logical.c).
-Initialized empty-options defaults are installed by
-[system_functions.sql](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/catalog/system_functions.sql),
-not solely pg_proc.dat.
+Every database's history is trimmed to the lowest confirmed position of the
+cluster's slots and cleared when there are none. Two-phase slots replay a
+transaction whose PREPARE preceded `two_phase_at` whole at COMMIT PREPARED, as
+`ReorderBufferFinishPrepared` does. Catalog replacement (Reset, Restore) drops the
+database's slots and history, since the replacement's history is unrelated; a
+held slot refuses it (55006). Dump carries neither slots nor positions.

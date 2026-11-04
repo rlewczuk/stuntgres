@@ -66,6 +66,7 @@ func (s *StatementScope) NextStatement() (*StatementScope, error) {
 		return nil, err
 	}
 	next := s.Engine().newStatementScope(s.Op, s.Owner, s.statementStart)
+	next.topLevel = true
 	next.message = true
 	if s.protocolOrZero().simple {
 		next.protocol().simple = true
@@ -102,6 +103,10 @@ func (s *StatementScope) FinishMessage(err error) error {
 		if err == nil {
 			err = endErr
 		}
+	}
+	if err != nil {
+		// The message's own commit can fail after its last statement finished.
+		s.releaseSlotsAfterError()
 	}
 	t.Mu.Lock()
 	t.RetainedMessage = false

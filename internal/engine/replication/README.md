@@ -8,9 +8,9 @@ without identifier folding, clipping or accepting a match before malformed synta
 Only an initial double quote starts quoted-element grammar; embedded quotes in
 unquoted elements are literal bytes.
 
-This package owns no catalog, session, locks, provider, slot registry, WAL source
-or plugin loader. Core owns live authorization/settings and the explicit embedded
-physical-mechanism boundary; no successful lifecycle effects are simulated.
+This package owns no catalog, session, locks, provider, slot registry or stream.
+Core owns live authorization, settings and the slot registry; `engine/logical`
+owns the change stream and the output-plugin seam.
 
 ## Testing
 

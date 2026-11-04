@@ -75,14 +75,16 @@ func walNames() string {
 	return strings.Join(names,",")
 }
 // The pinned fixture starts PostgreSQL with fsync=off. Its released boot value
-// remains on; native initialization is deliberately unchanged.
+// remains on; native initialization is deliberately unchanged. This package's
+// fixture starts both backends with wal_level=logical (WithLogicalWAL).
 func walProfile(d walExpectation, pg bool) walExpectation {
 	if pg && d.name == "fsync" { d.raw,d.show = "off","off" }
+	if d.name == "wal_level" { d.raw,d.show = "logical","logical" }
 	return d
 }
 func walReset(d walExpectation) string { if d.name == "archive_command" { return "" }; return d.raw }
 func walSource(d walExpectation, pg bool) string {
-	if pg && d.name == "fsync" { return "command line" }
+	if pg && d.name == "fsync" || d.name == "wal_level" { return "command line" }
 	if pg && (d.name == "max_wal_size" || d.name == "min_wal_size") { return "configuration file" }
 	return "default"
 }

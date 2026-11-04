@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -78,6 +79,9 @@ type StatementScope struct {
 	alterNames                      map[ids.NameKey]ids.ObjectRef // Phased ALTER claims acquired only at Finish.
 	notificationActions             []session.NotificationAction
 	notificationEvents              []session.Notification
+	logicalChanges                  []logical.Change // Captured in write order; follows notificationEvents.
+	logicalRelations                logicalRelationCache
+	topLevel                        bool // Admitted client statement: its error is PostgreSQL's top-level ERROR.
 	View                            *visibility.View
 	Finished                        bool
 	copyProgress                    *copyProgress // Finish-owned COPY lifetime, before transaction publication.

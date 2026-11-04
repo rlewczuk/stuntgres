@@ -162,6 +162,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		if oid == pgcatalog.ReplicationOriginStatusOID {
 			in.ReplicationOriginProgress = e.CopyReplicationOriginProgressLocked()
+		} else {
+			in.ReplicationSlots = e.replicationSlotsLocked()
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
@@ -345,6 +347,9 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 				e.Mu.Unlock()
 				return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(source.Columns), Anonymous: [][]sqltype.Value{}}, nil
 			}
+		}
+		if oid == pgcatalog.StatReplicationSlotsOID {
+			in.ReplicationSlots = e.replicationSlotsLocked()
 		}
 		if oid == pgcatalog.StatXactUserFunctionsOID && !suppressScalarStatsRead {
 			if err := admitScalarStatsGetters(auth, oid, nil); err != nil {

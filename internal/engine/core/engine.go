@@ -30,6 +30,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/settings"
@@ -85,6 +86,8 @@ type Engine struct {
 	catalogCaptures                 catalogrt.CaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.
 	Statements                      Statements             // Family dispatch; set by the composition, shared by every target.
 	Factory                         EngineFactory          // Composed constructor; set by the composition, shared by every target.
+	// Committed logical stream records of this database, guarded by Engine.Mu.
+	logicalHistory logical.History
 }
 
 // EngineFactory builds a fresh composed engine, as NewWithSettings does: the
@@ -105,9 +108,13 @@ type Result struct {
 // settings, visibility, locks, the catalog providers (feature-owned ones
 // first), the bundled extension registry and the builtin catalog seed. It
 // registers no statement dispatch or factory; the composition does.
-func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
+func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, startup Startup) (*Engine, error) {
+	trackCommitTimestamp := startup.TrackCommitTimestamp
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros, StatementStatistics: statistics.NewStatements(5000, time.Now())}
+	if err := cluster.logical.configure(startup); err != nil {
+		return nil, err
+	}
 	cluster.ArchiverResetAt = time.UnixMicro(cluster.StartedAt + activityEpochUnixMicros).UTC()
 	cluster.BGWriterResetAt = cluster.ArchiverResetAt
 	cluster.CheckpointerResetAt = cluster.ArchiverResetAt
@@ -130,7 +137,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.Storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
 	e.Mu.Unlock()
 	e.RoleStore.Initialize()
-	e.Settings = settings.NewRegistry(definitions, e.Visibility.TracksCommitTimestamps())
+	e.Settings = settings.NewStartupRegistry(definitions, settings.Startup{TrackCommitTimestamps: e.Visibility.TracksCommitTimestamps(), LogicalWAL: startup.LogicalWAL})
 	walSize, err := e.Settings.Lookup("wal_segment_size")
 	if err != nil {
 		return nil, err

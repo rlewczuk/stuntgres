@@ -106,7 +106,9 @@ func (n ReplicationSlot) Validate() error {
  for i,label:=range []string{"slot_name","lsn"} { id:=sqltype.Name; if i==1 { id=sqltype.PgLSN; if n.Kind==SlotAdvance { label="end_lsn" } }; m:=d.CompositeMember(i); if m.Attribute!=int32(i+1) || m.Name!=label || m.Usage.Type==nil || m.Usage.Type.ID()!=id { return fmt.Errorf("stuntgres: invalid slot member") } }
  return nil
 }
-type ReplicationSlotRuntime interface { ReplicationSlot(ReplicationSlotKind,uint8,[5]sqltype.Value) error }
+// ReplicationSlotRuntime performs the operation on live slot state and returns
+// the result value of descriptor result.
+type ReplicationSlotRuntime interface { ReplicationSlot(ReplicationSlotKind,uint8,[5]sqltype.Value,*sqltype.Descriptor) (sqltype.Value,error) }
 func (n ReplicationSlot) Eval(ctx expr.Context) (sqltype.Value,error) {
  if _,err:=evaluationContext(ctx); err!=nil { return sqltype.Value{},err }
  var values [5]sqltype.Value
@@ -114,5 +116,5 @@ func (n ReplicationSlot) Eval(ctx expr.Context) (sqltype.Value,error) {
  for i:=range int(n.Arity) { v,err:=n.Args[i].Eval(ctx); if err!=nil { return sqltype.Value{},err }; values[n.Slots[i]]=v; null=null||v.IsNull() }
  if null { return sqltype.Null(n.Usage.Type),nil }
  runtime,ok:=ctx.(ReplicationSlotRuntime); if !ok { return sqltype.Value{},fmt.Errorf("stuntgres: missing replication slot runtime") }
- return sqltype.Value{},runtime.ReplicationSlot(n.Kind,n.Arity,values)
+ return runtime.ReplicationSlot(n.Kind,n.Arity,values,n.Usage.Type)
 }

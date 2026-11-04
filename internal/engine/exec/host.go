@@ -112,8 +112,8 @@ type Host interface {
 	// functions.InputValidityRuntime
 	CheckTypeInput(c *Context, value, typeName string) (*sqlstate.Error, error)
 	// Replication and statistics functions
-	LogicalDecoding(sqltype.Value, sqltype.Value) error
-	ReplicationSlot(functions.ReplicationSlotKind, uint8, [5]sqltype.Value) error
+	LogicalDecoding(functions.LogicalDecodingRequest) ([]functions.LogicalDecodingRow, error)
+	ReplicationSlot(functions.ReplicationSlotKind, uint8, [5]sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	SyncReplicationSlots() error
 	ReplicationOrigin(functions.ReplicationOriginKind, [2]sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)

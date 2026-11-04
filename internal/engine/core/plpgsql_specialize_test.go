@@ -17,7 +17,7 @@ import (
 // compiler, frame and output exporter without issuing a SQL statement. Observing
 // the actual private session cell here avoids a second cache or inspection API.
 func TestPLpgSQLProcedureInvocationSpecialization(t *testing.T) {
-	e, err := NewEngine(nil, nil, "postgres", false)
+	e, err := NewEngine(nil, nil, "postgres", Startup{})
 	if err != nil {
 		t.Fatal(err)
 	}

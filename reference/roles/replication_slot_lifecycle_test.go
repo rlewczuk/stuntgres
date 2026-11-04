@@ -45,7 +45,7 @@ func TestReferenceReplicationSlotReferenceLifecycle(t *testing.T) {
   slotInventoryPhysical(s,s.C,names[1],start,false,s.C)
   sourceQuery:="SELECT * FROM pg_create_logical_replication_slot('rsl_logical','test_decoding',false,true,true)"
   var logicalStart string
-  if s.Backend.PG { var name string; if err:=s.C.QueryRowContext(s.P.Ctx,sourceQuery).Scan(&name,&logicalStart); err!=nil || name!=names[3] || logicalStart=="" { s.T.Fatal(name,logicalStart,err) } } else { slotFailure(s,sourceQuery,slotBoundary(true)) }
+  if s.Backend.PG { var name string; if err:=s.C.QueryRowContext(s.P.Ctx,sourceQuery).Scan(&name,&logicalStart); err!=nil || name!=names[3] || logicalStart=="" { s.T.Fatal(name,logicalStart,err) } } else { slotFailure(s,sourceQuery,slotPluginMissing("test_decoding")) }
   slotInventoryLogical(s,s.C,names[3],"test_decoding",logicalStart,false,true,true,s.C)
   if !s.Backend.PG { for _,sig:=range slotSignatures[3:] { slotFailure(s,"SELECT * FROM "+slotCall(sig,sig.args),logicalDecodingMissing("rsl_absent")); slotInventoryEmpty(s,s.C) }; return }
   var copied,lsn string

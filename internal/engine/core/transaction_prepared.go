@@ -26,7 +26,11 @@ func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.Prepa
 
 // Called at the canonical publisher's callback-free final boundary.
 func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
-	e.advanceOriginSessionLocked(p.Entry.Ref, p.Origin.Session)
+	prepare := logicalCommitIdentity{xid: e.Visibility.AssignedXIDLocked(p.Entry.Ref), stamp: time.Now().UnixMicro() - postgresEpochUnixMicros}
+	if c := e.advanceOriginSessionLocked(p.Entry.Ref, p.Origin.Session); c != nil {
+		prepare.origin = uint32(c.id)
+	}
+	e.appendLogicalPrepareLocked(p.Entry, prepare)
 	e.Visibility.SerializablePreparedLocked(p.Entry.Ref)
 	e.Visibility.DropSnapshotLocked(p.Entry.Ref)
 	e.prepared.InstallLocked(p.Entry)
@@ -149,7 +153,11 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
 		if err == nil {
-			e.advanceOriginSessionLocked(entry.Ref, op.Session)
+			rollback := logicalCommitIdentity{stamp: time.Now().UnixMicro() - postgresEpochUnixMicros}
+			if c := e.advanceOriginSessionLocked(entry.Ref, op.Session); c != nil {
+				rollback.origin = uint32(c.id)
+			}
+			e.appendLogicalFinishLocked(entry, false, rollback)
 			e.discardWritesLocked(entry.Ref, entry.Catalog, entry.Writes, nil, nil, nil)
 			settleStatsLedger(e, op.Session, &entry.Stats, false)
 			retireStatsObjects(e, op.Session, entry.Ref.Epoch(), false, entry.Catalog)

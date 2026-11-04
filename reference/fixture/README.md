@@ -106,9 +106,9 @@ not implicitly register native providers.
 - `WithCommitTimestampTracking()` enables commit timestamps on the package's single
   oracle (used by `locking_transactions`; other packages stay default-off). It is
   not a session SET toggle and never a second container.
-- `WithLogicalWAL()` starts the package's existing pinned oracle with
-  `wal_level=logical`; it changes neither the image pin nor native configuration.
-  Logical-decoding scenarios also require a positive stock
+- `WithLogicalWAL()` starts the package's pinned oracle with `-c wal_level=logical`
+  and its native Driver with `DriverConfig{LogicalWAL: true}`; the image pin is
+  unchanged. Logical-decoding scenarios also require a positive stock
   `max_replication_slots` before asserting SQL validation and missing-slot errors.
 - `WithAlterSystemDisabled()` adds `-c allow_alter_system=off` to the single
   oracle's existing startup arguments (`extensions`, `extension_ownership`). Startup verifies SHOW is
