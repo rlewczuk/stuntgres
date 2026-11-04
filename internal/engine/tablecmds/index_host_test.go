@@ -52,7 +52,7 @@ func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := tablecmds.CompleteIndexPredicate(h.Op, auth, f.parent, wantTransform)
+	want, err := tablecmds.CompleteIndexPredicate(h, auth, f.parent, wantTransform)
 	if err != nil {
 		t.Fatal(err)
 	}

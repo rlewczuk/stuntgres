@@ -141,9 +141,9 @@ func BindExclusionOrdering(view catalog.Read, parent *catalog.Relation, d *catal
 	return o, nil
 }
 
-func ExclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, right []sqltype.Value) (bool, error) {
+func ExclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, right []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for i, operator := range d.Exclusion {
-		match, err := operator.Matches(ctx, left[i], right[i])
+		match, err := operator.MatchesWithEnvironment(ctx, left[i], right[i], input)
 		if err != nil || !match {
 			return false, err
 		}

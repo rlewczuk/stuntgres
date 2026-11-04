@@ -32,33 +32,15 @@ func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 		return invalid()
 	}
 	for i, helper := range owned.Helpers {
-		name, signature := "int_agg_state", catalog.ProcedureSignature("2281,23")
-		if i == 1 {
-			name, signature = "int_agg_final_array", "2281"
-		}
-		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper != canonical.Aggregate.Helpers[i] || helper.Name != name || helper.Signature != signature {
+		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper != canonical.Aggregate.Helpers[i] || origin.Installation.Members[i].ObjectID != helper.ID {
 			return invalid()
 		}
-		if _, ok := view.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}); !ok {
+		current, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID})
+		if !ok || current.Origin == nil || current.Origin.Installation != origin.Installation || current.Origin.Declaration != i || current.Implementation != StockIntagg {
 			return invalid()
 		}
-		if _, builtin := catalog.BuiltinRoutineIdentityByOID(helper.ID); builtin {
-			return invalid()
-		}
-		for address, d := range view.Descriptors() {
-			if address.ObjectID == helper.ID {
-				return invalid()
-			}
-			if other, ok := d.(*catalog.Procedure); ok && other != proc && other.Aggregate != nil {
-				for _, alias := range other.Aggregate.Helpers {
-					if alias.ID == helper.ID || alias.Namespace == helper.Namespace && alias.Name == helper.Name && alias.Signature == helper.Signature {
-						return invalid()
-					}
-				}
-			}
-		}
-		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}, Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
-			return invalid()
+		if _, err := ProcedureSymbol(view, current); err != nil {
+			return err
 		}
 	}
 	return nil

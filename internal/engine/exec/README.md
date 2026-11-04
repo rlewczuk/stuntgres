@@ -171,8 +171,9 @@ Its `extension` imports validate genuine installed cube-spatial,
 earth-point, autoinc and insert_username scalar calls before kernel evaluation.
 Insert_username authenticates current provider identity and reference domain/epoch
 before reporting scalar misuse; structural native-trigger capability grants no
-execution authority. It never imports the engine,
-`analyze`, `session` or another feature package (`routine`, ...).
+execution authority. Its `routine` import authenticates original fmgr identities,
+not SQL names or installed capabilities. It never imports the engine,
+`analyze` or `session`.
 
 Detached query evaluations admit context-scoped cooperative execution pauses.
 The request is dormant during analysis; `State.Evaluation` enables it only for
@@ -249,6 +250,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   without a source authority, nested frames inherit their lexical outer policy.
   Derived/frozen sources share that same slot, and held-source Host detachment
   or reattachment does not resample settings or change the captured policy.
+  `Authority.RoutineCatalog` transfers the same actual initializer's immutable
+  read beside its inert owner. Singleton, anonymous and foreign frames without
+  a physical View use this explicit snapshot, never a current Scope lookup.
+  Source opening rejects missing/foreign owner-read transfers and incompatible
+  View/lexical domain or epoch; row pulls never mint a replacement owner.
   Query identity demand retains source-occurrence lineage for virtual recipes
   and typed system attributes alike, independently of rowmark demand. An unmarked
   identity-only capture still supplies physical prefixes to materialized adapters.
@@ -618,6 +624,109 @@ typmods; naming is captured only on failure and is never retained in result tupl
   labels/ownership; original-source calls retain their revision fence and
   prepared reanalysis. `RoutineProgram` preserves this distinction through
   readmission and phase initialization without retaining granted rights.
+  Active sepgsql simulation separates retained expression initialization from
+  actual invocation. `RoutineInitialization` is an inert engine-minted frame
+  identity; exact scope-local callsite receipts seal execute ACL/MAC before
+  argument recursion. Body entry consumes that receipt without execute replay,
+  then performs eligible current-subject FHET only. Original fmgr identity does
+  not exempt retained execute initialization. Defaults, domain CHECK ordinals,
+  index predicate/key preparations and trigger WHEN retain their actual owners;
+  source headers and State copy the value, never mint on row pulls.
+  The first admitted transaction command is numbered zero; its genuine domain,
+  transaction and nonzero frame instance still distinguish it from a missing
+  owner. Exact command matching and scope-local receipt ownership remain required.
+  Genuine live source evaluators seal an association with their explicit
+  Authority header and last transported owner/catalog. Retained cursor/CTE
+  copies validate that local pair before refreshing the same attachment;
+  missing or overwritten local ownership is never repaired. Detached headers
+  reject, and closed captures omit this live association entirely. Real View
+  and lexical Outer snapshots keep precedence; only no-View/no-Outer sources
+  refresh their catalog from the header. Derived default/domain/index/body
+  phases sever the caller association when selecting their own owner.
+  Native SQL bodies borrow the entered child owner. Existing Body manifests
+  retain preorder/repeated occurrences; DeclarationBody uses immutable parsed
+  call-part ordinals linked to canonical builtin or installation member identity.
+  A builtin may have both a parsed DeclarationBody for presentation and a finite
+  executable Body manifest. Its real Body initializer and child lifetime checks
+  use that manifest, not the unrelated parsed-part ordinal space. Manifest
+  initialization retains the authenticated outer Info; runtime child expressions
+  retain its source and their exact child ordinal. Inquiry programs record the
+  outer in the caller phase, then record only immediate children in the derived
+  body phase. Inactive finite-body initialization checks ordinary ACL/lifetime
+  without attempting to acquire simulation initialization receipts.
+  Strict-NULL EarthBox's source-selected expanded declaration uses a distinct
+  typed child phase under the unchanged caller, authenticated by the original
+  outer receipt. It initializes retained CallParts but does not fabricate an
+  outer FHET; actual demanded dynamic children keep their own entry boundaries.
+  Entered and expanded children cannot share owners or forge parent receipts.
+  A private value lineage authenticates immediate canonical CallPart/Body-edge
+  children from the admitted original outer source, including retained outer-only
+  manifests across supported rename/COW. It never appends invented child
+  dependencies. Initialization/entry also proves the exact source ordinal; a
+  nested body replaces, rather than inherits, its parent's immediate lineage.
+  Default/domain/index/grouping and unrelated recipe phases explicitly clear it.
+  Consumed programs retain only an immutable source projection for parent/child
+  lifetime and ordinary ACL fences, never the runtime owner, receipt or nonce.
+  Declaration initialization also checks genuine ordinary SQL ACL/lifetime when
+  simulation is inactive, without minting MAC receipts. The actual freespace
+  adapter carries one private transient custom-NULL demand selection: after
+  authenticating the original wrapper and canonical scalar member, only that
+  scalar CallPart is omitted. Generic parameter NULL retains its initialization;
+  the empty series still does not fabricate a scalar invocation.
+  This is initialization, not a substitute for actual dynamic helper kernels or
+  proof of PostgreSQL optimizer/audit multiplicity. Closed workers receive an
+  immutable sealed source proof without a live Host; graphs requiring conditional
+  entered-body initialization select the existing serial path.
+  The live coordinator also certifies selected sort-comparison support leaves
+  and aggregate grouping callbacks before sealing. This does not authorize all
+  opclass members or add an execute hook to direct support kernels.
+  Gather Merge borrows the same sealed comparator proof after workers join.
+  Serial SortNode comparisons likewise borrow `State.Evaluation`'s original
+  initializer/catalog through `FunctionInput`, rather than the bare statement
+  environment. The allocation-only activity gate examines the existing source
+  owners, genuinely active sealed proof and snapshots without selecting or
+  recapturing authority; only the original evaluator chooses
+  Outer/header/View precedence and validates it. Losing local owner and catalog
+  cannot turn a real active sealed proof into the inactive lane. An all-zero
+  inactive capture grants no simulation activity. Inactive sorts retain raw
+  input without an escaping callback evaluator.
+  Only actual non-NULL comparisons enter support: empty/all-NULL sort keys do
+  not fabricate FHET or SQL EXECUTE checks.
+  Active native aggregate leaders and workers use detached environments and
+  captured admission; selected SQL/PL/host support requiring fresh runtime child
+  initialization uses the existing serial owner. Ordinary native aggregates and
+  arithmetic retain fanout. The inactive SQL-support lane keeps its historical
+  lexical host gate; it is not an active-simulation fallback.
+  Actual native aggregate support calls install a private value-only association
+  on invoke's local Context, bound to that exact evaluator, existing initializer,
+  selected read, aggregate/helper and root reference/recipe/occurrence/source.
+  The selected postargument kernel consumes and zeros it before nested work.
+  A copied evaluator, substituted entry or discarded/unconsumed association
+  cannot adopt ordinary scalar authority; terminal success/error/panic clears
+  both the association and its invocation-local completion bit. Active live calls
+  use `Host.ValidateRoutineInitializationOwner`; active closed calls use the exact
+  sealed owner/read guard without demanding or minting an ordinary support receipt.
+  Both reuse the existing AggregateOwner membership and AggregateSupportDependency
+  lifetime branch and genuine execute=false native support entry.
+  If that support owns a native SQL Body (for example round FINAL or lpad SFUNC),
+  only its immediate nativeBodyLineage borrows the SAME original owner and
+  selected parent source. Each child revalidates that owner, aggregate membership
+  and original support recipe before its existing finite-ordinal/CallPart and
+  DefinitionDependency initialization. No parent receipt, new owner or source map
+  is created. A child wrapper derives from its own real receipt, never aggregate
+  root authority. These dynamic-body cases retain the existing serial gate;
+  int4pl native sum/combine and arithmetic keep genuine closed worker fanout.
+  Recipe/default/domain/index/query phases and closed capture sever this source.
+  Existing copied Query relation access and worker scan counters are unchanged.
+  Inactive genuine SQL Body/DeclarationBody support uses this same exact immediate
+  association and AggregateSupportDependency parent, with its original zero MAC
+  owner. Membership/read/recipe lifetime checks still apply, but no MAC owner
+  guard, initializer, receipt or map is allocated. Original no-body native calls
+  and standalone custom fixtures without SQL catalog authority keep their old lane.
+  This does not relax closed-body rejection or broaden parallel eligibility.
+  Explicit no-SQL-principal index publication uses a guarded exact-catalog-root
+  context origin for pure support kernels. A missing live Host alone never
+  establishes this origin; client, closed, query and initialized contexts reject.
   Intarray support-I/O strict NULL calls retain lifetime-only admission through
   their owning checks, stored-reference or direct-source lane. Missing/foreign
   manifests and stale direct revisions remain invalid even when invocation is
@@ -657,6 +766,56 @@ typmods; naming is captured only on failure and is never retained in result tupl
   parameter-first calls keep ordinary strict NULL; explicit generic execution
   demands the conversion with helper-only diagnostics from the first call.
   Neither this path nor its tests introduce an automatic cost-based chooser.
+  `earth_coordinate.go` owns the finite actual declaration kernels: nested
+  conversions derive an entered child Context and execute their own selected
+  `earth()` occurrences; cube constructors, coordinates, distance and enlargement
+  consume the selected member's actual operands inside its token. It is not a
+  new SQL interpreter or a permission-only all-member event sequence.
+  Generated earth-domain CHECKs obtain their immutable source coordinates from
+  the existing binder at installation; helper identity alone is not a callsite.
+  Their actual selected C point/dimension/distance leaf consumes that receipt
+  after VALUE/strict-NULL handling. Distance receives the retained same-generation
+  `(0)` literal, not a fabricated operand; its token leaves before the SQL radius
+  division/abs/comparison. Execute denial remains initializer-owned, while
+  entrypoint denial and trusted subject unwind surround only the actual leaf.
+  Diagnostic-only composed fixtures retain genuine analyzed source coordinates
+  and manifests too, rather than treating a readable catalog as SQL admission.
+  Renamed diagnostic fixtures use the existing authorization `Recapture` to
+  pair their substituted catalog and role root; a catalog assignment alone
+  remains foreign/stale authority. Captured declarations/source manifests stay
+  immutable while only authenticated current names supply error presentation.
+  Inquiry bodies derive their immediate entered-body lineage in both ordinary
+  and simulated execution. In particular the implicit `ts_debug` wrapper cannot
+  reuse its own lineage for the explicit nested query's helper occurrences.
+  A pure inactive owner may retain genuine engine-built admission without a
+  borrowed operation. The statement adapter returns that exact captured ordinary
+  view only; missing/foreign active hosts or operation-less active scopes reject
+  instead of adopting ambient authority or dereferencing an absent operation.
+  `pgfreespace.go` retains only relation/series state and fixed source-owned
+  literal slots between yields. Each consumed SQL-wrapper invocation borrows
+  the evaluator anew; first work consumes genuine relation-size/settings/series
+  kernels and each produced row consumes the C two-argument capture/probe.
+  Its selected size child borrows the same `FreespaceLayout` capture with a
+  typed wrapper-extent purpose and checked `Blocks * 8192`; global
+  `pg_relation_size` logical byte counters are unchanged. Missing numeric OIDs
+  produce size NULL, genuine no-storage kinds size zero, and neither invokes C2.
+  Terminal series DONE does not invent a C probe, and errors/cancel/Close retain
+  no Host, subject or token. The two literal slots avoid per-row adapter boxing.
+  Custom/literal NULL freespace demand excludes only the canonical C2 retained
+  call at actual outer initialization; size/settings/series keep their own
+  source authority. Generic parameter-NULL demand retains C2's ordinary ACL
+  and execute initialization without fabricating an actual C invocation.
+  `pageinspect_heap_attrs.go` keeps the two-to-three-argument false default and
+  exact returned source occurrences through the nested wrappers. Only actual
+  C children require raw-page superuser authority: NULL page skips strict heap
+  entry, while nonstrict split checks superuser even for NULL raw_data, validates
+  its bitmap before relation lookup, and keeps actual splitting/conditional
+  detoast inside the selected split token. Each produced heap item and consumed
+  terminal call owns real work rather than empty transition preflight.
+  `TestSepgsqlSimulationNativeBodies` and shared
+  `TestReferenceSepgsqlSimulationNativeBodies` cover these owners. The latter
+  requires native and pinned-reference modes; native protocol-entry assertions
+  are source-grounded simulation evidence, not active SELinux/optimizer parity.
   Grafted rules borrow the original manifest only after validating the live
   relation's exact rule/action-or-condition presentation. Ancestry is per
   occurrence, not the whole rewritten command; substituted fresh inputs return
@@ -709,8 +868,13 @@ typmods; naming is captured only on failure and is never retained in result tupl
   retains genuine routine provenance and caller field usages, never OUT aliases.
   Ordinary current EXECUTE/recipe admission precedes execution-time row/count/type
   validation. Namespace access follows ordinary prepared invalidation/reanalysis.
-  The statement capability supplies a detached sparse snapshot cursor; cancellation
-  and close release that payload without retaining session pins or an engine.
+  Metadata Open does not capture buffers. First borrowed Advance authenticates the
+  retained declaration against the current descriptor before strict provider
+  identity validation, then obtains the sparse snapshot and first row together.
+  Supported rename/owner/ACL presentation changes never replace original receipt
+  coordinates or weaken forged-provider rejection. Subsequent VPC calls borrow
+  the same initializer; cancellation and close release the payload without
+  retaining session pins or an engine.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed six-value frame projects formal slots without
@@ -856,6 +1020,11 @@ argument COW, grant no invocation rights during Bind, and are stripped from the
 ordinary local result. Arbitrary output or ABI-only comparisons cannot mint
 derivation. Artifacts retain original source, actual prepared recipe, original
 lexical paths, mode/definition association and dependencies.
+The stored dependency references remain original across genuine retained TEMP
+replacement. Preparation and source validation reuse the canonical contextual
+stored-reference proof, not an equal-current-epoch requirement or a general
+stale-reference exception. Foreign namespaces, changed provider semantics and
+ordinary stale `ObjectRef` uses still reject.
 Source-call/path access is solely lineage evidence. Dispatch separately
 authenticates the sealed actual prepared descriptor and its exact immutable
 argument, assembly and signature backing; a value copy is valid, an independently
@@ -990,17 +1159,23 @@ generic body-parameter demand still checks that genuine scalar's EXECUTE. Every
 non-NULL input checks it too, including empty, absent and no-storage targets.
 Inner denial uses shared SQL-function Context with current scalar/wrapper names.
 The current invocation descriptor/epoch never overwrites its retained source
-carrier or repairs a missing original lifetime proof. Its detached layout becomes
-an arithmetic SourceCursor with owned typed rows, no per-page scalar invocation,
-page vector, closure or retained host.
+carrier or repairs a missing original lifetime proof. Metadata Open retains only
+supplied values; first borrowed Advance captures the extent and advances the
+actual series. Each produced block separately enters and consumes its C2 probe,
+and terminal DONE invokes the series without inventing a scalar probe. No page
+vector, closure, evaluator, body token or retained host survives a yield.
 
-`pgvisibility.go` admits current sealed identity and routine/schema ACLs before
-evaluating lexical children once into formal slots. It obtains one detached
-capture from `ContribRuntime`, then constructs typed records or detached scalar-TID
-sources; truncation returns nonNULL VOID only after successful publication.
-Scalar STRICT NULL retains one scalar-source row; STRICT sets retain declared
-metadata with no rows. PD comes from the separate compressed current heap proof,
-not the VM flags. Completed results retain no child, host, actor, store or locks.
+`pgvisibility.go` authenticates sealed identity before evaluating lexical children
+once into formal slots. Metadata Open performs no capture or truncation; the first
+borrowed Advance uses the actual initialized callsite and current invocation
+subject to capture findings/map plus the first row or DONE. Later VPC calls reuse
+that immutable payload but still borrow their original initializer. The scalar
+FROM route invokes the same scalar kernel only on its first demand; truncation
+returns nonNULL VOID only after successful publication. Scalar STRICT NULL retains
+one scalar-source row; STRICT sets retain metadata with no rows. PD comes from
+the separate compressed current heap proof, not VM flags. Execute MAC belongs to
+original initialization, while host readmission retains current ordinary SQL ACLs.
+Completed results retain no child, host, actor, store or locks.
 
 The dblink DELETE/INSERT/UPDATE evaluators authenticate the demanded installed scalar
 and current schema/EXECUTE authority before evaluating their four/five written
@@ -1134,6 +1309,13 @@ use Definition captures, selected supports use AggregateSupport captures.
 Consumed-call recording, readmission and phase initialization derive that lane
 from the existing support-aggregate association; neither lane borrows the other
 lane's historical stamp at a shared address.
+Native selected kernels borrow only the immediate support association described
+above. Their aggregate-owner SQL EXECUTE admission remains separate from the
+invoking scope's SQL/PL/host body and relation rights. Strict skipped rows,
+unseeded transitions and NULL finals create no fictitious native body entry;
+nonstrict NULL invokes its genuine selected kernel with the actual NULL facts.
+Neither runtime association nor native-body continuation is persisted by remap,
+Dump/Restore or worker capture.
 
 `WindowAggregates` retains full owned argument vectors and independent
 per-occurrence head/tail cursors. Overlapping moving frames remove contributors
@@ -1177,6 +1359,14 @@ the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 Sampling selection, visibility/layout preservation and lifecycle units use
 `RUN='^TestSystem(Rows|Time)'`, including composed statement-owner coverage in core.
+`TestSystemTimeNestedReaderDeadline` and `TestSystemTimeNestedSetDeadline`
+filter the first logical caller before symbolizing unrelated ancestor frames.
+Only `sampleCheckpoint` is transparent; matching reader calls still collect the
+real target ancestor and grouping admission PC. Set-output observation needs
+only its direct caller, not input-arm stacks. These observers leave the real
+100ms scan budget, full fixture population, real elapsed-work gate, exact phase
+counts, cancellation priority, Infinity traversal and capture-owner cleanup
+assertions unchanged; they do not substitute a clock or a provider callback.
 
 SYSTEM_TIME elapsed-work fixtures that call `timeWorkPastBudget` own virtual Go
 time through `synctest.Test`, rather than spending their 100ms sample on suite

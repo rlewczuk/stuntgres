@@ -34,11 +34,17 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if err != nil {
 		return err
 	}
-	physical, _ := method.IndexImplementation()
+	auth = h.Recapture(auth, h.StageRead())
+	physical, err := h.InitializeIndexMethod(auth, method)
+	if err != nil {
+		return err
+	}
+	if err := validateIndexMethod(&methodCheck, physical, method.Name()); err != nil {
+		return err
+	}
 	if exclude, known := MethodProperty(physical, "can_exclude"); !known || !exclude {
 		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support exclusion constraints`, method.Name()))
 	}
-	auth = h.Recapture(auth, h.StageRead())
 	view := h.AccessView(auth).Catalog
 	transformed, err := h.TransformIndexPredicate(auth, parent, s.Predicate, input)
 	if err != nil {
@@ -48,7 +54,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if err != nil {
 		return err
 	}
-	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, &s, method, nil)
+	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, &s, method, physical, nil)
 	if err != nil {
 		return err
 	}

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -14,7 +16,7 @@ import (
 	"testing"
 )
 
-func inspectionBound(t *testing.T, stat bool, e *core.Engine) functions.FTSInspection {
+func inspectionBound(t *testing.T, stat bool, e *core.Engine) (functions.FTSInspection, []catalog.ExpressionDependency) {
 	t.Helper()
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
@@ -31,10 +33,10 @@ func inspectionBound(t *testing.T, stat bool, e *core.Engine) functions.FTSInspe
 	if !ok {
 		t.Fatal(node)
 	}
-	return n
+	return n, b.Dependencies
 }
 func inspectionLifecycle(t *testing.T, stat bool) {
-	n := inspectionBound(t, stat, engine.New())
+	n, _ := inspectionBound(t, stat, engine.New())
 	want := expr.Stable
 	if stat {
 		want = expr.Volatile
@@ -91,7 +93,7 @@ func TestFTSStatLifecycle(t *testing.T) {
 	if scope.TxRef.Epoch() != e.CatalogRead().Epoch() {
 		t.Fatal("root transaction was not admitted at the current catalog epoch")
 	}
-	n := inspectionBound(t, true, e)
+	n, _ := inspectionBound(t, true, e)
 	shape := n.ResultUsage().Type
 	expected := &description
 	scope.Expected = expected
@@ -141,13 +143,21 @@ func TestFTSDebugCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	n := inspectionBound(t, false, e)
+	n, dependencies := inspectionBound(t, false, e)
+	e.Mu.Lock()
+	auth, failure := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
+	if failure != nil {
+		t.Fatal(failure)
+	}
+	scope.RoutineAuth, scope.RoutineDependencies = auth, dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: t.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
 	shape := n.ResultUsage().Type
-	first, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), false, sqltype.Value{}, "The Rats", shape)
+	first, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), &evaluation, n.Info, false, sqltype.Value{}, "The Rats", shape)
 	if err != nil || len(first) != 3 {
 		t.Fatal("first acquisition", len(first), err)
 	}
-	second, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), false, sqltype.Value{}, "Rats", shape)
+	second, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), &evaluation, n.Info, false, sqltype.Value{}, "Rats", shape)
 	if err != nil || len(second) != 1 {
 		t.Fatal("second acquisition", len(second), err)
 	}
@@ -158,7 +168,7 @@ func TestFTSDebugCaptureOwnership(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	rows, err := scope.WriteHost().TextSearch().DebugTextSearch(canceled, false, sqltype.Value{}, "Rats", shape)
+	rows, err := scope.WriteHost().TextSearch().DebugTextSearch(canceled, &evaluation, n.Info, false, sqltype.Value{}, "Rats", shape)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("partial acquisition escaped", rows, err)
 	}

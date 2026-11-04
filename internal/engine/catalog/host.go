@@ -51,6 +51,9 @@ func (d *Procedure) RoutineDefinition() *proc.Definition {
 	if d == nil {
 		return nil
 	}
+	if d.Sepgsql != nil {
+		return d.Sepgsql.layout
+	}
 	if d.Host != nil {
 		return d.Host.Layout
 	}

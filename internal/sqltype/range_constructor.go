@@ -9,6 +9,9 @@ import (
 // RangeFromValues retains immutable typed endpoints, never a text round trip.
 // NULL endpoints mean infinity. Only genuine custom families use this entry.
 func RangeFromValues(ctx context.Context, d *Descriptor, lower, upper Value, flags string) (Value, error) {
+	return RangeFromValuesWithEnvironment(ctx, d, lower, upper, flags, InputEnvironment{})
+}
+func RangeFromValuesWithEnvironment(ctx context.Context, d *Descriptor, lower, upper Value, flags string, env InputEnvironment) (Value, error) {
 	if d == nil || d.customRange == nil || !d.IsRange() {
 		return Value{}, fmt.Errorf("invalid range constructor authority")
 	}
@@ -25,12 +28,12 @@ func RangeFromValues(ctx context.Context, d *Descriptor, lower, upper Value, fla
 	if flags[1] == ']' {
 		bits |= rangeUpperInclusive
 	}
-	return d.rangeFromTypedBounds(ctx, lower, upper, bits, false)
+	return d.rangeFromTypedBounds(ctx, lower, upper, bits, false, env)
 }
 
 // Codecs and generated calls share validation before allocating their one
 // endpoint pair. Empty, unbounded and rejected inputs allocate no pair.
-func (d *Descriptor) rangeFromTypedBounds(ctx context.Context, lower, upper Value, flags uint8, inputSave bool) (Value, error) {
+func (d *Descriptor) rangeFromTypedBounds(ctx context.Context, lower, upper Value, flags uint8, inputSave bool, env InputEnvironment) (Value, error) {
 	if lower.Type() != d.rangeSubtype || upper.Type() != d.rangeSubtype {
 		return Value{}, fmt.Errorf("range constructor subtype generation mismatch")
 	}
@@ -40,7 +43,7 @@ func (d *Descriptor) rangeFromTypedBounds(ctx context.Context, lower, upper Valu
 	if upper.IsNull() {
 		flags = flags&^rangeUpperInclusive | rangeUpperUnbounded
 	}
-	flags, err := d.canonicalGenericBounds(ctx, flags, lower, upper, inputSave)
+	flags, err := d.canonicalGenericBounds(ctx, flags, lower, upper, inputSave, env)
 	if err != nil {
 		return Value{}, err
 	}
@@ -61,30 +64,54 @@ func (d *Descriptor) rangeFromTypedBounds(ctx context.Context, lower, upper Valu
 
 // MultirangeFromValues owns its normalization buffer, retaining immutable bounds.
 func MultirangeFromValues(ctx context.Context, d *Descriptor, members []Value) (Value, error) {
-	return MultirangeFromSource(ctx, d, len(members), func(i int) (Value, error) { return members[i], nil })
+	return MultirangeFromValuesWithEnvironment(ctx, d, members, InputEnvironment{})
+}
+func MultirangeFromValuesWithEnvironment(ctx context.Context, d *Descriptor, members []Value, env InputEnvironment) (Value, error) {
+	arguments, err := PrepareMultirangeArguments(ctx, d, len(members), func(i int) (Value, error) { return members[i], nil })
+	if err != nil {
+		return Value{}, err
+	}
+	return arguments.ConstructWithEnvironment(ctx, env)
 }
 
 // MultirangeFromSource reads each member synchronously into its one owned
 // normalization buffer. The value source is not retained and never supplies
 // ordering authority; evaluation can avoid an intermediate []Value allocation.
 func MultirangeFromSource(ctx context.Context, d *Descriptor, count int, member func(int) (Value, error)) (Value, error) {
+	arguments, err := PrepareMultirangeArguments(ctx, d, count, member)
+	if err != nil {
+		return Value{}, err
+	}
+	return arguments.Construct(ctx)
+}
+
+// MultirangeArguments owns the one normalization buffer while its caller
+// finishes ordinary argument evaluation before entering the real constructor.
+// No evaluator, callback, session or permission result survives preparation.
+type MultirangeArguments struct {
+	descriptor  *Descriptor
+	data        []rangeDatum
+	memberError error
+}
+
+func PrepareMultirangeArguments(ctx context.Context, d *Descriptor, count int, member func(int) (Value, error)) (MultirangeArguments, error) {
 	if d == nil || !d.validMultirangeAuthority() || count < 0 || member == nil {
-		return Value{}, fmt.Errorf("invalid multirange constructor authority")
+		return MultirangeArguments{}, fmt.Errorf("invalid multirange constructor authority")
 	}
 	if err := ctx.Err(); err != nil {
-		return Value{}, err
+		return MultirangeArguments{}, err
 	}
 	var data []rangeDatum
 	var memberError error
 	for i := range count {
 		if i&255 == 0 {
 			if err := ctx.Err(); err != nil {
-				return Value{}, err
+				return MultirangeArguments{}, err
 			}
 		}
 		v, err := member(i)
 		if err != nil {
-			return Value{}, err
+			return MultirangeArguments{}, err
 		}
 		// SQL evaluates the complete argument array before invoking its
 		// constructor. A child evaluation error precedes a NULL-member error.
@@ -96,7 +123,8 @@ func MultirangeFromSource(ctx context.Context, d *Descriptor, count int, member 
 			continue
 		}
 		if v.Type() != d.multirangeRange || !v.validRange() {
-			return Value{}, fmt.Errorf("multirange constructor member generation mismatch")
+			memberError = fmt.Errorf("multirange constructor member generation mismatch")
+			continue
 		}
 		if v.rangeDatum.flags != rangeEmpty {
 			if data == nil {
@@ -105,19 +133,31 @@ func MultirangeFromSource(ctx context.Context, d *Descriptor, count int, member 
 			data = append(data, v.rangeDatum)
 		}
 	}
-	if memberError != nil {
-		return Value{}, memberError
+	return MultirangeArguments{descriptor: d, data: data, memberError: memberError}, nil
+}
+func (arguments MultirangeArguments) Construct(ctx context.Context) (Value, error) {
+	return arguments.ConstructWithEnvironment(ctx, InputEnvironment{})
+}
+func (arguments MultirangeArguments) ConstructWithEnvironment(ctx context.Context, env InputEnvironment) (Value, error) {
+	if arguments.descriptor == nil {
+		return Value{}, fmt.Errorf("invalid multirange constructor authority")
 	}
-	data, err := d.multirangeRange.normalizeRangeMembers(ctx, data)
+	if arguments.memberError != nil {
+		return Value{}, arguments.memberError
+	}
+	data, err := arguments.descriptor.multirangeRange.normalizeRangeMembers(ctx, arguments.data, env)
 	if err != nil {
 		return Value{}, err
 	}
-	return Value{typ: d, multirange: &multirangePayload{members: data}}, nil
+	return Value{typ: arguments.descriptor, multirange: &multirangePayload{members: data}}, nil
 }
 
 // MultirangeFromArray borrows the immutable array's leaf slice only during
 // construction; the normalized result owns separate member storage.
 func MultirangeFromArray(ctx context.Context, d *Descriptor, v Value) (Value, error) {
+	return MultirangeFromArrayWithEnvironment(ctx, d, v, InputEnvironment{})
+}
+func MultirangeFromArrayWithEnvironment(ctx context.Context, d *Descriptor, v Value, env InputEnvironment) (Value, error) {
 	if d == nil || !d.validMultirangeAuthority() || v.Type() == nil || !v.Type().IsArray() || v.Type().Element() != d.RangeType() {
 		return Value{}, fmt.Errorf("invalid variadic multirange array")
 	}
@@ -130,5 +170,5 @@ func MultirangeFromArray(ctx context.Context, d *Descriptor, v Value) (Value, er
 	if v.array == nil {
 		return Value{}, fmt.Errorf("missing variadic multirange array payload")
 	}
-	return MultirangeFromValues(ctx, d, v.array.elements)
+	return MultirangeFromValuesWithEnvironment(ctx, d, v.array.elements, env)
 }

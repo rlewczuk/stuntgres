@@ -165,7 +165,9 @@ func TestQueryOuterJoinsChangedPairRecheck(t *testing.T) {
 		join.Kind = kind
 		rows := [][]sqltype.Value{inputs.Sources[0].Row(0), inputs.Sources[1].Row(2)}
 		locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{{Changed: true}, {}}}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{QueryLockContext: locks})}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		scope := core.ScopeOf(inputs.LiveHost())
+		scope.QueryLockContext = locks
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope), Catalog: scope.RoutineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		offset := 0
 		got, ok, err := exec.RecheckLockedQuery(join, inputs, rows, &evaluation, make([]sqltype.Value, exec.QueryLockRecheckWidth(join, inputs)), &offset, make([]sqltype.Value, len(join.Schema())))
 		if err != nil || ok || got != nil {

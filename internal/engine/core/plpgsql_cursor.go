@@ -99,7 +99,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 		if commandValue.IsNull() {
 			return nil, name, SQLError("22004", "query string argument of EXECUTE is null")
 		}
-		command, e = commandValue.Type().OutputWithEnvironment(s.executionContext(), commandValue, s.Output)
+		command, e = s.plValueText(commandValue)
 		if e != nil {
 			return nil, name, e
 		}

@@ -168,6 +168,8 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 	}
 	b.UsedColumns = binder.Target.Uses
 	b.SystemAttributeRead = binder.Target.SystemAttributeRead
+	b.SystemColumns = binder.Target.SystemColumns
+	b.WholeRowRead = binder.Target.WholeRowRead
 	b.SubqueryDemand = binder.Query.subqueryDemand
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
 	b.ExportRoots = binder.Consumer.ExportRoots
@@ -248,6 +250,8 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 	targetName, targetAlias, uses := b.Target.Name, b.Target.alias, b.Target.Uses
 	returningRead := b.Target.returningReadRequired
 	systemRead := b.Target.SystemAttributeRead
+	systemColumns := b.Target.SystemColumns
+	wholeRowRead := b.Target.WholeRowRead
 	subqueries, visibility := b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot
 	exportRoots := b.Consumer.ExportRoots
 	singleInsert := b.Clause.stringSingleInsert
@@ -261,6 +265,8 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 		b.Target.Name, b.Target.alias, b.Target.Uses = targetName, targetAlias, uses
 		b.Target.returningReadRequired = returningRead
 		b.Target.SystemAttributeRead = systemRead
+		b.Target.SystemColumns = systemColumns
+		b.Target.WholeRowRead = wholeRowRead
 		b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = subqueries, visibility
 		b.Consumer.ExportRoots = exportRoots
 		b.Clause.stringSingleInsert = singleInsert
@@ -272,6 +278,8 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 	b.Target.Name, b.Target.alias, b.Target.Uses = "", "", nil
 	b.Target.returningReadRequired, b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = false, false, false
 	b.Target.SystemAttributeRead = false
+	b.Target.SystemColumns = nil
+	b.Target.WholeRowRead = false
 	b.Consumer.ExportRoots = false
 	b.Clause.stringSingleInsert = false
 	b.Query.Frame = 0 // Installed mutation/RETURNING row frames are frame 1.

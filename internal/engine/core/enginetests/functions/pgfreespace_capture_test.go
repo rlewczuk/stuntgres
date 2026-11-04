@@ -427,10 +427,40 @@ func TestPgFreespaceAdmittedIdentity(t *testing.T) {
 				if err != nil {
 					t.Fatal("admitted wrapper identity", err)
 				}
-				if cursor.Stop != 1 || cursor.Step != 8096 {
-					t.Fatal("wrapper lost scalar slot or captured layout", cursor)
+				if !cursor.Initialized() || cursor.Exhausted || cursor.State == nil {
+					t.Fatal("wrapper did not retain an argument-only source", cursor)
+				}
+				value, present, err := n.AdvanceSource(t.Context(), &evaluation, &cursor)
+				if err != nil || !present || value.CompositeLen() != 2 {
+					t.Fatal("admitted wrapper first actual row", value, present, err)
+				}
+				block, blockErr := value.CompositeField(0).Integer()
+				free, freeErr := value.CompositeField(1).Integer()
+				if blockErr != nil || freeErr != nil || block != 0 || free != 8096 {
+					t.Fatal("wrapper lost selected scalar capture", block, free, blockErr, freeErr)
+				}
+				if _, present, err = n.AdvanceSource(t.Context(), &evaluation, &cursor); err != nil || present || !cursor.Exhausted || cursor.State != nil {
+					t.Fatal("wrapper did not consume terminal DONE and detach", present, err, cursor)
 				}
 				cursor.Close()
+				foreignCursor, err := n.OpenSource(&evaluation)
+				if err != nil {
+					t.Fatal(err)
+				}
+				foreign := n
+				foreign.Occurrence++
+				if _, _, err = foreign.AdvanceSource(t.Context(), &evaluation, &foreignCursor); err == nil || !foreignCursor.Exhausted || foreignCursor.State != nil {
+					t.Fatal("another source occurrence adopted the cursor", err, foreignCursor)
+				}
+				canceledCursor, err := n.OpenSource(&evaluation)
+				if err != nil {
+					t.Fatal(err)
+				}
+				canceled, cancel := context.WithCancel(t.Context())
+				cancel()
+				if _, _, err = n.AdvanceSource(canceled, &evaluation, &canceledCursor); !errors.Is(err, context.Canceled) || !canceledCursor.Exhausted || canceledCursor.State != nil {
+					t.Fatal("canceled pull retained source state or entered a body", err, canceledCursor)
+				}
 			}
 			if n.Ref.Epoch != retained.Epoch() || n.Procedure != retained.Get(n.Ref.Address) || n.CallRoutineReference() != n.Procedure {
 				t.Fatal("invocation mutated retained descriptor/epoch")
@@ -626,6 +656,10 @@ func TestPgFreespaceWrapperParameterDemand(t *testing.T) {
 					EvalStatement: reconstructed.EvalStatement, EvalFrame: reconstructed.EvalFrame,
 					EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: checks},
 				}
+				// The command source owns its initializer/header snapshot. This
+				// separately admitted retained recipe owns its original catalog;
+				// neither may overwrite the other's immutable carrier.
+				evaluation.Catalog = retained
 				if evaluation.Catalog.Get(n.Ref.Address) != original.Procedure {
 					return fmt.Errorf("reconstruction lost the original retained catalog")
 				}
@@ -634,6 +668,13 @@ func TestPgFreespaceWrapperParameterDemand(t *testing.T) {
 				}
 				cursor, err := n.OpenSource(&evaluation)
 				defer cursor.Close()
+				if err == nil {
+					var present bool
+					_, present, err = n.AdvanceSource(t.Context(), &evaluation, &cursor)
+					if err == nil && (present || !cursor.Exhausted || cursor.State != nil) {
+						return fmt.Errorf("NULL wrapper did not consume an empty detached source")
+					}
+				}
 				want := ""
 				if phase == "neither" {
 					want = "permission denied for function freespace_wrapper"

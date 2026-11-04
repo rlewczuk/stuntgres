@@ -19,6 +19,39 @@ only intrinsic language identities 12–14 are excluded. Extension membership
 remains an independent retirement restriction, not a root-classification rule.
 No parallel language-permission table or cached grant decision exists.
 
+Registered sepgsql simulation adds independent default-deny mandatory checks
+through the same captured `View`, not a second ACL implementation. SQL ownership,
+superuser, view-owner and RI actor selection do not replace the actual physical
+simulated subject. A passed ACL therefore cannot grant MAC, nor can a simulated
+allow grant SQL privileges. Relation, selected column/system attribute, schema,
+view expansion and row-lock demands come from their semantic owners, not from
+catalog COW or a sweep of unrelated columns. Exact ALTER/drop hooks separately
+choose source object class, stable signed attribute and permission mask.
+Genuine whole-row Vars retain a semantic bit separately from expanded column
+indices: released inherited checks expand every actual child's live user
+columns, including additional child columns. Qualified `alias.*` remains
+ordinary per-column demand. Child name mapping borrows the original selection
+without allocating a remapped slice per descendant; view-owner SQL authority
+does not replace the physical MAC subject.
+Rowmarks keep ordinary UPDATE permission on any live column (including an
+unprojected column) separate from the selected-column SELECT request. An empty
+rowmark column set is not whole-table UPDATE and never introduces all-column
+SELECT. After SQL ACL admission, actual tables demand `db_table:lock`, not table
+or column UPDATE; logical views demand `db_view:expand`, with their reached
+sources retaining the lock demand. Exact negative system-column MAC and genuine
+whole-row expansion remain independent of this no-column locking request.
+This follows released PostgreSQL 18.6
+[`ExecCheckPermissionsModified`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/executor/execMain.c)
+and [`sepgsql_dml_privileges`](https://github.com/postgres/postgres/blob/REL_18_6/contrib/sepgsql/dml.c).
+
+
+Actual-phase observations retain policy, physical subject/lexical frame, exact
+object reference, consulted label including absence, and the committed object
+and label predecessors. Publication validates those predecessors, not a returned
+caller's current subject or the command's own next label. Successful own
+publication advances only predecessor lineage. No subject/allow receipt is
+stored in a retained routine program, catalog descriptor or native snapshot.
+
 
 ## What it holds
 

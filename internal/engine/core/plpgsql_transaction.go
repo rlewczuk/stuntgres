@@ -169,6 +169,9 @@ func (s *StatementScope) resetPLSegment() {
 	s.multiEvents, s.alterNames = nil, nil
 	s.tupleAdmissions = nil
 	s.routinePrograms, s.checkPrograms = nil, nil
+	s.sepgsqlObservations = nil
+	s.sepgsqlRetirements = nil
+	s.clearRoutineInitializations()
 	s.Domains.endAdmission()
 	s.partitionsSlot.DropPrograms()
 	s.indexesSlot.EndStatement()

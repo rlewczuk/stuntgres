@@ -64,20 +64,24 @@ func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *cata
 	if node.Occurrence < 0 && node.Ref.Address == r.policyTarget {
 		request.Identity = r.modifyIdentity
 	}
-	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request}
+	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Handler: handler, Selection: exec.SelectForeignHandler(r.auth.Catalog, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(request.HandlerOID)}), Request: request}
 	captured := r.auth.Catalog.State()
 	r.host.ReleaseEngineLocked()
 	r.host.ReleaseReplacementRead()
+	if err := source.InitializeHandler(r.host); err != nil {
+		r.host.ReacquireEngine()
+		return 0, err
+	}
 	var execution exec.ForeignExecution
 	if r.rowMarked {
-		request, err = exec.PlanForeignRowMark(r.host.Context(), handler.Wrapper, request, mark)
+		request, err = exec.PlanForeignRowMark(r.host.Context(), source.Wrapper, request, mark)
 	}
 	if err == nil {
 		err = source.Plan(r.host.Context(), request, &execution)
 	}
 	var properties []catalog.ForeignExplainProperty
 	if err == nil {
-		if provider, ok := handler.Wrapper.(catalog.ForeignExplainScanProvider); ok {
+		if provider, ok := source.Wrapper.(catalog.ForeignExplainScanProvider); ok {
 			path, planned := execution.Path, execution.Plan
 			path.Attributes = slices.Clone(path.Attributes)
 			planned.Attributes = slices.Clone(planned.Attributes)
@@ -129,14 +133,18 @@ func (r *Renderer) foreignModify(tree *Tree, relation *catalog.Relation, operati
 		return err
 	}
 	request.Parameters = r.parameters
-	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request}
+	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Handler: handler, Selection: exec.SelectForeignHandler(r.auth.Catalog, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(request.HandlerOID)}), Request: request}
 	captured := r.auth.Catalog.State()
 	r.host.ReleaseEngineLocked()
 	r.host.ReleaseReplacementRead()
+	if err := source.InitializeHandler(r.host); err != nil {
+		r.host.ReacquireEngine()
+		return err
+	}
 	modification, err := fdw.PlanModification(r.host.Context(), source, operation, false)
 	var properties []catalog.ForeignExplainProperty
 	if err == nil {
-		if provider, ok := handler.Wrapper.(catalog.ForeignExplainModifyProvider); ok {
+		if provider, ok := source.Wrapper.(catalog.ForeignExplainModifyProvider); ok {
 			properties, err = provider.ExplainForeignModify(r.host.Context(), catalog.ForeignExplainModifyRequest{ForeignModifyRequest: modification.CallbackRequest(), Options: r.foreignOptions()})
 			err = exec.ForeignCallbackError(err)
 		}

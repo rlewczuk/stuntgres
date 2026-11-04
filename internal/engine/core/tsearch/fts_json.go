@@ -8,7 +8,13 @@ import (
 
 // ConvertJSON resolves an omitted default after flag validation and
 // before traversal. Parser/dictionary acquisition remains lazy for both forms.
-func ConvertJSON[A Authority[A]](h Host[A], ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func ConvertJSON[A Authority[A]](h Host[A], ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (out sqltype.Value, err error) {
+	mark := h.MarkDictionaryInitialization()
+	defer func() {
+		if err != nil {
+			h.AbortDictionaryInitialization(mark)
+		}
+	}()
 	flags := sqltype.JSONTextSearchString
 	if filtered {
 		var err error
@@ -28,7 +34,7 @@ func ConvertJSON[A Authority[A]](h Host[A], ctx context.Context, explicit bool, 
 	var captured Capture[A]
 	var builder fts.VectorBuilder
 	position := 0
-	err := sqltype.WalkJSONTextSearch(ctx, document, flags, func(text string) error {
+	err = sqltype.WalkJSONTextSearch(ctx, document, flags, func(text string) error {
 		if captured.acquisition == nil {
 			var err error
 			if explicit {

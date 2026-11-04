@@ -65,6 +65,14 @@ Peer subscriptions and their current progress survive, including transaction-pri
 and savepoint-retained peer slots. Pending peer claims retain their allocation
 exclusions and immutable database scope; no foreign journal inspection is required.
 
+Simulated SELinux labels follow the selected-database snapshot scope. Dump
+includes the selected database's label and persistent local object labels, with
+the required registered policy identity/version, but no peer database label SQL.
+Reset and Restore retain the destination's current peer database associations,
+including absence, and peer-local data. Restore preserves explicit selected/local
+labels from the image; Reset uses the configured startup labeling profile.
+Neither control serializes or imports a live session subject or policy rules.
+
 ## Dump
 
 Captures a consistent committed snapshot before writing, then emits PostgreSQL SQL:

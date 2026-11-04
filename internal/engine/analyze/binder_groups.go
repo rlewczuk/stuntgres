@@ -24,6 +24,7 @@ import (
 // column resolution, RETURNING and target-use tracking read it.
 type targetContext struct {
 	SystemAttributeRead   bool
+	SystemColumns         []int32 // Exact selected negative attribute IDs.
 	Relation              *catalog.Relation
 	InsertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
 	Ref                   ids.ObjectRef
@@ -38,6 +39,7 @@ type targetContext struct {
 	returningAliases      *returningAliases
 	returningReadRequired bool
 	Uses                  []int // Target column slots read by bound expressions.
+	WholeRowRead          bool
 }
 
 // parameterState holds parameter inference: the inferred usages by number,

@@ -37,7 +37,7 @@ func TestClientEncodingStream(t *testing.T) {
 				raw, want, conversion = w.unicode, w.local, p.Outgoing()
 			}
 			for split := 0; split <= len(raw); split++ {
-				r := NewEncodingReader(&encodingChunkReader{[]string{raw[:split], raw[split:]}}, conversion, context.Background)
+				r := NewEncodingReader(&encodingChunkReader{[]string{raw[:split], raw[split:]}}, conversion, context.Background, nil)
 				got, err := io.ReadAll(r)
 				if err != nil || string(got) != want {
 					t.Fatalf("%s outbound%t split%d: %x want %x %v", w.name, outbound, split, got, want, err)
@@ -50,7 +50,7 @@ func TestClientEncodingStream(t *testing.T) {
 		{"GB18030", "ok\n\x84\x30\x9c", "22021", `invalid byte sequence for encoding "GB18030": 0x84 0x30 0x9c`},
 		{"LATIN1", "ok\n\\.\n\x00", "22021", `invalid byte sequence for encoding "LATIN1": 0x00`},
 	} {
-		r := NewEncodingReader(strings.NewReader(w.raw), clientPolicy(t, w.name).Incoming(), context.Background)
+		r := NewEncodingReader(strings.NewReader(w.raw), clientPolicy(t, w.name).Incoming(), context.Background, nil)
 		var buf [64]byte
 		n, err := r.Read(buf[:])
 		want := "ok\n"
@@ -69,7 +69,7 @@ func TestClientEncodingStream(t *testing.T) {
 	// The same reader has accepted a converted prefix and still owns output;
 	// replacing the current context must interrupt buffered work, not just Read.
 	ctx := context.Background()
-	r := NewEncodingReader(strings.NewReader(strings.Repeat("\xe9", 10000)), clientPolicy(t, "LATIN1").Incoming(), func() context.Context { return ctx })
+	r := NewEncodingReader(strings.NewReader(strings.Repeat("\xe9", 10000)), clientPolicy(t, "LATIN1").Incoming(), func() context.Context { return ctx }, nil)
 	var first [1]byte
 	n, err := r.Read(first[:])
 	if err != nil || n != 1 || first[0] != 0xc3 {
@@ -85,10 +85,10 @@ func TestClientEncodingStream(t *testing.T) {
 	// Missing default is never repaired by the available kernel tables. Empty
 	// input remains empty, as pg_do_encoding_conversion's len<=0 fastpath.
 	missing := NewEncodingConversion(6, 7, EncodingConversionHandler{})
-	empty, err := io.ReadAll(NewEncodingReader(bytes.NewReader(nil), missing, context.Background))
+	empty, err := io.ReadAll(NewEncodingReader(bytes.NewReader(nil), missing, context.Background, nil))
 	if err != nil || len(empty) != 0 {
 		t.Fatal(empty, err)
 	}
-	_, err = io.ReadAll(NewEncodingReader(strings.NewReader("x"), missing, context.Background))
+	_, err = io.ReadAll(NewEncodingReader(strings.NewReader("x"), missing, context.Background, nil))
 	clientPolicyDiagnostic(t, err, "42883", `default conversion function for encoding "UTF8" to "MULE_INTERNAL" does not exist`)
 }

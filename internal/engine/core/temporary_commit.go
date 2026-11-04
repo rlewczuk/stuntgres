@@ -72,6 +72,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	}
 	if len(dropped) != 0 {
 		stage := e.BeginCatalogStage(base)
+		stage.dropCleanupOrigin = dropCleanupOnCommit
 		defer e.DiscardCatalogStage(stage)
 		input, output := op.EffectiveSettings().Presentation()
 		ctx := op.Context()
@@ -100,19 +101,24 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 			}
 			return nil
 		}
+		drop := StageDropProvider(op.Context(), stage, nil, next, project)
+		dependencies, err := drop.PrepareExpressionDependencies(dropped, parser.DropCascade, ids.ObjectAddress{})
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		for _, a := range dropped {
 			if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				return nil, nil, nil, err
 			}
 		}
-		if err := StageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ids.ObjectAddress{}); err != nil {
+		if err := drop.ApplyExpressionDependencies(dependencies); err != nil {
 			return nil, nil, nil, err
 		}
-		if err := stageOwnedExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project); err != nil {
+		if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 			return nil, nil, nil, err
 		}
 		e.Mu.Lock()
-		err := e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
+		err = e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
 			for a := range stage.Descriptors() {
 				original, observed := next.Originals[a]

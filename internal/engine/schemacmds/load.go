@@ -20,8 +20,28 @@ func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count
 	if err != nil {
 		return core.Result{}, err
 	}
-	if err := ddl.Load(op.Context(), auth.View, stmt); err != nil {
+	module, err := ddl.Load(op.Context(), auth.View, stmt)
+	if err != nil {
 		return core.Result{}, err
 	}
-	return core.Result{}, op.EffectiveSettings().LoadOverexplain(op.Context())
+	switch module {
+	case ddl.LoadOverexplain:
+		return core.Result{}, op.EffectiveSettings().LoadOverexplain(op.Context())
+	case ddl.LoadSepgsql:
+		// Registration already owns provider activation. Keep physical terminal
+		// admission without activating another module or changing settings.
+		physical := op.Session.Settings
+		ctx := op.Context()
+		physical.Mu.Lock()
+		defer physical.Mu.Unlock()
+		if err := ctx.Err(); err != nil {
+			return core.Result{}, err
+		}
+		if physical.Ended {
+			return core.Result{}, fmt.Errorf("stuntgres: session has ended")
+		}
+		return core.Result{}, nil
+	default:
+		return core.Result{}, fmt.Errorf("stuntgres: invalid LOAD module %d", module)
+	}
 }

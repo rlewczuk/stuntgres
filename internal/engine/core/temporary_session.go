@@ -118,13 +118,48 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *sessi
 	owner := e.RoleStore.Domain.Principal(10)
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.Session.SessionToken.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.Session.SessionToken}
 	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.Session.SessionToken.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.Session.SessionToken, TemporaryToast: true}
-	if c.Originals == nil {
-		c.Originals = make(map[ids.ObjectAddress]catalog.Descriptor)
-		c.Descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
-		c.Names = make(map[ids.NameKey]ids.ObjectAddress)
+	// NamespaceCreate invokes postcreate even for TEMP namespaces. Use the
+	// actual precreation private view and ordinary semantic hooks, before
+	// handing the pair and its labels to the prospective statement journal.
+	var stage *CatalogStage
+	if auth.Sepgsql.Policy != nil {
+		stage = e.BeginCatalogStage(auth.Catalog)
+		stage.AuthorizeLocked(auth, auth.Session)
+		if err := stage.Create(ns); err != nil {
+			return ids.ObjectRef{}, err
+		}
+		if err := stage.Create(toast); err != nil {
+			return ids.ObjectRef{}, err
+		}
+		if err := stage.DefaultPreflight(auth.Catalog.State()); err != nil {
+			return ids.ObjectRef{}, err
+		}
 	}
-	e.CatalogChangeLocked(c, ns.Address(), ns)
-	e.CatalogChangeLocked(c, toast.Address(), toast)
+	target := c
+	if stage != nil {
+		target = c.Clone()
+		capture := session.JournalCapture{Journal: target, Candidate: &stage.Candidate, Committed: e.Catalog.State, Current: auth.Catalog.State()}
+		if err := capture.ObserveDatabase(e.Catalog.Owner.DatabaseAddress(), stage.DatabaseAuthority, stage.DatabasePredecessor); err != nil {
+			return ids.ObjectRef{}, err
+		}
+		if err := capture.ObserveCandidate(); err != nil {
+			return ids.ObjectRef{}, err
+		}
+		target.RecordCandidateDefaults(e.Catalog.State, &stage.Candidate)
+		if err := auth.Statement.Op.Context().Err(); err != nil {
+			return ids.ObjectRef{}, err
+		}
+	}
+	if target.Originals == nil {
+		target.Originals = make(map[ids.ObjectAddress]catalog.Descriptor)
+		target.Descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
+		target.Names = make(map[ids.NameKey]ids.ObjectAddress)
+	}
+	e.CatalogChangeLocked(target, ns.Address(), ns)
+	e.CatalogChangeLocked(target, toast.Address(), toast)
+	if target != c {
+		*c = *target
+	}
 	return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ns.Address()), nil
 }
 
@@ -171,16 +206,23 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 		}
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
+		stage.dropCleanupOrigin = dropCleanupDrained
+		drop := StageDropProvider(context.Background(), stage, nil, nil, nil)
+		dependencies, err := drop.PrepareExpressionDependencies(targets, parser.DropCascade, ids.ObjectAddress{})
+		if err != nil {
+			e.DiscardCatalogStage(stage)
+			return err
+		}
 		for _, a := range targets {
 			if err = stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				break
 			}
 		}
 		if err == nil {
-			err = StageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
+			err = drop.ApplyExpressionDependencies(dependencies)
 		}
 		if err == nil {
-			err = stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil)
+			err = drop.ApplyOwnedExpressionDependencies(dependencies)
 		}
 		if err == nil {
 			_, err = e.ValidateCatalogStage(context.Background(), stage)

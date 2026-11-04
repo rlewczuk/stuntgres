@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ type SearchRecipe struct {
 	Keys           []int
 	Record, Result *sqltype.Descriptor
 	Depth          *sqltype.Descriptor
-	Grouping       []sqltype.Grouping // DISTINCT only, in record-field order.
+	Grouping       []Grouping // DISTINCT only, in record-field order.
 }
 
 func (s *SearchRecipe) Value(ctx context.Context, checkpoint func(context.Context) error, row []sqltype.Value, parent sqltype.Value) (sqltype.Value, error) {
@@ -74,17 +75,17 @@ func (s *SearchRecipe) Value(ctx context.Context, checkpoint func(context.Contex
 	return sqltype.OwnedArrayValue(s.Result, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func (s *SearchRecipe) Equal(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
+func (s *SearchRecipe) Equal(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value, evaluation expr.Context) (bool, error) {
 	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if s.Syntax.Breadth {
-		return c.equalRecord(ctx, checkpoint, a, b)
+		return c.equalRecord(ctx, checkpoint, a, b, evaluation)
 	}
-	return c.EqualPath(ctx, checkpoint, a, b)
+	return c.EqualPath(ctx, checkpoint, a, b, evaluation)
 }
-func (s *SearchRecipe) Hash(ctx context.Context, checkpoint func(context.Context) error, value sqltype.Value) (uint64, error) {
+func (s *SearchRecipe) Hash(ctx context.Context, checkpoint func(context.Context) error, value sqltype.Value, evaluation expr.Context) (uint64, error) {
 	c := CycleRecipe{Record: s.Record, Path: s.Result, Grouping: s.Grouping}
 	if !s.Syntax.Breadth {
-		return c.HashPath(ctx, checkpoint, value)
+		return c.HashPath(ctx, checkpoint, value, evaluation)
 	}
 	if value.Type() != s.Result || value.IsNull() {
 		return 0, fmt.Errorf("stuntgres: foreign search record")
@@ -97,7 +98,7 @@ func (s *SearchRecipe) Hash(ctx context.Context, checkpoint func(context.Context
 		if err := checkpoint(ctx); err != nil {
 			return 0, err
 		}
-		part, err := g.Hash(ctx, value.CompositeField(i))
+		part, err := g.HashWithEvaluation(ctx, value.CompositeField(i), evaluation)
 		if err != nil {
 			return 0, err
 		}

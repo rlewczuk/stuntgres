@@ -135,10 +135,28 @@ func (c *Candidate) AccessMethodsCurrent(current Read) bool {
 // candidate read is unchanged in current and every current record of a
 // schema it removes was observed. The root calls it under Engine.mu.
 func (c *Candidate) DefaultPreflight(current *State) error {
+	return c.defaultPreflight(current, nil)
+}
+
+// DefaultPreflightWithTemporaryNamespaces accepts only exact TEMP namespace
+// creation intents authenticated by the source journal capture, including the
+// exact own-pending label pointer and original committed label absence.
+func (c *Candidate) DefaultPreflightWithTemporaryNamespaces(current *State, namespaces []*Namespace) error {
+	for _, ns := range namespaces {
+		if ns == nil || ns.Address().ClassID != ids.NamespaceClassID || ns.Address().ObjectID == 0 || ns.Address().SubID != 0 ||
+			ns.Temporary.ID() == 0 || ns.Temporary.Domain() == nil || ns.Temporary.Domain() != c.Base.Domain() ||
+			ns.Temporary.IsDetached() || ns.Temporary.Private() != nil || c.Base.Get(ns.Address()) != ns || current.Get(ns.Address()) != nil {
+			return Conflict{}
+		}
+	}
+	return c.defaultPreflight(current, namespaces)
+}
+
+func (c *Candidate) defaultPreflight(current *State, namespaces []*Namespace) error {
 	if err := c.ParameterPreflight(current); err != nil {
 		return err
 	}
-	if !c.DefaultRecordsUnchanged(current) || !c.InitialPrivilegesUnchanged(current) {
+	if !c.DefaultRecordsUnchanged(current) || !c.InitialPrivilegesUnchanged(current) || !c.securityLabelsUnchanged(current, namespaces) {
 		return Conflict{}
 	}
 	for key := range current.DefaultACLs() {

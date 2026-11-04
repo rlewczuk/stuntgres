@@ -129,12 +129,12 @@ func StageDropSchema(h SchemaHost, auth Authority, s *parser.DropSchema, manifes
 		}
 	}
 	for _, r := range dependent {
-		if err = h.RemoveObject(ObjectRef(h, auth, r.Address()), false); err != nil {
+		if err = h.SelectDropRoot(ObjectRef(h, auth, r.Address()), false); err != nil {
 			return false, err
 		}
 	}
 	for _, d := range schemas {
-		if err = h.RemoveObject(ObjectRef(h, auth, d.Address()), true); err != nil {
+		if err = h.SelectDropRoot(ObjectRef(h, auth, d.Address()), true); err != nil {
 			return false, err
 		}
 	}

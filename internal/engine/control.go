@@ -9,8 +9,39 @@ import (
 	"stuntgres/internal/engine/core"
 )
 
-// Reset replaces e's persistent catalog with a freshly composed engine's.
+type controlOrigin uint8
+
+const (
+	trustedEngineControl controlOrigin = iota + 1
+	detachedPublicControl
+)
+
+func (origin controlOrigin) validate(e *core.Engine, authority *core.ControlSepgsqlAuthority) error {
+	switch origin {
+	case trustedEngineControl:
+		if authority == nil {
+			return nil
+		}
+	case detachedPublicControl:
+		return e.ValidateControlSepgsql(authority)
+	}
+	return fmt.Errorf("stuntgres: invalid native control trust origin")
+}
+
+// Reset is the trusted host-internal bootstrap replacement contract.
 func Reset(ctx context.Context, e *core.Engine) error {
+	return resetCatalogContents(ctx, e, trustedEngineControl, nil)
+}
+
+// ResetWithAuthority is the authenticated public adapter's replacement contract.
+// Active simulation requires an actual destination-session admission capture.
+func ResetWithAuthority(ctx context.Context, e *core.Engine, authority *core.ControlSepgsqlAuthority) error {
+	return resetCatalogContents(ctx, e, detachedPublicControl, authority)
+}
+func resetCatalogContents(ctx context.Context, e *core.Engine, origin controlOrigin, authority *core.ControlSepgsqlAuthority) error {
+	if err := origin.validate(e, authority); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -21,8 +52,16 @@ func Reset(ctx context.Context, e *core.Engine) error {
 	if err := fresh.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
 		return err
 	}
+	if err := fresh.InstallSepgsqlSimulation(e.Sepgsql, false); err != nil {
+		return err
+	}
+	fresh.InitializeSepgsqlSeedLabels()
 	fresh.TextSearchFiles = e.TextSearchFiles
 	fresh.IdentFile = e.IdentFile
+	if origin == detachedPublicControl {
+		_, err := e.ReplaceCatalogWithControl(ctx, fresh, fresh.CatalogRead(), nil, authority)
+		return err
+	}
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }
@@ -55,12 +94,24 @@ func Dump(ctx context.Context, e *core.Engine, dst io.Writer) error {
 // objects; failed or canceled replacement leaves the old tree usable.
 // Native replacement is not a PostgreSQL control API.
 func Restore(ctx context.Context, e *core.Engine, src io.Reader) error {
+	return restoreCatalogContents(ctx, e, src, trustedEngineControl, nil)
+}
+
+// RestoreWithAuthority replays using an explicit detached destination identity,
+// never the source replay session or an implicitly trusted nil capture.
+func RestoreWithAuthority(ctx context.Context, e *core.Engine, src io.Reader, authority *core.ControlSepgsqlAuthority) error {
+	return restoreCatalogContents(ctx, e, src, detachedPublicControl, authority)
+}
+func restoreCatalogContents(ctx context.Context, e *core.Engine, src io.Reader, origin controlOrigin, authority *core.ControlSepgsqlAuthority) error {
+	if err := origin.validate(e, authority); err != nil {
+		return err
+	}
 	if src == nil {
 		return fmt.Errorf("stuntgres: nil restore reader")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	run := &restoreRun{stage: e.RestoreStage(), hostContext: ctx}
+	run := &restoreRun{stage: e.RestoreStage(), hostContext: ctx, controlOrigin: origin, sepgsqlAuthority: authority}
 	return control.Restore(ctx, &restoreHost{target: e, run: run}, restoreHooks, run, src)
 }

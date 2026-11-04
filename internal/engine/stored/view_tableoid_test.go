@@ -33,13 +33,13 @@ func storedSystemAttributeFixture(t *testing.T, name string) (catalog.Read, *Rou
 	attribute := ref
 	attribute.Address.SubID = subID
 	dependencies := []catalog.ExpressionDependency{{Ref: attribute, Revision: relation.Revision()}}
-	v := NewView(ViewParts{Query: query, Syntax: syntax, Frames: map[uint32]*plan.ProjectNode{1: project}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []ViewLeaf{{Ref: ref, Attributes: relation.Attributes, SystemAttributeRead: true}}, Dependencies: dependencies, Columns: map[analyze.ViewLiteralPath]analyze.ViewColumn{path: {SystemAttribute: subID, Owner: ref, Scope: 1, Frame: 1, Occurrence: 1}}})
-	binding := analyze.Binding{Query: query, QuerySources: []exec.Leaf{{Ref: ref, Relation: relation, SystemAttributeRead: true}}, Dependencies: dependencies}
+	v := NewView(ViewParts{Query: query, Syntax: syntax, Frames: map[uint32]*plan.ProjectNode{1: project}, Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []ViewLeaf{{Ref: ref, Attributes: relation.Attributes, SystemAttributeRead: true, SystemColumns: []int32{subID}}}, Dependencies: dependencies, Columns: map[analyze.ViewLiteralPath]analyze.ViewColumn{path: {SystemAttribute: subID, Owner: ref, Scope: 1, Frame: 1, Occurrence: 1}}})
+	binding := analyze.Binding{Query: query, QuerySources: []exec.Leaf{{Ref: ref, Relation: relation, SystemAttributeRead: true, SystemColumns: []int32{subID}}}, Dependencies: dependencies}
 	return read, NewRoutineProgram([]RuleAction{NewRuleAction(RuleActionParts{Syntax: syntax, Binding: binding, Presentation: v})}), path
 }
 
 func TestStoredTableOIDCaptureValidation(t *testing.T) {
-	for _, kind := range []string{"missing", "extra", "mode", "scope", "frame", "occurrence", "owner", "foreign", "stale", "admission"} {
+	for _, kind := range []string{"missing", "extra", "mode", "scope", "frame", "occurrence", "owner", "foreign", "stale", "admission", "missing-system-demand", "wrong-system-demand"} {
 		t.Run(kind, func(t *testing.T) {
 			read, p, path := storedSystemAttributeFixture(t, "tableoid")
 			if err := p.Validate(read); err != nil {
@@ -70,6 +70,10 @@ func TestStoredTableOIDCaptureValidation(t *testing.T) {
 				c.Owner = read.Domain().Ref(c.Owner.Epoch+1, c.Owner.Address)
 			case "admission":
 				v.sources[0].SystemAttributeRead = false
+			case "missing-system-demand":
+				v.sources[0].SystemColumns = nil
+			case "wrong-system-demand":
+				v.sources[0].SystemColumns = []int32{-2}
 			}
 			if kind != "missing" && kind != "extra" {
 				v.columns[path] = c

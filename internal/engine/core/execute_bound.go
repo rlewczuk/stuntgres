@@ -25,6 +25,7 @@ type preparedCommandExecution struct {
 	binding     analyze.Binding // Original logical authority; physical consumers lower local copies.
 	auth        AuthorizationView
 	evaluation  exec.Context
+	authority   *exec.Authority // This actual command's source header, not a shared CTE scratch slot.
 	queryRoot   plan.Node
 	expressions [][]expr.Expr
 	primaryTag  string
@@ -68,6 +69,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	scope.RoutineAuth = routineAuth
 	scope.RoutineDependencies = b.Dependencies
 	evaluation.DefaultOccurrence = exec.DefaultOccurrence{Statement: stmt, Expansion: scope.ActiveMutation}
+	evaluation.RoutineInitialization, err = scope.newRoutineInitializationLocked(routineAuth)
+	if err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
+	if e.Sepgsql != nil {
+		authority := &exec.Authority{Host: HostOf(scope), RoutineInitialization: evaluation.RoutineInitialization, RoutineCatalog: evaluation.Catalog, PreserveParameterDemand: evaluation.PreserveParameterDemand}
+		if scope.authority != nil {
+			authority.Expression = scope.authority.Expression
+		}
+		scope.authority = authority
+	}
 	if calling || inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
@@ -176,6 +189,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					preflight.PLPreflightOrigin = true
 					queryRoot, err = view.PreflightQuery(&preflight, root)
 					evaluation.PreparedDomainChecks = preflight.PreparedDomainChecks
+					evaluation.RoutineInitialization = preflight.RoutineInitialization
 					if err != nil {
 						var origin interface{ PreflightParameterEvaluation() bool }
 						if errors.As(err, &origin) && origin.PreflightParameterEvaluation() {
@@ -367,7 +381,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Preserve the already-checked logical authority before physical lowering.
 	// Nested command activation restores this pointer, not historical ACLs.
-	execution := preparedCommandExecution{binding: b, auth: auth, syntax: stmt, policyWaits: scope.rlsImportWaits}
+	execution := preparedCommandExecution{binding: b, auth: auth, syntax: stmt, policyWaits: scope.rlsImportWaits, authority: scope.authority}
 	previousRLSCommand := scope.rlsCommand
 	scope.rlsCommand = &execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
@@ -534,6 +548,8 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// same parameter-demand policy used by preflight before any source
 		// evaluator is reconstructed or retained by a portal.
 		scope.authority.PreserveParameterDemand = evaluation.PreserveParameterDemand
+		scope.authority.RoutineInitialization = evaluation.RoutineInitialization
+		scope.authority.RoutineCatalog = evaluation.Catalog
 	}
 	execution.evaluation, execution.queryRoot, execution.expressions = evaluation, queryRoot, expressions
 	if prepared != nil {

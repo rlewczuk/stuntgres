@@ -48,7 +48,7 @@ func deparseRoutine(h CatalogHost, c *exec.Context, signature functions.DeparseS
 	var text string
 	switch signature {
 	case functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments:
-		text, err = r.arguments(c.Context, d, signature == functions.DeparseFunctionArguments)
+		text, err = r.runtime.RoutineArguments(c.Context, r.View, d, signature == functions.DeparseFunctionArguments)
 	case functions.DeparseFunctionResult:
 		text, err = r.result(c.Context, d)
 	case functions.DeparseFunction:
@@ -67,85 +67,6 @@ func (r routineInquiry) typeName(id ids.OID) (string, error) {
 		return "", fmt.Errorf("stuntgres: missing routine declaration type %d", id)
 	}
 	return regobj.FormatDeclarationType(r.View, r.Path, sqltype.ID(id), r.Identifier)
-}
-
-func (r routineInquiry) arguments(ctx context.Context, d *catalog.Procedure, defaults bool) (string, error) {
-	names, err := pgcatalog.ProcedureNameProjection(r.View, d)
-	if err != nil {
-		return "", err
-	}
-	var out strings.Builder
-	written := 0
-	var aggregate *catalog.AggregateDefinition
-	if d.Aggregate != nil {
-		aggregate = &d.Aggregate.Definition
-	} else if d.RoutineKind == catalog.AggregateRoutine {
-		for i := range pgcatalog.AggregateDefinitions {
-			if pgcatalog.AggregateDefinitions[i].Function == d.Address().ObjectID {
-				aggregate = &pgcatalog.AggregateDefinitions[i]
-				break
-			}
-		}
-		if aggregate == nil {
-			return "", fmt.Errorf("stuntgres: missing aggregate declaration")
-		}
-	}
-	ordered := aggregate != nil && aggregate.Kind != "n"
-	err = pgcatalog.VisitProcedureFormals(ctx, d, sqltype.Value{}, func(f pgcatalog.ProcedureFormal) error {
-		if f.Mode == "t" {
-			return nil
-		}
-		boundary := ordered && written == int(aggregate.DirectArgs)
-		if boundary {
-			if written > 0 {
-				out.WriteByte(' ')
-			}
-			out.WriteString("ORDER BY ")
-		} else if written > 0 {
-			out.WriteString(", ")
-		}
-		start := out.Len()
-		switch f.Mode {
-		case "i":
-			if d.RoutineKind == catalog.ProcedureRoutine {
-				out.WriteString("IN ")
-			}
-		case "o":
-			out.WriteString("OUT ")
-		case "b":
-			out.WriteString("INOUT ")
-		case "v":
-			out.WriteString("VARIADIC ")
-		default:
-			return fmt.Errorf("stuntgres: invalid declaration argument mode")
-		}
-		if name := names.At(f.Index); name != "" {
-			out.WriteString(r.Identifier(name) + " ")
-		}
-		typ, err := r.typeName(f.Type)
-		if err != nil {
-			return err
-		}
-		out.WriteString(typ)
-		declarationEnd := out.Len()
-		if defaults && f.HasDefault {
-			text, err := r.runtime.RoutineDefault(ctx, r.View, d, f.Input)
-			if err != nil {
-				return err
-			}
-			out.WriteString(" DEFAULT " + text)
-		}
-		// Released ordered aggregates repeat the final variadic formal when
-		// it is shared by the direct and aggregated argument lists.
-		if ordered && f.Mode == "v" && written+1 == int(aggregate.DirectArgs) && f.Input+1 == int(pgcatalog.ProcedureArity(d)) {
-			declaration := out.String()[start:declarationEnd]
-			out.WriteString(" ORDER BY ")
-			out.WriteString(declaration)
-		}
-		written++
-		return nil
-	})
-	return out.String(), err
 }
 
 func (r routineInquiry) result(ctx context.Context, d *catalog.Procedure) (string, error) {
@@ -190,7 +111,7 @@ func (r routineInquiry) definition(ctx context.Context, d *catalog.Procedure) (s
 	if !ok {
 		return "", ids.ErrCatalogReplaced
 	}
-	args, err := r.arguments(ctx, d, true)
+	args, err := r.runtime.RoutineArguments(ctx, r.View, d, true)
 	if err != nil {
 		return "", err
 	}

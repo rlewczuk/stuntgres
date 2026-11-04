@@ -56,6 +56,11 @@ Its native return-rule identity is 12360, reserved independently of every
 descriptor address and owned definition in the complete installed catalog.
 In particular, relation 12359 remains `pg_statio_user_indexes`; database creation
 and catalog replacement validate the same disjoint identity space.
+The label presentation view `pg_seclabels` uses initialized native relation 12099
+and explicit `_RETURN` rule 12361, retaining its row/array types 12101/12100.
+These native identities remain disjoint from database rule 12360; they do not
+prescribe PostgreSQL initdb identities. Fixed label catalogs
+`pg_seclabel`/`pg_shseclabel` retain identities 3596/3592.
 Upstream-only getter names are bounded display references, not newly installed
 SQL functions or another execution path.
 The released deparser leaves outer `oid`/`datname` references unqualified for its
@@ -491,13 +496,15 @@ diagnostics; retained rows own their original immutable typed backing.
   valid no-handler definitions remain catalog-visible.
 - `pg_shseclabel` (3592, rowtype4066) validates owned source authority and exact
   nonnullable OID/OID/TEXT/TEXT metadata (C collation on text), then emits the
-  genuine empty provider inventory without storage or per-call row allocation.
-  Ordinary PUBLIC SELECT/current ACL admission applies; shared classification
-  supplies global tablespace1664 and logical index presence. The key is
-  `(objoid,classoid,provider)`; no local `objsubid` exists. PostgreSQL native
-  provider ABI/loading and SELinux/MAC integration are not available; bounded
-  shared-target SECURITY LABEL commands fail before object lookup, never populate
-  rows. The local catalog and presentation view are separate sources below.
+  immutable shared provider associations. Ordinary PUBLIC SELECT/current ACL
+  admission applies; shared classification supplies global tablespace1664 and
+  logical index presence. The key is `(objoid,classoid,provider)`; no local
+  `objsubid` exists. Without configured simulation it is genuinely empty without
+  per-call row allocation and provider commands fail with 22023 before target
+  lookup. Explicit `selinux` simulation can label supported database objects;
+  unsupported shared classes are not fabricated. Native C ABI loading and
+  kernel SELinux enforcement remain unavailable. The local catalog and
+  presentation view are separate sources below.
   Its explicit bootstrap ACL retains all eight owner table privileges plus
   PUBLIC SELECT, seeded through the common materialized-relation ACL path.
   Native unbounded TEXT length metadata is known `math.MaxInt64`; OID length and
@@ -524,43 +531,53 @@ diagnostics; retained rows own their original immutable typed backing.
   Textual bootstrap `pg_attribute` facts use C collation (950), independently
   of the result carrier's ordinary TEXT usage (default collation 100).
   PUBLIC SELECT and ordinary column grants/revocation apply before EOF.
-  There are no installed security-label providers: valid SECURITY LABEL
-  commands reject at execution with 22023 before target lookup or ownership.
-  This includes NULL removal and conventional dummy/selinux spellings.
+  With no registration SECURITY LABEL retains its execution-time 22023 provider
+  boundary before target lookup or ownership, including NULL removal and
+  conventional dummy/selinux spellings.
   Existing DDL command-start event triggers run before provider resolution for
   eligible target kinds and may veto first. Database, tablespace, role and
   event-trigger targets bypass those events; subscription remains eligible.
   Read-only/failed-transaction admission precedes callbacks. Provider failure
   suppresses command-end events and rolls back callback writes through the
-  existing event journal, without adding label storage.
-  No label map, provider registry, fake assignments or serializer exists.
-  Reset and Restore use normal catalog bootstrap; Dump emits no label commands.
-  With a real provider, labels would key object OID, catalog class, stable
-  subobject attribute number and provider; rename would preserve identity,
-  replacement/removal would affect only that key and drop would remove its
-  labels. Those provider-backed effects and veto/target-ownership branches are
-  unreachable here, not delivered successful attachment behavior.
-  Shared-object labels (`pg_shseclabel`) and the `pg_seclabels` presentation
-  view remain separate and are not exposed by this source.
+  existing event journal.
+  Explicit simulated `selinux` registration instead projects genuine
+  transaction-owned associations keyed by object/class/signed stable attribute
+  number/provider. COW label roots survive retained Reads; rename preserves
+  identity, NULL removes an association, drop retires records, and controls
+  remap actual identities. Shared-object labels (`pg_shseclabel`) and the
+  `pg_seclabels` presentation view remain separate and are not exposed by this
+  raw local source.
 - `pg_seclabels` is the genuine eight-column system view
   `(objoid oid, classoid oid, objsubid int4, objtype text, objnamespace oid,
   objname text, provider text, label text)`, with no synthetic oid. All view
   attributes are nullable (known natively; lib/pq cannot report nullability).
   `objtype` has default collation; `objname`, `provider` and `label` have C
   collation. Native relation12099/rowtype12101/array12100 reuse the initialized
-  inventory, not portable PostgreSQL constants. The owned source validates
-  catalog/domain/epoch/type/shape and paired principal/database-owner authority,
-  returning allocation-free empty rows because no native provider/store exists.
+  inventory, with genuine owned `_RETURN` rule12361; these are not portable
+  PostgreSQL constants. One canonical spec, producer and formatter own the view.
+  The exact installed source validates catalog pointer/domain/epoch authority,
+  exactly eight columns and catalog attributes, canonical names and owned full
+  type Usage (including collation derivation), nullable facts, typmod and
+  dimensions, then paired principal/database-owner authority. Only then does it
+  project actual immutable label associations with supported object type,
+  namespace, visibility-qualified name and signed column identity.
+  The unregistered baseline yields allocation-free empty rows through the real
+  empty inventory, not a fake empty producer. Registered simulation's persistent
+  rows retain their captured values across rename, removal and drop.
   The bootstrap ACL contains owner defaults and PUBLIC SELECT; current view/
   column SELECT is checked even at EOF and on every held execution. Denial is
   42501, not an empty successful result. Backing access is owner-authorized;
   there is no invented target-object ACL or loaded-provider row filter.
   Dependency-aware default/pretty definitions retain all thirteen released
   local/shared UNION ALL branches and visibility-based name qualification.
+  View and `_RETURN` deparser text, logical collations and direct/prepared
+  metadata use independently observed PostgreSQL 18.6 expectations.
   Privileged INSERT/UPDATE/DELETE reject with 55000 and the UNION-specific
-  Detail/operation-specific Hint, including zero-input writes. Positive
-  provider-backed set/change/remove remains unreachable, not claimed delivered;
-  no registration API, label persistence or successful NULL removal is added.
+  Detail/operation-specific Hint, including zero-input writes.
+  The type, namespace, displayed name and label confer no object privileges or
+  operating-system security. Shared database associations originate only in
+  `pg_shseclabel`, not the local raw source. Simulation is explicit query
+  compatibility, not native C-ABI or host SELinux enforcement.
 - `pg_partitioned_table` (3350) projects eight attributes from real immutable
   partition descriptors through `Runtime.PartitionMetadata`, without a row store
   or DDL population hooks. Stable key attnums, selected operator classes, effective

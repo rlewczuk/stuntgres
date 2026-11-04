@@ -16,14 +16,15 @@ type EncodingReader struct {
 	source                       io.Reader
 	conversion                   EncodingConversion
 	context                      func() context.Context
+	boundary                     EncodingConversionBoundary
 	input                        [32768]byte
 	output                       [131080]byte
 	begin, end, outBegin, outEnd int
 	terminal, pending            error
 }
 
-func NewEncodingReader(source io.Reader, conversion EncodingConversion, currentContext func() context.Context) *EncodingReader {
-	return &EncodingReader{source: source, conversion: conversion, context: currentContext}
+func NewEncodingReader(source io.Reader, conversion EncodingConversion, currentContext func() context.Context, boundary EncodingConversionBoundary) *EncodingReader {
+	return &EncodingReader{source: source, conversion: conversion, context: currentContext, boundary: boundary}
 }
 func (r *EncodingReader) Read(dst []byte) (int, error) {
 	if len(dst) == 0 {
@@ -32,6 +33,9 @@ func (r *EncodingReader) Read(dst []byte) (int, error) {
 	if err := r.context().Err(); err != nil {
 		return 0, err
 	}
+	var body RoutineBodyToken
+	entered := false
+	defer func() { body.Leave() }()
 	for r.outBegin == r.outEnd {
 		if r.pending != nil {
 			return 0, r.pending
@@ -84,6 +88,14 @@ func (r *EncodingReader) Read(dst []byte) (int, error) {
 				if !r.conversion.Available() {
 					r.pending = MissingBinaryConversion(r.conversion.source, r.conversion.destination)
 					break
+				}
+				if !entered {
+					var err error
+					body, err = r.conversion.handler.enter(r.boundary)
+					if err != nil {
+						return 0, err
+					}
+					entered = true
 				}
 				a, b, consumed, invalid := pgencoding18.Step(r.conversion.source, r.conversion.destination, raw)
 				if invalid {

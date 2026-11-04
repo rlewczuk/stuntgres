@@ -162,8 +162,8 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 			appendTreeDescriptor(out, "search_result", n.Search.Result)
 			appendTreeDescriptor(out, "search_depth", n.Search.Depth)
 		}
-		if n.Search != nil {
-			appendTreeScalarGrouping(out, n.Search.Grouping)
+		if n.Search != nil && err == nil {
+			err = appendTreeGrouping(ctx, out, n.Search.Grouping)
 		}
 		if n.Cycle != nil {
 			fmt.Fprintf(out, " cycle_slot %d keys %v", n.Cycle.MarkSlot, n.Cycle.Keys)
@@ -177,7 +177,9 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 			}
 		}
 		if n.Cycle != nil {
-			appendTreeScalarGrouping(out, n.Cycle.Grouping)
+			if err == nil {
+				err = appendTreeGrouping(ctx, out, n.Cycle.Grouping)
+			}
 			for _, usage := range n.Cycle.TypedConstants {
 				out.WriteString(" typed_mark")
 				appendTreeUsage(out, usage)
@@ -420,16 +422,6 @@ func appendTreeCTE(out *strings.Builder, definition *CTEDefinition) {
 func appendTreeCaptures(out *strings.Builder, captures []FunctionCorrelation) {
 	for _, capture := range captures {
 		fmt.Fprintf(out, " {capture frame %d slot %d occurrence %d}", capture.Frame, capture.Slot, capture.QueryOccurrence)
-	}
-}
-
-func appendTreeScalarGrouping(out *strings.Builder, groupings []sqltype.Grouping) {
-	for i, grouping := range groupings {
-		fmt.Fprintf(out, " {equality %d", i)
-		usage, comparison := grouping.Selection()
-		appendTreeUsage(out, usage)
-		appendTreeComparison(out, comparison)
-		out.WriteByte('}')
 	}
 }
 

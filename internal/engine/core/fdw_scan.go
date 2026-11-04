@@ -32,6 +32,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
 	f := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Handler: handler, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: importer, ExportValue: exporter}
+	f.Selection = exec.SelectForeignHandler(auth.Catalog, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(request.HandlerOID)})
 	scope.ownForeignSource(f)
 	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
 }

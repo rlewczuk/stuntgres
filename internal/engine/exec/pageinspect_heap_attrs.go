@@ -4,18 +4,16 @@ import (
 	"errors"
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
 func (c *Context) evalHeapTupleSplit(n plan.InstalledPageinspectExpr) (sqltype.Value, error) {
 	input, err := c.pageinspectInput(n)
+	defer input.token.Leave()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -83,95 +81,165 @@ func (c *Context) splitHeapLayout(n plan.InstalledPageinspectExpr, layout sqltyp
 	return value, err
 }
 
-func (c *Context) heapAttrsContext(n plan.InstalledPageinspectExpr, err error) error {
-	view := preparation.DomainCatalog(c)
-	current, ok := view.Procedure(n.Ref.Address)
-	if !ok {
-		return fmt.Errorf("stuntgres: missing heap attrs current declaration")
-	}
-	if len(n.Args) == 2 {
-		origin := current.Origin
-		if origin == nil || origin.Installation == nil || len(origin.Installation.Members) <= 19 {
-			return fmt.Errorf("stuntgres: missing heap attrs declaration identity")
-		}
-		inner, ok := view.Procedure(origin.Installation.Members[19])
-		if !ok {
-			return fmt.Errorf("stuntgres: missing heap attrs inner declaration")
-		}
-		err = SQLRoutineStatementContext(err, inner.Name(), 1)
-	}
-	return SQLRoutineStatementContext(err, current.Name(), 1)
-}
-
 func (c *Context) openHeapAttrs(n plan.InstalledPageinspectExpr) (cursor expr.SourceCursor, err error) {
-	input, err := c.pageinspectInput(n)
-	defer func() {
-		if err != nil && input.body {
-			err = c.heapAttrsContext(n, err)
-		}
-	}()
+	input, err := c.pageinspectArguments(n)
 	if err != nil {
 		return cursor, err
 	}
+	auth, dependencies, err := RoutineAdmissionAuthority(c)
+	if err != nil {
+		return cursor, err
+	}
+	if err = CheckRecipeRoutineDescriptor(c, auth, dependencies, n.Procedure); err != nil {
+		return cursor, err
+	}
+	if n.Procedure.Strict && input.null {
+		return expr.OwnedSource(n.Usage.Type, nil), nil
+	}
+	outer, err := c.enterPageinspect(n, input.null)
+	if err != nil {
+		return cursor, err
+	}
+	defer outer.Leave()
+	defer func() {
+		if err != nil {
+			err = nativeDeclarationStatementContext(c, n.Procedure, err)
+		}
+	}()
+	body, err := c.heapAttrsBody(n, input.null)
+	if err != nil {
+		return cursor, err
+	}
+	defer body.token.Leave()
+	if body.inner != nil {
+		defer func() {
+			if err != nil {
+				err = nativeDeclarationStatementContext(&body.Context, body.inner, err)
+			}
+		}()
+	}
 	d := n.Usage.Type
-	if input.null {
+	// Only the C heap child is STRICT. Neither SQL wrapper requires raw-page
+	// superuser authority when that child is skipped for a NULL page.
+	if input.values[0].IsNull() {
 		return expr.OwnedSource(d, nil), nil
+	}
+	host := body.LiveHost()
+	if host == nil {
+		return cursor, fmt.Errorf("stuntgres: missing pageinspect statement runtime")
+	}
+	heapCall, err := body.call(n, body.heap, body.heapInfo, "heap_page_items")
+	if err != nil {
+		return cursor, err
+	}
+	splitCall, err := body.call(n, body.split, body.splitInfo, "tuple_data_split")
+	if err != nil {
+		return cursor, err
+	}
+	first, err := body.heapInfo.EnterRoutine(&body.Context, input.values[:1])
+	if err != nil {
+		return cursor, err
+	}
+	if _, err = host.Contrib().Pageinspect(heapCall, 0); err != nil {
+		first.Leave()
+		return cursor, err
+	}
+	input.raw, err = input.values[0].Binary()
+	if err != nil {
+		first.Leave()
+		return cursor, err
 	}
 	page, err := sqltype.ReadHeapPage(input.raw)
 	if err != nil {
+		first.Leave()
 		return cursor, err
 	}
 	var oid uint32
 	if !input.values[1].IsNull() {
 		oid, err = input.values[1].ClassOID()
 		if err != nil {
+			first.Leave()
 			return cursor, err
 		}
 	}
-	detoast := false
+	detoast := false // genuine two-argument SQL wrapper supplies false
 	if len(n.Args) == 3 && !input.values[2].IsNull() {
 		detoast, err = input.values[2].Boolean()
 		if err != nil {
+			first.Leave()
 			return cursor, err
 		}
 	}
 	rows := make([]sqltype.Value, page.Len())
-	var columns []sqltype.HeapStoredColumn
-	captured := false
+	if len(rows) == 0 {
+		first.Leave() // first invocation is already the consumed terminal DONE
+		return expr.OwnedSource(d, rows), nil
+	}
 	for i := range rows {
+		heapToken := first
+		if i != 0 {
+			heapToken, err = body.heapInfo.EnterRoutine(&body.Context, input.values[:1])
+			if err != nil {
+				return cursor, err
+			}
+			if _, err = host.Contrib().Pageinspect(heapCall, 0); err != nil {
+				heapToken.Leave()
+				return cursor, err
+			}
+		}
 		item, failure := page.Item(c.Context, i)
+		var fields []sqltype.Value
+		if failure == nil {
+			fields, failure = heapItemFields(d, item)
+		}
+		heapToken.Leave()
 		if failure != nil {
 			return cursor, failure
 		}
-		fields, failure := heapItemFields(d, item)
+		splitToken, failure := body.FunctionEnterRoutine(body.split, body.splitInfo.RoutineRecipeReference, expr.RoutineBodyInputs{
+			Count: 6, First: body.splitFormal(0), Second: body.splitFormal(1),
+			HasNull:    !item.Tail || input.values[1].IsNull() || !item.HasBits || len(n.Args) == 3 && input.values[2].IsNull(),
+			Occurrence: body.splitInfo.Occurrence, Source: body.splitInfo.Source,
+		})
 		if failure != nil {
 			return cursor, failure
 		}
-		if item.Tail {
+		// tuple_data_split is NONSTRICT: superuser precedes raw_data NULL,
+		// bitmap validation precedes relation_open, and detoast stays inside
+		// this actual selected child's lexical subject.
+		_, failure = host.Contrib().Pageinspect(splitCall, 0)
+		if failure == nil && item.Tail {
 			var bits *string
 			if item.HasBits {
 				bits = &item.Bits
 			}
-			layout, failure := sqltype.ReadHeapTupleLayout(item.Infomask, item.Infomask2, bits)
-			if failure != nil {
-				return cursor, failure
+			layout, decodeErr := sqltype.ReadHeapTupleLayout(item.Infomask, item.Infomask2, bits)
+			var columns []sqltype.HeapStoredColumn
+			if decodeErr == nil {
+				columns, decodeErr = host.Contrib().PageinspectHeap(splitCall, oid)
 			}
-			if !captured {
-				columns, failure = c.LiveHost().Contrib().PageinspectHeap(n, oid)
-				if failure != nil {
-					return cursor, failure
-				}
-				captured = true
+			if decodeErr == nil {
+				fields[13], decodeErr = body.splitHeapLayout(splitCall, layout, item.Data, detoast, columns, d.CompositeMember(13).Usage.Type)
 			}
-			fields[13], failure = c.splitHeapLayout(n, layout, item.Data, detoast, columns, d.CompositeMember(13).Usage.Type)
-			if failure != nil {
-				return cursor, failure
-			}
+			failure = decodeErr
+		}
+		splitToken.Leave()
+		if failure != nil {
+			return cursor, failure
 		}
 		rows[i], err = sqltype.OwnedCompositeValue(d, fields)
 		if err != nil {
 			return cursor, err
 		}
+	}
+	terminal, err := body.heapInfo.EnterRoutine(&body.Context, input.values[:1])
+	if err != nil {
+		return cursor, err
+	}
+	_, err = host.Contrib().Pageinspect(heapCall, 0)
+	terminal.Leave()
+	if err != nil {
+		return cursor, err
 	}
 	return expr.OwnedSource(d, rows), nil
 }
@@ -230,51 +298,80 @@ func heapItemFields(d *sqltype.Descriptor, item sqltype.HeapPageItem) ([]sqltype
 	return fields, nil
 }
 
-// SQL-standard bodies initialize each helper invocation before demanding any
-// heap rows, even for NULL pages and NULL tuple data. A wrapper grant is not a
-// grant on its helpers. Resolve only sealed member identities, never public names.
-func admitHeapAttrsHelpers(auth RoutineAccess, outer *catalog.Procedure, arity int) error {
-	body := outer
-	if arity == 2 {
-		inner, err := admitHeapAttrsMember(auth, outer, 19)
-		if err != nil {
-			return SQLRoutineStatementContext(err, outer.Name(), 1)
-		}
-		body = inner
+// Select the existing immutable source call by its genuine installation member,
+// then reuse the shared parsed-preorder coordinates and canonical resolver.
+func heapAttrsCall(c *Context, outer *catalog.Procedure, source expr.Info, slot int) (*catalog.Procedure, expr.Info, error) {
+	recipe, ok := proc.RoutineDeclarationRecipe(outer.DeclarationBody)
+	if !ok {
+		return nil, expr.Info{}, fmt.Errorf("stuntgres: missing heap attrs declaration")
 	}
-	// FunctionScan initializes its table function before its result projection.
-	for _, slot := range [...]int{15, 18} {
-		if _, err := admitHeapAttrsMember(auth, body, slot); err != nil {
-			err = SQLRoutineStatementContext(err, body.Name(), 1)
-			if arity == 2 {
-				err = SQLRoutineStatementContext(err, outer.Name(), 1)
-			}
-			return err
+	for ordinal := range recipe.CallCount() {
+		_, part := recipe.CallPart(ordinal)
+		if part.Kind == proc.DeclarationExtensionMember && part.Slot == slot {
+			return NativeDeclarationCall(c, outer, source, ordinal)
 		}
 	}
-	return nil
+	return nil, expr.Info{}, fmt.Errorf("stuntgres: missing heap attrs source call")
 }
 
-func admitHeapAttrsMember(auth RoutineAccess, body *catalog.Procedure, slot int) (*catalog.Procedure, error) {
-	origin := body.Origin
-	if origin == nil || origin.Installation == nil || slot >= len(origin.Installation.Members) {
-		return nil, fmt.Errorf("stuntgres: missing heap attrs helper recipe")
-	}
-	address := origin.Installation.Members[slot]
-	member, ok := auth.Catalog.Procedure(address)
-	if !ok || member.Origin == nil || member.Origin.Installation != origin.Installation || member.Origin.Declaration != slot {
-		return nil, ids.ErrCatalogReplaced
-	}
-	ref := auth.Ref(address)
-	if err := extension.ValidatePageinspectIdentity(auth.Catalog, member, ref); err != nil {
-		return nil, err
-	}
-	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, member)
+type heapAttrsNativeBody struct {
+	Context
+	heap, split, inner  *catalog.Procedure
+	heapInfo, splitInfo expr.Info
+	token               sqltype.RoutineBodyToken
+}
+
+func (b *heapAttrsNativeBody) call(n plan.InstalledPageinspectExpr, p *catalog.Procedure, info expr.Info, member string) (plan.InstalledPageinspectExpr, error) {
+	auth, _, err := RoutineInvocationAuthority(&b.Context)
 	if err != nil {
-		return nil, err
+		return n, err
 	}
-	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
-		return nil, err
+	n.Procedure, n.Info, n.Member = p, info, member
+	n.Ref = auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), p.Address())
+	return n, nil
+}
+
+func (b *heapAttrsNativeBody) splitFormal(index int) *sqltype.Descriptor {
+	id := sqltype.Oid
+	if index == 1 {
+		id = sqltype.Bytea
 	}
-	return current, nil
+	typ, _ := b.Catalog.LookupType(id)
+	return typ
+}
+
+func (c *Context) heapAttrsBody(n plan.InstalledPageinspectExpr, hasNull bool) (body heapAttrsNativeBody, err error) {
+	body.Context, err = BeginNativeBody(c, n.Procedure, n.Info)
+	if err != nil {
+		return body, err
+	}
+	outer, source := n.Procedure, n.Info
+	if len(n.Args) == 2 {
+		inner, info, failure := heapAttrsCall(&body.Context, outer, source, 19)
+		if failure != nil {
+			return body, failure
+		}
+		body.token, failure = body.FunctionEnterRoutine(inner, info.RoutineRecipeReference, expr.RoutineBodyInputs{
+			Count: 3, First: n.Args[0].ResultUsage().Type, Second: n.Args[1].ResultUsage().Type,
+			HasNull: hasNull, Occurrence: info.Occurrence, Source: info.Source,
+		})
+		if failure != nil {
+			return body, failure
+		}
+		body.Context, err = BeginNativeBody(&body.Context, inner, info)
+		if err != nil {
+			body.token.Leave()
+			return body, nativeDeclarationStatementContext(c, inner, err)
+		}
+		body.inner = inner
+		outer, source = inner, info
+	}
+	body.split, body.splitInfo, err = heapAttrsCall(&body.Context, outer, source, 18)
+	if err == nil {
+		body.heap, body.heapInfo, err = heapAttrsCall(&body.Context, outer, source, 15)
+	}
+	if err != nil {
+		body.token.Leave()
+	}
+	return body, err
 }

@@ -111,6 +111,9 @@ type copyWriter struct {
 }
 
 func (w copyWriter) Write(p []byte) (int, error) {
+	if err := w.scope.validateCodecOutput(); err != nil {
+		return 0, err
+	}
 	return w.scope.copyIO(func() (int, error) {
 		n, err := w.destination.Write(p)
 		if n > 0 {

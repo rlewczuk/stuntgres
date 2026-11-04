@@ -92,6 +92,11 @@ func (e HstoreRecord) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign hstore record operand generation")
 		}
 	}
+	body, err := e.EnterRoutine(c, values[:e.Arity()])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	if e.Arity() == 1 {
 		return e.Hstore.HstoreFromRecord(ctx, values[0], c.FunctionStringOutput())
 	}

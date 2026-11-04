@@ -33,6 +33,16 @@ func BindGinIndex(view catalog.Read, parent *catalog.Relation, d *catalog.IndexD
 		if err != nil {
 			return nil, err
 		}
+		if comparison, ok := bindings[i].ElementComparison(); ok {
+			comparison, err = routine.CaptureComparisonSupports(view, comparison)
+			if err != nil {
+				return nil, err
+			}
+			bindings[i], err = bindings[i].WithElementComparison(comparison)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if err := validateClassOptions(view, key); err != nil {
 			return nil, err
 		}
@@ -154,9 +164,9 @@ func MergeGinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation
 		return nil, evaluation.Context.Err()
 	}
 	if !materialize {
-		return nil, storage.ValidateGinMerge(evaluation.Context, old.Gin, main, pending, ended, evaluation.Input)
+		return nil, storage.ValidateGinMerge(evaluation.Context, old.Gin, main, pending, ended, evaluation.FunctionInput())
 	}
-	payload, err := storage.MergeGin(evaluation.Context, old.Gin, main, pending, ended, evaluation.Input)
+	payload, err := storage.MergeGin(evaluation.Context, old.Gin, main, pending, ended, evaluation.FunctionInput())
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +213,9 @@ func ginArrayCandidates(ctx context.Context, column storage.GinColumn, query sql
 		return nil, ctx.Err()
 	}
 	if strategy == 3 || strategy == 4 {
+		if err := column.Binding.ExtractQueryWithEnvironment(ctx, query, func(sqltype.GinToken) error { return ctx.Err() }, input); err != nil {
+			return nil, err
+		}
 		return column.NonNull, ctx.Err()
 	}
 	if strategy != 1 && strategy != 2 {
@@ -211,7 +224,7 @@ func ginArrayCandidates(ctx context.Context, column storage.GinColumn, query sql
 	var result []storage.GinPosting
 	first := true
 	null := false
-	err := column.Binding.Extract(ctx, query, func(token sqltype.GinToken) error {
+	err := column.Binding.ExtractQueryWithEnvironment(ctx, query, func(token sqltype.GinToken) error {
 		if token.Kind == sqltype.GinEmptyItem {
 			return nil
 		}
@@ -230,7 +243,7 @@ func ginArrayCandidates(ctx context.Context, column storage.GinColumn, query sql
 		}
 		result, err = storage.CombineGinPostings(ctx, result, postings, strategy == 2)
 		return err
-	})
+	}, input)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +290,11 @@ func ginLexemeCandidates(ctx context.Context, column storage.GinColumn, lexeme s
 		}
 		mid := lo + (hi-lo)/2
 		token := column.Tokens[mid].Token
-		if token.Kind == sqltype.GinOrdinary && token.Lexeme < lexeme {
+		comparison, err := column.Binding.Compare(ctx, token, sqltype.GinToken{Lexeme: lexeme}, input)
+		if err != nil {
+			return nil, err
+		}
+		if comparison < 0 {
 			lo = mid + 1
 		} else {
 			hi = mid

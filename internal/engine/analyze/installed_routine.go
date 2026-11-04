@@ -323,6 +323,9 @@ func (r installedExtensionRoutine) EarthDescriptor() *sqltype.Descriptor {
 // Levenshtein, Metaphone and Soundex calls, which always appended.
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
+	if err := b.captureNativeDeclarationBody(p); err != nil {
+		return nil, err
+	}
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {

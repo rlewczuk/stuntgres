@@ -63,6 +63,9 @@ func (b *Binder) bindSelectedCitextRegexp(raw parser.FunctionExpr, selected sqlC
 	info.RoutineReference = procedure
 	ref := view.Owner().Domain.Ref(view.Epoch(), procedure.Address())
 	b.dependency(ref, procedure.Revision())
+	if err := b.captureNativeDeclarationBody(procedure); err != nil {
+		return nil, err
+	}
 	capture := functions.CitextRegexpCapture{
 		Ref: ref, Namespace: view.Get(procedure.Namespace()).Name(), Name: procedure.Name(),
 		Member: uint8(member), Text: b.Type(sqltype.Text).Usage(),

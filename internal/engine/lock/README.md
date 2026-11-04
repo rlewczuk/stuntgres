@@ -82,6 +82,12 @@ engine.
   on the actual shared object identity. The core adapter retains its original
   local reference for post-wait catalog/epoch validation; object lock records
   expose the shared database-zero tag.
+  Ordinary tablespace object grants likewise use the stable cluster domain and
+  existing AS/AX modes. Their shared object tag has class1213, the actual
+  tablespace OID, subobject zero and database zero. Original local domain/epoch
+  validation survives the adapter; distinct local catalog ACL writer resources
+  are not remapped. This admits real builtin/renamed metadata locks, not physical
+  CREATE TABLESPACE or a new label capability.
   Parameter canonical-name writers (including absent first grants) and retained
   parameter ACL-address claims also use the stable cluster domain. Parameter
   names have zero namespace and no signature. The adapter retains original local
@@ -224,6 +230,25 @@ as object tags; internal destination claims expose only actual blocker XIDs.
 Publication names likewise use local zero-namespace keys. Publication definition
 AS/AX grants retain the ticket's own database domain and epoch, and project as
 non-shared class6104 object locks; mapping edges have no independent lock owner.
+Large-object metadata resources likewise use existing local AS/AX object grants,
+with the ticket's exact database domain/epoch and whole nonzero object address.
+They are distinct from same-OID relations and catalog ACL writer resources.
+Canonical engine authority remains `LargeObjectClassID` (2995,
+`pg_largeobject_metadata`); only `pg_locks` presentation translates its class
+to 2613 (`LargeObjectRelationId`), as selected by REL_18_6 `objectaddress.c`.
+The resulting ordinary object tag retains the actual OID, subobject zero and
+current database, never shared database zero or a fabricated relation tag.
+Queues, canceled upgrades, checkpoints, owner end and epoch fencing use the
+unchanged ordinary resource lifecycle. Generic SECURITY LABEL still rejects the
+provider class after the real object lock and fresh ordinary owner check;
+admitting this lock grants no large-object label capability.
+`TestLargeObjectObjectLocks` pins local admission, canonical2995/public2613
+capture, independent relation/ACL identity and cancellation/checkpoint/fence
+cleanup. `TestReplicationOriginStateObjectLocks` includes shared tablespace
+AS readers and a cross-database AX waiter with actual blocker/owner records.
+`TestPGLocksResourceRecords` pins both exact public tags. The composed generic
+label owner tests in `schemacmds` exercise these through actual SQL execution;
+TYPE/DOMAIN continue to use existing TypeExclusive, not widened type admission.
 
 ALTER retains its original target even for no-op actions, independently of DROP
 roots. After the exact object grant, current authority must still identify that

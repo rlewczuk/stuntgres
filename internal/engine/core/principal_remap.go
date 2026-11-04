@@ -52,6 +52,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	}
 	policy := e.RoleStore.PrincipalRemap(&e.Catalog, source, targetSnapshot, expected, routine.OperatorSeeded)
 	var graph catalog.ProcedureRemapper
+	var sepgsqlTokens map[*catalog.SepgsqlRoutine]*catalog.SepgsqlRoutine
 	policy.Procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) {
 		mapped, err := graph(original)
 		if err != nil || mapped == nil {
@@ -59,6 +60,23 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		}
 		if err = mapHost(mapped); err != nil {
 			return nil, err
+		}
+		if original.Sepgsql != nil {
+			if e.Sepgsql == nil || original.Sepgsql.Policy().ID() != e.Sepgsql.ID() || original.Sepgsql.Policy().Version() != e.Sepgsql.Version() {
+				return nil, fmt.Errorf("stuntgres: incompatible sepgsql simulation registration")
+			}
+			if sepgsqlTokens == nil {
+				sepgsqlTokens = make(map[*catalog.SepgsqlRoutine]*catalog.SepgsqlRoutine)
+			}
+			token := sepgsqlTokens[original.Sepgsql]
+			if token == nil {
+				token, err = catalog.NewSepgsqlRoutine(e.Catalog.Read(state), e.Sepgsql, original.Sepgsql.Symbol(), mapped.Address(), original.RoutineDefinition().Formals)
+				if err != nil {
+					return nil, err
+				}
+				sepgsqlTokens[original.Sepgsql], sepgsqlTokens[token] = token, token
+			}
+			mapped.Sepgsql = token
 		}
 		if original.Foreign == nil {
 			return mapped, nil
@@ -81,6 +99,9 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		return nil, nil, err
 	}
 	if err := catalog.ValidateInitialPrivileges(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(state)), e.Catalog.Read(state)); err != nil {
+		return nil, nil, err
+	}
+	if err := catalog.ValidateSecurityLabels(e.Catalog.Read(state)); err != nil {
 		return nil, nil, err
 	}
 	return state, policy.Procedure, nil
@@ -106,6 +127,9 @@ func (e *Engine) RestoreStage() *Engine {
 	if err := stage.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
 		panic(err)
 	}
+	if err := stage.InstallSepgsqlSimulation(e.Sepgsql, false); err != nil {
+		panic(err)
+	}
 	stage.TextSearchFiles = e.TextSearchFiles
 	stage.IdentFile = e.IdentFile
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
@@ -129,6 +153,9 @@ func (e *Engine) RestoreStage() *Engine {
 	}
 	stage.Catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
 	stage.Catalog.State.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
+	if stage.Sepgsql != nil {
+		stage.restoreInitializationOrigin = &restoreInitializationOrigin{engine: stage, domain: stage.Catalog.Domain, epoch: stage.Catalog.State.Epoch(), policy: stage.Sepgsql}
+	}
 	return stage
 }
 

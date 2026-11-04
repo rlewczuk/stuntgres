@@ -248,6 +248,11 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 			if err != nil {
 				return core.Result{}, err
 			}
+			address := mutation.Next.Address()
+			address.SubID = attribute
+			if err = stage.SepgsqlPostAlter(mutation.Next, address, false); err != nil {
+				return core.Result{}, err
+			}
 		}
 		if graph != nil || len(renames) != 0 {
 			next := *mutation.Next

@@ -59,10 +59,18 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 		for _, address := range roots {
 			stage.MarkDrop(address, catalog.DropProvenance{Original: true})
 		}
-		if err := scope.StageExpressionDependents(stage, roots, s.Mode, nil); err != nil {
+		drop := core.StageDropProvider(op.Context(), stage, scope, nil, nil)
+		dependencies, err := drop.PrepareExpressionDependencies(roots, s.Mode, ids.ObjectAddress{})
+		if err != nil {
 			return core.Result{}, err
 		}
-		if err := scope.StageOwnedSequences(stage, roots, s.Mode, nil); err != nil {
+		if err = stage.ApplySelectedDropRoots(dependencies); err != nil {
+			return core.Result{}, err
+		}
+		if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
+			return core.Result{}, err
+		}
+		if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 			return core.Result{}, err
 		}
 	}

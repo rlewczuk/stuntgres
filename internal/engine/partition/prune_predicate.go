@@ -277,7 +277,7 @@ func (p *pruneProof) compare(term int, a, b sqltype.Value) (int, error) {
 	if err := exec.EvaluationContext(p.evaluation); err != nil {
 		return 0, err
 	}
-	sign, err := p.terms[term].ordering.Compare(p.ctx, a, b, p.evaluation.Input)
+	sign, err := p.terms[term].ordering.Compare(p.ctx, a, b, p.evaluation.FunctionInput())
 	if err != nil {
 		return 0, err
 	}

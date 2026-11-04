@@ -17,14 +17,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Only the catalog's helper-owner index reads this provider association; these
-// fixtures carry declaration facts and grant no executable routine capability.
-type addressKindProvider struct{}
-
-func (addressKindProvider) Control() catalog.ExtensionControl                        { return catalog.ExtensionControl{} }
-func (addressKindProvider) Versions() catalog.ExtensionVersions                      { return catalog.ExtensionVersions{} }
-func (addressKindProvider) ValidateExtension(catalog.Read, *catalog.Extension) error { return nil }
-
 func addressRoutineFixture(t *testing.T) (*catalog.State, AddressLookup, func(string, []string, []string) [3]sqltype.Value) {
 	t.Helper()
 	state := catalog.NewState(0)
@@ -133,7 +125,7 @@ func TestAddressLookupRoutineKindsAndRetainedAuthority(t *testing.T) {
 	}
 }
 
-func TestAddressLookupRoutineReleasedAndHelperFallback(t *testing.T) {
+func TestAddressLookupRoutineReleasedAndHelperDescriptors(t *testing.T) {
 	state, lookup, values := addressRoutineFixture(t)
 	for _, tc := range []struct {
 		id   ids.OID
@@ -154,14 +146,21 @@ func TestAddressLookupRoutineReleasedAndHelperFallback(t *testing.T) {
 	helper := catalog.RoutineIdentity{ID: 20012, Namespace: ids.PGCatalogNamespaceOID, Name: "helper_target"}
 	owner := &catalog.Procedure{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 20011}, ObjectNamespace: lookup.Capture.Path[0], ObjectName: "aggregate_owner", RoutineKind: catalog.AggregateRoutine,
-		Implementation: addressKindProvider{}, Aggregate: &catalog.OwnedAggregate{Helpers: [2]catalog.RoutineIdentity{helper}},
+		Aggregate: &catalog.OwnedAggregate{Helpers: [2]catalog.RoutineIdentity{helper}},
 	}
 	next := catalog.CloneState(state)
 	next.SetDescriptor(owner.Address(), owner)
+	helperDescriptor := &catalog.Procedure{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID},
+		ObjectNamespace: lookup.Capture.Path[0], ObjectName: helper.Name, Signature: helper.Signature,
+		RoutineKind: catalog.FunctionRoutine, Owner: lookup.Capture.Authority.View.State.CurrentUser,
+	}
+	next.SetDescriptor(helperDescriptor.Address(), helperDescriptor)
+	next.BindName(catalog.DescriptorNameKey(helperDescriptor), helperDescriptor.Address())
 	lookup.Catalog = catalog.NewRead(lookup.Capture.Authority.View.Owner, next)
 	lookup.Capture.Authority.View.Recapture(lookup.Catalog)
-	if RoutineDescriptorOwner(lookup.Catalog, helper.ID) != owner {
-		t.Fatal("helper fixture lacks real aggregate owner")
+	if RoutineDescriptorOwner(lookup.Catalog, helper.ID) != helperDescriptor {
+		t.Fatal("helper lookup did not retain its genuine procedure descriptor")
 	}
 	got, err := lookup.Lookup(context.Background(), values("function", []string{helper.Name}, nil))
 	if err != nil || got.ObjectID != helper.ID {

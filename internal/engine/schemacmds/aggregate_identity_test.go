@@ -24,9 +24,9 @@ import (
 func TestPGAggregateIntaggOwnership(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.MustProcedure(ext.Members[0])
-	enum := view.MustProcedure(ext.Members[1])
-	if len(ext.Members) != 2 || proc.Aggregate == nil || enum.Aggregate != nil {
+	proc := view.MustProcedure(ext.Members[2])
+	enum := view.MustProcedure(ext.Members[3])
+	if len(ext.Members) != 4 || proc.Aggregate == nil || enum.Aggregate != nil {
 		t.Fatal("callable/aggregate owner inventory")
 	}
 	if err := extension.StockIntagg.ValidateExtension(view, ext); err != nil {
@@ -40,8 +40,9 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 			t.Fatal("helper identity substituted", helper)
 		}
 		identity, ok := regobj.RoutineIdentityByOID(view, helper.ID)
-		if !ok || identity != helper || regobj.RoutineDescriptorOwner(view, helper.ID) != proc {
-			t.Fatal("owned alias lookup", i, identity)
+		current := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID})
+		if !ok || identity != helper || regobj.RoutineDescriptorOwner(view, helper.ID) != current {
+			t.Fatal("canonical helper lookup", i, identity)
 		}
 		selected, n := regobj.SelectExactRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature)
 		if n != 1 || selected != helper {
@@ -51,13 +52,13 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if n != 1 || selected != helper {
 			t.Fatal("owned bare alias", selected, n)
 		}
-		if analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != nil {
-			t.Fatal("metadata helper became callable")
+		if analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != current {
+			t.Fatal("canonical helper declaration was not selected")
 		}
 		reserved := make(map[ids.OID]bool)
-		catalog.ReserveDefinitionOIDs(reserved, proc)
-		if !reserved[helper.ID] || !catalog.DefinitionOIDUsed(proc, helper.ID) {
-			t.Fatal("allocator lost owned helper", helper.ID)
+		catalog.ReserveDefinitionOIDs(reserved, current)
+		if reserved[helper.ID] || catalog.DefinitionOIDUsed(current, helper.ID) || catalog.DefinitionOIDUsed(proc, helper.ID) || view.Get(current.Address()) != current {
+			t.Fatal("canonical helper descriptor must not be a hidden owned definition", helper.ID)
 		}
 		typ, _ := view.LookupType(sqltype.Regprocedure)
 		value, err := sqltype.RegprocValue(typ, uint32(helper.ID))
@@ -65,23 +66,54 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		var refs []ids.ObjectAddress
-		if err := regobj.WalkRoutineReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{proc.Address()}) {
-			t.Fatal("helper dependency is not real aggregate owner", refs, err)
+		if err := regobj.WalkRoutineReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{current.Address()}) {
+			t.Fatal("helper dependency is not its genuine procedure", refs, err)
 		}
 	}
-	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	typ, _ := view.LookupType(sqltype.Regprocedure)
-	if _, err := b.RoutineConstant("public.int_agg_state(internal,integer)", typ.Usage(), parser.Position{Offset: 8, Character: 8}); err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, operand := range b.Prepared.RegtypeConstants[0].Operands {
-		if operand.Ref.Address == proc.Address() && operand.Revision == proc.Revision() {
-			found = true
+	for i, text := range []string{"public.int_agg_state(internal,integer)", "public.int_agg_final_array(internal)"} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		typ, _ := view.LookupType(sqltype.Regprocedure)
+		value, err := b.RoutineConstant(text, typ.Usage(), parser.Position{Offset: 8, Character: 8})
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if !found {
-		t.Fatal("prepared helper literal omitted real owner dependency")
+		current := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: proc.Aggregate.Helpers[i].ID})
+		if oid, err := value.ProcedureOID(); err != nil || oid != uint32(current.Address().ObjectID) {
+			t.Fatal("helper literal lost genuine selected identity", value, err)
+		}
+		if len(b.Prepared.RegtypeConstants) != 1 {
+			t.Fatal("helper literal capture inventory", b.Prepared.RegtypeConstants)
+		}
+		// The literal's selected helper is data, not a callable stamp. Only
+		// the actual parsed signature types belong to its ordered operands.
+		arguments := []sqltype.ID{2281} // released INTERNAL pseudo-type
+		if i == 0 {
+			arguments = append(arguments, sqltype.Int4)
+		}
+		var want []catalog.ExpressionDependency
+		for _, id := range arguments {
+			d := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+			want = append(want, catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(view.Epoch(), d.Address()), Revision: d.Revision()})
+		}
+		constant := b.Prepared.RegtypeConstants[0]
+		if !reflect.DeepEqual(constant.Operands, want) || !reflect.DeepEqual(constant.Qualified, []ids.ObjectAddress{proc.Namespace()}) {
+			t.Fatal("helper literal lost exact signature or namespace provenance", constant, want)
+		}
+		for _, operand := range want {
+			operand.Purpose = catalog.OperandDependency
+			found := false
+			for _, dependency := range b.Dependencies {
+				found = found || dependency == operand
+			}
+			if !found {
+				t.Fatal("helper literal omitted parsed type operand requirement", text, operand, b.Dependencies)
+			}
+		}
+		for _, dependency := range b.Dependencies {
+			if dependency.Ref.Address == current.Address() || dependency.Ref.Address == proc.Address() {
+				t.Fatal("helper name datum acquired callable or aggregate dependency", dependency)
+			}
+		}
 	}
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.Catalog.Domain.Ref(view.Epoch(), source.Address())
@@ -90,8 +122,12 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := catalog.CloneState(view.State())
-	removed.RemoveDescriptor(proc.Address())
-	removed.UnbindName(catalog.DescriptorNameKey(proc))
+	for _, member := range ext.Members {
+		removed.UnbindName(catalog.DescriptorNameKey(view.Get(member)))
+		removed.RemoveDescriptor(member)
+	}
+	removed.UnbindName(catalog.DescriptorNameKey(ext))
+	removed.RemoveDescriptor(ext.Address())
 	retired := e.Catalog.Read(removed)
 	for _, helper := range proc.Aggregate.Helpers {
 		if _, ok := regobj.RoutineIdentityByOID(retired, helper.ID); ok {
@@ -107,7 +143,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 func TestPGAggregateIntaggValidation(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.MustProcedure(ext.Members[0])
+	proc := view.MustProcedure(ext.Members[2])
 	for _, mutate := range []func(*catalog.OwnedAggregate){
 		func(a *catalog.OwnedAggregate) { a.Helpers[0].ID = 0 },
 		func(a *catalog.OwnedAggregate) {
@@ -116,7 +152,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		},
 		func(a *catalog.OwnedAggregate) { a.Helpers[0].ID = 2333; a.Definition.Functions[0] = 2333 },
 		func(a *catalog.OwnedAggregate) {
-			a.Helpers[0].ID = ext.Members[1].ObjectID
+			a.Helpers[0].ID = ext.Members[3].ObjectID
 			a.Definition.Functions[0] = a.Helpers[0].ID
 		},
 		func(a *catalog.OwnedAggregate) { a.Helpers[0].Namespace = 0 },
@@ -154,11 +190,20 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	}
 	collision := catalog.CloneState(view.State())
 	helper := proc.Aggregate.Helpers[0]
-	namespace := *view.MustNamespace(proc.Namespace())
-	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
-	collision.SetDescriptor(namespace.Address(), &namespace)
-	if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(collision), ext); err == nil {
-		t.Fatal("cross-class owned helper collision admitted")
+	foundRule := false
+	for address, descriptor := range view.Descriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.View != nil || relation.ReturnRuleOID() == 0 {
+			continue
+		}
+		bad := *relation
+		bad.CatalogReturnRule = helper.ID
+		collision.SetDescriptor(address, &bad)
+		foundRule = true
+		break
+	}
+	if !foundRule {
+		t.Fatal("missing genuine catalog rule ownership witness")
 	}
 	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
@@ -173,7 +218,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 func TestPGAggregateIntaggRemap(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.MustProcedure(ext.Members[0])
+	proc := view.MustProcedure(ext.Members[2])
 	original := *proc.Aggregate
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		proc.Address():   {ClassID: ids.ProcedureClassID, ObjectID: 900000},
@@ -219,8 +264,8 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 			t.Fatal("routine datum mapping/source mutation", actual, want, err)
 		}
 	}
-	// The global allocator must skip metadata-only owned IDs just like actual
-	// definitions, even when their identities have been remapped out of order.
+	// Genuine helper descriptors reserve their own identities, including when
+	// the allocator frontier has been moved backward over installed members.
 	e.Catalog.InstallOIDFrontierLocked(original.Helpers[0].ID)
 	allocated, err := e.Catalog.AllocateOIDLocked()
 	if err != nil || allocated == original.Helpers[0].ID || allocated == original.Helpers[1].ID {
@@ -233,7 +278,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.RoleStore.Domain.Principal(10)}
-	e.Catalog.InstallOIDFrontierLocked(^ids.OID(0) - 1) // aggregate and state can allocate; final helper cannot.
+	e.Catalog.InstallOIDFrontierLocked(^ids.OID(0) - 1) // state and final allocate; aggregate cannot.
 	if err := extension.StockIntagg.Stage(&schemacmds.ExtensionHost{Engine: e, Stage: stage}, ext, ext.Owner); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
@@ -250,7 +295,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	original := view.MustProcedure(ext.Members[0])
+	original := view.MustProcedure(ext.Members[2])
 	if symbol, err := extension.ProcedureSymbol(view, original); err != nil || symbol != "int_array_aggregate" {
 		t.Fatal("invalid relabel baseline", symbol, err)
 	}
@@ -269,7 +314,7 @@ func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 		t.Fatal("moved aggregate rejected", err)
 	}
 	if renamed.Aggregate != original.Aggregate || renamed.Aggregate.Helpers[0].Namespace != ext.TargetNamespace.ObjectID {
-		t.Fatal("move rewrote hidden helper authority")
+		t.Fatal("aggregate move rewrote independent helper provenance")
 	}
 	for _, helper := range renamed.Aggregate.Helpers {
 		helperNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.Namespace}
@@ -293,7 +338,7 @@ func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 		renamed.Namespace(): {ClassID: ids.NamespaceClassID, ObjectID: 910001},
 	}).(*catalog.Procedure)
 	if mapped.Namespace().ObjectID != 910001 || mapped.Aggregate != original.Aggregate {
-		t.Fatal("routine-only namespace remap changed hidden helpers")
+		t.Fatal("routine-only namespace remap changed independent helpers")
 	}
 	copy := *ext
 	copy.Members = append([]ids.ObjectAddress(nil), ext.Members...)

@@ -75,7 +75,7 @@ func (b *Binder) bindCycleShape(d *plan.CTEDefinition) error {
 	c := d.Cycle
 	c.MarkSlot = len(d.Schema)
 	c.Keys = make([]int, len(c.Syntax.Keys))
-	c.Grouping = make([]sqltype.Grouping, len(c.Keys))
+	c.Grouping = make([]plan.Grouping, len(c.Keys))
 	members := make([]sqltype.CompositeMember, len(c.Keys))
 	for i, key := range c.Syntax.Keys {
 		slot := -1
@@ -99,7 +99,7 @@ func (b *Binder) bindCycleShape(d *plan.CTEDefinition) error {
 			usage = d.Schema[slot].Usage
 		}
 		var err error
-		c.Grouping[i], err = sqltype.BindGrouping(usage)
+		c.Grouping[i], err = b.bindDistinctGrouping(plan.ColumnExpr{Info: b.Info(usage, c.Syntax.Pos, expr.Properties{RowDependent: true}), Slot: slot})
 		if err != nil && c.ShapeError == nil {
 			c.ShapeError = err
 		}

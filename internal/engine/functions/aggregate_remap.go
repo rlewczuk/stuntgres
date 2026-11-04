@@ -165,7 +165,24 @@ func (p *ArrayAggregateProvider) Remap(r ProviderRemap) (AggregateProvider, erro
 	if err != nil {
 		return nil, err
 	}
-	return NewArrayAggregateProvider(argument, usage, p.Arrays()), nil
+	if p.aggregate == nil {
+		return NewArrayAggregateProvider(argument, usage, p.Arrays()), nil
+	}
+	if r.Routine == nil {
+		return nil, fmt.Errorf("stuntgres: missing intagg support remap authority")
+	}
+	aggregate, err := r.Routine(p.aggregate)
+	if err != nil {
+		return nil, err
+	}
+	var supports [2]expr.RoutineReference
+	for i, support := range p.supports {
+		supports[i], err = r.Routine(support)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return NewIntaggArrayAggregateProvider(argument, usage, r.Type(p.internal), aggregate, supports)
 }
 
 func (p *HypotheticalSet) Remap(r ProviderRemap) (AggregateProvider, error) {

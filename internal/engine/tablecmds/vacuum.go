@@ -50,7 +50,11 @@ func resolveVacuumReference(e *core.Engine, auth core.AuthorizationView, name pa
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return core.ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: analyze.EffectivePath(in, path, analyze.RelationLookup)})
+		effective, err := analyze.EffectivePath(in, path, analyze.RelationLookup)
+		if err != nil {
+			return ids.ObjectRef{}, err
+		}
+		return core.ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: effective})
 	}
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
 		address := auth.DefinitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})

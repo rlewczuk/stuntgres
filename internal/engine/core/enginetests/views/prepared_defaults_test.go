@@ -232,26 +232,26 @@ func TestPreparedAcceptedDefaultLineage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := program.Readmit(core.RoutineAccessOf(auth)); err != nil {
+			if err := program.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err != nil {
 				t.Fatal(err)
 			}
-			if err := mixed.Readmit(core.RoutineAccessOf(auth)); err == nil {
+			if err := mixed.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err == nil {
 				t.Fatal("bounded evidence rehabilitated ordinary same-address call")
 			}
 			var included exec.RoutineProgram
 			included.Include(&program)
-			if len(included.Calls) != len(program.Calls) || included.Readmit(core.RoutineAccessOf(auth)) != nil {
+			if len(included.Calls) != len(program.Calls) || included.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation) != nil {
 				t.Fatal("Include lost exact occurrence evidence")
 			}
 			var phase exec.RoutineProgram
-			if err := phase.InitializePhase(&program, core.RoutineAccessOf(auth)); err == nil {
+			if err := phase.InitializePhase(&program, core.RoutineAccessOf(auth), exec.CallerInitialization); err == nil {
 				t.Fatal("different phase inherited DEFAULT selection")
 			}
 			if old, oldRef, oldAttribute, oldDefinition := artifact.Source(); old != source || oldRef != ref || oldAttribute != attribute || !reflect.DeepEqual(oldDefinition, definition) || !slices.Equal(artifact.Dependencies(), dependencies) {
 				t.Fatal("lineage admission mutated original source")
 			}
 			owner.Retire()
-			if artifact.Valid() || program.Readmit(core.RoutineAccessOf(auth)) == nil {
+			if artifact.Valid() || program.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation) == nil {
 				t.Fatal("retired owner regained admission")
 			}
 			if _, _, err := (&exec.AcceptedDefaultInvocation{}).Validate(core.RoutineAccessOf(auth), nil, nil); err == nil {
@@ -284,7 +284,7 @@ func TestPreparedAcceptedDefaultDemandAndAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := program.Readmit(core.RoutineAccessOf(auth)); err == nil || sqlStateOf(err) != "42501" {
+			if err := program.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err == nil || sqlStateOf(err) != "42501" {
 				t.Fatal("readmission reused revoked authority", err)
 			}
 			enginetest.SessionSQL(t, s, "GRANT EXECUTE ON FUNCTION accepted_lineage() TO accepted_actor")

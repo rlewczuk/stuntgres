@@ -33,7 +33,7 @@ func TestOperatorFamilyMacaddrSupportExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := sqltype.IndexSupport{Family: 1984, Member: 10074, Routine: 836, Left: 829, Right: 829, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}
+	want := sqltype.IndexSupport{Class: 10024, Family: 1984, Member: 10074, Routine: 836, Left: 829, Right: 829, Revision: 1, ClassRevision: 1, FamilyRevision: 1, RoutineRevision: 1}
 	if class.OID() != 10024 || selected.Support(1) != want {
 		t.Fatal("actual MACADDR class/member/routine", class, selected.Support(1))
 	}

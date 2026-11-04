@@ -50,6 +50,7 @@ func TestEarthQueryDiagnosticPresentation(t *testing.T) {
 		state.BindName(catalog.DescriptorNameKey(&n), n.Address())
 	}
 	current := view.WithState(state)
+	source, evaluation := earthDiagnosticSource(t, e, view, sqltype.EarthBox)
 	for _, tc := range []struct {
 		first, radius expr.Properties
 		mode          functions.EarthBoxContext
@@ -69,7 +70,9 @@ func TestEarthQueryDiagnosticPresentation(t *testing.T) {
 			plan.LiteralExpr{Info: expr.Info{Usage: earth.SQLType.Usage(), Property: tc.first}, Value: center},
 			plan.LiteralExpr{Info: expr.Info{Usage: floating.Usage(), Property: tc.radius}, Value: tiny},
 		}
-		call, err := functions.NewEarthCoordinate(expr.Info{Usage: base.Usage(), RoutineReference: query}, sqltype.EarthBox, earth.SQLType, args)
+		info := source
+		info.Usage, info.RoutineReference = base.Usage(), query
+		call, err := functions.NewEarthCoordinate(info, sqltype.EarthBox, earth.SQLType, args)
 		if err != nil || call.BoxContext != tc.mode || call.BoxConversionDemand != tc.demand {
 			t.Fatal("independent construction provenance", call.BoxContext, call.BoxConversionDemand, err)
 		}
@@ -80,7 +83,7 @@ func TestEarthQueryDiagnosticPresentation(t *testing.T) {
 			t.Fatal("NULL changed captured demand/presentation", err)
 		}
 		wrapper := plan.InstalledEarthExpr{EarthCoordinate: nullCall, Procedure: query, Ref: e.Catalog.Domain.Ref(view.Epoch(), query.Address())}
-		c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
+		c := evaluation(view)
 		if _, changed, err := exec.FoldStrictParameterNull(c, wrapper); err != nil || tc.demand && changed {
 			t.Fatal("outer strict proof erased independent helper demand", changed, err)
 		}
@@ -98,7 +101,7 @@ func TestEarthQueryDiagnosticPresentation(t *testing.T) {
 				view   catalog.Read
 				helper string
 			}{{view, "gc_to_sec"}, {current, "chord_now"}} {
-				frame := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: snapshot.view}}
+				frame := evaluation(snapshot.view)
 				for _, generic := range []bool{false, true, false, true, false} {
 					frame.PreserveParameterDemand = generic
 					demand, presentation := wrapper.BoxExecutionRoute(generic)
@@ -158,7 +161,7 @@ func TestEarthQueryDiagnosticPresentation(t *testing.T) {
 			view        catalog.Read
 			box, helper string
 		}{{view, "earth_box", "gc_to_sec"}, {current, "box_now", "chord_now"}} {
-			c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: snapshot.view}}
+			c := evaluation(snapshot.view)
 			_, err := call.Eval(c)
 			want := `SQL function "` + snapshot.helper + `" statement 1`
 			if tc.outer != "" {

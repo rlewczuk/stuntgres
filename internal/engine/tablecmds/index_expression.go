@@ -29,20 +29,15 @@ func transformIndexExpression(e *core.Engine, op *session.Operation, input sqlty
 
 // completeIndexExpression admits the physical expression after destination and
 // method selection. Ordering belongs to the caller's selected class/collation.
-func completeIndexExpression(op *session.Operation, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, transformed index.ExpressionTransform) (*catalog.DerivedIndexKey, string, error) {
+func completeIndexExpression(h TableHost, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, transformed index.ExpressionTransform) (*catalog.DerivedIndexKey, string, error) {
 	definition := transformed.Definition
+	op := h.Op
 	if err := index.RejectVirtualUses(parent, transformed.Uses); err != nil {
 		return nil, "", err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: transformed.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, transformed.Dependencies
-	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
-	if err != nil {
-		return nil, "", err
-	}
-	// Preflight the complete analyzed definition before narrowing runtime
-	// demand, then admit volatility from the surviving physical providers.
-	execution, _, err = exec.SimplifyConditional(&evaluation, execution, true)
+	execution, err := h.PreflightIndexDefinitionLocked(auth, parent, &evaluation, definition, true)
 	if err != nil {
 		return nil, "", err
 	}
@@ -56,7 +51,7 @@ func completeIndexExpression(op *session.Operation, auth core.AuthorizationView,
 	label := "expr"
 	switch r := raw.(type) {
 	case parser.XMLConstructExpr:
-		label=r.Kind.String()
+		label = r.Kind.String()
 	case parser.XMLDocumentPredicateExpr:
 		label = "xml_is_document"
 	case parser.XMLParseExpr:

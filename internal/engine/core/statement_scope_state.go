@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core/catalogrt"
@@ -72,72 +73,81 @@ type StatementScope struct {
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.
-	RoutineAuth                 AuthorizationView
-	Stage                       WriteStage
-	alterNames                  map[ids.NameKey]ids.ObjectRef // Phased ALTER claims acquired only at Finish.
-	notificationActions         []session.NotificationAction
-	notificationEvents          []session.Notification
-	View                        *visibility.View
-	Finished                    bool
-	copyProgress                *copyProgress // Finish-owned COPY lifetime, before transaction publication.
-	indexProgress               *indexProgress
-	message                     bool
-	messageEnded                bool
-	messageResult               error
-	result                      error
-	worked                      bool
-	Completed                   bool
-	sessionCompleted            bool // Successful session utilities have no private stage to merge.
-	controlOutcome              controlOutcome
-	statsIdleCommand            bool // Command admitted before any transaction owner.
-	statsCommandOutcome         bool // Once-only control/pre-owner completion authority.
-	ReplacementRead             bool
-	LockTicket                  *lock.Ticket
-	multiEvents                 []lock.MultiEvent
-	tupleAdmissions             map[tupleIdentity]lock.Resource
-	QuerySources                []exec.Leaf
-	QueryLockAdmission          analyze.LockAdmission
-	QueryLockContext            *exec.LockContext
-	TxRef                       ids.TxRef
-	CommandID                   ids.CommandID
-	activityCommand             ids.CommandIdentity // Top-level publication, never nested lexical scratch.
-	OwnWrites                   map[ids.ObjectAddress][]storage.RowVersion
-	OwnDeletes                  map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Expected                    *Description
-	admissionWaited             bool
-	implicit                    bool
-	Input                       sqltype.InputEnvironment
-	routinePrograms             []commandRoutineProgram                 // Consumed command graphs; same admission lease as exec.Authority.
-	checkPrograms               map[*catalog.Relation]exec.CheckProgram // Lazy ordinary CHECK preparation; shared by borrowed evaluations.
-	statementStart              time.Time
-	transactionStart            time.Time
-	lease                       session.StatementLease // identity for session-layer state; never copied on purpose
-	Output                      sqltype.OutputEnvironment
-	initialParameters           []sqltype.Usage
-	activeSQLRoutineDepth       int                 // Root invocation owner; never saved/reset as lexical scratch.
-	activeTriggerDepth          int                 // Actual user/RI invocations, independent of routine safety depth.
-	activeConstraintTriggers    []ids.ObjectAddress // Call-owned LIFO ancestry; never checkpointed as transaction state.
-	plAtomic                    bool                // Captured command context, then defer-scoped active invocation barriers.
-	plNoticeStream              bool                // Top-level DO body: RAISE publishes its final notices at once.
-	plLoops                     *plQueryRows        // Borrowed active adapters; not a named portal registry.
-	plExecutingPortal           *protocolPortal     // Current CALL/DO portal survives its own internal boundaries.
-	routineLive                 *routineLive
-	expressionLive              *plExpressionLive
-	effectCommand, effectSerial uint64 // admission-private command event ownership; never rewound
-	afterTriggers               *afterTriggerState
-	namedRelations              []namedRelation            // Balanced one-function invocation namespace, not command scratch.
-	deferAfterProducers         bool                       // Lexical eager-CTE materialization boundary.
-	deferredAfterCommand        uint64                     // Nested routine queries never borrow that boundary.
-	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
-	Catalog                     *session.Journal
-	foreignConstructions        map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
-	EventCommand                *EventCommand                              // Borrowed lexical boundary; never publication authority.
-	largeObjectRead             catalog.Read                               // Immutable active-query READ view, saved/restored by SQL body activation.
-	largeObjectOpening          catalog.Read                               // Descriptor-only active frontier, including stable isolation base.
-	CatalogAuthority            *session.CatalogAuthority
-	ProjectedRoots              bool // Stage owns complete private roots, not append-only suffixes.
-	ForeignActionAuth           *AuthorizationView
-	Identity                    exec.IdentitySnapshot
+	RoutineAuth                     AuthorizationView
+	Stage                           WriteStage
+	alterNames                      map[ids.NameKey]ids.ObjectRef // Phased ALTER claims acquired only at Finish.
+	notificationActions             []session.NotificationAction
+	notificationEvents              []session.Notification
+	View                            *visibility.View
+	Finished                        bool
+	copyProgress                    *copyProgress // Finish-owned COPY lifetime, before transaction publication.
+	indexProgress                   *indexProgress
+	message                         bool
+	messageEnded                    bool
+	messageResult                   error
+	result                          error
+	worked                          bool
+	Completed                       bool
+	sessionCompleted                bool // Successful session utilities have no private stage to merge.
+	controlOutcome                  controlOutcome
+	statsIdleCommand                bool // Command admitted before any transaction owner.
+	statsCommandOutcome             bool // Once-only control/pre-owner completion authority.
+	ReplacementRead                 bool
+	LockTicket                      *lock.Ticket
+	multiEvents                     []lock.MultiEvent
+	tupleAdmissions                 map[tupleIdentity]lock.Resource
+	QuerySources                    []exec.Leaf
+	QueryLockAdmission              analyze.LockAdmission
+	QueryLockContext                *exec.LockContext
+	TxRef                           ids.TxRef
+	CommandID                       ids.CommandID
+	activityCommand                 ids.CommandIdentity // Top-level publication, never nested lexical scratch.
+	OwnWrites                       map[ids.ObjectAddress][]storage.RowVersion
+	OwnDeletes                      map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Expected                        *Description
+	admissionWaited                 bool
+	implicit                        bool
+	Input                           sqltype.InputEnvironment
+	routinePrograms                 []commandRoutineProgram                        // Consumed command graphs; same admission lease as exec.Authority.
+	sepgsqlObservations             []access.SepgsqlObservation                    // Actual command phases only; never persistent program grants.
+	sepgsqlRetirements              map[ids.ObjectAddress]sepgsqlRetirementReceipt // Completed command-owned semantic DROP decisions only.
+	routineInitializationOwners     map[exec.RoutineInitialization]*restoreInitializationOrigin
+	routineInitializations          map[exec.RoutineInitializationCall]routineInitializationReceipt
+	defaultInitializations          map[exec.DefaultInitializationSource]exec.RoutineInitialization
+	nativeBodyInitializations       map[nativeBodyInitializationSource]exec.RoutineInitialization
+	directRoutineInitializations    map[exec.DirectRoutineInitializationCall]uint64
+	routineInitializationCompletion uint64
+	retirementCompletion            uint64
+	checkPrograms                   map[*catalog.Relation]exec.CheckProgram // Lazy ordinary CHECK preparation; shared by borrowed evaluations.
+	statementStart                  time.Time
+	transactionStart                time.Time
+	lease                           session.StatementLease // identity for session-layer state; never copied on purpose
+	Output                          sqltype.OutputEnvironment
+	initialParameters               []sqltype.Usage
+	activeSQLRoutineDepth           int                 // Root invocation owner; never saved/reset as lexical scratch.
+	activeTriggerDepth              int                 // Actual user/RI invocations, independent of routine safety depth.
+	activeConstraintTriggers        []ids.ObjectAddress // Call-owned LIFO ancestry; never checkpointed as transaction state.
+	plAtomic                        bool                // Captured command context, then defer-scoped active invocation barriers.
+	plNoticeStream                  bool                // Top-level DO body: RAISE publishes its final notices at once.
+	plLoops                         *plQueryRows        // Borrowed active adapters; not a named portal registry.
+	plExecutingPortal               *protocolPortal     // Current CALL/DO portal survives its own internal boundaries.
+	routineLive                     *routineLive
+	expressionLive                  *plExpressionLive
+	effectCommand, effectSerial     uint64 // admission-private command event ownership; never rewound
+	afterTriggers                   *afterTriggerState
+	namedRelations                  []namedRelation            // Balanced one-function invocation namespace, not command scratch.
+	deferAfterProducers             bool                       // Lexical eager-CTE materialization boundary.
+	deferredAfterCommand            uint64                     // Nested routine queries never borrow that boundary.
+	FoldCaptures                    *exec.FoldCaptureCandidate // sealed before executor/source publication
+	Catalog                         *session.Journal
+	foreignConstructions            map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
+	EventCommand                    *EventCommand                              // Borrowed lexical boundary; never publication authority.
+	largeObjectRead                 catalog.Read                               // Immutable active-query READ view, saved/restored by SQL body activation.
+	largeObjectOpening              catalog.Read                               // Descriptor-only active frontier, including stable isolation base.
+	CatalogAuthority                *session.CatalogAuthority
+	ProjectedRoots                  bool // Stage owns complete private roots, not append-only suffixes.
+	ForeignActionAuth               *AuthorizationView
+	Identity                        exec.IdentitySnapshot
 	// Feature state lives in slots. Groups that every statement writes are
 	// values. A pointer slot xSlot stays nil until its first write through
 	// x(); reads use xOrZero(), which never allocates, so nil means all zero.

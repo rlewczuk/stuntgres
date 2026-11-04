@@ -748,17 +748,20 @@ inventory. Existing exported rows retain their captured values.
 `pg_catalog.pg_shseclabel` (3592, rowtype4066) exposes exactly four nonnullable
 columns `(objoid oid, classoid oid, provider text, label text)`. It is a shared,
 PUBLIC-readable ordinary catalog, subject to current SELECT ACLs on every
-prepared execution. Its rows are truthfully empty: PostgreSQL's native C provider
-ABI/loading and SELinux/MAC integration are unavailable. SECURITY LABEL for
-ROLE, DATABASE, TABLESPACE or SUBSCRIPTION accepts omitted/identifier/string
-providers but returns 22023 (no providers loaded, or named provider not loaded)
-before object/owner lookup, including IS NULL removal attempts. No label storage,
-provider validation or successful relabeling is implied. `classoid` is the target
-catalog (role1260/database1262/tablespace1213/subscription6100); `(objoid,classoid,
-provider)` is the logical unique key (released primary index3593). The native
-catalog reports index presence without inventing physical index descriptors.
-Database-local `pg_seclabel` has the additional `objsubid` column and is likewise
-truthfully empty; it remains a separate five-column catalog.
+prepared execution. `classoid` is the target catalog (role1260/database1262/
+tablespace1213/subscription6100); `(objoid,classoid,provider)` is the logical
+unique key (released primary index3593). The native catalog reports index
+presence without inventing physical index descriptors. Database-local
+`pg_seclabel` (3596) additionally has signed `objsubid`; it remains a separate
+five-column catalog. Both project actual immutable catalog associations,
+including held execution; supported shared database labels originate only in
+`pg_shseclabel`, never in the local raw source.
+Without registration the catalogs are genuinely empty and SECURITY LABEL
+accepts omitted/identifier/string providers but returns 22023 (no providers
+loaded, or named provider not loaded) before target/owner lookup, including
+NULL removal. PostgreSQL's native C provider ABI/loading and host SELinux/MAC
+enforcement remain unavailable; the explicit simulation described below does
+not claim those mechanisms or fabricate unsupported shared object labels.
 
 `pg_catalog.pg_seclabels` is the registered, read-only presentation **view** with
 eight columns: `(objoid oid, classoid oid, objsubid int4, objtype text,
@@ -766,7 +769,15 @@ objnamespace oid, objname text, provider text, label text)`. All eight view
 attributes are nullable; native result descriptors know this, while lib/pq
 cannot report nullable metadata. `objtype` uses default collation and the final
 three text columns use C collation. Native initialized identities
-12099/12101/12100 (view/rowtype/array) are not portable PostgreSQL OIDs.
+12099/12101/12100 (view/rowtype/array) and genuine `_RETURN` rule12361 are not
+portable PostgreSQL OIDs. The single installed source validates exact catalog
+pointer/domain/epoch authority, eight columns and attribute facts, owned full
+type Usage, names, nullability, dimensions, collations and paired roles/database
+owner before projecting actual immutable labels. Without registration the real
+inventory is empty without per-call row allocation; configured simulation
+supplies persistent label rows, signed column associations and supported object
+type/namespace/visibility-qualified names. Rename preserves label identity,
+NULL removes the association and drop retires it; held rows retain their cut.
 Its full thirteen-branch local/shared UNION ALL definition follows PostgreSQL,
 including dependency-sensitive names and default/pretty display.
 PUBLIC SELECT and owner defaults are explicit; current relation/column SELECT
@@ -775,9 +786,216 @@ returns 42501, never empty success. Backing catalogs are owner-authorized:
 neither represented-object privileges nor loaded-provider names filter rows.
 Privileged writes return 55000 with the UNION-specific Detail and the
 operation-specific INSTEAD OF trigger/rule Hint, even for zero-match writes.
-The view is currently genuinely empty because no native provider or label
-store exists. Successful set/change/remove and positive label projection are
-unavailable, not simulated by comments, synthetic providers or fake NULL removal.
+
+With simulation registered, ROLE uses the current SQL actor: SUPERUSER admits;
+a SUPERUSER target otherwise fails first; other targets require the actor's own
+CREATEROLE attribute and actual ADMIN traversal. Self identity or ordinary
+membership is not ADMIN. Roles remain an unsupported label class with no
+synthetic catalog address, target lock or label storage. DOMAIN requires the
+selected type itself to be a domain before ordinary ownership; written decoded
+qualification, builtin spelling and array suffixes are preserved in wrong-kind
+diagnostics. A domain over an array qualifies; an array of domains does not.
+Genuine types/domains retain their real type locks and postwait currentness
+fences. COLUMN uses the selected whole relation's ordinary lock and fresh
+ownership before generic relation-kind integrity, then provider admission.
+Sequence/index columns fail with 42809 and released relation-kind details;
+sequence generators are not consulted or changed. View/materialized/composite/
+foreign columns pass generic integrity but retain unsupported provider classes.
+These generic checks precede context validation even for NULL/empty/invalid
+labels and add no successful label class or host-security claim.
+
+`Driver.RegisterSepgsqlSimulation` registers one immutable, default-deny
+**simulated** SELinux policy before the first connector. The provider name is
+`selinux`, not `sepgsql`; this does not load a native module or provide operating
+system security. `SepgsqlSimulationConfig.InstallSQL` independently controls
+initial installation of the five actual `pg_catalog.sepgsql_*` C declarations.
+There is no `CREATE EXTENSION sepgsql`. Only the known `$libdir/sepgsql` symbols
+are admitted by ordinary CREATE FUNCTION; arbitrary C libraries remain unsupported.
+`Connector.WithSepgsqlContext` selects a physical-session subject independently
+of SQL users and roles. An omitted context uses the registered initial context;
+an explicit empty or unknown context fails connection initialization.
+This registration is an embedding API. The shipped `cmd/stuntgres` server
+constructs its own engines without it; a SQL GUC or `LOAD` cannot activate a
+policy there or manufacture a physical subject for an unregistered engine.
+Active in-engine parameter, row, FunctionCall and COPY codecs borrow their actual
+statement evaluator. Encoded output, including finalized simple-query RETURNING,
+modifying-CTE and utility stored rows, revalidates captured authority after encoding
+and before its external sink; this is an admission frontier, not a lock held across
+external I/O.
+
+Policy classes, context membership, allow/deny rules, create/trusted transitions,
+virtual restorecon profiles and optional one-to-one translations are validated
+and copied during registration. Empty grants deny, explicit denies win, and SQL
+ACLs remain independently necessary. Permissive mode records denied permissions
+without making them policy grants. `sepgsql.debug_audit` changes audit selection,
+not permission decisions. Host Audit records are detached from decision storage
+and delivered outside engine/session locks; client LOG filtering is independent.
+Virtual restorecon profiles never read host files. No kernel SELinux, libselinux,
+policy daemon, or arbitrary loader compatibility is claimed.
+Profiles use first-match class/pattern rules with fnmatch-style `*`, `?`, bracket
+classes and backslash escapes; `*` spans name separators. Within brackets an
+escaped hyphen is literal: `[a\-z]` matches `a`, `-`, or `z`, not `b`, whereas
+`[a-z]` remains a range. Negated classes retain the corresponding complement.
+
+Public `sepgsql_restorecon` first checks the current SQL superuser, then the
+registered profile. It restores all actual shared database labels using each
+database's own name, plus local objects in the current database, through one
+atomic publication. Peer databases' local objects are not traversed; private
+startup labeling and native-control consent retain their selected-database scope.
+
+Enforcing simulation rejects `LOAD`. Permissive simulation still requires
+ordinary SQL library authorization: the registered `$libdir/sepgsql` selection
+does not install declarations or activate pg_overexplain. Genuine supported
+pg_overexplain aliases retain their own physical-session activation and isolation.
+Neither route enables an arbitrary native loader.
+
+Labels are transaction/savepoint-aware catalog state, not COMMENT data or a
+mutable side map. NULL removes an association; missing labels use the configured
+UnlabeledContext. Dump carries the selected database's real label SQL and a policy
+ID/version requirement; it does not export peer databases' shared labels or local
+objects. Restore requires a compatible destination registration and preserves
+explicit imported labels for the selected database. Reset reconstructs configured
+bootstrap labels without reviving dropped SQL declarations. Both controls retain
+the destination's existing peer database labels, including absent associations,
+and peer-local data. Native controls retain the admitted target physical session's
+simulated subject without holding a borrowed connection across I/O.
+
+With simulation installed, isolated Restore initialization records ordinary SQL
+admission against its real private stage and one bound replay session, not a live
+client MAC decision. Inactive private maintenance has no simulation construction
+origin and supports distinct genuine sessions. Remapped repair keeps its original
+authenticated stage epoch/runtime/session; only its detached evaluation clone
+uses that lifetime, not the separately prepared destination image.
+The command's source, routine identity, SQL EXECUTE and cancellation checks remain;
+metadata defaults are not invoked merely to install them. Import completion
+cannot authorize public SQL, destination replacement or closed-worker execution.
+Destination control consent still checks actual old `setattr|relabelfrom` and new
+`relabelto` targets, not replayed client CREATE MAC. Missing associations use
+UnlabeledContext; current catalog/role/policy fences remain separate. This is
+query-compatible simulation, not kernel or host-policy security.
+
+Generically supported event-trigger, publication, subscription, large-object,
+type/domain and tablespace label targets retain real existence, locking and
+current SQL ownership checks before the provider rejects their unsupported label
+class. Subscription lookup is current-database-specific; the existing large-object
+compatibility setting changes ownership admission only, never existence checks
+or label support. Existing shared tablespace descriptors are queryable targets;
+this does not enable physical tablespace creation.
+
+For example, register an administrative setup subject and a separate read-only
+test subject, with explicit grants rather than implicit SQL-superuser bypass:
+
+```go
+d := stuntgres.NewDriver()
+err := d.RegisterSepgsqlSimulation(stuntgres.SepgsqlSimulationConfig{
+    InstallSQL: true,
+    Policy: stuntgres.SepgsqlPolicy{
+        ID: "application-tests", Version: "1",
+        Contexts: []string{"admin", "reader", "public", "unlabeled"},
+        InitialContext: "admin", UnlabeledContext: "unlabeled",
+        Rules: []stuntgres.SepgsqlRule{
+            {Source: "admin", Target: "*", Class: "*", Allow: []string{"*"}},
+            {Source: "reader", Target: "public", Class: "db_database", Allow: []string{"access"}},
+            {Source: "reader", Target: "public", Class: "db_schema", Allow: []string{"search"}},
+            {Source: "reader", Target: "public", Class: "db_table", Allow: []string{"select"}},
+            {Source: "reader", Target: "public", Class: "db_column", Allow: []string{"select"}},
+            {Source: "reader", Target: "public", Class: "db_procedure", Allow: []string{"execute"}},
+        },
+        DefaultSpec: "db_database * public\ndb_schema * public\n" +
+            "db_table * public\ndb_column * public\ndb_procedure * public\n",
+    },
+})
+if err != nil {
+    return err
+}
+connector, err := d.OpenConnector("application-tests")
+if err != nil {
+    return err
+}
+setup := sql.OpenDB(connector)
+reader := sql.OpenDB(connector.(*stuntgres.Connector).WithSepgsqlContext("reader"))
+defer setup.Close()
+defer reader.Close()
+```
+
+Context strings are exact declared test identities, not parsed SELinux policy
+syntax. `*` selects a rule source/target/class or permission; it is not a context.
+Creation inherits its parent's label unless a matching create transition changes
+it. Initial virtual profiles and later `sepgsql_restorecon` use the registered
+first-match class/pattern specification, not create-transition rules. A trusted
+transition selects the actual body's subject; it does not grant execute.
+
+Explicit `CREATE SEQUENCE` checks ordinary namespace CREATE and valid options
+before its real postcreate hook: namespace `add_name`, then `db_sequence:create`
+under the current physical subject and name-selected transition. Successful
+creation records exactly one whole-sequence label, never labels for its three
+generator columns. Initial or concurrent `IF NOT EXISTS` skips do not create a
+label or sequence-create event; the ordinary existing-relation NOTICE remains.
+Postcreate denial precedes later `OWNED BY` resolution; either failure publishes
+no descriptor, label, generator or ownership link. SERIAL and CREATE/ADD identity
+use the same sequence semantics through their existing catalog-stage owner.
+Transactions, savepoints and TEMP cleanup keep these associations with their real
+objects. Dump/Reset/Restore retains persistent explicit/relabeled labels, absent
+NULL associations, options, owners, ACLs, generator values and owned dependencies;
+trusted isolated replay does not recompute missing sequence labels. Destination
+transfer consent and policy identity still apply independently of public SQL
+CREATE permission, and TEMP remains session-owned.
+
+Routine execute checks belong to the retained expression's initialization,
+before argument evaluation. Trusted body entry occurs after arguments and
+STRICT handling and restores the lexical caller on success and failure.
+Direct dictionary, codec and support callbacks are not fictional SQL calls:
+their actual eligible bodies may transition without an extra SQL execute grant.
+Dictionary initialization is real cold physical-session work; a warm dictionary
+survives subject/relabel-only changes, while definition replacement becomes cold.
+Value-per-call sources enter around actual consumed work and restore before a
+row is yielded, not around an unused source or after eager materialization.
+This includes `pg_buffercache_pages`, visibility-map row sources and the
+visibility check functions: the first consumed call captures their logical
+snapshot and produces its first row, while later calls produce a row or finish.
+Visibility truncation and heap-surgery routines instead enter once around
+their actual scalar operation, retaining their existing effects and diagnostics.
+Earth, pageinspect and freespace SQL adapters run their genuine selected nested
+helper kernels under borrowed invocation authority. Demand-selected EarthBox
+NULL-center expansion suppresses outer/cube body entry but still executes the
+demanded `gc_to_sec` helper. Freespace retains relation/series/value slots, not
+borrowed session authority, between yields.
+Freespace's retained NULL demand follows its admitted custom/generic command
+policy. Active runtime SQL aggregate supports use their genuine serial owner
+when child initialization cannot be sealed; native/arithmetic graphs retain
+parallel execution.
+
+Neither native support-kernel callback counts nor PostgreSQL custom-plan,
+constant-folding or AVC/audit multiplicities are compatibility promises.
+Provider-independent reference phases use stock PostgreSQL; simulated active
+policy outcomes are independently specified native behavior, not evidence of
+real SELinux enforcement. Physical subjects, trusted frames, initialization
+receipts, dictionary memos, audit history and registered policy bytes never
+become portable snapshot state. Public replacement controls keep the original
+detached subject across I/O and still reject stale catalog/role authority.
+Restore admits explicit `FOR selinux` label statements only after compatible
+simulation metadata; without that provenance, the ordinary statement allow-list
+still rejects label replay before executing or publishing a script prefix.
+
+DROP and DROP OWNED prepare the actual selected roots, dependency/constraint
+cohort and owned-sequence phases while their source labels and namespaces are
+still live. Ordinary dependency and privilege failures precede MAC decisions.
+Effects retain the existing raw-root removal → typed role/ACL cleanup →
+captured dependency and owned-phase order. A late denial publishes neither an
+earlier root removal nor cleanup/default-ACL/initial-privilege changes; consumed
+command-local decisions are not reinterpreted using an already removed parent
+or the unlabeled context.
+
+Registered foreign handler factories use their genuine SQL procedure identity
+when producing a consumed native method table and restore the caller before
+the returned planning/scan/modify/import/analyze methods execute. Those Go
+methods are not additional pg_proc functions and do not receive invented SQL
+execute checks. Detached sources retain immutable selected associations, not a
+physical session, request evaluator or trusted subject. TABLESAMPLE
+`system_rows` and `system_time` obtain their actual sampler before evaluating
+the row-count or duration argument, restore the caller before that argument,
+and reuse the returned method table on reset. Metadata resolution and
+per-row sampling do not fabricate additional handler invocations.
 
 `pg_catalog.pg_shdepend` is the cluster-wide seven-column inventory
 `(dbid, classid, objid, objsubid, refclassid, refobjid, deptype)`.
@@ -2456,6 +2674,13 @@ network/TLS/authentication mechanics remain the host's responsibility.
   relax scan/write mapping admission. Import `Options` retain order and duplicates
   for provider policy. Prepare performs no discovery; execution constructs selected
   definitions sequentially in one private statement, publishing none on failure.
+  Ordinary server USAGE, local-schema CREATE and handler metadata errors retain
+  precedence. Execution consumes and unwinds the genuine handler factory before
+  checking optional import support: simulated trusted-entry denial returns
+  `42501`; an allowed factory without an importer returns `HV00P` naming the
+  actual SQL wrapper, not its registered handler. Neither branch calls an
+  importer or publishes definitions. Direct factory entry adds no SQL procedure
+  EXECUTE requirement.
 - **Contract.** Callbacks run outside engine locks, may run concurrently, and must
   use the context of each call. Never return `driver.ErrBadConn` or `driver.ErrSkip`
   (they are converted to ordinary errors). Native Dump includes user-mapping

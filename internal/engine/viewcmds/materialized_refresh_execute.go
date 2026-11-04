@@ -85,15 +85,16 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 	}
 	if concurrent {
 		var err error
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: caller.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation.RoutineAuthority = &caller
 		if len(ownRows) != 0 || ownDeletes != nil {
 			previous = view.ConcurrentPrevious(previous, ownRows, ownDeletes, frontier)
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			oldEntries, err = index.BuildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return core.Result{}, err
 			}
 		}
-		rows, err = view.MaterializedConcurrentRows(scope.Op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.Output, collect)
+		rows, err = view.MaterializedConcurrentRows(scope.Op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.Output, collect, &evaluation)
 		if err != nil {
 			return core.Result{}, err
 		}

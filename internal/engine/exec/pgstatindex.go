@@ -11,6 +11,7 @@ import (
 )
 
 func (c *Context) EvalPgstattupleStats(n plan.InstalledPgstattupleStatsExpr) (sqltype.Value, error) {
+	original := n.Info
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -51,6 +52,11 @@ func (c *Context) EvalPgstattupleStats(n plan.InstalledPgstattupleStatsExpr) (sq
 	if value.IsNull() {
 		return sqltype.Null(n.Usage.Type), nil
 	}
+	body, err := original.EnterRoutine(c, []sqltype.Value{value})
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing pgstatindex statement runtime")

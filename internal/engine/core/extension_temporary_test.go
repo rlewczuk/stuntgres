@@ -43,15 +43,20 @@ func extensionTemporaryStage(t *testing.T, e *core.Engine, ext *catalog.Extensio
 	stage := e.BeginCatalogStage(base)
 	core.SetStageTerminalCleanup(stage, true)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
+	drop := core.StageDropProvider(context.Background(), stage, nil, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(targets, parser.DropCascade, ids.ObjectAddress{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, target := range targets {
 		if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), target)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := core.StageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := drop.ApplyExpressionDependencies(dependencies); err != nil {
 		t.Fatal(err)
 	}
-	if err := core.StageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		t.Fatal(err)
 	}
 	indexes, err := core.EnginePrepareTemporarySessionIndexes(e, stage)

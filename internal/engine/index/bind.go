@@ -214,12 +214,15 @@ func BindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if _, indexKind := method.IndexImplementation(); !indexKind {
 		return nil, nil, nil, nil, sqlError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, method.Name()))
 	}
-	return bindAttributes(h, auth, input, parent, s, method, nil)
+	physical, err := h.InitializeIndexMethod(auth, method)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return bindAttributes(h, auth, input, parent, s, method, physical, nil)
 }
 
-func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex, method *catalog.AccessMethod, transformed []ExpressionTransform) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
+func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex, method *catalog.AccessMethod, physical catalog.IndexMethod, transformed []ExpressionTransform) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	physical, _ := method.IndexImplementation()
 	d := &catalog.IndexDefinition{Method: physical, MethodOID: method.Address().ObjectID, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	columns := make([]catalog.Column, total)
 	attributes := make([]int32, total)

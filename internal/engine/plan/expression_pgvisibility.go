@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
@@ -40,6 +41,19 @@ func (n InstalledPgvisibilityExpr) ScalarSourceOutName() string {
 	}
 	outputs := n.Procedure.OutputDeclaration()
 	return outputs.Name(outputs.Inputs())
+}
+func (n InstalledPgvisibilityExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted || cursor.State == nil {
+		return cursor.Next(ctx)
+	}
+	runtime, ok := evaluation.(interface {
+		AdvancePgvisibility(InstalledPgvisibilityExpr, context.Context, *expr.SourceCursor) (sqltype.Value, bool, error)
+	})
+	if !ok {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing visibility source authority")
+	}
+	return runtime.AdvancePgvisibility(n, ctx, cursor)
 }
 func (n InstalledPgvisibilityExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if info.RoutineReference != n.Procedure {

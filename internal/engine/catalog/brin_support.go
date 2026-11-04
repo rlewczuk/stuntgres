@@ -30,12 +30,24 @@ func NewBrinSupportProcedure(slot uint8, owner authorization.PrincipalRef) Proce
 // extension membership is independently checked by ValidateExtensionMembership;
 // adding or detaching a genuine support declaration does not replace its ABI.
 func ValidateBrinSupport(d *Procedure) error {
-	if d == nil || d.BrinSupport < 1 || int(d.BrinSupport) > len(brinSupportDeclarations) {
-		return fmt.Errorf("stuntgres: invalid BRIN summary operation")
-	}
-	f := brinSupportDeclarations[d.BrinSupport-1]
-	if d.Address() != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: f.oid}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Name() != f.name || d.Revision() == 0 || d.Signature != f.signature || d.Result != f.result || !d.Strict || d.Volatility != expr.Immutable || d.RoutineKind != FunctionRoutine || d.Display.Language != InternalRoutineLanguage || d.Display.Source != f.name || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.RangeConstructor != nil || d.PLHandler != NoPLHandler || d.AccessMethod != NoAccessMethod || d.Implementation != nil || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 {
+	if !OriginalBrinSupport(d) {
 		return fmt.Errorf("stuntgres: invalid BRIN summary operation identity")
 	}
+	if !supportedInternalProcedureMetadata(d, brinSupportDeclarations[d.BrinSupport-1].name, expr.Immutable) {
+		return fmt.Errorf("stuntgres: invalid BRIN summary operation metadata")
+	}
 	return nil
+}
+
+// OriginalBrinSupport is the intrinsic released fmgr identity, independent of
+// supported mutable SQL names, namespaces, owners and declaration attributes.
+// It is not invocation authority; callers must validate the current descriptor
+// header and the selected source lifetime separately.
+func OriginalBrinSupport(d *Procedure) bool {
+	if d == nil || d.BrinSupport < 1 || int(d.BrinSupport) > len(brinSupportDeclarations) {
+		return false
+	}
+	f := brinSupportDeclarations[d.BrinSupport-1]
+	return d.AccessMethod == NoAccessMethod && d.GinSupport == 0 &&
+		originalInternalProcedure(d, f.oid, f.signature, f.result)
 }

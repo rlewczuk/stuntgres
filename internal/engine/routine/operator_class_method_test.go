@@ -80,7 +80,7 @@ func TestOperatorClassMethodIdentity(t *testing.T) {
 		if i == 1 {
 			routine = 181
 		}
-		want := sqltype.IndexSupport{Family: uint32(91000 + i), Member: uint32(93000 + i), Routine: routine, Left: 23, Right: 23, Revision: uint64(31 + i), FamilyRevision: uint64(11 + i), RoutineRevision: 1}
+		want := sqltype.IndexSupport{Class: uint32(92000 + i), Family: uint32(91000 + i), Member: uint32(93000 + i), Routine: routine, Left: 23, Right: 23, Revision: uint64(31 + i), ClassRevision: uint64(21 + i), FamilyRevision: uint64(11 + i), RoutineRevision: 1}
 		if bound.Support(1) != want {
 			t.Fatal("production selector capture", bound.Support(1), want)
 		}

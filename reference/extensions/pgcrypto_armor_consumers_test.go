@@ -20,7 +20,7 @@ func pgcryptoArmorConsumerCase(t *testing.T, body func(*testing.T, *fixture.Pair
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("CREATE TABLE armor_consumers(id integer,a text DEFAULT pgcrypto_part.armor('test'::bytea),h text DEFAULT pgcrypto_part.armor('zooka'::bytea,ARRAY['foo'],ARRAY['bar']),b bytea GENERATED ALWAYS AS(pgcrypto_part.dearmor(a)) STORED,CONSTRAINT armor_valid CHECK(pgcrypto_part.dearmor(a)='test'::bytea))", 0))
 		run(fixture.Exec("CREATE VIEW armor_scalar_view AS SELECT id,pgcrypto_part.dearmor(a) AS decoded FROM armor_consumers", 0))
-		run(fixture.Exec("CREATE VIEW armor_source_view AS SELECT key,value FROM pgcrypto_part.pgp_armor_headers('"+pgcryptoArmorZooka+"')", 0))
+		run(fixture.Exec("CREATE VIEW armor_source_view AS SELECT key,value FROM pgcrypto_part.pgp_armor_headers('"+fixture.PgcryptoArmorZooka+"')", 0))
 		run(fixture.Exec("CREATE TABLE armor_stored_atomic(v text CONSTRAINT armor_stored_valid CHECK(pgcrypto_part.dearmor(v)='test'::bytea))", 0))
 		run(fixture.Exec("INSERT INTO armor_consumers(id) VALUES(1)", 1))
 		body(t, p, c, r, pg)
@@ -29,7 +29,7 @@ func pgcryptoArmorConsumerCase(t *testing.T, body func(*testing.T, *fixture.Pair
 
 func pgcryptoArmorConsumerSteps() []fixture.Step {
 	return []fixture.Step{
-		fixture.Select("SELECT id,a,h,b FROM armor_consumers ORDER BY id", []string{"id", "a", "h", "b"}, []string{"INT4", "TEXT", "TEXT", "BYTEA"}, [][]any{{int64(1), pgcryptoArmorTest, pgcryptoArmorZooka, "test"}}),
+		fixture.Select("SELECT id,a,h,b FROM armor_consumers ORDER BY id", []string{"id", "a", "h", "b"}, []string{"INT4", "TEXT", "TEXT", "BYTEA"}, [][]any{{int64(1), pgcryptoArmorTest, fixture.PgcryptoArmorZooka, "test"}}),
 		fixture.Select("SELECT id,decoded FROM armor_scalar_view ORDER BY id", []string{"id", "decoded"}, []string{"INT4", "BYTEA"}, [][]any{{int64(1), "test"}}),
 		fixture.Select("SELECT key,value FROM armor_source_view ORDER BY key,value", []string{"key", "value"}, []string{"TEXT", "TEXT"}, [][]any{{"foo", "bar"}}),
 	}
@@ -70,9 +70,9 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 			queries := []string{"SELECT pgcrypto_part.armor($1)", "SELECT pgcrypto_part.armor($1,$2,$3)", "SELECT pgcrypto_part.dearmor($1)", "SELECT * FROM pgcrypto_part.pgp_armor_headers($1)"}
 			steps := []fixture.Step{
 				pgcryptoArmorText(queries[0], pgcryptoArmorTest, []byte("test")),
-				pgcryptoArmorText(queries[1], pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"),
+				pgcryptoArmorText(queries[1], fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"),
 				pgcryptoArmorBytes(queries[2], []byte("test"), pgcryptoArmorTest),
-				pgcryptoArmorHeaders(queries[3], [][]any{{"foo", "bar"}}, pgcryptoArmorZooka),
+				fixture.PgcryptoArmorHeaders(queries[3], [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka),
 			}
 			held := make([]*sql.Stmt, len(queries))
 			for i, query := range queries {
@@ -113,9 +113,9 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held[i], SQL: queries[i]}, r, missing)
 			}
 			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT public.armor_one($1) AS armor", pgcryptoArmorTest, []byte("test")))
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT public.armor_three($1,$2,$3) AS armor", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT public.armor_three($1,$2,$3) AS armor", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
 			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT public.dearmor_live($1) AS dearmor", []byte("test"), pgcryptoArmorTest))
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT * FROM public.headers_live($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
+			pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT * FROM public.headers_live($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
 			for _, tc := range []struct{ query, name, args string }{
 				{"SELECT pgcrypto_part.armor('test'::bytea)", "pgcrypto_part.armor", "bytea"},
 				{"SELECT pgcrypto_part.armor('zooka'::bytea,ARRAY['foo'],ARRAY['bar'])", "pgcrypto_part.armor", "bytea, text[], text[]"},
@@ -138,9 +138,9 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 			pgcryptoArmorDependencies(t, p, c, ids)
 			run(fixture.Exec("BEGIN", 0))
 			run(fixture.Exec("INSERT INTO armor_consumers(id) VALUES(2)", 1))
-			run(fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, pgcryptoArmorZooka, "test"}}))
+			run(fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, fixture.PgcryptoArmorZooka, "test"}}))
 			run(fixture.Exec("ROLLBACK", 0))
-			failure := pgcryptoArmorCorrupt("INSERT INTO armor_stored_atomic VALUES($1),($2)", pgcryptoArmorTest, "invalid")
+			failure := fixture.PgcryptoArmorCorrupt("INSERT INTO armor_stored_atomic VALUES($1),($2)", pgcryptoArmorTest, "invalid")
 			failure.SelectRows = false
 			pgcryptoArmorBoth(t, p, c, r, failure)
 			run(fixture.Select("SELECT count(*) FROM armor_stored_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
@@ -167,9 +167,9 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 				step                   fixture.Step
 			}{
 				{"armor(bytea)", "armor", "SELECT pgcrypto_part.armor($1)", pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test"))},
-				{"armor(bytea,text[],text[])", "armor", "SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}")},
+				{"armor(bytea,text[],text[])", "armor", "SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}")},
 				{"dearmor(text)", "dearmor", "SELECT pgcrypto_part.dearmor($1)", pgcryptoArmorBytes("SELECT pgcrypto_part.dearmor($1)", []byte("test"), pgcryptoArmorTest)},
-				{"pgp_armor_headers(text)", "pgp_armor_headers", "SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", pgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka)},
+				{"pgp_armor_headers(text)", "pgp_armor_headers", "SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", fixture.PgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka)},
 			} {
 				stmt, err := c.PrepareContext(p.Ctx, tc.query)
 				if err != nil {
@@ -181,7 +181,7 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION pgcrypto_part."+tc.signature+" FROM PUBLIC", 0))
 				run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_armor_reader", 0))
-				denied := pgcryptoArmorError(tc.query, "42501", "permission denied for function "+tc.name, tc.step.Args...)
+				denied := fixture.PgcryptoArmorError(tc.query, "42501", "permission denied for function "+tc.name, tc.step.Args...)
 				fixture.RunStep(t, p.Ctx, held, r, denied)
 				pgcryptoArmorBoth(t, p, c, r, denied)
 				nullArgs := append([]any(nil), tc.step.Args...)
@@ -191,12 +191,12 @@ func TestReferencePgcryptoArmorIdentityAndConsumers(t *testing.T) {
 				// SRFs are not folded; init_sexpr checks ACLs even for NULL input.
 				nullResult := fixture.Select(tc.query, tc.step.Columns, tc.step.Types, [][]any{{nil}}, nullArgs...)
 				if tc.name == "pgp_armor_headers" {
-					nullResult = pgcryptoArmorError(tc.query, "42501", "permission denied for function "+tc.name, nullArgs...)
+					nullResult = fixture.PgcryptoArmorError(tc.query, "42501", "permission denied for function "+tc.name, nullArgs...)
 				}
 				fixture.RunStep(t, p.Ctx, held, r, nullResult)
 				pgcryptoArmorBoth(t, p, c, r, nullResult)
 				if tc.name == "pgp_armor_headers" {
-					pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorError("SELECT key,value FROM armor_source_view", "42501", "permission denied for function pgp_armor_headers"))
+					pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorError("SELECT key,value FROM armor_source_view", "42501", "permission denied for function pgp_armor_headers"))
 				}
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 				run(fixture.Exec("GRANT EXECUTE ON FUNCTION pgcrypto_part."+tc.signature+" TO PUBLIC", 0))

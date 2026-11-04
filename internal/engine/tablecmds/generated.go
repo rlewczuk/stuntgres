@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -17,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bindCreateGenerations(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
+func bindCreateGenerations(h core.DDLHost, auth core.AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
@@ -33,12 +32,12 @@ func bindCreateGenerations(e *core.Engine, op *session.Operation, auth core.Auth
 	if len(d.ColumnMeta.Generations) == 0 {
 		return nil
 	}
-	ns := GenerationNamespace(e, auth, d)
+	ns := GenerationNamespace(h.E, auth, d)
 	for slot, declaration := range declarations {
 		if declaration.Generation == nil {
 			continue
 		}
-		definition, err := BindGeneration(e, op, auth, d, slot, declaration.Generation.Expression, input, &ns)
+		definition, err := BindGeneration(h, auth, d, slot, declaration.Generation.Expression, input, &ns)
 		if err != nil {
 			return err
 		}
@@ -52,7 +51,8 @@ func GenerationNamespace(e *core.Engine, auth core.AuthorizationView, d *catalog
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func BindGeneration(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+func BindGeneration(h core.DDLHost, auth core.AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+	e, op := h.E, h.Op
 	b := core.NewExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true
@@ -78,7 +78,7 @@ func BindGeneration(e *core.Engine, op *session.Operation, auth core.Authorizati
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: b.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
-	node, _, err = exec.SimplifyConditional(&evaluation, node, true)
+	node, err = h.SimplifyGenerationDefinitionLocked(auth, &evaluation, node)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}

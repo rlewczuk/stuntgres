@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ type AggregateDistinctState struct {
 	Tuples  []sqltype.Value
 }
 
-func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value) (bool, error) {
+func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value, evaluation expr.Context) (bool, error) {
 	hash := uint64(14695981039346656037)
 	for i, family := range grouping {
 		if err := sampleCheckpoint(ctx); err != nil {
@@ -37,7 +38,7 @@ func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grou
 			return false, err
 		}
 		tuple[i] = value
-		h, err := family.Hash(ctx, value)
+		h, err := family.HashWithEvaluation(ctx, value, evaluation)
 		if err != nil {
 			return false, err
 		}
@@ -46,7 +47,7 @@ func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grou
 		}
 		hash = (hash ^ h) * 1099511628211
 	}
-	index, err := FindDistinctTuple(ctx, grouping, tuple, s.Tuples, s.Buckets[hash])
+	index, err := FindDistinctTuple(ctx, grouping, tuple, s.Tuples, s.Buckets[hash], evaluation)
 	if err != nil || index >= 0 {
 		return false, err
 	}
@@ -258,7 +259,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			}
 			scratch[k] = value
 			if !state.Methods.NoHashAgg {
-				h, err := n.Grouping[k].Hash(ctx, value)
+				h, err := n.Grouping[k].HashWithEvaluation(ctx, value, &evaluation)
 				if err != nil {
 					return Stage{}, err
 				}
@@ -279,7 +280,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			index := -1
 			var err error
 			if state.Methods.NoHashAgg {
-				index, err = findEqualityQueryGroup(ctx, n.Grouping, scratch, set, groups, occurrence)
+				index, err = findEqualityQueryGroup(ctx, n.Grouping, scratch, set, groups, occurrence, &evaluation)
 			} else {
 				for _, k := range set {
 					if err := sampleCheckpoint(ctx); err != nil {
@@ -287,7 +288,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					}
 					hash = (hash ^ hashes[k]) * 1099511628211
 				}
-				index, err = FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
+				index, err = FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash], &evaluation)
 			}
 			if err != nil {
 				return Stage{}, err
@@ -363,7 +364,7 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 				}
 				if len(call.Distinct) > 0 {
 					copy(distinctTuple, values)
-					admit, err := groups[index].distinct[p].Admit(ctx, call.Distinct, distinctTuple[:len(call.Distinct)])
+					admit, err := groups[index].distinct[p].Admit(ctx, call.Distinct, distinctTuple[:len(call.Distinct)], &evaluation)
 					if err != nil {
 						return Stage{}, err
 					}
@@ -468,14 +469,14 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 	return Stage{Source: source, Columns: n.Schema()}, nil
 }
 
-func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, candidates []int) (int, error) {
+func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, candidates []int, evaluation expr.Context) (int, error) {
 	for _, candidate := range candidates {
 		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
 		}
 		equal := true
 		for _, k := range active {
-			same, err := grouping[k].Equal(ctx, keys[k], groups[candidate].Keys[k])
+			same, err := grouping[k].EqualWithEvaluation(ctx, keys[k], groups[candidate].Keys[k], evaluation)
 			if err != nil {
 				return -1, err
 			}
@@ -497,7 +498,7 @@ func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltyp
 	return -1, sampleCheckpoint(ctx)
 }
 
-func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, occurrence int) (int, error) {
+func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []QueryGroup, occurrence int, evaluation expr.Context) (int, error) {
 	for candidate := range groups {
 		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
@@ -506,7 +507,7 @@ func findEqualityQueryGroup(ctx context.Context, grouping []plan.Grouping, keys 
 			continue
 		}
 		one := [1]int{candidate}
-		index, err := FindQueryGroup(ctx, grouping, keys, active, groups, one[:])
+		index, err := FindQueryGroup(ctx, grouping, keys, active, groups, one[:], evaluation)
 		if err != nil || index >= 0 {
 			return index, err
 		}

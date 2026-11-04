@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -32,6 +33,19 @@ func (n InstalledPageinspectExpr) OpenSource(ctx expr.Context) (expr.SourceCurso
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing installed pageinspect source runtime")
 	}
 	return runtime.OpenPageinspect(n)
+}
+func (n InstalledPageinspectExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted {
+		return cursor.Next(ctx)
+	}
+	runtime, ok := evaluation.(interface {
+		AdvancePageinspect(InstalledPageinspectExpr, context.Context, *expr.SourceCursor) (sqltype.Value, bool, error)
+	})
+	if !ok {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing pageinspect source authority")
+	}
+	return runtime.AdvancePageinspect(n, ctx, cursor)
 }
 func (n InstalledPageinspectExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if info.RoutineReference != n.Procedure {

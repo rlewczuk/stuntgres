@@ -36,6 +36,9 @@ func AlterTableOfLocked(e *core.Engine, scope *core.StatementScope, op *session.
 	if err := stage.Replace(next); err != nil {
 		return core.Result{}, err
 	}
+	if err := stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+		return core.Result{}, err
+	}
 	if s.Type != nil {
 		// Execution can select a source created while target admission waited.
 		// Grant the actual staged attachment, not just the pre-wait source.

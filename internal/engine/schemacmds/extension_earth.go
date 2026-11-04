@@ -2,6 +2,7 @@ package schemacmds
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/core"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -9,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,6 +29,10 @@ func (h *extensionHost) EarthChecks(d *catalog.Type) error {
 		return fmt.Errorf("stuntgres: missing earth CHECK cube")
 	}
 	property := expr.Properties{DomainDependent: true}
+	binder := core.NewExpressionBinder(h.Context(), h.Engine, sqltype.InputEnvironment{}, h.Op, nil)
+	auth := h.Auth
+	auth.Catalog = view
+	binder.Query.Auth = &auth
 	for _, recipe := range []struct {
 		name    string
 		kind    sqltype.EarthCheck
@@ -38,7 +44,16 @@ func (h *extensionHost) EarthChecks(d *catalog.Type) error {
 		if err != nil {
 			return err
 		}
-		node := plan.EarthCheckExpr{Info: expr.Info{Usage: boolean.Usage(), Property: property, RoutineReference: helper}, Kind: recipe.kind, Value: plan.DomainValueExpr{Info: expr.Info{Usage: base, Property: property}}}
+		info := binder.Info(boolean.Usage(), parser.Position{}, property)
+		info.RoutineReference = helper
+		node := plan.EarthCheckExpr{Info: info, Kind: recipe.kind, Value: plan.DomainValueExpr{Info: expr.Info{Usage: base, Property: property}}}
+		if recipe.kind == sqltype.EarthOnSurface {
+			origin, err := base.Type.Input(h.Context(), "(0)", -1)
+			if err != nil {
+				return err
+			}
+			node.Origin = plan.LiteralExpr{Info: binder.Info(base, parser.Position{}, expr.Properties{}), Value: origin}
+		}
 		var refs []ids.ObjectRef
 		if _, err := (stored.ScalarRenderer{DomainValue: &base, Dependencies: &refs}).SQL(h.Context(), view, node); err != nil {
 			return err

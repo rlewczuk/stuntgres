@@ -15,7 +15,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
@@ -233,7 +232,7 @@ func TestTypeLifecycleDropClosure(t *testing.T) {
 	if err := scope.Gate(enginetest.Statement(t, "DROP TYPE public.mood")); err != nil {
 		t.Fatal(err)
 	}
-	if err := schemacmds.StageDomainDependents(scope, stage, parser.DropRestrict); err != nil {
+	if err := domainUnitApplyDrop(scope, stage, parser.DropRestrict); err != nil {
 		t.Fatal(err)
 	}
 	if stage.RemovalCount() != 2 {

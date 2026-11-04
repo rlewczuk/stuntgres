@@ -535,6 +535,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   to execution. Cross-family ALTER metadata and replay proof lives in
   [query_core](../query_core/README.md#routine-alter-proof), selected in both
   native and `REFERENCE=1` modes.
+- Simulated provider ownership scenarios are in
+  [reference/extension_ownership](../extension_ownership/README.md#testing),
+  selected with `RUN='^TestReferenceSepgsqlSimulation'`.
 
 - pgcrypto digest, HMAC, installation and controls:
   `RUN='^TestReferencePgcrypto(Digest|HMAC|Installed|Overloads|Diagnostics|Consumers|Control|Replay|Forced|FeatureSmoke)'`

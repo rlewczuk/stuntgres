@@ -25,7 +25,7 @@ func dictionaryUnitPrepare(t *testing.T, e *core.Engine, op *session.Operation, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = p.Compile(op.Context()); err != nil {
+	if err = p.Compile(op.Context(), core.DDLHost{E: e, Op: op, CatalogStage: stage}); err != nil {
 		t.Fatal(err)
 	}
 	return stage, p

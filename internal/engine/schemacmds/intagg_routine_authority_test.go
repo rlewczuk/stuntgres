@@ -116,11 +116,12 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.Catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.Catalog.Get(ref.Address) != captured || ref.Domain() != e.Catalog.Domain || ref.Epoch != evaluation.Catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 4 || captured.Namespace() != ext.TargetNamespace || evaluation.Catalog.Get(ref.Address) != captured || ref.Domain() != e.Catalog.Domain || ref.Epoch != evaluation.Catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			found := false
+			var supportDependencies [2]bool
 			for _, dep := range original {
 				if dep.Ref.Address == ref.Address {
 					found = true
@@ -128,11 +129,26 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("original ref/revision mismatch")
 					}
 				} else if dep.Ref.Address.ClassID == ids.ProcedureClassID {
-					t.Fatal("invented core/helper dependency", dep)
+					helper := false
+					if aggregate {
+						for i, support := range captured.Aggregate.Helpers {
+							if dep.Ref.Address.ObjectID == support.ID {
+								current := evaluation.Catalog.MustProcedure(dep.Ref.Address)
+								helper = dep.Ref == e.Catalog.Domain.Ref(evaluation.Catalog.Epoch(), current.Address()) && dep.Revision == current.Revision() && dep.Purpose == catalog.AggregateSupportDependency
+								supportDependencies[i] = helper
+							}
+						}
+					}
+					if !helper {
+						t.Fatal("invented core/helper dependency", dep)
+					}
 				}
 			}
 			if !found {
 				t.Fatal("missing original manifest")
+			}
+			if aggregate && supportDependencies != [2]bool{true, true} {
+				t.Fatal("missing canonical aggregate support dependencies", supportDependencies)
 			}
 			admit := func(c *exec.Context, n expr.Expr, r ids.ObjectRef) error {
 				if aggregate {
@@ -363,8 +379,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	source := roleAttributeCreate(t, e, op, "intagg_owner_source", false, parser.RoleOptions{})
 	target := roleAttributeCreate(t, e, op, "intagg_owner_target", false, parser.RoleOptions{})
 	original := e.CatalogRead()
-	member := original.MustProcedure(ext.Members[0])
-	sibling := original.Get(ext.Members[1])
+	member := original.MustProcedure(ext.Members[2])
+	sibling := original.Get(ext.Members[3])
 	stage := e.BeginCatalogStage(original)
 	defer e.DiscardCatalogStage(stage)
 	if err := role.StageOwnership(stage, member, source.Ref); err != nil {
@@ -372,7 +388,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, stage)
 	transferred := e.Catalog.State.MustProcedure(member.Address())
-	if transferred.Owner != source.Ref || transferred == member || e.Catalog.State.Get(ext.Address()) != ext || e.Catalog.State.Get(ext.Members[1]) != sibling {
+	if transferred.Owner != source.Ref || transferred == member || e.Catalog.State.Get(ext.Address()) != ext || e.Catalog.State.Get(ext.Members[3]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
 	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
@@ -383,10 +399,10 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-	if err != nil || !found || record.Owner != "postgres" || len(record.Members) != 2 {
+	if err != nil || !found || record.Owner != "postgres" || len(record.Members) != 4 {
 		t.Fatal("named independent owner manifest", record, err)
 	}
-	expected := map[string]string{"int_array_aggregate": "intagg_owner_source", "int_array_enum": "postgres"}
+	expected := map[string]string{"int_array_aggregate": "intagg_owner_source", "int_array_enum": "postgres", "int_agg_state": "postgres", "int_agg_final_array": "postgres"}
 	for _, m := range record.Members {
 		if m.Kind != "procedure" || m.Owner != expected[m.Name] {
 			t.Fatal("member owner manifest", m)
@@ -433,7 +449,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal("member reassignment", result, err)
 	}
 	reassigned := e.Catalog.State.MustProcedure(member.Address())
-	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.Catalog.State.Get(ext.Members[1]) != sibling || original.Get(member.Address()) != member {
+	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.Catalog.State.Get(ext.Members[3]) != sibling || original.Get(member.Address()) != member {
 		t.Fatal("ownership generations mutated")
 	}
 	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {

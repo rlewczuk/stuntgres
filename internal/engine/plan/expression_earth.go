@@ -11,8 +11,9 @@ import (
 // VALUE child captures the actual installed cube generation, never a name.
 type EarthCheckExpr struct {
 	expr.Info
-	Kind  sqltype.EarthCheck
-	Value DomainValueExpr
+	Kind   sqltype.EarthCheck
+	Value  DomainValueExpr
+	Origin LiteralExpr // Actual retained '(0)'::cube operand of cube_distance.
 }
 
 // EarthCheckRecipe permits the lower-layer extension manifest to inspect the
@@ -26,7 +27,10 @@ func (e EarthCheckExpr) Valid() bool {
 	return e.Kind.Valid() && e.Usage.Valid() && e.Usage.Type.ID() == sqltype.Bool &&
 		e.Property == (expr.Properties{DomainDependent: true}) &&
 		e.Value.Usage.Valid() && e.Value.Usage.Type.IsCube() &&
-		e.Value.Property == (expr.Properties{DomainDependent: true})
+		e.Value.Property == (expr.Properties{DomainDependent: true}) &&
+		(e.Kind != sqltype.EarthOnSurface && e.Origin.Value.Type() == nil ||
+			e.Kind == sqltype.EarthOnSurface && e.Origin.Usage == e.Value.Usage &&
+				e.Origin.Property == (expr.Properties{}) && e.Origin.Value.IsEarthCubeOrigin(e.Value.Usage.Type))
 }
 
 func (e EarthCheckExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -43,9 +47,19 @@ func (e EarthCheckExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if v.IsNull() {
 		return sqltype.Null(e.Usage.Type), nil
 	}
-	ok, err := v.CheckEarthCube(e.Kind)
+	arguments := [2]sqltype.Value{v, e.Origin.Value}
+	count := 1
+	if e.Kind == sqltype.EarthOnSurface {
+		count = 2
+	}
+	token, err := e.EnterRoutine(ctx, arguments[:count])
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return sqltype.Boolean(e.Usage.Type, ok), nil
+	leaf, err := v.EarthCubeCheckLeaf(e.Kind, e.Origin.Value)
+	token.Leave()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.Boolean(e.Usage.Type, e.Kind.MatchLeaf(leaf)), nil
 }

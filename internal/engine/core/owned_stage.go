@@ -26,3 +26,10 @@ func (s *CatalogStage) SetRoleCandidate(candidate, publication *access.RoleRecor
 	s.RoleCandidateRecord = candidate
 	return s.roleRead(publication, s.Owner.StageRead(s))
 }
+
+func (s *CatalogStage) ReadRoleCandidate(candidate, publication *access.RoleRecord) authorization.Read {
+	if candidate != nil {
+		return s.Owner.RoleStore.Read(&s.Owner.Catalog.Owner, s.StageRead(), candidate)
+	}
+	return s.Owner.RoleStore.Read(&s.Owner.Catalog.Owner, s.StageRead(), publication)
+}

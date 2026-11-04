@@ -119,10 +119,16 @@ func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
 	}
 	// effectivePath filters TEMP in place for conversion lookup. Give that
 	// derived path its own backing store; the relation path remains immutable.
-	relations := EffectivePath(auth, explicit, analyze.RelationLookup)
+	relations, err := EffectivePath(auth, explicit, analyze.RelationLookup)
+	if err != nil {
+		return err
+	}
 	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
-	others := EffectivePath(auth, otherExplicit, analyze.ConversionLookup)
+	others, err := EffectivePath(auth, otherExplicit, analyze.ConversionLookup)
+	if err != nil {
+		return err
+	}
 	scope.Inquiry.visibilityCatalog = auth.Catalog
 	scope.Inquiry.visibilityRelationPath, scope.Inquiry.visibilityOtherPath = relations, others
 	return nil
@@ -364,7 +370,10 @@ func (h *statementHost) SearchPathsLocked() (catalog.Read, [2][]ids.ObjectAddres
 	if err != nil {
 		return catalog.Read{}, [2][]ids.ObjectAddress{}, err
 	}
-	effective := EffectivePath(auth, explicit, analyze.RelationLookup)
+	effective, err := EffectivePath(auth, explicit, analyze.RelationLookup)
+	if err != nil {
+		return catalog.Read{}, [2][]ids.ObjectAddress{}, err
+	}
 	return auth.Catalog, [2][]ids.ObjectAddress{explicit, effective}, nil
 }
 

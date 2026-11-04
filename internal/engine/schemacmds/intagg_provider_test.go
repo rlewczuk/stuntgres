@@ -31,7 +31,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if registration.Version != "1.1" || registration.Trusted || !registration.Superuser || !registration.Relocatable || registration.Comment == nil || *registration.Comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
-	if len(ext.Members) != 2 {
+	if len(ext.Members) != 4 {
 		t.Fatal("documented manifest", ext.Members)
 	}
 	if err := extension.StockIntagg.ValidateExtension(view, ext); err != nil {
@@ -49,7 +49,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*catalog.Procedure){
-			func(p *catalog.Procedure) { p.ObjectName = "int_agg_state" }, func(p *catalog.Procedure) { p.Signature = "25" },
+			func(p *catalog.Procedure) { p.ObjectName = "not_installed_intagg" }, func(p *catalog.Procedure) { p.Signature = "25" },
 			func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Strict = !p.Strict },
 			func(p *catalog.Procedure) { p.Volatility = expr.Stable }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
 			func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
@@ -90,7 +90,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			count++
 		}
 	}
-	if count != 2 {
+	if count != 4 {
 		t.Fatal("membership edges", count)
 	}
 	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
@@ -128,7 +128,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 func TestIntaggAggregateHelperDependencies(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	aggregate := view.MustProcedure(ext.Members[0])
+	aggregate := view.MustProcedure(ext.Members[2])
 	if aggregate.DynamicCallable() || aggregate.Aggregate == nil {
 		t.Fatal("installed aggregate must retain its provider-owned definition")
 	}
@@ -136,8 +136,9 @@ func TestIntaggAggregateHelperDependencies(t *testing.T) {
 	want := map[ids.ObjectAddress]int{}
 	for _, helper := range helpers {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}
-		if view.Get(address) != nil || helper.Namespace != aggregate.Namespace().ObjectID {
-			t.Fatal("helper must remain lookup-only at its creation namespace", helper)
+		current, ok := view.Procedure(address)
+		if !ok || current.Name() != helper.Name || current.Signature != helper.Signature || current.Namespace().ObjectID != helper.Namespace || current.Origin == nil || current.Origin.Installation != aggregate.Origin.Installation {
+			t.Fatal("helper must have a genuine canonical declaration", helper)
 		}
 		want[address] = 0
 		if !catalog.ProcedureDefinitionDependsOn(view, aggregate, address) {

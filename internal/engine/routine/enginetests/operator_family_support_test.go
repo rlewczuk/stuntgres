@@ -172,7 +172,7 @@ func TestOperatorFamilySupportExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	support := ordering.Comparisons[0].Support()
-	if class.OID() != 1978 || support != (sqltype.IndexSupport{Family: 1976, Member: 10056, Routine: 351, Left: 23, Right: 23, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}) {
+	if class.OID() != 1978 || support != (sqltype.IndexSupport{Class: 1978, Family: 1976, Member: 10056, Routine: 351, Left: 23, Right: 23, Revision: 1, ClassRevision: 1, FamilyRevision: 1, RoutineRevision: 1}) {
 		t.Fatal("actual class/member/routine", class, support)
 	}
 	for _, c := range []struct {
@@ -226,7 +226,7 @@ func TestOperatorFamilySupportExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	selected := hashRoot.Hash.Binding.Class.Support(1)
-	if selected != (sqltype.IndexSupport{Family: 1977, Member: 10148, Routine: 450, Left: 23, Right: 23, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}) {
+	if selected != (sqltype.IndexSupport{Class: 10020, Family: 1977, Member: 10148, Routine: 450, Left: 23, Right: 23, Revision: 1, ClassRevision: 1, FamilyRevision: 1, RoutineRevision: 1}) {
 		t.Fatal("actual hash member", selected)
 	}
 	// Independent pinned18.6 vectors, not expected values computed by native.

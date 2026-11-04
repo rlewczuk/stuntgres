@@ -106,8 +106,9 @@ func intaggUnitRecipes(t *testing.T) {
 				state.UnbindName(catalog.DescriptorNameKey(e.Catalog.State.Get(address)))
 				state.RemoveDescriptor(address)
 			}
+			remap := extension.DescriptorRemapper(mapping)
 			for address, destination := range mapping {
-				d := extension.RemapDescriptor(e.Catalog.State.Get(address), mapping)
+				d := remap(e.Catalog.State.Get(address))
 				state.SetDescriptor(destination, d)
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}

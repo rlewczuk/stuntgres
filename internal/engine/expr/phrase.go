@@ -1,6 +1,15 @@
 package expr
 
-import "context"
+import (
+	"context"
+	"stuntgres/internal/engine/fts"
+)
+
+// DictionaryLexizer is the scalar lexical capability borrowed by a phrase
+// invocation/compiler. Persistent dictionaries retain only their pure kernel.
+type DictionaryLexizer interface {
+	Lexize(context.Context, string) (fts.LexicalResult, error)
+}
 
 // PhraseLexeme is an immutable replacement word and its relative position flag.
 type PhraseLexeme struct {

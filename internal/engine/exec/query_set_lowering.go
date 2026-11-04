@@ -219,7 +219,7 @@ func OpenFunctionFromNode(ctx context.Context, state *State, n *plan.FunctionFro
 			}
 			opened = true
 		}
-		present, err := invocation.NextFrom(ctx, n.Calls, frame)
+		present, err := invocation.NextFrom(ctx, n.Calls, frame, &evaluation)
 		if err != nil {
 			return false, err
 		}
@@ -391,7 +391,7 @@ func OpenSetProjectNode(ctx context.Context, state *State, n *plan.SetProjectNod
 					}
 					*cursor = opened
 				}
-				value, field, err := cursor.Next(ctx)
+				value, field, err := nextFunctionSource(ctx, &evaluation, call, cursor)
 				if err != nil {
 					return false, err
 				}
@@ -482,14 +482,14 @@ func ValidateFunctionFromLayout(n *plan.FunctionFromNode) error {
 	return nil
 }
 
-func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr, row []sqltype.Value) (bool, error) {
+func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr, row []sqltype.Value, evaluation *Context) (bool, error) {
 	present, offset := false, 0
 	for i := range s.Cursors {
 		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
 		}
 		typ := calls[i].ResultUsage().Type
-		value, ok, err := s.Cursors[i].Next(ctx)
+		value, ok, err := nextFunctionSource(ctx, evaluation, calls[i], &s.Cursors[i])
 		if err != nil {
 			return false, err
 		}
@@ -519,4 +519,14 @@ func (s *FunctionSetInvocation) NextFrom(ctx context.Context, calls []expr.Expr,
 		present = present || ok
 	}
 	return present, sampleCheckpoint(ctx)
+}
+
+func nextFunctionSource(ctx context.Context, evaluation *Context, call expr.Expr, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if advancing, ok := call.(expr.SourceAdvancing); ok {
+		if evaluation == nil {
+			return advancing.AdvanceSource(ctx, nil, cursor)
+		}
+		return advancing.AdvanceSource(ctx, evaluation, cursor)
+	}
+	return cursor.Next(ctx)
 }

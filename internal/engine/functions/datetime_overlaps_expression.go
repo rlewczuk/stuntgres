@@ -30,6 +30,20 @@ func (e DatetimeOverlaps) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
+	var body sqltype.RoutineBodyToken
+	if e.RoutineReference != nil {
+		facts := e.Info.RoutineBodyInputs(values[:])
+		for pair := range 2 {
+			if c.FunctionLiteralNull(e.Args[pair*2]) || c.FunctionLiteralNull(e.Args[pair*2+1]) {
+				facts.LiteralNullDurationPairs |= 1 << pair
+			}
+		}
+		body, err = c.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, facts)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	}
+	defer body.Leave()
 	value, pair, err := e.Plan.Evaluate(ctx, values, e.Folded, c.FunctionInput())
 	if err != nil {
 		if context := e.ErrorContext(c, pair); context != "" {

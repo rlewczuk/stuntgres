@@ -97,7 +97,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 				if !amcheckGinTokenShape(binding, list.Token) || len(list.Postings) == 0 {
 					return corrupt()
 				}
-				cmp, err := binding.Compare(ctx, list.Token, list.Token, evaluation.Input)
+				cmp, err := binding.Compare(ctx, list.Token, list.Token, evaluation.FunctionInput())
 				if err != nil {
 					return err
 				}
@@ -105,7 +105,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 					return corrupt()
 				}
 				if i > 0 {
-					cmp, err = binding.Compare(ctx, column.Tokens[i-1].Token, list.Token, evaluation.Input)
+					cmp, err = binding.Compare(ctx, column.Tokens[i-1].Token, list.Token, evaluation.FunctionInput())
 					if err != nil {
 						return err
 					}
@@ -154,14 +154,14 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 					return corrupt()
 				}
 			}
-			if err := amcheckGinExtract(ctx, binding, key, corrupt, func(token sqltype.GinToken) error {
+			if err := amcheckGinExtract(evaluation, binding, key, corrupt, func(token sqltype.GinToken) error {
 				lo, hi := 0, len(column.Tokens)
 				for lo < hi {
 					if err := ctx.Err(); err != nil {
 						return err
 					}
 					mid := lo + (hi-lo)/2
-					cmp, err := binding.Compare(ctx, column.Tokens[mid].Token, token, evaluation.Input)
+					cmp, err := binding.Compare(ctx, column.Tokens[mid].Token, token, evaluation.FunctionInput())
 					if err != nil {
 						return err
 					}
@@ -174,7 +174,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 				if lo == len(column.Tokens) {
 					return corrupt()
 				}
-				cmp, err := binding.Compare(ctx, column.Tokens[lo].Token, token, evaluation.Input)
+				cmp, err := binding.Compare(ctx, column.Tokens[lo].Token, token, evaluation.FunctionInput())
 				if err != nil {
 					return err
 				}
@@ -241,7 +241,7 @@ func CheckGin(evaluation *exec.Context, c AmcheckCapture) error {
 			return corrupt()
 		}
 		for i, key := range actual {
-			if err := amcheckGinExtract(ctx, bindings[i], key, corrupt, func(sqltype.GinToken) error { return ctx.Err() }); err != nil {
+			if err := amcheckGinExtract(evaluation, bindings[i], key, corrupt, func(sqltype.GinToken) error { return ctx.Err() }); err != nil {
 				return err
 			}
 		}
@@ -267,13 +267,38 @@ func amcheckGinTokenShape(binding sqltype.GinBinding, token sqltype.GinToken) bo
 	if binding.Class.InputOID() == 2277 {
 		return token.Lexeme == "" && token.Element.Type() == binding.Usage.Type.BaseType().Element() && !token.Element.IsNull()
 	}
+	if binding.IsScalar() {
+		return token.Lexeme == "" && token.Element.Type() == binding.Usage.Type && !token.Element.IsNull()
+	}
 	return token.Element == (sqltype.Value{}) && token.Lexeme != ""
 }
 
-// Extract has no catalog callbacks: these failures identify malformed retained
-// typed payloads. Errors from emit (comparison, cancellation, authority) remain
-// untouched rather than being relabeled as corruption.
-func amcheckGinExtract(ctx context.Context, binding sqltype.GinBinding, key sqltype.Value, corrupt func() error, emit func(sqltype.GinToken) error) error {
+// Only typed payload failures become corruption. Actual selected callback
+// admission errors precede the pure decoder and must retain their diagnostic.
+func amcheckGinExtract(evaluation *exec.Context, binding sqltype.GinBinding, key sqltype.Value, corrupt func() error, emit func(sqltype.GinToken) error) error {
+	ctx := evaluation.Context
+	var input sqltype.InputEnvironment
+	if !key.IsNull() {
+		// Keep admission diagnostics distinct from typed payload corruption.
+		body, err := evaluation.EnterIndexSupport(binding.Class.Support(2), 2)
+		if err != nil {
+			return err
+		}
+		extracted, failure := binding.PrepareExtract(ctx, key, input, 2)
+		body.Leave()
+		if failure != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return corrupt()
+		}
+		return extracted.Emit(ctx, func(token sqltype.GinToken) error {
+			if !amcheckGinTokenShape(binding, token) {
+				return corrupt()
+			}
+			return emit(token)
+		})
+	}
 	var emittedError error
 	err := binding.Extract(ctx, key, func(token sqltype.GinToken) error {
 		if !amcheckGinTokenShape(binding, token) {

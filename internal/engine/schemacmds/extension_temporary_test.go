@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -123,22 +124,31 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	}
 	// Prepare a real CASCADE candidate, then introduce a late dependent. The
 	// publication token must reject the entire predecessor rather than prune it.
-	e.Mu.Lock()
-	candidate, err := schemacmds.StageSchemaLocked(e, op, enginetest.Statement(t, "DROP SCHEMA public CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
+	drop := enginetest.Statement(t, "DROP SCHEMA public CASCADE").(*parser.DropSchema)
+	manifest := captureSchemaDropUnit(t, e, op, drop)
+	candidate, err := constructSchemaDropUnit(e, op, drop, manifest)
+	if candidate != nil {
+		t.Cleanup(func() { e.DiscardCatalogStage(candidate) })
 	}
-	t.Cleanup(func() { e.DiscardCatalogStage(candidate) })
-	enginetest.RoleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
+	if err != nil || candidate == nil {
+		t.Fatal("schema retirement preparation", err)
+	}
+	if !candidate.Removed(ext.Address()) || candidate.StageRead().Get(ext.Address()) != nil || len(candidate.SequenceState().IdentityDependencyList()) == 0 {
+		t.Fatal("schema candidate missed actual retirement or incoming dependency capture")
+	}
+	peer, closePeer := enginetest.RoleOperation(t, e, "postgres")
+	defer closePeer()
+	enginetest.RoleExecute(t, e, peer, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
+	before := e.CatalogRead()
 	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
 	if err == nil {
 		_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: candidate.Base.Epoch()})
 	}
-	if err == nil {
-		t.Fatal("late schema dependent bypassed publication fence")
+	var conflict catalog.Conflict
+	if !errors.As(err, &conflict) {
+		t.Fatal("late schema dependent bypassed publication fence", err)
 	}
-	if e.Catalog.State.Get(survivor.Address()) != survivor || !reflect.DeepEqual(e.Catalog.State.Get(ext.Address()), ext) {
+	if e.Catalog.State != before.State() || e.Catalog.State.Get(survivor.Address()) != survivor || !reflect.DeepEqual(e.Catalog.State.Get(ext.Address()), ext) {
 		t.Fatal("failed schema candidate published partially")
 	}
 }

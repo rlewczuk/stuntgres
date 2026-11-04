@@ -259,7 +259,11 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 				return out, err
 			}
 			p.values = make([]sqltype.Value, int(count))
-			err = importer(s.Op.Context(), formal, p.values, s.Input)
+			environment, captureErr := s.borrowParameterInput(formal.Types)
+			if captureErr != nil {
+				return out, captureErr
+			}
+			err = importer(s.Op.Context(), formal, p.values, environment)
 		}
 		return out, err
 	}
@@ -274,7 +278,11 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 			return out, err
 		}
 		p.values = make([]sqltype.Value, int(count))
-		err = importer(s.Op.Context(), entry.Description.Parameters, p.values, s.Input)
+		environment, captureErr := s.borrowParameterInput(entry.Description.Parameters.Types)
+		if captureErr != nil {
+			return out, captureErr
+		}
+		err = importer(s.Op.Context(), entry.Description.Parameters, p.values, environment)
 	}
 	p.Transaction = s.TxRef
 	return out, err
@@ -367,6 +375,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	}
 	bind.completionBase, bind.completionCounted = "SELECT", true
 	s.authority.Host = nil
+	c.state.DetachRoutineInitialization()
 	s.RoutineAuth = AuthorizationView{}
 	s.RoutineDependencies = nil
 	return Result{}, nil
@@ -466,6 +475,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	catalogReady := p.producer != nil
 	// One detached Execute owns this current pull context, including resumption.
 	pullContext := s.ActivateRuntime(s.executionContext())
+	var outputCodec *exec.Context
 	for int32(maxRows) <= 0 || out.Count < int64(maxRows) {
 		var present bool
 		present, err = p.next(pullContext, values)
@@ -511,8 +521,18 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		output := p.outputRows.Output
 		output.Transport = s.Op.EffectiveSettings().ClientEncoding()
 		output.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
+		if s.Engine().Sepgsql != nil {
+			if outputCodec == nil {
+				outputCodec = &exec.Context{EvalStatement: exec.EvalStatement{Context: pullContext, Host: HostOf(s), Catalog: catalog}}
+			}
+			output.TypeIO = outputCodec
+			output.Conversion = outputCodec
+		}
 		fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, p.formats, output, fields, scratch)
 		if err != nil {
+			return out, err
+		}
+		if err = s.validateCodecOutput(); err != nil {
 			return out, err
 		}
 		if err = s.reserveCopy(); err != nil {
@@ -643,6 +663,13 @@ func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 }
 
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
+	s.suspendProtocolProducer(c)
+	c.state.DetachRoutineInitialization()
+}
+
+// COPY pulls suspend only the live host borrow inside one still-admitted
+// lexical producer lifetime. Its same owner survives until terminal disposal.
+func (s *StatementScope) suspendProtocolProducer(c *sqlCursor) {
 	c.authority.Host = nil
 	s.setForeignCursor(nil)
 	s.RoutineAuth = AuthorizationView{}

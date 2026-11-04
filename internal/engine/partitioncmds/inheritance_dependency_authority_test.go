@@ -193,7 +193,14 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 				}
 				enginetest.LockEmpty(t, e)
 			}()
-			scope := &core.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(nil)
+			if err := scope.Gate(enginetest.Statement(t, "DROP TABLE prospective_q CASCADE")); err != nil {
+				t.Fatal(err)
+			}
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)

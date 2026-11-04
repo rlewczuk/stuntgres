@@ -82,6 +82,7 @@ type Procedure struct {
 	HostHandler      *host.Runtime
 	Host             *HostRoutine
 	HostConversion   *HostConversion
+	Sepgsql          *SepgsqlRoutine
 	RangeConstructor *RangeConstructor
 	// DeclarationDependencies order replay only; PL source is not an eager SQL
 	// body dependency manifest and these addresses do not create pg_depend edges.
@@ -162,7 +163,8 @@ type DictionaryRuntime interface {
 
 type PhraseDictionaryRuntime interface {
 	DictionaryRuntime
-	NewMatcher() expr.PhraseMatcher
+	NewMatcher(expr.DictionaryLexizer) expr.PhraseMatcher
+	LexizeWithNormalizer(context.Context, string, expr.DictionaryLexizer) (fts.LexicalResult, error)
 }
 
 type TSDictionary struct {

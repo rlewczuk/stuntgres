@@ -96,7 +96,7 @@ func ReplacementCollisionMapping(ctx context.Context, next *catalog.State, tempo
 // descriptor/helper eligibility. The unaffected fastpath allocates no demand
 // list or deduplication map; its result map already suppresses duplicate visits.
 func visitTemporaryCollisions(ctx context.Context, next *catalog.State, retained map[ids.OID]bool, visit func(ids.ObjectAddress) error) error {
-	for address, descriptor := range next.Descriptors() {
+	for address := range next.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -106,15 +106,6 @@ func visitTemporaryCollisions(ctx context.Context, next *catalog.State, retained
 		if retained[address.ObjectID] {
 			if err := visit(address); err != nil {
 				return err
-			}
-		}
-		if procedure, ok := descriptor.(*catalog.Procedure); ok && procedure.Aggregate != nil && procedure.Implementation != nil {
-			for _, helper := range procedure.Aggregate.Helpers {
-				if retained[helper.ID] {
-					if err := visit(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}); err != nil {
-						return err
-					}
-				}
 			}
 		}
 	}

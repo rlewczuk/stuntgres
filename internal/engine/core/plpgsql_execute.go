@@ -218,11 +218,11 @@ func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltyp
 	if selected {
 		return node.Eval(&evaluation)
 	}
-	text, err := value.Type().OutputWithEnvironment(ctx, value, s.Output)
+	text, err := value.Type().OutputWithEnvironment(ctx, value, evaluation.FunctionOutput())
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return target.Type.InputWithEnvironment(ctx, text, target.Typmod, evaluation.Input)
+	return target.Type.InputWithEnvironment(ctx, text, target.Typmod, evaluation.FunctionInput())
 }
 
 // The candidate has the physical base descriptor. Validate fresh reconstructed

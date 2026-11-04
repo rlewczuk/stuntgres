@@ -85,7 +85,7 @@ func TestSystemTimeNestedPruningDeadline(t *testing.T) {
 			for i := range rows {
 				rows[i] = captured.Row(i)
 			}
-			raw := &exec.Source{Ref: captured.Ref, Anonymous: rows, RLS: program}
+			raw := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: rows, RLS: program}
 			ctx := &timeLoopContext{Context: base, ancestor: "stuntgres/internal/engine/partition.(*CapturedPruner).Select"}
 			comparisons, branches, laterBranches := 0, 0, 0
 			armed := false

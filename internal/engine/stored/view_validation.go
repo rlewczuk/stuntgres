@@ -54,6 +54,11 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 		if leaf.SystemAttributeRead && !source.HasSystemAttributes() {
 			return fmt.Errorf("stuntgres: invalid view system attribute source")
 		}
+		for i, attribute := range leaf.SystemColumns {
+			if !leaf.SystemAttributeRead || catalog.SystemAttributeName(attribute) == "" || !source.HasSupportedAttribute(attribute) || slices.Contains(leaf.SystemColumns[:i], attribute) {
+				return fmt.Errorf("stuntgres: invalid view system attribute demand")
+			}
+		}
 		for _, attribute := range leaf.Reads {
 			frozen := false
 			for _, id := range leaf.Attributes {
@@ -101,7 +106,8 @@ type viewSourceCoverage struct {
 
 func sameViewLeaf(a, b ViewLeaf) bool {
 	return a.Ref == b.Ref && a.Only == b.Only && a.AnalysisOnly == b.AnalysisOnly &&
-		a.SystemAttributeRead == b.SystemAttributeRead && a.Mark == b.Mark &&
+		a.SystemAttributeRead == b.SystemAttributeRead && a.WholeRowRead == b.WholeRowRead && a.Mark == b.Mark &&
+		slices.Equal(a.SystemColumns, b.SystemColumns) &&
 		slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Reads, b.Reads)
 }
 

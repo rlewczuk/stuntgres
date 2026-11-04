@@ -285,11 +285,18 @@ neither owns catalog authority.
   `Descriptors`/`Names`/`Relations` iterators and the counts read the maps. Walks
   that only look for relations (inheritance children, a table's indexes) use
   `Relations`, which visits the `*Relation` entries instead of every built-in
-  routine, operator and type. Aggregate helper lookups use `HelperOwners`, the
-  procedures with both `Aggregate` and `Implementation` set (intagg's
-  aggregate). `Descriptor`, `Lookup`, `LookupType` and
+  routine, operator and type. Installed aggregate support aliases are genuine
+  `Procedure` descriptors and use the same name/identity/owner/provenance paths
+  as other routines; no parallel helper lookup inventory exists.
+  `Descriptor`, `Lookup`, `LookupType` and
   `LookupArray` guard a nil state, as do the default-bucket cardinality
   predicates.
+  Simulated `selinux` labels form a separate immutable persistent association
+  root keyed by provider and complete object address, including signed stable
+  attribute numbers. Candidate/journal observations fence exact predecessors;
+  publication, shared projection, removal and control remapping own those
+  records together with their genuine descriptors. The policy compiler is
+  independent of SQL actors; no mutable global label side map is authoritative.
   `IncomingForeignActionOwners` visits only enforced mutating FK owners for
   one target. Its nested persistent index is derived incrementally from old/new
   relation descriptors through the same write/candidate/clone/reset/bulk hooks.
@@ -393,6 +400,17 @@ neither owns catalog authority.
   by state clones, private journals and peer roots. Failed replacement publishes
   neither roots nor reserved frontiers. Subscription replacement retains other
   databases' subscriptions and their exact live registrations.
+  `RetainDatabasesLocked` also composes destination peer-database security labels
+  (including exact record identity, policy/version and absence) into the private
+  replacement before validation/publication. Only the selected database keeps its
+  candidate Reset-profile or serialized Restore association, including absence;
+  local labels and other shared classes are not overlaid by this seam.
+  Immutable source/destination predecessors remain unchanged, and repeating the
+  composition does not rewrite equal label records. A selected Dump excludes
+  peer-database label SQL, not the peers' persistent state: each peer's own Dump
+  retains its labels, and selected Reset/Restore retains the destination's current
+  peer state rather than importing it or requesting peer relabel consent.
+  `TestRetainDatabasesPeerSecurityLabels` covers the real composition seam.
   `ReplicationOrigin` descriptors and their immutable read index are the sole
   cluster-global registration authority, including standalone exact TEXT names.
   The 16-bit class-local ID does not consume the ordinary global OID frontier.
@@ -542,7 +560,11 @@ neither owns catalog authority.
   `InitialReads` and `InitialPrivilegesUnchanged`, including observed absence
   and the represented object's descriptor predecessor. Captures copy ordered
   ACL entries; replacements preserve origin. Whole-object retirement removes
-  every sub-ID, and relation replacement removes retired column snapshots.
+  every sub-ID. Relation replacement compares the actual prior staged relation,
+  or the base descriptor for its first replacement, and removes only retired
+  stable column snapshots and labels. Retirement keeps explicit nil history
+  tombstones and original read fences; sparse live attribute numbers are not
+  compact column positions.
 - **Candidate publication helpers** (`candidate_fences.go`,
   `candidate_apply.go`, `relation_history.go`,
   `default_privileges_catalog.go`). Unlike the reads above, these scan the
@@ -588,6 +610,12 @@ neither owns catalog authority.
   capability must agree with its genuine installed handler; ordinary aliases
   retain separate SQL identities without acquiring an origin. Canonical recipe
   and live handler addresses remap together. Builtin handler gates remain exact.
+  AM, BRIN and GIN share one original fixed-address/slot/ABI/exclusive-payload
+  proof. Provider validation additionally enforces the current supported native
+  metadata: genuine rename/namespace/owner/ACL COW and planner overrides survive,
+  but changed INTERNAL source/language, strictness, volatility or unsupported
+  execution environments do not. Original fmgr exemption alone is neither a
+  current descriptor/header check nor invocation authority.
   GIN has genuine method2742/handler333, array_ops10064/family2745 and
   tsvector_ops10073/family3659. All selected released search/support rows retain
   pinned18.6 identities, including metadata-only deprecated @@@. Ten `GinSupport`
@@ -688,8 +716,10 @@ neither owns catalog authority.
   walker.
   Aggregates depend on ordinary and moving supports and their declared input/result
   types, independently of dynamic callability or current extension membership.
-  Installed intagg's lookup-only state/final identities retain these normal edges
-  at their immutable creation coordinates without becoming callable descriptors.
+  Installed intagg's state and final helpers are genuine canonical procedure
+  descriptors with their own owner, namespace, signatures and sealed creation
+  origins. The aggregate's immutable helper references retain these normal
+  edges; SQL cannot manufacture an INTERNAL state datum to call them directly.
   State types are retained indirectly through support signatures, not redundant
   state-only aggregate edges.
   Quoted source and PL replay-order metadata do not become hard edges.

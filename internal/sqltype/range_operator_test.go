@@ -35,7 +35,7 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 	ranks := []int{0, 1, 1, 2}
 	for i, a := range endpoints {
 		for j, b := range endpoints {
-			cmp, err := d.compareRangeEndpoint(context.Background(), a.x, a.lower, b.x, b.lower)
+			cmp, err := d.compareRangeEndpoint(context.Background(), a.x, a.lower, b.x, b.lower, InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,11 +47,11 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 	}
 	omitted := inspectUnitInput(t, d, "(,)")
 	explicit := inspectUnitInput(t, d, "[-Infinity,NaN]")
-	lower, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, true, explicit.rangeDatum, true)
+	lower, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, true, explicit.rangeDatum, true, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	upper, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, false, explicit.rangeDatum, false)
+	upper, err := d.compareRangeEndpoint(context.Background(), omitted.rangeDatum, false, explicit.rangeDatum, false, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,11 +59,11 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 		t.Fatal("omission collapsed into explicit infinity")
 	}
 	empty := inspectUnitInput(t, d, "empty")
-	lower, err = d.compareRangeValues(context.Background(), empty.rangeDatum, explicit.rangeDatum)
+	lower, err = d.compareRangeValues(context.Background(), empty.rangeDatum, explicit.rangeDatum, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	upper, err = d.compareRangeValues(context.Background(), explicit.rangeDatum, empty.rangeDatum)
+	upper, err = d.compareRangeValues(context.Background(), explicit.rangeDatum, empty.rangeDatum, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestRangeOperatorEndpointOrder(t *testing.T) {
 		t.Fatal("empty order")
 	}
 	a, b := inspectUnitInput(t, d, "[1.0,2.00]"), inspectUnitInput(t, d, "[1.000,2.0]")
-	cmp, err := d.compareRangeValues(context.Background(), a.rangeDatum, b.rangeDatum)
+	cmp, err := d.compareRangeValues(context.Background(), a.rangeDatum, b.rangeDatum, InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}

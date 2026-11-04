@@ -66,6 +66,11 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	var checkBuiltin func() error
 	if e.Plan.Name() == "crypt" || e.Plan.Name() == "gen_salt" {
 		if runtime, ok := c.(interface{ CheckPgcryptoBuiltinCrypto() error }); ok {

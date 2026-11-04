@@ -33,11 +33,17 @@ type KeyHost interface {
 // definition reader, collation lookup and expression binding. The engine
 // builds binders; this package never does.
 //
-// Every method runs with Engine.mu held, never takes or releases it, and
-// never waits.
+// Metadata methods run with Engine.mu held and never wait. CompleteIndex*
+// enter/return with it held, but the authentic active statement owner suspends
+// it for definition execution and readmits the captured predecessors afterward.
 type Host interface {
 	ddl.Host
 	KeyHost
+
+	// InitializeIndexMethod invokes the selected genuine handler's static
+	// factory and returns the operation authority consumed by this DDL owner.
+	// Like the other host methods it never releases or reacquires Engine.mu.
+	InitializeIndexMethod(auth ddl.Authority, method *catalog.AccessMethod) (catalog.IndexMethod, error)
 
 	// AddDomainBase records d among the stage's observed dependencies, so a
 	// concurrent change to it rejects the publication.

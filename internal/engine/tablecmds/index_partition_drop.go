@@ -4,16 +4,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/parser"
 )
-
-// stagePartitionConstraintDrop serves ALTER TABLE and the partition
-// constraint tests; it does not need Engine.mu.
-func stagePartitionConstraintDrop(e *core.Engine, stage *core.CatalogStage, oid ids.OID) error {
-	return index.StagePartitionConstraintDrop(stage, oid)
-}
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
 func executePartitionConstraintDropLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, tbl *catalog.Relation, syntax *parser.AlterTable) (core.Result, error) {
@@ -33,11 +26,19 @@ func executePartitionConstraintDropLocked(e *core.Engine, scope *core.StatementS
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, action := range syntax.Actions {
-		roots, err := partition.StageConstraintDrop(scope.Op, stage, &stage.Candidate, tbl, action)
+		captured, err := partition.PrepareConstraintDrop(scope.Op, stage, &stage.Candidate, tbl, action)
 		if err != nil {
 			return core.Result{}, err
 		}
-		if err := scope.StageExpressionDependents(stage, roots, action.Mode, nil); err != nil {
+		provider := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+		dependencies, err := provider.PrepareExpressionDependencies(captured.Roots, action.Mode, ids.ObjectAddress{})
+		if err != nil {
+			return core.Result{}, err
+		}
+		if err = captured.Apply(stage); err != nil {
+			return core.Result{}, err
+		}
+		if err = provider.ApplyExpressionDependencies(dependencies); err != nil {
 			return core.Result{}, err
 		}
 	}

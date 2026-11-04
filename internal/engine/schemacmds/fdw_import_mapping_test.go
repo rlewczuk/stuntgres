@@ -17,11 +17,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Only capability admission is under test; none of the embedded callbacks may
-// be invoked while constructing this metadata request.
+// Only metadata planning is under test; no embedded callback may be invoked.
+// An absent optional SchemaImporter must not prevent request construction.
 type importMappingCapability struct {
 	catalog.ForeignDataWrapper
-	fdw.SchemaImporter
 }
 
 func TestFDWImportMappingPolicy(t *testing.T) {
@@ -57,10 +56,10 @@ func TestFDWImportMappingPolicy(t *testing.T) {
 			raw := enginetest.Statement(t, "IMPORT FOREIGN SCHEMA remote LIMIT TO(a,b) FROM SERVER import_mapping INTO public OPTIONS(import_not_null 'false',import_not_null 'true')").(*parser.ForeignDDL)
 			e.Mu.Lock()
 			stage.AuthorizeLocked(auth, op.Session)
-			importer, request, err := fdw.PlanImport(tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, raw, auth.RestrictedRelations())
+			selection, request, wrapperName, err := fdw.PlanImport(tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, raw, auth.RestrictedRelations())
 			e.Mu.Unlock()
-			if err != nil || importer != provider {
-				t.Fatal("import admission", importer, err)
+			if err != nil || selection.Procedure == nil || selection.Procedure.Foreign.Wrapper != provider || wrapperName != "import_mapping" {
+				t.Fatal("import admission", selection, wrapperName, err)
 			}
 			if request.MappingPresent != (policy != "absent") || !slices.Equal(request.MappingOptions, want) {
 				t.Fatalf("mapping request=%+v want presence=%v options=%+v", request, policy != "absent", want)

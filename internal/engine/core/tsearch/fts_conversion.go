@@ -18,7 +18,13 @@ import (
 // when omitted. Engine.Mu precedes the effective settings mutex. Parser,
 // dictionary and notice callbacks run detached; runtime demand follows the
 // actual ordered chain, never every mapping or a category prewarm.
-func Convert[A Authority[A]](h Host[A], ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func Convert[A Authority[A]](h Host[A], ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (out sqltype.Value, err error) {
+	mark := h.MarkDictionaryInitialization()
+	defer func() {
+		if err != nil {
+			h.AbortDictionaryInitialization(mark)
+		}
+	}()
 	captured, err := captureTextSearchInput(h, ctx, explicit, value, false)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -184,8 +190,8 @@ func (c Capture[A]) walk(ctx context.Context, h Host[A], input string, position 
 			if err != nil {
 				return err
 			}
-			if phrase, ok := dictionary.(catalog.PhraseDictionaryRuntime); ok {
-				matcher := phrase.NewMatcher()
+			if phrase, ok := dictionary.runtime.(catalog.PhraseDictionaryRuntime); ok {
+				matcher := phrase.NewMatcher(&normalizerCall[A]{host: h, selected: dictionary.normalizer, capture: capture})
 				words, more, err := matcher.Step(ctx, word, false)
 				if err != nil {
 					return err
@@ -255,14 +261,14 @@ func (c Capture[A]) walk(ctx context.Context, h Host[A], input string, position 
 				}
 				break
 			}
-			lexical, err := dictionary.Lexize(ctx, word)
+			lexical, err := lexizeDictionary(h, dictionary, ctx, word)
 			if err != nil {
 				return err
 			}
 			if !lexical.Recognized {
 				continue
 			}
-			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
+			if dictionary.runtime.Filtering() && len(lexical.Lexemes) > 0 {
 				word = lexical.Lexemes[0].Text
 				continue
 			}

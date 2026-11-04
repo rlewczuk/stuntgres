@@ -108,7 +108,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *core.Engine, scope *core.StatementS
 	if len(roots) != 0 {
 		err = scope.StageExpressionDependents(stage, roots, parser.DropCascade, nil)
 	} else {
-		err = schemacmds.StageDomainDependents(scope, stage, parser.DropCascade)
+		err = domainUnitApplyDrop(scope, stage, parser.DropCascade)
 	}
 	if err != nil {
 		t.Fatal(err)

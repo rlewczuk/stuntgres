@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -108,7 +109,7 @@ func CaptureThesaurusInput(h DictionaryHost, auth ddl.Authority, template *catal
 	return input, nil
 }
 
-func (input *ThesaurusInput) Compile(ctx context.Context) (catalog.DictionaryRuntime, error) {
+func (input *ThesaurusInput) Compile(ctx context.Context, borrowed expr.DictionaryLexizer) (catalog.DictionaryRuntime, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -125,7 +126,7 @@ func (input *ThesaurusInput) Compile(ctx context.Context) (catalog.DictionaryRun
 	if input.SourceError != nil {
 		return nil, input.SourceError
 	}
-	return functions.CompileThesaurusDictionary(ctx, rules, input.Normalizer.Runtime)
+	return functions.CompileThesaurusDictionary(ctx, rules, input.Normalizer.Runtime, borrowed)
 }
 
 func (input *ThesaurusInput) Current(view catalog.Read) bool {

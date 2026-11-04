@@ -131,6 +131,10 @@ func TestEarthCoordinateKernel(t *testing.T) {
 		assert(got, tc.want)
 	}
 	ll := plan(EarthLL)
+	origin, err := cube.Input(ctx, "(0)", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, xy := range [][2]float64{{0, 0}, {45, 90}, {90, math.NaN()}} {
 		v, err := ll.Evaluate(ctx, []Value{float(xy[0]), float(xy[1])}, InputEnvironment{})
 		if err != nil {
@@ -140,8 +144,8 @@ func TestEarthCoordinateKernel(t *testing.T) {
 			t.Fatal("domain/point shape", v)
 		}
 		base, _ := v.BaseValue()
-		valid, err := base.CheckEarthCube(EarthOnSurface)
-		if err != nil || !valid {
+		leaf, err := base.EarthCubeCheckLeaf(EarthOnSurface, origin)
+		if err != nil || !EarthOnSurface.MatchLeaf(leaf) {
 			t.Fatal("shared radius surface", err)
 		}
 	}

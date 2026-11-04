@@ -2,10 +2,12 @@ package index
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
@@ -69,6 +71,21 @@ func CaptureBloomIndexesLocked(in HashCapture, leaf exec.Leaf, source *exec.Sour
 		root := carrier.Bloom
 		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.Committed) || root.Ends != data.Ends[address] {
 			continue
+		}
+		if in.Factory != nil {
+			method, ok := data.Catalog.AccessMethod(index.SQLIndex.MethodIdentity())
+			if !ok {
+				return ids.ErrCatalogReplaced
+			}
+			physical, err := in.Factory.InitializeCapturedIndexMethodLocked(data.Catalog, method)
+			if err != nil {
+				return err
+			}
+			if physical != catalog.BloomMethod {
+				return ids.ErrCatalogReplaced
+			}
+		} else if owner := data.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+			return fmt.Errorf("stuntgres: missing captured index method factory")
 		}
 		source.BloomIndexes = append(source.BloomIndexes, exec.CapturedBloomIndex{
 			Address: indexAddress, Name: index.Name(), Definition: index.SQLIndex, Root: carrier,

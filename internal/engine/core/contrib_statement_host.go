@@ -259,7 +259,7 @@ func (h *contribHost) ValidateDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) e
 	return contrib.ValidateDblinkGetPkey[AuthorizationView](h.host(), n)
 }
 
-func (h *contribHost) DblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr, name string) ([]sqltype.Value, error) {
+func (h *contribHost) DblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr, name string) ([]string, error) {
 	return contrib.DblinkGetPkey[AuthorizationView](h.host(), n, name)
 }
 
@@ -317,11 +317,11 @@ func (h *contribHost) DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateE
 	return contrib.DblinkBuildSQLUpdate[AuthorizationView](h.host(), n, values)
 }
 
-func (h *contribHost) ValidatePgFreespace(n plan.InstalledPgFreespaceExpr) error {
-	return contrib.ValidatePgFreespace[AuthorizationView](h.host(), n)
-}
 func (h *contribHost) PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error) {
 	return contrib.PgFreespace[AuthorizationView](h.host(), n, oid, block)
+}
+func (h *contribHost) PgFreespaceExtent(n plan.InstalledPgFreespaceExpr, oid uint32) (storage.FreespaceLayout, bool, error) {
+	return contrib.PgFreespaceExtent[AuthorizationView](h.host(), n, oid)
 }
 func (h *contribHost) Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
 	return contrib.Pgvisibility[AuthorizationView](h.host(), n, oid, block)

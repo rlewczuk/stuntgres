@@ -7,7 +7,6 @@ var (
 	AdmitDefinitionMutation    = admitDefinitionMutation
 	DomainRestrictError        = domainRestrictError
 	ExtensionNamespacesOf      = extensionNamespacesOf
-	StageDomainDependents      = stageDomainDependents
 	StageExtensionLocked       = stageExtensionLocked
 	StageExtensionUpdateLocked = stageExtensionUpdateLocked
 	StageForeignLocked         = stageForeignLocked

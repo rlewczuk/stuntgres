@@ -26,7 +26,7 @@ var sizeNames = [...]string{"pg_relation_size", "pg_table_size", "pg_indexes_siz
 type SizeInquiry struct {
 	expr.Info
 	Kind SizeKind
-	Arg expr.Expr
+	Arg  expr.Expr
 	Fork expr.Expr
 }
 
@@ -41,21 +41,38 @@ func bindRelationSize(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	for i, child := range raw.Args {
 		arg, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: ComparisonArgument})
-		if err != nil { return nil, err }
-		if i < 2 { operands[i] = arg }
+		if err != nil {
+			return nil, err
+		}
+		if i < 2 {
+			operands[i] = arg
+		}
 		if i < len(names) {
 			name := "unknown"
-			if arg.Usage.Type != nil { name = b.DiagnosticTypeName(arg.Usage.Type) }
+			if arg.Usage.Type != nil {
+				name = b.DiagnosticTypeName(arg.Usage.Type)
+			}
 			names[i] = NamedArgumentType(raw, i, name)
 		}
 	}
-	if len(raw.Args) > 100 { return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos) }
-	if err := ValidateCallSyntax(b, raw); err != nil { return nil, err }
+	if len(raw.Args) > 100 {
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	if err := ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
+	}
 	visible, err := b.BuiltinVisible(raw.Name)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := SizeKind(len(sizeNames))
-	for i, candidate := range sizeNames { if name == candidate { kind = SizeKind(i); break } }
+	for i, candidate := range sizeNames {
+		if name == candidate {
+			kind = SizeKind(i)
+			break
+		}
+	}
 	if !visible || kind >= SizeKind(len(sizeNames)) || len(raw.Args) < 1 || len(raw.Args) > 2 || len(raw.Args) == 2 && kind != RelationSize || len(raw.ArgNames) != 0 || raw.Variadic || raw.ResolutionOnly {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
@@ -78,21 +95,33 @@ func bindRelationSize(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	properties := expr.Properties{Volatility: expr.Volatile}
 	for i := range raw.Args {
 		target := b.Type(formals[i]).Usage()
-		if err := b.CaptureTypeInput(target.Type); err != nil { return nil, err }
+		if err := b.CaptureTypeInput(target.Type); err != nil {
+			return nil, err
+		}
 		child, err := b.CoerceArgument(operands[i], CoercionRequest{Intent: FinalizeArgument, Target: target})
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		if child.ResultUsage() != target {
 			plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Implicit)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			child, err = b.CoerceArgument(Argument{Expression: child, Raw: raw.Args[i], Usage: child.ResultUsage()}, CoercionRequest{Intent: BareFormalArgument, Target: target, Plan: plan, Planned: true})
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 		}
 		children[i] = child
 		properties = expr.MergeProperties(properties, child.Properties())
 	}
-	if err := CallDecorationError(raw); err != nil { return nil, err }
+	if err := CallDecorationError(raw); err != nil {
+		return nil, err
+	}
 	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.Int8).Usage(), raw.Pos, properties), CatalogRoutineProvider, name, formals[:len(raw.Args)]...)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	b.NoteCatalogSnapshot()
 	b.NoteCatalogText()
 	return SizeInquiry{Info: info, Kind: kind, Arg: children[0], Fork: children[1]}, nil
@@ -113,28 +142,54 @@ func (n SizeInquiry) Validate() error {
 }
 
 func (n SizeInquiry) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := evaluationContext(ctx); err != nil { return sqltype.Value{}, err }
+	if _, err := evaluationContext(ctx); err != nil {
+		return sqltype.Value{}, err
+	}
 	arg, err := n.Arg.Eval(ctx)
-	if err != nil { return sqltype.Value{}, err }
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	fork := "main"
 	null := arg.IsNull()
 	if n.Fork != nil {
 		value, err := n.Fork.Eval(ctx)
-		if err != nil { return sqltype.Value{}, err }
+		if err != nil {
+			return sqltype.Value{}, err
+		}
 		null = null || value.IsNull()
 		if !value.IsNull() {
 			fork, err = value.Text()
-			if err != nil { return sqltype.Value{}, err }
+			if err != nil {
+				return sqltype.Value{}, err
+			}
 		}
 	}
-	if null { return sqltype.Null(n.Usage.Type), nil }
+	if null {
+		return sqltype.Null(n.Usage.Type), nil
+	}
+	if n.RoutineReference != nil {
+		facts := expr.RoutineBodyInputs{Count: 1, First: arg.Type(), Occurrence: n.Occurrence, Source: n.Source}
+		if n.Fork != nil {
+			facts.Count = 2
+			facts.Second = n.Fork.ResultUsage().Type
+		}
+		body, err := ctx.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, facts)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
 	runtime, err := catalogInquiryRuntime(ctx)
-	if err != nil { return sqltype.Value{}, err }
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	return runtime.SizeInquiry(n.Kind, arg, fork, n.Usage.Type)
 }
 
 func (n SizeInquiry) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	value, err := n.Eval(ctx)
-	if err != nil { return expr.SourceCursor{}, err }
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
 	return expr.ScalarSource(value), nil
 }

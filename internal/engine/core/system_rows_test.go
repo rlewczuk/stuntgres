@@ -39,7 +39,7 @@ func TestSystemRowsLifecycle(t *testing.T) {
 				}
 				return sqltype.Value{}, failure
 			})
-			bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
+			bridge := &exec.Source{View: input.View, Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
 			rows, count, err := exec.Finalize(ctx, project, bridge, nil)
 			cancel()
 			want := failure

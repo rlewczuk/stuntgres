@@ -39,29 +39,37 @@ func analyzeForeign(e *core.Engine, s *core.StatementScope, target analyzeTarget
 		e.Mu.Unlock()
 		return err
 	}
-	provider, supported := handler.Wrapper.(catalog.ForeignAnalyzeProvider)
+	selection := exec.SelectForeignHandler(auth.Catalog, wrapper.Handler)
+	_, registeredAnalyze := handler.Wrapper.(catalog.ForeignAnalyzeProvider)
 	unsupported := func() error {
 		analyzeWarning(s, "01000", fmt.Sprintf(`skipping "%s" --- cannot analyze this foreign table`, relation.Name()))
 		return nil
 	}
-	if !supported {
-		e.Mu.Unlock()
-		return unsupported()
-	}
-	if err := core.CheckRestoreEffect(s.Op); err != nil {
-		e.Mu.Unlock()
-		return err
-	}
-	// PostgreSQL samples under the table owner's mapping, not the MAINTAIN actor.
-	_, request, err := fdw.AnalyzeRequest(auth.View, relation.Owner, relation, auth.RestrictedRelations())
-	if err != nil {
-		e.Mu.Unlock()
-		return err
+	var request catalog.ForeignRequest
+	if registeredAnalyze {
+		if err := core.CheckRestoreEffect(s.Op); err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+		// PostgreSQL samples under the table owner's mapping, not MAINTAIN.
+		_, request, err = fdw.AnalyzeRequest(auth.View, relation.Owner, relation, auth.RestrictedRelations())
+		if err != nil {
+			e.Mu.Unlock()
+			return err
+		}
 	}
 	captured := auth.Catalog.State()
 	qualified := request.Schema + "." + request.Table
 	e.Mu.Unlock()
 	core.HostOf(s).ReleaseReplacementRead()
+	methods, err := selection.Methods(core.HostOf(s))
+	if err != nil {
+		return err
+	}
+	provider, supported := methods.(catalog.ForeignAnalyzeProvider)
+	if !supported {
+		return unsupported()
+	}
 	info, supported, err := provider.AnalyzeForeignTable(s.Op.Context(), exec.CopyForeignRequest(request))
 	if err != nil {
 		return exec.ForeignCallbackError(err)
@@ -132,7 +140,7 @@ func analyzeForeign(e *core.Engine, s *core.StatementScope, target analyzeTarget
 	if err != nil {
 		return err
 	}
-	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: relation.Columns, ImportValue: importer, ExportValue: exporter}
+	source := &exec.ForeignQuerySource{Wrapper: methods, Request: request, Columns: relation.Columns, ImportValue: importer, ExportValue: exporter}
 	if options.Verbose {
 		s.Op.EmitNotice(session.LevelInfo, sqlstate.Error{Severity: "INFO", SeverityUnlocalized: "INFO", Code: "00000", Message: fmt.Sprintf(`analyzing "%s"`, qualified)})
 	}
@@ -210,10 +218,12 @@ func analyzeForeign(e *core.Engine, s *core.StatementScope, target analyzeTarget
 	if previous != nil {
 		*metadata = *previous
 	}
-	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationPages | storage.RelationTuples)
+	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationPages|storage.RelationTuples)
 	if pending := s.PendingCatalog(); pending != nil {
-		if s.Catalog == nil { s.Catalog = pending.Clone() }
-		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationPages | storage.RelationTuples)
+		if s.Catalog == nil {
+			s.Catalog = pending.Clone()
+		}
+		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationPages|storage.RelationTuples)
 	}
 	metadata.ForeignAnalyze = &storage.ForeignAnalyzeStatistics{SampleRows: count, TotalRows: sample.TotalRows, TotalDeadRows: sample.TotalDeadRows, TotalPages: sample.TotalPages}
 	metadata.AnalyzeCount++

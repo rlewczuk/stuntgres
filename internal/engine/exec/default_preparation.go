@@ -71,7 +71,7 @@ func (s *AcceptedDefaultSet) Prepare(c *Context, occurrence DefaultOccurrence, r
 	a.self = a
 	for _, dependency := range definition.Dependencies {
 		d := c.Catalog.Get(dependency.Address)
-		if dependency.Domain() != ref.Domain() || dependency.Epoch != ref.Epoch || d == nil {
+		if d == nil || !preparation.StoredReferenceValid(c.Catalog, relation, dependency) {
 			return nil, false, ids.ErrCatalogReplaced
 		}
 		a.dependencies = append(a.dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: d.Revision(), Purpose: catalog.DefinitionDependency})

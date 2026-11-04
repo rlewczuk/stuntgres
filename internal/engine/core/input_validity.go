@@ -27,7 +27,7 @@ func (h *statementHost) CheckTypeInput(c *exec.Context, value, typeName string) 
 	if err != nil {
 		return nil, err
 	}
-	input := c.Input
+	input := c.FunctionInput()
 	input.ACLItem = h.scope().Engine().CaptureACLItemInput(auth, h.Op)
 	if err := h.scope().Engine().CaptureTypeDiagnosticInput(auth, h.Op, &input, usage.Type); err != nil {
 		return nil, err

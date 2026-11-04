@@ -347,7 +347,35 @@ func (p *TransitionAggregate) invoke(ctx context.Context, runtime *Context, supp
 	} else {
 		local := *runtime
 		local.Parameters = frame.Parameters
+		active, failure := routineSimulationActive(&local)
+		if failure != nil {
+			return sqltype.Value{}, failure
+		}
+		needsSource := active || local.Catalog.Owner() != nil && (len(support.Body) != 0 || support.DeclarationBody != nil)
+		if needsSource {
+			if local.nativeAggregate.self != nil {
+				return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed native aggregate source")
+			}
+			if err = validateTransitionCall(call, support, usage); err != nil {
+				return sqltype.Value{}, err
+			}
+			info := expr.InfoOf(call)
+			local.nativeAggregateEntered = false
+			local.nativeAggregate = nativeAggregateSource{
+				self: &local, owner: local.RoutineInitialization, read: local.Catalog,
+				aggregate: p.Aggregate, support: support, reference: info.RoutineReference,
+				recipe: info.RoutineRecipeReference, occurrence: info.Occurrence, source: info.Source,
+				purpose: catalog.AggregateSupportDependency,
+			}
+			defer func() {
+				local.nativeAggregate = nativeAggregateSource{}
+				local.nativeAggregateEntered = false
+			}()
+		}
 		result, err = call.Eval(&local)
+		if needsSource && err == nil && !local.nativeAggregateEntered {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: native aggregate kernel did not consume its source")
+		}
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -359,6 +387,29 @@ func (p *TransitionAggregate) invoke(ctx context.Context, runtime *Context, supp
 }
 
 func AdmitAggregateSupport(c *Context, call *plan.AggregateCall) error {
+	if provider, ok := call.Provider.(*functions.ArrayAggregateProvider); ok {
+		aggregate, supports := provider.AggregateSupports()
+		if aggregate != nil {
+			original, valid := aggregate.(*catalog.Procedure)
+			if !valid || original == nil || call.Procedure == nil || !SameRoutineDeclaration(original, call.Procedure) {
+				return fmt.Errorf("stuntgres: mismatched array aggregate support owner")
+			}
+			var selected [2]*catalog.Procedure
+			for i, reference := range supports {
+				selected[i], valid = reference.(*catalog.Procedure)
+				if !valid || selected[i] == nil {
+					return fmt.Errorf("stuntgres: missing array aggregate support declaration")
+				}
+			}
+			local := *c
+			if call.RoutineRecipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != call.RoutineRecipe) || call.RoutineRecipe == nil && local.RoutineGraft {
+				if err := SelectExpressionRecipe(&local, call.RoutineRecipe); err != nil {
+					return err
+				}
+			}
+			return admitAggregateComponents(&local, original, selected[:]...)
+		}
+	}
 	if p, ok := call.Provider.(*TransitionAggregate); ok {
 		// Final support admission precedes transition initialization, including
 		// strict finals and empty groups that will never invoke the function.

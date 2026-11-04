@@ -88,6 +88,11 @@ func (n TriggerBuiltin) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err := n.Validate(); err != nil {
 		return sqltype.Value{}, err
 	}
+	body, err := n.EnterRoutine(ctx, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	if n.Name == "moddatetime" || n.Name == "lo_manage" {
 		return sqltype.Value{}, sqlError("XX000", n.Name+": not fired by trigger manager")
 	}

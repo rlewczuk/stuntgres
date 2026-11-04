@@ -197,10 +197,14 @@ excluded shared/event-trigger targets, eligible subscription targets, callback
 write rollback, and read-only/failed-state refusal before callbacks.
 Bootstrap catalog ownership is checked relative to pg_class: the oracle's
 bootstrap role is named stuntgres, whereas native bootstrap is postgres.
-Neither fixture installs a real label provider. No successful assignment,
-replacement/deletion, provider veto or provider-backed target-ownership/storage behavior
-is claimed. Arbitrary, dummy and selinux names and NULL removal all reject;
-native controls never manufacture providers or label rows.
+These catalog-boundary fixtures leave label providers inactive. They do not
+claim successful assignment, relabeling, provider veto or provider-backed
+storage behavior: arbitrary, dummy and selinux names, including NULL removal,
+reject in that inactive mode. Native controls do not activate a provider or
+manufacture labels. The separately registered deterministic simulation and its
+successful `selinux` lifecycle, MAC, subject and control scenarios belong to
+[`reference/extensions`](../extensions/README.md); those active native phases
+are not presented as a real PostgreSQL SELinux oracle.
 
 Security-label **view** scenarios use the distinct plural family
 `make check RUN='^TestReferencePGSeclabels(Metadata|Shape|ProviderBoundary|Authorization|Diagnostics|Transactions|NativeControls|Definitions|FeatureSmoke)$'`
@@ -274,8 +278,9 @@ PUBLIC/current held-statement ACLs, full missing-column/provider diagnostics and
 failed-transaction recovery. Shared-target commands include string/empty/escaped
 providers and NULL removal attempts; ordinary DDL/comments never populate labels.
 Native controls preserve real sentinel data and captured metadata across
-Dump/Reset/Restore. No PostgreSQL native provider ABI/loading or SELinux/MAC
-integration is available. Select `make check RUN='^TestReferencePGShseclabel'`
+Dump/Reset/Restore. These scenarios leave the provider inactive; real native
+provider ABI/loading and kernel SELinux enforcement remain external. Explicit
+simulated MAC coverage lives in `reference/extensions`. Select `make check RUN='^TestReferencePGShseclabel'`
 and the same command with `REFERENCE=1`; feature smoke uses the exact
 `TestReferencePGShseclabelFeatureSmoke` name.
 

@@ -182,7 +182,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 			var familyProbe *aggregateModifierFamilyCancelContext
 			var sortProbe *aggregateSortCancelContext
 			if phase == "prepare" || phase == "hash" || phase == "equality" {
-				target := map[string]string{"prepare": ".Grouping.PrepareKey", "hash": ".Grouping.Hash", "equality": ".Grouping.Equal"}[phase]
+				target := map[string]string{"prepare": ".Grouping.PrepareKey", "hash": ".Grouping.HashWithBoundary", "equality": ".Grouping.EqualWithBoundary"}[phase]
 				familyProbe = &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: target}
 				execution = familyProbe
 			}

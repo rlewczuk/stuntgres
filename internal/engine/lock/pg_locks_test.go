@@ -30,6 +30,17 @@ func TestPGLocksResourceRecords(t *testing.T) {
 	if r, err := pgResourceRecord(typ, owner, TypeExclusive); err != nil || r != (Record{Kind: ObjectRecord, Owner: owner, Mode: TypeExclusive, Object: uint32(typ.Address.ObjectID), Class: uint32(ids.TypeClassID)}) {
 		t.Fatal("type record", r, err)
 	}
+	largeObject := Resource{ObjectRef: f.domain.Ref(f.epoch, ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: 921851})}
+	if r, err := pgResourceRecord(largeObject, owner, AccessExclusive); err != nil || r != (Record{Kind: ObjectRecord, Owner: owner, Mode: AccessExclusive, Object: 921851, Class: 2613}) {
+		t.Fatal("large object released lock tag", r, err)
+	}
+	if largeObject.Address.ClassID != 2995 {
+		t.Fatal("public projection changed canonical metadata authority", largeObject)
+	}
+	tablespace := Resource{ObjectRef: f.domain.Ref(f.epoch, ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: 1663})}
+	if r, err := pgResourceRecord(tablespace, owner, AccessExclusive); err != nil || r != (Record{Kind: ObjectRecord, Shared: true, Owner: owner, Mode: AccessExclusive, Object: 1663, Class: 1213}) {
+		t.Fatal("tablespace shared lock tag", r, err)
+	}
 }
 
 // The manager mutex does not exclude canonical XID assignment under Engine.mu.

@@ -75,6 +75,11 @@ func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if value, ok := uuidOsspConstant(e.Name); ok {
+		body, err := e.EnterRoutine(c, nil)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
 		return sqltype.UUIDValue(e.Usage.Type, value)
 	}
 	if uuidOsspName(e.Name) {
@@ -95,6 +100,17 @@ func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 		if shift.IsNull() {
 			return sqltype.Null(e.Usage.Type), nil
 		}
+	}
+	if e.RoutineReference != nil {
+		facts := expr.RoutineBodyInputs{Count: len(e.Args), Occurrence: e.Occurrence, Source: e.Source}
+		if len(e.Args) != 0 {
+			facts.First = shift.Type()
+		}
+		body, err := c.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, facts)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
 	}
 	if err := c.FunctionUUIDReady(); err != nil {
 		return sqltype.Value{}, err

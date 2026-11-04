@@ -230,6 +230,8 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 	}
 	b.UsedColumns, b.Dependencies = binder.Target.Uses, binder.Dependencies
 	b.SystemAttributeRead = binder.Target.SystemAttributeRead
+	b.SystemColumns = binder.Target.SystemColumns
+	b.WholeRowRead = binder.Target.WholeRowRead
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
 	b.ExportRoots = binder.Consumer.ExportRoots
 	b.SubqueryDemand = binder.Query.subqueryDemand

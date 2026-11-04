@@ -1,21 +1,21 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"stuntgres/internal/engine/enginetest"
 )
 
 func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
@@ -195,5 +195,104 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	assertDependencies(d.Analysis.Dependencies)
 	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("revised mixed capture changed signature or remained invalid")
+	}
+}
+
+func TestRoutineNameDatumCapture(t *testing.T) {
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	const declaration = "CREATE FUNCTION routine_datum_target(integer,integer) RETURNS integer LANGUAGE SQL SET search_path TO public AS 'SELECT $1+$2'"
+	enginetest.SessionSQL(t, s, declaration)
+	view := e.CatalogRead()
+	address := view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "routine_datum_target", Signature: "23,23"})
+	target := view.MustProcedure(address)
+	const literal = "SELECT 'routine_datum_target'::regproc AS r,'routine_datum_target(integer,integer)'::regprocedure AS p,'4294967295'::regprocedure AS n"
+	ast, d := enginetest.PreparedDescription(t, e, s, literal)
+	if d.Regtypes == nil || len(d.Regtypes.Constants) != 3 {
+		t.Fatal("routine name datums did not enter canonical capture", d.Regtypes)
+	}
+	saved := regoperatorPreparedSnapshot(d.Regtypes.Constants)
+	int4 := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	operand := catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(view.Epoch(), int4.Address()), Revision: int4.Revision()}
+	if len(saved[0].Operands) != 0 || !reflect.DeepEqual(saved[1].Operands, []catalog.ExpressionDependency{operand, operand}) || len(saved[2].Operands) != 0 {
+		t.Fatal("routine datum invented callable operands or lost repeated signature types", saved)
+	}
+	for _, dependency := range d.Analysis.Dependencies {
+		if dependency.Ref.Address == address {
+			t.Fatal("routine name datum acquired selected callable dependency", dependency)
+		}
+	}
+	// A real invocation of the same selected descriptor still requires its
+	// exact definition stamp; the name datum cannot stand in for that capture.
+	callAST, call := enginetest.PreparedDescription(t, e, s, "SELECT routine_datum_target(1,2) AS n")
+	callable := catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Revision: target.Revision(), Purpose: catalog.DefinitionDependency}
+	if !slices.Contains(call.Analysis.Dependencies, callable) {
+		t.Fatal("actual invocation lost selected callable dependency", call.Analysis.Dependencies, callable)
+	}
+	result, err := enginetest.PreparedExecute(e, s, callAST, &call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Rows == nil {
+		t.Fatal("actual invocation returned no cursor")
+	}
+	defer result.Rows.Close()
+	regoperatorPreparedValues(t, result, []sqltype.ID{sqltype.Int4}, []string{"3"})
+	result.Rows.Close()
+	signature := slices.Clone(d.Results)
+	assertHeld := func() {
+		t.Helper()
+		if !regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
+			t.Fatal("referent-only change retired accepted routine datum")
+		}
+		result, err := enginetest.PreparedExecute(e, s, ast, &d)
+		if err != nil {
+			t.Fatal("accepted routine datum was re-input", err)
+		}
+		if result.Rows == nil {
+			t.Fatal("held routine datum returned no cursor")
+		}
+		defer result.Rows.Close()
+		values := make([]sqltype.Value, 3)
+		present, err := result.Rows.Next(context.Background(), values)
+		if err != nil || !present {
+			t.Fatal("held routine datum row", present, err)
+		}
+		for i := range values {
+			if !sqltype.SameDatum(values[i], saved[i].Value) {
+				t.Fatal("held routine datum retargeted", i, values[i], saved[i].Value)
+			}
+		}
+		if !reflect.DeepEqual(d.Regtypes.Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
+			t.Fatal("referent-only change mutated accepted capture or metadata")
+		}
+	}
+	enginetest.SessionSQL(t, s, "ALTER FUNCTION routine_datum_target(integer,integer) COST 17")
+	assertHeld()
+	enginetest.SessionSQL(t, s, "DROP FUNCTION routine_datum_target(integer,integer)")
+	assertHeld()
+	result, err = enginetest.PreparedExecute(e, s, callAST, &call)
+	if result.Rows != nil {
+		result.Rows.Close()
+		t.Fatal("dropped actual callable returned rows", err)
+	}
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" {
+		t.Fatal("dropped actual invocation did not re-resolve its callable", err)
+	}
+	enginetest.SessionSQL(t, s, declaration)
+	current := e.CatalogRead().MustProcedure(e.CatalogRead().NameAddress(catalog.DescriptorNameKey(target)))
+	if current.Address() == address {
+		t.Fatal("recreated routine reused retired identity")
+	}
+	assertHeld()
+	_, fresh := enginetest.PreparedDescription(t, e, s, literal)
+	if fresh.Regtypes == nil || len(fresh.Regtypes.Constants) != 3 {
+		t.Fatal("fresh recreated input lost canonical capture", fresh.Regtypes)
+	}
+	for _, constant := range fresh.Regtypes.Constants[:2] {
+		if oid, err := constant.Value.ProcedureOID(); err != nil || oid != uint32(current.Address().ObjectID) {
+			t.Fatal("fresh input failed to resolve recreated routine", constant, err)
+		}
 	}
 }

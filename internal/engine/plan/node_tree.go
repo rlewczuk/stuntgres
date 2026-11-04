@@ -103,7 +103,9 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			out.WriteString(" sublink_ordering")
 			appendTreeComparison(out, ordering)
 		}
-		appendTreeScalarGrouping(out, n.Membership)
+		if err := appendTreeGrouping(ctx, out, n.Membership); err != nil {
+			return err
+		}
 		if project, ok := n.QueryPlan.Root.(*ProjectNode); ok && project.Syntax != nil {
 			if err := parser.AppendStructuralSyntax(ctx, out, project.Syntax); err != nil {
 				return err

@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/stored"
@@ -69,9 +70,12 @@ type Engine struct {
 	ImportTargets                   map[authorization.PrincipalRef]authorization.PrincipalRef
 	ImportParameterPredecessor      *catalog.State // Parameter authority captured before Restore input.
 	importOriginProgressPredecessor *originProgressPredecessor
+	restoreInitializationOrigin     *restoreInitializationOrigin
 	Foreign                         fdw.Registry
 	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
 	IdentFile                       *identfile.Source          // Immutable destination startup filesystem authority.
+	Sepgsql                         *sepgsql.Runtime           // Immutable Driver simulation, never a SQL bypass.
+	routineInitializationSequence   uint64                     // Mu; inert unique runtime frame identity, never a grant.
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress  // Engine.mu; only actual work.
 	ClusterProgress                 map[ids.TxRef]*ClusterProgress // Engine.Mu membership; entry-local facts.

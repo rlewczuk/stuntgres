@@ -69,7 +69,7 @@ func AcceptedDefaultSource(read catalog.Read, artifact *exec.AcceptedDefault) er
 	}
 	for i, dependency := range artifact.Dependencies() {
 		originalDependency := artifact.SourceDescriptor(dependency.Ref)
-		if dependency.Ref != definition.Dependencies[i] || dependency.Purpose != catalog.DefinitionDependency || dependency.Ref.Domain() != ref.Domain() || dependency.Ref.Epoch != ref.Epoch || originalDependency == nil || originalDependency.Revision() != dependency.Revision || originalDependency.Address() != dependency.Ref.Address {
+		if dependency.Ref != definition.Dependencies[i] || dependency.Purpose != catalog.DefinitionDependency || !ReferenceEpochValid(read, original, dependency.Ref) || originalDependency == nil || originalDependency.Revision() != dependency.Revision || originalDependency.Address() != dependency.Ref.Address {
 			return ids.ErrCatalogReplaced
 		}
 		d := read.Get(dependency.Ref.Address)

@@ -13,6 +13,7 @@ import (
 
 type FamilyDDLHost interface {
 	ddl.Host
+	InitializeIndexMethod(ddl.Authority, *catalog.AccessMethod) (catalog.IndexMethod, error)
 	SelectFamilyFunction(ddl.Authority, parser.ObjectName, *catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error)
 	ResolveRegtype(ddl.Authority, parser.TypeName) (ids.OID, error)
 	// CheckFamilyMemberDrop checks one resolved target's RESTRICT eligibility
@@ -111,6 +112,14 @@ func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Alt
 	if err != nil {
 		return err
 	}
+	var physical catalog.IndexMethod
+	if s.Action == "add" || s.Action == "drop" {
+		fact, _ := before.AccessMethod(method)
+		physical, err = h.InitializeIndexMethod(auth, fact)
+		if err != nil {
+			return err
+		}
+	}
 	d, err := findFamily(h, auth, s.Name, method)
 	if err != nil {
 		return err
@@ -119,7 +128,7 @@ func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Alt
 		if err = familySuperuser(h, auth, "alter"); err != nil {
 			return err
 		}
-		if err := stageFamilyMembers(h, auth, d, s); err != nil {
+		if err := stageFamilyMembers(h, auth, d, s, physical); err != nil {
 			return err
 		}
 		ddl.RecordCommand(h.Stage(), "ALTER OPERATOR FAMILY", d.Address())

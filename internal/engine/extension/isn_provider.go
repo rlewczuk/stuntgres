@@ -174,12 +174,11 @@ func IsnInputProcedure(v catalog.Read, typ *sqltype.Descriptor) (*catalog.Proced
 	if t.Origin == nil || t.Origin.Installation.Implementation != StockIsn {
 		return nil, InvalidProviderDescriptor()
 	}
-	installation, slot := t.Origin.Installation, t.Origin.Declaration+1
-	if slot <= 0 || slot >= IsnComparisonStart || slot >= len(installation.Members) {
-		return nil, InvalidProviderDescriptor()
+	p, _, installed, err := catalog.InstalledTypeIO(v, t)
+	if err != nil {
+		return nil, err
 	}
-	p, ok := v.Procedure(installation.Members[slot])
-	if !ok {
+	if !installed {
 		return nil, InvalidProviderDescriptor()
 	}
 	codecType, input, err := IsnCodecType(v, p)

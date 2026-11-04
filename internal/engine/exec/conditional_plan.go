@@ -164,7 +164,16 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 						if err := AdmitCaseEquality(c, arm); err != nil {
 							return nil, false, err
 						}
+						source := arm.Source
+						source.RoutineReference = arm.Routine
+						source.RoutineRecipeReference = e.RoutineRecipeReference
+						arguments := [2]sqltype.Value{view, condition.Value}
+						token, failure := source.EnterRoutine(c, arguments[:])
+						if failure != nil {
+							return nil, false, failure
+						}
 						match, err = arm.Equality.EqualValues(c.Context, view, condition.Value, c.Input)
+						token.Leave()
 					}
 				}
 				if err != nil {

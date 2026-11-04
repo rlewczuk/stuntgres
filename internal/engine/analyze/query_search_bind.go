@@ -62,10 +62,11 @@ func (b *Binder) BindSearchShape(d *plan.CTEDefinition) error {
 
 func (b *Binder) BindSearchIdentity(d *plan.CTEDefinition) error {
 	s := d.Search
-	s.Grouping = make([]sqltype.Grouping, s.Record.CompositeLen())
+	s.Grouping = make([]plan.Grouping, s.Record.CompositeLen())
 	for i := range s.Grouping {
 		var err error
-		s.Grouping[i], err = sqltype.BindGrouping(s.Record.CompositeMember(i).Usage)
+		usage := s.Record.CompositeMember(i).Usage
+		s.Grouping[i], err = b.bindDistinctGrouping(plan.ColumnExpr{Info: b.Info(usage, s.Syntax.Pos, expr.Properties{RowDependent: true}), Slot: i})
 		if err != nil {
 			return err
 		}

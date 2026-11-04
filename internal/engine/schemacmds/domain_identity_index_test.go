@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 )
 
@@ -71,7 +70,7 @@ func TestDomainIdentityIndexClosure(t *testing.T) {
 	if err := scope.Gate(enginetest.Statement(t, "DROP DOMAIN public.d CASCADE")); err != nil {
 		t.Fatal(err)
 	}
-	if err := schemacmds.StageDomainDependents(scope, stage, parser.DropCascade); err != nil {
+	if err := domainUnitApplyDrop(scope, stage, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"identity_key", "identity_include", "identity_expression", "identity_predicate"} {

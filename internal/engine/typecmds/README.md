@@ -44,6 +44,13 @@ VM observation are sampled in the same `Engine.Mu` window. A projected/rewrite
 candidate starts its own modeled VM and cannot regain committed-predecessor
 continuity merely because a later enum generation transports its datums.
 
+The enum/range command's locked stage-to-journal transfer records the existing
+candidate default-ACL, initial-privilege and security-label bookkeeping before
+descriptor transfer. Generated range constructors therefore retain their actual
+post-create labels and parent-label observations through private visibility and
+final publication. Discarding a stage cannot discard those journal-owned facts;
+rollback, cancellation and stale parent/role fences still publish no prefix.
+
 ## Entry points
 
 - Dispatch (`core.Statements.Execute`): `ExecuteAlterDomain`,

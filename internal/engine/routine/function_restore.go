@@ -54,6 +54,12 @@ func RebindRoutineDefinitions(state *catalog.State, remap *catalog.RoutineRemap)
 			state.SetDescriptor(address, mapped)
 			continue
 		}
+		if mapped.Sepgsql != nil {
+			// The shared declaration pass remints its sealed native capability;
+			// a native layout must never acquire a parallel SQL implementation.
+			state.SetDescriptor(address, mapped)
+			continue
+		}
 		definition, err := remap.Definition(mapped.RoutineDefinition())
 		if err != nil {
 			return err
@@ -63,7 +69,9 @@ func RebindRoutineDefinitions(state *catalog.State, remap *catalog.RoutineRemap)
 		next := mapped
 		if mapped.Host != nil {
 			host := *mapped.Host
-			if err := host.SetLayout(definition); err != nil { return err }
+			if err := host.SetLayout(definition); err != nil {
+				return err
+			}
 			next.Host = &host
 		} else {
 			next.SQL = definition

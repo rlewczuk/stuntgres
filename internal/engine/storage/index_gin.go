@@ -111,7 +111,7 @@ func BuildGin(ctx context.Context, bindings []sqltype.GinBinding, entries []Inde
 			if !value.IsNull() {
 				column.NonNull = append(column.NonNull, posting)
 			}
-			if err := binding.Extract(ctx, value, func(token sqltype.GinToken) error { tuples = append(tuples, ginTuple{token, posting}); return nil }); err != nil {
+			if err := binding.ExtractWithEnvironment(ctx, value, func(token sqltype.GinToken) error { tuples = append(tuples, ginTuple{token, posting}); return nil }, input); err != nil {
 				return nil, err
 			}
 		}

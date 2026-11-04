@@ -360,12 +360,17 @@ func (b *Binder) ExpandComposite(raw parser.FieldExpr) (plan.CompositeExpansionB
 // exposed-column expansion used by a top-level qualified star or ROW(alias.*).
 func (b *Binder) wholeRow(name parser.ObjectName, pos parser.Position, asValue bool) (expr.Expr, error) {
 	if b.Target.RuleNamespace != nil && len(name.Parts) == 1 && (name.Parts[0].Text == "old" || name.Parts[0].Text == "new") {
-		if row, matched, err := b.RuleColumn(parser.ColumnExpr{Name: name, Pos: pos}); matched {
+		previousWhole := b.Target.WholeRowRead
+		row, matched, err := b.RuleColumn(parser.ColumnExpr{Name: name, Pos: pos})
+		if !asValue {
+			b.Target.WholeRowRead = previousWhole
+		}
+		if matched {
 			return row, err
 		}
 	}
 	if b.Target.returningAliases != nil && len(name.Parts) == 1 {
-		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, pos); found {
+		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, pos, asValue); found {
 			return expr, err
 		}
 		_, pseudo := b.Target.returningPseudo(name)
@@ -377,6 +382,10 @@ func (b *Binder) wholeRow(name parser.ObjectName, pos parser.Position, asValue b
 			newValues, err := b.returningQualifier(name, pos)
 			if err != nil {
 				return nil, err
+			}
+			if asValue {
+				b.Target.WholeRowRead = true
+				b.Target.returningReadRequired = true
 			}
 			fields := make([]expr.Expr, len(b.Target.Relation.Columns))
 			props := expr.Properties{}
@@ -398,6 +407,14 @@ func (b *Binder) wholeRow(name parser.ObjectName, pos parser.Position, asValue b
 	frame := b.Query.resolvedQueryFrame
 	if asValue && q.ScalarAlias {
 		return b.queryColumnInFrame(q.Columns[0], pos, frame), nil
+	}
+	if asValue && q.SystemOccurrence > 0 {
+		leaf := &b.Query.Sources[q.SystemOccurrence-1]
+		if leaf.Ref == q.Ref {
+			leaf.WholeRowRead = true
+		}
+	} else if asValue && b.Target.Relation != nil && q.SourceRoot == nil && q.Ref == b.Target.Ref {
+		b.Target.WholeRowRead = true
 	}
 	fields := make([]expr.Expr, len(q.Columns))
 	members := make([]sqltype.CompositeMember, len(fields))

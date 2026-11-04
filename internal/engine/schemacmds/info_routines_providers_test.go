@@ -259,7 +259,7 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 		}},
 		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out", "_intbig_in", "_intbig_out"}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out", "ismn_in", "isn_out", "ismn_in", "ean13_out", "issn_in", "isn_out", "issn_in", "ean13_out", "upc_in", "isn_out"}},
-		{"intagg", catalog.InternalRoutineLanguage, []string{"aggregate_dummy", "array_unnest"}},
+		{"intagg", catalog.InternalRoutineLanguage, []string{"array_agg_transfn", "array_agg_finalfn", "aggregate_dummy", "array_unnest"}},
 		{"pgrowlocks", catalog.CRoutineLanguage, []string{"pgrowlocks"}},
 		{"cube", catalog.CRoutineLanguage, []string{"cube_in", "cube_out", "cube_eq", "cube_ne", "cube_lt", "cube_le", "cube_gt", "cube_ge", "cube_cmp", "cube_f8", "cube_f8_f8", "cube_a_f8", "cube_a_f8_f8", "cube_c_f8", "cube_c_f8_f8", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur", "cube_subset", "cube_union", "cube_inter", "cube_enlarge", "cube_overlap", "cube_contains", "cube_contained", "cube_distance", "distance_taxicab", "distance_chebyshev"}},
 		{"earthdistance", catalog.SQLRoutineLanguage, []string{

@@ -76,6 +76,12 @@ func TestEarthDeclarationCubePlacement(t *testing.T) {
 		{"unexpected_from", declarationJoin(valid, declarationText(" FROM "), declarationParts{proc.DeclarationTable(0, "t")})},
 	} {
 		body, err := proc.NewRoutineDeclarationBody(proc.DeclarationRecipe{Return: true, Parts: test.parts})
+		if test.name == "wrong_arity" {
+			if err == nil {
+				t.Fatal("typed callable slot disagrees with its parsed arity")
+			}
+			continue
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

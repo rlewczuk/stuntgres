@@ -263,6 +263,17 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			}
 			n.Comparisons[i] = mapped.(plan.ComparisonExpr)
 		}
+		if len(n.Membership) != 0 {
+			groups := make([]plan.Grouping, len(n.Membership))
+			mapper := ViewQueryRemapper{Ref: ref, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}
+			for i, group := range n.Membership {
+				groups[i], err = mapper.remapRecipeGrouping(group, n.Comparisons[i].Left.ResultUsage())
+				if err != nil {
+					return nil, err
+				}
+			}
+			n.Membership = groups
+		}
 		n.LeftExpansions, _, err = plan.MapRowComparisonExpansions(n.LeftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := child(old)
 			return next, true, err
@@ -286,6 +297,17 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			return nil, fmt.Errorf("stuntgres: foreign earth CHECK child")
 		}
 		n.Value = value
+		if n.Kind == sqltype.EarthOnSurface {
+			mapped := child(n.Origin)
+			if err != nil {
+				return nil, err
+			}
+			origin, ok := mapped.(plan.LiteralExpr)
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: foreign earth CHECK origin")
+			}
+			n.Origin = origin
+		}
 		next = n
 	case plan.DomainValueExpr:
 		next = n

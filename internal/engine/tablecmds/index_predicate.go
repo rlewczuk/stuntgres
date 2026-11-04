@@ -31,8 +31,9 @@ func transformIndexPredicate(e *core.Engine, op *session.Operation, input sqltyp
 	return index.ExpressionTransform{Definition: definition, Input: binder.Input, Dependencies: binder.Dependencies, Uses: binder.Query.Sources[0].Uses}, nil
 }
 
-func completeIndexPredicate(op *session.Operation, auth core.AuthorizationView, parent *catalog.Relation, transformed index.ExpressionTransform) (*catalog.IndexPredicate, error) {
+func completeIndexPredicate(h TableHost, auth core.AuthorizationView, parent *catalog.Relation, transformed index.ExpressionTransform) (*catalog.IndexPredicate, error) {
 	definition := transformed.Definition
+	op := h.Op
 	if definition == nil {
 		return nil, nil
 	}
@@ -41,7 +42,7 @@ func completeIndexPredicate(op *session.Operation, auth core.AuthorizationView, 
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: transformed.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, transformed.Dependencies
-	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
+	execution, err := h.PreflightIndexDefinitionLocked(auth, parent, &evaluation, definition, false)
 	if err != nil {
 		return nil, err
 	}

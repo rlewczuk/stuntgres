@@ -12,6 +12,7 @@ import (
 type EncodingConversionHandler struct {
 	name                string
 	source, destination int
+	reference           EncodingConversionReference
 }
 
 func RegisteredEncodingConversion(name string) (EncodingConversionHandler, bool) {
@@ -26,16 +27,19 @@ func (h EncodingConversionHandler) Supports(source, destination int) bool {
 }
 
 func (h EncodingConversionHandler) Convert(ctx context.Context, raw string, source, destination int) (output string, consumed int, err error) {
-	return h.convert(ctx, raw, source, destination, false)
+	return h.convert(ctx, raw, source, destination, false, nil)
 }
 
 // ConvertValidated consumes the entire-source validation performed at the SQL
 // execution frontier, avoiding a second full pass over immutable input bytes.
 func (h EncodingConversionHandler) ConvertValidated(ctx context.Context, raw string, source, destination int) (output string, consumed int, err error) {
-	return h.convert(ctx, raw, source, destination, true)
+	return h.convert(ctx, raw, source, destination, true, nil)
+}
+func (h EncodingConversionHandler) ConvertValidatedWithBoundary(ctx context.Context, raw string, source, destination int, boundary EncodingConversionBoundary) (string, int, error) {
+	return h.convert(ctx, raw, source, destination, true, boundary)
 }
 
-func (h EncodingConversionHandler) convert(ctx context.Context, raw string, source, destination int, validated bool) (output string, consumed int, err error) {
+func (h EncodingConversionHandler) convert(ctx context.Context, raw string, source, destination int, validated bool, boundary EncodingConversionBoundary) (output string, consumed int, err error) {
 	if err = ctx.Err(); err != nil {
 		return
 	}
@@ -70,6 +74,11 @@ func (h EncodingConversionHandler) convert(ctx context.Context, raw string, sour
 	if raw == "" {
 		return "", 0, nil
 	}
+	body, err := h.enter(boundary)
+	if err != nil {
+		return "", 0, err
+	}
+	defer body.Leave()
 	output, err = emitBinaryEncoding(ctx, raw, source, destination)
 	if err == nil {
 		consumed = len(raw)

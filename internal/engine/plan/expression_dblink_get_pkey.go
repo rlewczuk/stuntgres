@@ -1,12 +1,14 @@
 package plan
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // InstalledDblinkGetPkeyExpr retains immutable declaration identity, not approval.
@@ -40,6 +42,19 @@ func (n InstalledDblinkGetPkeyExpr) OpenSource(ctx expr.Context) (expr.SourceCur
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing installed dblink_get_pkey runtime")
 	}
 	return runtime.OpenDblinkGetPkey(n)
+}
+func (n InstalledDblinkGetPkeyExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted {
+		return cursor.Next(ctx)
+	}
+	runtime, ok := evaluation.(interface {
+		AdvanceDblinkGetPkey(InstalledDblinkGetPkeyExpr, context.Context, *expr.SourceCursor) (sqltype.Value, bool, error)
+	})
+	if !ok {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing dblink source authority")
+	}
+	return runtime.AdvanceDblinkGetPkey(n, ctx, cursor)
 }
 func (n InstalledDblinkGetPkeyExpr) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(InstalledDblinkGetPkeyExpr)

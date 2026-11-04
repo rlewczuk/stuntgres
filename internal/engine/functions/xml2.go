@@ -73,6 +73,11 @@ func (n XML2) Eval(c expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
+	body, err := n.EnterRoutine(c, values[:len(n.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	input, err := values[0].Text()
 	if err != nil {
 		return sqltype.Value{}, err

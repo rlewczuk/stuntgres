@@ -568,7 +568,8 @@ func (c *Context) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, er
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
 	}
 	if n.Function == "unaccent" {
-		if err := c.validateUnaccent(n); err != nil {
+		reference, err := c.validateUnaccent(n)
+		if err != nil {
 			return sqltype.Value{}, err
 		}
 		var dictionary sqltype.Value
@@ -586,42 +587,55 @@ func (c *Context) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, er
 		if value.IsNull() || n.Dictionary != nil && dictionary.IsNull() {
 			return sqltype.Null(n.Usage.Type), nil
 		}
+		arguments := [2]sqltype.Value{dictionary, value}
+		count := 2
+		if n.Dictionary == nil {
+			arguments[0] = value
+			count = 1
+		}
+		body, err := n.EnterRoutine(c, arguments[:count])
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
 		input, err := value.Text()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return c.LiveHost().TextSearch().UnaccentText(n.Ref, dictionary, input, n.Usage.Type)
+		return c.LiveHost().TextSearch().UnaccentText(reference, dictionary, input, n.Usage.Type)
 	}
 	return n.InstalledText.Eval(c)
 }
 
 // A captured shape is not current statement authority, including on NULL calls.
-func (c *Context) validateUnaccent(n plan.InstalledTextExpr) error {
+func (c *Context) validateUnaccent(n plan.InstalledTextExpr) (ids.ObjectRef, error) {
 	if c.LiveHost() == nil {
-		return fmt.Errorf("stuntgres: unaccent lacks statement authority")
+		return ids.ObjectRef{}, fmt.Errorf("stuntgres: unaccent lacks statement authority")
 	}
 	view := preparation.DomainCatalog(c)
 	if !preparation.StoredReferenceValid(view, c.RoutineConsumer, n.Ref) {
-		return fmt.Errorf("stuntgres: invalid installed unaccent reference")
+		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed unaccent reference")
 	}
 	current, err := ValidateStoredRoutineDescriptor(view, n.Procedure)
 	if err != nil {
-		return err
+		return ids.ObjectRef{}, err
 	}
 	if _, err := extension.ProcedureSymbol(view, current); err != nil {
-		return err
+		return ids.ObjectRef{}, err
 	}
 	text, ok := view.LookupType(sqltype.Text)
 	if !ok || n.Arg.ResultUsage().Type != text || n.Usage.Type != text {
-		return fmt.Errorf("stuntgres: invalid installed unaccent types")
+		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed unaccent types")
 	}
 	if n.Dictionary != nil {
 		dictionary, ok := view.LookupType(sqltype.Regdictionary)
 		if !ok || n.Dictionary.ResultUsage().Type != dictionary {
-			return fmt.Errorf("stuntgres: invalid installed unaccent dictionary type")
+			return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed unaccent dictionary type")
 		}
 	}
-	return nil
+	// The kernel consumes a current reference only after the original stored
+	// manifest has proved its contextual lifetime. Never rewrite the carrier.
+	return view.Domain().Ref(view.Epoch(), current.Address()), nil
 }
 
 // OpenExtensionPaths lists every ordered version pair of the named extension
@@ -996,15 +1010,7 @@ func (c *Context) OpenDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) (expr.Sou
 	if value.IsNull() {
 		return expr.OwnedSource(n.Usage.Type, nil), nil
 	}
-	name, err := value.Text()
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	rows, err := host.Contrib().DblinkGetPkey(n, name)
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	return expr.OwnedSource(n.Usage.Type, rows), nil
+	return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, Value: value, Position: -1, Advance: nextDblinkPkeySource}), nil
 }
 
 func (c *Context) OpenPgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) (expr.SourceCursor, error) {
@@ -1056,7 +1062,7 @@ func (c *Context) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: connectby lacks statement scope")
 	}
-	request.Input, request.Output = c.FunctionJSONBRecordInput(), c.Output
+	request.Input, request.Output = c.FunctionJSONBRecordInput(), c.FunctionOutput()
 	return host.Contrib().Connectby(request)
 }
 

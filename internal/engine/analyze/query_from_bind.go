@@ -268,7 +268,7 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			if !scope.allowed || scope.namespace == nil {
 				continue
 			}
-			if expr, found, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, raw.Pos); found {
+			if expr, found, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, raw.Pos, true); found {
 				return expr, err
 			}
 			for _, q := range scope.namespace.Qualifiers {

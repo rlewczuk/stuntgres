@@ -159,6 +159,9 @@ func (p RangeOperatorPlan) Operation() RangeOperator { return p.operation }
 func (p RangeOperatorPlan) Name() string             { return p.operation.Name() }
 func (p RangeOperatorPlan) ResultUsage() Usage       { return p.result.Usage() }
 func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value, error) {
+	return p.EvaluateWithEnvironment(ctx, values, InputEnvironment{})
+}
+func (p RangeOperatorPlan) EvaluateWithEnvironment(ctx context.Context, values [2]Value, env InputEnvironment) (Value, error) {
 	if ctx == nil {
 		return Value{}, fmt.Errorf("missing range operator context")
 	}
@@ -172,7 +175,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 		return Null(p.result), nil
 	}
 	if p.operation >= RangeUnion {
-		return p.evaluateSet(ctx, values[0], values[1])
+		return p.evaluateSet(ctx, values[0], values[1], env)
 	}
 	a, b := &values[0], &values[1]
 	op := p.operation
@@ -208,7 +211,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 			cmp := 1
 			if x.flags&rangeUpperUnbounded == 0 {
 				var err error
-				cmp, err = r.compareRangeBounds(ctx, x.upper, bound)
+				cmp, err = r.compareRangeBounds(ctx, x.upper, bound, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -225,7 +228,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 			if x.flags&rangeLowerUnbounded != 0 {
 				yes = true
 			} else {
-				cmp, err := r.compareRangeBounds(ctx, x.lower, bound)
+				cmp, err := r.compareRangeBounds(ctx, x.lower, bound, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -246,7 +249,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 				}
 			}
 			for i < len(aa) {
-				cmp, err := r.compareRangeEndpoint(ctx, aa[i], false, x, true)
+				cmp, err := r.compareRangeEndpoint(ctx, aa[i], false, x, true, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -264,7 +267,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 				yes = false
 				break
 			}
-			contains, err := r.rangeContains(ctx, aa[i], x)
+			contains, err := r.rangeContains(ctx, aa[i], x, env)
 			if err != nil {
 				return Value{}, err
 			}
@@ -281,7 +284,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 					return Value{}, err
 				}
 			}
-			overlaps, err := r.rangeOverlaps(ctx, aa[i], bb[j])
+			overlaps, err := r.rangeOverlaps(ctx, aa[i], bb[j], env)
 			if err != nil {
 				return Value{}, err
 			}
@@ -289,7 +292,7 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 				yes = true
 				break
 			}
-			cmp, err := r.compareRangeEndpoint(ctx, aa[i], false, bb[j], false)
+			cmp, err := r.compareRangeEndpoint(ctx, aa[i], false, bb[j], false, env)
 			if err != nil {
 				return Value{}, err
 			}
@@ -306,21 +309,21 @@ func (p RangeOperatorPlan) Evaluate(ctx context.Context, values [2]Value) (Value
 			var err error
 			switch op {
 			case RangeLeft:
-				cmp, err = r.compareRangeEndpoint(ctx, lastA, false, firstB, true)
+				cmp, err = r.compareRangeEndpoint(ctx, lastA, false, firstB, true, env)
 				yes = cmp < 0
 			case RangeRight:
-				cmp, err = r.compareRangeEndpoint(ctx, firstA, true, lastB, false)
+				cmp, err = r.compareRangeEndpoint(ctx, firstA, true, lastB, false, env)
 				yes = cmp > 0
 			case RangeNotRight:
-				cmp, err = r.compareRangeEndpoint(ctx, lastA, false, lastB, false)
+				cmp, err = r.compareRangeEndpoint(ctx, lastA, false, lastB, false, env)
 				yes = cmp <= 0
 			case RangeNotLeft:
-				cmp, err = r.compareRangeEndpoint(ctx, firstA, true, firstB, true)
+				cmp, err = r.compareRangeEndpoint(ctx, firstA, true, firstB, true, env)
 				yes = cmp >= 0
 			case RangeAdjacent:
-				yes, err = r.rangeBoundsAdjacent(ctx, lastA, firstB)
+				yes, err = r.rangeBoundsAdjacent(ctx, lastA, firstB, env)
 				if err == nil && !yes {
-					yes, err = r.rangeBoundsAdjacent(ctx, lastB, firstA)
+					yes, err = r.rangeBoundsAdjacent(ctx, lastB, firstA, env)
 				}
 			}
 			if err != nil {
@@ -340,29 +343,29 @@ func operatorMembers(v *Value, kind rangeOperandKind, single *[1]rangeDatum) []r
 	single[0] = v.rangeDatum
 	return single[:]
 }
-func (r *Descriptor) rangeContains(ctx context.Context, a, b rangeDatum) (bool, error) {
-	lo, err := r.compareRangeEndpoint(ctx, a, true, b, true)
+func (r *Descriptor) rangeContains(ctx context.Context, a, b rangeDatum, env InputEnvironment) (bool, error) {
+	lo, err := r.compareRangeEndpoint(ctx, a, true, b, true, env)
 	if err != nil || lo > 0 {
 		return false, err
 	}
-	hi, err := r.compareRangeEndpoint(ctx, a, false, b, false)
+	hi, err := r.compareRangeEndpoint(ctx, a, false, b, false, env)
 	return hi >= 0, err
 }
-func (r *Descriptor) rangeOverlaps(ctx context.Context, a, b rangeDatum) (bool, error) {
-	lo, err := r.compareRangeEndpoint(ctx, a, true, b, false)
+func (r *Descriptor) rangeOverlaps(ctx context.Context, a, b rangeDatum, env InputEnvironment) (bool, error) {
+	lo, err := r.compareRangeEndpoint(ctx, a, true, b, false, env)
 	if err != nil || lo > 0 {
 		return false, err
 	}
-	hi, err := r.compareRangeEndpoint(ctx, b, true, a, false)
+	hi, err := r.compareRangeEndpoint(ctx, b, true, a, false, env)
 	return hi <= 0, err
 }
 
 // Complementary bounds identify adjacency, including discrete DATE infinities.
-func (r *Descriptor) rangeBoundsAdjacent(ctx context.Context, a, b rangeDatum) (bool, error) {
+func (r *Descriptor) rangeBoundsAdjacent(ctx context.Context, a, b rangeDatum, env InputEnvironment) (bool, error) {
 	if a.flags&rangeUpperUnbounded != 0 || b.flags&rangeLowerUnbounded != 0 {
 		return false, nil
 	}
-	cmp, err := r.compareRangeBounds(ctx, a.upper, b.lower)
+	cmp, err := r.compareRangeBounds(ctx, a.upper, b.lower, env)
 	if err != nil {
 		return false, err
 	}
@@ -379,10 +382,10 @@ func (r *Descriptor) rangeBoundsAdjacent(ctx context.Context, a, b rangeDatum) (
 	if b.flags&rangeLowerInclusive == 0 {
 		gap.flags |= rangeUpperInclusive
 	}
-	canonical, err := r.canonicalRange(ctx, gap, false)
+	canonical, err := r.canonicalRange(ctx, gap, false, env)
 	return canonical.flags&rangeEmpty != 0, err
 }
-func (r *Descriptor) compareRangeValues(ctx context.Context, a, b rangeDatum) (int, error) {
+func (r *Descriptor) compareRangeValues(ctx context.Context, a, b rangeDatum, env InputEnvironment) (int, error) {
 	ae, be := a.flags&rangeEmpty != 0, b.flags&rangeEmpty != 0
 	if ae {
 		if be {
@@ -393,16 +396,16 @@ func (r *Descriptor) compareRangeValues(ctx context.Context, a, b rangeDatum) (i
 	if be {
 		return 1, nil
 	}
-	return r.compareRanges(ctx, a, b)
+	return r.compareRanges(ctx, a, b, env)
 }
-func (r *Descriptor) compareMultirangeValues(ctx context.Context, a, b []rangeDatum) (int, error) {
+func (r *Descriptor) compareMultirangeValues(ctx context.Context, a, b []rangeDatum, env InputEnvironment) (int, error) {
 	for i := 0; i < len(a) && i < len(b); i++ {
 		if i&255 == 0 {
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
 		}
-		if cmp, err := r.compareRangeValues(ctx, a[i], b[i]); err != nil || cmp != 0 {
+		if cmp, err := r.compareRangeValues(ctx, a[i], b[i], env); err != nil || cmp != 0 {
 			return cmp, err
 		}
 	}

@@ -155,6 +155,11 @@ func (e CommentInquiry) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	runtime, err := catalogInquiryRuntime(c)
 	if err != nil {
 		return sqltype.Value{}, err

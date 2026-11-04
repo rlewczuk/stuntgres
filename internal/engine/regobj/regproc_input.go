@@ -129,17 +129,9 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 	if count > 1 {
 		return 0, sqlstate.SoftInputError(sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text)))
 	}
-	if r.operands != nil {
-		if owner := RoutineDescriptorOwner(a.View.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
-			ref := a.View.Ref(owner.Address())
-			for _, operand := range *r.operands {
-				if operand.Ref == ref {
-					return uint32(selected.ID), nil
-				}
-			}
-			*r.operands = append(*r.operands, catalog.ExpressionDependency{Ref: ref, Revision: owner.Revision()})
-		}
-	}
+	// The selected routine is the OID datum, not a parsed signature operand
+	// or an executable dependency. Stored definitions record genuine routine
+	// references separately; a held input constant survives referent retirement.
 	return uint32(selected.ID), nil
 }
 

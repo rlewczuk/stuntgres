@@ -101,6 +101,9 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 	if err := remapInitialPrivilegeAddresses(next, mapping); err != nil {
 		return err
 	}
+	if err := RemapSecurityLabels(next, mapping); err != nil {
+		return err
+	}
 	remapStorageRoots(mapping, relations, sequences)
 	return nil
 }

@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -17,6 +18,45 @@ func (c *Context) OpenPgBuffercache(n plan.InstalledPgBuffercacheExpr) (expr.Sou
 	if n.Procedure == nil || n.RoutineReference != n.Procedure || n.Ref.Address != n.Procedure.Address() || !preparation.StoredReferenceValid(view, c.RoutineConsumer, n.Ref) {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid installed pg_buffercache reference")
 	}
+	current, err := ValidateStoredRoutineDescriptor(view, n.Procedure)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	if err := extension.ValidatePgBuffercacheIdentity(view, current, n.Ref); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	// The released source is value-per-call: first setup and the first tuple
+	// share one actual invocation. No owner or snapshot is retained before demand.
+	return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, Position: -1, Advance: unopenedPgBuffercache}), nil
+}
+
+func unopenedPgBuffercache(context.Context, *expr.SourceCursor) (sqltype.Value, bool, error) {
+	return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing pg_buffercache first-call authority")
+}
+
+func (c *Context) AdvancePgBuffercache(n plan.InstalledPgBuffercacheExpr, ctx context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted {
+		return cursor.Next(ctx)
+	}
+	body, err := n.Info.EnterRoutine(c, nil)
+	if err != nil {
+		cursor.Close()
+		return sqltype.Value{}, false, err
+	}
+	defer body.Leave()
+	if cursor.Position < 0 {
+		first, err := c.pgBuffercacheRows(n)
+		if err != nil {
+			cursor.Close()
+			return sqltype.Value{}, false, err
+		}
+		*cursor = first
+	}
+	return cursor.Next(ctx)
+}
+
+func (c *Context) pgBuffercacheRows(n plan.InstalledPgBuffercacheExpr) (expr.SourceCursor, error) {
+	view := preparation.DomainCatalog(c)
 	current, err := ValidateStoredRoutineDescriptor(view, n.Procedure)
 	if err != nil {
 		return expr.SourceCursor{}, err

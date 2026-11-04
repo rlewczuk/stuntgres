@@ -16,7 +16,7 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 - Core reaches it from `textSearchHost`, whose `exec.TextSearchRuntime`
   methods call the entry functions with the statement host, and from the
   tsvector trigger (`trigger_builtin.go`), which walks a `Capture`. The
-  session's thesaurus initializations are a `ThesaurusMemos` in core's
+  session's dictionary initializations are a `DictionaryMemos` in core's
   `sessionPayload`.
 
 ## Contract
@@ -27,14 +27,16 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 - `CaptureConfiguration` captures one configuration and its parser from an
   immutable catalog read; `Capture.Walk` tokenizes and lexizes a text,
   acquiring each consulted dictionary on demand; `Capture.Accept` is the final
-  currentness and cancellation fence that publishes new thesaurus receipts.
+  currentness and cancellation fence that publishes new dictionary receipts.
   `Captured` reports whether a configuration is held.
 - `Capture.WalkDocument` shares the same private configured walk with `Walk`.
   It retains original tokens and associations across consumed phrase spans
   instead of retokenizing/normalizing each word. Existing scalar position,
   filter, stopword, lookahead and notice behavior is unchanged.
-- `ThesaurusMemos` maps a dictionary to one successful thesaurus
-  initialization of the session; its entries stay opaque to core.
+- `DictionaryMemos` maps a dictionary to one successful physical-session
+  initialization; its entries stay opaque to core. Active hookable ordinary
+  initializers reuse the actual compiler, not a callback notification around
+  an already compiled pointer.
 
 ## Host and authority
 
@@ -44,7 +46,7 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
   input), work admission, the Engine.Mu pair, the pending catalog journal and
   the private catalog over it, the operation's authorization, the namespace
   authorization's catalog and regconfig/regdictionary resolver, the
-  thesaurus compiler's dictionary host, the session's `ThesaurusMemos`, and
+  thesaurus compiler's dictionary host, the session's `DictionaryMemos`, and
   the `exec.NestedSQL` capability.
 - `Authority[A]` is that authorization, held by value: a `ddl.Authority` for
   `extension.CaptureThesaurusInput`, `Access` for the current role, and
@@ -57,7 +59,7 @@ dictionary and thesaurus acquisition. It is a leaf below core (ENGINE-SPLIT
 - Calls are entered with no engine lock held. `Host.ReacquireEngine` takes
   `Engine.Mu` and `Host.ReleaseEngineLocked` releases it; the host methods
   named …Locked, `tsAcquisition.currentLocked` and the thesaurus checks run
-  inside those windows. `ThesaurusMemos` belongs to `Engine.Mu`.
+  inside those windows. `DictionaryMemos` belongs to `Engine.Mu`.
 - Parser, dictionary and resource compilation, lexization, notices and nested
   SQL run with nothing held. Engine.Mu precedes the effective settings mutex.
 
@@ -74,6 +76,8 @@ errors. Mapping changes publish through ordinary schema stages and definition lo
 fence to construct a real REGCONFIG value on every call. It reads
 `Operation.Setting`, including detached restricted invocation settings, and
 never acquires a parser/dictionary or retains a session default in a plan.
+The symbolic `FTSCurrentConfig` call enters its actual selected routine before
+borrowing this getter; there is no parallel current-configuration API.
 JSON conversion validates its filter first, then resolves an omitted default
 identity before traversal, even if no item is selected. Explicit configurations
 retain lazy identity demand. Both forms acquire parser/dictionary runtime only
@@ -93,6 +97,12 @@ is published before currentness and cancellation are checked.
 Provider failures inside debug acquire the actual SQL-standard function's
 statement context through the shared immutable SQL routine diagnostic helper;
 caller argument-input failures remain outside that body frame.
+Core's debug host retains the selected occurrence and borrowed evaluator to
+initialize the genuine SQL body under its entered subject. The implicit form
+uses `CurrentConfig` for the original getter and enters the explicit debug
+routine before materialization; it does not bypass that body through a direct
+runtime forwarding method. Dictionary initialization marks unwind only newly
+completed receipts if the invocation fails.
 
 `Headline` uses the same coherent capture and ordered dictionary demand. The
 selected parser's HEADLINE capability is checked before tokenization/options;
@@ -159,11 +169,34 @@ Dictionary execution captures and validates the current private descriptor under
 `unaccent(text)` resolves the dictionary named `unaccent` in the function's current
 schema; mutable member names are not a replacement for that lookup.
 `unaccent(regdictionary,text)` receives the evaluated typed selector and reuses
-`acquireDictionary`, including real generic callbacks and session thesaurus
-ownership. Both return the first lexeme, or the original input for empty or
+invocation-local acquisition, including real direct callbacks and physical
+session ownership. Both return the first lexeme, or the original input for empty or
 unrecognized output. Exec validates current installed authority even for NULL;
 strict NULL calls acquire no dictionary. Callback work and cancellation checks
 run outside the engine mutex; no runtime handle enters a stored recipe.
+
+Simulated sepgsql dictionary callbacks are direct fmgr body entries, not SQL
+EXECUTE checks. Actual C unaccent/Snowball callbacks may transition; genuine
+original INTERNAL helpers do not. Pointer arguments are not SQL NULL. Cold
+initialization compiles outside the engine lock and publishes only after the
+whole invocation's cancellation, descriptor/helper generation and role fences.
+An unchanged warm physical memo is independent of the current subject and
+label-only changes; a fresh physical session or changed executable generation
+must initialize independently. Failed refresh never returns the stale runtime.
+
+Thesaurus normalizers borrow the same invocation acquisition through actual
+compile and phrase work. Newly initialized normalizer memos publish together
+with successful outer work, never as an intermediate prefix. Detached DDL
+compilation never warms query-session memos. Its real candidate owns a typed
+observation/completion mark through validation and publication; later discard
+removes only newer receipts, preserving earlier grants even when observations
+were deduplicated. Changed captured inputs reject without retrying callbacks.
+
+This is source-grounded query-compatibility simulation, not SELinux enforcement
+or an active PostgreSQL policy oracle. Native dictionary compilation/cache
+frequency and algorithm-internal callback counts are not stock AVC-count parity.
+Physical memos and borrowed hosts/tokens are neither catalog state nor dump data.
+
 
 ## Testing
 
@@ -173,6 +206,27 @@ run outside the engine mutex; no runtime handle enters a stored recipe.
   `core/enginetests/textsearch`. Public scenarios are
   `RUN='^TestReference(FTS|Dictionary|UnaccentDictionary|Thesaurus|TextSearch|TriggerBuiltins)'`.
 - `thesaurus_demand_test.go` (core) reads the session's receipts by the field
-  names `thesaurusMemos`, `runtime` and `normalizer`; renaming them changes it.
+  names `dictionaryMemos`, `runtime` and `normalizer`; renaming them changes it.
 - Under T7 this package has no `export_test.go`; engine tests that come here
   later go to `core/tsearch/enginetests`.
+- Simulated dictionary ownership is covered by
+  `RUN='^TestSepgsqlSimulationDictionaries$'` in native and `RACE=1` modes:
+  actual cold/warm physical state, subject/relabel independence, generation
+  invalidation, nested normalizer error/recovery/cancellation, foreign/ended
+  borrowers, joined concurrent publication barriers, and successful detached
+  compile followed by real candidate failure preserving an older deduplicated
+  initialization grant.
+  Direct callback fixtures first admit the real command with `Gate`, capture
+  its current authorization/catalog and identity, and finish it before releasing
+  the operation; a bare started scope has no transaction-epoch authority.
+  Nested compilation uses the genuine C Snowball helpers and
+  `pg_catalog.english_stem` to normalize the released `thesaurus_sample`.
+  Successful `one` normalization returns `{1}` with two jointly published
+  physical memos; denial, stale helper and cancellation publish none and unwind
+  the trusted subject. Stock unaccent remains independently covered, including
+  its authentic `F0000` rejection as this sample's normalizer: unchanged ASCII
+  `one` is unrecognized, not an identity-normalized lexeme.
+  Shared SQL outcomes use
+  `RUN='^TestReferenceSepgsqlSimulation(FTS|Dictionaries)$'` in native and real
+  `REFERENCE=1` modes; active steps are explicitly simulated, not a stock active
+  provider comparison.

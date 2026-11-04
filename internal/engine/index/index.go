@@ -19,10 +19,13 @@ import (
 )
 
 type Ordering struct {
-	Slots       []int
-	Comparisons []sqltype.IndexComparison
-	Keys        []catalog.IndexKey
-	Derived     []expr.Expr
+	Slots           []int
+	Comparisons     []sqltype.IndexComparison
+	Keys            []catalog.IndexKey
+	Derived         []expr.Expr
+	initializations []exec.RoutineInitialization // Operation-local, never captured catalog ordering.
+	parent          *catalog.Relation
+	input           sqltype.InputEnvironment // Borrowed operation-local environment; never captured in catalog/storage.
 	// GroupingCompatible is captured at bind time, never resolved per row.
 	GroupingCompatible uint32
 }
@@ -225,7 +228,7 @@ func (o Ordering) CompareKeys(ctx context.Context, a, b storage.IndexEntry) (int
 			}
 			return 1, nil
 		}
-		c, err := o.Comparisons[i].Compare(ctx, av, bv, sqltype.InputEnvironment{})
+		c, err := o.Comparisons[i].Compare(ctx, av, bv, o.input)
 		if err != nil {
 			return 0, err
 		}
@@ -259,13 +262,29 @@ func (o Ordering) compare(ctx context.Context, a, b storage.IndexEntry) (int, er
 	return 0, nil
 }
 
+// BorrowSupport attaches the actual operation, not its subject or a permission
+// result. Copies of a bound ordering remain authority-free until this seam.
+func (o *Ordering) BorrowSupport(evaluation *exec.Context) {
+	o.input = evaluation.FunctionInput()
+}
+
 func (o Ordering) FillKeys(values []sqltype.Value, keys []sqltype.Value, evaluation *exec.Context) error {
 	for i, slot := range o.Slots {
 		var expression expr.Expr
 		if slot < 0 {
 			expression = o.Derived[i]
 		}
-		value, err := extractIndexKey(slot, expression, values, evaluation)
+		local := evaluation
+		var recipe exec.Context
+		if slot < 0 && o.parent != nil {
+			recipe = RecipeEvaluation(evaluation, o.Keys[i].Derived.Dependencies, o.parent)
+			recipe.InitializationPhase = exec.IndexRecipeInitialization
+			if o.initializations != nil {
+				recipe.RoutineInitialization = o.initializations[i]
+			}
+			local = &recipe
+		}
+		value, err := extractIndexKey(slot, expression, values, local)
 		if err != nil {
 			return err
 		}
@@ -336,7 +355,7 @@ func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catal
 		return nil, err
 	}
 	if d.Method == catalog.GinMethod {
-		return ginRoot(evaluation.Context, evaluation.Catalog, parent, d, entries, newConstruction(d), evaluation.Input)
+		return ginRoot(evaluation.Context, evaluation.Catalog, parent, d, entries, newConstruction(d), evaluation.FunctionInput())
 	}
 	return NewLogicalIndexRoot(d, entries), nil
 }
@@ -458,7 +477,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		entries = append(entries, added...)
 		root := logicalIndexRoot(d, entries, nil)
 		if validate {
-			if err := ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building); err != nil {
+			if err := ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building, o.input); err != nil {
 				return nil, err
 			}
 		}

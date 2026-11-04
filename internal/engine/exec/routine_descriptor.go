@@ -65,6 +65,11 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 	if err := catalog.ValidateRoutineTransforms(view, current); err != nil {
 		return nil, err
 	}
+	if current.Sepgsql != nil {
+		if err := catalog.ValidateSepgsqlRoutine(view, current); err != nil {
+			return nil, err
+		}
+	}
 	if current.Host != nil || current.HostHandler != nil {
 		if err := catalog.ValidateHostProcedure(view, current); err != nil {
 			return nil, err
@@ -107,11 +112,13 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Display == captured.Display && current.Transforms == captured.Transforms && current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
 		current.DeclarationBody == captured.DeclarationBody &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
+		current.Sepgsql == captured.Sepgsql &&
 		sameHostRoutine(current.Host, captured.Host) && current.HostHandler == captured.HostHandler && current.HostConversion == captured.HostConversion &&
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL && current.SQLBody == captured.SQLBody &&
 		current.SQLDefaults == captured.SQLDefaults && current.RangeConstructor == captured.RangeConstructor && sameRoutineOrigin(current, captured) &&
 		current.LiteralDefaults == captured.LiteralDefaults && current.InputNames == captured.InputNames &&
-		current.AccessMethod == captured.AccessMethod && current.Dictionary == captured.Dictionary &&
+		current.AccessMethod == captured.AccessMethod && current.BrinSupport == captured.BrinSupport &&
+		current.GinSupport == captured.GinSupport && current.SnowballHelper == captured.SnowballHelper && current.Dictionary == captured.Dictionary &&
 		current.Foreign == captured.Foreign && sameRoutineBody(current.Body, captured.Body) && catalog.SameAggregateDefinition(current.Aggregate, captured.Aggregate)
 }
 

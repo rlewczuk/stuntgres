@@ -88,60 +88,39 @@ func (p GinBinding) Same(other GinBinding) bool {
 }
 
 func (p GinBinding) IsScalar() bool { return p.scalar }
+
+// WithElementComparison captures the default B-tree comparator selected for
+// array keys, whose GIN class has no explicit comparison support member.
+func (p GinBinding) WithElementComparison(comparison Comparison) (GinBinding, error) {
+	if p.scalar || p.element == nil || comparison.left != p.comparison.left || comparison.right != p.comparison.right {
+		return GinBinding{}, fmt.Errorf("invalid GIN element comparison capture")
+	}
+	p.comparison = comparison
+	return p, nil
+}
+
+func (p GinBinding) ElementComparison() (Comparison, bool) {
+	return p.comparison, p.element != nil && !p.scalar
+}
 func (p GinBinding) Extract(ctx context.Context, v Value, emit func(GinToken) error) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if v.typ != p.Usage.Type {
-		return fmt.Errorf("foreign GIN key generation")
-	}
-	if v.null {
-		return emit(GinToken{Kind: GinNullItem})
-	}
-	if p.scalar {
-		return emit(GinToken{Element: v})
-	}
-	if p.element != nil {
-		if v.array == nil {
-			return fmt.Errorf("invalid GIN array payload")
-		}
-		if v.ArrayLen() == 0 {
-			return emit(GinToken{Kind: GinEmptyItem})
-		}
-		for i := range v.ArrayLen() {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			element := v.ArrayElement(i)
-			if element.typ != p.element {
-				return fmt.Errorf("foreign GIN element generation")
-			}
-			token := GinToken{Element: element}
-			if element.IsNull() {
-				token = GinToken{Kind: GinNullElement}
-			}
-			if err := emit(token); err != nil {
-				return err
-			}
-		}
-		return ctx.Err()
-	}
-	lexemes, err := TSVectorLexemes(v, p.Usage.Type)
+	return p.ExtractWithEnvironment(ctx, v, emit, InputEnvironment{})
+}
+func (p GinBinding) ExtractWithEnvironment(ctx context.Context, v Value, emit func(GinToken) error, input InputEnvironment) error {
+	return p.extractWithEnvironment(ctx, v, emit, input, 2)
+}
+
+// ExtractQueryWithEnvironment is the selected extractQuery callback, not a
+// replay of extractValue for a probe. The native token representation is shared.
+func (p GinBinding) ExtractQueryWithEnvironment(ctx context.Context, v Value, emit func(GinToken) error, input InputEnvironment) error {
+	return p.extractWithEnvironment(ctx, v, emit, input, 3)
+}
+
+func (p GinBinding) extractWithEnvironment(ctx context.Context, v Value, emit func(GinToken) error, input InputEnvironment, slot uint16) error {
+	extracted, err := p.PrepareExtract(ctx, v, input, slot)
 	if err != nil {
 		return err
 	}
-	if lexemes.Count() == 0 {
-		return emit(GinToken{Kind: GinEmptyItem})
-	}
-	for i := range lexemes.Count() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := emit(GinToken{Lexeme: lexemes.At(i)}); err != nil {
-			return err
-		}
-	}
-	return ctx.Err()
+	return extracted.Emit(ctx, emit)
 }
 func (p GinBinding) Compare(ctx context.Context, a, b GinToken, input InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
@@ -164,6 +143,13 @@ func (p GinBinding) Compare(ctx context.Context, a, b GinToken, input InputEnvir
 	}
 	if a.Kind != GinOrdinary {
 		return 0, nil
+	}
+	if p.scalar || p.element == nil {
+		body, err := enterIndexSupport(input, p.Class.Support(1), 1)
+		if err != nil {
+			return 0, err
+		}
+		defer body.Leave()
 	}
 	if p.element == nil {
 		return strings.Compare(a.Lexeme, b.Lexeme), nil

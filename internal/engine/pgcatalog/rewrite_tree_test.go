@@ -46,6 +46,8 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		t.Fatal("PG_NODE_TREE")
 	}
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 194}, &catalog.Type{SQLType: typ})
+	// COPY/CREATE INDEX/CLUSTER progress, database/subscription/WAL statistics,
+	// and security labels own the seven explicit builtin _RETURN declarations.
 	want := map[ids.OID]ids.OID{
 		ProgressCopyOID:        ProgressCopyRuleOID,
 		ProgressCreateIndexOID: ProgressCreateIndexRuleOID,
@@ -53,6 +55,7 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		StatDatabaseOID:        StatDatabaseRuleOID,
 		StatSubscriptionOID:    StatSubscriptionRuleOID,
 		StatWALOID:             StatWALRuleOID,
+		SeclabelsOID:           SeclabelsRuleOID,
 	}
 	var previous string
 	for _, record := range builtinViews {

@@ -19,7 +19,7 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 	base := h.StageBase()
 	if !plan.Reassign {
 		for _, a := range plan.Roots {
-			if err := h.RemoveObject(stage.BaseRef(a), a.ClassID == ids.NamespaceClassID); err != nil {
+			if err := h.SelectDropRoot(stage.BaseRef(a), a.ClassID == ids.NamespaceClassID); err != nil {
 				return err
 			}
 		}

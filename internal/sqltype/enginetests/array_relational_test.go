@@ -246,7 +246,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		}
 		row := make([]sqltype.Value, 2)
 		for i := range 3 {
-			present, err := invocation.NextFrom(context.Background(), node.Calls, row)
+			present, err := invocation.NextFrom(context.Background(), node.Calls, row, nil)
 			if err != nil || !present {
 				t.Fatal(i, present, err)
 			}
@@ -257,7 +257,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 				t.Fatal("NULL element not present NULL-member row")
 			}
 		}
-		if present, err := invocation.NextFrom(context.Background(), node.Calls, row); err != nil || present || !row[0].IsNull() || !row[1].IsNull() {
+		if present, err := invocation.NextFrom(context.Background(), node.Calls, row, nil); err != nil || present || !row[0].IsNull() || !row[1].IsNull() {
 			t.Fatal("exhaustion", present, err)
 		}
 		invocation.Close()
@@ -297,7 +297,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 				t.Fatal(err)
 			}
 			for i := range value.ArrayLen() + 1 {
-				present, err := invocation.NextFrom(ctx, node.Calls, nil)
+				present, err := invocation.NextFrom(ctx, node.Calls, nil, nil)
 				if err != nil || present != (i < value.ArrayLen()) {
 					t.Fatal("zero-field row presence", input, i, present, err)
 				}

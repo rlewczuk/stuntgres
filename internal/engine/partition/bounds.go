@@ -300,14 +300,14 @@ type EvaluatedKey struct {
 
 // AccumulateHash is the single released seeded scalar-key combination used by
 // both row routing and equality/NULL pruning. NULL contributes no hash datum.
-func AccumulateHash(ctx context.Context, key catalog.PartitionKeyEntry, value sqltype.Value, hash uint64) (uint64, error) {
+func AccumulateHash(ctx context.Context, key catalog.PartitionKeyEntry, value sqltype.Value, hash uint64, input sqltype.InputEnvironment) (uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	if value.IsNull() {
 		return hash, nil
 	}
-	hashed, err := key.Hash.Hash(ctx, value, 0x7a5b22367996dcfd)
+	hashed, err := key.Hash.HashWithEnvironment(ctx, value, 0x7a5b22367996dcfd, input)
 	if err != nil {
 		return 0, err
 	}
@@ -334,7 +334,7 @@ func RowKey(d *catalog.Relation, row []sqltype.Value, evaluation *exec.Context, 
 		result.Values[i] = catalog.PartitionDatum{Value: value}
 		result.anyNull = result.anyNull || value.IsNull()
 		if d.Partition.Strategy == parser.PartitionHash {
-			result.Hash, err = AccumulateHash(evaluation.Context, key, value, result.Hash)
+			result.Hash, err = AccumulateHash(evaluation.Context, key, value, result.Hash, evaluation.FunctionInput())
 			if err != nil {
 				return EvaluatedKey{}, err
 			}
@@ -380,14 +380,14 @@ func Accepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relatio
 		return false, err
 	}
 	if !child.Membership.DefaultBound {
-		return Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, child.Membership, key, evaluation.Input)
+		return Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, child.Membership, key, evaluation.FunctionInput())
 	}
 	for _, a := range parent.Partition.Children {
 		sibling := view.MustRelation(a)
 		if sibling.Membership.DefaultBound {
 			continue
 		}
-		contains, err := Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, sibling.Membership, key, evaluation.Input)
+		contains, err := Contains(evaluation.Context, context.Context.Err, parent.Partition.Keys, sibling.Membership, key, evaluation.FunctionInput())
 		if err != nil || contains {
 			return false, err
 		}
@@ -665,7 +665,7 @@ func CheckDefaultRows(ctx context.Context, evaluation *exec.Context, rows *visib
 				source.Close()
 				return err
 			}
-			contains, err := Contains(ctx, context.Context.Err, d.Parent.Partition.Keys, d.Bound, key, evaluation.Input)
+			contains, err := Contains(ctx, context.Context.Err, d.Parent.Partition.Keys, d.Bound, key, evaluation.FunctionInput())
 			if err != nil {
 				source.Close()
 				return err

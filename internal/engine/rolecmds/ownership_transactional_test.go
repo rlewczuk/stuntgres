@@ -94,16 +94,22 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	}
 	second := core.OwnershipStage(e, auth, op)
 	reader = auth.Roles.LookupRef("ownership_reader")
-	if err := role.StageOwnedCleanup(context.Background(), second, auth.Roles, auth.RoleRecord, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
+	cleanup, err := role.PrepareOwnedCleanup(context.Background(), second, auth.Roles, auth.RoleRecord, map[authorization.PrincipalRef]bool{reader: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = cleanup.Apply(context.Background(), second); err != nil {
 		t.Fatal(err)
 	}
 	// A source with no outgoing grant can have a nil second candidate; construct
 	// a genuine further deletion of an existing surviving edge for merge proof.
 	if second.RoleCandidateRecord == nil {
 		next := *auth.RoleRecord
-		request := &parser.RoleMembership{Revoke:true,Targets:[]parser.RoleSpec{{Name:"ownership_target"}},Members:[]parser.RoleSpec{{Name:"ownership_source"}}}
-		root, changed, _, err := authorization.MembershipCandidate(context.Background(),auth.Roles,authorization.RoleState{CurrentUser:bootstrap,SessionUser:bootstrap},request,nil,false,false)
-		if err != nil || !changed { t.Fatal("missing independent surviving fixture membership",err) }
+		request := &parser.RoleMembership{Revoke: true, Targets: []parser.RoleSpec{{Name: "ownership_target"}}, Members: []parser.RoleSpec{{Name: "ownership_source"}}}
+		root, changed, _, err := authorization.MembershipCandidate(context.Background(), auth.Roles, authorization.RoleState{CurrentUser: bootstrap, SessionUser: bootstrap}, request, nil, false, false)
+		if err != nil || !changed {
+			t.Fatal("missing independent surviving fixture membership", err)
+		}
 		next.Root = root
 		next.Revision++
 		second.RoleCandidateRecord = &next
@@ -531,7 +537,11 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 		}
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := role.StageOwnedCleanup(context.Background(), stage, e.RoleStore.Read(&e.Catalog.Owner, stage.Base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	cleanup, err := role.PrepareOwnedCleanup(context.Background(), stage, e.RoleStore.Read(&e.Catalog.Owner, stage.Base, roles), roles, map[authorization.PrincipalRef]bool{source: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = cleanup.Apply(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
 	journal := session.NewJournal()
@@ -542,7 +552,11 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 	check(private.MustRelation(address), false)
 	mark := journal.Clone()
 	second := e.BeginCatalogStage(private)
-	if err := role.StageOwnedCleanup(context.Background(), second, e.RoleStore.Read(&e.Catalog.Owner, private, roles), roles, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
+	secondCleanup, err := role.PrepareOwnedCleanup(context.Background(), second, e.RoleStore.Read(&e.Catalog.Owner, private, roles), roles, map[authorization.PrincipalRef]bool{reader: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = secondCleanup.Apply(context.Background(), second); err != nil {
 		t.Fatal(err)
 	}
 	child := journal.Clone()

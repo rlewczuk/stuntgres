@@ -9,6 +9,7 @@ import (
 
 func (b *Binder) ruleWholeRow(side parser.Identifier, pos parser.Position) (expr.Expr, error) {
 	d := b.Target.RuleNamespace.Relation
+	b.Target.WholeRowRead = true
 	fields := make([]expr.Expr, len(d.Columns))
 	typ, _ := b.BindingCatalog().LookupType(d.RowType)
 	var members []sqltype.CompositeMember

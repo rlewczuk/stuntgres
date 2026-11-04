@@ -73,6 +73,18 @@ func BindHashIndex(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 	if err != nil {
 		return b, err
 	}
+	if view.Owner().Sepgsql != nil {
+		equality, err := catalog.CaptureIndexEqualityCallback(view, usage, class)
+		if err != nil {
+			return b, err
+		}
+		if !routine.FmgrBuiltin(equality.Procedure) {
+			b.Provider, err = b.Provider.WithEqualityCallback(equality)
+			if err != nil {
+				return b, err
+			}
+		}
+	}
 	b.Usage, b.Class = usage, class
 	b.Derived = key.Derived
 	if key.Derived != nil {
@@ -152,7 +164,7 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 		if err := preparation.PrepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 			return nil, err
 		}
-		key, err := extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
+		key, err := preparation.ExtractKey(binding.Slot, binding.Expression, row.Values, evaluation, parent, d, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +177,7 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 			}
 			continue
 		}
-		h, err := binding.Provider.Hash(ctx, key)
+		h, err := binding.Provider.HashWithEnvironment(ctx, key, evaluation.FunctionInput())
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +273,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		if binding.Expression == nil && len(values) > binding.Slot {
 			key := values[binding.Slot]
 			if !key.IsNull() {
-				h, err := binding.Provider.Hash(ctx, key)
+				h, err := binding.Provider.HashWithEnvironment(ctx, key, evaluation.FunctionInput())
 				if err != nil {
 					return err
 				}
@@ -321,7 +333,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if err := preparation.PrepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 				return nil, err
 			}
-			key, err = extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
+			key, err = preparation.ExtractKey(binding.Slot, binding.Expression, row.Values, evaluation, parent, d, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -329,7 +341,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		if key.IsNull() {
 			continue
 		}
-		h, err := binding.Provider.Hash(ctx, key)
+		h, err := binding.Provider.HashWithEnvironment(ctx, key, evaluation.FunctionInput())
 		if err != nil {
 			return nil, err
 		}

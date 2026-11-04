@@ -14,7 +14,6 @@ import (
 const (
 	pgcryptoArmorEmpty   = "-----BEGIN PGP MESSAGE-----\n\n=twTO\n-----END PGP MESSAGE-----\n"
 	pgcryptoArmorTest    = "-----BEGIN PGP MESSAGE-----\n\ndGVzdA==\n=+G7Q\n-----END PGP MESSAGE-----\n"
-	pgcryptoArmorZooka   = "-----BEGIN PGP MESSAGE-----\nfoo: bar\n\nem9va2E=\n=D5cR\n-----END PGP MESSAGE-----\n"
 	pgcryptoArmorDigits  = "-----BEGIN PGP MESSAGE-----\n\nMTIzNDU2Nzg5\n=Ic8C\n-----END PGP MESSAGE-----\n"
 	pgcryptoArmorLong    = "-----BEGIN PGP MESSAGE-----\n\nMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmCjAxMjM0NTY3\nODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==\n=JFw5\n-----END PGP MESSAGE-----\n"
 	pgcryptoArmorBadBody = "-----BEGIN PGP MESSAGE-----\nComment: a\nVersion: b\n\n!not-base64!\n=ZZZZ\n-----END PGP MESSAGE-----\n"
@@ -69,38 +68,4 @@ func pgcryptoArmorBytes(query string, want []byte, args ...any) fixture.Step {
 		}
 	}
 	return s
-}
-
-func pgcryptoArmorHeaders(query string, want [][]any, args ...any) fixture.Step {
-	s := fixture.Select(query, []string{"key", "value"}, []string{"TEXT", "TEXT"}, want, args...)
-	s.Bag = true
-	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-		t.Helper()
-		columns, err := rows.ColumnTypes()
-		if err != nil || len(columns) != 2 {
-			t.Fatal("header metadata", columns, err)
-		}
-		for i, name := range []string{"key", "value"} {
-			if columns[i].Name() != name || columns[i].DatabaseTypeName() != "TEXT" {
-				t.Fatal("header column", columns[i])
-			}
-			if nullable, known := columns[i].Nullable(); nullable || known {
-				t.Fatal("computed source nullability", nullable, known)
-			}
-		}
-	}
-	return s
-}
-
-// Remaining diagnostic fields are independently expected absent. The mandatory
-// pinned-oracle checkpoint must resolve that expectation and execution stages.
-func pgcryptoArmorError(query, code, message string, args ...any) fixture.Step {
-	s := fixture.ImplicitError(query, fixture.Diagnostic{Code: code, Message: message}, args...)
-	s.SelectRows = true
-	s.ErrorStage = "execute"
-	return s
-}
-
-func pgcryptoArmorCorrupt(query string, args ...any) fixture.Step {
-	return pgcryptoArmorError(query, "39000", "Corrupt ascii-armor", args...)
 }

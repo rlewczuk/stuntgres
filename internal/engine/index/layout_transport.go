@@ -192,7 +192,7 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 				if same {
 					next.Gin = root.Gin
 				} else {
-					next.Gin, err = storage.BuildGin(evaluation.Context, bindings, root.Entries, evaluation.Input)
+					next.Gin, err = storage.BuildGin(evaluation.Context, bindings, root.Entries, evaluation.FunctionInput())
 					if err != nil {
 						return nil, false, err
 					}

@@ -1,9 +1,9 @@
 package table
 
 import (
+	"iter"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 )
 
 // SequenceOwnedBy is the canonical AUTO ownership match for both closure
@@ -16,39 +16,50 @@ func SequenceOwnedBy(relation *catalog.Relation, target ids.ObjectAddress) bool 
 	return owned.ClassID == target.ClassID && owned.ObjectID == target.ObjectID && (target.SubID == 0 || owned.SubID == target.SubID)
 }
 
-// OwnedSequences calls prepare, then removes, each sequence that a target of
-// the drop owns and the drop has not already removed.
-func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
-	for a, d := range provider.InputRelations() {
-		if provider.Removed(a) {
-			continue
-		}
-		if replacement := provider.Replacement(a); replacement != nil {
-			d = replacement
-		}
-		r, ok := d.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		remove := false
-		for _, target := range targets {
-			if SequenceOwnedBy(r, target) {
-				remove = true
-				break
+// SelectOwnedSequences is the canonical read-only AUTO selector. It changes no
+// liveness or metadata and yields the real current sequence and captured ref.
+func SelectOwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress) iter.Seq2[ids.ObjectRef, *catalog.Relation] {
+	return func(yield func(ids.ObjectRef, *catalog.Relation) bool) {
+		for a, d := range provider.InputRelations() {
+			if provider.Removed(a) {
+				continue
+			}
+			if replacement := provider.Replacement(a); replacement != nil {
+				d = replacement
+			}
+			r, ok := d.(*catalog.Relation)
+			if !ok {
+				continue
+			}
+			remove := false
+			for _, target := range targets {
+				if SequenceOwnedBy(r, target) {
+					remove = true
+					break
+				}
+			}
+			if !remove {
+				continue
+			}
+			ref := provider.BaseRef(a)
+			if !yield(ref, r) {
+				return
 			}
 		}
-		if !remove {
-			continue
-		}
-		ref := provider.BaseRef(a)
+	}
+}
+
+// OwnedSequences prepares and removes each actual selected sequence.
+func OwnedSequences(provider DropDependencyReader, targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
+	for ref, relation := range SelectOwnedSequences(provider, targets) {
 		if err := prepare(ref); err != nil {
 			return err
 		}
 		if err := provider.Remove(ref); err != nil {
 			return err
 		}
-		if r.Sequence.Identity {
-			provider.TombstoneIdentity(a)
+		if relation.Sequence.Identity {
+			provider.TombstoneIdentity(ref.Address)
 		}
 	}
 	return nil
@@ -61,17 +72,14 @@ func RemoveColumnSequences(provider DropDependencyReader, targets []ids.ObjectAd
 	return OwnedSequences(provider, targets, func(ids.ObjectRef) error { return nil })
 }
 
-// OwnedExpressionDependencies removes the sequences that targets own, after
-// the expression dependencies of each sequence. Foreign tables and inheritance
-// tables the drop already removed count as targets too.
-func OwnedExpressionDependencies(provider DropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) error {
-	var closure []ids.ObjectAddress
+// OwnedSequenceTargets extends only with this phase's authentic removed
+// foreign/hierarchy owners. An execution preparation may supply its captured
+// actual effect descriptors here without pretending those owners are removed.
+func OwnedSequenceTargets(base catalog.Read, targets []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []ids.ObjectAddress {
 	extended := false
-	// Include removed foreign and hierarchy owners, not unrelated removals staged
-	// by an earlier pass. Ordinary column projection retains its existing ordering.
-	for address, descriptor := range provider.RemovalDescriptors() {
+	for address, descriptor := range removals {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || relation.RelationKind != catalog.ForeignRelation && (relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.BaseRead(), relation)) {
+		if !ok || relation.RelationKind != catalog.ForeignRelation && (relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(base, relation)) {
 			continue
 		}
 		present := false
@@ -86,18 +94,5 @@ func OwnedExpressionDependencies(provider DropDependencyReader, targets []ids.Ob
 			targets = append(targets, address)
 		}
 	}
-	return OwnedSequences(provider, targets, func(ref ids.ObjectRef) error {
-		if closure == nil {
-			closure = make([]ids.ObjectAddress, len(targets)+1)
-			copy(closure, targets)
-		}
-		closure[len(targets)] = ref.Address
-		if err := provider.ExpressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
-			return err
-		}
-		if provider.StatementBound() {
-			return provider.Acquire(ref, false)
-		}
-		return nil
-	})
+	return targets
 }

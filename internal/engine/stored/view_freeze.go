@@ -81,6 +81,8 @@ func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 		leaf.Ref, leaf.Mark, leaf.Only = source.Ref, source.Mark, source.Only
 		leaf.AnalysisOnly = source.AnalysisOnly
 		leaf.SystemAttributeRead = source.SystemAttributeRead
+		leaf.SystemColumns = append([]int32(nil), source.SystemColumns...)
+		leaf.WholeRowRead = source.WholeRowRead
 		leaf.Attributes = append([]int32(nil), source.Relation.Attributes...)
 		for _, slot := range source.Uses {
 			leaf.Reads = append(leaf.Reads, source.Relation.Attributes[slot])

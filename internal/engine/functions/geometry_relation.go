@@ -47,6 +47,11 @@ func (e GeometryRelation) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
+	body, err := e.EnterRoutine(c, values[:e.Plan.Operation().Arity()])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return e.Plan.Evaluate(ctx, values)
 }
 func (e GeometryRelation) Children() []expr.Expr { return e.Args[:e.Plan.Operation().Arity()] }

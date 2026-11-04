@@ -394,7 +394,7 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 		if capture.ReadLease != nil {
 			capture.ReadLease.Open()
 		}
-		h, err := capture.Root.Binding.Provider.Hash(ctx, value)
+		h, err := capture.Root.Binding.Provider.HashWithEnvironment(ctx, value, evaluation.FunctionInput())
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +421,7 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 					return nil, fmt.Errorf("stuntgres: incomplete hash candidate visibility")
 				}
 			}
-			equal, err := capture.Root.Binding.Provider.Equal(ctx, entry.Key, value)
+			equal, err := capture.Root.Binding.Provider.EqualWithEnvironment(ctx, entry.Key, value, evaluation.FunctionInput())
 			if err != nil {
 				return nil, err
 			}
@@ -444,7 +444,9 @@ type Leaf struct {
 	Principal           authorization.PrincipalRef // Relation authority, not expression/session identity.
 	FrozenAttributes    []int32                    // Execution-owned stored-view subquery layout.
 	Uses                []int
-	SystemAttributeRead bool // Requires whole-table SELECT; Uses stays dense ordinary indices.
+	SystemAttributeRead bool    // Requires whole-table SELECT; Uses stays dense ordinary indices.
+	SystemColumns       []int32 // Exact signed system attributes selected by this occurrence.
+	WholeRowRead        bool    // Preserve a genuine whole-row Var through child permission mapping.
 	Mark                plan.RowMark
 	Query               *parser.Select
 	Table               *parser.TableReference

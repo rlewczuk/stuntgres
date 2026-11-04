@@ -2,6 +2,7 @@ package stored
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -40,7 +41,7 @@ func (v *View) systemAttributeSource(read catalog.Read, column analyze.ViewColum
 	if v.consumer != (ids.ObjectAddress{}) {
 		consumer, _ = read.Relation(v.consumer)
 	}
-	if !ok || leaf.Ref != column.Owner || !leaf.SystemAttributeRead || !relation.HasSystemAttributes() || !ViewReferenceValid(read, consumer, column.Owner) {
+	if !ok || leaf.Ref != column.Owner || !leaf.SystemAttributeRead || !slices.Contains(leaf.SystemColumns, column.SystemAttribute) || !relation.HasSystemAttributes() || !ViewReferenceValid(read, consumer, column.Owner) {
 		return nil, fmt.Errorf("stuntgres: invalid frozen tableoid owner")
 	}
 	return source, nil

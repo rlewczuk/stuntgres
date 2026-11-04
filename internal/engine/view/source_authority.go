@@ -61,11 +61,11 @@ func AuthorizeSource(a access.View, env RelationAdmission, ref ids.ObjectRef, de
 			return err
 		}
 		if leaf.SystemAttributeRead {
-			if err := a.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege}); err != nil {
+			if err := a.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege, Inherit: !leaf.Only}); err != nil {
 				return err
 			}
 		}
-		if err := a.CheckColumns(env, use, source, authorization.SelectPrivilege, indices); err != nil {
+		if err := a.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege, ColumnDemand: true, Columns: indices, SystemColumns: leaf.SystemColumns, WholeRow: leaf.WholeRowRead, Inherit: !leaf.Only}); err != nil {
 			return err
 		}
 	}
@@ -160,12 +160,12 @@ func checkRowMarksExpanded(a access.View, env access.Environment, d *catalog.Rel
 			return err
 		}
 		request := DefinitionReadRequirement(use, child, indices)
-		if err := a.CheckColumns(env, request.Ref, request.Relation, request.Privilege, request.Columns); err != nil {
+		if err := a.Check(env, request.AccessRequirement()); err != nil {
 			return err
 		}
-		source := exec.Leaf{Ref: use, Relation: child, Mark: mark}
+		source := exec.Leaf{Ref: use, Relation: child, Mark: mark, Only: leaf.Only}
 		if err := analyze.SourceRowMarkRequirements(&source, func(req analyze.Requirement) error {
-			return a.CheckColumns(env, req.Ref, req.Relation, req.Privilege, req.Columns)
+			return a.Check(env, req.AccessRequirement())
 		}); err != nil {
 			return err
 		}

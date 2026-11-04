@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -27,6 +28,26 @@ func TestQuerySystemAttributeBinding(t *testing.T) {
 			n := node.(plan.SystemAttributeExpr)
 			if n.SubID != tc.subID || n.ResultUsage().Type.ID() != tc.typeID || n.QueryOccurrence != 2 || n.Frame != 4 || !n.Properties().RowDependent || !b.Query.Sources[1].SystemAttributeRead || len(b.Query.Sources[1].Uses) != 0 || len(ns.Frame) != 0 {
 				t.Fatal("typed source identity changed dense schema", n)
+			}
+			if !slices.Equal(b.Query.Sources[1].SystemColumns, []int32{tc.subID}) || len(b.Query.Sources[0].SystemColumns) != 0 || b.Query.Sources[1].WholeRowRead {
+				t.Fatal("system demand lost exact source or expanded whole row", b.Query.Sources)
+			}
+			if _, err := b.querySystemAttribute(tc.name, ns, &ns.Qualifiers[1], nil, 4, pos); err != nil || len(b.Query.Sources[1].SystemColumns) != 1 {
+				t.Fatal("repeated system read duplicated demand", err)
+			}
+			whole, columns := false, false
+			if err := SourceReadRequirements(&b.Query.Sources[1], func(r Requirement) error {
+				if r.WholeRelation {
+					whole = true
+				} else {
+					columns = true
+					if !slices.Equal(r.SystemColumns, []int32{tc.subID}) || r.WholeRow || len(r.Columns) != 0 {
+						t.Fatal("system MAC demand became another attribute or whole row", r)
+					}
+				}
+				return nil
+			}); err != nil || !whole || !columns {
+				t.Fatal("missing independent system ACL/MAC requirements", err)
 			}
 			found := false
 			for _, dep := range b.Dependencies {
@@ -88,22 +109,26 @@ func TestQuerySystemAttributeTargetAuthority(t *testing.T) {
 	if n.QueryOccurrence != 0 || n.Scope != 1 || n.Frame != 1 || !b.Target.SystemAttributeRead || !b.Target.returningReadRequired || len(b.Target.Uses) != 0 {
 		t.Fatal("target became a FROM source or ordinary attribute", n)
 	}
-	binding := Binding{Ref: b.Target.Ref, Relation: b.Target.Relation, SystemAttributeRead: true, Returning: &Returning{ReadRequired: true}}
+	binding := Binding{Ref: b.Target.Ref, Relation: b.Target.Relation, SystemAttributeRead: true, SystemColumns: b.Target.SystemColumns, Returning: &Returning{ReadRequired: true}}
 	for _, stmt := range []parser.Statement{&parser.Insert{}, &parser.Update{}, &parser.Delete{}} {
-		selected := false
+		whole, columns := false, false
 		if err := BindingRequirements(binding, stmt, func(r Requirement) error {
 			if r.Privilege == authorization.SelectPrivilege {
-				selected = true
-				if !r.WholeRelation || len(r.Columns) != 0 {
-					t.Fatal("system target read accepted column-only authority", r)
+				if r.WholeRelation {
+					whole = true
+				} else {
+					columns = true
+					if !slices.Equal(r.SystemColumns, []int32{-1}) || r.WholeRow || len(r.Columns) != 0 {
+						t.Fatal("target system MAC demand lost exact attribute", r)
+					}
 				}
 			}
 			return nil
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if !selected {
-			t.Fatal("missing target SELECT requirement", stmt)
+		if !whole || !columns {
+			t.Fatal("missing independent target SELECT and system-column requirements", stmt)
 		}
 	}
 	if plan.GenerationImmutable(n) || plan.GenerationHasTableOID(n) {

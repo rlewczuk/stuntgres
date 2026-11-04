@@ -108,7 +108,7 @@ func TestOperatorFamilyMemberPhases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := &familyAdmissionHost{view: view}
-			err := stageFamilyMembers(h, nil, tc.family, &parser.AlterOperatorFamily{Action: tc.action, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "probe"}}}, Items: tc.items})
+			err := stageFamilyMembers(h, nil, tc.family, &parser.AlterOperatorFamily{Action: tc.action, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "probe"}}}, Items: tc.items}, catalog.BtreeMethod)
 			diag, ok := err.(*sqlstate.Error)
 			if !ok || diag.Code != tc.code || diag.Message != tc.message {
 				t.Fatalf("diagnostic = %#v, want %s %q", err, tc.code, tc.message)

@@ -111,7 +111,7 @@ func RepairRemappedHash(ctx context.Context, evaluation *exec.Context, authority
 					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := Contains(ctx, context.Context.Err, destination.Partition.Keys, child.Membership, key, evaluation.Input)
+					contains, err := Contains(ctx, context.Context.Err, destination.Partition.Keys, child.Membership, key, evaluation.FunctionInput())
 					if err != nil {
 						return HashRepair{}, err
 					}

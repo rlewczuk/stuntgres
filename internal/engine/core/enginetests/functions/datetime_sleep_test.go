@@ -79,14 +79,21 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		binder := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		binder := core.NewExpressionBinder(ctx, e, scope.Input, op, nil)
 		wait, err := binder.BindFunction(enginetest.FunctionCall("pg_sleep", enginetest.TypedLiteral("float8", "Infinity")))
 		if err != nil {
 			t.Fatal(err)
 		}
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		e.Mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope.RoutineAuth, scope.RoutineDependencies = auth, binder.Dependencies
 		done := make(chan error, 1)
 		go func() {
-			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope)}})
+			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}})
 			done <- err
 		}()
 		datetimeSleepCleanupAdmission(t, done)

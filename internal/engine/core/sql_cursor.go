@@ -122,6 +122,8 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.exportCapture = nil
 	if c.authority != nil {
 		c.authority.Host = nil
+		c.authority.RoutineInitialization = exec.RoutineInitialization{}
+		c.authority.RoutineCatalog = catalog.Read{}
 		c.authority.Expression = nil
 	}
 	if c.cleanupError == nil {
@@ -233,6 +235,8 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		s.authority.Host = nil
+		s.authority.RoutineInitialization = exec.RoutineInitialization{}
+		s.authority.RoutineCatalog = catalog.Read{}
 		if !keep {
 			source.Close()
 		}
@@ -484,6 +488,9 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 			err = plCleanupFailure(err, c.failProducer(s.Op.Context()), nil)
 		}
 		c.authority.Host = nil
+		c.state.DetachRoutineInitialization()
+		c.authority.RoutineInitialization = exec.RoutineInitialization{}
+		c.authority.RoutineCatalog = catalog.Read{}
 	}()
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err

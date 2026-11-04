@@ -12,13 +12,14 @@ import (
 // the output environment for index expressions. Index DDL and the features
 // that build indexes write it.
 type Stage struct {
-	Progress   ProgressBinding
-	Rebuilds   map[ids.ObjectAddress]*catalog.Relation
-	Candidates map[ids.ObjectAddress]RootCandidate
-	Layouts    map[ids.ObjectAddress]LayoutLineage
-	Parents    map[ids.ObjectAddress]*catalog.Relation
-	Sets       map[ids.ObjectAddress]int
-	Output     sqltype.OutputEnvironment
+	Progress        ProgressBinding
+	Rebuilds        map[ids.ObjectAddress]*catalog.Relation
+	Candidates      map[ids.ObjectAddress]RootCandidate
+	Layouts         map[ids.ObjectAddress]LayoutLineage
+	Parents         map[ids.ObjectAddress]*catalog.Relation
+	Sets            map[ids.ObjectAddress]int
+	Output          sqltype.OutputEnvironment
+	ConstraintDrops []*ConstraintDropPlan
 }
 
 // DescriptorStage is what staging an index descriptor writes through:

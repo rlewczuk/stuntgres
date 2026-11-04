@@ -16,9 +16,13 @@ func (h *statementHost) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 }
 
 func (h *statementHost) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
-	procedure, err := h.scope().conversionProcedure(source, destination)
-	if err != nil || procedure == nil {
+	selected, err := h.scope().conversionSelection(source, destination)
+	if err != nil || selected.procedure == nil {
 		return nil, err
 	}
-	return &procedure.Conversion, nil
+	handler, err := selectedConversionHandler(h.scope().Inquiry.visibilityCatalog, selected)
+	if err != nil {
+		return nil, err
+	}
+	return &handler, nil
 }

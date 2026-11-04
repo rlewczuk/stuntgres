@@ -38,6 +38,11 @@ func (c *Context) EvalAmcheck(n plan.InstalledAmcheckExpr) (sqltype.Value, error
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
+	body, err := n.EnterRoutine(c, values[:len(n.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	auth, dependencies, err := RoutineAdmissionAuthority(c)
 	if err != nil {
 		return sqltype.Value{}, err

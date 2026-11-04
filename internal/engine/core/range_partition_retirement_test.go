@@ -91,13 +91,18 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")
 	}
+	drop := core.StageDropProvider(context.Background(), stage, nil, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies([]ids.ObjectAddress{provider.Address()}, parser.DropCascade, ids.ObjectAddress{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil {
 		t.Fatal(err)
 	}
-	if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := drop.ApplyExpressionDependencies(dependencies); err != nil {
 		t.Fatal(err)
 	}
-	if err := core.StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"rp_retire_provider", "rp_retire_root", "rp_retire_mid", "rp_retire_leaf", "rp_retire_other", "rp_retire_leaf_v_key", "rp_retire_other_v_key", "rp_retire_index", "rp_retire_other_index", "rp_retire_seq", "rp_retire_leaf_seq", "rp_retire_other_seq", "rp_retire_view"} {
@@ -228,10 +233,15 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	provider, _ := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	drop := core.StageDropProvider(context.Background(), stage, nil, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies([]ids.ObjectAddress{provider.Address()}, parser.DropCascade, ids.ObjectAddress{})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := core.StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := drop.ApplyExpressionDependencies(dependencies); err != nil {
+		t.Fatal(err)
+	}
+	if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		t.Fatal(err)
 	}
 	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)

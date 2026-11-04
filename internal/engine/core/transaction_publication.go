@@ -94,6 +94,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		emptyFence:
 			e.Mu.Lock()
 			if scope != nil {
+				if err := scope.validateSepgsqlObservations(e.Catalog.State); err != nil {
+					e.Mu.Unlock()
+					return err
+				}
+			}
+			if scope != nil {
 				if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
 					e.Mu.Unlock()
 					return err
@@ -233,6 +239,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if publicationGinRevision(ref, phase) != ginRevision {
 			e.Mu.Unlock()
 			continue
+		}
+		if scope != nil {
+			if err := scope.validateSepgsqlObservations(e.Catalog.State); err != nil {
+				e.Mu.Unlock()
+				return err
+			}
 		}
 		if ref.Epoch() != e.Catalog.State.Epoch() {
 			e.Mu.Unlock()
@@ -481,6 +493,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 	publicationFence:
 		sess := op.Session
 		e.Mu.Lock()
+		if scope != nil {
+			if err := scope.validateSepgsqlObservations(e.Catalog.State); err != nil {
+				e.Mu.Unlock()
+				return err
+			}
+		}
 		if scope != nil {
 			if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
 				e.Mu.Unlock()

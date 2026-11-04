@@ -63,7 +63,15 @@ func (b *Binder) comparisonInfo(left, right expr.Expr) (expr.Info, error) {
 	if err := b.captureComparisonDiagnosticInput(right.ResultUsage().Type); err != nil {
 		return expr.Info{}, err
 	}
-	return comparisonInfo(b.BindingCatalog(), left, right)
+	info, err := comparisonInfo(b.BindingCatalog(), left, right)
+	if err != nil {
+		return expr.Info{}, err
+	}
+	// This is a new selected comparison occurrence. Preserve its coherent
+	// collation facts, but mint identity through the same binder owner as calls.
+	selected := b.Info(info.Usage, info.Pos, info.Property)
+	info.Source, info.Occurrence = selected.Source, selected.Occurrence
+	return info, nil
 }
 
 func (b *Binder) likeOperand(o ComparisonOperand, target *sqltype.Descriptor) (expr.Expr, error) {

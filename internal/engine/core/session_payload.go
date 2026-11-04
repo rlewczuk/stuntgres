@@ -17,23 +17,23 @@ import (
 // Session.payload before the session is shared; the slot never changes.
 // Each field keeps the lock discipline it had as a Session field.
 type sessionPayload struct {
-	allocation     *sessionAllocation // Immutable enclosing backing owner; set before publication.
-	admission      *DatabaseAdmission // Terminal Unregister owns its once-only release.
-	Cursors        *cursorRegistry
-	PreparedSQL    *PreparedRegistry
-	sqlRoutines    map[ids.ObjectAddress]sqlRoutineAnalysis
-	Sequences      sequence.SessionMemory
-	notifications  session.NotificationListener
-	externalSQL    *remote.Owner            // Physical command admission serializes initial attachment.
-	thesaurusMemos tsearch.ThesaurusMemos   // Engine.Mu; this session's successful initializations.
-	statsWriter    statistics.Writer        // Transaction admission serializes collection and drains.
-	statsStopped   ids.TxRef                // Prevents failed-block cleanup from stamping the same stop twice.
-	statsReader    statistics.Reader        // Cleared at every transaction terminal boundary.
-	statsFlush     statsFlushSlot           // Session.Mu; callbacks use nonblocking transaction admission.
-	origin         replicationOriginSession // Engine.Mu; physical, never journaled.
-	statsPublic    bool                     // Immutable successful public-registration identity.
-	statsOutcome   ids.TxRef                // Admission-owned once-only top transaction outcome.
-	statsSession   statistics.SessionUsage
+	allocation      *sessionAllocation // Immutable enclosing backing owner; set before publication.
+	admission       *DatabaseAdmission // Terminal Unregister owns its once-only release.
+	Cursors         *cursorRegistry
+	PreparedSQL     *PreparedRegistry
+	sqlRoutines     map[ids.ObjectAddress]sqlRoutineAnalysis
+	Sequences       sequence.SessionMemory
+	notifications   session.NotificationListener
+	externalSQL     *remote.Owner            // Physical command admission serializes initial attachment.
+	dictionaryMemos tsearch.DictionaryMemos  // Engine.Mu; this session's successful initializations.
+	statsWriter     statistics.Writer        // Transaction admission serializes collection and drains.
+	statsStopped    ids.TxRef                // Prevents failed-block cleanup from stamping the same stop twice.
+	statsReader     statistics.Reader        // Cleared at every transaction terminal boundary.
+	statsFlush      statsFlushSlot           // Session.Mu; callbacks use nonblocking transaction admission.
+	origin          replicationOriginSession // Engine.Mu; physical, never journaled.
+	statsPublic     bool                     // Immutable successful public-registration identity.
+	statsOutcome    ids.TxRef                // Admission-owned once-only top transaction outcome.
+	statsSession    statistics.SessionUsage
 }
 
 func (*sessionPayload) PayloadSlot() {}

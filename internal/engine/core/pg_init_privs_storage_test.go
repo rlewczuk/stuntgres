@@ -171,16 +171,46 @@ func pgInitPrivsColumnRetirement(t *testing.T) {
 	next.Columns = next.Columns[:1]
 	next.Attributes = next.Attributes[:1]
 	next.Index = map[string]int{"a": 0}
-	retirement := catalog.NewCandidate(base.WithState(retained))
-	if err := retirement.Replace(&next); err != nil {
-		t.Fatal(err)
-	}
-	result := retirement.State()
-	if result.InitialPrivilege(column) != nil || result.InitialPrivilege(relation.Address()) != retained.InitialPrivilege(relation.Address()) || retained.InitialPrivilege(column) == nil {
-		t.Fatal("relation replacement failed precise sparse column retirement")
-	}
-	if err := catalog.ValidateInitialPrivileges(f.e.Roles(), base.WithState(result)); err != nil {
-		t.Fatal("valid remaining object snapshot rejected", err)
+	for _, staged := range []bool{false, true} {
+		name := "base_predecessor"
+		if staged {
+			name = "private_predecessor"
+		}
+		t.Run(name, func(t *testing.T) {
+			retirement := catalog.NewCandidate(base.WithState(retained))
+			replacement := next
+			extra := relation.Address()
+			extra.SubID = 5
+			if staged {
+				previous := *relation
+				previous.ObjectRevision++
+				previous.Columns = append(append([]catalog.Column(nil), relation.Columns...), catalog.Column{Name: "c", Usage: typ.Usage()})
+				previous.Attributes = []int32{1, 3, 5}
+				previous.Index = map[string]int{"a": 0, "b": 1, "c": 2}
+				if err := retirement.Replace(&previous); err != nil {
+					t.Fatal(err)
+				}
+				retirement.RecordInitialPrivilege(extra, 'i', acl)
+				replacement.ObjectRevision++
+			}
+			if err := retirement.Replace(&replacement); err != nil {
+				t.Fatal(err)
+			}
+			result := retirement.State()
+			if result.InitialPrivilege(column) != nil || result.InitialPrivilege(relation.Address()) != retained.InitialPrivilege(relation.Address()) || retained.InitialPrivilege(column) == nil {
+				t.Fatal("relation replacement failed precise sparse column retirement")
+			}
+			if result.InitialPrivilege(extra) != nil {
+				t.Fatal("replacement did not retire a column introduced by its genuine private predecessor")
+			}
+			tombstone, changed := maps.Collect(retirement.InitialPrivileges())[column]
+			if !changed || tombstone != nil || maps.Collect(retirement.InitialReads())[column] != retained.InitialPrivilege(column) {
+				t.Fatal("column retirement lost its explicit tombstone or historical predecessor")
+			}
+			if err := catalog.ValidateInitialPrivileges(f.e.Roles(), base.WithState(result)); err != nil {
+				t.Fatal("valid remaining object snapshot rejected", err)
+			}
+		})
 	}
 }
 

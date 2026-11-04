@@ -86,7 +86,10 @@ func TestRegTSProviderResolution(t *testing.T) {
 			t.Fatal("text-search numeric category", alias)
 		}
 	}
-	path := core.EffectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
+	path, err := core.EffectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(path) != 3 || path[1] != namespaces[1] {
 		t.Fatal("TEMP text-search path isolation", path)
 	}

@@ -102,19 +102,19 @@ func TestCreateAggregateSupportActorPhases(t *testing.T) {
 	original := exec.RoutineProgram{Calls: []exec.RoutineCall{call}}
 	authority := exec.RoutineAccess{View: auth.View, Env: auth}
 	var phase exec.RoutineProgram
-	if err = phase.InitializePhase(&original, authority); err != nil {
+	if err = phase.InitializePhase(&original, authority, exec.CallerInitialization); err != nil {
 		t.Fatal("phase replaced support owner with body invoker", err)
 	}
 	if len(phase.Calls) != 1 || phase.Calls[0].Actor != aggregate.Owner {
 		t.Fatal("lost support actor policy", phase.Calls)
 	}
-	if err = phase.Readmit(authority); err != nil {
+	if err = phase.Readmit(authority, exec.ConsumedGraphRevalidation); err != nil {
 		t.Fatal("owner support readmission", err)
 	}
 	call.SupportAggregate = nil
 	ordinary := exec.RoutineProgram{Calls: []exec.RoutineCall{call}}
 	var denied exec.RoutineProgram
-	err = denied.InitializePhase(&ordinary, authority)
+	err = denied.InitializePhase(&ordinary, authority, exec.CallerInitialization)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "42501" {
 		t.Fatal("ordinary caller accidentally borrowed aggregate owner", err)

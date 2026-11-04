@@ -91,3 +91,37 @@ func TestRestoreAdmitsExtensionReplay(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoreAdmitsSepgsqlLabels(t *testing.T) {
+	for _, tc := range []struct {
+		query       string
+		requirement bool
+		admitted    bool
+	}{
+		{query: "SECURITY LABEL ON TABLE public.t IS 'P'"},
+		{query: "SECURITY LABEL FOR selinux ON TABLE public.t IS 'P'"},
+		{query: "SECURITY LABEL ON TABLE public.t IS 'P'", requirement: true},
+		{query: "SECURITY LABEL FOR other ON TABLE public.t IS 'P'", requirement: true},
+		{query: "SECURITY LABEL FOR selinux ON TABLE public.t IS 'P'", requirement: true, admitted: true},
+		{query: "SECURITY LABEL FOR selinux ON VIEW information_schema.applicable_roles IS 'P'", requirement: true, admitted: true},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			statements, err := parser.Parse(tc.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := new(restoreRun)
+			if tc.requirement {
+				r.sepgsqlRequirement = &control.SepgsqlRequirement{ID: "policy", Version: "1", Database: "source"}
+			}
+			got, err := admitRestoreSepgsqlLabel(r, nil, statements[0])
+			want := control.NotHandled
+			if tc.admitted {
+				want = control.Admitted
+			}
+			if err != nil || got != want {
+				t.Fatal("provider-specific Restore admission", got, err, want)
+			}
+		})
+	}
+}

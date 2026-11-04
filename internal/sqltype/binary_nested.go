@@ -282,10 +282,10 @@ func (d *Descriptor) binaryRange(ctx context.Context, p []byte, env InputEnviron
 		var err error
 		if d.customRange != nil {
 			var value Value
-			value, err = d.rangeFromTypedBounds(ctx, lower, upper, datum.flags, false)
+			value, err = d.rangeFromTypedBounds(ctx, lower, upper, datum.flags, false, env)
 			datum = value.rangeDatum
 		} else {
-			datum, err = d.canonicalRange(ctx, datum, false)
+			datum, err = d.canonicalRange(ctx, datum, false, env)
 		}
 		if err != nil {
 			return Value{}, 0, err
@@ -358,7 +358,7 @@ func (d *Descriptor) binaryMultirange(ctx context.Context, p []byte, env InputEn
 	if r.at != len(p) {
 		return Value{}, 0, failure("08P01", "invalid message format")
 	}
-	members, err = d.multirangeRange.normalizeRangeMembers(ctx, members)
+	members, err = d.multirangeRange.normalizeRangeMembers(ctx, members, env)
 	if err != nil {
 		return Value{}, 0, err
 	}

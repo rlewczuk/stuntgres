@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -58,6 +60,23 @@ type Host interface {
 	// original dependency manifest. Reads statement-owned fields only; fails
 	// once the statement has finished.
 	RoutineAdmission() (RoutineAccess, []catalog.ExpressionDependency, error)
+	RoutineInvocationAuthority() (access.View, error)
+	EnterNativeRoutine(*catalog.Procedure) (sqltype.RoutineBodyToken, error)
+	EnterNativeAggregateSupport(*catalog.Procedure, *catalog.Procedure) (sqltype.RoutineBodyToken, error)
+	EnterTypeIOCallback(catalog.TypeIOCallback) (sqltype.RoutineBodyToken, error)
+	EnterEncodingConversionCallback(catalog.EncodingConversionCallback) (sqltype.RoutineBodyToken, error)
+	EnterDirectRoutine(*catalog.Procedure, ids.ObjectRef) (sqltype.RoutineBodyToken, error)
+	InitializeDirectRoutine(RoutineInitialization, DirectRoutineInitializationSite) error
+	ValidateDirectRoutineInitialization(RoutineInitialization, DirectRoutineInitializationSite) error
+	EnterGroupingCallback(catalog.GroupingRoutineCallback) (sqltype.RoutineBodyToken, error)
+	EnterIndexSupportCallback(catalog.IndexRoutineCallback) (sqltype.RoutineBodyToken, error)
+	NewRoutineInitialization() (RoutineInitialization, error)
+	DefaultRoutineInitialization(DefaultInitializationSource, bool) (RoutineInitialization, error)
+	NativeBodyRoutineInitialization(RoutineInitializationCall, RoutineInitializationPhase) (RoutineInitialization, error)
+	InitializeRoutineCall(RoutineInitialization, RoutineInitializationSite, authorization.PrincipalRef) error
+	ValidateRoutineInitialization(RoutineInitialization, RoutineInitializationSite) (authorization.PrincipalRef, error)
+	ValidateRoutineInitializationOwner(RoutineInitialization, catalog.Read) error
+	SealRoutineInitialization(RoutineInitialization, catalog.Read) (ClosedRoutineInitialization, error)
 	// Actual ALTER index targets are selected by the existing index pipeline;
 	// snapshot admission happens before any of their executable recipes open.
 	PrepareUtilityIndexSnapshot(catalog.Read, []*catalog.Relation) error
@@ -140,8 +159,8 @@ type Host interface {
 	FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error)
 	FunctionRegexExecution() *sqltype.PGRegexExecution
 	// plan.Runtime
-	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *AcceptedDefaultInvocation) (sqltype.Value, error)
-	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error)
+	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *AcceptedDefaultInvocation, initialized RoutineInitializationCall) (sqltype.Value, error)
+	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, initialized RoutineInitializationCall) ([]sqltype.Value, error)
 	PrepareAcceptedDefault(*Context, *catalog.Relation, FoldOrigin, DefaultPreparationPolicy) (expr.Expr, *AcceptedDefault, bool, error)
 	MapXMLRows(*Context, functions.XMLMappingOperation, [5]sqltype.Value, *sqltype.Descriptor, sqltype.OutputEnvironment) (sqltype.Value, error)
 	OpenExtensionPaths(c *Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error)
@@ -169,6 +188,7 @@ type PresentationFormatters interface {
 type EvaluationCapture struct {
 	Input        sqltype.InputEnvironment
 	Output       sqltype.OutputEnvironment
+	Routines     ClosedRoutineInitialization // Immutable exact-source proof; no live observer or session.
 	Presentation PresentationFormatters
 	// FlushDiagnostics is called once by the coordinator after workers join,
 	// including failure/cancellation. Derived states never flush their owner.

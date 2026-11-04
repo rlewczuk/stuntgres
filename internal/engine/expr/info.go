@@ -61,8 +61,33 @@ func (i Info) CollationIndeterminate() bool                       { return i.Col
 func (i Info) ExplicitCollation() parser.Position                 { return i.CollationExplicit }
 func (i Info) CallRoutineReference() RoutineReference             { return i.RoutineReference }
 func (i Info) CallRoutineRecipeReference() RoutineRecipeReference { return i.RoutineRecipeReference }
-func (i Info) FoldOccurrence() uint32                             { return i.Occurrence }
-func (i Info) FoldSource() FoldSourceOccurrence                   { return i.Source }
+
+// EnterRoutine is called only at an owning kernel's actual postargument body
+// boundary. Internal suboperations without a selected declaration are not calls.
+func (i Info) EnterRoutine(c Context, inputs []sqltype.Value) (sqltype.RoutineBodyToken, error) {
+	if i.RoutineReference == nil {
+		return sqltype.RoutineBodyToken{}, nil
+	}
+	return c.FunctionEnterRoutine(i.RoutineReference, i.RoutineRecipeReference, i.RoutineBodyInputs(inputs))
+}
+
+// RoutineBodyInputs copies entry value facts without retaining the argument
+// buffer. Source-specific fused owners may add their retained demand facts.
+func (i Info) RoutineBodyInputs(inputs []sqltype.Value) RoutineBodyInputs {
+	facts := RoutineBodyInputs{Count: len(inputs), Occurrence: i.Occurrence, Source: i.Source}
+	if len(inputs) != 0 {
+		facts.First = inputs[0].Type()
+	}
+	if len(inputs) > 1 {
+		facts.Second = inputs[1].Type()
+	}
+	for at := range inputs {
+		facts.HasNull = facts.HasNull || inputs[at].IsNull()
+	}
+	return facts
+}
+func (i Info) FoldOccurrence() uint32           { return i.Occurrence }
+func (i Info) FoldSource() FoldSourceOccurrence { return i.Source }
 func (i Info) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position) {
 	return i.CollationLeft, i.CollationRight, i.CollationConflictPos
 }

@@ -14,6 +14,9 @@ func (c *Context) EvalPgsurgery(n plan.InstalledPgsurgeryExpr) (sqltype.Value, e
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
+	// The initialization receipt belongs to the selected expression, not the
+	// current descriptor substituted below for the physical surgery kernel.
+	info := n.Info
 	view := preparation.DomainCatalog(c)
 	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Address != n.Procedure.Address() || !preparation.StoredReferenceValid(view, c.RoutineConsumer, n.Ref) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed pg_surgery reference")
@@ -60,6 +63,14 @@ func (c *Context) EvalPgsurgery(n plan.InstalledPgsurgeryExpr) (sqltype.Value, e
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
+	// STRICT suppresses actual fmgr entry, not the earlier executor execute
+	// admission. Surgery itself owns target/method/owner checks and effects;
+	// it is not a SQL UPDATE and has no executor table-write hook.
+	body, err := info.EnterRoutine(c, values[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	oid, err := values[0].ClassOID()
 	if err != nil {
 		return sqltype.Value{}, err

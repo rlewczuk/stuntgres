@@ -131,6 +131,7 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 			return core.Result{}, err
 		}
 	}
+	changes.RecordCandidateDefaults(e.Catalog.State, &stage.Candidate)
 	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)
 	}

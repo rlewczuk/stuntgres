@@ -107,18 +107,25 @@ func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Ope
 		if err := scope.AcquirePartitionDropLocks(ref); err != nil {
 			return core.Result{}, err
 		}
-		if err := stage.Remove(ref); err != nil {
-			return core.Result{}, err
-		}
 	}
 	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	if err := scope.StageExpressionDependents(stage, targets, s.Mode, changes); err != nil {
+	drop := core.StageDropProvider(op.Context(), stage, scope, changes, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(targets, s.Mode, ids.ObjectAddress{})
+	if err != nil {
 		return core.Result{}, err
 	}
-	if err := scope.StageOwnedSequences(stage, targets, s.Mode, changes); err != nil {
+	for _, ref := range refs {
+		if err := stage.Remove(ref); err != nil {
+			return core.Result{}, err
+		}
+	}
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
+		return core.Result{}, err
+	}
+	if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
 	if err := scope.CheckPendingRelationDrops(stage); err != nil {

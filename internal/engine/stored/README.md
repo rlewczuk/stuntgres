@@ -459,6 +459,9 @@ Its `TriggerCarrier` retains the actual element of the immutable `TriggerList`,
 not a detached same-name/OID copy, together with WHEN, presentation and binding.
 `TriggerTree` checks captured owner, type generation and payload membership.
 Structural output uses the shared native logical writer without evaluation.
+SEARCH/CYCLE key equality uses the analyzed `plan.Grouping` carrier, including
+its selected procedure identity and source occurrence. The shared query writer
+serializes that grouping and routine association, not a separate equality vector.
 The `pg_get_expr` consumer validates scalar Scope/Frame and whole-row RuleSide
 before opening the supplied relation: zero context rejects all Vars, nonzero
 context rejects NEW, and OLD uses that relation's columns and whole-row name.
@@ -599,6 +602,14 @@ host methods.
   Frozen leaves retain a separate table SELECT requirement. Executable and
   presentation refs remap once together, preserving subIDs -1/-2/-4/-6 without
   weakening foreign-domain or epoch fences.
+  Exact selected negative IDs travel separately as `SystemColumns`, including
+  source-specific frozen, rule and write transplants. Ordinary relation SELECT
+  does not imply whole-row MAC expansion or a sweep of all system columns.
+  Frozen leaves also preserve genuine whole-row read demand, distinct from
+  expanded attribute lists. Source, rule and write transplants and routine
+  provenance comparisons retain that semantic bit; no MAC decision or subject
+  is stored. Current inherited/view checks use the original selected identity
+  and each child's live user columns.
   Frozen typed identifier operands keep operand-only dependency purpose through
   view, rule and routine-default manifests. Actual relation/rewrite sources and
   callable uses remain executable; executable use of the same identity wins.
@@ -807,6 +818,15 @@ host methods.
   preserves sharing/cycles and source immutability; pending payloads complete and
   validate before publication. Normal type evolution rebinds affected current
   payloads while leaving unaffected originals intact.
+  The same declaration pass remints genuine sepgsql native capabilities against
+  the destination owner, mapped address and canonical result/input types. Its
+  immutable native layout is never attached as a second SQL implementation.
+  Current and historical COW carriers share one mapped capability; source
+  declarations remain unchanged. `TestSepgsqlRoutinePayloadRemap` covers all five
+  declarations, ordinary stabilization and actual address relocation.
+  Principal remapping also recognizes its own accepted capability outputs, so
+  a later address-remap graph reuses that authority instead of rebuilding it
+  while the private catalog's descriptor maps are being refilled.
   Explicit transform replacement uses this same reverse capture owner through
   `RefreshTransformRoutines`, not a parallel graph copier. Real associated
   declaration seeds and their complete default/body/aggregate-support dependents

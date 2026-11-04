@@ -63,6 +63,9 @@ func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 	}
 	e.sessionMu.Unlock()
 	if payload := PayloadOf(s); payload != nil {
+		if token == s.SessionToken && EngineOf(s) == e {
+			payload.dictionaryMemos = nil
+		}
 		statsIdle(s, true)
 		if registered {
 			e.Statistics.End(token)

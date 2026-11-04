@@ -55,6 +55,9 @@ func (c *CopyCursor) input() sqltype.InputEnvironment {
 	if c.state != nil && c.state.InputChecks != nil {
 		input.DomainChecks = c.state.InputChecks
 	}
+	if c.state != nil {
+		input.TypeIO = c.state.InputIO
+	}
 	return input
 }
 func (c *CopyCursor) rowDefaults() []bool { return c.defaults }

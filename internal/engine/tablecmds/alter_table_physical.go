@@ -244,6 +244,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 		return core.Result{}, err
 	}
+	if destination != (ids.ObjectRef{}) && work.rewriteReason == 0 {
+		if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+			return core.Result{}, err
+		}
+	}
 	shape, record, metadataOnly := table.AlterStorageShape(shape, replacement, old, next, changedValues, len(additions), physicalRows, hasAttachments)
 	if err := stage.Replace(next); err != nil {
 		return core.Result{}, err
@@ -297,6 +302,11 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 		}
 		stage.Indexes().Candidates[address] = candidate
 		stage.Indexes().Output = scope.Output
+	}
+	if work.rewriteReason != 0 {
+		if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+			return core.Result{}, err
+		}
 	}
 	err = e.TransferAlterStage(scope, stage)
 	if err != nil {

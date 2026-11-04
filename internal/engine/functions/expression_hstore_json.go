@@ -75,6 +75,12 @@ func (e HstoreJSON) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	arguments := [1]sqltype.Value{value}
+	body, err := e.EnterRoutine(c, arguments[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	if e.Usage.Type.ID() == sqltype.JSONB {
 		return value.HstoreJSONB(ctx, e.Formal, e.Usage.Type, e.Loose)
 	}

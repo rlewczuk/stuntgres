@@ -138,6 +138,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
+		if destination != (ids.ObjectRef{}) {
+			if err := auth.View.SepgsqlRelationPostAlter(old); err != nil {
+				return fail(err)
+			}
+		}
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
 		e.Mu.Unlock()
 		return core.Result{}, nil
@@ -218,14 +223,14 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
-		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, access.RowSecurityFlags(old, s.Actions))
+		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, access.RowSecurityFlags(old, s.Actions), s.Actions)
 	}
 	if table.RelationOptionsOnly(s.Actions) {
 		next, err := table.RelationOptionsOnlyCandidate(old, s.Actions, destination)
 		if err != nil {
 			return fail(err)
 		}
-		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
+		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next, s.Actions)
 	}
 	if table.TriggerModesOnly(s.Actions) {
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
@@ -247,7 +252,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				return fail(err)
 			}
 		}
-		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next)
+		return stageRowSecurityFlagsLocked(e, scope, op, auth, old, next, s.Actions)
 	}
 	validityOnly := table.ValidationOnly(s.Actions) || table.ColumnStorageOnly(s.Actions) || table.ColumnStatisticsOnly(s.Actions) || table.ReplicaIdentityOnly(s.Actions)
 	changes := scope.PendingCatalog()
@@ -459,6 +464,41 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			if err != nil {
 				return core.Result{}, err
+			}
+			if e.Sepgsql != nil && action.Action == parser.AddColumn && added.Column != nil {
+				stage = authorizedStage(e, stage, auth, op.Session)
+				if err = stage.SepgsqlPostCreateColumn(next, added.Attribute); err != nil {
+					return core.Result{}, err
+				}
+			}
+			if e.Sepgsql != nil && (action.Action == parser.SetNotNull || action.Action == parser.DropNotNull) {
+				if slot, exists := before.Index[action.Column.Text]; exists {
+					attribute := before.Attributes[slot]
+					had := slices.ContainsFunc(before.Constraints.NotNull, func(n catalog.NotNullConstraint) bool { return n.Attribute == attribute })
+					has := slices.ContainsFunc(next.Constraints.NotNull, func(n catalog.NotNullConstraint) bool { return n.Attribute == attribute })
+					if action.Action == parser.SetNotNull && !had && has || action.Action == parser.DropNotNull && had && !has {
+						stage = authorizedStage(e, stage, auth, op.Session)
+						address := next.Address()
+						address.SubID = attribute
+						if err = stage.SepgsqlPostAlter(next, address, false); err != nil {
+							return core.Result{}, err
+						}
+					}
+				}
+			}
+			if e.Sepgsql != nil && action.Action == parser.AlterColumnType {
+				stage = authorizedStage(e, stage, auth, op.Session)
+				address := next.Address()
+				address.SubID = next.Attributes[next.Index[action.Column.Text]]
+				if err = stage.SepgsqlPostAlter(next, address, false); err != nil {
+					return core.Result{}, err
+				}
+			}
+			if e.Sepgsql != nil && table.RelationOptionsAction(action.Action) && len(action.Options) != 0 {
+				stage = authorizedStage(e, stage, auth, op.Session)
+				if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+					return core.Result{}, err
+				}
 			}
 			if added.Column != nil {
 				additions = append(additions, added)
@@ -677,6 +717,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if err != nil {
 				return core.Result{}, err
 			}
+			if len(action.Options) != 0 {
+				if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+					return core.Result{}, err
+				}
+			}
 			inheritancePlan(scope).RecordAction(before, next, action)
 			continue
 		}
@@ -720,6 +765,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if action.Action == parser.SetColumnStatistics && action.StatisticsTarget > 10000 {
 				op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "lowering statistics target to 10000"})
 			}
+			address := next.Address()
+			address.SubID = next.Attributes[next.Index[action.Column.Text]]
+			if err = stage.SepgsqlPostAlter(next, address, false); err != nil {
+				return core.Result{}, err
+			}
 			inheritancePlan(scope).RecordAction(before, next, action)
 			continue
 		}
@@ -735,12 +785,20 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if err != nil {
 				return core.Result{}, err
 			}
+			address := next.Address()
+			address.SubID = next.Attributes[slot]
+			if err = stage.SepgsqlPostAlter(next, address, false); err != nil {
+				return core.Result{}, err
+			}
 			inheritancePlan(scope).RecordAction(before, next, action)
 			continue
 		}
 		if table.RuleModeAction(action.Action) {
 			next, err = table.RuleModeCandidate(next, action)
 			if err != nil {
+				return core.Result{}, err
+			}
+			if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
 				return core.Result{}, err
 			}
 			continue
@@ -886,6 +944,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}
+		if next.RelationKind == catalog.PartitionedRelation {
+			if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+				return core.Result{}, err
+			}
+		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return core.Result{}, err
@@ -950,8 +1013,8 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, err
 		}
 	}
-	for _, oid := range index.DroppedUniqueOIDs(old, s.Actions) {
-		if err := stagePartitionConstraintDrop(e, stage, oid); err != nil {
+	for _, captured := range stage.IndexesOrZero().ConstraintDrops {
+		if err := captured.Apply(stage); err != nil {
 			return core.Result{}, err
 		}
 	}

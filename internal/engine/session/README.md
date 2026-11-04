@@ -498,15 +498,20 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   excluded from event-trigger dispatch independently of their completion tag.
   SECURITY LABEL is modifying and non-counted, with DescribeOperation before
   snapshots. It is not a SQL PREPARE body, read-only exemption or aborted-control
-  command. Healthy read-write transactions reach provider resolution without a
-  provider-state journal or standalone-utility refusal; read-only and failed-state
-  admission precede callbacks and the execution-time absent-provider error.
+  command. Healthy read-write transactions reach provider resolution through
+  ordinary catalog journals; read-only and failed-state admission precedes
+  callbacks and any execution-time absent-provider error.
   EventCommand admits SECURITY LABEL for its database-local target families
   and subscription, excluding database/tablespace/role/event-trigger targets.
   The existing event frame invokes command-start before provider resolution,
   retains callback writes atomically, and suppresses command-end on failure.
   With zero installed providers it needs no target snapshot, relation lock
   or replacement fence.
+  With simulation active, the physical session owns a separate `SepgsqlSubject`
+  resource: original/committed/pending contexts, savepoint marks and balanced
+  lexical trusted overrides. SQL role/owner substitution never changes it.
+  Operation audit records queue detached events; host callbacks run only after
+  request locks/leases release, independently of client LOG filtering.
   admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
   `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes
@@ -636,10 +641,27 @@ incarnation resets it. No parallel registry or row-visibility override exists.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a
   validated stage's `catalog.Candidate` into the retained transaction's
   observations and fences, over the published and private catalog states:
-  `ObserveDatabase`, `Observe`, `ObserveBase`, `ObserveCandidate` and
-  `FenceNames`. The root calls them between its own domain,
-  materialized-view, index and storage steps, which fixes the recording
-  order and the first error.
+  `DefaultPreflight`, `ObserveDatabase`, `Observe`, `ObserveBase`,
+  `ObserveCandidate` and `FenceNames`. Only the prospective statement owner
+  supplies `SourceSession`. Its exact TEMP namespace creation intents share one
+  predicate for namespace observations and security-label owning-descriptor
+  preflight: the genuine session/domain, identical journal/base namespace,
+  explicit nil original and committed name-absence observation, exact private
+  name, and current/committed object and name absence must all agree. Each label
+  read must match either ordinary current identity or the exact source-owned
+  pending record with an explicit nil original and current/committed absence.
+  Neither equal label text nor missing pending provenance can supply authority.
+  Unseen labels on removals and final committed object/name/label fences remain.
+  Ordinary candidate preflight has no creation-intent exception. The root calls
+  capture between its own domain, materialized-view, index and storage steps,
+  which fixes the recording order and the first error.
+  Active first-use TEMP creation runs the genuine namespace and TOAST namespace
+  CREATE hooks in source order before either is transferred into the prospective
+  journal. Their transition/audit basenames are `pg_temp` and `pg_toast_temp`;
+  durable descriptor names remain session-qualified. Reuse does not replay those
+  hooks or relabel existing shells, and rollback discards both private identities
+  and labels. Physical exit retires relations while retaining empty namespace
+  shells and their labels.
 - **Storage projections** (`storage_projection.go`): column-shape and private
   snapshot projections that read only catalog, storage and visibility records.
   Attribute-shape replacements transport exact tuple/header history but break

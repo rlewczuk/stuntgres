@@ -589,7 +589,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	transformed, err := tablecmds.TransformIndexExpression(e, bindOp, sqltype.InputEnvironment{}, auth, parentInput, rawExpression, nil)
 	var derived *catalog.DerivedIndexKey
 	if err == nil {
-		derived, _, err = tablecmds.CompleteIndexExpression(bindOp, auth, parentInput, rawExpression, transformed)
+		derived, _, err = tablecmds.CompleteIndexExpression(tablecmds.TableHost{core.DDLHost{E: e, Op: bindOp}}, auth, parentInput, rawExpression, transformed)
 	}
 	e.Mu.Unlock()
 	bindOp.Done()

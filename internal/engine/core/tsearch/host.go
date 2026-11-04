@@ -42,8 +42,11 @@ type Host[A Authority[A]] interface {
 	TextSearchInputLocked() (catalog.Read, regobj.TextSearchInput, error)
 	// DictionaryHost compiles thesaurus inputs.
 	DictionaryHost() extension.DictionaryHost
-	// ThesaurusMemos is the session's thesaurus initializations (Engine.Mu).
-	ThesaurusMemos() *ThesaurusMemos
+	EnterDictionaryCallback(catalog.DictionaryCallback) (sqltype.RoutineBodyToken, error)
+	MarkDictionaryInitialization() access.SepgsqlObservationMark
+	AbortDictionaryInitialization(access.SepgsqlObservationMark)
+	// DictionaryMemos is the session's thesaurus initializations (Engine.Mu).
+	DictionaryMemos() *DictionaryMemos
 }
 
 // Authority is the operation's authorization, held by value: capturing or
@@ -56,9 +59,9 @@ type Authority[A any] interface {
 	Recaptured(view catalog.Read) A
 }
 
-// ThesaurusMemos holds one physical session's successful thesaurus
+// DictionaryMemos holds one physical session's successful thesaurus
 // initializations, by dictionary.
-type ThesaurusMemos map[ids.ObjectAddress]thesaurusMemo
+type DictionaryMemos map[ids.ObjectAddress]dictionaryMemo
 
 func sqlError(code, message string) error {
 	return &sqlstate.Error{

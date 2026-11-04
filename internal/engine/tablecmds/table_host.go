@@ -23,8 +23,10 @@ import (
 // TABLE and the staging it shares with PARTITION OF children, ADD IDENTITY,
 // FOREIGN KEY and index staging. It also holds the type staging that
 // table.Host shares with typedef.StageHost and view.StageHost, which is why
-// TypeHost and ViewHost embed it. Like DDLHost, every method runs under
-// Engine.mu and never waits.
+// TypeHost and ViewHost embed it. Methods enter and return under Engine.Mu;
+// index-definition preflight and generation-definition simplification borrow the
+// actual statement and suspend Mu and its replacement reservation for initialized
+// constant work.
 type TableHost struct {
 	core.DDLHost
 }
@@ -80,7 +82,7 @@ func (h TableHost) BindColumnDefaults(a ddl.Authority, columns []catalog.Column,
 }
 
 func (h TableHost) BindGenerations(a ddl.Authority, relation *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
-	return bindCreateGenerations(h.E, h.Op, core.DDLAuthorityOf(a), relation, declarations, input)
+	return bindCreateGenerations(h.DDLHost, core.DDLAuthorityOf(a), relation, declarations, input)
 }
 
 func (h TableHost) BindCheckExpression(a ddl.Authority, relation *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, []int, error) {

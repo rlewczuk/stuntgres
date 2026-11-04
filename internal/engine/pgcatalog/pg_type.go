@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -89,39 +88,12 @@ func TypeFacts(ctx context.Context, view catalog.Read, d *catalog.Type, output s
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsSeg() || d.SQLType.IsHstore() || d.SQLType.IsQueryInt() || d.SQLType.IsIntbigGkey() || (d.SQLType.IsLquery() || d.SQLType.IsLtree() || d.SQLType.IsLtxtquery()) || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
-		installation, ok := catalog.OriginInstallation(d)
-		if !ok || d.Origin.Declaration+2 >= len(installation.Members) {
-			return f, fmt.Errorf("stuntgres: missing installed scalar role")
-		}
-		owner := view.Owner()
-		if owner == nil || owner.Providers[ids.TypeClassID] == nil {
-			return f, fmt.Errorf("stuntgres: missing installed scalar provider owner")
-		}
-		if err := owner.Providers[ids.TypeClassID].Validate(view, d); err != nil {
-			return f, err
-		}
-		slot := d.Origin.Declaration
-		input, exists := view.Procedure(installation.Members[slot+1])
-		if !exists || !catalog.SameInstallation(input, installation) {
-			return f, fmt.Errorf("stuntgres: missing installed type provider")
-		}
-		out, exists := view.Procedure(installation.Members[slot+2])
-		var signature [10]byte
-		expected := strconv.AppendUint(signature[:0], uint64(d.Address().ObjectID), 10)
-		if !exists || !catalog.SameInstallation(out, installation) || input.Signature != "2275" || input.Result != d.Address().ObjectID || string(out.Signature) != string(expected) || out.Result != 2275 {
-			return f, fmt.Errorf("stuntgres: invalid installed type codec relationship")
-		}
-		if input.Implementation == nil || out.Implementation == nil {
-			return f, fmt.Errorf("stuntgres: missing installed codec declaration owner")
-		}
-		if err := validateInstalledProcedureOwner(view, input); err != nil {
-			return f, err
-		}
-		if err := validateInstalledProcedureOwner(view, out); err != nil {
-			return f, err
-		}
-		f.Input, f.Output = uint32(installation.Members[slot+1].ObjectID), uint32(installation.Members[slot+2].ObjectID)
+	input, out, installed, err := catalog.InstalledTypeIO(view, d)
+	if err != nil {
+		return f, err
+	}
+	if installed {
+		f.Input, f.Output = uint32(input.Address().ObjectID), uint32(out.Address().ObjectID)
 		handler, ok, err := catalog.InstalledTypeSubscript(view, d)
 		if err != nil {
 			return f, err

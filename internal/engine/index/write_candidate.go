@@ -228,7 +228,7 @@ func MaterializeIndexOutput(evaluation *exec.Context, preparation *ExecutionPrep
 		return output, err
 	}
 	if index.SQLIndex.Method == catalog.HashMethod {
-		output.Key, err = extractIndexKey(hash.Slot, hash.Expression, values, evaluation)
+		output.Key, err = preparation.ExtractKey(hash.Slot, hash.Expression, values, evaluation, parent, index.SQLIndex, 0)
 	} else {
 		output.Keys = make([]sqltype.Value, len(ordering.Keys))
 		err = ordering.FillKeys(values, output.Keys, evaluation)

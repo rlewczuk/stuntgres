@@ -31,6 +31,11 @@ func (e InstalledText) Eval(c expr.Context) (sqltype.Value, error) {
 	if value.IsNull() {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, []sqltype.Value{value})
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	input, err := value.Text()
 	if err != nil {
 		return sqltype.Value{}, err

@@ -126,5 +126,8 @@ func (b *Binder) bindSortOrdering(usage sqltype.Usage) (sqltype.Comparison, *cat
 		return b.installedOrdering(usage, true)
 	}
 	comparison, err := sqltype.BindOrdering(usage)
+	if err == nil {
+		comparison, err = routine.CaptureComparisonSupports(b.BindingCatalog(), comparison)
+	}
 	return comparison, nil, err
 }

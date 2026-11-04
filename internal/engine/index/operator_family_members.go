@@ -164,19 +164,18 @@ func familyAssociation(h FamilyDDLHost, auth ddl.Authority, raw []parser.TypeNam
 	return left, right, nil
 }
 
-func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily) error {
-	return stageOperatorMembers(h, auth, family, s, nil, nil)
+func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily, physical catalog.IndexMethod) error {
+	return stageOperatorMembers(h, auth, family, s, physical, nil, nil)
 }
 
 // stageOperatorMembers shares resolution and storage phases while retaining
 // CREATE CLASS's input fallback, storage admission and unique-index diagnostics.
-func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily, class *catalog.OperatorClass, beforeStore func() error) error {
+func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily, physical catalog.IndexMethod, class *catalog.OperatorClass, beforeStore func() error) error {
 	view := h.AccessView(auth).Catalog
 	method, exists := view.AccessMethod(family.Method)
 	if !exists || method.MethodKind() != "i" {
 		return fmt.Errorf("stuntgres: missing family method")
 	}
-	physical, _ := method.IndexImplementation()
 	physicalOID := physical.OID()
 	// Phase 1 follows SQL order, resolving and validating the entire list before
 	// consulting stored members. DROP records keys, not stored descriptors.

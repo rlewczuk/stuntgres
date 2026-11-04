@@ -14,6 +14,7 @@ const (
 	SQLBody BodyKind = iota
 	PLpgSQLBody
 	HostBody
+	NativeBody // Explicitly admitted engine-native declaration; not SQL source.
 )
 
 // InvocationKind is the function's immutable call and result contract.

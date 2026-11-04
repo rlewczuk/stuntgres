@@ -174,6 +174,9 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
 	scope.ActiveMutation = prepared.MainMutation
 	scope.installRuleScratch(prepared.MainScratch)
+	if prepared.main.authority != nil {
+		scope.authority = prepared.main.authority
+	}
 	if len(b.CTEs) == 0 {
 		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	}
@@ -268,7 +271,7 @@ targets:
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.
 		if scope.authority == nil {
-			scope.authority = &exec.Authority{Host: HostOf(scope)}
+			scope.authority = &exec.Authority{Host: HostOf(scope), RoutineCatalog: prepared.main.evaluation.Catalog}
 		}
 		source = &exec.Source{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.QueryLockContext}
 	}
@@ -288,6 +291,7 @@ targets:
 				continue
 			}
 			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: scope.Input, Output: scope.Output, Locking: source.Locks != nil}}
+			current.State.RoutineInitialization = prepared.main.evaluation.RoutineInitialization
 			current.State.CapturePlannerAdmission()
 			current.State.Ctes = current
 			owner = current

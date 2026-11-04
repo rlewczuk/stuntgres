@@ -87,12 +87,9 @@ func ResolveIndexMethod(view catalog.Read, s *parser.CreateIndex) (*catalog.Acce
 	if !exists {
 		return nil, unresolvedIndexMethod(s)
 	}
-	physical, ok := method.IndexImplementation()
+	_, ok := method.IndexImplementation()
 	if !ok {
 		return nil, sqlError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, method.Name()))
-	}
-	if err := validateIndexMethod(s, physical, method.Name()); err != nil {
-		return nil, err
 	}
 	return method, nil
 }

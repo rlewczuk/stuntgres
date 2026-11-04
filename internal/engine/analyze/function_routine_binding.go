@@ -79,6 +79,18 @@ func (b *Binder) capturePolymorphicBody(node expr.Expr) error {
 }
 
 func (b *Binder) captureRoutineBody(outer *catalog.Procedure) error {
+	if outer.Builtin != nil && outer.Builtin.Identity.ID == 6183 {
+		view := b.BindingCatalog()
+		for _, oid := range [...]ids.OID{3602, 3603} {
+			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
+			descriptor, present := catalog.DescriptorAt(view, b.DefinitionReader(), address)
+			relation, ok := descriptor.(*catalog.Relation)
+			if !present || !ok || relation.RelationKind != catalog.CatalogRelation || relation.CatalogView {
+				return fmt.Errorf("stuntgres: missing owned debug body catalog declaration")
+			}
+			b.dependency(view.Owner().Domain.Ref(view.Epoch(), address), relation.Revision())
+		}
+	}
 	for _, edge := range outer.Body {
 		if edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText {
 			continue
@@ -90,5 +102,5 @@ func (b *Binder) captureRoutineBody(outer *catalog.Procedure) error {
 			return err
 		}
 	}
-	return nil
+	return b.captureNativeDeclarationBody(outer)
 }

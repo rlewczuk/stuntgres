@@ -42,6 +42,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   shortening the ordered sequence or replacing its held statement.
   Complete helper/query diagnostics retain provenance-specific inlining contexts
   and authenticated current names through hard stored calls and native replay.
+  Nested conversion failures retain the complete helper statement frame before
+  appending the selected outer statement/during-inlining frame; helper-only
+  routes retain only the helper frame. These expectations are unchanged by
+  native execution of the genuine nested conversion and radius kernels.
   `earthQueryStoredSetup`/`earthQueryStoredVerify` share real view/default consumers
   with control scenarios; emitted SQL is replayed against PostgreSQL separately
   from native-only Reset/Restore operations.

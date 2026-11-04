@@ -35,9 +35,30 @@ func captureSchemaDropUnit(t *testing.T, e *core.Engine, op *session.Operation, 
 }
 
 func constructSchemaDropUnit(e *core.Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*core.CatalogStage, error) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	return schemacmds.StageSchemaDropLocked(e, op, stmt, manifest)
+	stage, err := func() (*core.CatalogStage, error) {
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		return schemacmds.StageSchemaDropLocked(e, op, stmt, manifest)
+	}()
+	if err != nil || stage == nil {
+		return stage, err
+	}
+	drop := core.StageDropProvider(op.Context(), stage, nil, nil, nil)
+	mode := parser.DropRestrict
+	if stmt.Cascade {
+		mode = parser.DropCascade
+	}
+	dependencies, err := drop.PrepareExpressionDependencies(stage.DomainTargets, mode, ids.ObjectAddress{})
+	if err == nil {
+		err = stage.ApplySelectedDropRoots(dependencies)
+	}
+	if err == nil {
+		err = drop.ApplyExpressionDependencies(dependencies)
+	}
+	if err == nil {
+		err = drop.ApplyOwnedExpressionDependencies(dependencies)
+	}
+	return stage, err
 }
 
 func TestTransactionalSchemaDropManifest(t *testing.T) {

@@ -74,6 +74,61 @@ builds a binder.
   specialized row frontiers. These are not index search/simple-fetch events.
   Ordinary ANALYZE uses a distinct analyze source and ordinary VACUUM scans
   maintenance blocks, so neither becomes a generic sequential utility event.
+  Handler factories are distinct from catalog validation: CREATE/constraint
+  definition owners consume `Host.InitializeIndexMethod`; live publication,
+  overlay builds and ALTER rebuilds consume `exec.InitializeIndexMethod`.
+  Each selects the genuine immutable AM/handler generation through the canonical
+  catalog provider, enters the actual zero-argument static factory with no SQL
+  execute check, and returns the native authority used by dispatch. The trusted
+  subject ends before key expressions, scans or mutation work. Mu-held DDL,
+  query/EXPLAIN capture and VACUUM collection use the same finite pure factory
+  without releasing/reentering Mu or invoking an external callback.
+  CREATE OPERATOR CLASS and ALTER OPERATOR FAMILY ADD/DROP consume the same
+  genuine factory before their released role/member/type validation, using the
+  returned native authority for strategy/support/storage/signature limits.
+  Actual AM/index/column property inquiries also consume a factory, including
+  valid unknown properties; invalid object/column addresses return NULL first.
+  Raw `pg_am`, opclass binding, dependency checks, deparsing and descriptor
+  validation remain metadata-only. Heap/table factories have only the genuine
+  original handler, authenticated by the existing visibility heap authority;
+  all seven original fmgrtab handlers remain exempt after rename/schema moves,
+  whereas the genuine Bloom C handler is eligible.
+  `ambuild`, `aminsert`, `ambulkdelete` and other returned method pointers are
+  not separate pg_proc routines. Pure `SnapshotCapture`/`RemintBase`, retained
+  layout reconstruction and explicitly no-principal publication are internal
+  native construction, not fabricated client invocations. A client cannot
+  borrow the no-principal publication path or a missing live factory owner.
+  Canonical extension installation constructs its fixed descriptor cohort and
+  validates providers as metadata; it does not replay upstream extension SQL
+  scripts or emit conceptual script-handler invocations. Explicit supported
+  CREATE OPERATOR CLASS/ALTER FAMILY commands instead consume real native
+  method configuration as described above. Neither installation-script call
+  multiplicity nor active installation-policy parity beyond the implemented
+  hooks is claimed.
+  This simulation does not promise PostgreSQL relcache cold/warm invocation
+  counts, native per-method C callback counts, physical AM pages or enforcement.
+  Selected support callbacks retain the genuine class, family, member and
+  routine generations, including family-owned members. `Ordering.BorrowSupport`
+  attaches only the actual operation's `FunctionInput`, before comparisons in
+  builds, publication, uniqueness checks, amcheck and concurrent materialized
+  refresh. Captures contain no subject, session or permission decision.
+  Hash-index equality retains its real strategy-1 operator function separately
+  from unseeded/extended hash support; it is a direct callback, not a synthetic
+  SQL execute check or a comparator support slot. Supported native hash-join
+  acceleration remains restricted to its existing original builtin predicates;
+  this does not add extension hash-join or arbitrary alias-opclass capabilities.
+  Original fmgrtab support is exempt from trusted entry; genuinely callable
+  aliases are not original identities. Renaming a source permits a fresh
+  capture, never adoption of stale class/family/member/routine stamps.
+  The existing no-SQL-principal publication branch authenticates an explicit
+  `InternalIndexPublicationEvaluation`; live clients cannot acquire this origin.
+  It suppresses support invocation only for that exact internal catalog root,
+  without disabling unrelated TypeIO or encoding boundaries.
+  Plain attribute keys have no executable key recipe and acquire no routine
+  initialization owner or owner-vector allocation. Genuine derived keys still
+  mint their exact live owners before the original prewalk; a missing host is
+  rejected even on the typed internal publication lane. Predicate recipes keep
+  their separate initialization owner and unchanged execution timing.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
@@ -89,7 +144,23 @@ builds a binder.
   empty items and NULL elements are separate categories; array duplicate tokens
   are deduplicated per version, never across duplicate SQL rows. Token comparison
   reuses concrete scalar element equality/ordering and collation, not rendered
-  values or a B-tree opclass. Vector projection reads immutable canonical lexemes.
+  values. Array GIN has no class comparison member: as in released `initGinState`,
+  its dictionary selects the key element's default B-tree comparator, retaining
+  that genuine comparator's class/family/member/routine identity. Scalar and
+  vector GIN instead invoke their actual class role-1 support. This selection
+  grants no new SQL ordering/index capability. Vector projection reads immutable
+  canonical lexemes.
+  Whole-value extraction uses role 2 and whole-array/scalar query extraction uses
+  role 3. The immutable `GinExtraction` borrows existing datum storage and ends
+  the extractor's trusted body before any emitter performs dictionary lookup or
+  comparison. Ordinary array tokens retain actual nested element comparators;
+  NULL markers never invoke a per-NULL helper. Scalar amcheck validates scalar
+  payloads rather than treating them as array/lexeme tokens.
+  `GinLexemeCandidates` accepts an already extracted lexeme, and its current
+  only caller is the focused `index/enginetests/gin_test.go` dictionary probe.
+  There is no existing SQL TSQuery GIN-scan extractor owner to enter here:
+  exact/prefix dictionary comparisons use real role 1, not an invented role-3
+  TSQuery callback or a new SQL scan capability.
   Network/UUID/OID scalar classes use the same dictionary and probe paths, with
   whole concrete source datums, selected unsigned OID semantics and separately
   authenticated CIDR support/search associations.
@@ -435,8 +506,8 @@ builds a binder.
   the exact backing identity and retain those defaults; root validation still
   rejects duplicate committed keys regardless of initial timing.
 - **Partitioned indexes** (`partition_*.go`, `row_history.go`): coverage,
-  ATTACH checks, drop actions (`PartitionConstraintDropActions`,
-  `DroppedUniqueOIDs`), `MapPartitionIndex` and Dump replay predicates.
+  ATTACH checks, `PartitionConstraintDropActions`, captured depth-first
+  `PreparePartitionConstraintDrop` programs, `MapPartitionIndex` and Dump replay.
 
 ## The DDL host
 
@@ -536,7 +607,10 @@ Entry points:
   sources before unique staging, NOT NULL rebuild between the unique and
   exclusion rebuilds, primary-key NOT NULL before `PrepareUsingIndex`.
 - Partitioned indexes: `StagePartitionIndex*`, `PartitionIndexValidity`,
-  `StagePartitionConstraintDrop`.
+  `PreparePartitionConstraintDrop`/`ConstraintDropPlan.Apply`. General ALTER
+  retains this typed late program in its preparation/stage instead of
+  rediscovering children after primary removal. Current owner/domain/epoch and
+  original backing identities are validated; a program is consumed only once.
 - `Property`: `pg_index_has_property`, `pg_index_column_has_property`.
 
 ## The write host

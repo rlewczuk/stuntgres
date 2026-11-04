@@ -193,3 +193,50 @@ func RoutineDemandNestedCursor(x *sqlRoutineDemand) bool { return x.nestedCursor
 func SetRoutineDemandScalar(x *sqlRoutineDemand, v bool) { x.scalar = v }
 
 func SetRoutineDemandNestedCursor(x *sqlRoutineDemand, v bool) { x.nestedCursor = v }
+
+// SubstituteRestoreInitializationOrigin changes only private provenance for
+// rejection tests. Positive cases obtain it exclusively from RestoreStage.
+func SubstituteRestoreInitializationOrigin(e, source *Engine, change string) func() {
+	e.Mu.Lock()
+	original := e.restoreInitializationOrigin
+	state := e.Catalog.State
+	switch change {
+	case "missing":
+		e.restoreInitializationOrigin = nil
+	case "foreign":
+		e.restoreInitializationOrigin = source.restoreInitializationOrigin
+	case "stage_epoch":
+		next := catalog.CloneState(state)
+		next.SetEpoch(state.Epoch() + 1)
+		e.Catalog.PublishLocked(next)
+	case "copy", "epoch", "policy", "domain", "engine", "session":
+		replacement := *original
+		if change == "epoch" {
+			replacement.epoch++
+		}
+		if change == "policy" {
+			replacement.policy = nil
+		}
+		if change == "domain" {
+			replacement.domain = source.Catalog.Domain
+		}
+		if change == "engine" {
+			replacement.engine = source
+		}
+		if change == "session" {
+			replacement.session = source.restoreInitializationOrigin.session
+		}
+		e.restoreInitializationOrigin = &replacement
+	default:
+		panic("unknown restore initialization rejection")
+	}
+	e.Mu.Unlock()
+	return func() {
+		e.Mu.Lock()
+		e.restoreInitializationOrigin = original
+		if change == "stage_epoch" {
+			e.Catalog.PublishLocked(state)
+		}
+		e.Mu.Unlock()
+	}
+}

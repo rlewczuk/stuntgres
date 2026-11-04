@@ -103,6 +103,11 @@ func (e Soundex) Eval(c expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	source, err := values[0].Text()
 	if err != nil {
 		return sqltype.Value{}, err

@@ -84,5 +84,12 @@ func replacementCatalog(view catalog.Read, retainTemporary, rejectTemporaryExten
 		}
 		next.SetInitialPrivileges(records)
 	}
+	for key := range next.SecurityLabels() {
+		object := key.Object
+		object.SubID = 0
+		if next.Get(object) == nil {
+			next.SetSecurityLabel(key, nil)
+		}
+	}
 	return view.WithState(next), nil
 }

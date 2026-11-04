@@ -104,6 +104,26 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	if err := check("SELECT id FROM invoker"); err != nil {
 		t.Fatal("regrant retained stale executor ACL", err)
 	}
+	// Selected-column SELECT and an unrelated UPDATE grant remain independent.
+	grant(table, 0)
+	grant(other, 0)
+	selected, joined := table, other
+	selected.Address.SubID, joined.Address.SubID = 1, 1
+	grant(selected, authorization.SelectPrivilege)
+	grant(joined, authorization.SelectPrivilege)
+	for _, q := range []string{
+		"SELECT a.id FROM t a JOIN u b USING(id) WHERE false FOR UPDATE OF a",
+		"SELECT 1 FROM t WHERE false FOR UPDATE",
+		"SELECT id FROM owned",
+		"SELECT id FROM invoker",
+	} {
+		if err := check(q); err != nil {
+			t.Fatal("column-only ACL became a whole-table demand", q, err)
+		}
+	}
+	for _, q := range []string{"SELECT v FROM t FOR UPDATE", "SELECT tableoid FROM t FOR UPDATE", "SELECT t FROM t FOR UPDATE"} {
+		enginetest.WaitDiagnostic(t, check(q), "42501", "permission denied for table t")
+	}
 }
 
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {

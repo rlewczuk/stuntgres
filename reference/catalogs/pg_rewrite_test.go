@@ -321,6 +321,14 @@ func TestReferencePGRewriteBuiltinDeclarations(t *testing.T) {
 				}
 				rewriteRows(t, p, b, fixture.Select("SELECT rulename,ev_type,ev_enabled,is_instead,ev_class='"+name+"'::regclass AS linked,pg_get_ruledef(oid) IS NOT NULL AS displayed FROM pg_rewrite WHERE ev_class='"+name+"'::regclass", []string{"rulename", "ev_type", "ev_enabled", "is_instead", "linked", "displayed"}, []string{"NAME", "CHAR", "CHAR", "BOOL", "BOOL", "BOOL"}, [][]any{{"_RETURN", "1", "O", true, true, true}}))
 			}
+			// Initdb allocates these view and rule OIDs. Compare their genuine
+			// catalog relationships, never native presentation reservations.
+			for _, name := range []string{"pg_seclabels", "pg_stat_database"} {
+				relation := "'pg_catalog." + name + "'::regclass"
+				rewriteRows(t, p, b, fixture.Select("SELECT r.rulename,r.ev_type,r.ev_enabled,r.is_instead,r.ev_class=c.oid AS linked FROM pg_rewrite r JOIN pg_class c ON c.oid=r.ev_class WHERE c.oid="+relation+" AND r.rulename='_RETURN'", []string{"rulename", "ev_type", "ev_enabled", "is_instead", "linked"}, []string{"NAME", "CHAR", "CHAR", "BOOL", "BOOL"}, [][]any{{"_RETURN", "1", "O", true, true}}))
+				rewriteCount(t, p, b, "SELECT count(*) FROM pg_depend d JOIN pg_rewrite r ON r.oid=d.objid WHERE d.classid='pg_rewrite'::regclass AND d.refclassid='pg_class'::regclass AND d.objsubid=0 AND d.refobjsubid=0 AND d.refobjid="+relation+" AND d.deptype='i' AND r.ev_class="+relation+" AND r.rulename='_RETURN'", 1)
+				rewriteCount(t, p, b, "SELECT count(*) FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid="+relation+" AND t.typrelid=c.oid AND a.typelem=t.oid", 1)
+			}
 		})
 	}
 }

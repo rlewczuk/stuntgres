@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -19,18 +20,28 @@ import (
 // EXECUTE-actual programme; its individual calls still carry exact identities.
 // Both are consumed graphs owned by the same existing statement collection.
 type commandRoutineProgram struct {
-	outer     *catalog.Procedure
-	consumer  *catalog.Relation
-	ri        bool
-	admission *exec.RoutineProgram
-	riQuery   string // Action diagnostic after its live owner phase has unwound.
+	outer          *catalog.Procedure
+	consumer       *catalog.Relation
+	ri             bool
+	admission      *exec.RoutineProgram
+	riQuery        string // Action diagnostic after its live owner phase has unwound.
+	subject        string
+	policy         *sepgsql.Runtime
+	labels         catalog.SecurityLabelRoot
+	initialization exec.RoutineInitialization
 }
 
-func admitInquiryBody(c *exec.Context, node expr.Info) error {
+func admitInquiryBody(c *exec.Context, node expr.Info) (err error) {
 	scope := ScopeOf(c.LiveHost())
 	if scope == nil {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
+	mark := scope.MarkSepgsqlObservations()
+	defer func() {
+		if err != nil {
+			scope.RestoreSepgsqlObservations(mark)
+		}
+	}()
 	local := *c
 	recipe, err := exec.ExpressionRecipeDescriptor(node)
 	if err != nil {
@@ -45,31 +56,39 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	if err != nil || outer == nil {
 		return err
 	}
-	auth, dependencies, err := exec.RoutineAdmissionAuthority(&local)
+	auth, dependencies, err := exec.RoutineInvocationAuthority(&local)
 	if err != nil || !auth.Live() {
+		return err
+	}
+	caller := local
+	local, err = exec.BeginNativeBody(&local, outer, node)
+	if err != nil {
 		return err
 	}
 	ri := scope.ForeignActionAuth != nil && scope.ForeignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	for _, programme := range scope.routinePrograms {
 		if programme.outer == outer && programme.consumer == local.RoutineConsumer &&
-			programme.ri == ri && len(programme.admission.Calls) != 0 &&
+			programme.initialization == local.RoutineInitialization &&
+			programme.ri == ri && programme.subject == auth.Sepgsql.Subject && programme.policy == auth.Sepgsql.Policy && programme.labels == auth.Catalog.State().SecurityLabelRoot() && len(programme.admission.Calls) != 0 &&
 			programme.admission.Calls[0].Actor == auth.State.CurrentUser {
 			return nil
 		}
 	}
-	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri, admission: new(exec.RoutineProgram)}
+	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri, admission: new(exec.RoutineProgram), subject: auth.Sepgsql.Subject, policy: auth.Sepgsql.Policy, labels: auth.Catalog.State().SecurityLabelRoot(), initialization: local.RoutineInitialization}
 	local.RoutineProgram = programme.admission
 	// The outer call has already passed executable-graph admission. Retain
 	// that actual first entry too, so later readmission preserves outer-before-
 	// body diagnostics without another permission check at each row.
-	if err := programme.admission.Record(&local, dependencies, outer); err != nil {
+	// Record the outer in its admitted caller phase, before using the derived
+	// body's immediate-child lineage. The outer is not its own body child.
+	if err := programme.admission.Record(&caller, dependencies, outer); err != nil {
 		return err
 	}
 	local.RoutineBodyContext = exec.RoutineBodyContext{Outer: outer, Statement: true}
-	for _, edge := range outer.Body {
+	for ordinal, edge := range outer.Body {
 		body, err := exec.BodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
-			err = exec.AdmitRecipeRoutineDescriptor(&local, auth, dependencies, body)
+			err = exec.AdmitInitializedBodyRoutine(&local, auth, dependencies, body, uint32(ordinal+1))
 		}
 		if err != nil {
 			return local.RoutineBodyContext.Annotate(err)
@@ -84,7 +103,7 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 func (s *StatementScope) readmitRoutinePrograms(auth exec.RoutineAccess) error {
 	for i := range s.routinePrograms {
 		program := &s.routinePrograms[i]
-		if err := program.admission.Readmit(auth); err != nil {
+		if err := program.admission.Readmit(auth, exec.ConsumedGraphRevalidation); err != nil {
 			// A live action owns its existing foreignActionError frame.
 			// Final publication runs after that phase has restored the caller.
 			var diagnostic *sqlstate.Error

@@ -36,6 +36,7 @@ type View struct {
 	// Only command admission can retain an actually installed, unnamed role ID.
 	// Arbitrary stale/retired actor substitutions do not acquire this authority.
 	MissingCurrent authorization.PrincipalRef
+	Sepgsql        SepgsqlAuthority
 }
 
 // Environment supplies the session inputs of the privilege checks.
@@ -56,6 +57,17 @@ type Requirement struct {
 	OwnerOnly  bool
 	OwnerNoun  string             // Utility diagnostic context; never changes authority.
 	OwnerName  *parser.ObjectName // Borrowed only during Check; diagnostic context, never authority.
+	RowMark    bool               // Any-column SQL UPDATE ACL, independent MAC lock/view expansion.
+	// Semantic DML requests carry the reached RTE's inheritance flag and
+	// column identities without conflating ordinary ACL and MAC operations.
+	ColumnDemand  bool
+	Columns       []int
+	SystemColumns []int32
+	WholeRow      bool // Real whole-row Var: expand each selected child's live user columns.
+	Inherit       bool
+	// RoutineACLOnly validates ordinary SQL ACL without fabricating an executor
+	// execute hook. Actual expression initialization owns its separate MAC check.
+	RoutineACLOnly bool
 }
 
 // Stamp identifies a captured view: its catalog epoch, the role
@@ -310,7 +322,7 @@ func (v View) OwnTemporaryPrivileges(env Environment) (authorization.Privileges,
 
 // Check enforces req for the current user. Denials carry PostgreSQL's
 // SQLSTATE and message; env supplies the TEMP namespace and the type path.
-func (v View) Check(env Environment, req Requirement) error {
+func (v View) checkACL(env Environment, req Requirement) error {
 	d, err := v.Object(req.Object)
 	if err != nil {
 		return err
@@ -485,7 +497,7 @@ func (v View) CheckCreate(env Environment, ref ids.ObjectRef) error {
 // CheckColumns checks mask on the columns of relation at the given dense
 // column indices. With no indices, any live column, or the whole relation,
 // can supply the privilege.
-func (v View) CheckColumns(env Environment, ref ids.ObjectRef, relation *catalog.Relation, mask authorization.Privileges, indices []int) error {
+func (v View) checkColumnsACL(env Environment, ref ids.ObjectRef, relation *catalog.Relation, mask authorization.Privileges, indices []int) error {
 	if relation.RelationKind == catalog.SequenceRelation && mask != authorization.SelectPrivilege {
 		return v.Check(env, Requirement{Object: ref, Privileges: mask})
 	}

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -63,6 +64,7 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 		values := make([]sqltype.Value, len(rows.Schema()))
 		var fields []session.ProtocolField
 		var scratch []byte
+		var outputCodec *exec.Context
 		for {
 			present, nextErr := rows.Next(s.Op.Context(), values)
 			if nextErr != nil {
@@ -74,8 +76,25 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 			env := rows.OutputEnvironment()
 			env.Transport = s.Op.EffectiveSettings().ClientEncoding()
 			env.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
+			if s.Engine().Sepgsql != nil {
+				if outputCodec == nil {
+					e := s.Engine()
+					e.Mu.Lock()
+					auth, captureErr := e.AuthorizationLocked(s.Op)
+					e.Mu.Unlock()
+					if captureErr != nil {
+						return result, captureErr
+					}
+					outputCodec = &exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog}}
+				}
+				env.TypeIO = outputCodec
+				env.Conversion = outputCodec
+			}
 			fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, nil, env, fields, scratch)
 			if err != nil {
+				return result, err
+			}
+			if err = s.validateCodecOutput(); err != nil {
 				return result, err
 			}
 			if err = s.protocolSimpleIO(func() error { return row(fields) }); err != nil {

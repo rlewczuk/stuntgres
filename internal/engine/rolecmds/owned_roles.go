@@ -123,18 +123,41 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 		return core.Result{}, err
 	}
 	if !reassign {
-		// PostgreSQL collects actual policy and grantor-membership deletions
-		// alongside ownership roots. Prepare cleanup once, still entirely private,
-		// before discovering consumers of the complete pending deletion union.
-		if err = role.StageOwnedCleanup(scope.Op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
-			return core.Result{}, err
-		}
 		provider := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
-		for address, descriptor := range stage.Descriptors() {
-			next, ok := descriptor.(*catalog.Relation)
-			before, existed := stage.Base.Relation(address)
-			if !ok || !existed {
+		raw, failure := provider.PrepareSelectedRawDrops()
+		if failure != nil {
+			return core.Result{}, failure
+		}
+		cleanup, failure := role.PrepareOwnedCleanup(scope.Op.Context(), stage, auth.Roles, auth.RoleRecord, sources, raw)
+		if failure != nil {
+			return core.Result{}, failure
+		}
+		// Canonical raw effects and cleanup-added roots form the same genuine
+		// pending union. Neither metadata capture changes catalog liveness.
+		pending := slices.Clone(roots)
+		for _, address := range cleanup.DeletionRoots() {
+			if !slices.Contains(pending, address) {
+				pending = append(pending, address)
+			}
+			stage.MarkDrop(address, catalog.DropProvenance{Original: true})
+		}
+		for _, effect := range raw.Effects() {
+			if effect.Remove.Address != (ids.ObjectAddress{}) && !slices.Contains(pending, effect.Remove.Address) {
+				pending = append(pending, effect.Remove.Address)
+			}
+		}
+		cleanupSource := stage.StageRead()
+		for effect := range cleanup.Effects() {
+			if effect.Remove.Address != (ids.ObjectAddress{}) && !slices.Contains(pending, effect.Remove.Address) {
+				pending = append(pending, effect.Remove.Address)
+			}
+			next, ok := effect.Descriptor.(*catalog.Relation)
+			if !ok {
 				continue
+			}
+			before, ok := cleanupSource.Get(next.Address()).(*catalog.Relation)
+			if !ok {
+				return core.Result{}, ids.ErrCatalogReplaced
 			}
 			records, failure := provider.CaptureRelationProjection(before, next)
 			if failure != nil {
@@ -143,21 +166,40 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 			for _, record := range records {
 				if record.Address.ClassID == ids.PolicyClassID {
 					stage.MarkDrop(record.Address, catalog.DropProvenance{Original: true})
+					if !slices.Contains(pending, record.Address) {
+						pending = append(pending, record.Address)
+					}
 				}
 			}
 			stage.DropRecords = append(stage.DropRecords, records...)
 		}
-		if primaryRoot != (ids.ObjectAddress{}) && role.OwnedCleanupAddsDeletionRoot(stage, sources) {
+		if cleanup.AddsDeletionRoot() {
 			primaryRoot = ids.ObjectAddress{}
 		}
-		if err = scope.StageExpressionDependents(stage, roots, mode, nil); err != nil {
+		dependencies, failure := provider.PrepareExpressionDependencies(pending, mode, ids.ObjectAddress{})
+		if failure != nil {
 			primary := ""
 			if primaryRoot != (ids.ObjectAddress{}) {
 				primary = stored.DependencyObject(stage.Base, primaryRoot, stage.DependencyPath)
 			}
-			return core.Result{}, role.OwnedDependentsError(err, primary)
+			return core.Result{}, role.OwnedDependentsError(failure, primary)
 		}
-		if err = scope.StageOwnedSequences(stage, roots, mode, nil); err != nil {
+		if err = stage.ApplySelectedDropRoots(dependencies); err != nil {
+			return core.Result{}, err
+		}
+		e.Mu.Lock()
+		err = e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
+		e.Mu.Unlock()
+		if err != nil {
+			return core.Result{}, err
+		}
+		if err = cleanup.Apply(scope.Op.Context(), stage); err != nil {
+			return core.Result{}, err
+		}
+		if err = provider.ApplyExpressionDependencies(dependencies); err != nil {
+			return core.Result{}, err
+		}
+		if err = provider.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 			return core.Result{}, err
 		}
 	}

@@ -151,14 +151,14 @@ func MaterializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.Name()), Detail: "Row: " + text}
 }
 
-func materializedRowsMatch(ctx context.Context, orderings []index.Ordering, old, new []sqltype.Value) (bool, error) {
+func materializedRowsMatch(ctx context.Context, orderings []index.Ordering, old, new []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for _, ordering := range orderings {
 		for i, slot := range ordering.Slots {
 			a, b := old[slot], new[slot]
 			if a.IsNull() || b.IsNull() {
 				return false, nil
 			}
-			cmp, err := ordering.Comparisons[i].Compare(ctx, a, b, sqltype.InputEnvironment{})
+			cmp, err := ordering.Comparisons[i].Compare(ctx, a, b, input)
 			if err != nil {
 				return false, err
 			}
@@ -177,12 +177,18 @@ type MaterializedCounts struct{ Inserts, Deletes int64 }
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment, counts *MaterializedCounts) ([][]sqltype.Value, error) {
+func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment, counts *MaterializedCounts, evaluation *exec.Context) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if len(indices) == 0 {
 		return nil, fmt.Errorf("stuntgres: concurrent materialized index authority is missing")
+	}
+	var input sqltype.InputEnvironment
+	if evaluation != nil {
+		input = evaluation.FunctionInput()
+	} else if view.Owner().Sepgsql != nil {
+		return nil, fmt.Errorf("stuntgres: missing materialized comparison owner")
 	}
 	orderings := make([]index.Ordering, len(indices))
 	for i, idx := range indices {
@@ -190,6 +196,9 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 		orderings[i], err = index.BindIndexOrdering(view, parent, idx.SQLIndex)
 		if err != nil {
 			return nil, err
+		}
+		if evaluation != nil {
+			orderings[i].BorrowSupport(evaluation)
 		}
 	}
 	ordering := orderings[0]
@@ -256,7 +265,7 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 					return nil, err
 				}
 				at := entries[j].Position
-				match, err := materializedRowsMatch(ctx, orderings, values, rows[at])
+				match, err := materializedRowsMatch(ctx, orderings, values, rows[at], input)
 				if err != nil {
 					return nil, err
 				}

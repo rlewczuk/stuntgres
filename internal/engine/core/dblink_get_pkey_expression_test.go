@@ -146,8 +146,19 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 	enginetest.Run(t, e, "CREATE TABLE pkey_demand(a integer,b integer,PRIMARY KEY(b,a))")
 	reader, _ := blockingUnitOwner(t, e)
 	scope := pgrowlocksUnitScope(t, e, reader)
+	e.Mu.Lock()
+	auth, err := scope.RoutineAuthorizationLocked()
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope.RoutineAuth = auth
 	scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope), Catalog: e.CatalogRead(), Input: scope.Input, Output: scope.Output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
+	if err := exec.BeginRoutineInitialization(&evaluation); err != nil {
+		t.Fatal("real source initializer", err)
+	}
+	var retained []sqltype.Value
 	for _, null := range []bool{false, true} {
 		demands := 0
 		value := sqltype.String(n.Arg.ResultUsage().Type, "pkey_demand")
@@ -156,6 +167,9 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 		}
 		demand := n
 		demand.Arg = pkeyDemandArgument{LiteralExpr: plan.LiteralExpr{Info: expr.InfoOf(n.Arg), Value: value}, demands: &demands}
+		if err := exec.AdmitRoutineCall(&evaluation, demand, false, false); err != nil {
+			t.Fatal("real source initialization", err)
+		}
 		cursor, err := demand.OpenSource(&evaluation)
 		if err != nil {
 			t.Fatal("real installed source open", err)
@@ -165,7 +179,7 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 		}
 		count := 0
 		for {
-			row, present, err := cursor.Next(context.Background())
+			row, present, err := demand.AdvanceSource(context.Background(), &evaluation, &cursor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,7 +189,16 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 				}
 				break
 			}
+			position, positionErr := row.CompositeField(0).Integer()
+			name, nameErr := row.CompositeField(1).Text()
+			if row.Type() != n.Usage.Type || positionErr != nil || nameErr != nil || count >= 2 || position != int64(count+1) || name != []string{"b", "a"}[count] {
+				t.Fatal("source lost selected ordered key metadata", row, positionErr, nameErr)
+			}
+			retained = append(retained, row)
 			count++
+			if count == 1 {
+				enginetest.Run(t, e, "ALTER TABLE pkey_demand RENAME a TO renamed_a")
+			}
 		}
 		cursor.Close()
 		want := 2
@@ -184,6 +207,13 @@ func TestDblinkGetPkeyExpression(t *testing.T) {
 		}
 		if demands != 1 || count != want {
 			t.Fatal("source argument repeated or strict cardinality changed", demands, count)
+		}
+	}
+	for i, row := range retained {
+		position, positionErr := row.CompositeField(0).Integer()
+		name, nameErr := row.CompositeField(1).Text()
+		if positionErr != nil || nameErr != nil || position != int64(i+1) || name != []string{"b", "a"}[i] {
+			t.Fatal("source close or NULL execution changed old output", row, positionErr, nameErr)
 		}
 	}
 }

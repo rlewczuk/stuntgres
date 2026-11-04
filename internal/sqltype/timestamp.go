@@ -43,6 +43,10 @@ type InputEnvironment struct {
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	ByteTransport                             bool
 	Transport                                 ClientEncodingPolicy
+	// TypeIO is borrowed actual-operation authority, never a settings value.
+	TypeIO       TypeIOBoundary
+	Conversion   EncodingConversionBoundary
+	IndexSupport IndexSupportBoundary
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.
 	TypeDiagnosticName func(ID) string

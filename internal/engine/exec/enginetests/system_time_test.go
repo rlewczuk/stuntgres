@@ -81,7 +81,7 @@ func TestSystemTimeVisibleSelection(t *testing.T) {
 	if captured.Count() != 4 {
 		t.Fatal("private scan changed committed snapshot")
 	}
-	check(&exec.Source{Ref: captured.Ref, Anonymous: [][]sqltype.Value{}}, map[int64]bool{}, math.Inf(1))
+	check(&exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: [][]sqltype.Value{}}, map[int64]bool{}, math.Inf(1))
 	if _, _, eligible := exec.ParallelQueryPlan(query.Root, captured); eligible {
 		t.Fatal("sampling split across workers")
 	}

@@ -73,6 +73,12 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	if err = EvaluationContext(c); err != nil {
 		return value, err
 	}
+	if owner := c.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+		if err = validateRoutineExpressionInitialization(c, n.Procedure, n.Info); err != nil {
+			return value, err
+		}
+	}
+	initialized := RoutineInitializationCall{Owner: c.RoutineInitialization, Site: invocationRoutineInitializationSite(c, n.Procedure, n.Info, catalog.DefinitionDependency)}
 	var accepted *AcceptedDefaultInvocation
 	if call := c.defaultCall; call != nil {
 		if !call.matchesPrepared(n) {
@@ -133,10 +139,10 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
 	if values != nil {
-		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning)
+		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning, initialized)
 		return value, err
 	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning, accepted)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning, accepted, initialized)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}
@@ -206,7 +212,14 @@ func (c *Context) EarthCoordinateDiagnosticNames(n functions.EarthCoordinate) (s
 	if captured == nil {
 		return "", "", fmt.Errorf("stuntgres: missing earth coordinate routine identity")
 	}
-	view := preparation.DomainCatalog(c)
+	auth, _, err := RoutineInvocationAuthority(c)
+	if err != nil {
+		return "", "", err
+	}
+	if !auth.Live() {
+		return "", "", fmt.Errorf("stuntgres: missing earth coordinate diagnostic authority")
+	}
+	view := auth.Catalog
 	current, err := ValidateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return "", "", err

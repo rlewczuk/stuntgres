@@ -25,7 +25,9 @@ func ownershipCleanupStage(t *testing.T) (*core.Engine, *core.CatalogStage, *cat
 	// Candidate construction deliberately leaves IDs unassigned. This fixture
 	// installs its initial graph before retaining any transaction predecessor.
 	root, frontier, err := e.RoleStore.Published.Root.AssignMembershipOIDs(authorization.FirstMembershipOID)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	e.RoleStore.Published.Root = root
 	e.RoleStore.InstallMembershipFrontierLocked(frontier)
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_guard", ObjectRevision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
@@ -36,7 +38,11 @@ func ownershipCleanupStage(t *testing.T) (*core.Engine, *core.CatalogStage, *cat
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.RoleRevision = e.RoleStore.Published.Revision
-	if err := role.StageOwnedCleanup(context.Background(), stage, e.RoleStore.PublishedRead(&e.Catalog.Owner, stage.Base), e.RoleStore.Published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	cleanup, err := role.PrepareOwnedCleanup(context.Background(), stage, e.RoleStore.PublishedRead(&e.Catalog.Owner, stage.Base), e.RoleStore.Published, map[authorization.PrincipalRef]bool{source: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = cleanup.Apply(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
 	if stage.RoleCandidateRecord == nil || stage.Get(ns.Address()) == nil {

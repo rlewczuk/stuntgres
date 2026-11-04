@@ -92,6 +92,11 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 			return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"passwordcheck" is a reserved prefix.`}
 		}
 	}
+	if create && strings.HasPrefix(name, "sepgsql.") {
+		if _, active := registry.Definitions()["sepgsql.permissive"]; active {
+			return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"sepgsql" is a reserved prefix.`}
+		}
+	}
 	if create && s.pgcryptoAuthority().loaded.Load() && strings.HasPrefix(key, "pgcrypto.") {
 		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pgcrypto" is a reserved prefix.`}
 	}

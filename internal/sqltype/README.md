@@ -65,6 +65,47 @@ admission and removes it before nested binding.
   Server Bind, row output, FunctionCall and COPY reuse these methods; there is
   no conversion registry and no second integer parser (`ParseInt8` serves COPY
   options).
+- Actual installed scalar text codecs borrow `TypeIOBoundary` through the
+  operation's input/output environment. Recursive arrays, composites and domains
+  carry that same environment to reached custom scalar leaves; original core
+  wrappers do not exempt a nested custom callback. NULL skips the actual leaf,
+  while nonnull empty input still reaches its real input function.
+  The engine authenticates the original type generation and installed helper
+  relationship. Descriptors, values, retained settings and codec metadata never
+  retain a session, active boundary or permission result. Unsupported native
+  binary directions remain unsupported rather than inventing receive/send calls.
+  `RoutineBodyToken` is the single allocation-free owner/depth/stamp value used
+  by those immediate borrowed kernels and engine-owned lexical routine bodies;
+  every successful entry is left on success, parser error and cancellation.
+  The explicit selected-I/O owner uses `InputEnteredTypeIO` or
+  `OutputEnteredTypeIO` only for its exact already-entered installed scalar
+  leaf. That typed purpose survives same-leaf typmod normalization, never
+  array/domain/composite recursion; unrelated nested leaf work still borrows its
+  real callback. Current type and helper pointers must match the captured
+  generation, including after an otherwise capability-preserving rename.
+- Grouping retains selected immutable equality/hash callback references, including
+  recursive array leaves, and borrows `GroupingBoundary` only for real non-NULL
+  leaf operations. Hstore/ltree extended hashes keep their actual selected support
+  identities; cube's private dimension fingerprint creates no fictitious hash
+  callback. Hash-index equality owns the actual selected family strategy
+  separately from the hash support routine. Query membership and SEARCH/CYCLE
+  retain source grouping identities and borrow the actual evaluator; CYCLE
+  ancestry compares even for UNION ALL, whereas SEARCH identity is used only
+  when DISTINCT consumes it.
+  Index comparison, hash and GIN kernels accept an operation-local
+  `IndexSupportBoundary`. `Comparison.VisitIndexSupports` exposes only captured
+  comparison leaves, including a custom range's retained subtype ordering, for
+  coordinator initialization; it does not enumerate an opclass. Actual range
+  input/constructor/operator/inspection/aggregate and partition-routing kernels
+  carry their borrowed environment to reached subtype comparison and hashing.
+  GIN role 2 value extraction and role 3 whole-array/scalar query extraction
+  return an immutable datum-backed result before emitter/dictionary work.
+  Scalar/vector ordinary token comparison enters the actual GIN role 1.
+  Array GIN has no role-1 member and directly invokes its captured default
+  B-tree element comparator; it never invents a GIN wrapper descriptor or
+  substitutes a missing scalar/vector support. NULL marker ordering invokes no
+  per-NULL callback. Already extracted lexeme probes do not manufacture a
+  TSQuery extractor invocation.
 - `RegtypeResolver` supplies catalog-dependent REGTYPE identity input.
   Its optional `RegtypeUsageResolver` capability supplies declaration usages,
   including exact encoded typmods, without OID/dash value shortcuts. Both
@@ -72,8 +113,11 @@ admission and removes it before nested binding.
   or retained expression. Destination consumers alone classify directly
   returned producer soft errors; missing capabilities are setup errors.
 - `ClientEncodingPolicy` owns a copied immutable inbound/outbound conversion
-  pair, with scalar identity only. Core supplies actual default providers;
-  missing providers never fall back to a built-in kernel lookup. Conversion
+  pair and inert selected catalog identity. Core supplies actual default providers;
+  missing providers never fall back to a built-in kernel lookup. A synchronous
+  real nonempty conversion borrows `EncodingConversionBoundary`; no session,
+  evaluator or permission result is retained by the policy. Empty and identical
+  encoding paths do not demand that boundary. Conversion
   validates, counts and emits with bounded context polls and publishes no
   partial string. Append uses caller-owned capacity and restores its original
   length on error. UTF8/SQL_ASCII identity paths avoid conversion allocation.
@@ -83,6 +127,17 @@ admission and removes it before nested binding.
   native Unicode APIs and immutable stored datums are not reinterpreted.
   Binary containers recurse through the same environment for textual leaves,
   keeping framing words, numeric fields, bytea and internal CHAR opaque.
+  Selected conversion and procedure descriptors remain exact captured identity:
+  a stale borrower cannot silently adopt a newer same-implementation converter.
+  The shipped CLI constructs inactive engines and has no simulation registration
+  path. Its startup/framing/diagnostic encoding remains that inactive boundary;
+  no synthetic active host is fabricated for raw socket codecs. Active engine
+  protocol/COPY producers instead borrow their real statement evaluator.
+  Protocol row/FunctionCall and COPY output owners revalidate captured simulated
+  MAC predecessors after detached encoding and before admitting the encoded
+  datum to a sink. They do not retry/reallow a changed predecessor, hold an
+  engine lock during external I/O, or promise immunity to changes after that
+  admission frontier.
 - `OwnedHstoreEntries` projects an exact genuine hstore descriptor generation
   into a fresh plain entry slice. `HstoreFromEntries` validates the untrusted
   carrier and constructs fresh private immutable pairs, preserving SQL NULL
@@ -197,6 +252,8 @@ admission and removes it before nested binding.
   Safe low page-version, reported GIN-version and stored offset mutations are
   not extra validation gates. Undefined corrupt layouts use the ordinary native
   layout error, never fabricated PostgreSQL SQLSTATEs or physical acquisition.
+  `LeafItem` retains a compressed-segment offset and decodes only that segment;
+  it does not inspect a later segment before the next actual source call.
 - `ReadPageHeader` owns the numeric PostgreSQL 18 raw header fields, including
   high-word-first PG_LSN, signed checksum/flags, unsigned offsets and full XID.
   It checks exact byte length, not layout version, page type or offset order.
@@ -213,6 +270,9 @@ admission and removes it before nested binding.
   regardless of declared tuple length. Actual pointer/tuple reads are bounded,
   with ordinary native-layout errors only where upstream reads are undefined.
   Owned item collections poll cancellation and never publish a partial result.
+  `ItemCount`/`Item` expose the same checked immutable decoder one selected row
+  at a time. B-tree has the corresponding pair; BRIN revmap has
+  `RevmapLen`/`RevmapItem`. The bulk helpers reuse those row kernels.
   No reader consults logical rows, synthesizes pages or acquires relation files.
 - `PgNDistinct`, `PgDependencies` and `PgMCVList` are concrete internal base
   descriptors. Non-NULL text and binary input reject with 0A000; typed NULL
@@ -813,6 +873,13 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   retains SQL NaN ordering, signed zero and underflow. Projection borrows private
   coordinates; ll construction owns one three-coordinate point allocation and
   checks the result through the ordinary domain input environment before wrapping.
+  Generated domain CHECKs split `EarthCubeCheckLeaf` from `EarthCheck.MatchLeaf`:
+  only the actual point/dimension/distance leaf belongs to the selected C body.
+  The surface recipe retains its real immutable `(0)` cube operand in the same
+  descriptor generation, validated by `IsEarthCubeOrigin` and reowned through
+  ordinary literal remapping. Radius division/absolute-value/comparison run after
+  that body leaves; ordered NaN/endpoint arithmetic is unchanged. No per-call
+  origin parsing or policy/session authority enters these pure kernels.
 - `EarthPointPlan` captures only builtin POINT/FLOAT8 descriptor generations and
   measures longitude-first coordinates in statute miles, independently of the
   earth domain's meter radius. Inline coordinates require no evaluation allocation

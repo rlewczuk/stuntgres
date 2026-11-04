@@ -60,6 +60,9 @@ type restoreRun struct {
 	ginRows                  []index.PositionedGinRow
 	ginRowPairs              map[*parser.Insert]index.GinDumpRow
 	ginIdentities            map[[2]string]map[int]index.RowIdentity
+	sepgsqlRequirement       *control.SepgsqlRequirement
+	sepgsqlAuthority         *core.ControlSepgsqlAuthority
+	controlOrigin            controlOrigin
 	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
 	comparison               control.ComparisonRestore
 	attributePairs           control.AttributeConstructorPairs
@@ -221,6 +224,13 @@ func (h *restoreHost) Execute(op *session.Operation, stmt parser.Statement) (con
 
 // Publish installs the stage catalog into the target atomically.
 func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error {
+	if err := h.run.controlOrigin.validate(h.target, h.run.sepgsqlAuthority); err != nil {
+		return err
+	}
+	if h.run.controlOrigin == detachedPublicControl {
+		_, err := h.target.ReplaceCatalogWithControl(ctx, h.run.stage, h.run.stage.CatalogRead(), op, h.run.sepgsqlAuthority)
+		return err
+	}
 	_, err := h.target.ReplaceCatalogInOperation(ctx, h.run.stage, h.run.stage.CatalogRead(), op)
 	return err
 }

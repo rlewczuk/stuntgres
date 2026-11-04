@@ -75,7 +75,13 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	if err != nil {
 		return CreatePlan{}, err
 	}
-	physical, _ := method.IndexImplementation()
+	physical, err := h.InitializeIndexMethod(auth, method)
+	if err != nil {
+		return CreatePlan{}, err
+	}
+	if err := validateIndexMethod(s, physical, method.Name()); err != nil {
+		return CreatePlan{}, err
+	}
 	if s.Concurrent.Character != 0 && s.Predicate != nil {
 		return CreatePlan{}, sqlError("0A000", "partial concurrent indexes are unsupported")
 	}
@@ -94,7 +100,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	if err != nil {
 		return CreatePlan{}, err
 	}
-	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, s, method, keyTransforms)
+	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, s, method, physical, keyTransforms)
 	if err != nil {
 		return CreatePlan{}, err
 	}

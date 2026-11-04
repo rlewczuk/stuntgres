@@ -32,7 +32,7 @@ func (e RangeOperator) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
-	return e.Plan.Evaluate(ctx, values)
+	return e.Plan.EvaluateWithEnvironment(ctx, values, c.FunctionInput())
 }
 func NewRangeOperator(info expr.Info, op sqltype.RangeOperator, args [2]expr.Expr, namespace string) (RangeOperator, error) {
 	plan, err := sqltype.BindRangeOperator(op, info.Usage, args[0].ResultUsage(), args[1].ResultUsage())

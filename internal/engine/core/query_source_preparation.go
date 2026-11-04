@@ -49,7 +49,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		return nil, err
 	}
 	if s.authority == nil {
-		s.authority = &exec.Authority{Host: HostOf(s)}
+		s.authority = &exec.Authority{Host: HostOf(s), RoutineCatalog: s.RoutineAuth.Catalog}
 	}
 	if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 		return nil, err
@@ -65,6 +65,9 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		return nil, err
 	}
 	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.PendingCatalog())), s.PartitionRelations, s.PendingDetachSnapshot()))
+	if s.authority.RoutineCatalog.Owner() == nil {
+		s.authority.RoutineCatalog = auth.Catalog
+	}
 	p.refs, err = e.QueryTableRefsLocked(auth, invoker, leaves, nil, s.Op.Session.SessionToken, inherited)
 	if err != nil {
 		return nil, err

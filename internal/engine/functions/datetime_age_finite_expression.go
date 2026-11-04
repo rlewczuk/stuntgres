@@ -30,6 +30,11 @@ func (e DatetimeAgeFinite) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	body, err := e.EnterRoutine(c, values[:e.Count])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return e.Plan.Evaluate(ctx, values[:e.Count], c.FunctionInput())
 }
 

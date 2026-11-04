@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -18,14 +19,18 @@ func (p *IntaggProvider) Versions() catalog.ExtensionVersions {
 var StockIntagg = &IntaggProvider{control: catalog.ExtensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 
 var IntaggMembers = [...]struct {
-	Name      string
-	Signature catalog.ProcedureSignature
-	Result    ids.OID
-	Strict    bool
-	Kind      catalog.RoutineKind
+	Name       string
+	Signature  catalog.ProcedureSignature
+	Result     ids.OID
+	Strict     bool
+	Kind       catalog.RoutineKind
+	Source     string
+	Volatility expr.Volatility
 }{
-	{"int_array_aggregate", "23", 1007, false, catalog.AggregateRoutine},
-	{"int_array_enum", "1007", 23, true, catalog.FunctionRoutine},
+	{"int_agg_state", "2281,23", 2281, false, catalog.FunctionRoutine, "array_agg_transfn", expr.Volatile},
+	{"int_agg_final_array", "2281", 1007, false, catalog.FunctionRoutine, "array_agg_finalfn", expr.Volatile},
+	{"int_array_aggregate", "23", 1007, false, catalog.AggregateRoutine, "aggregate_dummy", expr.Immutable},
+	{"int_array_enum", "1007", 23, true, catalog.FunctionRoutine, "array_unnest", expr.Immutable},
 }
 
 func (p *IntaggProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {

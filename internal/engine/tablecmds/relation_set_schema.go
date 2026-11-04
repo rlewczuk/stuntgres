@@ -50,6 +50,9 @@ func AlterSchemaLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 		return fail(core.SQLError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.Namespace() {
+		if err = auth.View.SepgsqlRelationPostAlter(old); err != nil {
+			return fail(err)
+		}
 		op.Session.Mu.Lock()
 		err = core.PublicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
@@ -129,6 +132,9 @@ func AlterSchemaLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	defer e.DiscardCatalogStage(stage)
 	for i := range next {
 		if err = stage.Replace(&next[i]); err != nil {
+			return core.Result{}, err
+		}
+		if err = stage.SepgsqlRelationNameChange(group[i], &next[i]); err != nil {
 			return core.Result{}, err
 		}
 	}

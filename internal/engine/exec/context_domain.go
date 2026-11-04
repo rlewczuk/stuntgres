@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -62,15 +63,40 @@ func (c *Context) evaluateOwnDomainChecks(view catalog.Read, target, d *catalog.
 	expressions := c.PreparedDomainChecks[d].Expressions
 	oldRecipe, oldGraft := c.RoutineRecipe, c.RoutineGraft
 	oldChecks, oldReferences, oldConsumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
+	oldInitialization := c.RoutineInitialization
+	oldPhase := c.InitializationPhase
+	oldNativeBody, oldBodyContext, oldDeclarationDemand := c.nativeBody, c.RoutineBodyContext, c.declarationDemand
+	oldSource := c.routineSource
+	c.ClearNativeBodySource()
 	defer func() {
 		c.RoutineRecipe, c.RoutineGraft = oldRecipe, oldGraft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = oldChecks, oldReferences, oldConsumer
+		c.RoutineInitialization = oldInitialization
+		c.InitializationPhase = oldPhase
+		c.nativeBody, c.RoutineBodyContext, c.declarationDemand = oldNativeBody, oldBodyContext, oldDeclarationDemand
+		c.routineSource = oldSource
 	}()
 	for i, check := range d.DomainChecks {
 		// Preserve the original CHECK recipe for lazily demanded bodies,
 		// without changing the phase's actual invoker/RI authority.
 		c.RoutineRecipe, c.RoutineGraft = true, false
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = check.Dependencies, nil, nil
+		if owner := view.Owner(); owner != nil && owner.Sepgsql != nil {
+			auth, _, failure := RoutineAdmissionAuthority(c)
+			if failure != nil {
+				return failure
+			}
+			phases := c.PreparedDomainChecks[d].Phases
+			if phases == nil {
+				return fmt.Errorf("stuntgres: missing domain CHECK initialization phase")
+			}
+			initialized, ok := phases.RoutineInitialization(c.DomainPhase, auth.State.CurrentUser, c.DomainRI, i)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing domain CHECK initialization ordinal")
+			}
+			c.RoutineInitialization = initialized
+			c.InitializationPhase = DomainCheckInitialization
+		}
 		node := check.Expression
 		if expressions != nil {
 			node = expressions[i]
@@ -112,10 +138,13 @@ type DomainCheckProgram struct {
 
 // The runtime reads only a programme's expressions; its phases are an opaque
 // slot that holds a domainPhaseList, which only engine helpers look inside.
-type domainCheckPhases interface{ DomainCheckPhasesSlot() }
+type domainCheckPhases interface {
+	DomainCheckPhasesSlot()
+	RoutineInitialization(ids.CommandIdentity, authorization.PrincipalRef, bool, int) (RoutineInitialization, bool)
+}
 
 func (c *Context) FunctionJSONBRecordInput() sqltype.InputEnvironment {
-	input := c.Input
+	input := c.FunctionInput()
 	input.DomainChecks = InputDomainChecks(c, preparation.DomainCatalog(c))
 	return input
 }

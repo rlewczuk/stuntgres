@@ -25,13 +25,14 @@ type afterTriggerState struct {
 }
 
 type afterTriggerFrame struct {
-	rows, statements []afterTriggerEvent
-	row, statement   int
-	draining         bool
-	producers        []afterStatementProducer
-	producer         int
-	before           map[afterStatementKey]struct{}
-	segments         map[afterStatementKey]*transitionSegment
+	rows, statements    []afterTriggerEvent
+	row, statement      int
+	draining            bool
+	producers           []afterStatementProducer
+	producer            int
+	before              map[afterStatementKey]struct{}
+	segments            map[afterStatementKey]*transitionSegment
+	whenInitializations map[dml.TriggerWhenKey]exec.RoutineInitialization
 }
 
 type afterStatementKey struct {
@@ -258,6 +259,24 @@ func (s *StatementScope) afterWhen(event afterTriggerEvent, auth AuthorizationVi
 	}
 	old.RoutineAuthority, old.RoutineRecipe = &auth, true
 	old.RoutineChecks, old.RoutineConsumer = p.Binding.Dependencies, event.relation
+	if s.Engine().Sepgsql != nil {
+		source := dml.TriggerWhenKey{Relation: event.relation, Trigger: p.OID, Actor: auth.State.CurrentUser, Event: event.event, Timing: p.Timing}
+		frame := s.afterFrame()
+		owner, exists := frame.whenInitializations[source]
+		if !exists {
+			var err error
+			owner, err = HostOf(s).NewRoutineInitialization()
+			if err != nil {
+				return false, err
+			}
+			if frame.whenInitializations == nil {
+				frame.whenInitializations = make(map[dml.TriggerWhenKey]exec.RoutineInitialization)
+			}
+			frame.whenInitializations[source] = owner
+		}
+		old.RoutineInitialization = owner
+		old.InitializationPhase = exec.TriggerWhenInitialization
+	}
 	next := old
 	next.Frame, next.Row, next.Outer = 2, event.next, &old
 	if err := exec.AdmitExpression(&next, p.When, event.read); err != nil {

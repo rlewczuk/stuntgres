@@ -64,7 +64,25 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	simple := plan.CaseExpr{Info: info, Test: spy(0, value), Arms: []plan.CaseBranch{{Condition: spy(1, other), Result: spy(2, other), Test: plan.CaseTestExpr{Info: info}, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), Test: plan.CaseTestExpr{Info: info}, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: plan.LiteralExpr{Info: info, Value: other}}
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := enginetest.Statement(t, "SELECT CASE 1 WHEN 2 THEN 2 WHEN 1 THEN 1 ELSE 2 END").(*parser.Select).Targets[0]
+	bound, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	simple := bound.(plan.CaseExpr)
+	simple.Test = spy(0, value)
+	simple.Arms[0].Condition, simple.Arms[0].Result = spy(1, other), spy(2, other)
+	simple.Arms[1].Condition, simple.Arms[1].Result = spy(3, value), spy(4, value)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(binder.Host.(*core.BindingHost).Op)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := &core.StatementScope{RoutineAuth: auth}
+	scope.RoutineDependencies = binder.Dependencies
+	ctx.Host, ctx.Catalog = core.HostOf(scope), auth.Catalog
 	got, err = simple.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 1, 1} {
 		t.Fatal(got, calls, err)

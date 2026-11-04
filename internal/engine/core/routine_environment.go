@@ -15,7 +15,21 @@ func unchangedRoutineEnvironment(err error) error { return err }
 // before SQL, PL or installed native trigger dispatch. It borrows the operation,
 // and setting journal: no transaction completion, safe path or detached store.
 func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (leave func(error) error, err error) {
-	if !d.SecurityDefiner && d.Configuration == nil {
+	leaveSubject, err := s.enterSepgsqlRoutine(d)
+	if err != nil {
+		return nil, err
+	}
+	if leaveSubject != nil {
+		defer func() {
+			if err != nil {
+				leaveSubject()
+				return
+			}
+			ordinary := leave
+			leave = func(primary error) error { leaveSubject(); return ordinary(primary) }
+		}()
+	}
+	if !d.SecurityDefiner && d.Configuration == nil && leaveSubject == nil {
 		return unchangedRoutineEnvironment, nil
 	}
 	op, e := s.Op, s.Engine()

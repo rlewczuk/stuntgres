@@ -11,15 +11,21 @@ import (
 // only procedures, and procedure EXECUTE checks never read the environment
 // (it supplies the TEMP namespace and type paths), so a readmission that
 // switches View.State.CurrentUser keeps the original environment. Env borrows
-// the engine's authorization view and is never retained past admission; it
-// is nil for an authority without a live engine.
+// live TEMP/path facilities during ordinary admission. A genuine closed
+// coordinator capture instead owns immutable catalog/roles with Env nil; its
+// private marker permits only environment-independent routine admission.
 type RoutineAccess struct {
 	access.View
-	Env access.Environment
+	Env                 access.Environment
+	coordinatorCaptured bool // Genuine immutable coordinator snapshot; never a live environment.
 }
 
-// Live reports whether the authority belongs to a live engine.
-func (a RoutineAccess) Live() bool { return a.Env != nil }
+// Live reports actual engine-backed admission, including a coordinator's
+// explicitly detached snapshot. The latter cannot supply a Host or initialize
+// execution; procedure ACL/lifetime checks alone need no environment.
+func (a RoutineAccess) Live() bool {
+	return a.Env != nil || a.coordinatorCaptured && a.Owner != nil && a.Catalog.Owner() == a.Owner
+}
 
 // Check checks req with the authority's environment.
 func (a RoutineAccess) Check(req access.Requirement) error { return a.View.Check(a.Env, req) }

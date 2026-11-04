@@ -137,7 +137,11 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 	// Import arguments before provider planning, without evaluating expressions.
 	frame := make([]sqltype.Value, description.Parameters.Count)
 	if importFrame != nil {
-		if err := importFrame(scope.executionContext(), description.Parameters, frame, scope.Input); err != nil {
+		environment, captureErr := scope.borrowParameterInput(description.Parameters.Types)
+		if captureErr != nil {
+			return Result{}, captureErr
+		}
+		if err := importFrame(scope.executionContext(), description.Parameters, frame, environment); err != nil {
 			return Result{}, err
 		}
 	}

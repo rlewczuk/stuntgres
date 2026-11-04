@@ -74,6 +74,9 @@ func ExecuteAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	defer e.DiscardCatalogStage(stage)
 	if next != nil {
 		err = stage.Replace(next)
+		if err == nil && (s.Action == "set" || s.Action == "reset") && len(s.Options) != 0 {
+			err = stage.SepgsqlPostAlter(next, next.Address(), false)
+		}
 	}
 	if err == nil {
 		var prepared *core.PreparedCatalogPublication
@@ -165,11 +168,18 @@ func ExecuteDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropV
 	for i, ref := range refs {
 		targets[i] = ref.Address
 		stage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
+	}
+	drop := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(targets, s.Mode, ids.ObjectAddress{})
+	if err != nil {
+		return core.Result{}, err
+	}
+	for _, ref := range refs {
 		if err := stage.Remove(ref); err != nil {
 			return core.Result{}, err
 		}
 	}
-	if err := scope.StageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.

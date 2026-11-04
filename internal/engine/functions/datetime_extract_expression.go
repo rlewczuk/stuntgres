@@ -30,6 +30,11 @@ func (e DatetimeExtract) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	body, err := e.EnterRoutine(c, values[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	value, err := e.Plan.Evaluate(ctx, values[:], c.FunctionInput())
 	if err != nil && e.DateWrapperContext {
 		var diagnostic *sqlstate.Error

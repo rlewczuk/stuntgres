@@ -7,12 +7,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
@@ -139,6 +141,19 @@ func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 		if err := ValidateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, analyze.QueryExecutionSourceReads(project, ignored)); err != nil {
 			return err
 		}
+		if err := admitRecipeGroupings(c, subquery.Membership); err != nil {
+			return err
+		}
+		for _, comparison := range subquery.Ordering {
+			if err := initializeComparisonSupports(c, comparison); err != nil {
+				return err
+			}
+		}
+	}
+	if conditional, ok := expression.(plan.ConditionalExpr); ok {
+		if err := initializeComparisonSupports(c, conditional.Comparison); err != nil {
+			return err
+		}
 	}
 	if logical, ok := expression.(plan.LogicalExpr); ok {
 		if err := ValidateExpressionJoinExecution(c, logical.Left, catalog); err != nil {
@@ -212,6 +227,18 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		}
 	}
 	switch n := node.(type) {
+	case *plan.SortNode:
+		if !n.PresenceOnly {
+			if err := initializeSortSupports(c, n.Keys); err != nil {
+				return err
+			}
+		}
+	case *plan.LimitNode:
+		if !n.PresenceOnly {
+			if err := initializeSortSupports(c, n.PeerKeys); err != nil {
+				return err
+			}
+		}
 	case *plan.AggregateNode:
 		if !n.PresenceOnly {
 			if err := admitQueryGroupings(c, n.Grouping, n.Keys); err != nil {
@@ -232,6 +259,12 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 					return err
 				}
 				if err := exec.AdmitAggregateSupport(&local, &call); err != nil {
+					return err
+				}
+				if err := initializeAggregateSupports(&local, call.Provider); err != nil {
+					return err
+				}
+				if err := initializeSortSupports(&local, call.Order); err != nil {
 					return err
 				}
 				if len(call.Distinct) > 1 {
@@ -263,6 +296,9 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				if err := exec.AdmitAggregateSupport(&local, &plan.AggregateCall{Provider: call.Provider, Procedure: call.Procedure}); err != nil {
 					return err
 				}
+				if err := initializeAggregateSupports(&local, call.Provider); err != nil {
+					return err
+				}
 			}
 		}
 		for i, spec := range n.Specs {
@@ -272,6 +308,9 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			if err := admitQueryGroupings(c, spec.Grouping, spec.Partition); err != nil {
 				return err
 			}
+			if err := initializeSortSupports(c, spec.Order); err != nil {
+				return err
+			}
 			for _, key := range spec.Order {
 				if analyze.PrivateTreeGrouping(key.Expression.ResultUsage().Type) {
 					if key.EqualityRoutine != (ids.ObjectRef{}) || key.EqualityProcedure != nil || key.EqualityRecipe != nil {
@@ -279,7 +318,7 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 					}
 					continue
 				}
-				if err := admitQueryEquality(c, key.EqualityRoutine, key.EqualityProcedure, key.EqualityRecipe); err != nil {
+				if err := exec.InitializeQueryEqualityRoutine(c, key.EqualityRoutine, key.EqualityProcedure, key.EqualityRecipe, expr.InfoOf(key.Expression), exec.WindowEqualityInitialization); err != nil {
 					return err
 				}
 			}
@@ -306,6 +345,20 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		// Inline inherited sets were rejected at analysis. A stored set
 		// source is opaque to an outer row mark, but all arms still plan.
 		set := stored.QuerySetNode(node)
+		if recursive, ok := node.(*plan.RecursiveUnionNode); ok {
+			// CYCLE ancestry compares even for UNION ALL. SEARCH equality/hash
+			// is consumed only by UNION DISTINCT, not by path construction.
+			if recursive.Cycle != nil {
+				if err := admitRecipeGroupings(c, recursive.Cycle.Grouping); err != nil {
+					return err
+				}
+			}
+			if recursive.Search != nil && !recursive.All {
+				if err := admitRecipeGroupings(c, recursive.Search.Grouping); err != nil {
+					return err
+				}
+			}
+		}
 		if len(set.Grouping) != 0 {
 			groups := set.Grouping
 			var cycleMark expr.Expr
@@ -449,8 +502,8 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	return ValidateMarkedQueryJoin(c, right, view, marks, inherited, emptyInput, ignoredProject, reads)
 }
 
-// Query equality is caller-checked; index/hash support and native semantic-tree
-// grouping are deliberately not callable PostgreSQL routines.
+// Query equality has a retained execute initialization; selected callback
+// certificates are separate and never execute an unused support function.
 func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Expr) error {
 	if len(groups) != len(keys) {
 		return fmt.Errorf("stuntgres: missing query grouping identity")
@@ -466,21 +519,56 @@ func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Ex
 			}
 			continue
 		}
-		if err := admitQueryEquality(c, group.Routine, group.Procedure, group.RoutineRecipe); err != nil {
+		if err := exec.InitializeQueryEqualityRoutine(c, group.Routine, group.Procedure, group.RoutineRecipe, group.Source, exec.GroupingEqualityInitialization); err != nil {
+			return err
+		}
+		if err := exec.InitializeGroupingCallbacks(c, group); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Equality belongs to the query key, not to an expression substituted into it.
-// In particular a rule's NEW producer cannot supply the key's historical recipe.
-func admitQueryEquality(c *exec.Context, ref ids.ObjectRef, original *catalog.Procedure, recipe expr.RoutineRecipeReference) error {
-	local := *c
-	if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
-		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
+func admitRecipeGroupings(c *exec.Context, groups []plan.Grouping) error {
+	for _, group := range groups {
+		if group.PrivateTree {
+			if group.Routine != (ids.ObjectRef{}) || group.Procedure != nil || group.RoutineRecipe != nil {
+				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
+			}
+			continue
+		}
+		if err := exec.InitializeQueryEqualityRoutine(c, group.Routine, group.Procedure, group.RoutineRecipe, group.Source, exec.GroupingEqualityInitialization); err != nil {
+			return err
+		}
+		if err := exec.InitializeGroupingCallbacks(c, group); err != nil {
 			return err
 		}
 	}
-	return exec.AdmitRoutineReference(&local, ref, original, "function")
+	return nil
+}
+
+func initializeComparisonSupports(c *exec.Context, comparison sqltype.Comparison) error {
+	return comparison.VisitIndexSupports(func(support sqltype.IndexSupport, slot uint16) error {
+		return exec.InitializeIndexSupport(c, support, slot)
+	})
+}
+
+func initializeSortSupports(c *exec.Context, keys []plan.SortKey) error {
+	for _, key := range keys {
+		if err := initializeComparisonSupports(c, key.Comparison); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func initializeAggregateSupports(c *exec.Context, provider functions.AggregateProvider) error {
+	if selected, ok := provider.(interface {
+		VisitIndexSupports(func(sqltype.IndexSupport, uint16) error) error
+	}); ok {
+		return selected.VisitIndexSupports(func(support sqltype.IndexSupport, slot uint16) error {
+			return exec.InitializeIndexSupport(c, support, slot)
+		})
+	}
+	return nil
 }

@@ -129,7 +129,7 @@ func ImportProtocolParameters(ctx context.Context, output sqltype.OutputEnvironm
 				err = types[i].Type.CheckDomainInput(ctx, value, parameterInput)
 			} else {
 				var text string
-				text, err = env.Transport.Decode(ctx, string(raw))
+				text, err = env.Transport.Incoming().ConvertWithBoundary(ctx, string(raw), env.Conversion)
 				if err == nil {
 					log.Parameters[i].TextInput = true
 					value, err = types[i].Type.InputWithEnvironment(ctx, text, -1, parameterInput)

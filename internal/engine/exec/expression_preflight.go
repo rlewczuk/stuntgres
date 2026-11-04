@@ -26,6 +26,9 @@ func PreflightCoercions(c *Context, expression expr.Expr) (expr.Expr, bool, erro
 // constant planning. Ordinary source, DELETE and supplied-value preflight
 // retain their existing traversal demand.
 func PreflightCoercionsWithPolicy(c *Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+	if err := BeginRoutineInitialization(c); err != nil {
+		return nil, false, err
+	}
 	node, changed, err := preflightCoercionNode(c, expression, decisiveDefaults)
 	if err != nil {
 		return nil, false, err
@@ -267,7 +270,9 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			// Other literal calls use the ordinary accepted fold owner, retaining
 			// values rather than a call under its old session policy.
 			pruned, null, err := preflightStrictParameterNull(c, e, decisiveDefaults)
-			if err != nil || null { return pruned, null, err }
+			if err != nil || null {
+				return pruned, null, err
+			}
 			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
@@ -515,7 +520,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if decisiveDefaults {
 			_, leftConstant := left.(plan.LiteralExpr)
 			_, rightConstant := right.(plan.LiteralExpr)
-			if leftConstant && rightConstant {
+			if leftConstant && rightConstant && !planningExecutionBarrier(c, e) {
 				e.Left, e.Right = left, right
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -555,7 +560,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			_, l := left.(plan.LiteralExpr)
 			_, r := right.(plan.LiteralExpr)
 			p := e.Properties()
-			if l && (right == nil || r) && p == (expr.Properties{}) {
+			if l && (right == nil || r) && p == (expr.Properties{}) && !planningExecutionBarrier(c, e) {
 				v, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, v, err)
 			}
@@ -622,7 +627,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			if _, constant := child.(plan.LiteralExpr); constant {
+			if _, constant := child.(plan.LiteralExpr); constant && !planningExecutionBarrier(c, e) {
 				e.Child = child
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -638,7 +643,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			if _, constant := child.(plan.LiteralExpr); constant {
+			if _, constant := child.(plan.LiteralExpr); constant && !planningExecutionBarrier(c, e) {
 				e.Child = child
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -660,7 +665,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if decisiveDefaults {
 			_, leftConstant := left.(plan.LiteralExpr)
 			_, rightConstant := right.(plan.LiteralExpr)
-			if leftConstant && rightConstant {
+			if leftConstant && rightConstant && !planningExecutionBarrier(c, e) {
 				e.Left, e.Right = left, right
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -697,7 +702,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		if decisiveDefaults && leftConstant {
 			_, rightConstant := right.(plan.LiteralExpr)
-			if e.Op == parser.LogicalNot || rightConstant {
+			if (e.Op == parser.LogicalNot || rightConstant) && !planningExecutionBarrier(c, e) {
 				e.Left, e.Right = left, right
 				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)

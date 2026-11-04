@@ -84,11 +84,22 @@ import it.
   suppresses stale aliases when that identity's current name, namespace or
   signature has changed, then continues the normal namespace path. Genuinely
   absent release identities remain lookup-only, not executable descriptors.
-  Intagg's lookup-only helpers use their own current namespace for both exact
-  and bare-name selection, not the aggregate descriptor's namespace. Moving
+  Intagg's canonical state/final procedure descriptors use their own current
+  namespace for exact and bare-name selection, not the aggregate's namespace.
+  Their genuine INTERNAL argument/result signatures do not admit an unknown
+  literal or cast as an INTERNAL datum. Moving
   only the aggregate does not move its helpers. Live helper output retains its
   qualified spelling outside that namespace's path; numeric output is for
   unknown or retired identities, not a substitute for a missing live namespace.
+  Prepared name/signature literals retain the selected OID as data, not a
+  procedure-revision operand or execution permission. Exact-signature input
+  captures each parsed type operand in source order (including repeats), with
+  qualified namespace authority. Referent-only alteration/drop/recreation does
+  not retire that accepted constant; genuine path/role or signature-type
+  invalidation still follows the shared analysis lifecycle. Stored definitions
+  separately record real routine references through `WalkRoutineReferencesAt`,
+  including each canonical helper's own descriptor, never the aggregate as a
+  substitute. Actual calls retain their separate routine/support manifests.
 - **Captured input resolvers** (`reg*_input.go`, `captured_input_target.go`,
   `input_authority.go`): `ClassInput`, `TypeInput`, `OperatorInput`,
   `RoutineInput`, `TextSearchInput` and `ObjectInput`, built by `New*Input` over
@@ -181,8 +192,8 @@ import it.
   the `pg_*_is_visible` and collation-version inquiries over the statement's
   visibility snapshot (catalog, relation path, TEMP-filtered path). Function
   visibility selects the exact input signature through `RoutineIdentityByOID`
-  and `SelectExactRoutine`, including lookup-only release and aggregate-helper
-  identities without executable descriptors. Operators use ordered operand keys;
+  and `SelectExactRoutine`, including lookup-only released identities and genuine
+  canonical installed aggregate-helper descriptors. Operators use ordered operand keys;
   classes and families use access-method-qualified descriptor keys. All four use
   the captured TEMP-free path, without target permission checks or live session
   lookup. These are name-visibility rules, not MVCC visibility.

@@ -58,6 +58,9 @@ func (f *foreignAppendFrontier) probe(ctx context.Context, s *State, node plan.N
 		if err != nil {
 			return err
 		}
+		if err := foreign.InitializeHandler(source.LiveHost()); err != nil {
+			return err
+		}
 		request := CopyForeignRequest(foreign.Request)
 		request.Parameters = parameters
 		execution := &ForeignExecution{owner: s.foreignOwner, asyncProbe: true}

@@ -196,10 +196,10 @@ func TestRoutineAlterHardCaptureAdmission(t *testing.T) {
 	if err := direct.RecordActor(&context, original, captured, auth.State.CurrentUser, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := hard.Readmit(auth.AdmissionAccess()); err != nil {
+	if err := hard.Readmit(auth.AdmissionAccess(), exec.ConsumedGraphRevalidation); err != nil {
 		t.Fatal("hard policy lost in readmission", err)
 	}
-	if err := direct.Readmit(auth.AdmissionAccess()); err == nil {
+	if err := direct.Readmit(auth.AdmissionAccess(), exec.ConsumedGraphRevalidation); err == nil {
 		t.Fatal("direct policy lost in readmission")
 	}
 	for _, order := range [][2]*exec.RoutineProgram{{&hard, &direct}, {&direct, &hard}} {
@@ -210,10 +210,10 @@ func TestRoutineAlterHardCaptureAdmission(t *testing.T) {
 		if len(union.Calls) != 2 {
 			t.Fatal("union coalesced distinct source/recipe policies", len(union.Calls))
 		}
-		if err := union.Readmit(auth.AdmissionAccess()); err == nil {
+		if err := union.Readmit(auth.AdmissionAccess(), exec.ConsumedGraphRevalidation); err == nil {
 			t.Fatal("union discarded direct-source revision fence")
 		}
-		if err := phase.InitializePhase(&union, auth.AdmissionAccess()); err == nil {
+		if err := phase.InitializePhase(&union, auth.AdmissionAccess(), exec.CallerInitialization); err == nil {
 			t.Fatal("phase initialization discarded direct-source revision fence")
 		}
 	}

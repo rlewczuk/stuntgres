@@ -4,11 +4,14 @@ import (
 	"context"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // DictionaryPreparation retains semantic inputs, not authorization decisions.
@@ -99,16 +102,43 @@ func PrepareDictionary(h DictionaryHost, auth ddl.Authority, stmt parser.Stateme
 	}
 	return p, nil
 }
-func (p *DictionaryPreparation) Compile(ctx context.Context) error {
+
+// DictionaryCompiler is borrowed only for detached compilation. Preparations
+// retain immutable semantic inputs, never a session or callback authority.
+type DictionaryCompiler interface {
+	EnterPreparedDictionaryInit(*DictionaryPreparation) (sqltype.RoutineBodyToken, access.SepgsqlObservationMark, error)
+	BorrowDictionaryNormalizer(context.Context, *DictionaryPreparation) expr.DictionaryLexizer
+	AbortDictionaryInitialization(access.SepgsqlObservationMark)
+}
+
+func (p *DictionaryPreparation) Compile(ctx context.Context, host DictionaryCompiler) (err error) {
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if p.Template == nil {
 		return ctx.Err()
 	}
-	var err error
+	token, mark, err := host.EnterPreparedDictionaryInit(p)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		token.Leave()
+		if err != nil {
+			host.AbortDictionaryInitialization(mark)
+		}
+	}()
 	if p.Thesaurus != nil {
-		p.Runtime, err = p.Thesaurus.Compile(ctx)
+		p.Runtime, err = p.Thesaurus.Compile(ctx, host.BorrowDictionaryNormalizer(ctx, p))
+		if err == nil {
+			err = ctx.Err()
+		}
 		return err
 	}
 	p.Runtime, err = CompileDictionary(ctx, p.View, p.Template, p.Options, p.Files)
+	if err == nil {
+		err = ctx.Err()
+	}
 	return err
 }
 func (p *DictionaryPreparation) Current(view catalog.Read) bool {

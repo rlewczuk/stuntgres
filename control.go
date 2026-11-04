@@ -11,7 +11,7 @@ import (
 
 // withDatabaseTarget captures the immutable selected runtime and releases its
 // borrower before I/O. Driver owns the target for the cluster's lifetime.
-func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*core.Engine) error) error {
+func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*core.Engine, *core.ControlSepgsqlAuthority) error) error {
 	if db == nil {
 		return errors.New("stuntgres: nil database")
 	}
@@ -23,6 +23,7 @@ func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*core.Engine) e
 		return err
 	}
 	var e *core.Engine
+	var authority *core.ControlSepgsqlAuthority
 	err = c.Raw(func(raw any) error {
 		native, ok := raw.(*conn)
 		if !ok {
@@ -32,7 +33,9 @@ func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*core.Engine) e
 			return err
 		}
 		e = native.engine
-		return nil
+		var captureErr error
+		authority, captureErr = e.CaptureControlSepgsql(ctx, native.session, native.noticeHandler)
+		return captureErr
 	})
 	closeErr := c.Close()
 	if err != nil {
@@ -41,7 +44,8 @@ func withDatabaseTarget(ctx context.Context, db *sql.DB, fn func(*core.Engine) e
 	if closeErr != nil {
 		return closeErr
 	}
-	return fn(e)
+	defer authority.Deliver()
+	return fn(e, authority)
 }
 
 // IndexState is a detached observation of an index's publication state.
@@ -61,7 +65,7 @@ type IndexState struct {
 // return ordinary control errors. Like Reset, it requires an unwrapped native pool.
 func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexState, error) {
 	var state IndexState
-	err := withDatabaseTarget(ctx, db, func(e *core.Engine) error {
+	err := withDatabaseTarget(ctx, db, func(e *core.Engine, _ *core.ControlSepgsqlAuthority) error {
 		ready, valid, live, older, writers, err := e.InspectIndex(ctx, schema, name)
 		state = IndexState{Ready: ready, Valid: valid, Live: live, WaitingForOlderSnapshots: older, WaitingForWriters: writers}
 		return err
@@ -102,7 +106,9 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // replaces that shared authority with destination-allocated canonical identities.
 // Stale parameter work is fenced even across empty-to-empty replacement.
 func Reset(ctx context.Context, db *sql.DB) error {
-	return withDatabaseTarget(ctx, db, func(e *core.Engine) error { return engine.Reset(ctx, e) })
+	return withDatabaseTarget(ctx, db, func(e *core.Engine, authority *core.ControlSepgsqlAuthority) error {
+		return engine.ResetWithAuthority(ctx, e, authority)
+	})
 }
 
 // Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
@@ -157,11 +163,14 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // and executable handlers/validators are never serialized. Mapping credentials
 // are included faithfully: callers must protect this sensitive output.
 // Unsupported explicit foreign-object/relation/column ACLs fail before bytes.
+// Simulated SELinux label SQL covers the selected database and its persistent
+// local objects, not peer databases. Reset and Restore retain destination peer
+// database label associations, including absence, and peer-local objects/data.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
 	}
-	return withDatabaseTarget(ctx, db, func(e *core.Engine) error { return engine.Dump(ctx, e, dst) })
+	return withDatabaseTarget(ctx, db, func(e *core.Engine, _ *core.ControlSepgsqlAuthority) error { return engine.Dump(ctx, e, dst) })
 }
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
@@ -234,5 +243,7 @@ func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")
 	}
-	return withDatabaseTarget(ctx, db, func(e *core.Engine) error { return engine.Restore(ctx, e, src) })
+	return withDatabaseTarget(ctx, db, func(e *core.Engine, authority *core.ControlSepgsqlAuthority) error {
+		return engine.RestoreWithAuthority(ctx, e, src, authority)
+	})
 }

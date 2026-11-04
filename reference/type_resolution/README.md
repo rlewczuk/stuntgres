@@ -176,6 +176,15 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
+- `TestReferenceRegProcPreparedAuthority` distinguishes a held accepted
+  REGPROCEDURE literal from fresh/held frame and runtime TEXT input. Genuine
+  extension DROP and same-signature reinstall preserve the held literal's old
+  OID; fresh input resolves the replacement. True path/role invalidation still
+  re-inputs with full diagnostics and later recovery. The source distinction
+  between name data, actual calls and stored-definition dependencies is recorded
+  in [the REL_18_6 lifetime evidence](../../docs/design/regproc-pg18-oracle.md#rel_18_6-accepted-literal-versus-callable-lifetime).
+  Run `make check RUN='^TestReferenceRegProcPreparedAuthority$'` natively and with
+  `REFERENCE=1` as the bounded feature smoke; add `RACE=1` for native race proof.
 - RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem/basque_stem/catalan_stem/danish_stem/dutch_stem, standalone dictionary definitions and
   installed unaccent identities through `pg_ts_dict`; alias rows use the local
   `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary

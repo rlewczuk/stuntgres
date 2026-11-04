@@ -124,7 +124,23 @@ func (n RangeConstructorExpr) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	r := n.Procedure.RangeConstructor
 	if r.Form == catalog.MultirangeConstructorMany && !n.Variadic {
-		return sqltype.MultirangeFromSource(ctx, r.Type, len(n.Args), func(i int) (sqltype.Value, error) { return n.Args[i].Eval(c) })
+		arguments, err := sqltype.PrepareMultirangeArguments(ctx, r.Type, len(n.Args), func(i int) (sqltype.Value, error) { return n.Args[i].Eval(c) })
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		facts := expr.RoutineBodyInputs{Count: len(n.Args), Occurrence: n.Occurrence, Source: n.Source}
+		if len(n.Args) > 0 {
+			facts.First = n.Args[0].ResultUsage().Type
+		}
+		if len(n.Args) > 1 {
+			facts.Second = n.Args[1].ResultUsage().Type
+		}
+		body, err := c.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, facts)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+		return arguments.ConstructWithEnvironment(ctx, c.FunctionInput())
 	}
 	var small [3]sqltype.Value
 	values := small[:len(n.Args)]
@@ -143,6 +159,11 @@ func (n RangeConstructorExpr) Eval(c expr.Context) (sqltype.Value, error) {
 			}
 		}
 	}
+	body, err := n.EnterRoutine(c, values)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	switch r.Form {
 	case catalog.RangeConstructorTwo, catalog.RangeConstructorThree:
 		flags := "[)"
@@ -156,13 +177,13 @@ func (n RangeConstructorExpr) Eval(c expr.Context) (sqltype.Value, error) {
 				return sqltype.Value{}, err
 			}
 		}
-		return sqltype.RangeFromValues(ctx, r.Type, values[0], values[1], flags)
+		return sqltype.RangeFromValuesWithEnvironment(ctx, r.Type, values[0], values[1], flags, c.FunctionInput())
 	case catalog.MultirangeConstructorMany:
 		if n.Variadic {
-			return sqltype.MultirangeFromArray(ctx, r.Type, values[0])
+			return sqltype.MultirangeFromArrayWithEnvironment(ctx, r.Type, values[0], c.FunctionInput())
 		}
 	}
-	return sqltype.MultirangeFromValues(ctx, r.Type, values)
+	return sqltype.MultirangeFromValuesWithEnvironment(ctx, r.Type, values, c.FunctionInput())
 }
 func (RangeConstructorExpr) SourceAdmission() (bool, bool) { return true, false }
 func (n RangeConstructorExpr) OpenSource(c expr.Context) (expr.SourceCursor, error) {

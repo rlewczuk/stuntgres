@@ -20,7 +20,7 @@ import (
 // Inspect actual private receipts without exporting authority just for tests.
 // Pointer reads distinguish retained runtime/source backing from output equality.
 func thesaurusReceipts(s *session.Session) reflect.Value {
-	return reflect.ValueOf(core.PayloadOf(s)).Elem().FieldByName("thesaurusMemos")
+	return reflect.ValueOf(core.PayloadOf(s)).Elem().FieldByName("dictionaryMemos")
 }
 
 func thesaurusReceiptBacking(s *session.Session, address ids.ObjectAddress) (uintptr, uintptr) {

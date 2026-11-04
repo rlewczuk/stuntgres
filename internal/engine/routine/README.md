@@ -13,6 +13,15 @@ catalog-row supplement or identity-ledger lookup manufactures a target descripto
 or callable capability. Estimators retain their exact INTERNAL formals and stable,
 strict, parallel-safe declarations without exposing scalar execution.
 
+`FmgrBuiltin` classifies original generated INTERNAL, nonaggregate fmgr
+declarations only. Original access-method handlers and the intrinsic BRIN/GIN
+support capabilities use their canonical released address/role/ABI associations,
+shared with descriptor validation. Renaming, moving or changing supported SQL
+metadata does not create or revoke that original identity. A fresh INTERNAL/C
+alias, SQL wrapper, seeded conversion or Snowball callback cannot borrow the
+fast path. This is only fmgr-hook applicability, never lifetime, SQL EXECUTE or
+simulated MAC authority; actual invocation owners prove their source first.
+
 The executable `pg_get_statisticsobjdef` declaration is routine 3415, one OID
 formal and nullable TEXT result, strict STABLE and parallel-safe under the
 ordinary catalog inquiry provider. Its internal display source matches its SQL

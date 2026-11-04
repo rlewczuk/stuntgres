@@ -223,6 +223,10 @@ production dependency is involved.
   `tablefunc_helpers.go` (connectby/crosstab/normal) and `ts_template_helpers.go`
   serve [extensions](../extensions/README.md#testing) and
   [extension_ownership](../extension_ownership/README.md#testing).
+  `pgcrypto_armor.go` owns the released armor header vector, full diagnostic
+  steps and computed-source metadata checks; `TablefuncNormalNegative` shares
+  the exact negative-row diagnostic. Consumers keep their existing direct,
+  prepared and held-statement routes without package-local duplicate helpers.
   `extension_ownership_helpers.go` (`OwnershipScenario`, the survivor controls
   and snapshots) serves extension_ownership and
   [extension_ownership_ltree](../extension_ownership_ltree/README.md#testing).

@@ -175,6 +175,9 @@ func (p *DropProvider) Replace(d catalog.Descriptor) (failure error) {
 	}
 	if next, ok := d.(*catalog.Relation); ok && !p.InternalRemoval {
 		if old, ok := p.RetirementDescriptor(d.Address()).(*catalog.Relation); ok {
+			if err := p.SepgsqlColumnRetirement(old, next); err != nil {
+				return err
+			}
 			records, err := p.CaptureRelationProjection(old, next)
 			if err != nil {
 				return err
@@ -361,6 +364,9 @@ func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
 	}
 	if p.Stage == nil {
 		p.Prepared.RecordEffect(table.DropEffect{Remove: ref, Internal: p.InternalRemoval, Dropped: records})
+		if namespace {
+			p.Prepared.RecordEffect(table.DropEffect{SchemaDefaults: ref.Address})
+		}
 		return nil
 	}
 	stage := p.Stage
@@ -424,6 +430,9 @@ func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) (failure error
 // not render deletion identities again against a later catalog generation.
 func (p *DropProvider) ProjectPreparedColumn(old, next *catalog.Relation) error {
 	stage, e, ctx := p.Stage, p.Owner, p.Ctx
+	if err := p.SepgsqlColumnRetirement(old, next); err != nil {
+		return err
+	}
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
 		return stage.Replace(next)
 	}

@@ -19,6 +19,9 @@ type JournalCapture struct {
 	Candidate *catalog.Candidate
 	Committed *catalog.State
 	Current   *catalog.State
+	// SourceSession is supplied only by the actual prospective statement
+	// journal owner. Ordinary captures have no creation-intent exception.
+	SourceSession ids.SessionToken
 }
 
 // ObserveDatabase fences the database descriptor at address: Current must
@@ -55,10 +58,56 @@ func (p JournalCapture) ObserveBase(a ids.ObjectAddress) error {
 	return nil
 }
 
+// DefaultPreflight validates the ordinary predecessor records, carrying only
+// exact prospective TEMP namespace intents to owning-descriptor comparison.
+func (p JournalCapture) DefaultPreflight() error {
+	var namespaces []*catalog.Namespace
+	for key, record := range p.Candidate.SecurityLabelReads() {
+		address := key.Object
+		address.SubID = 0
+		if address.ClassID != ids.NamespaceClassID || p.Current.Get(address) != nil || p.Candidate.Base.Get(address) == nil {
+			continue
+		}
+		ns, ok := p.Candidate.Base.Get(address).(*catalog.Namespace)
+		if !ok || !p.temporaryNamespaceIntent(ns) || !p.temporaryNamespaceLabelIntent(ns, key, record) {
+			return catalog.Conflict{}
+		}
+		namespaces = append(namespaces, ns)
+	}
+	return p.Candidate.DefaultPreflightWithTemporaryNamespaces(p.Current, namespaces)
+}
+
+// A source namespace's pending label is compared with its own exact private
+// record and its original committed absence, never with another stage's label.
+func (p JournalCapture) temporaryNamespaceLabelIntent(ns *catalog.Namespace, key catalog.SecurityLabelKey, record *catalog.SecurityLabelRecord) bool {
+	if key.Object != ns.Address() || p.Candidate.Base.State().SecurityLabel(key) != record ||
+		p.Current.SecurityLabel(key) != nil || p.Committed.SecurityLabel(key) != nil {
+		return false
+	}
+	if pending, exists := p.Journal.SecurityLabels[key]; exists {
+		original, observed := p.Journal.LabelOriginals[key]
+		return pending == record && observed && original == nil
+	}
+	return record == nil
+}
+
 // ObserveCandidate observes the base descriptor of every candidate change and
 // removal, then the namespaces of the changed descriptors and of their base
 // descriptors.
 func (p JournalCapture) ObserveCandidate() error {
+	for key := range p.Candidate.SecurityLabelReads() {
+		address := key.Object
+		address.SubID = 0
+		var err error
+		if address.ClassID == ids.NamespaceClassID {
+			err = p.observeNamespace(address)
+		} else {
+			err = p.ObserveBase(address)
+		}
+		if err != nil {
+			return err
+		}
+	}
 	for address := range p.Candidate.InitialReads() {
 		address.SubID = 0
 		if err := p.ObserveBase(address); err != nil {
@@ -93,20 +142,31 @@ func (p JournalCapture) observeNamespace(ns ids.ObjectAddress) error {
 	if d == nil {
 		return nil
 	}
-	// TEMP creation can add its namespace to the candidate before
-	// constructing the ordinary stage. That exact creation intent is part of
-	// the stage's entry authority, not a later projection. Its committed
-	// absence/name fences already belong to the journal.
-	if p.Current.Get(ns) == nil {
-		c := p.Journal
-		original, created := c.Originals[ns]
-		key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}
-		_, named := c.Names[key]
-		if created && original == nil && c.Descriptors[ns] == d && named && p.Current.NameAddress(key) == (ids.ObjectAddress{}) {
-			return nil
-		}
+	if namespace, ok := d.(*catalog.Namespace); ok && p.temporaryNamespaceIntent(namespace) {
+		return nil
 	}
 	return p.Observe(ns, d)
+}
+
+// temporaryNamespaceIntent proves the same entry authority for namespace
+// descriptor observations and label preflight. Names holds committed absence,
+// not the proposed binding; neither that fence nor Originals may be refreshed.
+func (p JournalCapture) temporaryNamespaceIntent(ns *catalog.Namespace) bool {
+	address := ns.Address()
+	token := p.SourceSession
+	if token.ID() == 0 || token.Domain() == nil || token.IsDetached() || token.Private() != nil ||
+		token.Domain() != p.Candidate.Base.Domain() || ns.Temporary != token ||
+		address.ClassID != ids.NamespaceClassID || address.ObjectID == 0 || address.SubID != 0 ||
+		p.Candidate.Base.Get(address) != ns || p.Journal.Descriptors[address] != ns ||
+		p.Current.Get(address) != nil || p.Committed.Get(address) != nil {
+		return false
+	}
+	original, created := p.Journal.Originals[address]
+	key := catalog.DescriptorNameKey(ns)
+	predecessor, named := p.Journal.Names[key]
+	return created && original == nil && named && predecessor == (ids.ObjectAddress{}) &&
+		p.Candidate.Base.NameAddress(key) == address &&
+		p.Current.NameAddress(key) == (ids.ObjectAddress{}) && p.Committed.NameAddress(key) == (ids.ObjectAddress{})
 }
 
 // FenceNames observes the candidate's touched names, then fences the

@@ -123,6 +123,13 @@ func (e ComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	if e.RoutineReference != nil {
+		body, err := ctx.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{HasNull: a.IsNull() || b.IsNull(), Count: 2, First: a.Type(), Second: b.Type(), Occurrence: e.Occurrence, Source: e.Source})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
 	return e.Predicate.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 }
 
@@ -181,11 +188,25 @@ func (e ArithmeticExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.Right == nil {
+		if e.RoutineReference != nil {
+			body, err := ctx.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{HasNull: a.IsNull(), Count: 1, First: a.Type(), Occurrence: e.Occurrence, Source: e.Source})
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			defer body.Leave()
+		}
 		return e.Provider.Unary(ctx.FunctionContext(), a, ctx.FunctionInput())
 	}
 	v, err := e.Right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if e.RoutineReference != nil {
+		body, err := ctx.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{HasNull: a.IsNull() || v.IsNull(), Count: 2, First: a.Type(), Second: v.Type(), Occurrence: e.Occurrence, Source: e.Source})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
 	}
 	return e.Provider.Binary(ctx.FunctionContext(), a, v, ctx.FunctionInput())
 }

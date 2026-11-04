@@ -13,10 +13,11 @@ import (
 // Grouping binds NOT DISTINCT equality and a compatible hash to one concrete
 // key usage. SQL strict comparison and its NULL semantics are unchanged.
 type Grouping struct {
-	usage      Usage
-	comparison Comparison
-	element    *Grouping
-	prepare    bool
+	usage                          Usage
+	comparison                     Comparison
+	element                        *Grouping
+	prepare                        bool
+	equalityCallback, hashCallback GroupingCallbackReference
 }
 
 func BindGrouping(usage Usage) (Grouping, error) {
@@ -106,6 +107,9 @@ func (g Grouping) check(v Value) error {
 	return nil
 }
 func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
+	return g.EqualWithBoundary(ctx, a, b, nil)
+}
+func (g Grouping) EqualWithBoundary(ctx context.Context, a, b Value, boundary GroupingBoundary) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -118,6 +122,11 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if a.null || b.null {
 		return a.null == b.null, ctx.Err()
 	}
+	body, err := enterGroupingCallback(g.equalityCallback, boundary)
+	if err != nil {
+		return false, err
+	}
+	defer body.Leave()
 	if g.comparison.collationIndeterminate {
 		return false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
@@ -137,7 +146,7 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 			}
 		}
 		for i, value := range a.array.elements {
-			equal, err := g.element.Equal(ctx, value, b.array.elements[i])
+			equal, err := g.element.EqualWithBoundary(ctx, value, b.array.elements[i], boundary)
 			if err != nil || !equal {
 				return equal, err
 			}
@@ -171,13 +180,20 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	case BPChar:
 		return g.usage.Collation.EqualText(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 	}
-	n, err := g.comparison.Compare(ctx, a, b, InputEnvironment{})
+	var input InputEnvironment
+	if owner, ok := boundary.(interface{ FunctionInput() InputEnvironment }); ok {
+		input = owner.FunctionInput()
+	}
+	n, err := g.comparison.Compare(ctx, a, b, input)
 	if err != nil {
 		return false, err
 	}
 	return n == 0, ctx.Err()
 }
-func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
+func (g Grouping) Hash(ctx context.Context, value Value) (uint64, error) {
+	return g.HashWithBoundary(ctx, value, nil)
+}
+func (g Grouping) HashWithBoundary(ctx context.Context, v Value, boundary GroupingBoundary) (uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -203,11 +219,18 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		byteHash(0)
 		return h, ctx.Err()
 	}
+	body, err := enterGroupingCallback(g.hashCallback, boundary)
+	if err != nil {
+		return 0, err
+	}
+	defer body.Leave()
 	if g.comparison.collationIndeterminate {
 		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string hashing", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	byteHash(1)
-	if v.typ.IsLtree() { return LtreeHashExtended(ctx,v,0) }
+	if v.typ.IsLtree() {
+		return LtreeHashExtended(ctx, v, 0)
+	}
 	if v.typ.IsHstore() {
 		return HstoreHash(ctx, v, 0)
 	}
@@ -237,7 +260,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 			integerHash(uint64(dim.Length))
 		}
 		for _, value := range v.array.elements {
-			key, err := g.element.Hash(ctx, value)
+			key, err := g.element.HashWithBoundary(ctx, value, boundary)
 			if err != nil {
 				return 0, err
 			}

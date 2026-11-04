@@ -74,6 +74,13 @@ func ExecuteCreateView(e *core.Engine, scope *core.StatementScope, createView *p
 	stage.AuthorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
 	err = view.StageCreate(ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
+	if err == nil && old != nil {
+		if next, ok := stage.StageRead().Relation(old.Address()); ok {
+			err = stage.SepgsqlPostAlter(next, next.Address(), false)
+		} else {
+			err = fmt.Errorf("stuntgres: missing produced view replacement")
+		}
+	}
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

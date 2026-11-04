@@ -22,6 +22,23 @@ func FinalizeSelect(ctx context.Context, root plan.Node, source *Source, paramet
 	if ceiling < 2 || InParallelOperation(ctx) || WithinSQLInvocation(ctx) {
 		return Finalize(ctx, root, source, parameters)
 	}
+	// Trusted routine overrides are physical-session lexical state. Select the
+	// existing serial owner before any aggregate/foreign/query fanout captures.
+	if source != nil {
+		if source.View != nil {
+			if owner := source.View.Catalog().Owner(); owner != nil && owner.Sepgsql != nil && (owner.Sepgsql.AnyTrustedTransitions() || nativeBodyInitializationRequired(root)) {
+				return Finalize(ctx, root, source, parameters)
+			}
+		} else if host := source.LiveHost(); host != nil {
+			auth, _, err := host.RoutineAdmission()
+			if err != nil {
+				return nil, 0, err
+			}
+			if auth.Owner != nil && auth.Owner.Sepgsql != nil && (auth.Owner.Sepgsql.AnyTrustedTransitions() || nativeBodyInitializationRequired(root)) {
+				return Finalize(ctx, root, source, parameters)
+			}
+		}
+	}
 	workers := QueryParallelWorkers(ceiling, source.Count())
 	methods := sourcePlannerMethods(source)
 	if aggregate, eligible := ParallelAggregatePlan(root, source); !methods.NoHashAgg && eligible && workers >= 2 && source.PlannerCosts.LocalParallel(source.PlannerRows, source.PlannerColumns, workers) {
@@ -175,10 +192,17 @@ func ParallelQuerySource(source *Source) (*Source, error) {
 	if pin == nil {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
+	authority, host := source.Authority, source.Host
+	if owner := source.View.Catalog().Owner(); owner != nil && owner.Sepgsql != nil {
+		host = nil
+		if source.Authority != nil {
+			authority = &Authority{PreserveParameterDemand: source.Authority.PreserveParameterDemand, RoutineInitialization: source.Authority.RoutineInitialization, RoutineCatalog: source.Authority.RoutineCatalog}
+		}
+	}
 	return &Source{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
 		Headers: source.Headers, Repaired: source.Repaired, RawXmax: source.RawXmax,
 		PlannerCosts: source.PlannerCosts, PlannerRows: source.PlannerRows, PlannerColumns: source.PlannerColumns, ScanFraction: source.ScanFraction,
-		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host,
+		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: authority, Host: host,
 		statsWorker: true, statsInitialized: true, statsCounts: source.statsCounts, statsTiming: source.statsTiming}, nil
 }
 
@@ -230,14 +254,14 @@ func parallelProjectionSlots(project *plan.ProjectNode) ([]int, bool) {
 	return slots, true
 }
 
-func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool, methods plan.PlannerMethods) (run QueryParallelRun, err error) {
+func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool, methods plan.PlannerMethods, capture *EvaluationCapture) (run QueryParallelRun, err error) {
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return run, err
 	}
 	defer worker.Close()
 	defer func() { run.statistics = worker.databaseStatistics }()
-	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
+	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ClosedEvaluation: capture, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
 	state.scanCounts = &run.scanCounts
 	defer state.ReleaseMemberships()
 	stage, err := OpenQueryProjectStage(ctx, state, project)
@@ -295,6 +319,21 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	if host := source.LiveHost(); host != nil {
 		input, output = host.Environments()
 	}
+	factory, err := captureClosedQuery(ctx, project, source, parameters)
+	if err != nil {
+		return nil, 0, err
+	}
+	captures := make([]*EvaluationCapture, workers)
+	for i := range captures {
+		captures[i] = factory()
+	}
+	defer func() {
+		for _, capture := range captures {
+			if capture.FlushDiagnostics != nil {
+				capture.FlushDiagnostics()
+			}
+		}
+	}()
 	methods := sourcePlannerMethods(source)
 	slots, direct := parallelProjectionSlots(project)
 	var access statistics.RelationAccess
@@ -314,7 +353,7 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct, methods)
+			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, captures[i].Input, captures[i].Output, direct, methods, captures[i])
 			runs[i] = run // Failed output still owns its actual fetched prefix.
 			if err != nil {
 				errorMu.Lock()
@@ -342,6 +381,16 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
+	}
+	// Gather Merge is also an actual selected comparator kernel. Borrow the
+	// coordinator's immutable proof after all workers join rather than passing a
+	// bare host environment that silently drops installed support ownership.
+	if ordered != nil {
+		if owner := source.View.Catalog().Owner(); owner != nil && owner.Sepgsql != nil {
+			mergeState := State{Source: source, Parameters: parameters, Input: input, Output: output, ClosedEvaluation: captures[0]}
+			mergeEvaluation := mergeState.Evaluation(ctx)
+			input = mergeEvaluation.FunctionInput()
+		}
 	}
 	result, err := GatherQueryRuns(ctx, project, ordered, source, runs, slots, direct, input, output)
 	if err != nil {

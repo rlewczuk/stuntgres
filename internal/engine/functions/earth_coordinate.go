@@ -1,11 +1,13 @@
 package functions
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -111,6 +113,7 @@ const (
 type EarthCoordinateRuntime interface {
 	EarthCoordinatePreserveParameterDemand() bool
 	EarthCoordinateDiagnosticNames(EarthCoordinate) (routine, helper string, err error)
+	EarthCoordinateBody(EarthCoordinate, []sqltype.Value, bool) (sqltype.Value, error)
 }
 
 func NewEarthCoordinate(info expr.Info, op sqltype.EarthOperation, earth *sqltype.Descriptor, args []expr.Expr) (EarthCoordinate, error) {
@@ -195,7 +198,7 @@ func (e EarthCoordinate) Retag(info expr.Info, children []expr.Expr, changed boo
 	return n, changed || earth != e.Plan.Earth(), err
 }
 func (e EarthCoordinate) Eval(c expr.Context) (sqltype.Value, error) {
-	ctx, err := evaluationContext(c)
+	_, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -221,39 +224,51 @@ func (e EarthCoordinate) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		conversionDemand, boxContext = e.BoxExecutionRoute(runtime.EarthCoordinatePreserveParameterDemand())
 	}
-	var value sqltype.Value
-	if conversionDemand {
-		value, err = e.Plan.EvaluateExpandedBox(ctx, args[:len(e.Args)], c.FunctionInput())
-	} else {
-		value, err = e.Plan.Evaluate(ctx, args[:len(e.Args)], c.FunctionInput())
+	runtime, ok := c.(EarthCoordinateRuntime)
+	if !ok {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing earth coordinate runtime")
 	}
-	if err != nil {
-		runtime, ok := c.(EarthCoordinateRuntime)
-		if !ok {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: missing earth coordinate diagnostic runtime")
+	expanded := e.Plan.Operation() == sqltype.EarthBox && conversionDemand && args[0].IsNull() && !args[1].IsNull()
+	if !expanded {
+		for _, arg := range args[:len(e.Args)] {
+			if arg.IsNull() {
+				return sqltype.Null(e.Usage.Type), nil
+			}
 		}
-		name, helper, failure := runtime.EarthCoordinateDiagnosticNames(e)
+		body, failure := e.EnterRoutine(c, args[:len(e.Args)])
+		if failure != nil {
+			return sqltype.Value{}, failure
+		}
+		defer body.Leave()
+	}
+	value, err := runtime.EarthCoordinateBody(e, args[:len(e.Args)], expanded)
+	if err != nil {
+		name, _, failure := runtime.EarthCoordinateDiagnosticNames(e)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
 		context := `SQL function "` + name + `" statement 1`
-		if helper != "" {
-			prefix := `SQL function "` + helper + `" statement 1`
-			if e.Plan.Operation() == sqltype.EarthBox {
-				switch boxContext {
-				case EarthBoxHelperOnly:
-					context = ""
-				case EarthBoxInlining:
-					context = `SQL function "` + name + `" during inlining`
-				}
-			}
-			if context == "" {
-				context = prefix
-			} else {
-				context = prefix + "\n" + context
+		if e.Plan.Operation() == sqltype.EarthBox {
+			switch boxContext {
+			case EarthBoxHelperOnly:
+				context = ""
+			case EarthBoxInlining:
+				context = `SQL function "` + name + `" during inlining`
 			}
 		}
-		return sqltype.Value{}, OverlapsErrorContext(err, context)
+		if context == "" {
+			return sqltype.Value{}, err
+		}
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) {
+			return sqltype.Value{}, err
+		}
+		copy := *diagnostic
+		if copy.Context != "" {
+			copy.Context += "\n"
+		}
+		copy.Context += context
+		return sqltype.Value{}, sqlstate.WithDiagnostic(err, &copy)
 	}
 	return value, nil
 }

@@ -228,6 +228,11 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			removedRelations = append(removedRelations, address)
 		}
 	}
+	for ref := range stage.SelectedDropRoots() {
+		if _, relation := stage.Base.Relation(ref.Address); relation && !slices.Contains(removedRelations, ref.Address) {
+			removedRelations = append(removedRelations, ref.Address)
+		}
+	}
 	slices.SortFunc(removedRelations, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
@@ -243,13 +248,22 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			return core.Result{}, err
 		}
 	}
-	if err := scope.StageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
+	roots := stage.DomainTargets
+	if len(removedRelations) != 0 {
+		roots = append(slices.Clone(roots), removedRelations...)
+	}
+	drop := core.StageDropProvider(op.Context(), stage, scope, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(roots, domainMode, ids.ObjectAddress{})
+	if err != nil {
 		return core.Result{}, err
 	}
-	if err = stageDomainDependents(scope, stage, domainMode); err != nil {
+	if err = stage.ApplySelectedDropRoots(dependencies); err != nil {
 		return core.Result{}, err
 	}
-	if err := scope.StageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
+		return core.Result{}, err
+	}
+	if err := drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
 	stage.SchemaCascadeNames = append(stage.SchemaCascadeNames, stage.DropCascadeNames...)

@@ -5,7 +5,7 @@ package core
 // for this fresh coherent authority capture. All checks after unlock are pure
 // graph admission: no provider, CHECK truth, codec or output replay.
 func (s *StatementScope) readmitProgramsAfterWait() error {
-	if len(s.Domains.PreparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.IndexBindings) == 0 {
+	if len(s.Domains.PreparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.IndexBindings) == 0 && len(s.sepgsqlObservations) == 0 {
 		return nil
 	}
 	e := s.Engine()

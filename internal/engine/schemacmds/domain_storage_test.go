@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -84,13 +83,13 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	restrict := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
 	before := e.CatalogRead().State()
-	err = schemacmds.StageDomainDependents(scope, restrict, parser.DropRestrict)
+	err = domainUnitApplyDrop(scope, restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
 	if e.CatalogRead().State() != before || e.Storage.Relations[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
-	if err = schemacmds.StageDomainDependents(scope, cascade, parser.DropCascade); err != nil {
+	if err = domainUnitApplyDrop(scope, cascade, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, cascade)

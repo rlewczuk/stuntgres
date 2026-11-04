@@ -38,6 +38,28 @@ place, builds the script and writes it; the root never reads the capture again.
 Table declarations retain logged/unlogged identity, including typed and partition
 children. Identity sequence completion states its own persistence explicitly in
 both directions, preserving independent table/sequence choices on replay.
+
+Simulated `selinux` labels follow the selected-database snapshot scope.
+`emitDumpSepgsql` validates the complete captured association root before
+excluding only other databases' shared label statements. It retains the selected
+database label, every persistent local namespace/relation/signed-attribute/routine
+label and the simulation registration requirement; normal TEMP exclusion and
+deterministic ordering remain unchanged. This matches REL_18_6
+[`pg_dump.c`'s `dumpDatabase`](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/pg_dump/pg_dump.c):
+`WHERE datname = current_database()` supplies the database OID passed to
+`buildShSecLabelQuery("pg_database", ...)`, not a cluster-wide label inventory.
+A Dump with a peer database selected includes that database's own labels.
+Restore retains the destination peers' exact shared associations, including
+absence, through `catalog.Store.RetainDatabasesLocked`; it does not import source
+peer labels, traverse peer-local objects or expand selected-control consent.
+Public SQL `sepgsql_restorecon` separately traverses all shared databases.
+`TestSepgsqlDumpSelectedDatabaseLabels` exercises the actual serializer's selected
+and peer-selected scope, durable local/system-attribute labels, TEMP exclusion,
+determinism, full authority validation and cancellation. The reference
+`TestReferenceSepgsqlSimulationRestoreconSharedDatabases` replays a genuine
+post-peer image through Reset/Restore against unchanged, changed and absent
+destination peer associations, observing both roots directly and prepared.
+
 Partition constraint replay keeps one declaration/membership/name/data graph.
 Foreign tables contribute declaration and hierarchy-completion events, never
 physical row events. Foreign partition membership uses the same compact
@@ -631,19 +653,25 @@ No physical WAL position or flush guarantee is serialized.
   only their captured current membership after all ordinary creators finish.
   Missing templates of a retained cohort use ordinary DROP TEXT SEARCH TEMPLATE;
   absent-origin residual declarations retire with their genuine extension.
-  Surviving lookup-only aggregate helpers have fixed creation coordinates and no
-  independent SQL mover. Their cohort installs in the actual captured helper
-  namespace, reusing (never creating or retiring) that source schema. Parent
-  aggregate names/schemas still replay independently through ordinary ALTER;
-  no helper follows a parent-only move. Cohorts with no surviving helper carrier
-  retain normal temporary installation and retirement.
+  Intagg's transition and final helpers are genuine canonical procedures with
+  independent names, namespaces, owners, labels and stable identities. Their
+  sealed INTERNAL alias implementation and aggregate support references remap
+  through the same descriptor/provenance owners as other installed routines;
+  no lookup-only helper side catalog or parent-derived replacement identity is
+  replay authority. Parent-only moves do not move independently placed helpers.
   A genuine source installation with surviving objects in `pg_catalog` likewise
   installs directly in that existing namespace; replay never creates/retires
   the system schema or widens public namespace-mover admission. Initialized
   dictionary identity replay joins the installed dictionary collision group
   after actual installation, preserving the real `simple`/`unaccent` cycle.
-  Surviving origin procedures carry their current Parallel/Cost/Rows through
+  Surviving origin functions carry their current Parallel/Cost/Rows through
   installation replay even though they bypass ordinary provider collection.
+  Installed aggregates instead require those fields to equal their immutable
+  recipe: real CREATE EXTENSION reconstructs them. Neither ALTER AGGREGATE nor
+  ALTER FUNCTION accepts aggregate estimate patches, so unsupported divergent
+  estimates reject capture rather than being omitted or emitted as invalid SQL.
+  Aggregate rename/move/owner replay remains independent of genuine helper
+  placement, owners and current function estimate overrides.
   Generated constructor estimate replay is admitted by the existing pre-render
   creator graph event, then emitted after actual creation and final identity/
   current-owner normalization, before ACL repairs or dependent consumers.

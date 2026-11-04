@@ -22,7 +22,7 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 	if c.CachedBase == base && c.Cached.State() != nil {
 		return c.Cached
 	}
-	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 && len(c.InitialPrivileges) == 0 {
+	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 && len(c.InitialPrivileges) == 0 && len(c.SecurityLabels) == 0 {
 		c.CachedBase = base
 		c.Cached = catalog.NewRead(owner, base)
 		return c.Cached
@@ -33,6 +33,7 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 	}
 	n.OverlayDefaultACLs(base, c.DefaultACLs)
 	n.OverlayInitialPrivileges(base, c.InitialPrivileges)
+	n.OverlaySecurityLabels(base, c.SecurityLabels)
 	operators := catalog.OperatorIndexEdit{Index: base.OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: base.ProcedureNames()}
 	for a, d := range c.Descriptors {
@@ -130,6 +131,7 @@ func (c *Journal) ObserveCreationACL(base *catalog.State, view catalog.Read, own
 // changed them, and then candidate's default ACL changes against base.
 func (c *Journal) RecordCandidateDefaults(base *catalog.State, candidate *catalog.Candidate) {
 	c.RecordCandidateInitialPrivileges(base, candidate)
+	c.RecordCandidateSecurityLabels(base, candidate)
 	for key, record := range candidate.DefaultReads() {
 		if _, private := c.DefaultACLs[key]; private {
 			continue
@@ -151,6 +153,9 @@ func (c *Journal) RecordCandidateDefaults(base *catalog.State, candidate *catalo
 // holds, or c's original where c already changed it. On a conflict it
 // records nothing.
 func (c *Journal) MergeCandidate(base, observed *catalog.State, candidate *catalog.Candidate) error {
+	if err := c.mergeSecurityLabels(base, observed, candidate); err != nil {
+		return err
+	}
 	for address, record := range candidate.InitialReads() {
 		expected := record
 		if original, private := c.InitialOriginals[address]; private {
@@ -188,6 +193,7 @@ func (c *Journal) MergeCandidate(base, observed *catalog.State, candidate *catal
 		c.RecordDescriptor(base, a, nil)
 	}
 	c.RecordCandidateInitialPrivileges(base, candidate)
+	c.observeSecurityLabelObjects(base, candidate)
 	return nil
 }
 

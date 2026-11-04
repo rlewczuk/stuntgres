@@ -28,6 +28,12 @@ type SourceOpening interface {
 	OpenSource(Context) (SourceCursor, error)
 }
 
+// SourceAdvancing borrows the evaluator anew at each actual value-per-call
+// invocation. The pure cursor never retains a session, evaluator or SQL actor.
+type SourceAdvancing interface {
+	AdvanceSource(context.Context, Context, *SourceCursor) (sqltype.Value, bool, error)
+}
+
 // SourceCursor is invocation-private and must not be copied after advancement.
 // State, when needed, points to the owner's native cursor or immutable provider
 // payload (catalog metadata), never a second adapter. Only that owner interprets
@@ -60,6 +66,9 @@ func NewSourceCursor(s SourceCursor) SourceCursor {
 	s.initialized = true
 	return s
 }
+
+// Initialized distinguishes an unopened cursor before a native call boundary.
+func (s *SourceCursor) Initialized() bool { return s.initialized }
 
 func (s *SourceCursor) Next(ctx context.Context) (sqltype.Value, bool, error) {
 	if err := ctx.Err(); err != nil {

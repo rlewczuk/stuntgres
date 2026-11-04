@@ -23,7 +23,10 @@ func (e *Engine) prepareClientEncodingLocked(op *session.Operation, id int) (sql
 	if err != nil {
 		return sqltype.ClientEncodingPolicy{}, err
 	}
-	path := EffectivePath(auth, explicit, analyze.ConversionLookup)
+	path, err := EffectivePath(auth, explicit, analyze.ConversionLookup)
+	if err != nil {
+		return sqltype.ClientEncodingPolicy{}, err
+	}
 	incoming, err := resolveConversionDefault(auth.Catalog, path, id, 6)
 	if err != nil {
 		return sqltype.ClientEncodingPolicy{}, err
@@ -32,12 +35,13 @@ func (e *Engine) prepareClientEncodingLocked(op *session.Operation, id int) (sql
 	if err != nil {
 		return sqltype.ClientEncodingPolicy{}, err
 	}
-	var in, out sqltype.EncodingConversionHandler
-	if incoming.procedure != nil {
-		in = incoming.procedure.Conversion
+	in, err := selectedConversionHandler(auth.Catalog, incoming)
+	if err != nil {
+		return sqltype.ClientEncodingPolicy{}, err
 	}
-	if outgoing.procedure != nil {
-		out = outgoing.procedure.Conversion
+	out, err := selectedConversionHandler(auth.Catalog, outgoing)
+	if err != nil {
+		return sqltype.ClientEncodingPolicy{}, err
 	}
 	policy, err := sqltype.NewClientEncodingPolicy(id, in, out)
 	if err != nil {

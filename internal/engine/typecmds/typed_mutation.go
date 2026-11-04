@@ -58,6 +58,9 @@ func TypedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 					if planned.Usage != nil {
 						mutation.Next.Columns[mutation.Next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
 					}
+					if err = stage.SepgsqlPostCreateColumn(mutation.Next, added.Attribute); err != nil {
+						return mutation, err
+					}
 					mutation.Additions = append(mutation.Additions, added)
 				}
 			}
@@ -92,6 +95,11 @@ func TypedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 				var transform index.ColumnTransformation
 				mutation.Next, transform, err = tablecmds.AlterTypeCandidate(e, scope, op, auth, stage, old, mutation.Next, ref, planned.Action, prepared)
 				if err != nil {
+					return mutation, err
+				}
+				address := mutation.Next.Address()
+				address.SubID = mutation.Next.Attributes[mutation.Next.Index[planned.Action.Column.Text]]
+				if err = stage.SepgsqlPostAlter(mutation.Next, address, false); err != nil {
 					return mutation, err
 				}
 				if old.RelationKind != catalog.CompositeRelation {
@@ -337,6 +345,11 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 				stage.Indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
 			stage.Indexes().Candidates[address] = candidate
+		}
+	}
+	if e.Sepgsql != nil && table.AlterEventRewriteReason(mutation.Transforms, nil, perRowAdd) != 0 {
+		if err = stage.SepgsqlPostAlter(next, next.Address(), false); err != nil {
+			return err
 		}
 	}
 	if replacement != store || len(mutation.Transforms) != 0 {

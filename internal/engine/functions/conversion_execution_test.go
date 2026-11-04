@@ -18,6 +18,9 @@ type conversionUnitContext struct {
 }
 
 func (c *conversionUnitContext) FunctionContext() context.Context { return c.Context }
+func (c *conversionUnitContext) FunctionInput() sqltype.InputEnvironment {
+	return sqltype.InputEnvironment{}
+}
 func (c *conversionUnitContext) FunctionLiteralNull(arg expr.Expr) bool {
 	value, ok := arg.(conversionUnitArgument)
 	return ok && value.literal

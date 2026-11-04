@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *Binder) returningWholeRow(name string, relation *catalog.Relation, frame uint32, aliases *returningAliases, pos parser.Position) (expr.Expr, bool, error) {
+func (b *Binder) returningWholeRow(name string, relation *catalog.Relation, frame uint32, aliases *returningAliases, pos parser.Position, wholeRow bool) (expr.Expr, bool, error) {
 	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {
 		return nil, false, nil
 	}
@@ -33,6 +33,9 @@ func (b *Binder) returningWholeRow(name string, relation *catalog.Relation, fram
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
 	b.Target.returningReadRequired = true
+	if wholeRow {
+		b.Target.WholeRowRead = true
+	}
 	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {

@@ -19,6 +19,10 @@ type Requirement struct {
 	Privilege     authorization.Privileges
 	Columns       []int
 	WholeRelation bool
+	RowMark       bool
+	Inherit       bool
+	SystemColumns []int32
+	WholeRow      bool
 }
 
 // Whole reports the actual access operation, including CheckColumns' existing
@@ -27,11 +31,14 @@ func (r Requirement) Whole() bool {
 	return r.WholeRelation || r.Relation != nil && r.Relation.RelationKind == catalog.SequenceRelation && r.Privilege != authorization.SelectPrivilege
 }
 
+// AccessRequirement preserves the ordinary ACL request and its independent MAC
+// facts when an owner supplies the access environment directly.
+func (r Requirement) AccessRequirement() access.Requirement {
+	return access.Requirement{Object: r.Ref, Privileges: r.Privilege, ColumnDemand: !r.WholeRelation, Columns: r.Columns, SystemColumns: r.SystemColumns, Inherit: r.Inherit, WholeRow: r.WholeRow, RowMark: r.RowMark}
+}
+
 func (r Requirement) Check(auth Privileges) error {
-	if r.WholeRelation {
-		return auth.Check(access.Requirement{Object: r.Ref, Privileges: r.Privilege})
-	}
-	return auth.CheckColumns(r.Ref, r.Relation, r.Privilege, r.Columns)
+	return auth.Check(r.AccessRequirement())
 }
 
 // BindingRequirements visits target requests in the checker's original order.
@@ -40,11 +47,31 @@ func BindingRequirements(b Binding, stmt parser.Statement, visit func(Requiremen
 	if b.Relation == nil {
 		return nil
 	}
+	inherit := false
+	switch target := stmt.(type) {
+	case *parser.Update:
+		inherit = !target.Only
+	case *parser.Delete:
+		inherit = !target.Only
+	case *parser.Merge:
+		inherit = true
+	}
 	request := func(privilege authorization.Privileges, columns []int) error {
-		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, Columns: columns, WholeRelation: privilege == authorization.SelectPrivilege && b.SystemAttributeRead})
+		r := Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, Columns: columns, Inherit: inherit}
+		if privilege == authorization.SelectPrivilege {
+			if b.SystemAttributeRead {
+				r.WholeRelation = true
+				if err := visit(r); err != nil {
+					return err
+				}
+				r.WholeRelation = false
+			}
+			r.SystemColumns, r.WholeRow = b.SystemColumns, b.WholeRowRead
+		}
+		return visit(r)
 	}
 	whole := func(privilege authorization.Privileges) error {
-		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, WholeRelation: true})
+		return visit(Requirement{Ref: b.Ref, Relation: b.Relation, Privilege: privilege, WholeRelation: true, Inherit: inherit})
 	}
 	switch stmt.(type) {
 	case *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable:
@@ -87,21 +114,21 @@ func BindingRequirements(b Binding, stmt parser.Statement, visit func(Requiremen
 				return err
 			}
 		}
-		if b.SystemAttributeRead || b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
+		if b.SystemAttributeRead || b.WholeRowRead || b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	case *parser.Delete:
 		if err := whole(authorization.DeletePrivilege); err != nil {
 			return err
 		}
-		if b.SystemAttributeRead || len(b.UsedColumns) != 0 {
+		if b.SystemAttributeRead || b.WholeRowRead || len(b.UsedColumns) != 0 {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	case *parser.Update:
 		if err := request(authorization.UpdatePrivilege, b.Targets); err != nil {
 			return err
 		}
-		if b.SystemAttributeRead || len(b.UsedColumns) != 0 {
+		if b.SystemAttributeRead || b.WholeRowRead || len(b.UsedColumns) != 0 {
 			return request(authorization.SelectPrivilege, b.UsedColumns)
 		}
 	default:
@@ -114,7 +141,7 @@ func SourceReadRequirements(source *exec.Leaf, visit func(Requirement) error) er
 	if source.AnalysisOnly {
 		return nil
 	}
-	r := Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.SelectPrivilege}
+	r := Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.SelectPrivilege, Inherit: !source.Only}
 	if source.SystemAttributeRead {
 		r.WholeRelation = true
 		if err := visit(r); err != nil {
@@ -123,12 +150,14 @@ func SourceReadRequirements(source *exec.Leaf, visit func(Requirement) error) er
 		r.WholeRelation = false
 	}
 	r.Columns = source.Uses
+	r.SystemColumns = source.SystemColumns
+	r.WholeRow = source.WholeRowRead
 	return visit(r)
 }
 
 func SourceRowMarkRequirements(source *exec.Leaf, visit func(Requirement) error) error {
 	if exec.PrivilegeQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-		return visit(Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.UpdatePrivilege})
+		return visit(Requirement{Ref: source.Ref, Relation: source.Relation, Privilege: authorization.UpdatePrivilege, RowMark: true, Inherit: !source.Only})
 	}
 	return nil
 }

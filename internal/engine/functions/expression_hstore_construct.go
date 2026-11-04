@@ -161,6 +161,11 @@ func (e HstoreConstruct) Eval(c expr.Context) (sqltype.Value, error) {
 			}
 		}
 	}
+	body, err := e.EnterRoutine(c, values[:e.Arity()])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	switch e.Member {
 	case 31:
 		return e.Hstore.HstoreFromText(ctx, values[0], values[1])

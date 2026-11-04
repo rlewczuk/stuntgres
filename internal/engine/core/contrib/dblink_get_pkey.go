@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/sqltype"
 )
 
 // ValidateDblinkGetPkey admits the current routine even for a strict NULL call.
@@ -27,7 +26,7 @@ func ValidateDblinkGetPkey[A Authority](h Host[A], n plan.InstalledDblinkGetPkey
 	return stored.ValidateInstalledDblinkGetPkey(n, auth.Access().Catalog)
 }
 
-func DblinkGetPkey[A Authority](h Host[A], n plan.InstalledDblinkGetPkeyExpr, name string) ([]sqltype.Value, error) {
+func DblinkGetPkey[A Authority](h Host[A], n plan.InstalledDblinkGetPkeyExpr, name string) ([]string, error) {
 	relation, _, _, release, err := dblinkRelation(h, n.Procedure, n.Ref, name)
 	if err != nil {
 		return nil, err
@@ -38,15 +37,12 @@ func DblinkGetPkey[A Authority](h Host[A], n plan.InstalledDblinkGetPkeyExpr, na
 	if err := ValidateDblinkGetPkey(h, n); err != nil {
 		return nil, err
 	}
-	return dblinkPkeyValues(h.Operation().Context(), relation, n.Usage.Type)
+	return dblinkPkeyNames(h.Operation().Context(), relation)
 }
 
-// dblinkPkeyValues copies only ordered authoritative key metadata. No source
-// tuples, catalog descriptor or lock contribution escape in the owned values.
-func dblinkPkeyValues(ctx context.Context, relation *catalog.Relation, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	if result == nil || !result.IsComposite() || !result.IsUserDefined() || result.IsDomain() || sqltype.IsPseudo(result.ID()) || result.CompositeLen() != 2 || result.CompositeMember(0).Usage.Type.ID() != sqltype.Int4 || result.CompositeMember(1).Usage.Type.ID() != sqltype.Text {
-		return nil, fmt.Errorf("stuntgres: invalid dblink primary-key result")
-	}
+// Capture only genuine ordered key names. Row conversion belongs to the actual
+// value-per-call owner and is not eagerly performed under the first subject.
+func dblinkPkeyNames(ctx context.Context, relation *catalog.Relation) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -54,7 +50,7 @@ func dblinkPkeyValues(ctx context.Context, relation *catalog.Relation, result *s
 		if !key.Primary {
 			continue
 		}
-		rows := make([]sqltype.Value, len(key.Attributes))
+		names := make([]string, len(key.Attributes))
 		for i, attribute := range key.Attributes {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -63,17 +59,9 @@ func dblinkPkeyValues(ctx context.Context, relation *catalog.Relation, result *s
 			if index < 0 || index >= len(relation.Columns) {
 				return nil, fmt.Errorf("stuntgres: invalid primary-key attribute")
 			}
-			position, err := sqltype.Integer(result.CompositeMember(0).Usage.Type, int64(i+1))
-			if err != nil {
-				return nil, err
-			}
-			fields := []sqltype.Value{position, sqltype.String(result.CompositeMember(1).Usage.Type, relation.Columns[index].Name)}
-			rows[i], err = sqltype.OwnedCompositeValue(result, fields)
-			if err != nil {
-				return nil, err
-			}
+			names[i] = relation.Columns[index].Name
 		}
-		return rows, nil
+		return names, nil
 	}
 	return nil, nil
 }

@@ -16,7 +16,9 @@ var errDatabaseIdentityExhausted = errors.New("stuntgres: database identity exha
 
 // RetainDatabasesLocked replaces the database descriptors of next, an
 // unpublished state, with the store's published ones. Attachment identity and
-// ACLs belong to the destination, not to portable state.
+// ACLs belong to the destination, not to portable state. Peer database labels
+// (including absence) also belong to the destination; only the selected database
+// keeps its candidate Reset/Restore association.
 func (s *Store) RetainDatabasesLocked(next *State) {
 	for address, descriptor := range next.Descriptors() {
 		if address.ClassID == ids.DatabaseClassID {
@@ -28,6 +30,19 @@ func (s *Store) RetainDatabasesLocked(next *State) {
 		if address.ClassID == ids.DatabaseClassID {
 			next.SetDescriptor(address, descriptor)
 			next.BindName(DescriptorNameKey(descriptor), address)
+		}
+	}
+	for key, record := range next.SecurityLabels() {
+		if key.Object.ClassID == ids.DatabaseClassID && key.Object.ObjectID != s.DatabaseAddress().ObjectID {
+			if retained := s.State.SecurityLabel(key); retained != record {
+				next.SetSecurityLabel(key, retained)
+			}
+		}
+	}
+	for key, record := range s.State.SecurityLabels() {
+		if key.Object.ClassID == ids.DatabaseClassID && key.Object.ObjectID != s.DatabaseAddress().ObjectID &&
+			next.SecurityLabel(key) != record {
+			next.SetSecurityLabel(key, record)
 		}
 	}
 }
@@ -80,12 +95,12 @@ type SharedProjection map[*Store]*State
 func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) SharedProjection {
 	next.mustNotBulkLoad()
 	s.State.mustNotBulkLoad()
-	if next.descriptors == s.State.descriptors && next.ParameterIncarnation() == s.State.ParameterIncarnation() {
+	if next.descriptors == s.State.descriptors && next.ParameterIncarnation() == s.State.ParameterIncarnation() && next.sharedLabelsEqual(s.State) {
 		return nil
 	}
 	// The shared maps hold only database, subscription, origin, parameter and
 	// tablespace entries, so a local-only publication visits none of the others.
-	if next.ParameterIncarnation() == s.State.ParameterIncarnation() && next.shared.Len() == s.State.shared.Len() &&
+	if next.sharedLabelsEqual(s.State) && next.ParameterIncarnation() == s.State.ParameterIncarnation() && next.shared.Len() == s.State.shared.Len() &&
 		next.shared.Every(func(address ids.ObjectAddress, descriptor Descriptor) bool {
 			current, _ := s.State.shared.Get(address)
 			return current == descriptor
@@ -109,6 +124,7 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 		root := next
 		if target != s {
 			root = CloneState(target.State)
+			root.projectSharedLabels(next)
 		}
 		root.SetParameterIncarnation(next.ParameterIncarnation())
 		for _, descriptor := range removed {

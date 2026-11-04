@@ -105,7 +105,16 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 			}
 			replay := providerReplay{original: providerKey{item.schema, originalName, signature}, current: providerKey{identity.Schema, identity.Name, signature}, arguments: identity.Signature, family: family, objectKind: kind}
 			if procedure, ok := current.(*catalog.Procedure); ok {
-				replay.parallel, replay.cost, replay.rows = procedure.Parallel, procedure.Cost, procedure.Rows
+				if procedure.RoutineKind == catalog.AggregateRoutine {
+					// CREATE EXTENSION restores the aggregate's immutable estimates.
+					// Neither ALTER AGGREGATE nor ALTER FUNCTION can patch them.
+					declaration := d.(*catalog.Procedure)
+					if procedure.Parallel != declaration.Parallel || procedure.Cost != declaration.Cost || procedure.Rows != declaration.Rows {
+						return fmt.Errorf("stuntgres: unsupported installed aggregate estimates")
+					}
+				} else {
+					replay.parallel, replay.cost, replay.rows = procedure.Parallel, procedure.Cost, procedure.Rows
+				}
 				if extension.StockInsertUsername.SupportsDMLTrigger(procedure) {
 					replay.securityDefiner, replay.configuration = procedure.SecurityDefiner, procedure.Configuration
 				}

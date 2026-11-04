@@ -91,7 +91,7 @@ func ExistingRootOutput(bound *UniqueBoundKey, root *storage.IndexRoot, row stor
 			if bound.Scratch[0].IsNull() {
 				return false, nil, nil
 			}
-			h, err := root.Hash.Binding.Provider.Hash(evaluation.Context, bound.Scratch[0])
+			h, err := root.Hash.Binding.Provider.HashWithEnvironment(evaluation.Context, bound.Scratch[0], evaluation.FunctionInput())
 			if err != nil {
 				return false, nil, err
 			}

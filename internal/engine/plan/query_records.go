@@ -56,7 +56,7 @@ type CycleRecipe struct {
 	ShapeError     error // Deferred until body analysis establishes diagnostic precedence.
 	MarkSlot       int
 	Keys           []int
-	Grouping       []sqltype.Grouping
+	Grouping       []Grouping
 	Record, Path   *sqltype.Descriptor
 	Mark, Fallback expr.Expr
 	// Typed introducers retain their analyzed source Usage before common-output
@@ -65,7 +65,7 @@ type CycleRecipe struct {
 	Inequality     sqltype.ComparisonPredicate
 }
 
-func (c *CycleRecipe) equalRecord(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) equalRecord(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value, evaluation expr.Context) (bool, error) {
 	if a.Type() != c.Record || b.Type() != c.Record || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle record")
 	}
@@ -76,7 +76,7 @@ func (c *CycleRecipe) equalRecord(ctx context.Context, checkpoint func(context.C
 		if err := checkpoint(ctx); err != nil {
 			return false, err
 		}
-		equal, err := g.Equal(ctx, a.CompositeField(i), b.CompositeField(i))
+		equal, err := g.EqualWithEvaluation(ctx, a.CompositeField(i), b.CompositeField(i), evaluation)
 		if err != nil {
 			return false, err
 		}
@@ -90,7 +90,7 @@ func (c *CycleRecipe) equalRecord(ctx context.Context, checkpoint func(context.C
 	return true, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) EqualPath(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value) (bool, error) {
+func (c *CycleRecipe) EqualPath(ctx context.Context, checkpoint func(context.Context) error, a, b sqltype.Value, evaluation expr.Context) (bool, error) {
 	if a.Type() != c.Path || b.Type() != c.Path || a.IsNull() || b.IsNull() {
 		return false, fmt.Errorf("stuntgres: foreign cycle path")
 	}
@@ -112,7 +112,7 @@ func (c *CycleRecipe) EqualPath(ctx context.Context, checkpoint func(context.Con
 		}
 	}
 	for i := range a.ArrayLen() {
-		equal, err := c.equalRecord(ctx, checkpoint, a.ArrayElement(i), b.ArrayElement(i))
+		equal, err := c.equalRecord(ctx, checkpoint, a.ArrayElement(i), b.ArrayElement(i), evaluation)
 		if err != nil || !equal {
 			return equal, err
 		}
@@ -120,7 +120,7 @@ func (c *CycleRecipe) EqualPath(ctx context.Context, checkpoint func(context.Con
 	return true, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) HashPath(ctx context.Context, checkpoint func(context.Context) error, path sqltype.Value) (uint64, error) {
+func (c *CycleRecipe) HashPath(ctx context.Context, checkpoint func(context.Context) error, path sqltype.Value, evaluation expr.Context) (uint64, error) {
 	if path.Type() != c.Path || path.IsNull() {
 		return 0, fmt.Errorf("stuntgres: foreign cycle path")
 	}
@@ -145,7 +145,7 @@ func (c *CycleRecipe) HashPath(ctx context.Context, checkpoint func(context.Cont
 			if err := checkpoint(ctx); err != nil {
 				return 0, err
 			}
-			part, err := g.Hash(ctx, record.CompositeField(j))
+			part, err := g.HashWithEvaluation(ctx, record.CompositeField(j), evaluation)
 			if err != nil {
 				return 0, err
 			}
@@ -158,7 +158,7 @@ func (c *CycleRecipe) HashPath(ctx context.Context, checkpoint func(context.Cont
 	return hash, checkpoint(ctx)
 }
 
-func (c *CycleRecipe) Augment(ctx context.Context, checkpoint func(context.Context) error, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value) ([]sqltype.Value, error) {
+func (c *CycleRecipe) Augment(ctx context.Context, checkpoint func(context.Context) error, row []sqltype.Value, parent sqltype.Value, mark, fallback sqltype.Value, evaluation expr.Context) ([]sqltype.Value, error) {
 	if err := checkpoint(ctx); err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (c *CycleRecipe) Augment(ctx context.Context, checkpoint func(context.Conte
 		}
 		elements[i] = parent.ArrayElement(i)
 		if !detected {
-			equal, err := c.equalRecord(ctx, checkpoint, record, elements[i])
+			equal, err := c.equalRecord(ctx, checkpoint, record, elements[i], evaluation)
 			if err != nil {
 				return nil, err
 			}
@@ -222,6 +222,7 @@ type Grouping struct {
 	Routine       ids.ObjectRef
 	Procedure     *catalog.Procedure
 	RoutineRecipe expr.RoutineRecipeReference // Exact original query-owned occurrence when grafted.
+	Source        expr.Info                   // Genuine selected equality source occurrence, no runtime authority.
 	PrivateTree   bool
 	Conversion    sqltype.CoercionPlan
 	Converted     sqltype.Grouping
@@ -229,8 +230,12 @@ type Grouping struct {
 }
 
 func (g Grouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
+	return g.EqualWithEvaluation(ctx, a, b, nil)
+}
+func (g Grouping) EqualWithEvaluation(ctx context.Context, a, b sqltype.Value, evaluation expr.Context) (bool, error) {
+	boundary, _ := evaluation.(sqltype.GroupingBoundary)
 	if !g.Convert {
-		return g.Grouping.Equal(ctx, a, b)
+		return g.Grouping.EqualWithBoundary(ctx, a, b, boundary)
 	}
 	left, err := g.Conversion.Apply(ctx, a, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
@@ -240,18 +245,22 @@ func (g Grouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return g.Converted.Equal(ctx, left, right)
+	return g.Converted.EqualWithBoundary(ctx, left, right, boundary)
 }
 
 func (g Grouping) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
+	return g.HashWithEvaluation(ctx, value, nil)
+}
+func (g Grouping) HashWithEvaluation(ctx context.Context, value sqltype.Value, evaluation expr.Context) (uint64, error) {
+	boundary, _ := evaluation.(sqltype.GroupingBoundary)
 	if !g.Convert {
-		return g.Grouping.Hash(ctx, value)
+		return g.Grouping.HashWithBoundary(ctx, value, boundary)
 	}
 	converted, err := g.Conversion.Apply(ctx, value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		return 0, err
 	}
-	return g.Converted.Hash(ctx, converted)
+	return g.Converted.HashWithBoundary(ctx, converted, boundary)
 }
 
 // Strength and wait precedence are independent. A manifest belongs to a bound

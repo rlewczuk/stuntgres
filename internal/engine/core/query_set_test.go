@@ -69,10 +69,10 @@ func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
 				d := n.Schema()[0].Usage.Type
 				one, _ := sqltype.Integer(d, 1)
 				two, _ := sqltype.Integer(d, 2)
-				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
+				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}, nil); err != nil || i != -1 {
 					t.Fatal("unequal collision", i, err)
 				}
-				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
+				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}, nil); err != nil || i != 1 {
 					t.Fatal("equal collision", i, err)
 				}
 			}
@@ -298,7 +298,7 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 		t.Fatal(rows, count, err)
 	}
 	zeroCtx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 2}
-	if _, err := exec.FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("zero-width collision ignored cancellation", err)
 	}
 }

@@ -17,10 +17,10 @@ func TestReferencePgcryptoArmorHeaders(t *testing.T) {
 		{"null", nil, [][]any{}},
 		{"no_headers", pgcryptoArmorTest, [][]any{}},
 		{"empty_data", pgcryptoArmorEmpty, [][]any{}},
-		{"one_header", pgcryptoArmorZooka, [][]any{{"foo", "bar"}}},
-		{"bad_crc", strings.Replace(pgcryptoArmorZooka, "=D5cR", "=ZZZZ", 1), [][]any{{"foo", "bar"}}},
-		{"bad_body", strings.Replace(pgcryptoArmorZooka, "em9va2E=", "!not-base64!", 1), [][]any{{"foo", "bar"}}},
-		{"missing_crc", strings.Replace(pgcryptoArmorZooka, "=D5cR\n", "", 1), [][]any{{"foo", "bar"}}},
+		{"one_header", fixture.PgcryptoArmorZooka, [][]any{{"foo", "bar"}}},
+		{"bad_crc", strings.Replace(fixture.PgcryptoArmorZooka, "=D5cR", "=ZZZZ", 1), [][]any{{"foo", "bar"}}},
+		{"bad_body", strings.Replace(fixture.PgcryptoArmorZooka, "em9va2E=", "!not-base64!", 1), [][]any{{"foo", "bar"}}},
+		{"missing_crc", strings.Replace(fixture.PgcryptoArmorZooka, "=D5cR\n", "", 1), [][]any{{"foo", "bar"}}},
 		{"no_body_or_crc", "-----BEGIN PGP MESSAGE-----\nfoo: bar\n\n-----END PGP MESSAGE-----\n", [][]any{{"foo", "bar"}}},
 		// Extraction's header scan also stops at the footer boundary; unlike
 		// dearmor, it needs neither a blank separator nor body/checksum bytes.
@@ -30,19 +30,19 @@ func TestReferencePgcryptoArmorHeaders(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-				pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", tc.rows, tc.packet))
-				pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT h.key,h.value FROM pgp_armor_headers($1) AS h", tc.rows, tc.packet))
+				pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", tc.rows, tc.packet))
+				pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT h.key,h.value FROM pgp_armor_headers($1) AS h", tc.rows, tc.packet))
 			})
 		})
 	}
 	t.Run("source_routes_and_stored_view", func(t *testing.T) {
 		pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT pgp_armor_headers($1)", []string{"pgp_armor_headers"}, []string{"RECORD"}, [][]any{{"(foo,bar)"}}, pgcryptoArmorZooka))
-			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT k,v FROM pgp_armor_headers($1) AS h(k,v)", []string{"k", "v"}, []string{"TEXT", "TEXT"}, [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
-			sorted := pgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1) ORDER BY key,value", [][]any{{"Comment", "a"}, {"Version", "b"}}, pgcryptoArmorBadBody)
+			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT pgp_armor_headers($1)", []string{"pgp_armor_headers"}, []string{"RECORD"}, [][]any{{"(foo,bar)"}}, fixture.PgcryptoArmorZooka))
+			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT k,v FROM pgp_armor_headers($1) AS h(k,v)", []string{"k", "v"}, []string{"TEXT", "TEXT"}, [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
+			sorted := fixture.PgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1) ORDER BY key,value", [][]any{{"Comment", "a"}, {"Version", "b"}}, pgcryptoArmorBadBody)
 			sorted.Bag = false
 			pgcryptoArmorBoth(t, p, c, r, sorted)
-			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE VIEW armor_headers_view AS SELECT key,value FROM pgp_armor_headers('"+pgcryptoArmorZooka+"')", 0))
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE VIEW armor_headers_view AS SELECT key,value FROM pgp_armor_headers('"+fixture.PgcryptoArmorZooka+"')", 0))
 			// Stored-view nullability uses the view contract, not the computed-source
 			// helper's unknown metadata rule.
 			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT key,value FROM armor_headers_view ORDER BY key,value", []string{"key", "value"}, []string{"TEXT", "TEXT"}, [][]any{{"foo", "bar"}}))
@@ -56,7 +56,7 @@ func TestReferencePgcryptoArmorHeaders(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-				pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorCorrupt("SELECT * FROM pgp_armor_headers($1)", tc.packet))
+				pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorCorrupt("SELECT * FROM pgp_armor_headers($1)", tc.packet))
 			})
 		})
 	}

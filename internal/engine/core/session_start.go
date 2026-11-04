@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,26 @@ func (e *Engine) StartSession(ctx context.Context, admission *DatabaseAdmission,
 // StartRestoreSession initializes the private replay owner. It has real cleanup
 // but no public physical database reservation or persistent session identity.
 func (e *Engine) StartRestoreSession(ctx context.Context, principal authorization.PrincipalRef) (*session.Session, error) {
-	return e.startSession(ctx, session.SessionStart{}, principal, nil, true)
+	s, err := e.startSession(ctx, session.SessionStart{}, principal, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	e.Mu.Lock()
+	origin := e.restoreInitializationOrigin
+	if origin != nil {
+		if origin.engine != e || origin.domain != e.Catalog.Domain || origin.epoch != e.Catalog.State.Epoch() || origin.policy != e.Sepgsql || origin.session != nil {
+			err = errors.New("stuntgres: invalid trusted restore initialization session")
+		} else {
+			origin.session = s
+		}
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		s.RequestEnd(session.CleanClose)
+		_ = s.WaitEnd(context.Background())
+		return nil, err
+	}
+	return s, nil
 }
 
 // Private maintenance sessions have genuine resources and leases, but a separate
@@ -118,6 +138,20 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		err = authErr
 	}
 	var resetRole authorization.PrincipalRef
+	if err == nil && e.Sepgsql != nil {
+		context := start.SepgsqlContext
+		if context == "" {
+			context = e.Sepgsql.Initial()
+		}
+		var subject *session.SepgsqlSubject
+		subject, err = session.NewSepgsqlSubject(s.SessionToken, e.Sepgsql, context)
+		if err == nil {
+			_, err = op.Attach(session.SepgsqlSecurity, subject)
+		}
+		if err == nil {
+			s.Sepgsql = subject
+		}
+	}
 	var resetRoleText string
 	if err == nil {
 		op.SnapshotNoticeThreshold()
@@ -184,6 +218,13 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 			owner.Mu.Lock()
 			owner.AcceptClientEncodingLocked(policy)
 			owner.Mu.Unlock()
+		}
+	}
+	if err == nil && !private && e.Sepgsql != nil {
+		var authority AuthorizationView
+		authority, err = e.AuthorizationLocked(op)
+		if err == nil {
+			err = authority.View.SepgsqlCheck(e.Catalog.DatabaseAddress(), sepgsql.Permission("db_database", "access"))
 		}
 	}
 	s.Mu.Lock()

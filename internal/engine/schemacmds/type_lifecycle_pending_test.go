@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 )
 
@@ -113,7 +112,7 @@ func TestTypeLifecyclePendingDropClosure(t *testing.T) {
 						_ = scope.Finish(err)
 						t.Fatal(err)
 					}
-					err = schemacmds.StageDomainDependents(scope, stage, parser.DropRestrict)
+					err = domainUnitApplyDrop(scope, stage, parser.DropRestrict)
 					if dependent {
 						domainUnitDiagnostic(t, err, "2BP01", "cannot drop desired object(s) because other objects depend on them")
 						if stage.RemovalCount() != 0 || e.CatalogRead().State() != before.State() {

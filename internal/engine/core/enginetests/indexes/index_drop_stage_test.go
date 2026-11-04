@@ -167,7 +167,11 @@ func TestPartitionDropRelationProjection(t *testing.T) {
 			t.Fatal("missing real inherited/local owners")
 		}
 		action := enginetest.Statement(t, "ALTER TABLE projection_root DROP CONSTRAINT projection_pk").(*parser.AlterTable).Actions[0]
-		if _, err := partition.StageConstraintDrop(op, stage, &stage.Candidate, root, action); err != nil {
+		captured, err := partition.PrepareConstraintDrop(op, stage, &stage.Candidate, root, action)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = captured.Apply(stage); err != nil {
 			t.Fatal(err)
 		}
 		if len(stage.DropRecords) != 2 || stage.RemovalCount() != 2 {
@@ -303,7 +307,7 @@ func TestPartitionDropRelationProjection(t *testing.T) {
 		child := partitionProjectionRelation(t, stage, "projection_child")
 		c := child.Constraints.Unique[0]
 		action := parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: c.Name}}
-		_, err := partition.StageConstraintDrop(op, stage, &stage.Candidate, child, action)
+		_, err := partition.PrepareConstraintDrop(op, stage, &stage.Candidate, child, action)
 		var state interface{ SQLState() string }
 		if !errors.As(err, &state) || state.SQLState() != "42P16" || len(stage.DropFlags) != 0 || len(stage.DropRecords) != 0 || stage.RemovalCount() != 0 {
 			t.Fatal("rejected inherited selection retained roots/effects", err)

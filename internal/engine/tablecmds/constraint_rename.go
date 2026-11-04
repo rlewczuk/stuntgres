@@ -48,6 +48,13 @@ func RenameConstraintLocked(e *core.Engine, scope *core.StatementScope, op *sess
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	err = table.StageRenameConstraint(stage, auth.Catalog, parent, raw, kind, backing)
+	if err == nil && backing != (ids.ObjectAddress{}) {
+		if next, ok := stage.Get(backing).(*catalog.Relation); ok {
+			err = stage.SepgsqlPostAlter(next, next.Address(), false)
+		} else {
+			err = ids.ErrCatalogReplaced
+		}
+	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)

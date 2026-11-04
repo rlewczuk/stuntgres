@@ -280,7 +280,12 @@ func pgResourceRecord(resource Resource, owner RecordOwner, mode Mode) (Record, 
 		switch resource.Address.ClassID {
 		case ids.RelationClassID:
 			r.Kind = RelationRecord
-		case ids.ReplicationOriginClassID:
+		case ids.LargeObjectClassID:
+			// Canonical metadata authority is pg_largeobject_metadata (2995).
+			// REL_18_6 objectaddress.c locks LargeObjectRelationId (2613);
+			// translate only the public tag, never the resource identity.
+			r.Kind, r.Class = ObjectRecord, 2613
+		case ids.DatabaseClassID, ids.TablespaceClassID, ids.ReplicationOriginClassID:
 			r.Kind, r.Class, r.Shared = ObjectRecord, uint32(resource.Address.ClassID), true
 		case ids.PublicationClassID, ids.LanguageClassID, ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TypeClassID, ids.NamespaceClassID, ids.RoleClassID, ids.CollationClassID, ids.ConversionClassID, ids.CastClassID, ids.TransformClassID, ids.ProcedureClassID, ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.EventTriggerClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
 			r.Kind, r.Class = ObjectRecord, uint32(resource.Address.ClassID)

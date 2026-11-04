@@ -137,15 +137,15 @@ func CheckPolicyAuthority(a access.View, env access.Environment, consumer *catal
 			return err
 		}
 		if leaf.SystemAttributeRead {
-			if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+			if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege, Inherit: !leaf.Only}); err != nil {
 				return err
 			}
 		}
-		if err := a.CheckColumns(env, ref, relation, authorization.SelectPrivilege, indices); err != nil {
+		if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege, ColumnDemand: true, Columns: indices, SystemColumns: leaf.SystemColumns, WholeRow: leaf.WholeRowRead, Inherit: !leaf.Only}); err != nil {
 			return err
 		}
 		if exec.PrivilegeQueryRowMark(relation, leaf.Mark).Mode != 0 {
-			if err := a.CheckColumns(env, ref, relation, authorization.UpdatePrivilege, nil); err != nil {
+			if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.UpdatePrivilege, RowMark: true, Inherit: !leaf.Only}); err != nil {
 				return err
 			}
 		}

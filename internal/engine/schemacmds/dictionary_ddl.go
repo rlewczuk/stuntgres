@@ -26,7 +26,7 @@ func StageDictionaryDetached(e *core.Engine, op *session.Operation, stmt parser.
 	preparation, err := extension.PrepareDictionary(SchemaHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, stmt)
 	e.Mu.Unlock()
 	if err == nil {
-		err = preparation.Compile(op.Context())
+		err = preparation.Compile(op.Context(), SchemaHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}})
 	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -44,6 +44,11 @@ func StageDictionaryDetached(e *core.Engine, op *session.Operation, stmt parser.
 func CompleteDictionaryLocked(e *core.Engine, op *session.Operation, stmt parser.Statement, stage *core.CatalogStage, preparation *extension.DictionaryPreparation) (*core.CatalogStage, error) {
 	current, err := schemaAuthorizationLocked(e, op)
 	if err == nil && (current.Catalog.Domain() != stage.Base.Domain() || current.Catalog.Epoch() != stage.Base.Epoch()) {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil && e.Sepgsql != nil && current.Catalog.State() != stage.Base.State() {
+		// A detached active compiler may not replay its policy effects against
+		// a newer predecessor, even if the selected dictionary still exists.
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil && current.Catalog.State() != stage.Base.State() {

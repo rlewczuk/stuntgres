@@ -10,21 +10,15 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// StageOwnedCleanup stages DROP OWNED's cleanup for sources in stage: their
-// memberships (joined to the stage's publication), ACL entries, policy roles
-// and default privileges. roles and publication are the captured role state.
-func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
-	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication, sources)
-	if err != nil {
-		return err
-	}
-	roles = stage.SetRoleCandidate(candidate, publication)
+// prepareOwnedCleanup is the single ACL/policy/default/initial-privilege kernel.
+// Its explicit input prefix is metadata only; every read is from the real stage.
+func prepareOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles authorization.Read, sources map[authorization.PrincipalRef]bool, plan *OwnedCleanupPlan) error {
 	for address, descriptor := range stage.BaseCatalog().Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		recordOwnedACLCommands(stage, descriptor, sources)
-		if _, removed := stage.Removal(address); removed {
+		recordOwnedACLCommands(plan, descriptor, sources)
+		if plan.doomed(address) {
 			continue
 		}
 		if replacement := stage.Get(address); replacement != nil {
@@ -69,46 +63,46 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 		case *catalog.Database:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Namespace:
 			next := *old
 			next.ACL = nextACL
 			next.ObjectRevision = revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Type:
 			next := *old
 			next.ACL = nextACL
 			next.ACLSyntheticDefault = false
 			next.ObjectRevision = revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Procedure:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Language:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.ForeignObject:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Parameter:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
-				err = stage.Remove(stage.BaseRef(address))
+				plan.effects = append(plan.effects, ownedCleanupEffect{remove: stage.BaseRef(address)})
 			} else {
-				err = stage.Replace(&next)
+				plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 			}
 		case *catalog.Tablespace:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.LargeObject:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		case *catalog.Relation:
 			next := *old
 			next.Security.ACL = nextACL
@@ -117,12 +111,9 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 			if nextColumns != nil {
 				next.Security.ColumnACL = nextColumns
 			}
-			err = stage.Replace(&next)
+			plan.effects = append(plan.effects, ownedCleanupEffect{descriptor: &next})
 		default:
 			return fmt.Errorf("stuntgres: object has no ACL cleanup handler")
-		}
-		if err != nil {
-			return err
 		}
 	}
 	for key, original := range stage.BaseCatalog().State().DefaultACLs() {
@@ -130,6 +121,9 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 			return err
 		}
 		record := original
+		if plan.namespaceRemoved(key.Schema) {
+			continue
+		}
 		if staged, exists := stage.DefaultACLChange(key); exists {
 			if staged == nil {
 				continue // Namespace AUTO removal must not resurrect this key.
@@ -151,15 +145,27 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 		}
 		// Creator ownership removes the entire actual record, including a
 		// stored empty global policy. Recipient cleanup uses the key baseline.
-		stage.ObserveDefault(key)
-		stage.SetDefaultACL(key, next)
+		plan.effects = append(plan.effects, ownedCleanupEffect{setDefault: true, defaultKey: key, defaultRecord: next})
 	}
-	// Read the coherent candidate after object removals and descriptor cleanup,
-	// so neither whole-object nor column tombstones can be resurrected.
-	current := stage.StageRead()
+	// Filter authentic earlier private initial-privilege inputs by exactly the
+	// canonical raw prefix and cleanup's own real parameter removals.
+	current := plan.source
 	for address, record := range current.State().InitialPrivileges() {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if plan.doomed(address) {
+			continue
+		}
+		removed := false
+		for _, effect := range plan.effects {
+			if effect.remove != (ids.ObjectRef{}) && catalog.InitialPrivilegeRemoved(address, effect.remove.Address) {
+				removed = true
+				break
+			}
+		}
+		if removed {
+			continue
 		}
 		object := address
 		object.SubID = 0
@@ -169,64 +175,8 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 			return err
 		}
 		if changed {
-			stage.RecordInitialPrivilege(address, record.PrivType, acl)
+			plan.effects = append(plan.effects, ownedCleanupEffect{initial: address, privType: record.PrivType, acl: acl, owner: owner})
 		}
 	}
 	return nil
-}
-
-// Only singular versus plural matters to the DROP OWNED primary. A real
-// source-grantor membership deletion or wholly selected policy supplies another
-// collected object, even when its enclosing relation is already an owner root.
-// ACL row edits are not deletion roots and automatic parent associations do not
-// contribute an invented object count.
-func OwnedCleanupAddsDeletionRoot(stage OwnedCleanupStage, sources map[authorization.PrincipalRef]bool) bool {
-	if stage.RoleCandidate() != nil {
-		return true
-	}
-	// Each actual creator-owned policy is independently collected, including
-	// scoped records already tombstoned by namespace AUTO removal. Recipient
-	// normalization and other creators' AUTO records are not owner roots.
-	for key := range stage.BaseCatalog().State().DefaultACLs() {
-		if sources[key.Creator] {
-			return true
-		}
-	}
-	for address, descriptor := range stage.Descriptors() {
-		next, ok := descriptor.(*catalog.Relation)
-		original, existed := stage.BaseCatalog().Relation(address)
-		if ok && existed && len(next.Security.Policies) < len(original.Security.Policies) {
-			return true
-		}
-	}
-	// Column-owned sequences have their own real shared owner dependency.
-	// They are excluded from independent mutation roots, not from collection.
-	for _, descriptor := range stage.BaseCatalog().Descriptors() {
-		relation, ok := descriptor.(*catalog.Relation)
-		if ok && relation.RelationKind == catalog.SequenceRelation && relation.Sequence != nil &&
-			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
-			return true
-		}
-	}
-	// Cleanup skips already removed relations; their selected policies are
-	// nevertheless separate collected addresses in PostgreSQL.
-	for address := range stage.Removals() {
-		relation, ok := stage.BaseCatalog().Relation(address)
-		if !ok {
-			continue
-		}
-		for _, policy := range relation.Security.Policies {
-			selected := len(policy.Roles) > 0
-			for _, role := range policy.Roles {
-				if role.Public || !sources[role.Ref] {
-					selected = false
-					break
-				}
-			}
-			if selected {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -2,7 +2,9 @@ package dml
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -39,9 +41,18 @@ type BeforeKey struct {
 // BeforeCapture belongs to one command activation, never a prepared statement.
 // Its immutable list is captured once for an admitted relation/event/timing.
 type BeforeCapture struct {
-	Relation    *catalog.Relation
-	Catalog     catalog.Read
-	Definitions []stored.Trigger
+	Relation            *catalog.Relation
+	Catalog             catalog.Read
+	Definitions         []stored.Trigger
+	WhenInitializations map[TriggerWhenKey]exec.RoutineInitialization
+}
+
+type TriggerWhenKey struct {
+	Relation *catalog.Relation
+	Trigger  ids.OID
+	Actor    authorization.PrincipalRef
+	Event    stored.TriggerEvent
+	Timing   stored.TriggerTiming
 }
 
 // Before invokes the physical relation's admitted chain exactly once at the

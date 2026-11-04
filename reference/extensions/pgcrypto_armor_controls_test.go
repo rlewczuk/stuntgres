@@ -21,9 +21,9 @@ func pgcryptoArmorNativeRetention(t *testing.T, p *fixture.Pair, c *sql.Conn, r 
 	queries := []string{"SELECT pgcrypto_part.armor($1)", "SELECT pgcrypto_part.armor($1,$2,$3)", "SELECT pgcrypto_part.dearmor($1)", "SELECT * FROM pgcrypto_part.pgp_armor_headers($1) ORDER BY key,value"}
 	steps := []fixture.Step{
 		pgcryptoArmorText(queries[0], pgcryptoArmorTest, []byte("test")),
-		pgcryptoArmorText(queries[1], pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"),
+		pgcryptoArmorText(queries[1], fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"),
 		pgcryptoArmorBytes(queries[2], []byte("test"), pgcryptoArmorTest),
-		pgcryptoArmorHeaders(queries[3], [][]any{{"Comment", "a"}, {"Version", "b"}}, pgcryptoArmorBadBody),
+		fixture.PgcryptoArmorHeaders(queries[3], [][]any{{"Comment", "a"}, {"Version", "b"}}, pgcryptoArmorBadBody),
 	}
 	held := make([]*sql.Stmt, len(queries))
 	for i, query := range queries {
@@ -121,7 +121,7 @@ func TestReferencePgcryptoArmorControls(t *testing.T) {
 			}
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("BEGIN", 0))
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO armor_consumers(id) VALUES(2)", 1))
-			fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, pgcryptoArmorZooka, "test"}}))
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, fixture.PgcryptoArmorZooka, "test"}}))
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("ROLLBACK", 0))
 		})
 	})
@@ -182,12 +182,12 @@ func TestReferencePgcryptoArmorControls(t *testing.T) {
 				pgcryptoArmorBoth(t, p, target, record, step)
 			}
 			pgcryptoArmorBoth(t, p, target, record, pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test")))
-			pgcryptoArmorBoth(t, p, target, record, pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+			pgcryptoArmorBoth(t, p, target, record, pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
 			pgcryptoArmorBoth(t, p, target, record, pgcryptoArmorBytes("SELECT pgcrypto_part.dearmor($1)", []byte("test"), pgcryptoArmorTest))
-			pgcryptoArmorBoth(t, p, target, record, pgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
+			pgcryptoArmorBoth(t, p, target, record, fixture.PgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
 			fixture.RunStep(t, p.Ctx, target, record, fixture.Exec("BEGIN", 0))
 			fixture.RunStep(t, p.Ctx, target, record, fixture.Exec("INSERT INTO armor_consumers(id) VALUES(2)", 1))
-			fixture.RunStep(t, p.Ctx, target, record, fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, pgcryptoArmorZooka, "test"}}))
+			fixture.RunStep(t, p.Ctx, target, record, fixture.Select("SELECT a,h,b FROM armor_consumers WHERE id=2", []string{"a", "h", "b"}, []string{"TEXT", "TEXT", "BYTEA"}, [][]any{{pgcryptoArmorTest, fixture.PgcryptoArmorZooka, "test"}}))
 			fixture.RunStep(t, p.Ctx, target, record, fixture.Exec("ROLLBACK", 0))
 			if !reflect.DeepEqual(original, pgcryptoArmorInventory(t, p, c, r, "pgcrypto_part")) || !reflect.DeepEqual(candidate, pgcryptoArmorInventory(t, p, bc, br, "pgcrypto_part")) {
 				t.Fatal("destination replay mutated source identities")

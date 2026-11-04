@@ -38,14 +38,24 @@ func GinSupportProcedures(owner authorization.PrincipalRef) []Procedure {
 }
 
 func ValidateGinSupport(d *Procedure) error {
-	if d == nil || d.GinSupport == 0 || int(d.GinSupport) > len(ginSupportDeclarations) {
-		return fmt.Errorf("stuntgres: invalid GIN support capability")
-	}
-	f := ginSupportDeclarations[d.GinSupport-1]
-	if d.Address() != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: f.oid}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Revision() == 0 || d.Name() != f.name || d.Signature != f.signature || d.Result != f.result || !d.Strict || d.Volatility != expr.Immutable || d.RoutineKind != FunctionRoutine || d.Display != (RoutineDisplay{Language: InternalRoutineLanguage, Source: f.name}) || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.RangeConstructor != nil || d.PLHandler != NoPLHandler || d.AccessMethod != NoAccessMethod || d.BrinSupport != 0 || d.Implementation != nil || d.Host != nil || d.HostHandler != nil || d.HostConversion != nil || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || d.SnowballHelper != NoSnowballHelper || len(d.Body) != 0 || len(d.DeclarationDependencies) != 0 {
+	if !OriginalGinSupport(d) {
 		return fmt.Errorf("stuntgres: invalid GIN support identity")
 	}
+	if !supportedInternalProcedureMetadata(d, ginSupportDeclarations[d.GinSupport-1].name, expr.Immutable) {
+		return fmt.Errorf("stuntgres: invalid GIN support metadata")
+	}
 	return nil
+}
+
+// OriginalGinSupport authenticates the released intrinsic operation, not its
+// current mutable presentation or a newly installed alias with the same ABI.
+func OriginalGinSupport(d *Procedure) bool {
+	if d == nil || d.GinSupport == 0 || int(d.GinSupport) > len(ginSupportDeclarations) {
+		return false
+	}
+	f := ginSupportDeclarations[d.GinSupport-1]
+	return d.AccessMethod == NoAccessMethod && d.BrinSupport == 0 &&
+		originalInternalProcedure(d, f.oid, f.signature, f.result)
 }
 
 func GinSupportRoutine(family ids.OID, slot int16) (ids.OID, bool) {

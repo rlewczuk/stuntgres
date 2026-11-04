@@ -115,6 +115,16 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 	if len(script.foreignKeyModes) != 0 {
 		w.seal, w.sealBuffer = sha256.New(), make([]byte, 4096)
 	}
+	if policy := capture.CatalogView.Owner().Sepgsql; policy != nil {
+		requirement := SepgsqlRequirement{ID: policy.ID(), Version: policy.Version(), Database: capture.OriginalCatalog.MustDatabase(capture.OriginalCatalog.Owner().DatabaseAddress()).Name()}
+		comment, err := requirement.Comment()
+		if err != nil {
+			return err
+		}
+		if err := w.emit(comment); err != nil {
+			return err
+		}
+	}
 	for _, runtime := range capture.CatalogView.Owner().HostRuntimes {
 		if err := w.emit(runtime.ReplayComment()); err != nil {
 			return err

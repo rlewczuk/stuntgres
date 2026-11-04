@@ -8,6 +8,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	read := e.Catalog.Current()
 	for _, s := range e.sessions {
 		PayloadOf(s).sqlRoutines = nil
+		PayloadOf(s).dictionaryMemos = nil
 		PayloadOf(s).Sequences.RetainLocked(sequence.OwnTemporary(read, s.SessionToken))
 	}
 }

@@ -149,8 +149,13 @@ assumptions into remote validation scans.
     `AlterColumn`, `AlterOptions` and `CheckAddedColumn`. Ordinary actions and
     defaults run through shared tablecmds stages; option jobs follow on the latest
     private predecessor, under the same enclosing statement publication.
-  - `PlanImport` decides IMPORT FOREIGN SCHEMA up to the importer callback and
-    records the server, wrapper, handler and local schema as observed dependencies.
+  - `PlanImport` captures IMPORT FOREIGN SCHEMA metadata, the real handler
+    selection and diagnostic-only SQL wrapper name, and records the server,
+    wrapper, handler and local schema as observed dependencies. Execution first
+    obtains and unwinds that handler's real method factory, then checked-tests
+    optional `SchemaImporter` support. A denied factory wins over capability
+    rejection; an allowed no-importer returns the exact `HV00P` diagnostic with
+    the captured SQL wrapper spelling, including aliases and renames.
     `ImportRequest.MappingPresent` distinguishes an absent mapping from a
     selected zero-option mapping; `FindMapping` selects exact user before PUBLIC
     from captured authorization. Only a selected mapping is an observed descriptor.
@@ -320,6 +325,20 @@ transactions/locks.
   ANALYZE inquiries, IMPORT and executable source ACL fences share this boundary.
   `RelationHandler` performs metadata-only relation lookup; metadata DDL and
   validators remain independent. No provider receives a settings store.
+- **Actual handler factory.** Metadata selection is not invocation.
+  `exec.ForeignHandlerSelection` keeps the selected immutable procedure and its
+  original catalog reference. Actual scan/composite/async planning, modification,
+  COPY, routed insertion, TRUNCATE, EXPLAIN, IMPORT and ANALYZE demand borrows
+  the live owner to invoke the selected handler with direct false-execute
+  authority. `ForeignHandlerMethods` returns its real registered static native
+  method table inside that lexical boundary; the boundary ends before any
+  provider method, including estimate, paths, sample acquisition or teardown.
+  A captured but never demanded source does not invoke a factory. Cached
+  source method authority and detached request metadata retain no session,
+  scope or callback closure. Missing live invocation authority rejects rather
+  than borrowing a closed evaluator's former host. Raw provider methods are
+  not separate pg_proc routines and receive no invented execute/entry events.
+  The sepgsql simulation is query compatibility, not real SELinux enforcement.
 - **No locks, no callbacks under locks.** The package adds no mutex.
   `Engine.Mu` guards the `Registry`; the transaction owner's mutex and
   admission guard a `Transaction`. Functions that call application code

@@ -18,7 +18,7 @@ type SubqueryExpr struct {
 	QueryPlan       *Query
 	Comparisons     []ComparisonExpr
 	Ordering        []sqltype.Comparison
-	Membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
+	Membership      []Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
 	Operator        string
 	Negate          bool
 	PresenceOnly    bool

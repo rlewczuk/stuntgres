@@ -161,7 +161,7 @@ func prepareWindowOrder(ctx context.Context, state *State, child *Stage, spec pl
 				return ordered, err
 			}
 			scratch[k] = value
-			h, err := spec.Grouping[k].Hash(ctx, value)
+			h, err := spec.Grouping[k].HashWithEvaluation(ctx, value, &evaluation)
 			if err != nil {
 				return ordered, err
 			}
@@ -177,7 +177,7 @@ func prepareWindowOrder(ctx context.Context, state *State, child *Stage, spec pl
 			}
 			equal := true
 			for k, family := range spec.Grouping {
-				same, err := family.Equal(ctx, scratch[k], ordered.partitions[candidate].keys[k])
+				same, err := family.EqualWithEvaluation(ctx, scratch[k], ordered.partitions[candidate].keys[k], &evaluation)
 				if err != nil {
 					return ordered, err
 				}

@@ -407,7 +407,7 @@ func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryM
 			}
 			membership.Scratch[i] = value
 			hasNull = hasNull || value.IsNull()
-			h, failure := e.Membership[i].Hash(c.Context, value)
+			h, failure := e.Membership[i].HashWithEvaluation(c.Context, value, c)
 			if failure != nil {
 				return nil, failure
 			}
@@ -419,7 +419,7 @@ func (c *Context) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryM
 		count := len(membership.Flat) / width
 		if !hasNull {
 			membership.full = true
-			index, failure := FindDistinctTuple(c.Context, e.Membership, membership.Scratch, membership.Flat, membership.Buckets[hash])
+			index, failure := FindDistinctTuple(c.Context, e.Membership, membership.Scratch, membership.Flat, membership.Buckets[hash], c)
 			if failure != nil {
 				return nil, failure
 			}
@@ -478,7 +478,7 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 	if membership.full && !leftNull {
 		hash := uint64(14695981039346656037)
 		for i, value := range left {
-			h, err := e.Membership[i].Hash(c.Context, value)
+			h, err := e.Membership[i].HashWithEvaluation(c.Context, value, c)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -487,7 +487,7 @@ func (c *Context) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, er
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		index, err := FindDistinctTuple(c.Context, e.Membership, left, membership.Flat, membership.Buckets[hash])
+		index, err := FindDistinctTuple(c.Context, e.Membership, left, membership.Flat, membership.Buckets[hash], c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

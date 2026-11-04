@@ -21,10 +21,7 @@ func CheckWrite(binding analyze.Privileges, a access.View, env RelationAdmission
 	}
 	invoker := a.State.CurrentUser
 	check := func(authority access.View, req analyze.Requirement) error {
-		if req.WholeRelation {
-			return authority.Check(env, access.Requirement{Object: req.Ref, Privileges: req.Privilege})
-		}
-		return authority.CheckColumns(env, req.Ref, req.Relation, req.Privilege, req.Columns)
+		return authority.Check(env, req.AccessRequirement())
 	}
 	for _, layer := range w.Layers {
 		current, ok := a.Catalog.Relation(layer.Ref.Address)

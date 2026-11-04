@@ -81,7 +81,7 @@ func TestExclusionDisclosure(t *testing.T) {
 						label := "(" + strings.Join([]string{key, "b"}, ", ") + ")"
 						detail = "Key " + label + "=(x, 2)" + middle + label + "=(x, 2)."
 					}
-					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, core.DisclosureEnv(&auth), building)
+					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, core.DisclosureEnv(&auth), building, sqltype.InputEnvironment{})
 					enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23P01", Message: message, Detail: detail, Schema: "public", Table: "t", Constraint: "ex"})
 				}
 			})

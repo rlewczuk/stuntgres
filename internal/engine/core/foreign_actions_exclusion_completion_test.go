@@ -45,6 +45,21 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 				return fixture{e, creator, writer}
 			}
 			control, deferred := newFixture(false), newFixture(true)
+			// Both independent lanes retain two real private rows. Only the
+			// deferred lane has conflicting keys and pending exclusion events.
+			controlGuarded := enginetest.CatalogRef(t, control.engine, control.engine.CatalogRead(), "guarded")
+			deferredGuarded := enginetest.CatalogRef(t, deferred.engine, deferred.engine.CatalogRead(), "guarded")
+			controlRows := control.writer.Transactions.Writes[controlGuarded.Address]
+			deferredRows := deferred.writer.Transactions.Writes[deferredGuarded.Address]
+			if len(controlRows) != 2 || len(deferredRows) != len(controlRows) || len(control.writer.Transactions.Writes) != len(deferred.writer.Transactions.Writes) {
+				t.Fatal("completion lanes have unequal private relation/row populations", len(controlRows), len(deferredRows))
+			}
+			if err := enginetest.TransactionRows(t, control.writer, "SELECT k FROM guarded ORDER BY k", 1, 2).Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := enginetest.TransactionRows(t, deferred.writer, "SELECT k FROM guarded ORDER BY k", 1, 1).Close(); err != nil {
+				t.Fatal(err)
+			}
 			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.writer.Transactions)).Events) != 32 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(control.writer.Transactions)).Events) != 0 {
 				t.Fatal("fixture did not create real retained deferred versus settled work")
 			}
@@ -99,8 +114,9 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 				t.Fatal("completion changed unrelated deferred event membership or backing")
 			}
 			// The checker borrows retained membership and leaves deferred events
-			// unclaimed. Preserve the original one-allocation relative cap while
-			// matching all ordinary physical write work on both sides.
+			// unclaimed. Preserve the original one-allocation relative cap:
+			// deferred work must not add private row/index inventory captures
+			// while both lanes match ordinary physical writes and population.
 			if retained > baseline+1 {
 				t.Errorf("retained deferred completion allocations %d exceed control %d plus one retained-completion allocation", retained, baseline)
 			}

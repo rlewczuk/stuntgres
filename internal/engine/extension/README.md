@@ -100,6 +100,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   authenticates the complete current sealed declaration before selecting the
   closed bigint rows or float8 elapsed-time recipe, independently of rename or
   relocation. Names, return shape and copied membership grant no authority.
+  Runtime factories first authenticate any retained declaration through the
+  existing stored-routine carrier check, then validate the actual current
+  descriptor. Lawful rename/owner/ACL COW therefore preserves a selected handler
+  without accepting a stale ABI, substituted origin or mixed implementation.
+  Low-level sources must carry their genuine captured catalog just like ordinary
+  query sources; absence is not permission to infer a handler from its name.
   Native replay reinstalls ordinary sealed declarations and symbolic callers,
   never clocks, sample selections, session resources or C pointers. Physical
   heap blocks, buffer/cache clustering and shared-library ABI execution remain
@@ -531,10 +537,20 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   The shared installed-identity gate admits hstore's fixed OUT capability, then
   checks the exact slot-owned declaration: missing, reconstructed same-shape or
   transplanted OUT capabilities remain invalid.
-- **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
-  `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
-  owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
-  identities).
+- **intagg** (`intagg_identity.go`, `intagg_aggregate.go`): four real canonical
+  procedures in released script order: non-strict volatile safe
+  `int_agg_state(internal,int4)->internal`, non-strict volatile safe
+  `int_agg_final_array(internal)->int4[]`, the immutable
+  `int_array_aggregate(int4)->int4[]`, and strict immutable safe
+  `int_array_enum(int4[])->SETOF int4`. The helpers are genuine known INTERNAL
+  aliases to array aggregate implementations, not hidden OIDs or arbitrary
+  callable INTERNAL support. UNKNOWN cannot implicitly coerce to INTERNAL.
+  `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and canonical
+  support membership preserve owner, namespace, signatures, provenance and
+  remapping. Actual transition/final SQL execute authority is the aggregate
+  owner; simulated MAC uses the real lexical subject independently. Enumeration
+  borrows the actual evaluator on each value-per-call resume, leaving its token
+  before every yield, done or error; no cursor retains an evaluator or subject.
 - **pg_freespacemap** (`pgfreespacemap_provider.go`) installs exactly the 1.3
   unnamed STRICT C `(regclass,bigint)->int2` scalar and non-STRICT SQL
   `(rel regclass)->SETOF (blkno bigint,avail int2)` wrapper. Both are volatile,

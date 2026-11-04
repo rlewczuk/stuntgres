@@ -51,7 +51,9 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 		}
 		for i := range d.Transforms.Len() {
 			typ := d.Transforms.At(i).Type
-			if err := appendPredecessor(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(typ.ID())}); err != nil { return err }
+			if err := appendPredecessor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}); err != nil {
+				return err
+			}
 		}
 		// Declaration prerequisites order replay, not pg_depend/DROP edges.
 		for _, address := range d.DeclarationDependencies {
@@ -214,14 +216,20 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			sql.WriteString(result)
 		}
 	}
-	if err := catalog.ValidateRoutineTransforms(view, d); err != nil { return dump.Statement{}, err }
+	if err := catalog.ValidateRoutineTransforms(view, d); err != nil {
+		return dump.Statement{}, err
+	}
 	if d.Transforms.Len() != 0 {
 		sql.WriteString(" TRANSFORM ")
 		for i := range d.Transforms.Len() {
-			if i != 0 { sql.WriteString(", ") }
+			if i != 0 {
+				sql.WriteString(", ")
+			}
 			typ := d.Transforms.At(i).Type
 			name, err := p.ColumnDeclaration(view, catalog.Column{Usage: typ.Usage()})
-			if err != nil { return dump.Statement{}, err }
+			if err != nil {
+				return dump.Statement{}, err
+			}
 			sql.WriteString("FOR TYPE " + name)
 		}
 	}
@@ -315,6 +323,11 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		if !d.RoutineDefinition().StandardReturn {
 			sql.WriteString("END;\n")
 		}
+	} else if d.Sepgsql != nil {
+		if err := catalog.ValidateSepgsqlRoutine(view, d); err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString("AS " + dump.CommentLiteral("$libdir/sepgsql") + ", " + dump.CommentLiteral(d.Sepgsql.Symbol()) + ";\n")
 	} else {
 		sql.WriteString("AS " + dump.CommentLiteral(d.RoutineDefinition().Source) + ";\n")
 	}

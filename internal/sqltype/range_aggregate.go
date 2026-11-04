@@ -53,6 +53,10 @@ func BindRangeAggregate(input *Descriptor, operation RangeAggregateOperation) (R
 
 func (p RangeAggregate) ResultUsage() Usage { return p.result.Usage() }
 
+func (p RangeAggregate) VisitIndexSupports(visit func(IndexSupport, uint16) error) error {
+	return (Comparison{left: p.rangeType, right: p.rangeType}).VisitIndexSupports(visit)
+}
+
 func (p RangeAggregate) Init(ctx context.Context) (*RangeAggregateState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -64,6 +68,9 @@ func (p RangeAggregate) Init(ctx context.Context) (*RangeAggregateState, error) 
 }
 
 func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v Value) error {
+	return p.AdvanceWithEnvironment(ctx, s, v, InputEnvironment{})
+}
+func (p RangeAggregate) AdvanceWithEnvironment(ctx context.Context, s *RangeAggregateState, v Value, env InputEnvironment) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -86,7 +93,7 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 			if !s.seen {
 				s.value = v.rangeDatum
 			} else {
-				next, err := p.rangeType.intersectRangeDatums(ctx, s.value, v.rangeDatum)
+				next, err := p.rangeType.intersectRangeDatums(ctx, s.value, v.rangeDatum, env)
 				if err != nil {
 					return err
 				}
@@ -128,7 +135,7 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 			return err
 		}
 		a, b := s.members[left], incoming[right]
-		value, err := p.rangeType.intersectRangeDatums(ctx, a, b)
+		value, err := p.rangeType.intersectRangeDatums(ctx, a, b, env)
 		if err != nil {
 			clear(out)
 			s.scratch = out[:0]
@@ -137,7 +144,7 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 		if value.flags&rangeEmpty == 0 {
 			out = append(out, value)
 		}
-		cmp, err := p.rangeType.compareRangeEndpoint(ctx, a, false, b, false)
+		cmp, err := p.rangeType.compareRangeEndpoint(ctx, a, false, b, false, env)
 		if err != nil {
 			clear(out)
 			s.scratch = out[:0]
@@ -161,6 +168,9 @@ func (p RangeAggregate) Advance(ctx context.Context, s *RangeAggregateState, v V
 }
 
 func (p RangeAggregate) Finalize(ctx context.Context, s *RangeAggregateState) (Value, error) {
+	return p.FinalizeWithEnvironment(ctx, s, InputEnvironment{})
+}
+func (p RangeAggregate) FinalizeWithEnvironment(ctx context.Context, s *RangeAggregateState, env InputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -178,7 +188,7 @@ func (p RangeAggregate) Finalize(ctx context.Context, s *RangeAggregateState) (V
 			members := s.members
 			if p.operation == RangeAggregateUnion {
 				var err error
-				members, err = p.rangeType.normalizeRangeMembers(ctx, members)
+				members, err = p.rangeType.normalizeRangeMembers(ctx, members, env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -195,16 +205,16 @@ func (p RangeAggregate) Finalize(ctx context.Context, s *RangeAggregateState) (V
 	return result, nil
 }
 
-func (d *Descriptor) intersectRangeDatums(ctx context.Context, a, b rangeDatum) (rangeDatum, error) {
+func (d *Descriptor) intersectRangeDatums(ctx context.Context, a, b rangeDatum, env InputEnvironment) (rangeDatum, error) {
 	if a.flags&rangeEmpty != 0 || b.flags&rangeEmpty != 0 {
 		return rangeDatum{flags: rangeEmpty}, nil
 	}
 	result := a
-	lo, err := d.compareRangeEndpoint(ctx, a, true, b, true)
+	lo, err := d.compareRangeEndpoint(ctx, a, true, b, true, env)
 	if err != nil {
 		return rangeDatum{}, err
 	}
-	hi, err := d.compareRangeEndpoint(ctx, a, false, b, false)
+	hi, err := d.compareRangeEndpoint(ctx, a, false, b, false, env)
 	if err != nil {
 		return rangeDatum{}, err
 	}
@@ -216,7 +226,7 @@ func (d *Descriptor) intersectRangeDatums(ctx context.Context, a, b rangeDatum) 
 		result.upper = b.upper
 		result.flags = result.flags&^(rangeUpperInclusive|rangeUpperUnbounded) | b.flags&(rangeUpperInclusive|rangeUpperUnbounded)
 	}
-	cmp, err := d.compareRangeEndpoint(ctx, result, true, result, false)
+	cmp, err := d.compareRangeEndpoint(ctx, result, true, result, false, env)
 	if err != nil {
 		return rangeDatum{}, err
 	}

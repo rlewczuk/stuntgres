@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
@@ -8,73 +9,75 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *Context) pgvisibilityInput(n *plan.InstalledPgvisibilityExpr) (uint32, int64, bool, error) {
-	if err := EvaluationContext(c); err != nil {
-		return 0, 0, false, err
+func (c *Context) pgvisibilityArguments(n plan.InstalledPgvisibilityExpr) (values [2]sqltype.Value, null bool, err error) {
+	if err = EvaluationContext(c); err != nil {
+		return
 	}
 	view := preparation.DomainCatalog(c)
 	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Address != n.Procedure.Address() || !preparation.StoredReferenceValid(view, c.RoutineConsumer, n.Ref) {
-		return 0, 0, false, fmt.Errorf("stuntgres: invalid installed pg_visibility reference")
+		err = fmt.Errorf("stuntgres: invalid installed pg_visibility reference")
+		return
 	}
 	current, err := ValidateStoredRoutineDescriptor(view, n.Procedure)
 	if err != nil {
-		return 0, 0, false, err
+		return
 	}
 	boundary := n.Pgvisibility
 	boundary.RoutineReference = current
-	if err := extension.ValidatePgvisibilityCall(view, current, boundary); err != nil {
-		return 0, 0, false, err
+	if err = extension.ValidatePgvisibilityCall(view, current, boundary); err != nil {
+		return
 	}
-	auth, dependencies, err := RoutineAdmissionAuthority(c)
-	if err != nil {
-		return 0, 0, false, err
-	}
-	if err := CheckRecipeRoutineDescriptor(c, auth, dependencies, n.Procedure); err != nil {
-		return 0, 0, false, err
-	}
-	current, err = ValidateRoutineDescriptor(auth.Catalog, auth.Roles, n.Procedure)
-	if err != nil {
-		return 0, 0, false, err
-	}
-	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
-		return 0, 0, false, err
-	}
-	n.Ref.Epoch = auth.Catalog.Epoch()
-	n.Procedure, n.RoutineReference = current, current
-	var values [2]sqltype.Value
-	null := false
 	for i, child := range n.Args {
-		value, err := child.Eval(c)
-		if err != nil {
-			return 0, 0, false, err
+		value, failure := child.Eval(c)
+		if failure != nil {
+			err = failure
+			return
 		}
 		values[n.Slots[i]] = value
 		null = null || value.IsNull()
 	}
-	if null {
-		return 0, 0, true, nil
+	return
+}
+
+func (c *Context) pgvisibilityInvocation(n *plan.InstalledPgvisibilityExpr, values [2]sqltype.Value) (uint32, int64, error) {
+	auth, dependencies, err := RoutineInvocationAuthority(c)
+	if err != nil {
+		return 0, 0, err
 	}
+	if err := CheckRecipeRoutineDescriptor(c, auth, dependencies, n.Procedure); err != nil {
+		return 0, 0, err
+	}
+	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, n.Procedure)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
+		return 0, 0, err
+	}
+	n.Ref.Epoch = auth.Catalog.Epoch()
+	n.Procedure, n.RoutineReference = current, current
 	oid, err := values[0].ClassOID()
 	if err != nil {
-		return 0, 0, false, err
+		return 0, 0, err
 	}
 	var block int64
 	if n.Kind.Block() {
 		block, err = values[1].Integer()
 		if err != nil {
-			return 0, 0, false, err
+			return 0, 0, err
 		}
 	}
 	if c.LiveHost() == nil {
-		return 0, 0, false, fmt.Errorf("stuntgres: missing pg_visibility statement runtime")
+		return 0, 0, fmt.Errorf("stuntgres: missing pg_visibility statement runtime")
 	}
-	return oid, block, false, nil
+	return oid, block, nil
 }
 func pgvisibilityRecord(d *sqltype.Descriptor, kind functions.PgvisibilityKind, counts [2]int64, block int64, bits storage.VisibilityBits, pd bool) (sqltype.Value, error) {
 	fields := make([]sqltype.Value, d.CompositeLen())
@@ -110,12 +113,27 @@ func (c *Context) EvalPgvisibility(n plan.InstalledPgvisibilityExpr) (sqltype.Va
 	if n.Kind.Set() {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: pg_visibility set requires source invocation")
 	}
-	oid, block, null, err := c.pgvisibilityInput(&n)
+	values, null, err := c.pgvisibilityArguments(n)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	return c.evalPgvisibilityValues(n, values, null)
+}
+
+// The scalar expression and scalar FROM routes share the same kernel. The
+// latter borrows its evaluator only on demand, without evaluating inputs twice.
+func (c *Context) evalPgvisibilityValues(n plan.InstalledPgvisibilityExpr, values [2]sqltype.Value, null bool) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
+	}
+	body, err := c.enterPgvisibility(n)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
+	oid, block, err := c.pgvisibilityInvocation(&n, values)
+	if err != nil {
+		return sqltype.Value{}, err
 	}
 	if n.Kind == functions.VisibilityTruncateMap {
 		if err := c.LiveHost().Contrib().PgvisibilityTruncate(n, oid); err != nil {
@@ -137,70 +155,126 @@ func (c *Context) EvalPgvisibility(n plan.InstalledPgvisibilityExpr) (sqltype.Va
 	}
 	return pgvisibilityRecord(n.Usage.Type, n.Kind, [2]int64{result.AllVisible, result.AllFrozen}, block, bits, pd)
 }
-func (c *Context) OpenPgvisibility(n plan.InstalledPgvisibilityExpr) (expr.SourceCursor, error) {
-	if !n.Kind.Set() {
-		value, err := c.EvalPgvisibility(n)
-		if err != nil {
-			return expr.SourceCursor{}, err
-		}
-		return expr.ScalarSource(value), nil
+
+func (c *Context) enterPgvisibility(n plan.InstalledPgvisibilityExpr) (sqltype.RoutineBodyToken, error) {
+	facts := expr.RoutineBodyInputs{Count: len(n.Args), Occurrence: n.Occurrence, Source: n.Source}
+	if len(n.Args) > 0 {
+		facts.First = n.Args[0].ResultUsage().Type
 	}
-	oid, _, null, err := c.pgvisibilityInput(&n)
+	if len(n.Args) > 1 {
+		facts.Second = n.Args[1].ResultUsage().Type
+	}
+	return c.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, facts)
+}
+
+type visibilitySource struct {
+	values       [2]sqltype.Value
+	result       storage.VisibilityMap
+	findings     []ids.VersionID
+	kind         functions.PgvisibilityKind
+	initialized  bool
+	run, pageRun int
+}
+
+func (c *Context) OpenPgvisibility(n plan.InstalledPgvisibilityExpr) (expr.SourceCursor, error) {
+	values, null, err := c.pgvisibilityArguments(n)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}
 	if null {
+		if !n.Kind.Set() {
+			return expr.ScalarSource(sqltype.Null(n.Usage.Type)), nil
+		}
 		return expr.OwnedSource(n.Usage.Type, nil), nil
 	}
-	if n.Kind.Check() {
-		findings, err := c.LiveHost().Contrib().PgvisibilityCheck(n, oid)
-		if err != nil {
-			return expr.SourceCursor{}, err
-		}
-		values := make([]sqltype.Value, len(findings))
-		for i, version := range findings {
-			if err := c.Context.Err(); err != nil {
-				return expr.SourceCursor{}, err
-			}
-			block, offset, err := storage.LogicalTID(version)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-			values[i], err = sqltype.TIDValue(n.Usage.Type, block, offset)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-		}
-		return expr.OwnedSource(n.Usage.Type, values), nil
+	return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, State: &visibilitySource{values: values, kind: n.Kind}, Advance: nextVisibilitySource}), nil
+}
+
+func (c *Context) AdvancePgvisibility(n plan.InstalledPgvisibilityExpr, ctx context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted || cursor.State == nil {
+		return cursor.Next(ctx)
 	}
-	result, err := c.LiveHost().Contrib().Pgvisibility(n, oid, 0)
+	state, ok := cursor.State.(*visibilitySource)
+	if !ok || state.kind != n.Kind {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: invalid visibility source state")
+	}
+	if !n.Kind.Set() {
+		value, err := c.evalPgvisibilityValues(n, state.values, false)
+		if err != nil {
+			cursor.Close()
+			return sqltype.Value{}, false, err
+		}
+		*cursor = expr.ScalarSource(value)
+		return cursor.Next(ctx)
+	}
+	body, err := c.enterPgvisibility(n)
 	if err != nil {
-		return expr.SourceCursor{}, err
+		cursor.Close()
+		return sqltype.Value{}, false, err
 	}
-	if result.Blocks > int64(^uint(0)>>1) {
-		return expr.SourceCursor{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}
-	}
-	values := make([]sqltype.Value, int(result.Blocks))
-	run, pageRun := 0, 0
-	for i := range values {
-		if err := c.Context.Err(); err != nil {
-			return expr.SourceCursor{}, err
-		}
-		for int64(i) >= result.Runs[run].End {
-			run++
-		}
-		bits := result.Runs[run].Bits
-		pd := bits.AllVisible
-		if result.PageRuns != nil {
-			for int64(i) >= result.PageRuns[pageRun].End {
-				pageRun++
+	defer body.Leave()
+	if !state.initialized {
+		oid, block, err := c.pgvisibilityInvocation(&n, state.values)
+		if err == nil {
+			if n.Kind.Check() {
+				state.findings, err = c.LiveHost().Contrib().PgvisibilityCheck(n, oid)
+			} else {
+				state.result, err = c.LiveHost().Contrib().Pgvisibility(n, oid, block)
+				if err == nil && state.result.Blocks > int64(^uint(0)>>1) {
+					err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}
+				}
 			}
-			pd = result.PageRuns[pageRun].Bits.AllVisible
 		}
-		values[i], err = pgvisibilityRecord(n.Usage.Type, n.Kind, [2]int64{}, int64(i), bits, pd)
 		if err != nil {
-			return expr.SourceCursor{}, err
+			cursor.Close()
+			return sqltype.Value{}, false, err
 		}
+		state.values = [2]sqltype.Value{}
+		state.initialized = true
 	}
-	return expr.OwnedSource(n.Usage.Type, values), nil
+	return cursor.Next(ctx)
+}
+
+func nextVisibilitySource(ctx context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	state, ok := cursor.State.(*visibilitySource)
+	if !ok || !state.initialized {
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing visibility source authority")
+	}
+	if state.kind.Check() {
+		if cursor.Position >= len(state.findings) {
+			return sqltype.Value{}, false, nil
+		}
+		block, offset, err := storage.LogicalTID(state.findings[cursor.Position])
+		if err != nil {
+			return sqltype.Value{}, false, err
+		}
+		value, err := sqltype.TIDValue(cursor.Type, block, offset)
+		cursor.Position++
+		return value, err == nil, err
+	}
+	block := cursor.Current
+	if block >= state.result.Blocks {
+		return sqltype.Value{}, false, nil
+	}
+	for state.run < len(state.result.Runs) && block >= state.result.Runs[state.run].End {
+		state.run++
+	}
+	if state.run == len(state.result.Runs) {
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: invalid visibility map runs")
+	}
+	bits := state.result.Runs[state.run].Bits
+	pd := bits.AllVisible
+	if state.result.PageRuns != nil {
+		for state.pageRun < len(state.result.PageRuns) && block >= state.result.PageRuns[state.pageRun].End {
+			state.pageRun++
+		}
+		if state.pageRun == len(state.result.PageRuns) {
+			return sqltype.Value{}, false, fmt.Errorf("stuntgres: invalid visibility page runs")
+		}
+		pd = state.result.PageRuns[state.pageRun].Bits.AllVisible
+	}
+	value, err := pgvisibilityRecord(cursor.Type, state.kind, [2]int64{}, block, bits, pd)
+	cursor.Current++
+	return value, err == nil, err
 }

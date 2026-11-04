@@ -29,11 +29,12 @@ import (
 // and SchemaHost (schema_host.go). Family code builds its own host.
 // Staging enters and returns under Engine.Mu and holds the engine, operation
 // and catalog stage, but no authorization view: handlers pass their authority
-// in. ValidateRoutineSetting alone suspends staging for external Normalize,
-// releasing Engine.Mu and the active statement's replacement reservation before
-// exact live readmission. Like extensionHost it wraps the stage and
-// is never a defined type over CatalogStage, so Create and Replace keep the
-// stage's lifecycle checks.
+// in. ValidateRoutineSetting suspends staging for external Normalize; index
+// preflight and generation-definition simplification suspend it for initialized
+// constant work. These bounded owners release Engine.Mu and the active statement's
+// replacement reservation before exact live readmission. Like extensionHost it
+// wraps the stage and is never a defined type over CatalogStage, so Create and
+// Replace keep the stage's lifecycle checks.
 type DDLHost struct {
 	E            *Engine
 	Op           *session.Operation
@@ -264,6 +265,15 @@ func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 	return identity, count, nil
 }
 
+func (h DDLHost) SelectDropRoot(ref ids.ObjectRef, namespace bool) error {
+	if d := h.CatalogStage.Base.Get(ref.Address); d != nil && h.CatalogStage.DropFlags[d.Namespace()].Original {
+		h.CatalogStage.MarkDrop(ref.Address, catalog.DropProvenance{Normal: true})
+	}
+	return h.CatalogStage.SelectDropRoot(ref, namespace)
+}
+
+// RemoveObject remains the genuine immediate metadata effect used by non-DROP
+// owners, such as publication membership. DROP selectors use SelectDropRoot.
 func (h DDLHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
 	if d := h.CatalogStage.Base.Get(ref.Address); d != nil && h.CatalogStage.DropFlags[d.Namespace()].Original {
 		h.CatalogStage.MarkDrop(ref.Address, catalog.DropProvenance{Normal: true})

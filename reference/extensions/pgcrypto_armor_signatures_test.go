@@ -125,9 +125,9 @@ func TestReferencePgcryptoArmorSignatures(t *testing.T) {
 		run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pgcrypto_part' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt')", []string{"count"}, []string{"INT8"}, [][]any{{int64(22)}}))
 		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test")))
 		run(fixture.Exec("SET search_path TO pgcrypto_part,public", 0))
-		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
 		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT dearmor($1::varchar)", []byte("test"), pgcryptoArmorTest))
-		pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
+		pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
 		for _, tc := range []struct{ query, name, args string }{
 			{"SELECT armor()", "armor", ""},
 			{"SELECT armor('test'::bytea,'{}'::text[])", "armor", "bytea, text[]"},

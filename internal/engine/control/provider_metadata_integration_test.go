@@ -243,3 +243,114 @@ func TestInstallationReplayActualSurvivorMetadata(t *testing.T) {
 		})
 	}
 }
+
+// Aggregate estimates are recipe state, not ALTER AGGREGATE attributes. Its
+// genuine support procedures retain independent current estimates and owners.
+func TestInstallationReplayIntaggMetadata(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	for _, q := range []string{
+		`CREATE ROLE replay_state_owner`,
+		`CREATE ROLE replay_final_owner`,
+		`CREATE SCHEMA replay_helpers`,
+		`CREATE SCHEMA replay_aggregate`,
+		`CREATE EXTENSION intagg`,
+		`ALTER FUNCTION public.int_agg_state(internal,integer) PARALLEL RESTRICTED COST 7.25`,
+		`ALTER FUNCTION public.int_agg_final_array(internal) PARALLEL UNSAFE COST 9.5`,
+		`ALTER FUNCTION public.int_array_enum(integer[]) PARALLEL RESTRICTED COST 11 ROWS 13`,
+		`ALTER FUNCTION public.int_agg_state(internal,integer) SET SCHEMA replay_helpers`,
+		`ALTER FUNCTION public.int_agg_final_array(internal) SET SCHEMA replay_helpers`,
+		`ALTER FUNCTION replay_helpers.int_agg_state(internal,integer) OWNER TO replay_state_owner`,
+		`ALTER FUNCTION replay_helpers.int_agg_final_array(internal) OWNER TO replay_final_owner`,
+		`ALTER AGGREGATE public.int_array_aggregate(integer) SET SCHEMA replay_aggregate`,
+	} {
+		enginetest.RoleExecute(t, e, op, q)
+	}
+	done()
+	for round := range 2 {
+		var out bytes.Buffer
+		if err := engine.Dump(context.Background(), e, &out); err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range strings.Split(out.String(), "\n") {
+			if strings.HasPrefix(statement, "ALTER AGGREGATE ") && (strings.Contains(statement, " COST ") || strings.Contains(statement, " PARALLEL ") || strings.Contains(statement, " ROWS ")) {
+				t.Fatal("aggregate acquired unsupported estimate syntax", statement)
+			}
+		}
+		target := engine.New()
+		targetOp, targetDone := enginetest.RoleOperation(t, target, "postgres")
+		enginetest.RoleExecute(t, target, targetOp, `CREATE ROLE replay_state_owner`)
+		enginetest.RoleExecute(t, target, targetOp, `CREATE ROLE replay_final_owner`)
+		targetDone()
+		if err := engine.Restore(context.Background(), target, bytes.NewReader(out.Bytes())); err != nil {
+			t.Fatal(err)
+		}
+		view := target.CatalogRead()
+		ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
+		if len(ext.Members) != 4 {
+			t.Fatal("canonical intagg declaration inventory", ext.Members)
+		}
+		for _, want := range []struct {
+			name, schema, owner string
+			parallel            byte
+			cost, rows          float32
+		}{
+			{"int_agg_state", "replay_helpers", "replay_state_owner", 'r', 7.25, 0},
+			{"int_agg_final_array", "replay_helpers", "replay_final_owner", 'u', 9.5, 0},
+			{"int_array_aggregate", "replay_aggregate", "postgres", 0, 1, 0},
+			{"int_array_enum", "public", "postgres", 'r', 11, 13},
+		} {
+			var found *catalog.Procedure
+			for _, member := range ext.Members {
+				p := view.MustProcedure(member)
+				if p.Name() == want.name {
+					found = p
+					break
+				}
+			}
+			owner, ok := target.Roles().Lookup(want.owner)
+			if !ok || found == nil || found.Owner != owner.Ref || view.MustNamespace(found.Namespace()).Name() != want.schema || found.Parallel != want.parallel || found.Cost != want.cost || found.Rows != want.rows || !found.Origin.Valid(found.Address()) {
+				t.Fatalf("round %d lost independent intagg declaration %s: %+v", round, want.name, found)
+			}
+			if found.Aggregate != nil {
+				for _, helper := range found.Aggregate.Helpers {
+					current := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID})
+					if current.Origin.Installation != found.Origin.Installation || view.MustNamespace(current.Namespace()).Name() != "replay_helpers" {
+						t.Fatal("aggregate lost genuine independently placed support", helper)
+					}
+				}
+			}
+		}
+		e = target
+	}
+}
+
+func TestInstallationReplayIntaggUnsupportedEstimates(t *testing.T) {
+	for _, field := range []string{"parallel", "cost", "rows"} {
+		t.Run(field, func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			enginetest.RoleExecute(t, e, op, `CREATE EXTENSION intagg`)
+			done()
+			view := e.CatalogRead()
+			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
+			original := view.MustProcedure(ext.Members[2])
+			bad := *original
+			switch field {
+			case "parallel":
+				bad.Parallel = 'r'
+			case "cost":
+				bad.Cost = 9
+			case "rows":
+				bad.Rows = 23
+			}
+			// Corrupt only this genuine declaration's unsupported override.
+			// No SQL route is invented to create the impossible header.
+			e.Catalog.State.SetDescriptor(original.Address(), &bad)
+			var out bytes.Buffer
+			if err := engine.Dump(context.Background(), e, &out); err == nil || out.Len() != 0 {
+				t.Fatal("unsupported aggregate estimate was dropped or emitted", field, err, out.String())
+			}
+		})
+	}
+}

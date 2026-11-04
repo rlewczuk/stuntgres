@@ -29,6 +29,18 @@ func PrepareIsnInput(ctx context.Context, host Host, view catalog.Read, target *
 }
 
 func (c *Context) PrepareIsnInput(ctx context.Context, target *sqltype.Descriptor) (bool, error) {
+	if c.ControlLiteralAuthority.present() {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if _, _, err := c.controlLiteralAccess(); err != nil {
+			return false, err
+		}
+		if _, err := extension.IsnInputProcedure(c.Catalog, target); err != nil {
+			return false, err
+		}
+		return c.Input.IsnWeak, nil
+	}
 	view := c.Catalog
 	if view.State() == nil {
 		view = preparation.DomainCatalog(c)

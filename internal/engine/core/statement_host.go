@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
@@ -71,10 +72,50 @@ func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.Output
 // RoutineAdmission is the statement's routine admission authority and its
 // original dependency manifest; it fails once the statement has finished.
 func (h *statementHost) RoutineAdmission() (exec.RoutineAccess, []catalog.ExpressionDependency, error) {
+	if h == nil {
+		return exec.RoutineAccess{}, nil, fmt.Errorf("stuntgres: missing routine admission scope")
+	}
 	if h.Finished {
 		return exec.RoutineAccess{}, nil, fmt.Errorf("stuntgres: ended routine admission authority")
 	}
 	return h.RoutineAuth.routineAccess(), h.RoutineDependencies, nil
+}
+
+// RoutineInvocationAuthority is an actual phase capture, not the captured
+// preparation graph. Returning the view avoids boxing another environment.
+func (h *statementHost) RoutineInvocationAuthority() (access.View, error) {
+	s := h.scope()
+	if s == nil {
+		return access.View{}, fmt.Errorf("stuntgres: missing routine invocation scope")
+	}
+	if s.Op == nil {
+		// A pure owner can retain genuine engine-built ordinary admission
+		// without a borrowed operation. It cannot refresh a simulated subject.
+		if s.RoutineAuth.live() && s.RoutineAuth.Owner != nil && s.RoutineAuth.Catalog.Owner() == s.RoutineAuth.Owner && s.RoutineAuth.Owner.Sepgsql == nil && !s.Finished {
+			return s.RoutineAuth.View, nil
+		}
+		return access.View{}, fmt.Errorf("stuntgres: missing routine invocation operation")
+	}
+	if s.Op.Session == nil {
+		return access.View{}, fmt.Errorf("stuntgres: missing routine invocation session")
+	}
+	e := s.Engine()
+	if err := s.Op.Context().Err(); err != nil {
+		return access.View{}, err
+	}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if h.Finished {
+		return access.View{}, fmt.Errorf("stuntgres: ended routine invocation authority")
+	}
+	if active := ActiveScopeOfLease(s.Op.Lease); active != s && (active != nil || e.Sepgsql != nil) {
+		return access.View{}, fmt.Errorf("stuntgres: foreign routine invocation scope")
+	}
+	if err := s.Op.Context().Err(); err != nil {
+		return access.View{}, err
+	}
+	auth, err := s.RoutineAuthorizationLocked()
+	return auth.View, err
 }
 
 func (h *statementHost) StatementStart() time.Time          { return h.statementStart }

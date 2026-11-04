@@ -32,6 +32,8 @@ type Candidate struct {
 	defaultReads      map[DefaultACLKey]*DefaultACLRecord
 	initialPrivileges map[ids.ObjectAddress]*InitialPrivilegeRecord
 	initialReads      map[ids.ObjectAddress]*InitialPrivilegeRecord
+	securityLabels    map[SecurityLabelKey]*SecurityLabelRecord
+	labelReads        map[SecurityLabelKey]*SecurityLabelRecord
 	DropFlags         map[ids.ObjectAddress]DropProvenance
 	DropRecords       []DroppedObject
 }
@@ -123,13 +125,18 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if a := c.LookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return Conflict{}
 	}
-	if previous, ok := old.(*Relation); ok {
+	previous := old
+	if staged := c.Get(d.Address()); staged != nil {
+		previous = staged
+	}
+	if previous, ok := previous.(*Relation); ok {
 		if next, ok := d.(*Relation); ok && !(len(previous.Attributes) == len(next.Attributes) && (len(previous.Attributes) == 0 || &previous.Attributes[0] == &next.Attributes[0])) {
 			for _, attribute := range previous.Attributes {
 				if next.IndexForAttribute(attribute) < 0 {
 					address := d.Address()
 					address.SubID = attribute
 					c.RemoveInitialPrivileges(address)
+					c.RemoveSecurityLabels(address)
 				}
 			}
 		}
@@ -152,6 +159,7 @@ func (c *Candidate) Replace(d Descriptor) error {
 // descriptor. The original ref and name observation remain publication fences.
 func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
 	c.RemoveInitialPrivileges(ref.Address)
+	c.RemoveSecurityLabels(ref.Address)
 	if c.removals == nil {
 		c.removals = make(map[ids.ObjectAddress]Removal)
 	}
@@ -214,6 +222,8 @@ func (c *Candidate) State() *State {
 	}
 	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), relations: rs.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
 	next.initialPrivileges = overlayInitialPrivileges(base.initialPrivileges, c.initialPrivileges)
+	next.securityLabels = base.securityLabels
+	c.ApplySecurityLabels(base, next)
 	next.initialPrivilegeBaseline = base.initialPrivilegeBaseline
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
@@ -222,7 +232,6 @@ func (c *Candidate) State() *State {
 	next.publications = base.publications
 	next.publicationRelations = base.publicationRelations
 	next.publicationNamespaces = base.publicationNamespaces
-	next.helperOwners = base.helperOwners
 	next.foreignActionOwners = base.foreignActionOwners
 	next.extensionMembers = base.extensionMembers
 	next.temporaryNamespaces = base.temporaryNamespaces
@@ -235,7 +244,6 @@ func (c *Candidate) State() *State {
 		next.updateSubscriptions(c.Base.Get(a), nil)
 		next.updateReplicationOrigins(c.Base.Get(a), nil)
 		next.updatePublications(c.Base.Get(a), nil)
-		next.updateHelperOwners(c.Base.Get(a), nil)
 		next.updateForeignActionOwners(c.Base.Get(a), nil)
 		next.updateExtensionMembers(a, c.Base.Get(a), nil)
 		next.updateTemporaryNamespaces(c.Base.Get(a), nil)
@@ -247,7 +255,6 @@ func (c *Candidate) State() *State {
 		next.updateSubscriptions(c.Base.Get(a), d)
 		next.updateReplicationOrigins(c.Base.Get(a), d)
 		next.updatePublications(c.Base.Get(a), d)
-		next.updateHelperOwners(c.Base.Get(a), d)
 		next.updateForeignActionOwners(c.Base.Get(a), d)
 		next.updateExtensionMembers(a, c.Base.Get(a), d)
 		next.updateTemporaryNamespaces(c.Base.Get(a), d)

@@ -45,9 +45,10 @@ func EngineResolveType(x *Engine, raw parser.TypeName, op *session.Operation) (s
 	return x.ResolveType(raw, op)
 }
 
-// ScopeConversionProcedure calls x.conversionProcedure.
+// ScopeConversionProcedure exposes the genuine selected helper for metadata tests.
 func ScopeConversionProcedure(x *StatementScope, source int, destination int) (*catalog.Procedure, error) {
-	return x.conversionProcedure(source, destination)
+	selected, err := x.conversionSelection(source, destination)
+	return selected.procedure, err
 }
 
 // ScopeReadmitPreparedPrograms calls x.readmitPreparedPrograms.

@@ -73,12 +73,12 @@ func (d *Descriptor) compareBuiltinRangeBounds(a, b rangeBound) int {
 	return 0
 }
 
-func (d *Descriptor) compareRangeBounds(ctx context.Context, a, b rangeBound) (int, error) {
+func (d *Descriptor) compareRangeBounds(ctx context.Context, a, b rangeBound, env InputEnvironment) (int, error) {
 	if d.customRange != nil {
 		if a.value == nil || b.value == nil {
 			return 0, fmt.Errorf("missing custom range endpoint")
 		}
-		return d.customRange.Ordering.Compare(ctx, *a.value, *b.value, InputEnvironment{})
+		return d.customRange.Ordering.Compare(ctx, *a.value, *b.value, env)
 	}
 	return d.compareBuiltinRangeBounds(a, b), nil
 }
@@ -208,7 +208,7 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvi
 				return Value{}, err
 			}
 		}
-		return d.rangeFromTypedBounds(ctx, lo, hi, datum.flags, true)
+		return d.rangeFromTypedBounds(ctx, lo, hi, datum.flags, true, env)
 	} else {
 		if lowerAbsent {
 			datum.flags = datum.flags&^rangeLowerInclusive | rangeLowerUnbounded
@@ -229,7 +229,7 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvi
 			datum.upper = bound
 		}
 	}
-	datum, err = d.canonicalRange(ctx, datum, true)
+	datum, err = d.canonicalRange(ctx, datum, true, env)
 	if err != nil {
 		return Value{}, err
 	}
@@ -238,7 +238,7 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvi
 
 // Generic families have no canonical function. Shared typed construction and
 // operator/binary normalization use the same captured comparison and errors.
-func (d *Descriptor) canonicalGenericBounds(ctx context.Context, flags uint8, lower, upper Value, inputSave bool) (uint8, error) {
+func (d *Descriptor) canonicalGenericBounds(ctx context.Context, flags uint8, lower, upper Value, inputSave bool, env InputEnvironment) (uint8, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -248,7 +248,7 @@ func (d *Descriptor) canonicalGenericBounds(ctx context.Context, flags uint8, lo
 	if flags&(rangeLowerUnbounded|rangeUpperUnbounded) != 0 {
 		return flags, nil
 	}
-	cmp, err := d.customRange.Ordering.Compare(ctx, lower, upper, InputEnvironment{})
+	cmp, err := d.customRange.Ordering.Compare(ctx, lower, upper, env)
 	if err != nil {
 		return 0, err
 	}
@@ -266,7 +266,7 @@ func (d *Descriptor) canonicalGenericBounds(ctx context.Context, flags uint8, lo
 }
 
 // inputSave belongs only to text input, not binary/constructor/operator callers.
-func (d *Descriptor) canonicalRange(ctx context.Context, x rangeDatum, inputSave bool) (rangeDatum, error) {
+func (d *Descriptor) canonicalRange(ctx context.Context, x rangeDatum, inputSave bool, env InputEnvironment) (rangeDatum, error) {
 	if x.flags == rangeEmpty {
 		return x, nil
 	}
@@ -278,7 +278,7 @@ func (d *Descriptor) canonicalRange(ctx context.Context, x rangeDatum, inputSave
 		if x.flags&rangeUpperUnbounded == 0 {
 			upper = *x.upper.value
 		}
-		flags, err := d.canonicalGenericBounds(ctx, x.flags, lower, upper, inputSave)
+		flags, err := d.canonicalGenericBounds(ctx, x.flags, lower, upper, inputSave, env)
 		if err != nil {
 			return rangeDatum{}, err
 		}
@@ -290,7 +290,7 @@ func (d *Descriptor) canonicalRange(ctx context.Context, x rangeDatum, inputSave
 	}
 	lo, hi := x.flags&rangeLowerUnbounded != 0, x.flags&rangeUpperUnbounded != 0
 	if !lo && !hi {
-		cmp, compareErr := d.compareRangeBounds(ctx, x.lower, x.upper)
+		cmp, compareErr := d.compareRangeBounds(ctx, x.lower, x.upper, env)
 		if compareErr != nil {
 			return x, compareErr
 		}

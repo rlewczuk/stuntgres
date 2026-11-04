@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core/stats"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
@@ -23,7 +24,7 @@ func StatisticsSnapshotCodec(ctx context.Context, e *Engine, read catalog.Read) 
 	auth := e.AuthorityView(access.View{Owner: &e.Catalog.Owner, PairedCatalog: read, Catalog: read, Roles: roles, RoleRecord: e.RoleStore.Published, State: authorization.RoleState{CurrentUser: principal, Authenticated: principal}})
 	acl := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: roles, Lossless: true}
 	ctx = regobj.ACLItemOutputContext(regobj.Float4DumpContext(ctx), acl)
-	host := &statisticsSnapshotHost{engine: e, auth: auth}
+	host := &statisticsSnapshotHost{engine: e, auth: auth, literal: exec.NewControlLiteralAuthority(auth.View)}
 	host.SnapshotCodec = stats.NewSnapshotCodec(ctx, read, host)
 	return host
 }
@@ -32,8 +33,9 @@ func StatisticsSnapshotCodec(ctx context.Context, e *Engine, read catalog.Read) 
 // It embeds the codec it serves, so a codec is one allocation.
 type statisticsSnapshotHost struct {
 	stats.SnapshotCodec
-	engine *Engine
-	auth   AuthorizationView
+	engine  *Engine
+	auth    AuthorizationView
+	literal exec.ControlLiteralAuthority
 }
 
 var _ stats.SnapshotHost = (*statisticsSnapshotHost)(nil)
@@ -41,6 +43,10 @@ var _ stats.SnapshotHost = (*statisticsSnapshotHost)(nil)
 func (h *statisticsSnapshotHost) Authority() stats.SnapshotAuthority {
 	auth := h.auth
 	return &auth
+}
+
+func (h *statisticsSnapshotHost) ControlLiteralAuthority() exec.ControlLiteralAuthority {
+	return h.literal
 }
 
 func (h *statisticsSnapshotHost) BindingHost(ctx context.Context) analyze.Host {

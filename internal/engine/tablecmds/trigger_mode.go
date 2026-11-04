@@ -55,6 +55,9 @@ func stageTriggerMode(e *core.Engine, scope *core.StatementScope, auth core.Auth
 			target = next
 		}
 	}
+	if err := stage.SepgsqlPostAlter(target, target.Address(), false); err != nil {
+		return nil, err
+	}
 	return target, scope.Op.Context().Err()
 }
 

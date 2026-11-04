@@ -29,6 +29,7 @@ func PrepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	// borrowed local capture for input/view admission is still an invoker phase.
 	ri := scope != nil && scope.ForeignActionAuth != nil &&
 		scope.ForeignActionAuth.State.CurrentUser == auth.State.CurrentUser
+	c.DomainRI = ri
 	programme, exists := c.PreparedDomainChecks[d]
 	for _, phase := range ProgramPhases(programme) {
 		if phase.Number == c.DomainPhase && phase.Actor == auth.State.CurrentUser && phase.Ri == ri {
@@ -37,33 +38,45 @@ func PrepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	}
 	phase := DomainCheckPhase{Number: c.DomainPhase, Actor: auth.State.CurrentUser, Ri: ri}
 	if exists {
-		if err := phase.Admission.InitializePhase(&ProgramPhases(programme)[0].Admission, RoutineAccessOf(auth)); err != nil {
+		if err := ProgramPhases(programme)[0].Admission.Readmit(RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err != nil {
 			return err
 		}
-	} else {
-		for i, check := range d.DomainChecks {
-			checkEvaluation := *c
-			checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
-			checkEvaluation.RoutineChecks = check.Dependencies
-			checkEvaluation.RoutineReferences, checkEvaluation.RoutineConsumer = nil, nil
-			checkEvaluation.RoutineProgram = &phase.Admission
-			node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
-			c.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
+	}
+	if scope != nil && scope.Engine().Sepgsql != nil {
+		phase.Initializations = make([]exec.RoutineInitialization, len(d.DomainChecks))
+	}
+	for i, check := range d.DomainChecks {
+		checkEvaluation := *c
+		checkEvaluation.ClearNativeBodySource()
+		if len(phase.Initializations) != 0 {
+			var err error
+			phase.Initializations[i], err = HostOf(scope).NewRoutineInitialization()
 			if err != nil {
 				return err
 			}
-			if err := view.ValidateExpressionJoinExecution(&checkEvaluation, node, domainCatalog(&checkEvaluation)); err != nil {
-				return err
-			}
-			if changed {
-				if programme.Expressions == nil {
-					programme.Expressions = make([]expr.Expr, len(d.DomainChecks))
-					for j := range d.DomainChecks {
-						programme.Expressions[j] = d.DomainChecks[j].Expression
-					}
+			checkEvaluation.RoutineInitialization = phase.Initializations[i]
+			checkEvaluation.InitializationPhase = exec.DomainCheckInitialization
+		}
+		checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
+		checkEvaluation.RoutineChecks = check.Dependencies
+		checkEvaluation.RoutineReferences, checkEvaluation.RoutineConsumer = nil, nil
+		checkEvaluation.RoutineProgram = &phase.Admission
+		node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
+		c.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
+		if err != nil {
+			return err
+		}
+		if err := view.ValidateExpressionJoinExecution(&checkEvaluation, node, domainCatalog(&checkEvaluation)); err != nil {
+			return err
+		}
+		if changed {
+			if programme.Expressions == nil {
+				programme.Expressions = make([]expr.Expr, len(d.DomainChecks))
+				for j := range d.DomainChecks {
+					programme.Expressions[j] = d.DomainChecks[j].Expression
 				}
-				programme.Expressions[i] = node
 			}
+			programme.Expressions[i] = node
 		}
 	}
 	if program := c.RoutineProgram; program != nil && scope == nil {

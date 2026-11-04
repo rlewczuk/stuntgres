@@ -29,6 +29,7 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 	occurrences := make(map[int]exec.ForeignPlanningOccurrence)
 	in, out := r.host.Environments()
 	input := exec.ForeignPlanningInput{Frame: r.frame, Input: in, Output: out, Parameters: r.typedParameters, ExportValue: r.exportValue, Occurrence: func(i int) exec.ForeignPlanningOccurrence { return occurrences[i] }}
+	input.HandlerOwner = r.host
 	var capture func(plan.Node) error
 	capture = func(node plan.Node) error {
 		if node == nil {
@@ -69,7 +70,7 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 			if err != nil {
 				return err
 			}
-			occurrences[source.Occurrence] = exec.ForeignPlanningOccurrence{Source: &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: source.Schema()}, Owner: r, Eligible: true}
+			occurrences[source.Occurrence] = exec.ForeignPlanningOccurrence{Source: &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Handler: handler, Selection: exec.SelectForeignHandler(r.auth.Catalog, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(request.HandlerOID)}), Request: request, Columns: source.Schema()}, Owner: r, Eligible: true}
 			return nil
 		}
 		if _, derived := node.(*plan.DerivedNode); derived {

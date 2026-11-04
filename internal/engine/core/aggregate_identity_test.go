@@ -14,7 +14,7 @@ import (
 
 func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	source, ext := intaggUnitInstalled(t)
-	proc := source.Catalog.State.MustProcedure(ext.Members[0])
+	proc := source.Catalog.State.MustProcedure(ext.Members[2])
 	original := *proc.Aggregate
 	target := engine.New()
 	target.Catalog.PublishLocked(catalog.CloneState(target.Catalog.State))
@@ -41,8 +41,9 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 		t.Fatal("unrelated helper/source changed")
 	}
 	for _, helper := range imported.Aggregate.Helpers {
-		if next.Get(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}) != nil {
-			t.Fatal("mapping-only helper became a descriptor")
+		current, ok := next.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID})
+		if !ok || current.Origin == nil || current.Origin.Installation != imported.Origin.Installation || current.Signature != helper.Signature {
+			t.Fatal("remapped helper lost its genuine declaration", helper, current)
 		}
 	}
 	if err := catalog.ValidateDefinitionOIDs(target.Catalog.Read(next)); err != nil {

@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -73,6 +74,9 @@ func (b *Binder) querySystemAttribute(name string, namespace *QueryNamespace, qu
 		return nil, fmt.Errorf("stuntgres: invalid system attribute source identity")
 	}
 	leaf.SystemAttributeRead = true
+	if !slices.Contains(leaf.SystemColumns, subID) {
+		leaf.SystemColumns = append(leaf.SystemColumns, subID)
+	}
 	ref := leaf.Ref
 	ref.Address.SubID = subID
 	b.dependency(ref, leaf.Relation.Revision())
@@ -87,6 +91,9 @@ func (b *Binder) targetSystemAttribute(name string, frame uint32, pos parser.Pos
 	ref.Address.SubID = subID
 	b.dependency(ref, b.Target.Relation.Revision())
 	b.Target.SystemAttributeRead = true
+	if !slices.Contains(b.Target.SystemColumns, subID) {
+		b.Target.SystemColumns = append(b.Target.SystemColumns, subID)
+	}
 	b.Target.returningReadRequired = true
 	return plan.SystemAttributeExpr{Info: b.Info(b.Type(typeID).Usage(), pos, expr.Properties{RowDependent: true}), Owner: b.Target.Ref, SubID: subID, Scope: 1, Frame: frame}
 }

@@ -54,6 +54,9 @@ func (e *Engine) holdPrecommit(op *session.Operation, owner *session.Transaction
 		scope.RoutineAuth = AuthorizationView{}
 		scope.RoutineDependencies = nil
 		scope.routinePrograms = nil
+		scope.sepgsqlObservations = nil
+		scope.sepgsqlRetirements = nil
+		scope.clearRoutineInitializations()
 		scope.checkPrograms = nil
 		scope.Domains.endAdmission()
 		scope.partitionsSlot.DropPrograms()
@@ -150,6 +153,13 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err := s.readmitPreparedPrograms(auth); err != nil {
 		return err
 	}
+	owner, err := HostOf(s).NewRoutineInitialization()
+	if err != nil {
+		return err
+	}
+	if err := c.state.AttachRoutineInitialization(owner, auth.Catalog); err != nil {
+		return err
+	}
 	evaluation := c.state.Evaluation(s.ActivateRuntime(s.executionContext()))
 	return view.ValidateQueryJoinExecution(&evaluation, c.Root, auth.Catalog, 0)
 }
@@ -191,6 +201,9 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		authority.Host = nil
+		c.state.DetachRoutineInitialization()
+		authority.RoutineInitialization = exec.RoutineInitialization{}
+		authority.RoutineCatalog = catalog.Read{}
 		if err != nil {
 			_ = c.failProducer(s.Op.Context())
 		}

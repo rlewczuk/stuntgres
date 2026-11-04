@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
@@ -33,6 +34,19 @@ func (n InstalledPgFreespaceExpr) OpenSource(ctx expr.Context) (expr.SourceCurso
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing installed pg_freespace source runtime")
 	}
 	return runtime.OpenPgFreespace(n)
+}
+func (n InstalledPgFreespaceExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted || !n.Kind.Set() {
+		return cursor.Next(ctx)
+	}
+	runtime, ok := evaluation.(interface {
+		AdvancePgFreespace(InstalledPgFreespaceExpr, context.Context, *expr.SourceCursor) (sqltype.Value, bool, error)
+	})
+	if !ok {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing pg_freespace source authority")
+	}
+	return runtime.AdvancePgFreespace(n, ctx, cursor)
 }
 func (n InstalledPgFreespaceExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if info.RoutineReference != n.Procedure {

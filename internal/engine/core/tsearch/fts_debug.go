@@ -86,6 +86,12 @@ func Debug[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value 
 	// Provider failures arise inside the actual SQL-standard debug statement,
 	// after caller argument evaluation. Preserve its frame without mutating errors.
 	defer func() { err = exec.SQLRoutineStatementContext(err, "ts_debug", 1) }()
+	mark := h.MarkDictionaryInitialization()
+	defer func() {
+		if err != nil {
+			h.AbortDictionaryInitialization(mark)
+		}
+	}()
 	captured, err := captureTextSearchInput(h, ctx, explicit, value, true)
 	if err != nil {
 		return nil, err
@@ -139,7 +145,7 @@ func Debug[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value 
 			if err != nil {
 				return nil, err
 			}
-			lexical, err := runtime.Lexize(ctx, token.Text)
+			lexical, err := lexizeDictionary(h, runtime, ctx, token.Text)
 			if err != nil {
 				return nil, err
 			}

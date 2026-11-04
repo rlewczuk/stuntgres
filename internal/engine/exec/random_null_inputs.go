@@ -17,6 +17,9 @@ func foldRandomNullInputs(c *Context, node expr.Expr) (next expr.Expr, changed, 
 	if !ok {
 		return node, false, false, nil
 	}
+	if sepgsqlPlanningSensitive(c, node) {
+		return node, false, true, nil
+	}
 	knownNull, literalNull := false, false
 	for _, arg := range call.Args {
 		if RandomLiteralNull(arg) {

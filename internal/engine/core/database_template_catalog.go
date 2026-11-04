@@ -41,7 +41,7 @@ func (e *Engine) ReplaceDatabaseTemplate(ctx context.Context, source *Engine, re
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	return e.replaceCatalogContents(ctx, source, replacement, nil, true)
+	return e.replaceCatalogContents(ctx, source, replacement, nil, true, nil)
 }
 
 // prepareDatabaseTemplateMetadataLocked operates only on the private imported

@@ -22,6 +22,8 @@ type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnv
 type ForeignQuerySource struct {
 	Wrapper        catalog.ForeignDataWrapper
 	Handler        *catalog.ForeignProcedure // Captured authentic installation, never name/OID rediscovery.
+	Selection      ForeignHandlerSelection
+	methodsReady   bool
 	Request        catalog.ForeignRequest
 	Columns        []catalog.Column
 	ImportValue    ForeignValueImporter
@@ -281,6 +283,9 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 	start := func(ctx context.Context) error {
 		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
+		}
+		if err := f.InitializeHandler(source.LiveHost()); err != nil {
+			return err
 		}
 		var parameters catalog.ForeignScanParameters
 		var err error

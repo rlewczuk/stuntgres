@@ -50,9 +50,11 @@ it. It never builds a binder.
   which uses `EffectiveChildren` for both recursion and ONLY before descendant
   locking, without changing canonical membership or direct inherited eligibility.
   Unrelated relation rename and namespace-transfer boundaries stay unchanged.
-  `StageConstraintDrop` marks only the successfully selected constraint ORIGINAL,
-  after inherited/backing-index validation and constraint-driven recursive
-  retirement. Recursive constraints and backing indexes are not SQL roots.
+  `PrepareConstraintDrop` captures the actual inherited UNIQUE/EXCLUDE backing
+  indexes depth-first before any removal, retaining inherited/backing-index
+  validation and NOT NULL fallback. Its consumed-once `Apply` marks only the
+  actual selected constraint ORIGINAL; recursive constraints/indexes are not SQL
+  roots. Ordinary dependency/grant admission precedes the complete MAC cohort.
   PARTITION OF constructs its own relation descriptor and retains the child's
   adjusted creation persistence before row-type/constraint staging; it does not
   inherit logged/unlogged identity from the partitioned parent.
@@ -115,7 +117,7 @@ waits and publication.
 - With nothing held: `EvaluateBounds`, `ValidateBounds`, `CheckOverlap`,
   `CheckCoverage`, `CheckDefaultRows`, `CheckAttachTarget`,
   `ValidateAttachRows`, `AttachDescriptors`, `StageDetach`,
-  `StageConstraintDrop`, the Restore replay cores (`CheckReplayTarget`,
+  `PrepareConstraintDrop`/`ConstraintDrop.Apply`, the Restore replay cores (`CheckReplayTarget`,
   `Capture*Replay`, `Matches`) and the inquiry values, which check the
   context between steps.
 - `AttachFrontier` waits only in the caller's `lockChild` callback, which runs

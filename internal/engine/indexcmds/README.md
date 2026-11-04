@@ -24,6 +24,11 @@ Dispatch (`core.Statements.Execute`): `ExecuteCreateIndex` and
 `ExecuteIndexMaintenance` are entered with nothing held. They take
 `Engine.Mu` in short windows, stage and publish through the ordinary catalog
 stage, and release it around lock waits and provider validation.
+Active simulated routine initialization also suspends this window at the same
+predicate/expression completion seam through the stage-owned core helper;
+constant definition work cannot run under the engine mutex or borrow a missing
+initializer. The helper readmits exact predecessors before CREATE continues,
+while the ordinary stage publication retains its independent final fences.
 DROP retains the admitted reference path before unlocked effects. Explicit
 SQL targets alone receive ORIGINAL; expanded partition indexes still all
 participate in admission, retirement and dependency traversal. Index-driven

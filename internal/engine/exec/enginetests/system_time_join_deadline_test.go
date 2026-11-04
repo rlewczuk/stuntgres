@@ -61,7 +61,7 @@ func TestSystemTimeNestedJoinDeadline(t *testing.T) {
 						}
 					}
 				}
-				if timeSupportAdmission(caller, "stuntgres/internal/sqltype.Grouping.Hash", &hashEntry) {
+				if timeSupportAdmission(caller, "stuntgres/internal/sqltype.Grouping.HashWithBoundary", &hashEntry) {
 					hashes++
 					if hashes == 1 {
 						// Hash receives a genuine already-evaluated first key.

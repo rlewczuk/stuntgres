@@ -160,6 +160,11 @@ func (n Connectby) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 			return expr.OwnedSource(n.Usage.Type, nil), nil
 		}
 	}
+	body, err := n.EnterRoutine(ctx, values)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	defer body.Leave()
 	request := ConnectbyRequest{Ordered: n.Ordered, Branch: n.Branch, Delimiter: "~", Result: n.Usage.Type, Text: values[0].Type()}
 	targets := [5]*string{&request.Relation, &request.Key, &request.Parent, &request.Start}
 	depth := 4
@@ -173,7 +178,6 @@ func (n Connectby) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 		}
 		*target = text
 	}
-	var err error
 	request.MaxDepth, err = values[depth].Integer()
 	if err != nil {
 		return expr.SourceCursor{}, err

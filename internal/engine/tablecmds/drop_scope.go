@@ -131,9 +131,13 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 	}
 	scopeDrops(scope).ConsumedColumns[prepared] = struct{}{}
 	provider := core.StageDropProvider(scope.Op.Context(), stage, scope, changes, nil)
+	if err := provider.PrepareSepgsqlPreparedRetirements(prepared); err != nil {
+		return nil, err
+	}
 	for address, flags := range prepared.DropFlags {
 		stage.MarkDrop(address, flags)
 	}
+	stage.Indexes().ConstraintDrops = append(stage.Indexes().ConstraintDrops, prepared.LateConstraints...)
 	for _, effect := range prepared.Effects() {
 		if err := scope.Op.Context().Err(); err != nil {
 			return nil, err
@@ -142,11 +146,22 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 		case len(effect.Dropped) != 0 && effect.Descriptor == nil && effect.Before == nil && effect.Remove.Address == (ids.ObjectAddress{}):
 			stage.DropRecords = append(stage.DropRecords, effect.Dropped...)
 		case effect.Descriptor != nil:
+			if next, ok := effect.Descriptor.(*catalog.Relation); ok {
+				if before, ok := stage.Get(next.Address()).(*catalog.Relation); ok {
+					if err := provider.SepgsqlColumnRetirement(before, next); err != nil {
+						return nil, err
+					}
+				}
+			}
 			if err := stage.ReplaceDescriptor(effect.Descriptor, false, false); err != nil {
 				return nil, err
 			}
 		case effect.Remove.Address != (ids.ObjectAddress{}):
 			e.Mu.Lock()
+			if err := provider.SepgsqlDropDescriptor(provider.RetirementDescriptor(effect.Remove.Address), effect.Internal); err != nil {
+				e.Mu.Unlock()
+				return nil, err
+			}
 			stage.RecordRemoval(effect.Remove, prepared.Base.Get(effect.Remove.Address))
 			stage.CaptureRemoval(effect.Remove.Address, effect.Dropped)
 			if effect.Internal {
@@ -172,6 +187,8 @@ func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, p
 			stage.SequenceState().ObserveIdentityDependencies(session.DependencyObservation{state, effect.IdentityRoots})
 		case effect.Layout != nil:
 			provider.RecordIndexLayout(effect.Index, *effect.Layout)
+		case effect.SchemaDefaults != (ids.ObjectAddress{}):
+			stage.RemoveSchemaDefaults(effect.SchemaDefaults)
 		}
 	}
 	return prepared.Next(), nil
@@ -182,6 +199,9 @@ func projectPreparedColumn(p *core.DropProvider, old, next *catalog.Relation) er
 		return p.Stage.ReplaceDescriptor(next, false, false)
 	}
 	if p.Changes != nil {
+		if err := p.SepgsqlColumnRetirement(old, next); err != nil {
+			return err
+		}
 		return stagePreparedColumnShape(p.Scope, p.Stage, p.Changes, old, next)
 	}
 	// Non-SQL physical retirement already separates metadata from the storage

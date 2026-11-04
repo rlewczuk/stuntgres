@@ -155,10 +155,10 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	}
 	n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	one, two := cteUnitValue(t, n.Schema()[0].Usage.Type, 1), cteUnitValue(t, n.Schema()[0].Usage.Type, 2)
-	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
+	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}, nil); index != -1 || err != nil {
 		t.Fatal("unequal forced collision", index, err)
 	}
-	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
+	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}, nil); index != 1 || err != nil {
 		t.Fatal("equal forced collision", index, err)
 	}
 }

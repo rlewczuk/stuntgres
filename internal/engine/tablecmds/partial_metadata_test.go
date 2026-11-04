@@ -72,7 +72,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	transformed, err := tablecmds.TransformIndexPredicate(f.e, bindingOp, sqltype.InputEnvironment{}, bindingAuth, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	var predicate *catalog.IndexPredicate
 	if err == nil {
-		predicate, err = tablecmds.CompleteIndexPredicate(bindingOp, bindingAuth, f.parent, transformed)
+		predicate, err = tablecmds.CompleteIndexPredicate(tablecmds.TableHost{core.DDLHost{E: f.e, Op: bindingOp}}, bindingAuth, f.parent, transformed)
 	}
 	f.e.Mu.Unlock()
 	if err != nil {
@@ -126,7 +126,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	transformed, err := tablecmds.TransformIndexPredicate(f.e, bindingOp, sqltype.InputEnvironment{}, bindingAuth, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	var predicate *catalog.IndexPredicate
 	if err == nil {
-		predicate, err = tablecmds.CompleteIndexPredicate(bindingOp, bindingAuth, f.parent, transformed)
+		predicate, err = tablecmds.CompleteIndexPredicate(tablecmds.TableHost{core.DDLHost{E: f.e, Op: bindingOp}}, bindingAuth, f.parent, transformed)
 	}
 	f.e.Mu.Unlock()
 	if err != nil {

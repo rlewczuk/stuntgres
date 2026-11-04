@@ -38,10 +38,14 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	stage.RoleRevision = f.e.RoleStore.Published.Revision
 	// Namespace AUTO tombstones precede cleanup and must not be resurrected.
 	stage.RemoveSchemaDefaults(f.schema)
-	if err := role.StageOwnedCleanup(context.Background(), stage, f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, stage.Base), f.e.RoleStore.Published, map[authorization.PrincipalRef]bool{f.owner: true}); err != nil {
+	cleanup, err := role.PrepareOwnedCleanup(context.Background(), stage, f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, stage.Base), f.e.RoleStore.Published, map[authorization.PrincipalRef]bool{f.owner: true}, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !role.OwnedCleanupAddsDeletionRoot(stage, map[authorization.PrincipalRef]bool{f.owner: true}) {
+	if err = cleanup.Apply(context.Background(), stage); err != nil {
+		t.Fatal(err)
+	}
+	if !cleanup.AddsDeletionRoot() {
 		t.Fatal("actual creator records were not collected")
 	}
 	if err := defaultUnitPublish(t, f.e, stage); err != nil {

@@ -58,8 +58,10 @@ func (c SnapshotCodec) Decode(usage sqltype.Usage, data json.RawMessage) (sqltyp
 	}
 	auth := c.host.Authority()
 	local := exec.Context{EvalStatement: exec.EvalStatement{Context: c.ctx, Catalog: c.read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: auth}}
+	local.ControlLiteralAuthority = c.host.ControlLiteralAuthority()
 	local.Input.ACLItem = regobj.ACLItemInput{Roles: auth.Access().Roles, Authority: c.read.Owner().ACLAuthority}
 	local.Input.DomainChecks = &local
+	local.Input = local.FunctionInput()
 	env := typedef.DomainReplayEnv{Context: c.ctx, Catalog: c.read, Input: local.Input, Output: local.Output, Scalar: c.scalar, ValidateType: (stored.TypeProvider{}).Validate}
 	env.StatisticsTree = sqltype.StatisticsRetainedTreeValue
 	if _, err := decoder.Token(); err != io.EOF {
@@ -87,8 +89,10 @@ func (c SnapshotCodec) scalar(raw parser.Expr, usage sqltype.Usage) (sqltype.Val
 		return sqltype.Value{}, err
 	}
 	auth := c.host.Authority()
-	input := sqltype.InputEnvironment{ACLItem: regobj.ACLItemInput{Roles: auth.Access().Roles, Authority: c.read.Owner().ACLAuthority}}
-	binder := analyze.NewBinder(c.ctx, c.host.BindingHost(c.ctx), input, analyze.Expected{})
+	local := exec.Context{EvalStatement: exec.EvalStatement{Context: c.ctx, Catalog: c.read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: auth}}
+	local.ControlLiteralAuthority = c.host.ControlLiteralAuthority()
+	local.Input.ACLItem = regobj.ACLItemInput{Roles: auth.Access().Roles, Authority: c.read.Owner().ACLAuthority}
+	binder := analyze.NewBinder(c.ctx, c.host.BindingHost(c.ctx), local.FunctionInput(), analyze.Expected{})
 	binder.Query.Auth = auth
 	binder.Query.Namespace = &analyze.QueryNamespace{}
 	binder.Params.NoParameters = true
@@ -99,7 +103,9 @@ func (c SnapshotCodec) scalar(raw parser.Expr, usage sqltype.Usage) (sqltype.Val
 	if err := binder.CaptureRetainedWriteInput([]expr.Expr{node}, nil, nil); err != nil {
 		return sqltype.Value{}, err
 	}
-	local := exec.Context{EvalStatement: exec.EvalStatement{Context: c.ctx, Catalog: c.read, Input: binder.Input}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
+	local.Input = binder.Input
+	local.EvalFrame = exec.EvalFrame{Scope: 1, Frame: 1}
+	local.RoutineRecipe, local.RoutineChecks = true, binder.Dependencies
 	local.Input.DomainChecks = &local
 	node, _, err = exec.PreflightCoercionsWithPolicy(&local, node, false)
 	if err != nil {

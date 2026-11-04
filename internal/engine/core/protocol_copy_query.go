@@ -43,7 +43,7 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	rows.output.Output = s.Output
 	err = func() error {
 		s.enterProtocolProducer(rows.producer)
-		defer s.leaveProtocolProducer(rows.producer)
+		defer s.suspendProtocolProducer(rows.producer)
 		return s.authorizeSQLCursor(rows.producer)
 	}()
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *protocolCopyQueryRows) Next(ctx context.Context, values []sqltype.Value
 		return false, err
 	}
 	r.scope.enterProtocolProducer(c)
-	defer r.scope.leaveProtocolProducer(c)
+	defer r.scope.suspendProtocolProducer(c)
 	if err := c.openProducer(r.scope); err != nil {
 		return false, err
 	}

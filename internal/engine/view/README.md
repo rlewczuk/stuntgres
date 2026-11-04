@@ -123,6 +123,16 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   keep their own read requests. Nested invoker views retain the original invoker
   rather than an enclosing definer owner. Enumeration grants no source opening
   or authority.
+  Frozen whole-row demand is distinct from ordinary expanded column lists.
+  Reconstruction preserves the genuine source bit through rule/write
+  transplants; inherited SELECT and system-column checks keep the caller's
+  physical MAC subject while SQL permissions use the selected view principal.
+  Mark and write walkers use the analyzer's canonical access-demand transport,
+  rather than lowering rowmarks to generic column UPDATE MAC or dropping exact
+  signed/whole-row facts. A no-column UPDATE ACL request accepts any live-column
+  grant; the independent table lock still checks every selected inherited child,
+  even empty. Logical views retain expansion MAC and the owner/invoker ACL actor,
+  never a replacement for the physical MAC subject.
 - **Rules** (`rule_*.go`): `RuleRewriter.ExpandLocked` (INSTEAD, ALSO and
   conditional INSTEAD expansion with recursion detection), the programs
   `RuleProgram` and `RuleCommand`, `RuleAuthority` (the opaque statement
@@ -272,13 +282,14 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   selected roots. Address expansion is independent of effect membership:
   retired providers still expose outgoing dependencies once, while incoming
   flags always merge. Seeded roots expand at their own traversal turn; repeated
-  reaches cannot preempt diagnostic parents or root ordering. Only already-retired
-  whole relations eagerly expose row/array types, never live or attribute carriers.
-  Actual retired whole owners consume payload effects, not payload provenance;
-  merely discovering a live owner does not consume nested diagnostic entries.
-  Pre-removed owned indexes retain their AUTO result/traversal carriers separately
-  from physical removal. These discoveries create no duplicate RESTRICT or NOTICE
-  entries for retired roots or payloads.
+  reaches cannot preempt diagnostic parents or root ordering. Genuine whole
+  relation targets expose their row/array dependencies before physical removal;
+  attribute-only targets do not. Selected whole owners subsume their own payload
+  effects while those real descriptors remain live, without changing `Removed`
+  or losing incoming provenance and external consumers. Owned indexes retain
+  their explicit AUTO result/traversal carriers and grants. Earlier successful
+  primary/secondary captures own exact edge addresses once; later owned-sequence
+  phases still traverse all dependencies but do not repeat effects or notices.
   AUTO permission and NORMAL merge independently, and neither propagates from
   parents to implicit types or payloads. View reversal requires a genuine
   `_RETURN` dependency, retaining the passive-type guard on retired views too.
@@ -329,6 +340,8 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   closure; whole-provider/whole-target pairs retain the incumbent later owned
   phase. Captured trigger payload identities remain execution targets even for
   automatic-only retirement; their owners are not extra physical drop targets.
+  RESTRICT presentation normalizes an actual selected or removed rowtype/sequence
+  owner and automatic partition ancestry without rebinding distinct SQL roots.
   Mixed siblings sort by genuine dependent identity; declaration ordering permutes
   only same-owner CHECK slots on their actual immediate target. Reverse-postorder
   families use inverse CHECK visitation without moving unrelated mixed siblings

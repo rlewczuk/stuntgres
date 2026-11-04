@@ -38,6 +38,23 @@ func TestExtensionOwnershipBRINSupportCapability(t *testing.T) {
 		if _, scalar := sqltype.NativeIndexRoutineByOID(uint32(p.Address().ObjectID)); scalar {
 			t.Fatal("internal summary acquired scalar ABI", slot)
 		}
+		// Names, namespaces and supported planner attributes are COW metadata,
+		// not a new intrinsic implementation. Publish a coherent current header.
+		moved := *p
+		moved.ObjectName += "_renamed"
+		moved.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		moved.ObjectRevision++
+		moved.Parallel, moved.Cost = 's', 7
+		movedState := catalog.CloneState(view.State())
+		movedState.UnbindName(catalog.DescriptorNameKey(p))
+		movedState.SetDescriptor(moved.Address(), &moved)
+		movedState.BindName(catalog.DescriptorNameKey(&moved), moved.Address())
+		if !catalog.OriginalBrinSupport(&moved) {
+			t.Fatal("lawful COW lost original intrinsic", slot)
+		}
+		if err := (stored.ProcedureProvider{}).Validate(view.WithState(movedState), &moved); err != nil {
+			t.Fatal("lawful COW lost supported capability", slot, err)
+		}
 		for name, mutate := range map[string]func(*catalog.Procedure){
 			"address":    func(d *catalog.Procedure) { d.ObjectAddress.ObjectID++ },
 			"namespace":  func(d *catalog.Procedure) { d.ObjectNamespace.ObjectID++ },
@@ -54,12 +71,22 @@ func TestExtensionOwnershipBRINSupportCapability(t *testing.T) {
 			"builtin":    func(d *catalog.Procedure) { d.Builtin = &catalog.BuiltinRoutineDeclaration{} },
 			"dictionary": func(d *catalog.Procedure) { d.Dictionary = d.Address() },
 			"dependency": func(d *catalog.Procedure) { d.DeclarationDependencies = []ids.ObjectAddress{d.Address()} },
+			"mixed_gin":  func(d *catalog.Procedure) { d.GinSupport = 1 },
+			"mixed_am":   func(d *catalog.Procedure) { d.AccessMethod = catalog.HeapAccessMethod },
+			"definer":    func(d *catalog.Procedure) { d.SecurityDefiner = true },
 		} {
 			t.Run(p.Name()+"/"+name, func(t *testing.T) {
 				bad := *p
 				mutate(&bad)
-				if catalog.ValidateBrinSupport(&bad) == nil {
-					t.Fatal("corrupted intrinsic accepted")
+				err := catalog.ValidateBrinSupport(&bad)
+				if name == "name" || name == "namespace" {
+					// Intrinsic proof is not a header/name-index validator.
+					state := catalog.CloneState(view.State())
+					state.SetDescriptor(bad.Address(), &bad)
+					err = (stored.ProcedureProvider{}).Validate(view.WithState(state), &bad)
+				}
+				if err == nil {
+					t.Fatal("corrupted intrinsic or current metadata accepted")
 				}
 			})
 		}

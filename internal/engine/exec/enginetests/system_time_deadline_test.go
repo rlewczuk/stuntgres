@@ -54,7 +54,7 @@ func timeBoundSource(t *testing.T) (*plan.ProjectNode, *exec.Source) {
 	for i := range rows {
 		rows[i] = captured.Row(i % captured.Count())
 	}
-	return query.Root.(*plan.ProjectNode), &exec.Source{Ref: captured.Ref, Anonymous: rows}
+	return query.Root.(*plan.ProjectNode), &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: rows}
 }
 
 func timeArgument(t *testing.T, leaf *plan.SourceNode, millis float64) *plan.SourceNode {
@@ -228,7 +228,7 @@ func TestSystemTimeElapsedBudget(t *testing.T) {
 			}
 			cache := &inner.OrderValues[0]
 			occurrences := &inner.CacheOccurrences[0]
-			bridge := &exec.Source{Ref: raw.Ref, NestedRoot: project, NestedInputs: raw, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
+			bridge := &exec.Source{View: raw.View, Ref: raw.Ref, NestedRoot: project, NestedInputs: raw, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			stage, err := exec.OpenNode(ctx, &exec.State{Source: bridge}, timeArgument(t, leaf, millis))
 			cancel()
@@ -338,14 +338,14 @@ func TestSystemTimeNestedAggregateDeadline(t *testing.T) {
 			for i := range rows {
 				rows[i] = captured.Row(i % captured.Count())
 			}
-			raw := &exec.Source{Ref: captured.Ref, Anonymous: rows}
+			raw := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: rows}
 			// The policy's captured relation is distinct from the RLS occurrence,
 			// so demanding the genuine subquery cannot recurse into its own policy.
 			inputRows := rows
 			if mode == "borrowed_producer" {
 				inputRows = rows[:64]
 			}
-			input := &exec.Source{Ref: captured.Ref, Anonymous: inputRows}
+			input := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: inputRows}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			primary := errors.New("genuine nested aggregate argument failure")
@@ -427,7 +427,7 @@ func TestSystemTimeNestedAggregateDeadline(t *testing.T) {
 					}
 					return nil
 				}
-				*input = exec.Source{Ref: captured.Ref, NestedRoot: &innerProject, NestedInputs: &capturedInput,
+				*input = exec.Source{View: captured.View, Ref: captured.Ref, NestedRoot: &innerProject, NestedInputs: &capturedInput,
 					NestedStage: &capturedStage, Materialized: true, FlatWidth: len(leaf.Schema())}
 			}
 			inner, err := exec.OpenNode(ctx, &exec.State{Source: raw}, &innerProject)
@@ -448,7 +448,7 @@ func TestSystemTimeNestedAggregateDeadline(t *testing.T) {
 				return nil
 			}
 			bridge := &exec.Source{
-				Ref: raw.Ref, NestedRoot: &innerProject, NestedInputs: raw,
+				View: raw.View, Ref: raw.Ref, NestedRoot: &innerProject, NestedInputs: raw,
 				NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema()),
 			}
 			defer bridge.Close()
@@ -555,7 +555,7 @@ func timeNestedSampleOwners(t *testing.T) {
 		})
 		program := &exec.RLSProgram{Groups: []exec.RLSRuntimeGroup{{Permissive: []exec.RLSRuntimeClause{{Expression: policy}}}}}
 		raw.RLS = program
-		bridge := &exec.Source{Ref: raw.Ref, NestedRoot: &innerProject, NestedInputs: raw, Materialized: true, FlatWidth: len(project.Schema())}
+		bridge := &exec.Source{View: raw.View, Ref: raw.Ref, NestedRoot: &innerProject, NestedInputs: raw, Materialized: true, FlatWidth: len(project.Schema())}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		stage, err := exec.OpenNode(ctx, &exec.State{Source: bridge}, timeArgument(t, leaf, outerMillis))
 		cancel()
@@ -608,7 +608,7 @@ func timePhysicalDeadline(t *testing.T) {
 		source.RLS = &exec.RLSProgram{Groups: []exec.RLSRuntimeGroup{{Permissive: []exec.RLSRuntimeClause{{Expression: policy}}}}}
 		input := source
 		if nested {
-			input = &exec.Source{Ref: source.Ref, Input: source, Layout: []int{0, 1, 2}, Scratch: make([]sqltype.Value, 3)}
+			input = &exec.Source{View: source.View, Ref: source.Ref, Input: source, Layout: []int{0, 1, 2}, Scratch: make([]sqltype.Value, 3)}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		leaf := query.Root.(*plan.ProjectNode).Child.(*plan.SourceNode)

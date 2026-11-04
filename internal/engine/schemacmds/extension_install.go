@@ -44,6 +44,25 @@ func ExecuteExtension(e *core.Engine, scope *core.StatementScope, s *parser.Crea
 // Provider callbacks run in ValidateCatalogStage outside the engine mutex.
 func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage) (core.Result, error) {
 	defer e.DiscardCatalogStage(stage)
+	// The native unaccent script creates its dictionary before installation
+	// validation. Run the real initializer against only that new, sealed member.
+	e.Mu.Lock()
+	var dictionary *catalog.TSDictionary
+	for address, definition := range stage.Descriptors() {
+		if d, ok := definition.(*catalog.TSDictionary); ok && d.Implementation == extension.StockUnaccent && stage.Base.Get(address) == nil {
+			if dictionary != nil {
+				e.Mu.Unlock()
+				return core.Result{}, fmt.Errorf("stuntgres: multiple new unaccent script dictionaries")
+			}
+			dictionary = d
+		}
+	}
+	e.Mu.Unlock()
+	if dictionary != nil {
+		if err := scope.InitializeStagedDictionary(stage, dictionary); err != nil {
+			return core.Result{}, err
+		}
+	}
 	if _, err := e.ValidateCatalogStage(scope.Op.Context(), stage); err != nil {
 		return core.Result{}, err
 	}

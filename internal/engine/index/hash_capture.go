@@ -2,6 +2,7 @@ package index
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -9,6 +10,12 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 )
+
+// CapturedMethodFactory is the query owner's Mu-held relcache-like factory.
+// It returns actual native operation authority without calling user kernels.
+type CapturedMethodFactory interface {
+	InitializeCapturedIndexMethodLocked(catalog.Read, *catalog.AccessMethod) (catalog.IndexMethod, error)
+}
 
 // HashCapture is the committed engine state shared by hash and bloom source
 // capture. The engine fills it under Engine.mu.
@@ -18,6 +25,7 @@ type HashCapture struct {
 	Relations map[ids.ObjectAddress]*storage.Relation // Published row storage.
 	Roots     map[ids.ObjectAddress]*storage.IndexRoot
 	Commit    ids.CommitSeq // The current commit frontier.
+	Factory   CapturedMethodFactory
 }
 
 // CaptureHashIndexesLocked appends to source the published hash index roots
@@ -62,6 +70,21 @@ func CaptureHashIndexesLocked(in HashCapture, leaf exec.Leaf, source *exec.Sourc
 		}
 		if usage != root.Binding.Usage {
 			continue
+		}
+		if in.Factory != nil {
+			method, ok := data.Catalog.AccessMethod(idx.SQLIndex.MethodIdentity())
+			if !ok {
+				return ids.ErrCatalogReplaced
+			}
+			physical, err := in.Factory.InitializeCapturedIndexMethodLocked(data.Catalog, method)
+			if err != nil {
+				return err
+			}
+			if physical != catalog.HashMethod {
+				return ids.ErrCatalogReplaced
+			}
+		} else if owner := data.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+			return fmt.Errorf("stuntgres: missing captured index method factory")
 		}
 		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: root, Usage: usage})
 	}

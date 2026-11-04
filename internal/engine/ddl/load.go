@@ -10,6 +10,15 @@ import (
 
 const LoadUnsupported = "LOAD native libraries are unsupported in embedded mode"
 
+// LoadModule identifies the concrete module selected by successful admission.
+// Zero is not a supported module.
+type LoadModule uint8
+
+const (
+	LoadOverexplain LoadModule = iota + 1
+	LoadSepgsql
+)
+
 // checkLoad checks current execution authority and lexical restrictions before
 // either bounded built-in activation or the arbitrary-library refusal.
 func checkLoad(ctx context.Context, view access.View, s *parser.Load) error {
@@ -36,15 +45,22 @@ func checkLoad(ctx context.Context, view access.View, s *parser.Load) error {
 	return nil
 }
 
-// Load admits only the built-in module after ordinary authorization. All other
-// native libraries retain the arbitrary-loader boundary without filesystem access.
-func Load(ctx context.Context, view access.View, s *parser.Load) error {
+// Load preserves the sepgsql utility hook and ordinary library authorization
+// before selecting a supported module. It never performs filesystem loading.
+func Load(ctx context.Context, view access.View, s *parser.Load) (LoadModule, error) {
+	if view.Sepgsql.Policy != nil && !view.Sepgsql.Policy.Permissive(view.Sepgsql.Subject) {
+		return 0, sqlError("42501", "SELinux: LOAD is not permitted")
+	}
 	if err := checkLoad(ctx, view, s); err != nil {
-		return err
+		return 0, err
 	}
 	switch s.Filename {
 	case "pg_overexplain", "pg_overexplain.so", "$libdir/pg_overexplain", "$libdir/pg_overexplain.so":
-		return nil
+		return LoadOverexplain, nil
+	case "$libdir/sepgsql":
+		if view.Sepgsql.Policy != nil {
+			return LoadSepgsql, nil
+		}
 	}
-	return sqlError("0A000", LoadUnsupported)
+	return 0, sqlError("0A000", LoadUnsupported)
 }

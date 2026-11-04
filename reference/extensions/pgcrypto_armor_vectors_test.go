@@ -28,8 +28,8 @@ func TestReferencePgcryptoArmorVectors(t *testing.T) {
 	}
 	t.Run("header_vector", func(t *testing.T) {
 		pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT dearmor($1)", []byte("zooka"), pgcryptoArmorZooka))
+			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT dearmor($1)", []byte("zooka"), fixture.PgcryptoArmorZooka))
 			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor('test')", pgcryptoArmorTest))
 		})
 	})
@@ -93,7 +93,7 @@ func TestReferencePgcryptoArmorBoundaries(t *testing.T) {
 		{"body_whitespace", strings.Replace(pgcryptoArmorTest, "dGVzdA==", "dG Vz\tdA\r\n==", 1)},
 		{"mismatched_labels", "-----BEGIN arbitrary-----\n\ndGVzdA==\n=+G7Q\n-----END different-----"},
 		{"empty_labels", "-----BEGIN-----\n\ndGVzdA==\n=+G7Q\n-----END-----"},
-		{"first_packet", pgcryptoArmorTest + pgcryptoArmorZooka},
+		{"first_packet", pgcryptoArmorTest + fixture.PgcryptoArmorZooka},
 		{"skip_indented_inline_markers", "x-----BEGIN PGP MESSAGE-----\n -----BEGIN PGP MESSAGE-----\n" + pgcryptoArmorTest},
 		{"discarded_pad_bits", strings.Replace(pgcryptoArmorTest, "dGVzdA==", "dGVzdB==", 1)},
 		{"alphabet_after_padding", strings.Replace(pgcryptoArmorTest, "dGVzdA==", "dGVzdA=A", 1)},

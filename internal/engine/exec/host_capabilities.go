@@ -27,7 +27,7 @@ type ContribRuntime interface {
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
 	ValidateDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) error
-	DblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr, name string) ([]sqltype.Value, error)
+	DblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr, name string) ([]string, error)
 	ValidatePgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) error
 	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
 	ValidateConnectby(n plan.InstalledConnectbyExpr) error
@@ -41,8 +41,8 @@ type ContribRuntime interface {
 	PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) ([8]int64, [2]float64, error)
 	Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error)
 	DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteExpr, values [4]sqltype.Value) (string, error)
-	ValidatePgFreespace(n plan.InstalledPgFreespaceExpr) error
 	PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error)
+	PgFreespaceExtent(n plan.InstalledPgFreespaceExpr, oid uint32) (storage.FreespaceLayout, bool, error)
 	DblinkBuildSQLInsert(n plan.InstalledDblinkBuildSQLInsertExpr, values [5]sqltype.Value) (string, error)
 	DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateExpr, values [5]sqltype.Value) (string, error)
 	Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error)
@@ -64,7 +64,8 @@ type TextSearchRuntime interface {
 	CurrentTextSearchConfig(ctx context.Context, result *sqltype.Descriptor) (sqltype.Value, error)
 	HeadlineTextSearch(ctx context.Context, explicit bool, configuration, document, query, options sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	UnaccentText(procedure ids.ObjectRef, dictionary sqltype.Value, input string, result *sqltype.Descriptor) (sqltype.Value, error)
-	functions.FTSInspectionRuntime
+	DebugTextSearch(context.Context, *Context, expr.Info, bool, sqltype.Value, string, *sqltype.Descriptor) ([]sqltype.Value, error)
+	StatTextSearch(context.Context, string, string, *sqltype.Descriptor) ([]sqltype.Value, error)
 	functions.FTSParserRuntime
 }
 

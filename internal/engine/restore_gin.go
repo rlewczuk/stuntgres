@@ -248,5 +248,9 @@ func buildRestoreMaterializedIndex(r *restoreRun, ctx context.Context, op *sessi
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(ctx), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: authority.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority = &authority
-	return index.BuildRelationIndexRoot(&evaluation, parent, target, store, nil)
+	method, err := exec.InitializeIndexMethod(&evaluation, target.SQLIndex.MethodIdentity())
+	if err != nil {
+		return nil, err
+	}
+	return index.BuildRelationIndexRoot(&evaluation, parent, target, method, store, nil)
 }

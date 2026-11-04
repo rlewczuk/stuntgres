@@ -200,7 +200,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		}
 		state.expanded = true
 		visits[target] = state
-		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && target.SubID == 0 && r.Removed(target) && relation.RowType != 0 {
+		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && target.SubID == 0 && relation.RowType != 0 {
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
 			}
@@ -208,8 +208,8 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			if !ok || row.OwningRelation != relation.Address() {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
-			// Removal already stages the owned array, so the descriptor scan
-			// below cannot discover it as an automatic dependent.
+			// Whole relation retirement owns its row type and array even while
+			// preparation keeps their real descriptors and labels live.
 			if row.Array != 0 {
 				if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}, root); err != nil {
 					return err
@@ -781,12 +781,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				owner = edge.Domain.Address()
 			}
 			slot := -1
-			// Only actual retirement consumes a payload, not discovery of its
-			// live whole owner. Owned-index adjacency is also a result carrier
-			// after physical removal: consumers and planning still need that
-			// exact AUTO edge, as they did before provenance discovery.
+			// A genuine selected whole owner subsumes its local payload without
+			// pretending that physical removal has happened. Keep walking those
+			// identities to discover external consumers. Owned indexes remain
+			// explicit AUTO carriers for planning and ordinary grants.
 			ownedIndex := edge.Automatic && edge.Relation != nil && edge.Relation.SQLIndex != nil && edge.Relation.SQLIndex.Parent.ClassID == target.ClassID && edge.Relation.SQLIndex.Parent.ObjectID == target.ObjectID
-			if !r.Removed(owner) || ownedIndex {
+			if !r.Removed(owner) && !seen[owner] || ownedIndex {
 				slot = len(result)
 				resultSlots[edge.Address] = slot
 				result = append(result, edge)
@@ -890,11 +890,11 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 					owner.SubID = 0
 				}
 			}
-			if owner != (ids.ObjectAddress{}) && r.Removed(owner) {
+			if owner != (ids.ObjectAddress{}) && (r.Removed(owner) || slices.Contains(targets, owner)) {
 				target = owner
 			}
 			// Explicit roots remain distinct; only automatically retired members
-			// share the subject of their removed partition ancestry.
+			// share the subject of their selected or removed partition ancestry.
 			if i >= originalRootCount {
 				for {
 					relation, ok := r.RetirementDescriptor(target).(*catalog.Relation)
@@ -902,7 +902,7 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 						break
 					}
 					parent := relation.Membership.Parent
-					if !r.Removed(parent) {
+					if !r.Removed(parent) && !slices.Contains(targets, parent) {
 						break
 					}
 					target = parent
@@ -950,7 +950,7 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 						target = named
 					}
 				}
-				if typ, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && typ.OwningRelation == primary && r.Removed(primary) {
+				if typ, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && typ.OwningRelation == primary && (r.Removed(primary) || slices.Contains(targets, primary)) {
 					// A named composite's backing relation is not its SQL DROP
 					// subject. Ordinary table rowtypes do report the table.
 					if owner, ok := r.RetirementDescriptor(primary).(*catalog.Relation); ok && owner.RelationKind != catalog.CompositeRelation {

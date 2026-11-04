@@ -16,12 +16,12 @@ type IsnRuntime interface {
 
 type IsnValidation struct {
 	expr.Info
-	Operation sqltype.ISNOperation
-	Args [1]expr.Expr
-	Count int
+	Operation       sqltype.ISNOperation
+	Args            [1]expr.Expr
+	Count           int
 	Name, Namespace string
-	RoutineRef ids.ObjectRef
-	Formal, Result sqltype.ID
+	RoutineRef      ids.ObjectRef
+	Formal, Result  sqltype.ID
 }
 
 func NewIsnValidation(info expr.Info, operation sqltype.ISNOperation, name, namespace string, ref ids.ObjectRef, args []expr.Expr) (IsnValidation, error) {
@@ -84,6 +84,17 @@ func (n IsnValidation) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Null(n.Usage.Type), nil
 		}
 	}
+	if n.RoutineReference != nil {
+		facts := expr.RoutineBodyInputs{Count: n.Count, Occurrence: n.Occurrence, Source: n.Source}
+		if n.Count != 0 {
+			facts.First = value.Type()
+		}
+		body, err := c.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, facts)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
 	switch n.Operation {
 	case sqltype.ISNIsValid:
 		return sqltype.IsValidISN(value, n.Args[0].ResultUsage(), n.Usage.Type)
@@ -133,7 +144,7 @@ func (n IsnValidation) PlanningFold() expr.Fold {
 	return expr.FoldConstant
 }
 func (IsnValidation) StrictNull() expr.Strict { return expr.StrictAfterBare }
-func (IsnValidation) ClosureTransparent() {}
+func (IsnValidation) ClosureTransparent()     {}
 func (IsnValidation) LooksLikeFunction() bool { return true }
 func (n IsnValidation) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(IsnValidation)

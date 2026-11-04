@@ -129,7 +129,7 @@ func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, boo
 		value, err := FoldPlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}
-	if call, ok := node.(functions.Regexp); ok {
+	if call, ok := node.(functions.Regexp); ok && !planningExecutionBarrier(c, node) {
 		if inlined, did := call.InlineSQLBody(); did {
 			return inlined, true, nil
 		}

@@ -40,16 +40,23 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *
 	return target
 }
 
-func databaseCreateUnitPublish(e *core.Engine, ctx context.Context, name string, target *core.Engine) (core.Result, error) {
+func databaseCreateUnitPublish(t *testing.T, e, source *core.Engine, ctx context.Context, name string, target *core.Engine) (core.Result, error) {
+	t.Helper()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return rolecmds.PublishDatabaseTargetLocked(e, ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		return core.Result{}, err
+	}
+	return rolecmds.PublishDatabaseTargetLocked(e, ctx, name, target, auth.State.CurrentUser, source, auth)
 }
 
 func databaseCreateUnitInstall(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
 	t.Helper()
 	target := databaseCreateUnitTarget(t, e, seed, name)
-	result, err := databaseCreateUnitPublish(e, context.Background(), name, target)
+	result, err := databaseCreateUnitPublish(t, e, seed, context.Background(), name, target)
 	if err != nil || result.CommandTag != "CREATE DATABASE" || result.Count != 0 || result.Rows != nil {
 		t.Fatalf("publication: %#v %v", result, err)
 	}
@@ -135,7 +142,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 	}
 	candidate := databaseCreateUnitTarget(t, e, seed, "registry_first")
 	unchanged := databaseCreateUnitUnchanged(t, e)
-	_, err := databaseCreateUnitPublish(e, context.Background(), "registry_first", candidate)
+	_, err := databaseCreateUnitPublish(t, e, seed, context.Background(), "registry_first", candidate)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P04" {
 		t.Fatal("sequential duplicate:", err)
@@ -185,7 +192,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 		e.Cluster.NextOID = frontier
 		candidate := databaseCreateUnitTarget(t, e, seed, "exhausted")
 		unchanged := databaseCreateUnitUnchanged(t, e)
-		if _, err := databaseCreateUnitPublish(e, context.Background(), "exhausted", candidate); err == nil {
+		if _, err := databaseCreateUnitPublish(t, e, seed, context.Background(), "exhausted", candidate); err == nil {
 			t.Fatal("exhausted identity frontier accepted", frontier)
 		}
 		unchanged()
@@ -276,7 +283,7 @@ func TestDatabaseCreatePublication(t *testing.T) {
 	for _, candidate := range candidates {
 		go func(target *core.Engine) {
 			<-start
-			_, err := databaseCreateUnitPublish(e, ctx, "contended", target)
+			_, err := databaseCreateUnitPublish(t, e, seed, ctx, "contended", target)
 			results <- outcome{target, err}
 		}(candidate)
 	}
@@ -343,7 +350,7 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 	base, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ctx := &databaseCreateCancelContext{Context: base, cancel: cancel}
-	if _, err := databaseCreateUnitPublish(e, ctx, "canceled", target); !errors.Is(err, context.Canceled) || !ctx.admitted {
+	if _, err := databaseCreateUnitPublish(t, e, seed, ctx, "canceled", target); !errors.Is(err, context.Canceled) || !ctx.admitted {
 		t.Fatal("final cancellation was not honored", err)
 	}
 	unchanged()
@@ -364,7 +371,7 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			unchanged := databaseCreateUnitUnchanged(t, e)
-			if _, err := databaseCreateUnitPublish(e, context.Background(), name, candidate); err == nil {
+			if _, err := databaseCreateUnitPublish(t, e, seed, context.Background(), name, candidate); err == nil {
 				t.Fatal("invalid target accepted")
 			}
 			unchanged()
@@ -372,8 +379,13 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	}
 	candidate := databaseCreateUnitTarget(t, e, seed, "foreign_owner")
 	unchanged := databaseCreateUnitUnchanged(t, e)
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
 	e.Mu.Lock()
-	_, err := rolecmds.PublishDatabaseTargetLocked(e, context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"))
+	auth, err := e.AuthorizationLocked(op)
+	if err == nil {
+		_, err = rolecmds.PublishDatabaseTargetLocked(e, context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"), seed, auth)
+	}
 	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("equal numeric foreign principal accepted")
@@ -531,7 +543,7 @@ func TestDatabaseCreateAdmissionPolicy(t *testing.T) {
 		if _, err := target.ReplaceDatabaseTemplate(t.Context(), seed, seed.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := databaseCreateUnitPublish(e, t.Context(), name, target); err != nil {
+		if _, err := databaseCreateUnitPublish(t, e, seed, t.Context(), name, target); err != nil {
 			t.Fatal(err)
 		}
 		final := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())

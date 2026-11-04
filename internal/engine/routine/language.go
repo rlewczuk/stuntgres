@@ -27,7 +27,7 @@ func admitFunctionLanguage(h ddl.Host, auth ddl.Authority, s *parser.CreateFunct
 	if err = checkRoutineBodyForm(s, kind, d); err != nil {
 		return nil, kind, err
 	}
-	if kind == catalog.ExternalLanguage {
+	if kind == catalog.ExternalLanguage && !(d.Address().ObjectID == 13 && view.Owner.Sepgsql != nil && s.Body == "$libdir/sepgsql" && s.SymbolSpecified) {
 		return nil, kind, sqlError("0A000", "LANGUAGE "+d.Name()+" functions are unsupported in embedded mode")
 	}
 	return d, kind, nil

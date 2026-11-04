@@ -28,7 +28,7 @@ func TestReplicationOriginStateCatalogObjectAdmission(t *testing.T) {
 	if err := scope.Gate(enginetest.Statement(t, "SELECT 1")); err != nil {
 		t.Fatal(err)
 	}
-	for _, class := range []ids.OID{ids.ReplicationOriginClassID, ids.SubscriptionClassID} {
+	for _, class := range []ids.OID{ids.DatabaseClassID, ids.ReplicationOriginClassID, ids.SubscriptionClassID} {
 		address := ids.ObjectAddress{ClassID: class, ObjectID: 1}
 		local := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(scope.TxRef.Epoch(), address)}
 		shared := lock.Resource{ObjectRef: e.Cluster.RoleDomain.Ref(1, address)}

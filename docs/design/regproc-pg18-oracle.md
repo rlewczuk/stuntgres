@@ -162,6 +162,46 @@ catalog-identifier analysis cell, keyed by source occurrence and alias type;
 referent-only drop does not retarget them. Runtime/parameter input remains fresh.
 No new all-DDL invalidation, live Rows catalog lookup or provider admission exists.
 
+### REL_18_6 accepted literal versus callable lifetime
+
+The current released authority for this distinction is
+[regproc.c `regprocin`/`regprocedurein`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/adt/regproc.c):
+name/signature input resolves an OID and returns that datum. In
+[setrefs.c `fix_expr_common`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/optimizer/plan/setrefs.c),
+actual function/aggregate/window/operator expressions record function plan
+dependencies; its Const branch records REGCLASS relations, not REGPROC or
+REGPROCEDURE referents. Conversely,
+[dependency.c `find_expr_references_walker`](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/catalog/dependency.c)
+records genuine existing REGPROC/REGPROCEDURE referents for stored definitions.
+These are different owners, not competing interpretations of one dependency.
+
+Accordingly, prepared routine input captures each parsed signature type in exact
+source order, including repeated types, and keeps qualified namespace authority.
+It does not append the selected routine descriptor/revision to those operands.
+A bare or numeric alias has no signature operands. A referent-only alteration,
+DROP or same-signature recreation must not re-input or retarget an accepted
+literal. Real path/role/qualified-authority or signature-type invalidation retains
+the existing reanalysis boundary. Runtime TEXT and parameter input resolve fresh.
+Stored-definition walkers separately capture each real procedure, including
+canonical intagg helpers; actual invocations still require the selected callable
+definition/support manifest. Neither dependency lane grants execution from data.
+
+`TestRoutineMixedOperatorCompoundCapture` requires INT4, secret, INT4 in order;
+`TestRoutineNameDatumCapture` additionally distinguishes repeated signature
+operands and unchanged held values from an actual selected-callable dependency
+through ALTER, DROP and recreation. `TestPGAggregateIntaggOwnership` checks helper
+OID/type-operand provenance separately from its genuine stored-reference walker.
+`TestReferenceRegProcPreparedAuthority` independently expects the original held
+literal OID after genuine DROP EXTENSION and immediately after reinstall, while
+fresh and frame/TEXT input use the replacement OID; subsequent true path/role
+invalidation still has complete diagnostics and recovery. These current remedy
+definitions are authored evidence requirements, not a claim of a new passing run.
+
+Selected proof: `make check RUN='^Test(RoutineMixedOperatorCompoundCapture|RoutineNameDatumCapture|PGAggregateIntaggOwnership|RoutineProgramMixedPurposeNormalization)$'`.
+Feature smoke: `make check RUN='^TestReferenceRegProcPreparedAuthority$'`, then the
+same command with `REFERENCE=1`; use `RACE=1` for the selected native race proof.
+
+
 Dump serializes scalar aliases with qualified REGPROCEDURE signature identity and
 an explicit REGPROC cast when needed. Recursive container fragments resolve the
 same signature and emit its numeric identity at replay, preserving lower bounds,

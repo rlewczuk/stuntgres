@@ -223,7 +223,7 @@ func TestPreparedAcceptedDefaultHiddenIsolation(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return program.Readmit(core.RoutineAccessOf(auth))
+		return program.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation)
 	}
 	enginetest.SessionSQL(t, s, "REVOKE EXECUTE ON FUNCTION isolated_arg(integer) FROM isolated_actor")
 	if err := readmit(); err == nil || sqlStateOf(err) != "42501" {

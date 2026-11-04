@@ -155,7 +155,7 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			}
 		}
 	} else {
-		p.Sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns}}, b.QuerySources...)
+		p.Sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns, SystemAttributeRead: b.SystemAttributeRead, SystemColumns: b.SystemColumns, WholeRowRead: b.WholeRowRead}}, b.QuerySources...)
 		if len(outputUses) != 0 {
 			p.Sources[0].Uses = outputUses[0]
 		}

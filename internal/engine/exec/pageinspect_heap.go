@@ -1,13 +1,13 @@
 package exec
 
 import (
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func (c *Context) evalHeapFlagsPageinspect(n plan.InstalledPageinspectExpr) (sqltype.Value, error) {
 	input, err := c.pageinspectInput(n)
+	defer input.token.Leave()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -41,40 +41,4 @@ func (c *Context) evalHeapFlagsPageinspect(n plan.InstalledPageinspectExpr) (sql
 		}
 	}
 	return sqltype.OwnedCompositeValue(d, fields)
-}
-func (c *Context) openHeapPageinspect(n plan.InstalledPageinspectExpr) (expr.SourceCursor, error) {
-	input, err := c.pageinspectInput(n)
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	d := n.Usage.Type
-	if input.null {
-		return expr.OwnedSource(d, nil), nil
-	}
-	page, err := sqltype.ReadHeapPage(input.raw)
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	rows := make([]sqltype.Value, page.Len())
-	for i := range rows {
-		item, err := page.Item(c.Context, i)
-		if err != nil {
-			return expr.SourceCursor{}, err
-		}
-		fields, err := heapItemFields(d, item)
-		if err != nil {
-			return expr.SourceCursor{}, err
-		}
-		if item.Tail {
-			fields[13], err = sqltype.Binary(d.CompositeMember(13).Usage.Type, item.Data)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-		}
-		rows[i], err = sqltype.OwnedCompositeValue(d, fields)
-		if err != nil {
-			return expr.SourceCursor{}, err
-		}
-	}
-	return expr.OwnedSource(d, rows), nil
 }

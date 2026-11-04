@@ -74,7 +74,7 @@ func TestTransactionalDefinitionPrivateProviders(t *testing.T) {
 	member, _ := private.FamilySupport(class.Family, 23, 23, 1)
 	family, _ := private.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: class.Family})
 	procedure, _ := private.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 351})
-	expected := sqltype.IndexSupport{Family: uint32(class.Family), Member: uint32(member.Address().ObjectID), Routine: 351, Left: 23, Right: 23, Revision: uint64(member.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(procedure.Revision())}
+	expected := sqltype.IndexSupport{Class: uint32(class.Address().ObjectID), Family: uint32(class.Family), Member: uint32(member.Address().ObjectID), Routine: 351, Left: 23, Right: 23, Revision: uint64(member.Revision()), ClassRevision: uint64(class.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(procedure.Revision())}
 	if old.Support(1) != expected {
 		t.Fatal("incoherent private provider", old.Support(1))
 	}

@@ -66,6 +66,11 @@ func (n FTSCurrentConfig) Eval(c expr.Context) (sqltype.Value, error) {
 	if err := n.Validate(); err != nil {
 		return sqltype.Value{}, err
 	}
+	body, err := n.EnterRoutine(c, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	runtime, ok := c.(FTSConversionRuntime)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current text search configuration lacks statement authority")

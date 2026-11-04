@@ -151,7 +151,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 		{"volatile", datetimeMakeRaw("random"), expr.Volatile},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b := enginetest.ExpressionBinder(t, context.Background(), eng, input, nil)
+			b := core.NewExpressionBinder(context.Background(), eng, input, op, nil)
 			field := parser.CaseExpr{Arms: []parser.CaseArm{{Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: tc.condition}, Result: datetimeMakeString("timezone")}}, Else: datetimeMakeString("year")}
 			node, err := b.BindFunctionProvider(datetimeMakeRaw("date_part", field, ageFiniteTyped("date", "2000-01-01")))
 			if err != nil {
@@ -161,7 +161,14 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || plan.GenerationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
-			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: core.HostOf(scope)}})
+			eng.Mu.Lock()
+			auth, err := eng.AuthorizationLocked(op)
+			eng.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
+			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: core.HostOf(scope), Catalog: auth.Catalog}})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" || d.Message != `unit "timezone" not supported for type timestamp without time zone` || d.Context != "" {
 				t.Fatal(err)

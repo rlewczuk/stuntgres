@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -69,6 +70,9 @@ func (s *StatementScope) Finish(err error) (result error) {
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		s.routinePrograms = nil
+		s.sepgsqlObservations = nil
+		s.sepgsqlRetirements = nil
+		s.clearRoutineInitializations()
 		s.checkPrograms = nil
 		s.Domains.endAdmission()
 		s.copyInputRaw, s.copyInputActive = nil, nil
@@ -78,6 +82,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 		}
 		if s.authority != nil {
 			s.authority.Host = nil
+			s.authority.RoutineInitialization = exec.RoutineInitialization{}
 		}
 	}()
 	defer func() { s.captureStatementStatsTerminal(s.statementStats) }()
@@ -161,6 +166,9 @@ func (s *StatementScope) Finish(err error) (result error) {
 	if progress != nil {
 		s.endCopyProgress(progress)
 		progress = nil
+	}
+	if err == nil && s.worked {
+		err = s.captureSepgsqlObservations()
 	}
 	t.Mu.Lock()
 	if err == nil && s.worked {

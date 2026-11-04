@@ -232,7 +232,10 @@ func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, ext *c
 	}
 	// EffectivePath retains implicit pg_catalog priority and excludes TEMP
 	// procedures, even when the caller supplied an explicit TEMP entry.
-	path := core.EffectivePath(auth, schemas, analyze.InstalledFunctionLookup)
+	path, err := core.EffectivePath(auth, schemas, analyze.InstalledFunctionLookup)
+	if err != nil {
+		return nil, err
+	}
 	found := make([]*catalog.Procedure, len(helpers))
 	for i, helper := range helpers {
 		found[i] = analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.Name, helper.Signature)

@@ -29,7 +29,9 @@ func dblinkRoutineAuthority[A Authority](auth A, procedure *catalog.Procedure, r
 	if err := auth.Check(access.Requirement{Object: view.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
 		return err
 	}
-	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+	// The retained expression initializer owns execute MAC. These current
+	// declaration/ACL fences also run inside the entered body and after waits.
+	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true})
 }
 
 func dblinkRelation[A Authority](h Host[A], procedure *catalog.Procedure, routine ids.ObjectRef, text string) (*catalog.Relation, string, bool, func(), error) {
@@ -102,7 +104,12 @@ func dblinkRelation[A Authority](h Host[A], procedure *catalog.Procedure, routin
 		}
 	}
 	if err == nil {
-		err = auth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege})
+		// Released get_rel_from_relname calls pg_class_aclcheck, not the
+		// executor DML hook. Namespace-search MAC was checked during lookup;
+		// opening metadata does not invent table/column SELECT MAC.
+		acl := auth.Access()
+		acl.Sepgsql = access.SepgsqlAuthority{}
+		err = acl.Check(auth, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege})
 	}
 	var schema string
 	qualified := false

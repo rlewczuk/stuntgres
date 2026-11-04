@@ -3,9 +3,7 @@ package exec
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -29,13 +27,10 @@ func (c *Context) EvalInstalledCubeSpatial(n plan.InstalledCubeSpatialExpr) (sql
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	// This boundary-only value has no captured reference or recipe stamp. The
-	// original expression remains the executable carrier after validation.
-	boundary := functions.CubeSpatial{
-		Info: expr.Info{Usage: n.ResultUsage(), RoutineReference: current},
-		Plan: n.Plan,
-		Args: n.Args,
-	}
+	// Preserve original source coordinates; only this validation projection
+	// names the current descriptor. The executable carrier stays unchanged.
+	boundary := n.CubeSpatial
+	boundary.RoutineReference = current
 	if err := extension.ValidateCubeSpatialCall(view, current, boundary); err != nil {
 		return sqltype.Value{}, err
 	}

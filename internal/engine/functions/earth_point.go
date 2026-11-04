@@ -89,6 +89,16 @@ func (e EarthPoint) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
+	for _, value := range values {
+		if value.IsNull() {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+	}
+	body, err := e.EnterRoutine(c, values[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return e.Plan.Evaluate(ctx, values)
 }
 func (e EarthPoint) Children() []expr.Expr { return e.Args[:] }

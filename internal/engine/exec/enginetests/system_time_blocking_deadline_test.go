@@ -95,7 +95,7 @@ func TestSystemTimeNestedBlockingDeadline(t *testing.T) {
 			plainProject := *project
 			plainProject.Child, plainProject.QuerySchema = &plainLeaf, leaf.Schema()
 			plainProject.Expressions = project.Expressions[:3]
-			inputRaw := &exec.Source{Ref: captured.Ref, Anonymous: rows}
+			inputRaw := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: rows}
 			producer, err := exec.OpenNode(ctx, &exec.State{Source: inputRaw}, &plainProject)
 			if err != nil {
 				t.Fatal(err)
@@ -109,7 +109,7 @@ func TestSystemTimeNestedBlockingDeadline(t *testing.T) {
 				}
 				return nil
 			}
-			input := &exec.Source{Ref: captured.Ref, NestedRoot: &plainProject, NestedInputs: inputRaw,
+			input := &exec.Source{View: captured.View, Ref: captured.Ref, NestedRoot: &plainProject, NestedInputs: inputRaw,
 				NestedStage: &producer, Materialized: true, FlatWidth: len(leaf.Schema())}
 			defer input.Close()
 			policyCalls := 0
@@ -124,7 +124,7 @@ func TestSystemTimeNestedBlockingDeadline(t *testing.T) {
 				Expression: policy, State: exec.State{Source: input, SourceMode: exec.SourceBorrowed},
 			}}}}}
 			defer program.Close()
-			raw := &exec.Source{Ref: captured.Ref, Anonymous: rows, RLS: program}
+			raw := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: rows, RLS: program}
 			stage, err := exec.OpenNode(ctx, &exec.State{Source: raw}, leaf)
 			defer stage.Close()
 			if err != nil || firstCalls != 1 || secondCalls != 0 || policyCalls != 2 {

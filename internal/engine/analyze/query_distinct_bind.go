@@ -58,7 +58,7 @@ func (b *Binder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, erro
 	if err != nil {
 		return plan.Grouping{}, err
 	}
-	group := plan.Grouping{Grouping: family}
+	group := plan.Grouping{Grouping: family, Source: b.Info(expression.ResultUsage(), expression.SourcePosition(), expression.Properties())}
 	usage := expression.ResultUsage()
 	if !PrivateTreeGrouping(usage.Type) {
 		signature, err := sqltype.ResolveEquality(usage.Type.BaseType(), usage.Type.BaseType())
@@ -81,5 +81,12 @@ func (b *Binder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, erro
 		}
 	}
 	group.Routine, group.Procedure, group.PrivateTree, err = b.groupingRoutineReference(usage)
+	if err == nil {
+		if group.Convert {
+			group.Converted, err = b.captureGroupingCallbacks(group.Converted, usage, group.Source)
+		} else {
+			group.Grouping, err = b.captureGroupingCallbacks(group.Grouping, usage, group.Source)
+		}
+	}
 	return group, err
 }

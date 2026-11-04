@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -13,14 +12,14 @@ import (
 // The enumerator's set capability is immutable provider identity, not a
 // consequence of a mutable public row estimate.
 func intaggDeclaration(slot int) catalog.InstalledRoutineDeclaration {
-	if slot == 1 {
-		return catalog.InstalledRoutineDeclaration{ReturnsSet: true, Rows: 1000}
+	if slot == 3 {
+		return catalog.InstalledRoutineDeclaration{ReturnsSet: true, Rows: 1000, Parallel: 's'}
 	}
-	return catalog.InstalledRoutineDeclaration{}
+	return catalog.InstalledRoutineDeclaration{Parallel: 's'}
 }
 
-// Stage installs the intagg aggregate and enumeration function into stage,
-// owned by owner, allocating identities in member order.
+// Stage installs the released helper aliases, aggregate and enumerator as
+// genuine extension member procedures, allocating identities in script order.
 func (p *IntaggProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, len(IntaggMembers))
 	for i, member := range IntaggMembers {
@@ -34,22 +33,15 @@ func (p *IntaggProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: member.Strict, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: [2]string{"aggregate_dummy", "array_unnest"}[i]}, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Cost: 1, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: member.Source}, Implementation: p}
 		proc.Installed = intaggDeclaration(i)
-		if i == 0 {
-			state, err := stage.AllocateOID()
-			if err != nil {
-				return err
-			}
-			final, err := stage.AllocateOID()
-			if err != nil {
-				return err
-			}
+		if i == 2 {
+			state, final := ext.Members[0].ObjectID, ext.Members[1].ObjectID
 			proc.Aggregate = &catalog.OwnedAggregate{
 				Definition: IntaggDefinition(oid, state, final),
 				Helpers: [2]catalog.RoutineIdentity{
-					{state, ext.TargetNamespace.ObjectID, "int_agg_state", "2281,23"},
-					{final, ext.TargetNamespace.ObjectID, "int_agg_final_array", "2281"},
+					{state, ext.TargetNamespace.ObjectID, IntaggMembers[0].Name, IntaggMembers[0].Signature},
+					{final, ext.TargetNamespace.ObjectID, IntaggMembers[1].Name, IntaggMembers[1].Signature},
 				},
 			}
 		}

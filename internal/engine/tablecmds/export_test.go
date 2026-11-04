@@ -34,7 +34,6 @@ var (
 	StageAddedUnique                  = stageAddedUnique
 	StageAlterIdentityTypes           = stageAlterIdentityTypes
 	StageDroppedConstraintIndexes     = stageDroppedConstraintIndexes
-	StagePartitionConstraintDrop      = stagePartitionConstraintDrop
 	StageRowSecurityFlagsLocked       = stageRowSecurityFlagsLocked
 	TableStage                        = tableStage
 )

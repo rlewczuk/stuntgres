@@ -90,7 +90,10 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.Ref, d, store}
 	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Retained: store.Retained, Discarded: store.Discarded, Headers: store.Headers, Visibility: store.Visibility, KeepDead: o.SkipIndexCleanup, Generation: store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
-	first.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
+	if err := first.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true, s); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	if s.Op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: vacuum session identity exceeds integer range")
@@ -128,16 +131,26 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 			}
 			return err
 		}
-		current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, false)
+		if err := current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, false, nil); err != nil {
+			e.Mu.Unlock()
+			return err
+		}
 		current.KeepDead = o.SkipIndexCleanup
 		if !capture.SameLocked(current, &e.Storage, pass.Catalog != nil) {
-			current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
+			if err := current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true, s); err != nil {
+				e.Mu.Unlock()
+				return err
+			}
 			capture = current
 			e.Mu.Unlock()
 			continue
 		}
 		// All detached work and every failure boundary precede the first install.
 		if err := s.Op.Context().Err(); err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+		if err := s.ValidateAccessMethodFactoriesLocked(); err != nil {
 			e.Mu.Unlock()
 			return err
 		}

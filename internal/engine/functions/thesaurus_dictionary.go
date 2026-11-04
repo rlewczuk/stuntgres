@@ -10,11 +10,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// ThesaurusNormalizer is a captured immutable scalar dictionary, not a resolver.
-type ThesaurusNormalizer interface {
-	Lexize(context.Context, string) (fts.LexicalResult, error)
-}
-
 type thesaurusNode struct {
 	next        map[string]*thesaurusNode
 	replacement []expr.PhraseLexeme
@@ -24,13 +19,16 @@ type thesaurusNode struct {
 // Its trie is immutable after successful compilation; cursors are private.
 type ThesaurusDictionary struct {
 	root       thesaurusNode
-	normalizer ThesaurusNormalizer
+	normalizer expr.DictionaryLexizer
 	resource   string
 }
 
 const thesaurusStopword = "\x00"
 
-func CompileThesaurusDictionary(ctx context.Context, source *ThesaurusRules, normalizer ThesaurusNormalizer) (*ThesaurusDictionary, error) {
+func CompileThesaurusDictionary(ctx context.Context, source *ThesaurusRules, normalizer, borrowed expr.DictionaryLexizer) (*ThesaurusDictionary, error) {
+	if normalizer == nil || borrowed == nil {
+		return nil, fmt.Errorf("stuntgres: missing thesaurus normalizer capability")
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -44,7 +42,7 @@ func CompileThesaurusDictionary(ctx context.Context, source *ThesaurusRules, nor
 		for _, word := range parsed.sample {
 			key := thesaurusStopword
 			if word != "?" {
-				words, err := d.normalize(ctx, word, "sample", rule)
+				words, err := d.normalize(ctx, word, "sample", rule, borrowed)
 				if err != nil {
 					return nil, err
 				}
@@ -69,7 +67,7 @@ func CompileThesaurusDictionary(ctx context.Context, source *ThesaurusRules, nor
 				words = []fts.Lexeme{{Text: word.text}}
 			} else {
 				var err error
-				words, err = d.normalize(ctx, word.text, "substitute", rule)
+				words, err = d.normalize(ctx, word.text, "substitute", rule, borrowed)
 				if err != nil {
 					return nil, err
 				}
@@ -83,8 +81,8 @@ func CompileThesaurusDictionary(ctx context.Context, source *ThesaurusRules, nor
 	return d, ctx.Err()
 }
 
-func (d *ThesaurusDictionary) normalize(ctx context.Context, word, side string, rule int) ([]fts.Lexeme, error) {
-	value, err := d.normalizer.Lexize(ctx, word)
+func (d *ThesaurusDictionary) normalize(ctx context.Context, word, side string, rule int, normalizer expr.DictionaryLexizer) ([]fts.Lexeme, error) {
+	value, err := normalizer.Lexize(ctx, word)
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +103,17 @@ func (*ThesaurusDictionary) Filtering() bool { return false }
 func (d *ThesaurusDictionary) Configured(resource string) bool {
 	return d != nil && d.resource == resource
 }
-func (d *ThesaurusDictionary) NewMatcher() expr.PhraseMatcher {
-	return &thesaurusMatcher{dictionary: d, node: &d.root}
+func (d *ThesaurusDictionary) NewMatcher(normalizer expr.DictionaryLexizer) expr.PhraseMatcher {
+	return &thesaurusMatcher{dictionary: d, node: &d.root, normalizer: normalizer}
 }
 func (d *ThesaurusDictionary) Lexize(ctx context.Context, text string) (fts.LexicalResult, error) {
-	matcher := d.NewMatcher()
+	return d.lexize(ctx, text, d.normalizer)
+}
+func (d *ThesaurusDictionary) LexizeWithNormalizer(ctx context.Context, text string, normalizer expr.DictionaryLexizer) (fts.LexicalResult, error) {
+	return d.lexize(ctx, text, normalizer)
+}
+func (d *ThesaurusDictionary) lexize(ctx context.Context, text string, normalizer expr.DictionaryLexizer) (fts.LexicalResult, error) {
+	matcher := d.NewMatcher(normalizer)
 	words, _, err := matcher.Step(ctx, text, false)
 	if err != nil {
 		return fts.LexicalResult{}, err
@@ -127,6 +131,7 @@ func (d *ThesaurusDictionary) Lexize(ctx context.Context, text string) (fts.Lexi
 type thesaurusMatcher struct {
 	dictionary *ThesaurusDictionary
 	node       *thesaurusNode
+	normalizer expr.DictionaryLexizer
 }
 
 func (m *thesaurusMatcher) Reset() { m.node = &m.dictionary.root }
@@ -134,10 +139,13 @@ func (m *thesaurusMatcher) Step(ctx context.Context, input string, end bool) ([]
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
 	}
+	if m.normalizer == nil {
+		return nil, false, fmt.Errorf("stuntgres: missing borrowed thesaurus normalizer")
+	}
 	if end || m.node == nil {
 		return nil, false, nil
 	}
-	value, err := m.dictionary.normalizer.Lexize(ctx, input)
+	value, err := m.normalizer.Lexize(ctx, input)
 	if err != nil {
 		return nil, false, err
 	}

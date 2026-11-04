@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -74,39 +75,35 @@ func ImportedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
 	return out
 }
 
-// PlanImport decides IMPORT FOREIGN SCHEMA up to the importer
-// callback: the server and its USAGE, the local schema and CREATE on it, the
-// wrapper's handler and its importer capability, optional user mapping metadata,
-// options and the request. The provider decides whether a mapping is required.
+// PlanImport decides IMPORT FOREIGN SCHEMA up to actual handler invocation:
+// server USAGE, local schema CREATE, selected handler metadata, mapping,
+// options and request. The captured SQL wrapper name is diagnostic text only.
+// Execution obtains the real methods before testing optional import support.
 // The stage observes the server, wrapper, selected mapping, handler and schema.
 // The engine runs the importer after releasing Engine.mu and replacementMu.
-func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted settings.RestrictedRelationKinds) (SchemaImporter, ImportRequest, error) {
+func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted settings.RestrictedRelationKinds) (exec.ForeignHandlerSelection, ImportRequest, string, error) {
 	view := h.AccessView(auth)
 	server, err := Find(view.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
-		return nil, ImportRequest{}, err
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", err
 	}
 	if err = ddl.Check(h, auth, access.Requirement{Object: ObjectRef(view, server), Privileges: authorization.UsagePrivilege}); err != nil {
-		return nil, ImportRequest{}, err
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", err
 	}
 	ns, err := h.ExistingCreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.LocalSchema, {Text: "imported"}}})
 	if err == nil {
 		err = view.CheckCreate(auth, ns)
 	}
 	if err != nil {
-		return nil, ImportRequest{}, err
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", err
 	}
 	wrapper, ok := view.Catalog.Foreign(server.Wrapper)
 	if !ok {
-		return nil, ImportRequest{}, ids.ErrCatalogReplaced
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", ids.ErrCatalogReplaced
 	}
-	handler, err := HandlerFor(view.Catalog, wrapper, restricted)
+	_, err = HandlerFor(view.Catalog, wrapper, restricted)
 	if err != nil {
-		return nil, ImportRequest{}, err
-	}
-	importer, ok := handler.Wrapper.(SchemaImporter)
-	if !ok {
-		return nil, ImportRequest{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.Name()))
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", err
 	}
 	mapping, mappingPresent := FindMapping(view, server)
 	// IMPORT options belong to the provider, not stored catalog metadata.
@@ -117,7 +114,7 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted set
 	}
 	role, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
-		return nil, ImportRequest{}, err
+		return exec.ForeignHandlerSelection{}, ImportRequest{}, "", err
 	}
 	request := ImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.Name(), Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingPresent: mappingPresent, Options: options, Except: s.ImportExcept}
 	if mappingPresent {
@@ -130,7 +127,7 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted set
 	for _, base := range []catalog.Descriptor{server, wrapper, view.Catalog.Get(wrapper.Handler), view.Catalog.Get(ns.Address)} {
 		h.AddDomainBase(base)
 	}
-	return importer, request, nil
+	return exec.SelectForeignHandler(view.Catalog, wrapper.Handler), request, wrapper.Name(), nil
 }
 
 // ImportSelected reports whether LIMIT TO or EXCEPT keeps the remote

@@ -46,9 +46,9 @@ func (h *statementHost) DictionaryHost() extension.DictionaryHost {
 	return DDLHost{E: s.Engine(), Op: s.Op}
 }
 
-func (h *statementHost) ThesaurusMemos() *tsearch.ThesaurusMemos {
+func (h *statementHost) DictionaryMemos() *tsearch.DictionaryMemos {
 	if payload := PayloadOf(h.Op.Session); payload != nil {
-		return &payload.thesaurusMemos
+		return &payload.dictionaryMemos
 	}
 	return nil
 }
@@ -77,10 +77,6 @@ func (h *textSearchHost) CurrentTextSearchConfig(ctx context.Context, result *sq
 
 func (h *textSearchHost) HeadlineTextSearch(ctx context.Context, explicit bool, config, document, query, options sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return tsearch.Headline[AuthorizationView](h.host(), ctx, explicit, config, document, query, options, result)
-}
-
-func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return tsearch.Debug[AuthorizationView](h.host(), ctx, explicit, value, text, result)
 }
 
 func (h *textSearchHost) StatTextSearch(ctx context.Context, text, weights string, result *sqltype.Descriptor) ([]sqltype.Value, error) {

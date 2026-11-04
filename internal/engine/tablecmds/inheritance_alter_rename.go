@@ -47,6 +47,11 @@ func renameInheritanceColumnLocked(e *core.Engine, scope *core.StatementScope, o
 		if err := stage.Replace(next); err != nil {
 			return core.Result{}, err
 		}
+		target := next.Address()
+		target.SubID = next.Attributes[next.Index[destination]]
+		if err := stage.SepgsqlPostAlter(next, target, false); err != nil {
+			return core.Result{}, err
+		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return core.Result{}, err

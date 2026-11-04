@@ -36,6 +36,11 @@ func (e Math) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	value, err := e.Plan.Evaluate(ctx, values[:len(e.Args)], c.FunctionInput())
 	if err != nil && e.WrapperContext != "" {
 		var diagnostic *sqlstate.Error

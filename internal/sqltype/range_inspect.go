@@ -142,6 +142,9 @@ func (p RangeInspectPlan) Name() string                     { return p.operation
 func (p RangeInspectPlan) Operation() RangeInspectOperation { return p.operation }
 func (p RangeInspectPlan) ResultUsage() Usage               { return p.result.Usage() }
 func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value, error) {
+	return p.EvaluateWithEnvironment(ctx, values, InputEnvironment{})
+}
+func (p RangeInspectPlan) EvaluateWithEnvironment(ctx context.Context, values [2]Value, env InputEnvironment) (Value, error) {
 	if ctx == nil {
 		return Value{}, fmt.Errorf("missing range inspection context")
 	}
@@ -201,11 +204,11 @@ func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value,
 				return Value{typ: p.result, rangeDatum: *first}, nil
 			}
 			lower, upper := first, first
-			lo, err := p.rangeType.compareRangeEndpoint(ctx, *first, true, *last, true)
+			lo, err := p.rangeType.compareRangeEndpoint(ctx, *first, true, *last, true, env)
 			if err != nil {
 				return Value{}, err
 			}
-			hi, err := p.rangeType.compareRangeEndpoint(ctx, *first, false, *last, false)
+			hi, err := p.rangeType.compareRangeEndpoint(ctx, *first, false, *last, false, env)
 			if err != nil {
 				return Value{}, err
 			}

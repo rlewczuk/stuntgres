@@ -1094,9 +1094,26 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			}
 		}
 		if len(n.Membership) != 0 {
-			n.Membership = make([]sqltype.Grouping, len(n.Comparisons))
+			old := n.Membership
+			n.Membership = make([]plan.Grouping, len(n.Comparisons))
+			mapper := ViewQueryRemapper{Catalog: view, Type: retainedType, Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Procedure: procedure}
 			for i, pair := range n.Comparisons {
-				n.Membership[i], err = pair.Predicate.EqualityGrouping()
+				n.Membership[i] = old[i]
+				n.Membership[i].Source.Usage = pair.Left.ResultUsage()
+				if old[i].Procedure != nil {
+					n.Membership[i].Procedure, err = procedure(old[i].Procedure)
+					if err != nil {
+						return nil, false, err
+					}
+				}
+				if recipe != nil {
+					n.Membership[i].RoutineRecipe = recipe
+				}
+				kernel, failure := pair.Predicate.EqualityGrouping()
+				if failure != nil {
+					return nil, false, failure
+				}
+				n.Membership[i].Grouping, err = mapper.remapSelectedGroupingKernel(kernel, old[i].Grouping)
 				if err != nil {
 					return nil, false, err
 				}
@@ -1309,6 +1326,17 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, fmt.Errorf("stuntgres: foreign earth CHECK child")
 		}
 		n.Value = value
+		if n.Kind == sqltype.EarthOnSurface {
+			mapped := child(n.Origin)
+			if err != nil {
+				return nil, false, err
+			}
+			origin, ok := mapped.(plan.LiteralExpr)
+			if !ok {
+				return nil, false, fmt.Errorf("stuntgres: foreign earth CHECK origin")
+			}
+			n.Origin = origin
+		}
 		if !changed {
 			return node, false, nil
 		}

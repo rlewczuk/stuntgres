@@ -243,6 +243,206 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   expectations, never to duplicate the scenario.
 - **Throwaway programs.** Standalone smoke programs used during development are
   never committed.
+- **Explicit sepgsql simulation.** `TestReferenceSepgsqlSimulation*` in
+  `reference/extension_ownership` separates two phases within each definition. The
+  provider-independent phase uses `Pair.Backends` for meaningful ordinary and
+  inactive-provider PostgreSQL compatibility. The named `native_simulation`
+  phase configures its private Driver with `RegisterSepgsqlSimulation` and
+  asserts independently specified policy outcomes. It is source-grounded native
+  simulation coverage, not an active SELinux PostgreSQL oracle. Never install
+  fake oracle functions/providers or count an unexecuted active phase as parity.
+  Select Boundary, Labels, SharedLabels, Access, Demands, DDL, Retirement,
+  Subject, Routines, Initialization, Functions, FTS, Dictionaries, Sources, PageSources, Codecs,
+  Callbacks, Support, NativeBodies, Handlers, ForeignFactory, AccessMethodFactories,
+  OriginalAccessMethodFactories, SurgeryIncoming, IncomingVPC, Audit, Controls,
+  ControlConsent, LoadDispatch, RestoreconSharedDatabases, RestoreconAuthorization,
+  RestoreconEscapedBrackets,
+  GenericLabelResolution, GenericLabelRoleOwnership, GenericLabelDomainKind,
+  GenericLabelColumnIntegrity and FeatureSmoke in native and `REFERENCE=1` modes.
+  `LoadDispatch` checks ordinary authority and genuine module activation on the
+  same physical connection, including no overexplain activation from sepgsql.
+  The restorecon scenarios check both-root shared labels, peer-local nonmutation,
+  atomic denied-peer failure and current superuser-before-profile diagnostics.
+  Their genuine post-peer Dump/Reset/Restore phases distinguish the selected
+  database's serialized labels from retained destination peer labels and absence.
+  `RestoreconEscapedBrackets` checks inactive provider rejection and ordinary
+  catalog/data independently, then direct/prepared native restorecon BOOL results,
+  actual `pg_seclabel` associations (`a`/`z` secret, `b` public), and unchanged
+  unrelated/local/shared labels and rows. Select
+  `make check RUN='^TestReferenceSepgsqlSimulationRestoreconEscapedBrackets$'`
+  natively, with `REFERENCE=1`, and with `RACE=1`. Select
+  `make check RUN='^TestSepgsqlSimulationPatternEscapedBrackets$'` natively and
+  with `RACE=1` for literal hyphen/metacharacter, negation, ordinary range and
+  default/named first-match registration assertions. Active results remain
+  native simulation evidence, not active PostgreSQL SELinux parity.
+  `GenericLabelResolution` checks real missing/foreign/owned objects before
+  unsupported-provider rejection, including type/domain and existing tablespaces,
+  without adding label support or physical tablespace creation. The focused
+  `GenericLabel(RoleOwnership|DomainKind|ColumnIntegrity)` definitions check
+  current CREATEROLE/ADMIN and SUPERUSER-target precedence, actual domain kind
+  before ownership, and column ownership before generic kind before provider.
+  They retain complete primary/detail diagnostics, real held authority/identity
+  changes, unchanged labels/data/generators, and independent ordinary
+  provider-unloaded plus rename/drop/comment contrasts. Active expectations are
+  released-source-grounded native simulation, not active PostgreSQL SELinux parity.
+  Select `TestSepgsqlSimulationGenericLabel(RoleOwnership|DomainKind|ColumnIntegrity|NoPublication|FreshOwnership|LockLifecycle)`
+  natively and with `RACE=1`; select
+  `TestReferenceSepgsqlSimulationGenericLabel(RoleOwnership|DomainKind|ColumnIntegrity|Resolution)`
+  natively, with `REFERENCE=1`, and with `RACE=1`. Real object-lock capture must
+  retain genuine domain TypeExclusive and whole-sequence ShareUpdateExclusive
+  grant/wait/cancel/currentness paths, distinguish local large-object authority
+  from its released lock tag, and preserve shared tablespace identity.
+  `TestReferenceSepgsqlSimulationSequenceCreate` retains independent ordinary
+  CREATE/options/ACL/notice/serial/identity expectations on inactive native and
+  pinned PostgreSQL, plus source-grounded active-native direct/prepared/held
+  default-P/name-selected-Q labels without explicit relabel. It checks zero
+  sequence-column labels, genuine generator/metadata/owned links, schema-before-
+  sequence denial, ordinary ACL precedence, actual denied audit bits (including
+  permissive success), initial IF NOT EXISTS noevent, TX/savepoints and TEMP.
+  Deterministic concurrent binding skip and namespace/OWNED BY wait currentness
+  belong to `TestSepgsqlSimulationSequenceCreate(Currentness)?`: public fixtures
+  have relation-lock observers but no namespace/name-binding admission observer.
+  No elapsed-delay or synthetic test API substitutes for that core witness.
+  Run `make check RUN='^TestReferenceSepgsqlSimulationSequenceCreate$'` with
+  native defaults, `REFERENCE=1`, and `RACE=1`; select the internal owner with
+  `make check RUN='^TestSepgsqlSimulationSequenceCreate(Currentness)?$'`
+  natively and with `RACE=1`. The existing
+  `TestReferenceSepgsqlSimulationControls` now restores real explicit, serial and
+  identity generators, default/relabeled/NULL-absent sequence labels, ACLs/options/
+  owners/dependencies and TEMP exclusion, with genuine sequence RelabelTo
+  transfer-denial and policy-mismatch atomicity. A CREATE-only denial rejects
+  public SQL through the same R pool but permits trusted Restore.
+  `TestReferenceSepgsqlSimulationControlConsent`
+  retains sequence state across actual reader-I/O root/role fences. Run both
+  controls selectors natively, with `REFERENCE=1`, and with `RACE=1`.
+  `TestSepgsqlSimulationTrustedReplayInitialization` exercises genuine isolated
+  RestoreStage/session construction, ordinary scalar/default/type-input admission
+  without fabricated MAC evidence, denied SQL EXECUTE, nontransferable origins,
+  cancellation and closed-worker rejection.
+  `TestSepgsqlSimulationRemappedRepairInitialization` covers actual generated-row
+  and BRIN-expression collision repair with both an internally acquired operation
+  and an authentic supplied stage-bound operation: distinct stage/destination
+  epochs, unchanged original origin, exact rows/index membership and no fabricated
+  MAC evidence, plus stale-origin/binding/staging/cancellation atomic rejection.
+  Its inactive witness retains nil-origin multi-session maintenance.
+  `TestSepgsqlSimulationGeneratedDefinitionInitialization` covers the genuine
+  CREATE prospective-stage and ALTER nil-stage definition prewalk, live/import
+  receipt ownership, exact generated values3/2, stable parent ownership across
+  stored-program cache hits/rows, distinct column sources, original manifests
+  and exact old ALTER/retained-TEMP consumers. CREATE denial selects a genuinely
+  folded native helper; SQL wrappers retain FoldNever and are denied at real
+  ALTER/INSERT demand. Host audit is observed only after actual operation Done.
+  Real direct and prepared UPDATE retain the same explicit captured-source owner.
+  Negative probes pair successful original manifests/sites with rejected changed
+  manifests, completed sites, command/origin/lifecycle or physical-source headers;
+  they do not promise new FHET checks on raw original INTERNAL kernels.
+  Runtime JSON work is observed through the real operation policy activated by
+  the unlocked statement owner; merely attaching a policy leaves it inert.
+  Retained-generation row evaluation requires actual strip work on each non-NULL
+  row while keeping the original initializer and receipt counts unchanged.
+  Source-header probes use a new physical capture under the still-admitted
+  SELECT's same prepared leaves, header, owner and catalog, then drain that same
+  live nested producer after restoring its header. Eager FinalRows deliberately
+  detaches live headers and is not an initialization-owner witness.
+  Whole-stage epoch corruption retains the earlier exact generation-plan owner
+  rejection; separate original-origin field negatives retain their own diagnostics.
+  Original source/virtual/immutability/coercion order and unlocked constant-work
+  vetoes remain covered: snapshot completed strip traversal at the downstream
+  pause and require no additional work after stale/cancel return, not a golden
+  work-unit count across legitimate definition and rewrite phases. Run
+  `make check RUN='^TestSepgsqlSimulation(GeneratedDefinitionInitialization|TrustedReplayInitialization|RemappedRepairInitialization)$'`
+  natively and with `RACE=1`, alongside unchanged generation source/provider/
+  publication and initialization owners. Existing
+  `TestReferenceGeneratedStored(Smoke|Authorization|ControlsSmoke|TableOIDControls|TableOIDRepairAtomicity|TableOIDOwnerAuthority|SameNameReferenceDiagnostics)`
+  requires both native and `REFERENCE=1` selected runs (and native `RACE=1`).
+  Its released ordinary SQL oracle is not active simulation/import parity.
+  Retain the full inactive callsite regressions
+  `TestExecutionPauseRemappedRepair(Child|Destination|Authority)`,
+  `TestCatalogReplacementOperationOwner` and
+  `TestRangePartitionPublicationTrustedImporterProvenance`, with all their
+  healthy followups and authorization negatives. Run both modes of the public
+  control scenarios above; the native six-sequence image witness remains in
+  `TestSepgsqlSimulationControls`. Import-origin/private-repair proofs have no
+  PostgreSQL native-control-format counterpart.
+  Extend, do not replace, feature smoke:
+  `make check RUN='^TestReferenceSepgsqlSimulationFeatureSmoke$'`, also with
+  `REFERENCE=1`, observes genuine P/Q CREATE labels, exact create denial/no
+  publication, true permissive denied-create audit and persistent replay.
+  The unchanged `GenericLabelColumnIntegrity` whole-sequence P assertion remains
+  a regression for the genuine producer, not a fixture relabel workaround.
+  `TestSepgsqlCatalogIdentityComposition` selects the real composed label/statistics
+  catalog, producer, nominal row/array and definition-reservation owners; run it
+  natively and with `RACE=1`. `TestSepgsqlDumpSelectedDatabaseLabels` and
+  `TestSepgsqlSimulationGenericLabelLockLifecycle` cover the genuine serializer
+  and composed grant/wait/cancel/currentness paths. Public
+  `TestReferencePGRewriteBuiltinDeclarations` checks direct/prepared/held
+  relation/rule/type/dependency relationships using each backend's actual OIDs,
+  not native-number parity with PostgreSQL initdb.
+  `Handlers` includes both row-count and duration factories, with subject
+  restoration before runtime arguments and reuse of the selected method table.
+  `SurgeryIncoming` checks real scalar freeze/kill effects and error unwind;
+  `IncomingVPC` checks buffer/visibility lazy first work, row/DONE entry, scalar
+  visibility sources and independent VM/PD flags, not event-only wrappers.
+  FTS distinguishes actual outer/nested/query/callback subjects without claiming
+  optimizer-dependent audit counts. Dictionaries distinguishes genuine cold
+  physical initialization from warm reuse across subject/label changes.
+  Codecs distinguishes ordinary SQL execute initialization from actual direct
+  text input/output, including nested array/string output, NULL suppression,
+  renamed genuine helpers and hard policy denial before a soft parser error.
+  CodecTransport retains the encoded-COPY pre-sink cases and exercises genuine
+  finalized simple-query INSERT RETURNING stores, not SELECT portals. Actual
+  installed hstore output and trusted Latin1 conversion pause at the existing
+  WorkEncodingConvert boundary. The fixture activates the same admitted scope's
+  runtime on the real operation context at the unlocked finalized-store metadata
+  callback, leaving SQL binding's request inert. Peer relabel/descriptor changes
+  must return the exact catalog-publication conflict before any row callback
+  receives fields.
+  The unchanged-authority counterpart delivers exact Latin1 bytes and SQL NULL.
+  All legs retain the original observation predecessors and initialization owner,
+  balance the subject phase, close the real store, join the worker and preserve
+  INSERT commit/rollback behavior. Existing public Codecs and InsertReturning
+  direct/prepared scenarios supply independent ordinary SQL/reference coverage;
+  the internal publication race is not an active-provider PostgreSQL parity claim.
+  Initialization distinguishes original preargument execute checks from actual
+  strict/body entry, fresh prepared executions from row/VPC reuse, and genuine
+  SQL/PL/default/domain/index/trigger/cursor attachment phases. Conditional NULL
+  bodies do not preauthorize unexecuted helpers.
+  The owner family is `TestSepgsqlSimulation(Policy|Labels|Subject|Demands|Routine|Support|NativeBodies|Codecs|CodecTransport|Conversions|Dictionaries|Audit|Publication|Controls|Cleanup|Retirement)`;
+  Also select `TestOwnedCleanupRawPrefix`,
+  `TestPreparePartitionConstraintDropDepthFirst`,
+  `TestPartitionConstraintCapturedProgram`,
+  `TestSepgsqlSimulationForeignFactory` and
+  `TestSepgsqlAccessMethodFactory(Owners|Denied)` for focused actual-owner proof.
+  `TestSepgsqlSimulationTimeFactory(Rescan)?`, `TestSepgsqlSimulationIncomingVPC` and
+  `TestPgBuffercacheBorrowedSnapshot` cover the incoming factory and source owners;
+  run their selected `RACE=1` variants alongside the corresponding legacy owners.
+  Use `RACE=1` for Subject/Routine/Codecs/CodecTransport/Conversions/Dictionaries/Publication/Controls/Cleanup/Retirement
+  with joined deterministic synchronization. Native controls prove admitted
+  physical subject ownership, immutable labels, TEMP retention and atomic
+  replacement independently of PG. ControlConsent rejects effective-unlabeled
+  old/new transfers and peer label/role changes during real reader I/O.
+  Demands distinguishes SQL ACL from the physical subject, count from real
+  column reads, row locks from update demands, empty inheritance and FK-cascade
+  cohorts. FeatureSmoke performs real installation, labels/denial, lexical/TX
+  subjects, intagg helpers, VPC/materialized sources, cold dictionary denial,
+  owned-child retirement, GUC/restorecon and portable-control operations.
+  Handlers distinguishes sampling's factory from its count argument and returned
+  row methods, including revoked SQL execute and restore-before-argument timing.
+  ForeignFactory checks genuine registered handler selection before consuming
+  the native method table, not a fabricated pg_proc call around every Go
+  estimate/scan/modify/import/analyze callback. Detached sources retain selected
+  immutable metadata, never an active evaluator/session/scope.
+  `TestSepgsqlInitializationCompletion(Marks|Exhaustion)` independently checks
+  monotonic typed receipt watermarks and rollback filtering; it does not replace
+  genuine grant, source-owner, ordinary-call or closed-worker integration proofs.
+  Genuine initialization ownership uses
+  `RUN='^TestSepgsqlSimulationInitialization(Closed|Support|Parallel|VPC|Constructors|CursorDetach|Exception|Source)?$'`,
+  also with `RACE=1`; preserve the existing inactive parallel and
+  `TestPgFreespaceWrapperParameterDemand` regressions alongside these witnesses.
+  Callbacks exercises actual hstore scalar/array grouping and UTF8→LATIN1
+  conversion in both modes; native direct support/conversion entry is independent
+  of SQL execute ACLs, skips unused empty/same/all-NULL work and unwinds on denial.
+  Native cube dimension fingerprints do not manufacture a nonexistent hash routine.
 
 ### Common helpers
 

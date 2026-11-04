@@ -17,7 +17,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*analyze.Binder, *plan.CTEDefinition) {
 	t.Helper()
 	b := &analyze.Binder{Host: engine.New().AnalysisHost(nil), Ctx: context.Background()}
@@ -140,22 +139,22 @@ func TestQuerySearchIdentity(t *testing.T) {
 		s := d.Search
 		anchor := searchUnitValue(t, s, sqltype.Value{}, one)
 		child := searchUnitValue(t, s, anchor, one)
-		if same, err := s.Equal(ctx, context.Context.Err, anchor, child); err != nil || same {
+		if same, err := s.Equal(ctx, context.Context.Err, anchor, child, nil); err != nil || same {
 			t.Fatal("generated identity omitted", same, err)
 		}
 		copy := searchUnitValue(t, s, sqltype.Value{}, one)
-		ha, err := s.Hash(ctx, context.Context.Err, anchor)
+		ha, err := s.Hash(ctx, context.Context.Err, anchor, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		hb, err := s.Hash(ctx, context.Context.Err, copy)
+		hb, err := s.Hash(ctx, context.Context.Err, copy, nil)
 		if err != nil || ha != hb {
 			t.Fatal("equal hashes", ha, hb, err)
 		}
 		grouping := make([]plan.Grouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
 		stage := exec.RecursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, Source: &exec.Source{Flat: []sqltype.Value{one, child, one, anchor}}}
-		if index, err := stage.FindTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
+		if index, err := stage.FindTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}, nil); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}
 		cycle := cycleUnitRecipe(t, typ.Usage())
@@ -168,7 +167,7 @@ func TestQuerySearchIdentity(t *testing.T) {
 		d.Schema = append(d.Schema, catalog.Column{Usage: cycle.Mark.ResultUsage()}, catalog.Column{Usage: cycle.Path.Usage()})
 		stage.Node = &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
 		stage.Source.Flat = append(append([]sqltype.Value(nil), second...), first...)
-		if index, err := stage.FindTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
+		if index, err := stage.FindTuple(ctx, first, []int{0, 1}, nil); err != nil || index != 1 {
 			t.Fatal("collision ignored CYCLE", index, err)
 		}
 	}
@@ -237,9 +236,15 @@ func TestQuerySearchCancellation(t *testing.T) {
 		value = searchUnitValue(t, s, value, one)
 	}
 	for _, operation := range []func(context.Context) error{
-		func(ctx context.Context) error { _, err := s.Value(ctx, context.Context.Err, []sqltype.Value{one}, value); return err },
-		func(ctx context.Context) error { _, err := s.Hash(ctx, context.Context.Err, value); return err },
-		func(ctx context.Context) error { _, err := s.Equal(ctx, context.Context.Err, value, value); return err },
+		func(ctx context.Context) error {
+			_, err := s.Value(ctx, context.Context.Err, []sqltype.Value{one}, value)
+			return err
+		},
+		func(ctx context.Context) error { _, err := s.Hash(ctx, context.Context.Err, value, nil); return err },
+		func(ctx context.Context) error {
+			_, err := s.Equal(ctx, context.Context.Err, value, value, nil)
+			return err
+		},
 	} {
 		ctx := &cycleUnitCancelContext{Context: context.Background(), remaining: 4}
 		if err := operation(ctx); !errors.Is(err, context.Canceled) {
@@ -294,7 +299,6 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 }
 
-
 func cteUnitType(t *testing.T) *sqltype.Descriptor {
 	t.Helper()
 	typ, ok := engine.New().CatalogRead().LookupType(sqltype.Int4)
@@ -315,7 +319,7 @@ func cteUnitValue(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value 
 
 func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 	t.Helper()
-	c := &plan.CycleRecipe{MarkSlot: len(usages), Keys: make([]int, len(usages)), Grouping: make([]sqltype.Grouping, len(usages))}
+	c := &plan.CycleRecipe{MarkSlot: len(usages), Keys: make([]int, len(usages)), Grouping: make([]plan.Grouping, len(usages))}
 	boolean, _ := engine.New().CatalogRead().LookupType(sqltype.Bool)
 	c.Mark = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
 	c.Fallback = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
@@ -324,7 +328,7 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 		c.Keys[i] = i
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: "key", Usage: u}
 		var err error
-		c.Grouping[i], err = sqltype.BindGrouping(u)
+		c.Grouping[i].Grouping, err = sqltype.BindGrouping(u)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,7 +348,7 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 func cycleUnitAugment(t *testing.T, c *plan.CycleRecipe, parent sqltype.Value, fields ...sqltype.Value) []sqltype.Value {
 	t.Helper()
 	boolean := c.Mark.ResultUsage().Type
-	row, err := c.Augment(context.Background(), context.Context.Err, fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
+	row, err := c.Augment(context.Background(), context.Context.Err, fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

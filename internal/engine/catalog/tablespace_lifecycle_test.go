@@ -113,6 +113,107 @@ func TestTablespaceLifecycleSharedProjectionAndAttachment(t *testing.T) {
 	}
 }
 
+func TestRetainDatabasesPeerSecurityLabels(t *testing.T) {
+	for _, selectedLabel := range []string{"explicit", "absent"} {
+		for _, importedPeer := range []string{"missing", "different", "same"} {
+			t.Run(selectedLabel+"/"+importedPeer, func(t *testing.T) {
+				selected := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 91001}
+				peer := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 91002}
+				unlabeledPeer := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 91003}
+				unknownPeer := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 91004}
+				published := NewState(1)
+				for _, database := range []*Database{
+					{ObjectAddress: selected, ObjectRevision: 1, ObjectName: "retained_selected"},
+					{ObjectAddress: peer, ObjectRevision: 1, ObjectName: "retained_peer"},
+					{ObjectAddress: unlabeledPeer, ObjectRevision: 1, ObjectName: "retained_unlabeled"},
+				} {
+					published.SetDescriptor(database.Address(), database)
+					published.BindName(DescriptorNameKey(database), database.Address())
+				}
+				store := &Store{Owner: Owner{Database: selected}, State: published}
+				selectedKey := SecurityLabelKey{Object: selected, Provider: "selinux"}
+				peerKey := SecurityLabelKey{Object: peer, Provider: "selinux"}
+				absentKey := SecurityLabelKey{Object: unlabeledPeer, Provider: "selinux"}
+				unknownKey := SecurityLabelKey{Object: unknownPeer, Provider: "selinux"}
+				oldSelected := &SecurityLabelRecord{Label: "destination selected", PolicyID: "destination", PolicyVersion: "1"}
+				oldPeer := &SecurityLabelRecord{Label: "destination peer", PolicyID: "destination", PolicyVersion: "1"}
+				published.SetSecurityLabel(selectedKey, oldSelected)
+				published.SetSecurityLabel(peerKey, oldPeer)
+				before := store.Current()
+				beforeLabels := published.SecurityLabelRoot()
+				imported := NewState(1)
+				foreign := &Database{ObjectAddress: unknownPeer, ObjectRevision: 1, ObjectName: "imported_peer"}
+				imported.SetDescriptor(unknownPeer, foreign)
+				imported.BindName(DescriptorNameKey(foreign), unknownPeer)
+				candidateLabel := &SecurityLabelRecord{Label: "imported", PolicyID: "source", PolicyVersion: "2"}
+				var expectedSelected *SecurityLabelRecord
+				if selectedLabel == "explicit" {
+					expectedSelected = candidateLabel
+					imported.SetSecurityLabel(selectedKey, expectedSelected)
+				}
+				switch importedPeer {
+				case "different":
+					imported.SetSecurityLabel(peerKey, candidateLabel)
+				case "same":
+					imported.SetSecurityLabel(peerKey, oldPeer)
+				}
+				imported.SetSecurityLabel(absentKey, candidateLabel)
+				imported.SetSecurityLabel(unknownKey, candidateLabel)
+				// Retention must not widen into any local or other shared class.
+				var otherKeys []SecurityLabelKey
+				for _, class := range []ids.OID{ids.NamespaceClassID, ids.RelationClassID, ids.ProcedureClassID,
+					ids.SubscriptionClassID, ids.ParameterClassID, ids.ReplicationOriginClassID, ids.TablespaceClassID} {
+					key := SecurityLabelKey{Object: ids.ObjectAddress{ClassID: class, ObjectID: 92001}, Provider: "selinux"}
+					imported.SetSecurityLabel(key, candidateLabel)
+					otherKeys = append(otherKeys, key)
+				}
+				columnKey := SecurityLabelKey{Object: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 92001, SubID: -1}, Provider: "selinux"}
+				imported.SetSecurityLabel(columnKey, candidateLabel)
+				otherKeys = append(otherKeys, columnKey)
+				// A different provider on the same peer is also destination-owned.
+				otherProvider := SecurityLabelKey{Object: peer, Provider: "other"}
+				published.SetSecurityLabel(otherProvider, oldPeer)
+				before = store.Current()
+				beforeLabels = published.SecurityLabelRoot()
+				sourceLabels := imported.SecurityLabelRoot()
+				next := CloneState(imported)
+				store.RetainDatabasesLocked(next)
+				if next.SecurityLabel(peerKey) != oldPeer || next.SecurityLabel(otherProvider) != oldPeer ||
+					next.SecurityLabel(absentKey) != nil || next.SecurityLabel(unknownKey) != nil ||
+					next.SecurityLabel(selectedKey) != expectedSelected {
+					t.Fatal("peer retention lost exact destination records/absence or changed selected candidate")
+				}
+				for _, key := range otherKeys {
+					if next.SecurityLabel(key) != candidateLabel {
+						t.Fatal("database retention changed another class/subobject", key)
+					}
+				}
+				for _, address := range []ids.ObjectAddress{selected, peer, unlabeledPeer} {
+					descriptor := before.Get(address)
+					if next.Get(address) != descriptor || next.NameAddress(DescriptorNameKey(descriptor)) != address {
+						t.Fatal("database retention lost actual destination descriptor/name", address)
+					}
+				}
+				if next.Get(unknownPeer) != nil || next.NameAddress(DescriptorNameKey(foreign)) != (ids.ObjectAddress{}) {
+					t.Fatal("imported peer descriptor/name survived retention")
+				}
+				labels := next.SecurityLabelRoot()
+				store.RetainDatabasesLocked(next)
+				if next.SecurityLabelRoot() != labels {
+					t.Fatal("repeated peer label composition allocated another label root")
+				}
+				if before.State().SecurityLabelRoot() != beforeLabels || before.State().SecurityLabel(selectedKey) != oldSelected ||
+					before.State().SecurityLabel(peerKey) != oldPeer || before.State().SecurityLabel(absentKey) != nil ||
+					imported.SecurityLabelRoot() != sourceLabels || imported.Get(unknownPeer) != foreign ||
+					imported.SecurityLabel(selectedKey) != expectedSelected || imported.SecurityLabel(absentKey) != candidateLabel ||
+					imported.SecurityLabel(unknownKey) != candidateLabel || *candidateLabel != (SecurityLabelRecord{Label: "imported", PolicyID: "source", PolicyVersion: "2"}) {
+					t.Fatal("retention mutated retained source/destination roots or label records")
+				}
+			})
+		}
+	}
+}
+
 func TestTablespaceLifecycleSharedNameExchange(t *testing.T) {
 	seed := tablespaceLifecycleState()
 	setup := NewCandidate(Read{state: seed})

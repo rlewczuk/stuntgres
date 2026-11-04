@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TablefuncNormalNegative(query string, args ...any) Step {
+	s := ImplicitError(query, Diagnostic{Code: "22023", Message: "number of rows cannot be negative"}, args...)
+	s.ErrorStage = "execute"
+	return s
+}
+
 func ConnectbyRun(t *testing.T, p *Pair, b Backend, x Executor, s Step) {
 	t.Helper()
 	RunStep(t, p.Ctx, x, b.Recorder, s)

@@ -90,7 +90,7 @@ func clusterProgressConcurrentWorkers(t *testing.T) {
 		idx := build.stage.Get(build.target).(*catalog.Relation)
 		started++
 		go func(){
-			_,err := index.BuildRelationIndexRoot(indexProgressEvaluation(build),parent,idx,&store,binding.Capture(build.target))
+			_,err := index.BuildRelationIndexRoot(indexProgressEvaluation(build),parent,idx,idx.SQLIndex.Method,&store,binding.Capture(build.target))
 			if err==nil { binding.Complete(build.target) }
 			done <- err
 		}()

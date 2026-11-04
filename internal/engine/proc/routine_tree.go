@@ -15,6 +15,7 @@ import (
 type routineDeclarationBody struct {
 	statements []parser.Statement
 	recipe     DeclarationRecipe
+	callParts  []int // Immutable parsed-expression preorder, not lexical part order.
 }
 
 func NewRoutineDeclarationBody(recipe DeclarationRecipe) (sqltype.StructuralTree, error) {
@@ -30,7 +31,11 @@ func NewRoutineDeclarationBody(recipe DeclarationRecipe) (sqltype.StructuralTree
 		return nil, fmt.Errorf("stuntgres: invalid routine declaration recipe")
 	}
 	recipe.Parts = append([]DeclarationPart(nil), recipe.Parts...)
-	return &routineDeclarationBody{statements: statements, recipe: recipe}, nil
+	calls, err := declarationCallOrder(statements, recipe)
+	if err != nil {
+		return nil, err
+	}
+	return &routineDeclarationBody{statements: statements, recipe: recipe, callParts: calls}, nil
 }
 
 // DeclarationParts exposes immutable values without copying the retained list
@@ -40,6 +45,11 @@ type DeclarationParts struct{ body *routineDeclarationBody }
 func (p DeclarationParts) Return() bool             { return p.body.recipe.Return }
 func (p DeclarationParts) Len() int                 { return len(p.body.recipe.Parts) }
 func (p DeclarationParts) At(i int) DeclarationPart { return p.body.recipe.Parts[i] }
+func (p DeclarationParts) CallCount() int           { return len(p.body.callParts) }
+func (p DeclarationParts) CallPart(ordinal int) (int, DeclarationPart) {
+	index := p.body.callParts[ordinal]
+	return index, p.body.recipe.Parts[index]
+}
 
 func RoutineDeclarationRecipe(tree sqltype.StructuralTree) (DeclarationParts, bool) {
 	body, ok := tree.(*routineDeclarationBody)

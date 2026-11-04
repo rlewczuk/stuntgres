@@ -22,6 +22,11 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 	if err != nil {
 		return err
 	}
+	fact, _ := h.StageRead().AccessMethod(method)
+	physical, err := h.InitializeIndexMethod(auth, fact)
+	if err != nil {
+		return err
+	}
 	v := h.AccessView(auth)
 	actor, err := v.Roles.Descriptor(v.State.CurrentUser)
 	if err != nil {
@@ -85,7 +90,7 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 		}
 		return ddl.CreateCommand(h.Stage(), "CREATE OPERATOR CLASS", class)
 	}
-	return stageOperatorMembers(h, auth, family, &parser.AlterOperatorFamily{Name: s.Name, Method: s.Method, Action: "add", Items: s.Items}, class, beforeStore)
+	return stageOperatorMembers(h, auth, family, &parser.AlterOperatorFamily{Name: s.Name, Method: s.Method, Action: "add", Items: s.Items}, physical, class, beforeStore)
 }
 
 func classMemberCollision(d catalog.Descriptor) error {

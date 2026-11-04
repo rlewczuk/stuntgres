@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
@@ -97,12 +98,35 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.Mu.Lock()
-	_, procedure, err := stage.remapPreparedCatalog(candidate, sourceRoles, stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
+	origin := stage.restoreInitializationOrigin
+	var err error
+	if origin != nil {
+		if origin.engine != stage || origin.domain != stage.Catalog.Domain ||
+			origin.epoch != stage.Catalog.State.Epoch() || origin.policy == nil || origin.policy != stage.Sepgsql ||
+			stage.ImportTargets == nil ||
+			(op == nil && origin.session != nil) ||
+			(op != nil && (origin.session != op.Session || !OperationReplayOrZero(op).StagingEffects)) {
+			err = fmt.Errorf("stuntgres: invalid trusted restore initialization session")
+		} else {
+			// Only the detached evaluation clone adopts the authentic importer
+			// lifetime. The separately prepared destination image stays at its
+			// destination epoch, and the original origin is never rewritten.
+			candidate.SetEpoch(origin.epoch)
+		}
+	} else if stage.Sepgsql != nil && stage.ImportTargets != nil {
+		err = fmt.Errorf("stuntgres: invalid trusted restore initialization session")
+	}
+	var procedure catalog.ProcedureRemapper
 	if err == nil {
-		// ReownExpressions targets the next epoch. Preserve final numeric
-		// identities while projecting only engine/principal ownership.
-		stage.Catalog.PublishLocked(catalog.CloneState(stage.Catalog.State))
-		stage.Catalog.State.SetEpoch(candidate.Epoch() - 1)
+		_, procedure, err = stage.remapPreparedCatalog(candidate, sourceRoles, stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
+	}
+	if err == nil {
+		if origin == nil {
+			// Inactive maintenance retains its next-epoch preparation. Active
+			// import repair instead keeps the original stage epoch throughout.
+			stage.Catalog.PublishLocked(catalog.CloneState(stage.Catalog.State))
+			stage.Catalog.State.SetEpoch(candidate.Epoch() - 1)
+		}
 		view := stage.Catalog.Read(candidate)
 		typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == nil {
@@ -140,7 +164,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		if err != nil {
 			return installedStage, err
 		}
-		defer op.Done()
+		OperationReplay(op).StagingEffects = true
+		defer func() {
+			OperationReplay(op).StagingEffects = false
+			op.Done()
+		}()
 	}
 	scope, err := stage.StartStatement(op)
 	if err != nil {

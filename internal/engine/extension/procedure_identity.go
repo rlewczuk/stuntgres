@@ -68,7 +68,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	}
 	slot := p.Origin.Declaration
 	canonical, ok := ext.Declarations[slot].(*catalog.Procedure)
-	if !ok || p.Display != canonical.Display || p.Installed != canonical.Installed || p.DeclarationBody != canonical.DeclarationBody || p.Language != canonical.Language || p.SQLBody != canonical.SQLBody || p.SQLDefaults != canonical.SQLDefaults || p.LiteralDefaults != canonical.LiteralDefaults || p.InputNames != canonical.InputNames || p.PLHandler != canonical.PLHandler || p.RangeConstructor != canonical.RangeConstructor || p.AccessMethod != canonical.AccessMethod || p.BrinSupport != canonical.BrinSupport || len(p.Body) != 0 || len(p.DeclarationDependencies) != 0 {
+	if !ok || p.Display != canonical.Display || p.Installed != canonical.Installed || p.DeclarationBody != canonical.DeclarationBody || p.Language != canonical.Language || p.SQLBody != canonical.SQLBody || p.SQLDefaults != canonical.SQLDefaults || p.LiteralDefaults != canonical.LiteralDefaults || p.InputNames != canonical.InputNames || p.PLHandler != canonical.PLHandler || p.RangeConstructor != canonical.RangeConstructor || p.AccessMethod != canonical.AccessMethod || p.BrinSupport != canonical.BrinSupport || p.Host != canonical.Host || p.HostHandler != canonical.HostHandler || p.HostConversion != canonical.HostConversion || p.Sepgsql != canonical.Sepgsql || p.SnowballHelper != canonical.SnowballHelper || len(p.Body) != 0 || len(p.DeclarationDependencies) != 0 {
 		return invalid()
 	}
 	name, signature, result := "", catalog.ProcedureSignature(""), ids.OID(0)
@@ -211,6 +211,10 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 		m := IntaggMembers[slot]
 		name, signature, result, strict, kind = m.Name, m.Signature, m.Result, m.Strict, m.Kind
+		volatility = m.Volatility
+		if p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: m.Source}) {
+			return invalid()
+		}
 		if p.Installed != intaggDeclaration(slot) {
 			return invalid()
 		}

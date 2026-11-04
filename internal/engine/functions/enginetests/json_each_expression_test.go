@@ -136,7 +136,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		row := make([]sqltype.Value, 3)
-		present, err := invocation.NextFrom(context.Background(), calls, row)
+		present, err := invocation.NextFrom(context.Background(), calls, row, nil)
 		if err != nil || !present {
 			t.Fatal(present, err)
 		}
@@ -145,7 +145,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if number != 7 || key != "a" || row[2].IsNull() != strings.HasSuffix(name, "_text") {
 			t.Fatal("record presence/null conflated", row)
 		}
-		present, err = invocation.NextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row, nil)
 		if err != nil || !present || !row[1].IsNull() || !row[2].IsNull() || row[1].Type() != b.Type(sqltype.Text) || row[2].Type() != marker.ResultUsage().Type.CompositeMember(1).Usage.Type {
 			t.Fatal("incorrect record padding", row, present, err)
 		}
@@ -153,7 +153,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if number != 8 {
 			t.Fatal("scalar offset", number)
 		}
-		present, err = invocation.NextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row, nil)
 		invocation.Close()
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)

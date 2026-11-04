@@ -90,11 +90,6 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
-		for _, ref := range g.Indexes {
-			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address], index.IndexDrivenDrop); err != nil {
-				return core.Result{}, err
-			}
-		}
 		for _, ref := range g.Targets {
 			stage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
 		}
@@ -102,7 +97,17 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
-		if err := scope.StageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
+		dropProvider := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+		dependencies, err := dropProvider.PrepareExpressionDependencies(roots, drop.Mode, ids.ObjectAddress{})
+		if err != nil {
+			return core.Result{}, err
+		}
+		for _, ref := range g.Indexes {
+			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address], index.IndexDrivenDrop); err != nil {
+				return core.Result{}, err
+			}
+		}
+		if err = dropProvider.ApplyExpressionDependencies(dependencies); err != nil {
 			return core.Result{}, err
 		}
 	}

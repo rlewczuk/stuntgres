@@ -60,6 +60,9 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	if !ok {
 		return invalid()
 	}
+	if d.Sepgsql != nil {
+		return catalog.ValidateSepgsqlRoutine(v, d)
+	}
 	if d.GinSupport != 0 {
 		return catalog.ValidateGinSupport(d)
 	}
@@ -93,9 +96,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return catalog.ValidateBrinSupport(d)
 	}
 	if d.AccessMethod != catalog.NoAccessMethod {
-		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
-		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)
-		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
+		if err := catalog.ValidateNativeAccessMethodProcedure(d); err != nil {
 			return invalid()
 		}
 		return nil

@@ -129,7 +129,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	if authErr != nil {
 		t.Fatal(authErr)
 	}
-	if err := core.CommandRoutineProgramAdmission(&core.ScopeRoutinePrograms(scope)[0]).Readmit(core.RoutineAccessOf(auth)); err == nil {
+	if err := core.CommandRoutineProgramAdmission(&core.ScopeRoutinePrograms(scope)[0]).Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err == nil {
 		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }

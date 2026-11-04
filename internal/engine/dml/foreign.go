@@ -64,6 +64,9 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	// Selection and its optional EXPLAIN callback must see the same current
 	// imported frame that Begin/Exec will receive. Keep this request private to
 	// the modification; the real scan/source lifetime remains with Inputs.
+	if err := in.Foreign.InitializeHandler(h); err != nil {
+		return Outcome{}, err
+	}
 	target := *in.Foreign
 	target.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
 	if err != nil {

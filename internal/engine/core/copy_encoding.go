@@ -30,12 +30,13 @@ func (s *StatementScope) prepareCopyEncoding(o *copyfmt.Options, from bool) erro
 		if err != nil {
 			return err
 		}
-		selected, err := s.conversionProcedure(source, destination)
+		selected, err := s.conversionSelection(source, destination)
 		if err != nil {
 			return err
 		}
-		if selected != nil {
-			handler = selected.Conversion
+		handler, err = selectedConversionHandler(s.Inquiry.visibilityCatalog, selected)
+		if err != nil {
+			return err
 		}
 	}
 	// COPY FROM resolves its one required direction before G, including binary

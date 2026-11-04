@@ -79,9 +79,9 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	pgcryptoRandomUUIDShape(t, raw, pg)
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(pg)}}))
 	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test")))
-	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
 	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT pgcrypto_part.dearmor($1)", []byte("test"), pgcryptoArmorTest))
-	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
+	pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
 	pgpBoth(t, p, c, r, pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text)", "Secret message.", pgpVector(t), "foobar"))
 	pgpBoth(t, p, c, r, pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text,$3::text)", "Secret message.", pgpVector(t), "foobar", ""))
 	for _, prepared := range []bool{false, true} {

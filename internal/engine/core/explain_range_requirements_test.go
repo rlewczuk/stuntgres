@@ -61,6 +61,13 @@ func TestExplainRangeRequirements(t *testing.T) {
 						if req.Ref != leaf.Ref || req.Relation != leaf.Relation {
 							t.Fatal("source request is not from the accepted occurrence")
 						}
+						request := req.AccessRequirement()
+						if request.Object != req.Ref || request.Privileges != req.Privilege || request.ColumnDemand == req.WholeRelation || request.RowMark != req.RowMark || request.Inherit != req.Inherit || request.WholeRow != req.WholeRow || !reflect.DeepEqual(request.Columns, req.Columns) || !reflect.DeepEqual(request.SystemColumns, req.SystemColumns) {
+							t.Fatal("access transport lost the semantic ACL/MAC demand", req, request)
+						}
+						if req.RowMark && (req.Whole() || len(request.Columns) != 0 || len(request.SystemColumns) != 0 || request.WholeRow) {
+							t.Fatal("rowmark invented selected columns or whole-table ACL", request)
+						}
 						columns := req.Columns
 						if len(columns) == 0 {
 							columns = nil

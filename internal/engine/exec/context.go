@@ -26,6 +26,14 @@ type Context struct {
 	EvalAdmission
 	castElement sqltype.Value
 	caseTest    sqltype.Value
+	// Selected only on the actual native adapter's invocation-local value copy.
+	declarationDemand      nativeDeclarationDemand
+	nativeBody             nativeBodyLineage
+	nativeAggregate        nativeAggregateSource
+	nativeAggregateEntered bool                 // Completion only for this local invoke; never captured authority.
+	indexPublication       catalog.Read         // Explicit guarded host-internal publication origin only.
+	routineSourceError     error                // Invalid explicit source transfer; never repaired from a live host.
+	routineSource          routineSourceBinding // Explicit live source attachment, never a closed proof.
 }
 
 // EvalFrame is the current row frame: scope/frame numbers, the current and old
@@ -121,20 +129,24 @@ type EvalStatement struct {
 // zero. Recipe-owned manifests are borrowed only by a local admission copy and
 // never replace the live scope's authority or another recipe's owner.
 type EvalAdmission struct {
-	RoutineAuthority   AdmissionAuthority          // Borrowed local serial DDL admission only; never retained.
-	RoutineRecipe      bool                        // Distinguishes an empty owning manifest from the statement manifest.
-	RoutineGraft       bool                        // Local ancestry phase only; nil user nodes resume the statement manifest.
-	RoutineGraftSource expr.RoutineRecipeReference // Exact view or rule-action ancestry; never a permission cache.
-	RoutineChecks      []catalog.ExpressionDependency
-	RoutineReferences  []ids.ObjectRef
-	RoutineConsumer    *catalog.Relation
-	RoutineProgram     *RoutineProgram // Borrowed serial preparation footprint, never row-owned.
-	RoutineBodyContext RoutineBodyContext
-	AcceptedDefault    *AcceptedDefault // Exact default origin only; never retained authority.
-	DefaultOccurrence  DefaultOccurrence
-	defaultActivation  *defaultActivation
-	defaultCall        *acceptedDefaultCall
-	DomainPhase        ids.CommandIdentity // Existing transaction/command identity, not a permission result.
+	RoutineAuthority        AdmissionAuthority          // Borrowed local serial DDL admission only; never retained.
+	ControlLiteralAuthority ControlLiteralAuthority     // Only the private canonical statistics codec; never a client grant.
+	RoutineRecipe           bool                        // Distinguishes an empty owning manifest from the statement manifest.
+	RoutineGraft            bool                        // Local ancestry phase only; nil user nodes resume the statement manifest.
+	RoutineGraftSource      expr.RoutineRecipeReference // Exact view or rule-action ancestry; never a permission cache.
+	RoutineChecks           []catalog.ExpressionDependency
+	RoutineReferences       []ids.ObjectRef
+	RoutineConsumer         *catalog.Relation
+	RoutineProgram          *RoutineProgram // Borrowed serial preparation footprint, never row-owned.
+	RoutineBodyContext      RoutineBodyContext
+	RoutineInitialization   RoutineInitialization // Actual runtime frame only; never a retained recipe grant.
+	InitializationPhase     RoutineInitializationPhase
+	AcceptedDefault         *AcceptedDefault // Exact default origin only; never retained authority.
+	DefaultOccurrence       DefaultOccurrence
+	defaultActivation       *defaultActivation
+	defaultCall             *acceptedDefaultCall
+	DomainPhase             ids.CommandIdentity // Existing transaction/command identity, not a permission result.
+	DomainRI                bool
 }
 
 func (c *Context) FunctionContext() context.Context {
@@ -154,6 +166,18 @@ func (c *Context) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 
 func (c *Context) FunctionInput() sqltype.InputEnvironment {
 	input := c.Input
+	if owner := c.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+		input.TypeIO, input.Conversion = c, c
+		if c.internalIndexPublication() {
+			input.IndexSupport = nil
+		} else {
+			input.IndexSupport = c
+		}
+	}
+	if c.routineSourceError != nil {
+		input.IndexSupport = c
+		return input
+	}
 	if c.ClosedEvaluation != nil {
 		return input
 	}
@@ -166,7 +190,14 @@ func (c *Context) FunctionInput() sqltype.InputEnvironment {
 	return input
 }
 
-func (c *Context) FunctionOutput() sqltype.OutputEnvironment { return c.Output }
+func (c *Context) FunctionOutput() sqltype.OutputEnvironment {
+	output := c.Output
+	if owner := c.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+		output.TypeIO = c
+		output.Conversion = c
+	}
+	return output
+}
 
 func (c *Context) FunctionOverlapsConstant(node expr.Expr) bool {
 	return OverlapsExecutionConstant(node, c)
@@ -207,6 +238,12 @@ func (c *Context) FunctionPropertiesMatch(properties expr.Properties, rule expr.
 func EvaluationContext(c *Context) error {
 	if c == nil || c.Context == nil {
 		return fmt.Errorf("stuntgres: missing expression context")
+	}
+	if c.routineSourceError != nil {
+		if err := c.Context.Err(); err != nil {
+			return err
+		}
+		return c.routineSourceError
 	}
 	if c.DomainValueActive {
 		c.Input.DomainChecks = c
@@ -341,6 +378,8 @@ type Authority struct {
 	// Immutable invocation metadata survives Host detachment and evaluator
 	// reconstruction; reattaching a held source never resamples session settings.
 	PreserveParameterDemand bool
+	RoutineInitialization   RoutineInitialization // This actual command's borrowed source header.
+	RoutineCatalog          catalog.Read          // Same source's immutable admission snapshot, including no-View sources.
 }
 
 type CursorExpressionData struct {
@@ -353,6 +392,13 @@ type CursorExpressionData struct {
 func (c *Context) LiveHost() Host {
 	if c == nil {
 		return nil
+	}
+	// Inactive aggregate supports retain their historical lexical invocation
+	// gate. Active sealed workers (and missing catalog copies) never borrow it.
+	if c.ClosedEvaluation != nil {
+		if owner := c.Catalog.Owner(); owner == nil || owner.Sepgsql != nil {
+			return nil
+		}
 	}
 	if c.Query != nil {
 		return c.Query.Source.LiveHost()
@@ -386,6 +432,13 @@ func (c *Context) Presentation() PresentationFormatters {
 }
 
 func (c *Context) setContext(ctx context.Context) {
+	if c.routineSource.authority != nil {
+		if c.InitializationPhase != RetainedExpressionInitialization {
+			c.routineSource = routineSourceBinding{}
+		} else if c.routineSourceError == nil {
+			c.routineSourceError = c.refreshRoutineSource()
+		}
+	}
 	runtime := ctx
 	if c.Query != nil && c.Query.ExecutionContext != nil {
 		c.Context = c.Query.ExecutionContext

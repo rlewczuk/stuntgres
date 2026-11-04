@@ -82,6 +82,9 @@ type SnapshotHost interface {
 	// Authority is a fresh copy of the authorization for one decode: the
 	// binder and admission may recapture it.
 	Authority() SnapshotAuthority
+	// ControlLiteralAuthority is the explicit private codec evaluation origin;
+	// it never replaces the binder's genuine concrete captured authority.
+	ControlLiteralAuthority() exec.ControlLiteralAuthority
 	// BindingHost is the binder host for one constructor scalar: type,
 	// namespace and object-name hooks over the captured authority.
 	BindingHost(ctx context.Context) analyze.Host

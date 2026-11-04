@@ -50,7 +50,7 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if value.IsNull() {
 		return failure(SQLError("22004", "query string argument of EXECUTE is null"))
 	}
-	command, err := value.Type().OutputWithEnvironment(h.Context(), value, s.Output)
+	command, err := s.plValueText(value)
 	if err != nil {
 		return failure(err)
 	}

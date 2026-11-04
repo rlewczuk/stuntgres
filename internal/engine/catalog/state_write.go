@@ -47,7 +47,6 @@ func (s *State) replaceDescriptor(a ids.ObjectAddress, old, d Descriptor) {
 	s.updateSubscriptions(old, d)
 	s.updateReplicationOrigins(old, d)
 	s.updatePublications(old, d)
-	s.updateHelperOwners(old, d)
 	s.updateForeignActionOwners(old, d)
 	s.updateExtensionMembers(a, old, d)
 	s.updateTemporaryNamespaces(old, d)
@@ -66,7 +65,6 @@ func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	s.updateSubscriptions(old, nil)
 	s.updateReplicationOrigins(old, nil)
 	s.updatePublications(old, nil)
-	s.updateHelperOwners(old, nil)
 	s.updateForeignActionOwners(old, nil)
 	s.updateExtensionMembers(a, old, nil)
 	s.updateTemporaryNamespaces(old, nil)
@@ -95,7 +93,6 @@ func (s *State) ResetDescriptors() {
 	s.publications = util.PersistentMap[ids.ObjectAddress, *Publication]{}
 	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
 	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
-	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
 	s.foreignActionOwners = foreignActionIndex{}
 	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
@@ -121,7 +118,6 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.publications = util.PersistentMap[ids.ObjectAddress, *Publication]{}
 	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
 	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
-	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
 	s.foreignActionOwners = foreignActionIndex{}
 	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}

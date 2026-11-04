@@ -54,7 +54,7 @@ const (
 // cannot certify the original call after a wait.
 func (b *UniqueWriteBinding) ReadmitPrograms(auth exec.RoutineAccess) error {
 	for i := range b.Keys {
-		if err := b.Keys[i].Preparation.admission.Readmit(auth); err != nil {
+		if err := b.Keys[i].Preparation.admission.Readmit(auth, exec.ConsumedGraphRevalidation); err != nil {
 			return err
 		}
 	}
@@ -62,7 +62,7 @@ func (b *UniqueWriteBinding) ReadmitPrograms(auth exec.RoutineAccess) error {
 		if b.Insertion[i].Unique != nil {
 			continue
 		}
-		if err := b.Insertion[i].preparation.admission.Readmit(auth); err != nil {
+		if err := b.Insertion[i].preparation.admission.Readmit(auth, exec.ConsumedGraphRevalidation); err != nil {
 			return err
 		}
 	}

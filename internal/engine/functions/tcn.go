@@ -60,6 +60,11 @@ func (n Tcn) Eval(c expr.Context) (sqltype.Value, error) {
 	if err := n.Validate(); err != nil {
 		return sqltype.Value{}, err
 	}
+	body, err := n.EnterRoutine(c, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return sqltype.Value{}, sqlError("39P01", "triggered_change_notification: must be called as trigger")
 }
 func (n Tcn) OpenSource(c expr.Context) (expr.SourceCursor, error) {

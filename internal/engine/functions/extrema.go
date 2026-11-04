@@ -26,7 +26,7 @@ func (p ExtremaProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &extremaState{value: sqltype.Null(p.usage.Type)}, nil
 }
-func (p ExtremaProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+func (p ExtremaProvider) Advance(ctx context.Context, state any, values []sqltype.Value, evaluation expr.Context) error {
 	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
@@ -45,7 +45,11 @@ func (p ExtremaProvider) Advance(ctx context.Context, state any, values []sqltyp
 		s.value = value
 		return ctx.Err()
 	}
-	sign, err := p.comparison.Compare(ctx, value, s.value, sqltype.InputEnvironment{})
+	var input sqltype.InputEnvironment
+	if evaluation != nil {
+		input = evaluation.FunctionInput()
+	}
+	sign, err := p.comparison.Compare(ctx, value, s.value, input)
 	if err != nil {
 		return err
 	}
@@ -73,3 +77,7 @@ func NewExtremaProvider(usage sqltype.Usage, comparison sqltype.Comparison, maxi
 func (p ExtremaProvider) Maximum() bool { return p.maximum }
 
 func (p ExtremaProvider) Comparison() sqltype.Comparison { return p.comparison }
+
+func (p ExtremaProvider) VisitIndexSupports(visit func(sqltype.IndexSupport, uint16) error) error {
+	return p.comparison.VisitIndexSupports(visit)
+}

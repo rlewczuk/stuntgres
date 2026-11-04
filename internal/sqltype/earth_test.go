@@ -12,6 +12,36 @@ func TestEarthCubeChecks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	origin, err := d.Input(context.Background(), "(0)", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !origin.IsEarthCubeOrigin(d) {
+		t.Fatal("canonical source origin rejected")
+	}
+	for _, input := range []string{"()", "(1)", "(0,0)", "(NaN)"} {
+		bad, err := d.Input(context.Background(), input, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bad.IsEarthCubeOrigin(d) {
+			t.Fatal("noncanonical source origin accepted", input)
+		}
+		if _, err := origin.EarthCubeCheckLeaf(EarthOnSurface, bad); err == nil {
+			t.Fatal("distance leaf accepted a substituted source origin", input)
+		}
+	}
+	foreign, err := Cube(48002, "cube", "foreign.cube")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignOrigin, err := foreign.Input(context.Background(), "(0)", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if foreignOrigin.IsEarthCubeOrigin(d) {
+		t.Fatal("foreign generation became a source origin")
+	}
 	for _, tc := range []struct {
 		input                      string
 		point, dimensions, surface bool
@@ -33,12 +63,14 @@ func TestEarthCubeChecks(t *testing.T) {
 				t.Fatal(err)
 			}
 			for i, want := range []bool{tc.point, tc.dimensions, tc.surface} {
-				got, err := v.CheckEarthCube(EarthCheck(i + 1))
+				kind := EarthCheck(i + 1)
+				leaf, err := v.EarthCubeCheckLeaf(kind, origin)
+				got := kind.MatchLeaf(leaf)
 				if err != nil || got != want {
 					t.Fatalf("kind%d got %v/%v want %v", i+1, got, err, want)
 				}
 			}
-			if _, err := v.CheckEarthCube(0); err == nil {
+			if _, err := v.EarthCubeCheckLeaf(0, origin); err == nil {
 				t.Fatal("invalid kind accepted")
 			}
 		})
@@ -49,13 +81,14 @@ func TestEarthCubeChecks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := v.CheckEarthCube(EarthOnSurface)
+			leaf, err := v.EarthCubeCheckLeaf(EarthOnSurface, origin)
+			got := EarthOnSurface.MatchLeaf(leaf)
 			if err != nil || got != (i == 0) {
 				t.Fatalf("adjacent %v got %v/%v", x, got, err)
 			}
 		}
 	}
-	if _, err := Null(d).CheckEarthCube(EarthOnSurface); err == nil {
+	if _, err := Null(d).EarthCubeCheckLeaf(EarthOnSurface, origin); err == nil {
 		t.Fatal("physical NULL check bypass")
 	}
 }

@@ -45,6 +45,21 @@ func domainUnitStage(t *testing.T, e *core.Engine, op *session.Operation, q stri
 	}
 	return stage
 }
+
+func domainUnitApplyDrop(scope *core.StatementScope, stage *core.CatalogStage, mode parser.DropMode) error {
+	drop := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+	plan, err := drop.PrepareExpressionDependencies(stage.DomainTargets, mode, ids.ObjectAddress{})
+	if err != nil {
+		return err
+	}
+	if err = stage.ApplySelectedDropRoots(plan); err != nil {
+		return err
+	}
+	if err = drop.ApplyExpressionDependencies(plan); err != nil {
+		return err
+	}
+	return drop.ApplyOwnedExpressionDependencies(plan)
+}
 func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)

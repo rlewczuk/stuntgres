@@ -16,6 +16,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	// Line comment decoders.
 	{Name: "host runtime prerequisites", Decode: decodeRestoreHostRequirement},
 	{Name: "external SQL prerequisites", Decode: decodeRestoreExternalRequirement, Finish: finishRestoreExternalRequirements},
+	{Name: "sepgsql simulation requirement", Decode: decodeRestoreSepgsqlRequirement},
 	{Name: "host pair absence boundary", Decode: decodeRestoreHostAbsences},
 	{Name: "typedef: domain replay records", Decode: decodeRestoreDomainReplay},
 	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},
@@ -51,6 +52,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "subscription metadata", Admit: control.AdmitKind[*restoreRun, *parser.Subscription]},
 	{Name: "operator DDL", Admit: control.AdmitOperator[*restoreRun]},
 	{Name: "CREATE FUNCTION", Admit: control.AdmitKind[*restoreRun, *parser.CreateFunction]},
+	{Name: "SECURITY LABEL", Admit: admitRestoreSepgsqlLabel},
 	{Name: "CREATE AGGREGATE", Admit: control.AdmitKind[*restoreRun, *parser.CreateAggregate]},
 	{Name: "CREATE EXTENSION", Admit: control.AdmitKind[*restoreRun, *parser.CreateExtension]},
 	{Name: "extension replay DDL", Admit: control.AdmitExtension[*restoreRun]},
@@ -86,6 +88,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "inheritance: generation recipe data", Prepare: prepareRestoreRecipeData},
 	{Name: "inheritance: generation pair", Prepare: prepareRestoreGenerationPair},
 	{Name: "replay flags", Prepare: prepareRestoreReplayFlags},
+	{Name: "sepgsql label target", Prepare: prepareRestoreSepgsqlLabel},
 	{Name: "partition: CHECK replay", Prepare: prepareRestorePartitionCheck},
 	{Name: "partition: USING INDEX replay", Prepare: prepareRestorePartitionUsingIndex},
 	{Name: "partition: UNIQUE replay", Prepare: prepareRestorePartitionUnique},
@@ -131,4 +134,5 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: pending detach membership", Finish: finishRestorePendingDetaches},
 	{Name: "initial privileges replacement", Finish: finishRestoreInitialPrivileges},
 	{Name: "GIN split replacement", Finish: finishRestoreGin},
+	{Name: "sepgsql imported authority", Finish: finishRestoreSepgsql},
 }

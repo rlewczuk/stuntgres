@@ -19,6 +19,8 @@ type OwnerStage interface {
 	// CascadeRevision is the next definition revision of a replaced
 	// descriptor; terminal cleanup may saturate it.
 	CascadeRevision(ids.DefinitionRevision) (ids.DefinitionRevision, error)
+	// The real ownership recursion emits child relation hooks before its parent.
+	SepgsqlPostAlter(*catalog.Relation, ids.ObjectAddress, bool) error
 }
 
 // OwnedCleanupStage is the catalog stage DROP OWNED cleans ACLs, policies,
@@ -44,4 +46,7 @@ type OwnedCleanupStage interface {
 	// the roles as the staged catalog reads them: candidate's, or
 	// publication's when candidate is nil.
 	SetRoleCandidate(candidate, publication *access.RoleRecord) authorization.Read
+	// ReadRoleCandidate reads the genuine proposed membership root without
+	// installing it in the catalog stage during cleanup preparation.
+	ReadRoleCandidate(candidate, publication *access.RoleRecord) authorization.Read
 }

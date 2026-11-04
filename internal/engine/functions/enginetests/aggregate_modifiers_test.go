@@ -41,7 +41,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 		{[]sqltype.Value{a, slash}, true}, {[]sqltype.Value{a, null}, true}, {[]sqltype.Value{a, null}, false},
 		{[]sqltype.Value{null, comma}, true}, {[]sqltype.Value{null, comma}, false},
 	} {
-		admit, err := state.Admit(context.Background(), grouping, tc.tuple)
+		admit, err := state.Admit(context.Background(), grouping, tc.tuple, nil)
 		if err != nil || admit != tc.admit {
 			t.Fatal(i, admit, err)
 		}
@@ -58,16 +58,16 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 		hash = (hash ^ h) * 1099511628211
 	}
 	state.Buckets[hash] = []int{0}
-	admit, err := state.Admit(context.Background(), grouping, tuple)
+	admit, err := state.Admit(context.Background(), grouping, tuple, nil)
 	if err != nil || !admit || len(state.Tuples) != 10 {
 		t.Fatal(admit, err, state.Tuples)
 	}
-	admit, err = state.Admit(context.Background(), grouping, tuple)
+	admit, err = state.Admit(context.Background(), grouping, tuple, nil)
 	if err != nil || admit {
 		t.Fatal(admit, err)
 	}
 	var other exec.AggregateDistinctState
-	if admit, err := other.Admit(context.Background(), grouping, []sqltype.Value{a, comma}); err != nil || !admit {
+	if admit, err := other.Admit(context.Background(), grouping, []sqltype.Value{a, comma}, nil); err != nil || !admit {
 		t.Fatal("cross-call/group/execution state", admit, err)
 	}
 	if len(state.Tuples) != 10 {
@@ -175,18 +175,18 @@ func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, phase := range []string{".Grouping.PrepareKey", ".Grouping.Hash", ".Grouping.Equal"} {
+	for _, phase := range []string{".Grouping.PrepareKey", ".Grouping.HashWithBoundary", ".Grouping.EqualWithBoundary"} {
 		t.Run(phase, func(t *testing.T) {
 			var state exec.AggregateDistinctState
 			grouping := []plan.Grouping{{Grouping: family}}
 			value := sqltype.String(typ, strings.Repeat("x", 8192))
-			if _, err := state.Admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
+			if _, err := state.Admit(context.Background(), grouping, []sqltype.Value{value}, nil); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: phase}
-			admit, err := state.Admit(probe, grouping, []sqltype.Value{value})
+			admit, err := state.Admit(probe, grouping, []sqltype.Value{value}, nil)
 			if !probe.entered || !errors.Is(err, context.Canceled) || admit || len(state.Tuples) != 1 {
 				t.Fatal(phase, probe.entered, admit, err, state.Tuples)
 			}
@@ -243,9 +243,9 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 			var execution context.Context = ctx
 			var familyProbe *aggregateModifierFamilyCancelContext
 			if phase == "hash" || phase == "equality" {
-				target := ".Grouping.Hash"
+				target := ".Grouping.HashWithBoundary"
 				if phase == "equality" {
-					target = ".Grouping.Equal"
+					target = ".Grouping.EqualWithBoundary"
 				}
 				familyProbe = &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: target}
 				execution = familyProbe

@@ -50,7 +50,7 @@ func (v Value) ValidateMappedRanges(ctx context.Context) error {
 			if !r.validRangeDatum(member) {
 				return fmt.Errorf("invalid mapped range endpoint generation")
 			}
-			canonical, err := r.canonicalRange(ctx, member, false)
+			canonical, err := r.canonicalRange(ctx, member, false, InputEnvironment{})
 			if err != nil {
 				if ctx.Err() != nil {
 					return err

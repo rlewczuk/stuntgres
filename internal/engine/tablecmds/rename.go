@@ -128,6 +128,16 @@ func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *sessio
 	}
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err == nil {
+		if columnRename {
+			target := next.Address()
+			target.SubID = next.Attributes[next.Index[destination]]
+			err = stage.SepgsqlPostAlter(&next, target, false)
+		} else {
+			err = stage.SepgsqlRelationNameChange(old, &next)
+		}
+		if err != nil {
+			return core.Result{}, err
+		}
 		var prepared *core.PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(op.Context(), stage)
 		if err == nil {

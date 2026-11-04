@@ -76,10 +76,15 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				return err
 			}
 			providerRef := e.Catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())
+			drop := core.StageDropProvider(context.Background(), stage, nil, changes, project)
+			dependencies, err := drop.PrepareExpressionDependencies([]ids.ObjectAddress{provider.Address()}, parser.DropCascade, ids.ObjectAddress{})
+			if err != nil {
+				t.Fatal(err)
+			}
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}
-			if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project, ids.ObjectAddress{}); err != nil {
+			if err := drop.ApplyExpressionDependencies(dependencies); err != nil {
 				t.Fatal(err)
 			}
 			intermediate := stage.Get(idx.Address()).(*catalog.Relation)
@@ -118,7 +123,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if intermediate == idx || intermediate.SQLIndex.Keys[0].Derived == idx.SQLIndex.Keys[0].Derived {
 				t.Fatal("first candidate mutated original")
 			}
-			err := core.StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project)
+			err = drop.ApplyOwnedExpressionDependencies(dependencies)
 			if mode == "OrdinaryOverflow" {
 				if err == nil || err.Error() != "stuntgres: index revision exhausted" {
 					t.Fatal("ordinary second evolution overflow", err)

@@ -142,10 +142,15 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 		return IndexHash{}, err
 	}
 	if u.Type.BaseType().IsLtree() {
-		if !validLtreeHashSupport(u,c) { return IndexHash{},fmt.Errorf("invalid installed ltree hash support") }
-		g,err:=BindGrouping(u);if err!=nil{return IndexHash{},err}
-		p:=PartitionHash{usage:u,class:c,input:c.input,routine:c.Support(1).Routine}
-		return IndexHash{usage:u,class:c,grouping:g,native:p},nil
+		if !validLtreeHashSupport(u, c) {
+			return IndexHash{}, fmt.Errorf("invalid installed ltree hash support")
+		}
+		g, err := BindGrouping(u)
+		if err != nil {
+			return IndexHash{}, err
+		}
+		p := PartitionHash{usage: u, class: c, input: c.input, routine: c.Support(1).Routine}
+		return IndexHash{usage: u, class: c, grouping: g, native: p}, nil
 	}
 	if u.Type.BaseType().IsHstore() {
 		if !validHstoreHashSupport(u, c) {
@@ -213,11 +218,26 @@ func (p *IndexHash) normalize(v Value) (Value, error) {
 }
 
 func (p *IndexHash) Hash(ctx context.Context, v Value) (uint64, error) {
-	h, err := p.native.Hash(ctx, v, 0)
+	return p.HashWithEnvironment(ctx, v, InputEnvironment{})
+}
+func (p *IndexHash) HashWithEnvironment(ctx context.Context, v Value, input InputEnvironment) (uint64, error) {
+	h, err := p.native.HashWithEnvironment(ctx, v, 0, input)
 	return uint64(uint32(h)), err
 }
 
+// WithEqualityCallback attaches the genuine selected family equality function.
+// Hash support and equality are distinct routines and never share a role stamp.
+func (p IndexHash) WithEqualityCallback(callback GroupingCallbackReference) (IndexHash, error) {
+	var err error
+	p.grouping, err = p.grouping.WithCallbacks(callback, nil)
+	return p, err
+}
+
 func (p *IndexHash) Equal(ctx context.Context, a, b Value) (bool, error) {
+	return p.EqualWithEnvironment(ctx, a, b, InputEnvironment{})
+}
+
+func (p *IndexHash) EqualWithEnvironment(ctx context.Context, a, b Value, input InputEnvironment) (bool, error) {
 	a, err := p.normalize(a)
 	if err != nil {
 		return false, err
@@ -226,7 +246,8 @@ func (p *IndexHash) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return p.grouping.Equal(ctx, a, b)
+	boundary, _ := input.IndexSupport.(GroupingBoundary)
+	return p.grouping.EqualWithBoundary(ctx, a, b, boundary)
 }
 
 // Comparison captures the selected hash operation's typed datum ordering for

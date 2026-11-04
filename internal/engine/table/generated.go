@@ -50,7 +50,14 @@ func PrepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 		if !exists || definition.Kind != catalog.GenerationStored {
 			continue
 		}
-		stored = true
+		if !stored {
+			// The actual execution owner must survive all recipe-local copies,
+			// cached program reuse and later rows. Unused/virtual slots mint none.
+			if err := exec.BeginRoutineInitialization(c); err != nil {
+				return nil, err
+			}
+			stored = true
+		}
 		recipe := *c
 		recipe.RoutineRecipe, recipe.RoutineGraft = true, false
 		recipe.RoutineChecks = nil
@@ -108,7 +115,13 @@ func EvaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 		if program != nil {
 			expression = program[slot]
 		}
-		value, err := expression.Eval(c)
+		recipe := *c
+		recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+		recipe.RoutineChecks = nil
+		recipe.RoutineReferences = definition.Dependencies
+		recipe.RoutineConsumer = d
+		value, err := expression.Eval(&recipe)
+		c.PreparedDomainChecks = recipe.PreparedDomainChecks
 		if err != nil {
 			return err
 		}

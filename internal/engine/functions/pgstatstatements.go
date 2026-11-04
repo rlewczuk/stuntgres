@@ -105,6 +105,11 @@ func (n PgStatStatements) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement statistics runtime")
 	}
+	body, err := n.EnterRoutine(ctx, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	rows, err := runtime.PgStatStatements(true, n.InfoOnly, n.Usage.Type)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -132,6 +137,16 @@ func (n PgStatStatements) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 	if !ok {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing statement statistics runtime")
 	}
+	facts := expr.RoutineBodyInputs{Occurrence: n.Occurrence, Source: n.Source}
+	if n.ShowText != nil {
+		facts.Count = 1
+		facts.First = n.ShowText.ResultUsage().Type
+	}
+	body, err := ctx.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, facts)
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	defer body.Leave()
 	rows, err := runtime.PgStatStatements(show, n.InfoOnly, n.Usage.Type)
 	if err != nil {
 		return expr.SourceCursor{}, err

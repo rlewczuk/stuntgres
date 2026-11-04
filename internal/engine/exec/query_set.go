@@ -83,6 +83,7 @@ func (s *recursiveUnionStage) close() error {
 
 func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, error) {
 	defer func() { s.Arm.Inner.Evaluation.Context = nil }()
+	evaluation := s.state.Evaluation(ctx)
 	for s.Phase < 2 {
 		if err := sampleCheckpoint(ctx); err != nil {
 			return false, err
@@ -166,7 +167,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 			row[search.Slot] = value
 		}
 		if cycle != nil {
-			row, err = cycle.Augment(ctx, sampleCheckpoint, row, parentCycle, s.mark, s.fallback)
+			row, err = cycle.Augment(ctx, sampleCheckpoint, row, parentCycle, s.mark, s.fallback, &evaluation)
 			if err != nil {
 				return false, err
 			}
@@ -186,7 +187,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 					return false, err
 				}
 				row[slot] = value
-				part, err := family.Hash(ctx, value)
+				part, err := family.HashWithEvaluation(ctx, value, &evaluation)
 				if err != nil {
 					return false, err
 				}
@@ -196,7 +197,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				hash = (hash ^ part) * 1099511628211
 			}
 			if search != nil {
-				part, err := search.Hash(ctx, sampleCheckpoint, row[search.Slot])
+				part, err := search.Hash(ctx, sampleCheckpoint, row[search.Slot], &evaluation)
 				if err != nil {
 					return false, err
 				}
@@ -206,7 +207,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				hash = (hash ^ part) * 1099511628211
 			}
 			if cycle != nil {
-				part, err := cycle.HashPath(ctx, sampleCheckpoint, row[cycle.MarkSlot+1])
+				part, err := cycle.HashPath(ctx, sampleCheckpoint, row[cycle.MarkSlot+1], &evaluation)
 				if err != nil {
 					return false, err
 				}
@@ -215,7 +216,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, er
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
-			index, err := s.FindTuple(ctx, row, s.Seen[hash])
+			index, err := s.FindTuple(ctx, row, s.Seen[hash], &evaluation)
 			if err != nil {
 				return false, err
 			}
@@ -284,10 +285,10 @@ func openWorktableScan(ctx context.Context, state *State, n *plan.WorktableScanN
 	return Stage{Source: source, Columns: n.Schema(), Selection: stage.Current}, nil
 }
 
-func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
+func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value, candidates []int, evaluation expr.Context) (int, error) {
 	c, search := s.Node.Cycle, s.Node.Search
 	if c == nil && search == nil {
-		return FindDistinctTuple(ctx, s.Node.Grouping, row, s.Source.Flat, candidates)
+		return FindDistinctTuple(ctx, s.Node.Grouping, row, s.Source.Flat, candidates, evaluation)
 	}
 	width := len(s.Node.Schema())
 	for _, index := range candidates {
@@ -298,7 +299,7 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 		equal := true
 		for i, g := range s.Node.Grouping {
 			slot := s.Node.GroupingSlot(i)
-			same, err := g.Equal(ctx, row[slot], other[slot])
+			same, err := g.EqualWithEvaluation(ctx, row[slot], other[slot], evaluation)
 			if err != nil {
 				return -1, err
 			}
@@ -311,7 +312,7 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 			}
 		}
 		if equal && search != nil {
-			same, err := search.Equal(ctx, sampleCheckpoint, row[search.Slot], other[search.Slot])
+			same, err := search.Equal(ctx, sampleCheckpoint, row[search.Slot], other[search.Slot], evaluation)
 			if err != nil {
 				return -1, err
 			}
@@ -321,7 +322,7 @@ func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value
 			equal = same
 		}
 		if equal && c != nil {
-			same, err := c.EqualPath(ctx, sampleCheckpoint, row[c.MarkSlot+1], other[c.MarkSlot+1])
+			same, err := c.EqualPath(ctx, sampleCheckpoint, row[c.MarkSlot+1], other[c.MarkSlot+1], evaluation)
 			if err != nil {
 				return -1, err
 			}
@@ -431,6 +432,7 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 		return out, fmt.Errorf("stuntgres: invalid set grouping schema")
 	}
 	source := &Source{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
+	evaluation := state.Evaluation(ctx)
 	buckets := make(map[uint64][]int)
 	var counts [][2]int
 	for side, arm := range [2]*plan.ProjectNode{n.Left, n.Right} {
@@ -468,7 +470,7 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 						return err
 					}
 					row[j] = value
-					h, err := family.Hash(ctx, value)
+					h, err := family.HashWithEvaluation(ctx, value, &evaluation)
 					if err != nil {
 						return err
 					}
@@ -477,7 +479,7 @@ func OpenSetNode(ctx context.Context, state *State, n *plan.SetNode) (out Stage,
 					}
 					hash = (hash ^ h) * 1099511628211
 				}
-				index, err := FindDistinctTuple(ctx, n.Grouping, row, source.Flat, buckets[hash])
+				index, err := FindDistinctTuple(ctx, n.Grouping, row, source.Flat, buckets[hash], &evaluation)
 				if err != nil {
 					return err
 				}

@@ -357,7 +357,11 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	f.view.State().SetDescriptor(independent.Address(), &independent)
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := tablecmds.StagePartitionConstraintDrop(f.e, stage, f.root.Constraints.Unique[0].OID); err != nil {
+	captured, err := index.PreparePartitionConstraintDrop(f.view, f.view.Descriptors(), f.view.Get, f.root.Constraints.Unique[0].OID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = captured.Apply(stage); err != nil {
 		t.Fatal(err)
 	}
 	if err := index.StagePartitionIndexDrop(stage, f.parent, index.ConstraintDrivenDrop); err != nil {
@@ -417,7 +421,9 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	auth, err := core.OperationAuthorization(op)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.e.Mu.Lock()
 	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
@@ -634,7 +640,9 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	auth, err := core.OperationAuthorization(op)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.e.Mu.Lock()
 	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
@@ -1012,7 +1020,11 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*core.Engi
 	e.Mu.Unlock()
 	if key {
 		root := base.MustRelation(roleTableRef(t, e, "root_key").Address)
-		if err := tablecmds.StagePartitionConstraintDrop(e, stage, root.SQLIndex.Constraint.OID); err != nil {
+		captured, err := index.PreparePartitionConstraintDrop(base, base.Descriptors(), base.Get, root.SQLIndex.Constraint.OID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = captured.Apply(stage); err != nil {
 			t.Fatal(err)
 		}
 		if err := index.StagePartitionIndexDrop(stage, root, index.ConstraintDrivenDrop); err != nil {

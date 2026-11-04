@@ -21,7 +21,7 @@ func FoldPlanningExpression(c *Context, node expr.Expr) (sqltype.Value, error) {
 	}
 	p := node.Properties()
 	group := c.FoldCaptures
-	persistent := group != nil && p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(node)
+	persistent := group != nil && !sepgsqlPlanningSensitive(c, node) && p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(node)
 	info := expr.InfoOf(node)
 	key := FoldConstant{Offset: info.Pos.Offset, Occurrence: info.Occurrence, Source: info.Source, Origin: c.FoldOrigin, Frame: info.Source.Frame, Callable: info.RoutineReference, Result: info.Usage}
 	switch n := node.(type) {

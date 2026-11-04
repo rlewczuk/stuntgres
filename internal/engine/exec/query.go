@@ -357,6 +357,8 @@ type State struct {
 	Input                  sqltype.InputEnvironment
 	Output                 sqltype.OutputEnvironment
 	ClosedEvaluation       *EvaluationCapture
+	RoutineInitialization  RoutineInitialization // Actual initialized execution frame, copied on pulls.
+	routineSource          routineSourceBinding  // Existing live attachment shared by retained state copies.
 	Locking                bool
 	IdentityReads          bool
 	inherited              plan.RowMark
@@ -1026,6 +1028,34 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if child.Permutation != nil {
 			indices = child.Permutation
 		}
+		input := state.Input
+		// This is allocation-only demand selection. State.Evaluation remains
+		// the sole catalog-precedence and source-validation owner.
+		active := state.RoutineInitialization.Active() || state.ClosedEvaluation != nil && state.ClosedEvaluation.Routines.owner.Active()
+		var header, view, outer catalog.Read
+		if state.Source != nil {
+			if authority := state.Source.Authority; authority != nil {
+				active = active || authority.RoutineInitialization.Active()
+				header = authority.RoutineCatalog
+			}
+			if state.Source.View != nil {
+				view = state.Source.View.Catalog()
+			}
+		}
+		if state.Outer != nil {
+			outer = state.Outer.Catalog
+		}
+		for _, read := range [3]catalog.Read{header, view, outer} {
+			if owner := read.Owner(); owner != nil && owner.Sepgsql != nil {
+				active = true
+			}
+		}
+		if active {
+			// The comparator borrows the same admitted source as expressions.
+			// A bare statement environment has no actual support entry boundary.
+			evaluation := state.Evaluation(ctx)
+			input = evaluation.FunctionInput()
+		}
 		err = MergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
 			leftIndex, rightIndex := a, b
 			var leftValues, rightValues []sqltype.Value
@@ -1034,7 +1064,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				leftValues = child.OrderValues[a*n.CacheWidth : (a+1)*n.CacheWidth]
 				rightValues = child.OrderValues[b*n.CacheWidth : (b+1)*n.CacheWidth]
 			}
-			return CompareQueryOrder(ctx, n.Keys, state.Input,
+			return CompareQueryOrder(ctx, n.Keys, input,
 				QuerySortRow{Source: child.Source, Index: leftIndex, values: leftValues},
 				QuerySortRow{Source: child.Source, Index: rightIndex, values: rightValues})
 		})
@@ -1343,6 +1373,12 @@ func (r *FinalRows) TakeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 // SELECT and INSERT settle residual qualified marks at the eager publication
 // frontier. A nested scalar bridge is not a publication frontier.
 func OpenQueryProjectStage(ctx context.Context, state *State, project *plan.ProjectNode) (Stage, error) {
+	if err := state.validateRoutineSourceCatalog(); err != nil {
+		if canceled := ctx.Err(); canceled != nil {
+			err = canceled
+		}
+		return Stage{}, state.FinishSources(err)
+	}
 	child, err := OpenNode(ctx, state, project)
 	if err != nil {
 		return Stage{}, state.FinishSources(err)

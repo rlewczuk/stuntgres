@@ -4,16 +4,17 @@ import (
 	"context"
 	"unsafe"
 
+	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqltype/pgencoding18"
 )
 
 // encodedField borrows reusable statement-local scratch only until its caller
 // appends this field into the complete row. No view is retained by rows or I/O.
-func (o Options) encodedField(ctx context.Context, text string, scratch []byte) (string, []byte, error) {
+func (o Options) encodedField(ctx context.Context, text string, scratch []byte, boundary sqltype.EncodingConversionBoundary) (string, []byte, error) {
 	if !o.Transport {
 		return text, scratch, nil
 	}
-	scratch, err := o.Conversion.Append(ctx, scratch[:0], text)
+	scratch, err := o.Conversion.AppendWithBoundary(ctx, scratch[:0], text, boundary)
 	if err != nil {
 		return "", scratch, err
 	}

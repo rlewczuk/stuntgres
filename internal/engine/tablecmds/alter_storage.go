@@ -12,19 +12,42 @@ func stageColumnStorageIndexes(stage *core.CatalogStage, parent *catalog.Relatio
 	properties := parent.ColumnStorage(slot)
 	for _, relation := range stage.StageRead().Relations() {
 		definition := relation.SQLIndex
-		if definition == nil || definition.Parent != parent.Address() { continue }
+		if definition == nil || definition.Parent != parent.Address() {
+			continue
+		}
 		for i := range relation.Columns {
 			selected := int32(0)
-			if i < len(definition.Keys) { selected = definition.Keys[i].Attribute } else { selected = definition.Include[i-len(definition.Keys)] }
-			if selected != attribute { continue }
+			if i < len(definition.Keys) {
+				selected = definition.Keys[i].Attribute
+			} else {
+				selected = definition.Include[i-len(definition.Keys)]
+			}
+			if selected != attribute {
+				continue
+			}
 			value := relation.ColumnStorage(i)
-			if action == parser.SetStorage { value.Storage = properties.Storage } else { value.Compression = properties.Compression }
+			if action == parser.SetStorage {
+				value.Storage = properties.Storage
+			} else {
+				value.Compression = properties.Compression
+			}
 			next := relation.WithColumnStorage(i, value)
 			if next != relation {
 				if original, exists := stage.Base.Relation(relation.Address()); exists && relation.Revision() == original.Revision() {
-					if err := table.BumpAlterRevision(original, next); err != nil { return err }
+					if err := table.BumpAlterRevision(original, next); err != nil {
+						return err
+					}
 				}
-				if err := stage.Replace(next); err != nil { return err }
+				if err := stage.Replace(next); err != nil {
+					return err
+				}
+			}
+			// Released SetIndexStorageProperties passes the parent OID with the
+			// index attribute ordinal, not the selected parent attribute number.
+			target := parent.Address()
+			target.SubID = int32(i + 1)
+			if err := stage.SepgsqlPostAlter(parent, target, false); err != nil {
+				return err
 			}
 			break // PostgreSQL updates only the first simple occurrence.
 		}

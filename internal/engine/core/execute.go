@@ -441,7 +441,7 @@ func (e *Engine) executeDataStatement(scope *StatementScope, stmt parser.Stateme
 		e.Mu.Unlock()
 		runtimeContext := scope.ActivateRuntime(ctx)
 		evaluation.Context = runtimeContext
-		err = importFrame(runtimeContext, b.Parameters, canonical, evaluation.Input)
+		err = importFrame(runtimeContext, b.Parameters, canonical, evaluation.FunctionInput())
 		evaluation.Context = ctx
 		e.Mu.Lock()
 		if err != nil {

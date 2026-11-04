@@ -18,10 +18,13 @@ type ExecutionPreparation struct {
 	Ordinary                                           []expr.Expr // Only ordinary validation without an existing ordering/hash programme.
 	admission                                          exec.RoutineProgram
 	constantsPrepared, predicatePrepared, keysPrepared bool
+	keyInitializations                                 []exec.RoutineInitialization
+	predicateInitialization                            exec.RoutineInitialization
 }
 
 func RecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, parent *catalog.Relation) exec.Context {
 	local := *evaluation
+	local.ClearNativeBodySource()
 	local.RoutineGraft = false
 	local.RoutineRecipe = true
 	local.RoutineChecks = nil
@@ -30,6 +33,9 @@ func RecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, pa
 }
 
 func PrepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *exec.RoutineProgram, executable bool) (expr.Expr, error) {
+	if err := exec.BeginRoutineInitialization(evaluation); err != nil {
+		return nil, err
+	}
 	local := RecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
 	expression, err := refreshIndexRecipe(&local, parent, dependencies, expression)
@@ -50,8 +56,39 @@ func PrepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependen
 // SQL constant planning is demanded by the first real tuple, before predicate
 // truth. Nonconstant key initialization still waits for a true predicate.
 func (p *ExecutionPreparation) prepareConstants(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *Ordering, hash *storage.HashBinding) error {
+	if ordering != nil {
+		ordering.BorrowSupport(evaluation)
+	}
 	if p.constantsPrepared {
 		return nil
+	}
+	if owner := evaluation.Catalog.Owner(); owner != nil && owner.Sepgsql != nil && p.keyInitializations == nil {
+		for _, selected := range definition.Keys {
+			if selected.Derived == nil {
+				continue
+			}
+			// Plain attribute keys have no executable recipe to initialize.
+			// Mint all actual recipe owners before the first prewalk.
+			host := evaluation.LiveHost()
+			if host == nil {
+				return ids.ErrCatalogReplaced
+			}
+			p.keyInitializations = make([]exec.RoutineInitialization, len(definition.Keys))
+			for i, key := range definition.Keys {
+				if key.Derived != nil {
+					var err error
+					p.keyInitializations[i], err = host.NewRoutineInitialization()
+					if err != nil {
+						return err
+					}
+				}
+			}
+			break
+		}
+	}
+	if ordering != nil {
+		ordering.initializations = p.keyInitializations
+		ordering.parent = parent
 	}
 	for i, key := range definition.Keys {
 		if key.Derived == nil {
@@ -63,7 +100,9 @@ func (p *ExecutionPreparation) prepareConstants(evaluation *exec.Context, parent
 			// Retain the established body-free cooked programme fast path.
 			source = key.Derived.Execution
 		}
-		prepared, err := PrepareIndexRecipe(evaluation, source, key.Derived.Dependencies, parent, &p.admission, false)
+		local := p.keyEvaluation(evaluation, parent, definition, i)
+		prepared, err := PrepareIndexRecipe(&local, source, key.Derived.Dependencies, parent, &p.admission, false)
+		evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 		if err != nil {
 			return err
 		}
@@ -93,6 +132,9 @@ func (p *ExecutionPreparation) keyProgram(i int, ordering *Ordering, hash *stora
 }
 
 func (p *ExecutionPreparation) PrepareKeys(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *Ordering, hash *storage.HashBinding) error {
+	if ordering != nil {
+		ordering.BorrowSupport(evaluation)
+	}
 	if p.keysPrepared {
 		return nil
 	}
@@ -103,7 +145,7 @@ func (p *ExecutionPreparation) PrepareKeys(evaluation *exec.Context, parent *cat
 		if key.Derived == nil {
 			continue
 		}
-		local := RecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
+		local := p.keyEvaluation(evaluation, parent, definition, i)
 		local.RoutineProgram = &p.admission
 		if err := exec.AdmitExpression(&local, p.keyProgram(i, ordering, hash), local.Catalog); err != nil {
 			return err
@@ -131,23 +173,60 @@ func (p *ExecutionPreparation) PredicateMatches(evaluation *exec.Context, parent
 		return true, nil
 	}
 	if !p.predicatePrepared {
+		if owner := evaluation.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+			host := evaluation.LiveHost()
+			if host == nil {
+				return false, ids.ErrCatalogReplaced
+			}
+			var err error
+			p.predicateInitialization, err = host.NewRoutineInitialization()
+			if err != nil {
+				return false, err
+			}
+		}
 		source := definition.Predicate.Definition
 		if !definition.RequiresInsertionOutput() {
 			source = definition.Predicate.Execution
 		}
-		prepared, err := PrepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
+		local := RecipeEvaluation(evaluation, definition.Predicate.Dependencies, parent)
+		local.RoutineInitialization = p.predicateInitialization
+		local.InitializationPhase = exec.IndexRecipeInitialization
+		prepared, err := PrepareIndexRecipe(&local, source, definition.Predicate.Dependencies, parent, &p.admission, true)
+		evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 		if err != nil {
 			return false, err
 		}
 		p.predicate, p.predicatePrepared = prepared, true
 	}
-	evaluation.Row = row
-	value, err := p.predicate.Eval(evaluation)
+	local := RecipeEvaluation(evaluation, definition.Predicate.Dependencies, parent)
+	local.RoutineInitialization = p.predicateInitialization
+	local.InitializationPhase = exec.IndexRecipeInitialization
+	local.Row = row
+	value, err := p.predicate.Eval(&local)
 	if err != nil {
 		return false, err
 	}
 	truth, err := plan.TruthOf(value)
 	return truth == plan.True, err
+}
+
+func (p *ExecutionPreparation) keyEvaluation(evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordinal int) exec.Context {
+	local := RecipeEvaluation(evaluation, definition.Keys[ordinal].Derived.Dependencies, parent)
+	local.InitializationPhase = exec.IndexRecipeInitialization
+	if p.keyInitializations != nil {
+		local.RoutineInitialization = p.keyInitializations[ordinal]
+	}
+	return local
+}
+
+// ExtractKey borrows only this operation's prepared expression instance. The
+// immutable HashBinding and published storage roots retain no runtime proof.
+func (p *ExecutionPreparation) ExtractKey(slot int, expression expr.Expr, values []sqltype.Value, evaluation *exec.Context, parent *catalog.Relation, definition *catalog.IndexDefinition, ordinal int) (sqltype.Value, error) {
+	if slot >= 0 {
+		return values[slot], nil
+	}
+	local := p.keyEvaluation(evaluation, parent, definition, ordinal)
+	return extractIndexKey(slot, expression, values, &local)
 }
 
 func NewLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {

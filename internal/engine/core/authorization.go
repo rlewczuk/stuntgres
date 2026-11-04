@@ -268,6 +268,10 @@ func (e *Engine) AuthorityView(v access.View) AuthorizationView {
 func (e *Engine) operationAuthority(op *session.Operation, v access.View) AuthorizationView {
 	s := op.Session
 	auth := e.AuthorityView(v)
+	if e.Sepgsql != nil && s.Sepgsql != nil && e.ImportTargets == nil {
+		subject, generation, frame, depth := s.Sepgsql.PhaseSnapshot()
+		auth.Sepgsql = access.SepgsqlAuthority{Policy: e.Sepgsql, Subject: subject, Generation: generation, Frame: frame, Depth: depth, Predecessor: e.Catalog.State, Debug: op.SepgsqlDebug, Audit: op}
+	}
 	auth.Definition, auth.settings, auth.Session = op.Definition, op.EffectiveSettings(), s
 	auth.materializedPopulation = OperationReplayOrZero(op).MaterializedPopulation
 	auth.restrictedPath = op.Restricted != nil && op.Restricted.SafePath
@@ -276,6 +280,10 @@ func (e *Engine) operationAuthority(op *session.Operation, v access.View) Author
 
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
 func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, error) {
+	if e.Sepgsql != nil {
+		debug, _ := op.Setting("sepgsql.debug_audit")
+		op.SepgsqlDebug = debug == "on"
+	}
 	s := op.Session
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
@@ -320,6 +328,9 @@ func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, 
 	}
 	authorization := e.operationAuthority(op, access.View{Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.OperationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.Catalog.State.Get(e.Catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
 	authorization.Statement = ActiveScopeOfLease(op.Lease)
+	if authorization.Sepgsql.Policy != nil && authorization.Statement != nil {
+		authorization.Sepgsql.Observer = authorization.Statement
+	}
 	authorization.roleAuthority = e.sessionRolesLocked(s)
 	authorization.publishedRoleAuthority = e.RoleStore.Published
 	replay := OperationReplayOrZero(op)

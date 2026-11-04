@@ -78,9 +78,15 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   object creation; already-private outputs are not committed input fences.
 - **REASSIGN/DROP OWNED** (`owned.go`, `owned_cleanup.go`): `OwnedSources`
   and `PlanOwned` resolve and authorize the roles and pick the roots
-  (`OwnedPlan`); `StageOwnedCleanup` stages DROP OWNED's ACL, policy,
-  default-privilege and membership cleanup; `OwnedCleanupAddsDeletionRoot`
-  decides the singular/plural diagnostic primary.
+  (`OwnedPlan`); `PrepareOwnedCleanup` captures typed `OwnedCleanupPlan` effects
+  for ACLs, policies, default privileges, initial privileges and memberships.
+  `AddsDeletionRoot` retains the collected singular/plural diagnostic primary.
+  The real precleanup stage supplies initial records and owners, filtered by the
+  same raw-removal/index-evolution prefix and cleanup parameter tombstones.
+  Later owned sequences are not falsely classified as raw-doomed. Applying the
+  captured plan once follows raw roots and precedes dependency/owned tails.
+  Owner invariants read the genuine coherent `StageRead`, not the candidate's
+  delta-only `Get`; neither preparation nor descriptor churn invents MAC authority.
   Historical initial ACLs participate independently: DROP ROLE and its final
   retirement preflight include original grantors/owners and grantees with shared
   dependency kind `i`, rendered as “initial privileges for”. REASSIGN OWNED
@@ -104,9 +110,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   Bulk language eligibility has no namespace CREATE requirement; DROP OWNED
   retains the shared intrinsic-pin, extension-member and dependency protections.
 - **Owned staging** (`owned_stage.go`): `StageOwned` stages REASSIGN
-  OWNED's eligibility checks, owners and provider expressions, or DROP
-  OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP
-  OWNED's 2BP01.
+  OWNED's eligibility checks, owners and provider expressions, or selects genuine
+  ordered DROP OWNED roots over `StageHost`. Physical root replay follows complete
+  dependency/cleanup preparation; `OwnedDependentsError` retains DROP OWNED's
+  singular/plural 2BP01 primary.
   Shared subscriptions contribute one concrete owner dependency regardless of
   the observer's database. REASSIGN OWNED rewrites them across databases using
   ordinary ownership eligibility and shared object locks; DROP OWNED retains
@@ -170,8 +177,9 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   none takes, releases or waits on a lock. Plans return candidates and
   warnings; the engine emits the warnings (in statement order, also before a
   returned error), allocates OIDs and revisions and installs the result.
-- **Role publication stays atomic.** `StageOwnedCleanup` joins its membership
-  deletion to the stage through `SetRoleCandidate`. The engine validates a nonnil
+- **Role publication stays atomic.** `OwnedCleanupPlan.Apply` joins its membership
+  deletion through `SetRoleCandidate`; preparation reads the genuine proposed
+  role candidate without installing it. The engine validates a nonnil
   candidate against the session's current private role predecessor and attaches it
   to `Journal.Roles`, retaining the actual write's committed delta base in
   `RolesBase` until a successful immutable journal refresh advances both roots.
@@ -193,7 +201,7 @@ attributes and membership, SET ROLE and SESSION AUTHORIZATION, DROP ROLE
 (`PublishDroppedRolesLocked`), object and database GRANT and ALTER DEFAULT
 PRIVILEGES (warnings, OIDs and installation), the type, domain, database and
 large-object OWNER executors and `ExecuteOwned` (the stage, lock waits,
-`StageOwnedCleanup`, the scope dependents, publication and the cascade
+`PrepareOwnedCleanup`/`OwnedCleanupPlan.Apply`, captured dependents, publication and the cascade
 notice), with the host adapter `RoleHost`. `stageCommentLocked` (the
 locked-relation check, capture, the private role record installation or
 object stage) is [`schemacmds`](../schemacmds/README.md)'.

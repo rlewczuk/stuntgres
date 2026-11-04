@@ -71,6 +71,16 @@ func (f catalogRoleReadFence) CurrentLocked(e *Engine, _ *session.Journal) error
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *session.CatalogAuthority) error {
+	if s.statement != nil {
+		if err := s.statement.validateSepgsqlObservations(e.Catalog.State); err != nil {
+			return err
+		}
+		for _, observation := range s.statement.sepgsqlObservations {
+			if err := c.ObserveSecurityLabelPredecessor(e.Catalog.State, observation.Key, observation.ExpectedLabel, observation.ExpectedObject); err != nil {
+				return err
+			}
+		}
+	}
 	if err := s.ParameterPreflight(e.Catalog.State); err != nil {
 		return err
 	}
@@ -83,7 +93,11 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.AuthSession)); err != nil {
 		return err
 	}
-	if err := s.DefaultPreflight(current); err != nil {
+	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.Catalog.State, Current: current}
+	if s.AuthSession != nil {
+		capture.SourceSession = s.AuthSession.SessionToken
+	}
+	if err := capture.DefaultPreflight(); err != nil {
 		return err
 	}
 	if err := e.captureDomainStageLocked(s, c, current); err != nil {
@@ -94,7 +108,6 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.Catalog.State, Current: current}
 	if s.DatabasePredecessor != nil {
 		if err := capture.ObserveDatabase(e.Catalog.Owner.DatabaseAddress(), s.DatabaseAuthority, s.DatabasePredecessor); err != nil {
 			return err

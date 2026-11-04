@@ -13,13 +13,6 @@ func RoutineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentit
 	if p, ok := catalog.BuiltinRoutineIdentityByOID(id); ok {
 		return p, true
 	}
-	if owner := RoutineDescriptorOwner(view, id); owner != nil {
-		for _, helper := range owner.Aggregate.Helpers {
-			if helper.ID == id {
-				return helper, true
-			}
-		}
-	}
 	return catalog.RoutineIdentity{}, false
 }
 
@@ -38,13 +31,6 @@ func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name
 		}
 		if p := analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: namespace}, name, signature); p != nil {
 			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
-		}
-		for _, owner := range view.HelperOwners() {
-			for _, helper := range owner.Aggregate.Helpers {
-				if helper.Namespace == namespace.ObjectID && helper.Name == name && helper.Signature == signature {
-					return helper, 1
-				}
-			}
 		}
 		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
 			if p, ok := catalog.BuiltinRoutineIdentityBySignature(name, signature); ok {
@@ -89,13 +75,6 @@ func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 				}
 			}
 		}
-		for _, owner := range view.HelperOwners() {
-			for _, helper := range owner.Aggregate.Helpers {
-				if helper.Namespace == namespace.ObjectID && helper.Name == name && accept(helper) {
-					return selected, count
-				}
-			}
-		}
 		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
 			for _, p := range catalog.BuiltinRoutineIdentitiesNamed(name) {
 				if accept(p) {
@@ -107,18 +86,11 @@ func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 	return selected, count
 }
 
-// A helper's dependencies are dependencies on this real aggregate descriptor,
-// never invented ObjectRefs for metadata-only identities.
+// RoutineDescriptorOwner returns the genuine descriptor for this procedure,
+// including installed support aliases. Metadata-only builtin identities have none.
 func RoutineDescriptorOwner(view catalog.Read, id ids.OID) *catalog.Procedure {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return p
-	}
-	for _, p := range view.HelperOwners() {
-		for _, helper := range p.Aggregate.Helpers {
-			if helper.ID == id {
-				return p
-			}
-		}
 	}
 	return nil
 }

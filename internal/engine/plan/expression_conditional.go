@@ -18,6 +18,7 @@ type CaseBranch struct {
 	TestContext string             // Original declared context; CASE itself always uses implicit coercion.
 	Routine     *catalog.Procedure // Selected equality declaration, never captured permission.
 	RoutineRef  ids.ObjectRef      // Exact installed declaration reference, mapped before retagging.
+	Source      expr.Info          // Genuine selected equality occurrence; contains no runtime authority.
 }
 
 type CaseExpr struct {
@@ -57,7 +58,16 @@ func (e CaseExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		match := false
 		if e.Test != nil {
 			if !view.IsNull() && !condition.IsNull() {
+				source := arm.Source
+				source.RoutineReference = arm.Routine
+				source.RoutineRecipeReference = e.RoutineRecipeReference
+				arguments := [2]sqltype.Value{view, condition}
+				token, failure := source.EnterRoutine(ctx, arguments[:])
+				if failure != nil {
+					return sqltype.Value{}, failure
+				}
 				equal, err := arm.Equality.EqualValues(ctx.FunctionContext(), view, condition, ctx.FunctionInput())
+				token.Leave()
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -109,7 +119,13 @@ func (e ConditionalExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
+			arguments := [2]sqltype.Value{left, right}
+			token, failure := e.EnterRoutine(ctx, arguments[:])
+			if failure != nil {
+				return sqltype.Value{}, failure
+			}
 			equal, err := e.Comparison.EqualValues(ctx.FunctionContext(), left, right, ctx.FunctionInput())
+			token.Leave()
 			if err != nil {
 				return sqltype.Value{}, err
 			}

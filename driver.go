@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
@@ -47,6 +48,7 @@ type Driver struct {
 	textSearchFiles     map[string]string
 	textSearchResources *functions.DictionaryFiles
 	identFile           *identfile.Source
+	sepgsql             *sepgsql.Runtime
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -89,6 +91,9 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 		if err := e.InstallHostDefinitions(d.hostLanguages); err != nil {
 			return nil, err
 		}
+		if err := e.InstallSepgsqlSimulation(d.sepgsql, true); err != nil {
+			return nil, err
+		}
 		if d.textSearchResources == nil && len(d.textSearchFiles) != 0 {
 			d.textSearchResources = functions.NewDictionaryFiles(d.textSearchFiles)
 		}
@@ -112,12 +117,14 @@ func (d *Driver) OpenDatabaseConnector(dsn, database string) (driver.Connector, 
 
 // Connector configures new physical connections without changing existing ones.
 type Connector struct {
-	owner             *Driver
-	engine            *core.Engine
-	noticeHandler     func(Error)
-	authenticatedRole string
-	database          string
-	explicitDatabase  bool
+	owner                  *Driver
+	engine                 *core.Engine
+	noticeHandler          func(Error)
+	authenticatedRole      string
+	database               string
+	explicitDatabase       bool
+	sepgsqlContext         string
+	explicitSepgsqlContext bool
 }
 
 // WithNoticeHandler returns an independent configuration. Nil disables delivery.
@@ -142,6 +149,18 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	subject := ""
+	if c.owner.sepgsql != nil {
+		subject = c.owner.sepgsql.Initial()
+		if c.explicitSepgsqlContext {
+			subject = c.sepgsqlContext
+		}
+		if !c.owner.sepgsql.Valid(subject) {
+			return nil, errors.New("stuntgres: invalid simulated sepgsql connection context")
+		}
+	} else if c.explicitSepgsqlContext {
+		return nil, errors.New("stuntgres: sepgsql context without registered simulation")
+	}
 	c.owner.mu.Lock()
 	if c.owner.lastSession >= math.MaxInt32 {
 		c.owner.mu.Unlock()
@@ -160,7 +179,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	defer admission.Release()
 	target := admission.Target()
-	sess, err := target.StartSession(ctx, admission, session.SessionStart{ID: id, NoticeHandler: c.noticeHandler})
+	sess, err := target.StartSession(ctx, admission, session.SessionStart{ID: id, NoticeHandler: c.noticeHandler, SepgsqlContext: subject})
 	if err != nil {
 		return nil, err
 	}

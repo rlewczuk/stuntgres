@@ -21,6 +21,7 @@ func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner au
 	target.TextSearchFiles = seed.TextSearchFiles
 	target.IdentFile = seed.IdentFile
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
+	target.Sepgsql, target.Catalog.Sepgsql = e.Sepgsql, e.Sepgsql
 	for _, registration := range seed.Catalog.HostRuntimes {
 		runtime, err := host.New(registration.Definition())
 		if err != nil {

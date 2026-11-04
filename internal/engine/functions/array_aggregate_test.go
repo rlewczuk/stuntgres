@@ -59,7 +59,7 @@ func TestArrayAggregateScalarState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range []sqltype.Value{arrayAggregateUnitInput(t, p, "3"), sqltype.Null(p.argument), arrayAggregateUnitInput(t, p, "1")} {
-		if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{v}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -71,12 +71,12 @@ func TestArrayAggregateScalarState(t *testing.T) {
 	if err != nil || again != out {
 		t.Fatal("final result was not cached", err)
 	}
-	if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(p.argument), sqltype.Value{}}, nil); err == nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(p.argument)}, nil); err == nil {
 		t.Fatal("post-finalize transition accepted")
 	}
 	other, _ := p.Init(ctx)
 	for range 3 {
-		if err := p.Advance(ctx, other, []sqltype.Value{sqltype.Null(p.argument), sqltype.Value{}}, nil); err != nil {
+		if err := p.Advance(ctx, other, []sqltype.Value{sqltype.Null(p.argument)}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -94,7 +94,7 @@ func TestArrayAggregateArrayState(t *testing.T) {
 	}
 	first := arrayAggregateUnitInput(t, p, "[-1:0][3:4]={{1,NULL},{2,3}}")
 	for _, v := range []sqltype.Value{first, arrayAggregateUnitInput(t, p, "[-1:0][3:4]={{4,5},{NULL,6}}")} {
-		if err := p.Advance(ctx, state, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
+		if err := p.Advance(ctx, state, []sqltype.Value{v}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -116,7 +116,7 @@ func TestArrayAggregateArrayState(t *testing.T) {
 		t.Run(tc.first+"/"+tc.next, func(t *testing.T) {
 			s, _ := p.Init(ctx)
 			if tc.first != "" {
-				if err := p.Advance(ctx, s, []sqltype.Value{arrayAggregateUnitInput(t, p, tc.first), sqltype.Value{}}, nil); err != nil {
+				if err := p.Advance(ctx, s, []sqltype.Value{arrayAggregateUnitInput(t, p, tc.first)}, nil); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -124,7 +124,7 @@ func TestArrayAggregateArrayState(t *testing.T) {
 			if tc.next != "NULL" {
 				v = arrayAggregateUnitInput(t, p, tc.next)
 			}
-			err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil)
+			err := p.Advance(ctx, s, []sqltype.Value{v}, nil)
 			var state interface{ SQLState() string }
 			if !errors.As(err, &state) || state.SQLState() != tc.code || err.Error() != "stuntgres: "+tc.msg {
 				t.Fatalf("runtime error=%v want %s/%s", err, tc.code, tc.msg)
@@ -132,7 +132,7 @@ func TestArrayAggregateArrayState(t *testing.T) {
 		})
 	}
 	s, _ := p.Init(ctx)
-	if err := p.Advance(ctx, s, []sqltype.Value{arrayAggregateUnitInput(t, p, "{{{{{7}}}}}"), sqltype.Value{}}, nil); err != nil {
+	if err := p.Advance(ctx, s, []sqltype.Value{arrayAggregateUnitInput(t, p, "{{{{{7}}}}}")}, nil); err != nil {
 		t.Fatal(err)
 	}
 	arrayAggregateUnitOutput(t, p, s, "{{{{{{7}}}}}}")
@@ -142,12 +142,17 @@ func TestArrayAggregateOwnership(t *testing.T) {
 	p := arrayAggregateUnitProvider(t, true)
 	other := *p
 	state, _ := p.Init(ctx)
+	for _, values := range [][]sqltype.Value{nil, {sqltype.Null(p.argument), sqltype.Value{}}} {
+		if err := p.Advance(ctx, state, values, nil); err == nil {
+			t.Fatal("invalid transition width accepted")
+		}
+	}
 	for _, bad := range []any{nil, struct{}{}, (*arrayAggregateState)(nil), &arrayAggregateState{}, state} {
 		provider := p
 		if bad == state {
 			provider = &other
 		}
-		if err := provider.Advance(ctx, bad, []sqltype.Value{sqltype.Null(p.argument), sqltype.Value{}}, nil); err == nil {
+		if err := provider.Advance(ctx, bad, []sqltype.Value{sqltype.Null(p.argument)}, nil); err == nil {
 			t.Fatal("foreign state accepted")
 		}
 		if _, err := provider.Finalize(ctx, bad); err == nil {
@@ -158,7 +163,7 @@ func TestArrayAggregateOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(foreign), sqltype.Value{}}, nil); err == nil {
+	if err := p.Advance(ctx, state, []sqltype.Value{sqltype.Null(foreign)}, nil); err == nil {
 		t.Fatal("foreign descriptor generation accepted")
 	}
 	if _, err := (&ArrayAggregateProvider{}).Init(ctx); err == nil {
@@ -190,16 +195,16 @@ func TestArrayAggregateCancellation(t *testing.T) {
 	for _, checks := range []int{1, 2, 4, 6} {
 		s, _ := p.Init(ctx)
 		probe := &arrayAggregateCancelContext{Context: ctx, remaining: checks}
-		if err := p.Advance(probe, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != context.Canceled {
+		if err := p.Advance(probe, s, []sqltype.Value{v}, nil); err != context.Canceled {
 			t.Fatal("advance cancellation", checks, err)
 		}
 	}
 	s, _ := p.Init(ctx)
-	if err := p.Advance(ctx, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != nil {
+	if err := p.Advance(ctx, s, []sqltype.Value{v}, nil); err != nil {
 		t.Fatal(err)
 	}
 	shapeProbe := &arrayAggregateCancelContext{Context: ctx, remaining: 2}
-	if err := p.Advance(shapeProbe, s, []sqltype.Value{v, sqltype.Value{}}, nil); err != context.Canceled {
+	if err := p.Advance(shapeProbe, s, []sqltype.Value{v}, nil); err != context.Canceled {
 		t.Fatal("later shape comparison cancellation", err)
 	}
 	probe := &arrayAggregateCancelContext{Context: ctx, remaining: 2}

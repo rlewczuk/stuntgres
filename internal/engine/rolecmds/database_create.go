@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/parser"
 )
@@ -106,6 +107,9 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 			if err == nil {
 				err = candidate.InstallHostDefinitions(e.Catalog.HostRuntimes)
 			}
+			if err == nil {
+				err = candidate.InstallSepgsqlSimulation(e.Sepgsql, true)
+			}
 			if candidate != nil {
 				candidate.TextSearchFiles = e.TextSearchFiles
 				candidate.IdentFile = e.IdentFile
@@ -143,6 +147,10 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 	} else if e.Cluster.Targets[options.Template] != nil {
 		return core.Result{}, catalog.Conflict{}
 	}
+	auth, err := e.AuthorizationLocked(scope.Op)
+	if err != nil {
+		return core.Result{}, err
+	}
 	scope.Op.Session.Mu.Lock()
 	defer scope.Op.Session.Mu.Unlock()
 	if err := core.PublicationOperationLocked(e, scope.Op); err != nil {
@@ -151,14 +159,14 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 	if scope.TxRef != (ids.TxRef{}) && scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return core.Result{}, ids.ErrCatalogReplaced
 	}
-	result, err := publishDatabaseTargetLocked(e, ctx, name, target, owner)
+	result, err := publishDatabaseTargetLocked(e, ctx, name, target, owner, source, auth)
 	if err == nil {
 		scope.CompleteUtility()
 	}
 	return result, err
 }
 
-func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name string, target *core.Engine, owner authorization.PrincipalRef) (core.Result, error) {
+func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name string, target *core.Engine, owner authorization.PrincipalRef, source *core.Engine, auth core.AuthorizationView) (core.Result, error) {
 	if e.Cluster.Targets[name] != nil {
 		return core.Result{}, core.SQLError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
 	}
@@ -175,6 +183,22 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
 	policy := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
 	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, IsTemplate: policy.IsTemplate, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit}
+	var label *catalog.SecurityLabelRecord
+	if simulation := e.Sepgsql; simulation != nil {
+		template := source.Catalog.State.MustDatabase(source.Catalog.DatabaseAddress())
+		parent := simulation.Unlabeled()
+		if record := source.Catalog.State.SecurityLabel(catalog.SecurityLabelKey{Object: template.Address(), Provider: "selinux"}); record != nil {
+			parent = record.Label
+		}
+		if _, err := auth.View.SepgsqlDecision(parent, "db_database", catalog.DependencyIdentifier(template.Name()), sepgsql.Getattr, true); err != nil {
+			return core.Result{}, err
+		}
+		context := simulation.CreateContext(auth.Sepgsql.Subject, parent, "db_database", name)
+		if _, err := auth.View.SepgsqlDecision(context, "db_database", catalog.DependencyIdentifier(name), sepgsql.Create, true); err != nil {
+			return core.Result{}, err
+		}
+		label = &catalog.SecurityLabelRecord{Label: context, PolicyID: simulation.ID(), PolicyVersion: simulation.Version()}
+	}
 	targets := make(map[string]*core.Engine, len(e.Cluster.Targets)+1)
 	roots := make(catalog.SharedProjection, len(e.Cluster.Targets)+1)
 	for key, runtime := range e.Cluster.Targets {
@@ -188,9 +212,13 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 			e.Catalog.InheritSubscriptionsLocked(next)
 			e.Catalog.InheritParametersLocked(next)
 			e.Catalog.InheritTablespacesLocked(next)
+			e.Catalog.InheritDatabaseSecurityLabelsLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)
+		if label != nil {
+			next.SetSecurityLabel(catalog.SecurityLabelKey{Object: address, Provider: "selinux"}, label)
+		}
 		roots[&runtime.Catalog] = next
 	}
 	if err := ctx.Err(); err != nil {

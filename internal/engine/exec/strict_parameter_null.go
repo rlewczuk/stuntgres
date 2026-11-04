@@ -25,6 +25,9 @@ func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error
 // so its NULL proof does not compute children. Conditional planning leaves the
 // callback nil because it has already planned them.
 func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Expr) error) (expr.Expr, bool, error) {
+	if sepgsqlPlanningSensitive(c, node) {
+		return node, false, nil
+	}
 	if folded, changed, handled, err := foldRandomNullInputs(c, node); handled {
 		return folded, changed, err
 	}
@@ -47,7 +50,7 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 			return nil, false, fmt.Errorf("stuntgres: invalid installed function expression")
 		}
 		if n.Function == "unaccent" && c != nil && c.LiveHost() != nil {
-			if err := c.validateUnaccent(n); err != nil {
+			if _, err := c.validateUnaccent(n); err != nil {
 				return nil, false, err
 			}
 		}
@@ -112,7 +115,7 @@ func planStrictNullArithmetic(c *Context, node expr.Expr) error {
 			return
 		}
 		arithmetic, ready := strictNullArithmeticTree(child, c)
-		if arithmetic && ready {
+		if arithmetic && ready && !planningExecutionBarrier(c, child) {
 			_, failure = FoldPlanningExpression(c, child)
 		}
 	})

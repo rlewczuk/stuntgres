@@ -121,6 +121,23 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 			old.RoutineRecipe = true
 			old.RoutineChecks = p.Binding.Dependencies
 			old.RoutineConsumer = relation
+			if e.Sepgsql != nil {
+				source := dml.TriggerWhenKey{Relation: relation, Trigger: p.OID, Actor: current.State.CurrentUser, Event: event, Timing: timing}
+				owner, exists := captured.WhenInitializations[source]
+				if !exists {
+					owner, err = h.NewRoutineInitialization()
+					if err != nil {
+						return result, err
+					}
+					if captured.WhenInitializations == nil {
+						captured.WhenInitializations = make(map[dml.TriggerWhenKey]exec.RoutineInitialization)
+					}
+					captured.WhenInitializations[source] = owner
+					command.BeforeCaptures[key] = captured
+				}
+				old.RoutineInitialization = owner
+				old.InitializationPhase = exec.TriggerWhenInitialization
+			}
 			next := old
 			next.Frame = 2
 			next.Row = result.Row

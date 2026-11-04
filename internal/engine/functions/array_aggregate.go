@@ -11,9 +11,12 @@ import (
 // Providers belong to immutable plans; a state belongs to exactly one provider
 // and one execution group. Published buffers are never reused by transitions.
 type ArrayAggregateProvider struct {
-	argument *sqltype.Descriptor
-	usage    sqltype.Usage
-	arrays   bool
+	argument  *sqltype.Descriptor
+	usage     sqltype.Usage
+	arrays    bool
+	aggregate expr.RoutineReference
+	supports  [2]expr.RoutineReference
+	internal  *sqltype.Descriptor
 }
 
 type arrayAggregateState struct {
@@ -55,7 +58,10 @@ func (p *ArrayAggregateProvider) state(state any) (*arrayAggregateState, error) 
 	return s, nil
 }
 
-func (p *ArrayAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, _ expr.Context) error {
+func (p *ArrayAggregateProvider) Advance(ctx context.Context, state any, values []sqltype.Value, evaluation expr.Context) error {
+	if len(values) != 1 {
+		return fmt.Errorf("stuntgres: invalid array aggregate transition width")
+	}
 	value := values[0]
 	if err := ctx.Err(); err != nil {
 		return err
@@ -69,6 +75,16 @@ func (p *ArrayAggregateProvider) Advance(ctx context.Context, state any, values 
 	}
 	if value.Type() != p.argument {
 		return fmt.Errorf("stuntgres: invalid array aggregate datum")
+	}
+	if p.aggregate != nil {
+		if evaluation == nil {
+			return fmt.Errorf("stuntgres: missing array aggregate support invocation")
+		}
+		body, err := evaluation.FunctionEnterRoutine(p.supports[0], nil, expr.RoutineBodyInputs{Count: 2, First: p.internal, Second: value.Type(), HasNull: s.count == 0 || value.IsNull(), AggregateOwner: p.aggregate})
+		if err != nil {
+			return err
+		}
+		defer body.Leave()
 	}
 	if s.count == math.MaxInt32-1 {
 		return sqlError("54000", "array size exceeds the maximum allowed")
@@ -161,3 +177,40 @@ func NewArrayAggregateProvider(argument *sqltype.Descriptor, usage sqltype.Usage
 }
 func (p *ArrayAggregateProvider) ArgumentType() *sqltype.Descriptor { return p.argument }
 func (p *ArrayAggregateProvider) Arrays() bool                      { return p.arrays }
+
+// NewIntaggArrayAggregateProvider retains only genuine immutable declarations;
+// invocation subject and authority are borrowed from each executor call.
+func NewIntaggArrayAggregateProvider(argument *sqltype.Descriptor, usage sqltype.Usage, internal *sqltype.Descriptor, aggregate expr.RoutineReference, supports [2]expr.RoutineReference) (*ArrayAggregateProvider, error) {
+	p := NewArrayAggregateProvider(argument, usage, false)
+	if !p.valid() || argument.ID() != sqltype.Int4 || internal == nil || internal.ID() != sqltype.ID(2281) || aggregate == nil || supports[0] == nil || supports[1] == nil {
+		return nil, fmt.Errorf("stuntgres: invalid intagg support declarations")
+	}
+	p.aggregate, p.supports, p.internal = aggregate, supports, internal
+	return p, nil
+}
+func (p *ArrayAggregateProvider) AggregateSupports() (expr.RoutineReference, [2]expr.RoutineReference) {
+	return p.aggregate, p.supports
+}
+func (p *ArrayAggregateProvider) InitWithContext(ctx context.Context, _ expr.Context) (any, error) {
+	return p.Init(ctx)
+}
+func (p *ArrayAggregateProvider) FinalizeWithContext(ctx context.Context, state any, direct []sqltype.Value, evaluation expr.Context) (sqltype.Value, error) {
+	if len(direct) != 0 {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: unexpected array aggregate direct arguments")
+	}
+	s, err := p.state(state)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if p.aggregate != nil && !s.finalized {
+		if evaluation == nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: missing array aggregate final invocation")
+		}
+		body, err := evaluation.FunctionEnterRoutine(p.supports[1], nil, expr.RoutineBodyInputs{Count: 1, First: p.internal, HasNull: s.count == 0, AggregateOwner: p.aggregate})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
+	return p.Finalize(ctx, state)
+}

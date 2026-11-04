@@ -232,10 +232,10 @@ func UniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 
 // ValidateUniqueRoot always uses view's catalog for support binding. A nil env,
 // not a nil view, marks trusted publication without a SQL disclosure principal.
-func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
+func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, input sqltype.InputEnvironment) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building)
+		return ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building, input)
 	}
 	if !d.Unique {
 		return nil
@@ -244,12 +244,16 @@ func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, ro
 	if err != nil {
 		return err
 	}
+	if env != nil && view.Catalog.Owner().Sepgsql != nil && input.IndexSupport == nil {
+		return fmt.Errorf("stuntgres: missing unique validation support owner")
+	}
+	ordering.input = input
 	return ValidateUniqueEntries(ctx, parent, index, root.Entries, schema, output, view, env, building, ordering)
 }
 
 func ValidateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering Ordering) error {
 	if index.SQLIndex.IsExclusion() {
-		return validateExclusionEntries(ctx, parent, index, entries, schema, output, view, env, building)
+		return validateExclusionEntries(ctx, parent, index, entries, schema, output, view, env, building, ordering.input)
 	}
 	for i := 1; i < len(entries); i++ {
 		if err := validateUniquePair(ctx, parent, index, entries[i-1], entries[i], schema, output, view, env, building, ordering); err != nil {
@@ -262,7 +266,7 @@ func ValidateUniqueEntries(ctx context.Context, parent, index *catalog.Relation,
 func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering Ordering) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return ValidateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building)
+		return ValidateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building, ordering.input)
 	}
 	if !d.Unique || !d.NullsNotDistinct && UniqueHasNull(current.Keys) {
 		return nil

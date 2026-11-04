@@ -398,7 +398,7 @@ type IndexAuthority struct{ identity byte }
 type IndexSupport struct {
 	Provider                                       IndexSupportProvider
 	Authority                                      *IndexAuthority
-	Family, Member, Routine, Left, Right           uint32
+	Class, Family, Member, Routine, Left, Right    uint32
 	Revision                                       uint64
 	ClassRevision, FamilyRevision, RoutineRevision uint64
 }
@@ -561,6 +561,11 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
 	}
+	body, err := enterIndexSupport(input, p.support, 1)
+	if err != nil {
+		return 0, err
+	}
+	defer body.Leave()
 	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport || p.support.Provider == LtreeIndexSupport || p.support.Provider == IsnIndexSupport {
 		return p.comparison.Compare(ctx, a, b, input)
 	}

@@ -131,6 +131,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 			scope.EventCommand.Commands = append(scope.EventCommand.Commands, stage.DDLCommands...)
 		}
 		stage.Lifecycle = catalogPublished
+		stage.dictionaryInitializationOwned = false
 	}
 	scope.Op.Session.Mu.Unlock()
 	e.Mu.Unlock()

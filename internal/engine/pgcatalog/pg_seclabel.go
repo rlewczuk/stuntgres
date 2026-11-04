@@ -7,9 +7,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// No security label provider is installed in the embedded engine. This is a
-// real empty catalog, not successful assignment storage. Ordinary relation and
-// column ACL admission remains the binder's responsibility, even at EOF.
+// Rows project immutable committed or transaction-private associations from the
+// genuine captured catalog. ACL admission remains the binder's responsibility.
 func capturePGSeclabel(in Input) ([][]sqltype.Value, error) {
 	if err := in.Context.Err(); err != nil {
 		return nil, err
@@ -37,5 +36,5 @@ func capturePGSeclabel(in Input) ([][]sqltype.Value, error) {
 	if !ok || database == nil || !in.Roles.BelongsTo(in.Owner.Principals) || in.Roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign security label owner authority")
 	}
-	return nil, in.Context.Err()
+	return securityLabelRows(in, false, false)
 }

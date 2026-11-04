@@ -31,7 +31,7 @@ func (e RangeInspect) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
-	return e.Plan.Evaluate(ctx, values)
+	return e.Plan.EvaluateWithEnvironment(ctx, values, c.FunctionInput())
 }
 func (e RangeInspect) Reconstruct(info expr.Info, args []expr.Expr) (RangeInspect, error) {
 	replacement, err := NewRangeInspect(info, e.Plan.Operation(), args)

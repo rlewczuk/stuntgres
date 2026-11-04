@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -115,7 +114,7 @@ func TestDomainIdentityDropStage(t *testing.T) {
 	if err := scope.Gate(enginetest.Statement(t, "DROP DOMAIN public.winner")); err != nil {
 		t.Fatal(err)
 	}
-	if err := schemacmds.StageDomainDependents(scope, drop, parser.DropRestrict); err != nil {
+	if err := domainUnitApplyDrop(scope, drop, parser.DropRestrict); err != nil {
 		t.Fatal(err)
 	}
 	if drop.RemovalCount() != 2 {

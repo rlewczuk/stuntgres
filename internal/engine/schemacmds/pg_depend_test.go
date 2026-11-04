@@ -56,8 +56,8 @@ func pgDependUnitBag(t *testing.T, got, want []pgcatalog.DependEdge) {
 // language. Resolve their generated addresses by declaration, not membership or
 // collected edges: the expected graph is four e edges and three handler n edges.
 // The pg_catalog namespace and handler declaration types are pinned, so their
-// normal references are intentionally absent from pg_depend. Released progress
-// and subscription/WAL statistics views own metadata-only _RETURN rules through internal edges.
+// normal references are intentionally absent from pg_depend. Released catalog
+// views separately own their metadata-only _RETURN rules through internal edges.
 // Allocated Snowball bootstrap objects are not pins: their template callbacks,
 // dictionary template, and configuration dictionary retain normal dependencies.
 func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEdge {
@@ -80,6 +80,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		pgDependUnitEdge(2618, pgcatalog.StatSubscriptionRuleOID, 0, 1259, pgcatalog.StatSubscriptionOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.StatDatabaseRuleOID, 0, 1259, pgcatalog.StatDatabaseOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.StatWALRuleOID, 0, 1259, pgcatalog.StatWALOID, 0, 'i'),
+		pgDependUnitEdge(2618, pgcatalog.SeclabelsRuleOID, 0, 1259, pgcatalog.SeclabelsOID, 0, 'i'),
 	}
 	for _, declaration := range []struct {
 		name, signature string

@@ -30,6 +30,8 @@ func (h *statementHost) CaptureParallelEvaluation() func() *exec.EvaluationCaptu
 	// Domain checking is evaluator-owned, never an escaped StatementScope.
 	// LockedDomainInput is a binder-only boundary, not an execution capability.
 	input.LockedDomainInput, input.DomainChecks = nil, nil
+	input.TypeIO, input.Conversion, input.IndexSupport = nil, nil, nil
+	output.TypeIO, output.Conversion = nil, nil
 	op := h.Op // Capture the original diagnostic owner, not a lexical host.
 	return func() *exec.EvaluationCapture {
 		p := facts

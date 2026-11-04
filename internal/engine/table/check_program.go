@@ -42,7 +42,7 @@ func prepareCheckProgram(d *catalog.Relation, evaluation *exec.Context) (exec.Ch
 	}
 	phase.Admission = new(exec.RoutineProgram)
 	if prepared {
-		if err := phase.Admission.InitializePhase(program.Phases[0].Admission, auth); err != nil {
+		if err := phase.Admission.InitializePhase(program.Phases[0].Admission, auth, exec.CallerInitialization); err != nil {
 			return exec.CheckProgram{}, nil, err
 		}
 	} else {

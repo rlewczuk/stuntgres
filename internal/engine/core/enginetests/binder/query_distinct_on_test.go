@@ -71,14 +71,14 @@ func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}, nil); err != nil || index != -1 {
 		t.Fatal("hash collision suppressed unequal ON key", index, err)
 	}
-	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}, nil); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := exec.FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

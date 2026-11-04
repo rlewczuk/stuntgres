@@ -247,7 +247,7 @@ func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 					if admission != nil {
 						return fmt.Errorf("authentic %s/%s mode admission rejected: %w", language, kind, admission)
 					}
-					if err := originalProgram.Readmit(core.RoutineAccessOf(auth)); err != nil {
+					if err := originalProgram.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err != nil {
 						return fmt.Errorf("genuine mode readmission rejected: %w", err)
 					}
 					for range 2 {
@@ -261,11 +261,11 @@ func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 						}
 					}
 					var phase exec.RoutineProgram
-					if err := phase.InitializePhase(&originalProgram, core.RoutineAccessOf(auth)); err == nil {
+					if err := phase.InitializePhase(&originalProgram, core.RoutineAccessOf(auth), exec.CallerInitialization); err == nil {
 						return fmt.Errorf("different phase inherited source mode")
 					}
 					owner.Retire()
-					if err := originalProgram.Readmit(core.RoutineAccessOf(auth)); err == nil {
+					if err := originalProgram.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err == nil {
 						return fmt.Errorf("retired current-provider owner readmitted")
 					}
 					if _, err := node.Eval(&c); err == nil {
@@ -339,7 +339,7 @@ func TestPreparedAcceptedDefaultCurrentProviderIsolation(t *testing.T) {
 			return err
 		}
 		snapshotAcceptedPureDemand(t, p, artifact, auth.Catalog)
-		return p.Readmit(core.RoutineAccessOf(auth))
+		return p.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation)
 	}
 	if err := readmit(&program); err != nil {
 		t.Fatal("exact current-provider occurrence rejected", err)
@@ -415,7 +415,7 @@ func TestPreparedAcceptedDefaultCurrentProviderBodyIsolation(t *testing.T) {
 				return fmt.Errorf("outer current-provider admission failed: %w", err)
 			}
 			snapshotAcceptedPureDemand(t, &program, artifact, auth.Catalog)
-			if err := program.Readmit(core.RoutineAccessOf(auth)); err != nil {
+			if err := program.Readmit(core.RoutineAccessOf(auth), exec.ConsumedGraphRevalidation); err != nil {
 				return fmt.Errorf("outer current-provider readmission failed: %w", err)
 			}
 			value, failure := root.Eval(&c)

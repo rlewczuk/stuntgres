@@ -601,6 +601,16 @@ library, and never the root engine or `session`. The engine, the root driver
   checks and the existing non-SELECT sequence delegation. Enumerators borrow
   descriptors/indices only during their callback and neither grant access nor
   retain successful authorization.
+  A genuine whole-row Var keeps `WholeRowRead` separately from `Uses` through
+  source/target/CTE/RETURNING and frozen-view capture. This is semantic demand,
+  not permission or runtime subject: inherited MAC expands the actual child's
+  live user columns, whereas qualified-star expansion selects named columns.
+  `AccessRequirement` is the shared transport into `access.Check`, including
+  owners that supply an access environment directly. It retains the any-column
+  UPDATE request for a rowmark without converting it to whole-relation ACL,
+  and preserves inheritance, exact signed system attributes and whole-row MAC
+  facts through view write/mark delegation. `SystemAttributeRead` alone retains
+  its separate ordinary relation-SELECT request; a rowmark supplies no such read.
 - **Row-lock admission** (`lock_admission.go`): `NewLockAdmission` computes a
   `LockAdmission` from syntax before binding; the engine holds one per
   statement scope.

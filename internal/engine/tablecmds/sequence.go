@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -136,6 +137,50 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+		if auth.Sepgsql.Policy != nil {
+			// Fence the actual MAC namespace/label against first committed
+			// predecessors, including an own-private lazy TEMP namespace.
+			if _, observed := changes.Originals[ns.Address]; !observed {
+				changes.Originals[ns.Address] = e.Catalog.State.Get(ns.Address)
+			}
+			label := catalog.SecurityLabelKey{Object: ns.Address, Provider: "selinux"}
+			if err = changes.ObserveSecurityLabelPredecessor(e.Catalog.State, label, e.Catalog.State.SecurityLabel(label), changes.Originals[ns.Address]); err != nil {
+				e.Mu.Unlock()
+				return core.Result{}, err
+			}
+		}
+		base := auth.Catalog
+		e.Mu.Unlock()
+		if persistence != "temporary" {
+			if err := scope.AcquireCatalogNamespace(base, ns.Address, s.Name); err != nil {
+				return core.Result{}, err
+			}
+			if err := acquireCatalogBinding(scope, base, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
+				if s.IfNotExists {
+					skipped, failure := scope.SkipConcurrentRelation(base, key, s.Name, err)
+					if skipped {
+						return core.Result{}, nil
+					}
+					return core.Result{}, failure
+				}
+				return core.Result{}, err
+			}
+		}
+		e.Mu.Lock()
+		auth, err = e.AuthorizationLocked(op)
+		if err != nil {
+			e.Mu.Unlock()
+			return core.Result{}, err
+		}
+		auth.Catalog = e.PrivateCatalogLocked(changes)
+		auth.Recapture(auth.Catalog)
+		// Attachment identifies the one prospective owner; Finish(error) still
+		// discards it. Neither the descriptor nor generator is recorded yet.
+		scope.Catalog = changes
+		if err = e.SepgsqlPostCreateSequenceLocked(scope, auth, changes, d); err != nil {
+			e.Mu.Unlock()
+			return core.Result{}, err
+		}
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				d.Sequence.Owned, err = ownedSequenceLocked(e, scope, &auth, changes, d, option.Owned)
@@ -149,22 +194,6 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 		changes.Generators[d.Address()] = sequence.InitialGenerator(*d.Sequence, restart, rev)
 		scope.Catalog = changes
 		e.Mu.Unlock()
-		if persistence != "temporary" {
-			if err := scope.AcquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
-				return core.Result{}, err
-			}
-			if err := acquireCatalogBinding(scope, auth.Catalog, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
-				if s.IfNotExists {
-					skipped, failure := scope.SkipConcurrentRelation(auth.Catalog, key, s.Name, err)
-					if skipped {
-						scope.Catalog = nil
-						return core.Result{}, nil
-					}
-					return core.Result{}, failure
-				}
-				return core.Result{}, err
-			}
-		}
 		scope.RecordDDLCommand("CREATE SEQUENCE", d.Address())
 		return core.Result{}, nil
 	case *parser.AlterSequence:
@@ -222,6 +251,9 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				return core.Result{}, err
 			}
 			if ownerTarget == old.Owner {
+				if err = auth.View.SepgsqlRelationPostAlter(old); err != nil {
+					return core.Result{}, err
+				}
 				if err = op.Context().Err(); err != nil {
 					return core.Result{}, err
 				}
@@ -331,6 +363,22 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 		if a, exists := auth.Catalog.LookupName(key); exists && a != d.Address() {
 			return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}
+		if old.Namespace() != d.Namespace() {
+			if err = auth.View.SepgsqlCheck(old.Namespace(), sepgsql.Permission("db_schema", "remove_name")); err != nil {
+				return core.Result{}, err
+			}
+			if err = auth.View.SepgsqlCheck(d.Namespace(), sepgsql.Permission("db_schema", "add_name")); err != nil {
+				return core.Result{}, err
+			}
+		}
+		if old.Name() != d.Name() {
+			if err = auth.View.SepgsqlCheck(old.Namespace(), sepgsql.Permission("db_schema", "remove_name")|sepgsql.Permission("db_schema", "add_name")); err != nil {
+				return core.Result{}, err
+			}
+		}
+		if err = auth.View.SepgsqlRelationPostAlter(&d); err != nil {
+			return core.Result{}, err
+		}
 		e.CatalogChangeLocked(changes, d.Address(), &d)
 		if effects.ReplaceGenerator {
 			changes.Generators[d.Address()] = sequence.ReplacementGenerator(*state, rev, restart)
@@ -412,13 +460,18 @@ func dropSequences(e *core.Engine, scope *core.StatementScope, s *parser.DropSeq
 		return core.Result{}, err
 	}
 	e.Mu.Unlock()
+	drop := core.StageDropProvider(scope.Op.Context(), checkStage, scope, changes, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(targets, s.Mode, ids.ObjectAddress{})
+	if err != nil {
+		return core.Result{}, err
+	}
 	for _, ref := range refs {
 		checkStage.MarkDrop(ref.Address, catalog.DropProvenance{Original: true})
 		if err := checkStage.Remove(ref); err != nil {
 			return core.Result{}, err
 		}
 	}
-	if err := scope.StageExpressionDependents(checkStage, targets, s.Mode, changes); err != nil {
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
 	if _, err := e.ValidateCatalogStage(scope.Op.Context(), checkStage); err != nil {

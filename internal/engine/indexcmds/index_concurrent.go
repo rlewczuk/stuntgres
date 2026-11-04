@@ -112,9 +112,14 @@ func publishConcurrentIndexRoot(e *core.Engine, scope *core.StatementScope, synt
 		e.Mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(scope.Op.Context()), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, &snapshot, stage.Indexes().Progress.Capture(address))
+		method, err := exec.InitializeIndexMethod(&evaluation, next.SQLIndex.MethodIdentity())
+		if err != nil {
+			e.DiscardCatalogStage(stage)
+			return 0, err
+		}
+		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, method, &snapshot, stage.Indexes().Progress.Capture(address))
 		if err == nil {
-			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, core.DisclosureEnv(&auth), first)
+			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, core.DisclosureEnv(&auth), first, evaluation.FunctionInput())
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)

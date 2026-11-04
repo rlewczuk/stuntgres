@@ -55,6 +55,9 @@ type DropDependencyReader interface {
 	// ExpressionDependencies drops or rejects what depends on roots on behalf
 	// of subject.
 	ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error
+	// ConstraintDependencies captures primary and late inherited backing-index
+	// owners before primary removal, retaining the original physical order.
+	ConstraintDependencies(constraint, backing ids.ObjectAddress, mode parser.DropMode) error
 	// ColumnDependencies preflights the full closure of the original live
 	// attribute. Its local AUTO payload and physical shape remain column-owned.
 	ColumnDependencies(target ids.ObjectAddress, mode parser.DropMode) error

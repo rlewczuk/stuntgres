@@ -10,7 +10,7 @@ import (
 // SSLInfoMember is one released zero-argument connection inquiry. Order is the
 // selected subset of sslinfo--1.2.sql, and is immutable installation authority.
 type SSLInfoMember struct {
-	Name string
+	Name   string
 	Result sqltype.ID
 }
 
@@ -26,7 +26,9 @@ var SSLInfoMembers = [...]SSLInfoMember{
 
 func SSLInfoLookup(name string) (SSLInfoMember, bool) {
 	for _, member := range SSLInfoMembers {
-		if member.Name == name { return member, true }
+		if member.Name == name {
+			return member, true
+		}
 	}
 	return SSLInfoMember{}, false
 }
@@ -47,14 +49,27 @@ func (n SSLInfo) Validate() error {
 }
 
 func (n SSLInfo) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := evaluationContext(ctx); err != nil { return sqltype.Value{}, err }
-	if err := n.Validate(); err != nil { return sqltype.Value{}, err }
-	if n.Usage.Type.ID() == sqltype.Bool { return sqltype.Boolean(n.Usage.Type, false), nil }
+	if _, err := evaluationContext(ctx); err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := n.Validate(); err != nil {
+		return sqltype.Value{}, err
+	}
+	body, err := n.EnterRoutine(ctx, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
+	if n.Usage.Type.ID() == sqltype.Bool {
+		return sqltype.Boolean(n.Usage.Type, false), nil
+	}
 	return sqltype.Null(n.Usage.Type), nil
 }
 
 func (n SSLInfo) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	value, err := n.Eval(ctx)
-	if err != nil { return expr.SourceCursor{}, err }
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
 	return expr.ScalarSource(value), nil
 }

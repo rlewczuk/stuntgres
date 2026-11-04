@@ -24,6 +24,7 @@ import (
 // the window phase observers. Input closures are NOT treated as output work.
 type timeLoopContext struct {
 	context.Context
+	caller       string
 	ancestor     string
 	observe      func(caller string, membership bool)
 	observeStack func(stack []runtime.Frame, membership bool)
@@ -31,20 +32,38 @@ type timeLoopContext struct {
 }
 
 func (c *timeLoopContext) Err() error {
+	if c.observe == nil && c.observeStack == nil {
+		return c.Context.Err()
+	}
 	var pcs [48]uintptr
-	n := runtime.Callers(2, pcs[:])
+	limit := len(pcs)
+	if c.caller != "" && c.ancestor == "" && c.observeStack == nil {
+		// Only sampleCheckpoint may precede the logical caller. This
+		// observer needs neither an ancestor nor a retained stack.
+		limit = 2
+	}
+	n := runtime.Callers(2, pcs[:limit])
 	frames := runtime.CallersFrames(pcs[:n])
 	caller, membership := "", false
 	// Reuse observer storage; Err samples must not allocate another frame array.
 	depth := 0
 	for {
 		frame, more := frames.Next()
+		if caller == "" && frame.Function != "stuntgres/internal/engine/exec.sampleCheckpoint" {
+			caller = frame.Function
+			if c.caller != "" && caller != c.caller {
+				// Do not symbolize unrelated input/support stacks inside the
+				// real scan budget. The checkpoint still returns the real error.
+				return c.Context.Err()
+			}
+			if c.caller != "" && c.ancestor == "" && c.observeStack == nil {
+				c.observe(caller, false)
+				return c.Context.Err()
+			}
+		}
 		if c.observeStack != nil && depth < len(c.stack) && frame.Function != "stuntgres/internal/engine/exec.sampleCheckpoint" {
 			c.stack[depth] = frame
 			depth++
-		}
-		if caller == "" && frame.Function != "stuntgres/internal/engine/exec.sampleCheckpoint" {
-			caller = frame.Function
 		}
 		if frame.Function == "stuntgres/internal/engine/exec.(*Context).subqueryHashMembership" || c.ancestor != "" && frame.Function == c.ancestor {
 			membership = true
@@ -105,7 +124,7 @@ func timeNewLoopFixture(t *testing.T, ctx context.Context, sql string) *timeLoop
 	plainLeaf.Sample = nil
 	plainProject.Child, plainProject.QuerySchema = &plainLeaf, f.leaf.Schema()
 	plainProject.Expressions = f.project.Expressions[:3]
-	f.inputRaw = &exec.Source{Ref: captured.Ref, Anonymous: f.rows}
+	f.inputRaw = &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: f.rows}
 	var err error
 	state := &exec.State{Source: f.inputRaw}
 	f.producer, err = exec.OpenNode(ctx, state, &plainProject)
@@ -121,9 +140,9 @@ func timeNewLoopFixture(t *testing.T, ctx context.Context, sql string) *timeLoop
 		}
 		return nil
 	}
-	f.input = &exec.Source{Ref: captured.Ref, NestedRoot: &plainProject, NestedInputs: f.inputRaw,
+	f.input = &exec.Source{View: captured.View, Ref: captured.Ref, NestedRoot: &plainProject, NestedInputs: f.inputRaw,
 		NestedStage: &f.producer, Materialized: true, FlatWidth: len(f.leaf.Schema())}
-	f.raw = &exec.Source{Ref: captured.Ref, Anonymous: f.rows}
+	f.raw = &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: f.rows}
 	t.Cleanup(f.input.Close)
 	return f
 }
@@ -312,7 +331,7 @@ func TestSystemTimeNestedSetDeadline(t *testing.T) {
 					synctest.Test(t, func(t *testing.T) {
 						base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
-						ctx := &timeLoopContext{Context: base}
+						ctx := &timeLoopContext{Context: base, caller: "stuntgres/internal/engine/exec.OpenSetNode"}
 						// Bound genuine SQL arm production before the observed output
 						// phase. QueryFixture's quartet is TRUE,NULL,FALSE,TRUE:
 						// INTERSECT ALL retains all four; EXCEPT ALL removes one TRUE.

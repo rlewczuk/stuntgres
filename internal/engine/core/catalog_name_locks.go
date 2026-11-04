@@ -51,7 +51,7 @@ func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode loc
 		}
 	}
 	claim := resource
-	if resource.Address.ClassID == ids.ReplicationOriginClassID || resource.Name.ClassID == ids.ReplicationOriginClassID || resource.Address.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
+	if resource.Address.ClassID == ids.DatabaseClassID || resource.Kind == lock.OrdinaryResource && resource.Address.ClassID == ids.TablespaceClassID || resource.Address.ClassID == ids.ReplicationOriginClassID || resource.Name.ClassID == ids.ReplicationOriginClassID || resource.Address.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
 		claim.ObjectRef = s.Engine().Cluster.RoleDomain.Ref(1, resource.Address)
 	}
 	if err := s.acquireTransactionResource(claim, mode); err != nil {

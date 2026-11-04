@@ -20,6 +20,7 @@ type CopyFromState struct {
 	Options     copyfmt.Options
 	Predicate   expr.Expr
 	InputChecks sqltype.DomainCheckEvaluator
+	InputIO     sqltype.TypeIOBoundary // Borrowed only for this synchronous COPY command.
 	Rejected    int64
 	pending     bool
 	Progress    *CopyProgress

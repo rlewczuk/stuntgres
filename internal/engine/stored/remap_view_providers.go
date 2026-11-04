@@ -422,6 +422,13 @@ func (m *ViewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 	if err != nil {
 		return nil, err
 	}
+	copy.Grouping = make([]plan.Grouping, len(old.Grouping))
+	for i := range copy.Grouping {
+		copy.Grouping[i], err = m.remapRecipeGrouping(old.Grouping[i], copy.Record.CompositeMember(i).Usage)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if m.referencesOnly {
 		return &copy, nil
 	}
@@ -437,13 +444,6 @@ func (m *ViewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 			}
 		}
 		copy.TypedConstants[i] = usage
-	}
-	copy.Grouping = make([]sqltype.Grouping, len(old.Grouping))
-	for i := range copy.Grouping {
-		copy.Grouping[i], err = sqltype.BindGrouping(copy.Record.CompositeMember(i).Usage)
-		if err != nil {
-			return nil, err
-		}
 	}
 	boolean, ok := m.Catalog.LookupType(sqltype.Bool)
 	if !ok {
@@ -465,10 +465,10 @@ func (m *ViewQueryRemapper) search(old *plan.SearchRecipe) (*plan.SearchRecipe, 
 		!old.Syntax.Breadth && (!sqltype.OccurrenceRecordArray(copy.Result) || copy.Result.Element() != copy.Record) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	copy.Grouping = make([]sqltype.Grouping, len(old.Grouping))
+	copy.Grouping = make([]plan.Grouping, len(old.Grouping))
 	for i := range copy.Grouping {
 		var err error
-		copy.Grouping[i], err = sqltype.BindGrouping(copy.Record.CompositeMember(i).Usage)
+		copy.Grouping[i], err = m.remapRecipeGrouping(old.Grouping[i], copy.Record.CompositeMember(i).Usage)
 		if err != nil {
 			return nil, err
 		}

@@ -12,69 +12,67 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// StageConstraintDrop stages one DROP CONSTRAINT action of an ALTER TABLE on
-// relation, a partition hierarchy member: each UNIQUE or EXCLUDE constraint
-// of that name with its partitioned index (42P16 when it is inherited), or,
-// when none matches, the NOT NULL check of table.NotNullCandidate. It returns
-// every removal staged in removals so far, sorted by object ID, as the roots
-// of the caller's expression-dependents pass.
-//
-// removals is the candidate that stage stages into. The caller holds nothing;
-// stage.RemoveRelation takes Engine.mu.
-func StageConstraintDrop(op *session.Operation, stage index.DropStage, removals *catalog.Candidate, relation *catalog.Relation, action parser.AlterTableAction) ([]ids.ObjectAddress, error) {
+// ConstraintDrop captures the original descendant-before-primary physical
+// order before the first backing index is removed.
+type ConstraintDrop struct {
+	children    []*index.ConstraintDropPlan
+	primary     []*catalog.Relation
+	constraints []ids.ObjectAddress
+	Roots       []ids.ObjectAddress
+	source      catalog.Read
+	consumed    bool
+}
+
+func PrepareConstraintDrop(op *session.Operation, stage index.DropStage, removals *catalog.Candidate, relation *catalog.Relation, action parser.AlterTableAction) (*ConstraintDrop, error) {
 	view := stage.StageRead()
 	current := view.MustRelation(relation.Address())
-	found := false
-	for _, c := range current.Constraints.Unique {
-		if c.Name != action.Constraint.Text {
-			continue
+	plan := &ConstraintDrop{source: view}
+	add := func(name string, oid, parent ids.OID, address ids.ObjectAddress) error {
+		if parent != 0 {
+			return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, name, relation.Name()))
 		}
-		found = true
-		if c.Parent != 0 {
-			return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, relation.Name()))
-		}
-		idx := view.MustRelation(c.Index)
+		idx := view.MustRelation(address)
 		if err := index.PartitionIndexDropDependency(view, idx); err != nil {
-			return nil, err
+			return err
 		}
-		if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
-			return nil, err
+		children, err := index.PreparePartitionConstraintDrop(view, view.Descriptors(), view.Get, oid)
+		if err != nil {
+			return err
 		}
-		if err := index.StagePartitionIndexDrop(stage, idx, index.ConstraintDrivenDrop); err != nil {
-			return nil, err
+		plan.children = append(plan.children, children)
+		plan.primary = append(plan.primary, idx)
+		plan.constraints = append(plan.constraints, ids.ObjectAddress{ClassID: 2606, ObjectID: oid})
+		for _, child := range children.Indexes {
+			plan.Roots = append(plan.Roots, child.Address())
 		}
-		stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Original: true})
+		plan.Roots = append(plan.Roots, address)
+		return nil
+	}
+	for _, c := range current.Constraints.Unique {
+		if c.Name == action.Constraint.Text {
+			if err := add(c.Name, c.OID, c.Parent, c.Index); err != nil {
+				return nil, err
+			}
+		}
 	}
 	for _, c := range current.Constraints.Exclusion {
-		if c.Name != action.Constraint.Text {
-			continue
+		if c.Name == action.Constraint.Text {
+			if err := add(c.Name, c.OID, c.Parent, c.Index); err != nil {
+				return nil, err
+			}
 		}
-		found = true
-		if c.Parent != 0 {
-			return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, relation.Name()))
-		}
-		idx := view.MustRelation(c.Index)
-		if err := index.PartitionIndexDropDependency(view, idx); err != nil {
-			return nil, err
-		}
-		if err := index.StagePartitionConstraintDrop(stage, c.OID); err != nil {
-			return nil, err
-		}
-		if err := index.StagePartitionIndexDrop(stage, idx, index.ConstraintDrivenDrop); err != nil {
-			return nil, err
-		}
-		stage.MarkDrop(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, catalog.DropProvenance{Original: true})
 	}
-	if !found {
+	if len(plan.primary) == 0 {
 		if _, err := table.NotNullCandidate(op, view, current, action, table.NotNullDirect); err != nil {
 			return nil, err
 		}
 	}
-	roots := make([]ids.ObjectAddress, 0, removals.RemovalCount())
 	for address := range removals.Removals() {
-		roots = append(roots, address)
+		if !slices.Contains(plan.Roots, address) {
+			plan.Roots = append(plan.Roots, address)
+		}
 	}
-	slices.SortFunc(roots, func(a, b ids.ObjectAddress) int {
+	slices.SortFunc(plan.Roots, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
 		}
@@ -83,5 +81,38 @@ func StageConstraintDrop(op *session.Operation, stage index.DropStage, removals 
 		}
 		return 0
 	})
-	return roots, nil
+	return plan, nil
+}
+
+func (plan *ConstraintDrop) Apply(stage index.DropStage) error {
+	if plan == nil || plan.consumed {
+		return ids.ErrCatalogReplaced
+	}
+	current := stage.StageRead()
+	if current.Owner() != plan.source.Owner() || current.Epoch() != plan.source.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	for _, idx := range plan.primary {
+		if current.Get(idx.Address()) != idx {
+			return ids.ErrCatalogReplaced
+		}
+	}
+	for _, children := range plan.children {
+		for _, idx := range children.Indexes {
+			if current.Get(idx.Address()) != idx {
+				return ids.ErrCatalogReplaced
+			}
+		}
+	}
+	plan.consumed = true
+	for i, idx := range plan.primary {
+		if err := plan.children[i].Apply(stage); err != nil {
+			return err
+		}
+		if err := index.StagePartitionIndexDrop(stage, idx, index.ConstraintDrivenDrop); err != nil {
+			return err
+		}
+		stage.MarkDrop(plan.constraints[i], catalog.DropProvenance{Original: true})
+	}
+	return nil
 }

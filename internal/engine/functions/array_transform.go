@@ -227,6 +227,11 @@ func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
+	body, err := e.Info.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	null := sqltype.ResultNull(e.Usage)
 	a := values[0]
 	switch e.Kind {

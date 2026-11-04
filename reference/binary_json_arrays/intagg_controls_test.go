@@ -211,8 +211,8 @@ func intaggRestoreFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c *
 		t.Fatal(err)
 	}
 	members, ok := record["members"].([]any)
-	if !ok || len(members) != 2 {
-		t.Fatal("two-member owner manifest", record)
+	if !ok || len(members) != 4 {
+		t.Fatal("four genuine member owner manifest", record)
 	}
 	mutate := func(key string, value any) string {
 		copy := make(map[string]any, len(record))
@@ -228,7 +228,7 @@ func intaggRestoreFailures(t *testing.T, p *fixture.Pair, b fixture.Backend, c *
 	}
 	for _, bad := range []string{
 		mutate("members", []any{}), mutate("version", "missing"), mutate("schema", "other_schema"),
-		mutate("members", []any{members[0], members[0]}),
+		mutate("members", []any{members[0], members[1], members[2], members[2]}),
 		dump + "\nSELECT missing_intagg_restore_column;",
 		"CREATE SCHEMA ia_addon; CREATE EXTENSION intagg SCHEMA ia_addon VERSION 'missing';",
 	} {

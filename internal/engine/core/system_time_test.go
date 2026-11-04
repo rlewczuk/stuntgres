@@ -2,8 +2,11 @@ package core_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -13,12 +16,13 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
 func TestSystemTimeLifecycle(t *testing.T) {
-	t.Run("rewind_argument_ownership",timeRewindOwnership)
-	t.Run("cleanup_failure",timeCleanupFailure)
+	t.Run("rewind_argument_ownership", timeRewindOwnership)
+	t.Run("cleanup_failure", timeCleanupFailure)
 	t.Run("stage_terminal_ownership", func(t *testing.T) {
 		for _, canceled := range []bool{false, true} {
 			e := engine.New()
@@ -41,7 +45,7 @@ func TestSystemTimeLifecycle(t *testing.T) {
 				}
 				return sqltype.Value{}, failure
 			})
-			bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
+			bridge := &exec.Source{View: input.View, Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
 			rows, count, err := exec.Finalize(ctx, project, bridge, nil)
 			cancel()
 			want := failure
@@ -161,10 +165,10 @@ func timeRewindOwnership(t *testing.T) {
 	inner := exec.Stage{
 		Source: input, Columns: project.Schema(), Expressions: project.Expressions,
 		Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
-		Finish: func() error { closes++; return nil },
-		Reset: func(context.Context, *exec.Stage) (bool, error) { return changed, nil },
+		Finish:     func() error { closes++; return nil },
+		Reset:      func(context.Context, *exec.Stage) (bool, error) { return changed, nil },
 	}
-	bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
+	bridge := &exec.Source{View: input.View, Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
 	stage, err := exec.OpenNode(context.Background(), &exec.State{Source: bridge}, &node)
 	if err != nil {
 		t.Fatal(err)
@@ -207,11 +211,225 @@ func timeCleanupFailure(t *testing.T) {
 	inner := exec.Stage{
 		Source: input, Columns: project.Schema(), Expressions: project.Expressions,
 		Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
-		Finish: func() error { closes++; return cleanup },
+		Finish:     func() error { closes++; return cleanup },
 	}
-	bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
+	bridge := &exec.Source{View: input.View, Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: len(project.Schema())}
 	rows, count, err := exec.Finalize(context.Background(), project, bridge, nil)
 	if rows != nil || count != 0 || !errors.Is(err, cleanup) || closes != 1 || inner.Source != nil || bridge.NestedStage != nil {
 		t.Fatal("unopposed cleanup failure lost or leaked child", rows, count, err, closes)
+	}
+}
+
+func TestSepgsqlSimulationTimeFactory(t *testing.T) {
+	t.Run("actual_factory_argument_errors_and_restore", func(t *testing.T) {
+		e := sepgsqlSupportEngine(t)
+		for _, query := range []string{
+			"CREATE EXTENSION tsm_system_time",
+			"CREATE TABLE sampled_time(v integer)",
+			"INSERT INTO sampled_time VALUES(1),(2)",
+			"SECURITY LABEL ON FUNCTION system_time(internal) IS 'S'",
+			"CREATE FUNCTION sample_millis() RETURNS double precision LANGUAGE sql VOLATILE AS $$SELECT CASE WHEN sepgsql_getcon()='R' THEN 'Infinity'::float8 ELSE -1::float8 END$$",
+		} {
+			enginetest.Run(t, e, query)
+		}
+		op, done := enginetest.RoleOperation(t, e, "postgres")
+		defer done()
+		enginetest.RoleExecute(t, e, op, "SELECT sepgsql_setcon('R')")
+		// S denies execute in this policy, but direct fmgr has no executor
+		// execute hook. Its returned duration method must run after restoration.
+		sepgsqlPhaseRows(t, e, op, "SELECT count(*) FROM sampled_time TABLESAMPLE system_time(sample_millis())", [][]driver.Value{{int64(2)}})
+		sepgsqlPhaseRows(t, e, op, "SELECT count(*) FROM sampled_time TABLESAMPLE system_time(0)", [][]driver.Value{{int64(0)}})
+		for _, invalid := range []struct{ argument, message string }{
+			{"NULL", "TABLESAMPLE parameter cannot be null"},
+			{"-1", "sample collection time must not be negative"},
+			{"'NaN'::float8", "sample collection time must not be negative"},
+		} {
+			enginetest.RoleError(t, e, op, "SELECT count(*) FROM sampled_time TABLESAMPLE system_time("+invalid.argument+")", "2202H", invalid.message, "")
+			sepgsqlPhaseRows(t, e, op, "SELECT sepgsql_getcon()", [][]driver.Value{{"R"}})
+		}
+		enginetest.RoleExecute(t, e, op, "SELECT sepgsql_setcon(NULL)")
+		enginetest.RoleExecute(t, e, op, "ALTER FUNCTION system_time(internal) RENAME TO sampled_time_method")
+		enginetest.RoleExecute(t, e, op, "SELECT sepgsql_setcon('R')")
+		sepgsqlPhaseRows(t, e, op, "SELECT count(*) FROM sampled_time TABLESAMPLE sampled_time_method(sample_millis())", [][]driver.Value{{int64(2)}})
+		enginetest.RoleExecute(t, e, op, "SELECT sepgsql_setcon(NULL)")
+		enginetest.RoleExecute(t, e, op, "SECURITY LABEL ON FUNCTION sampled_time_method(internal) IS 'U'")
+		enginetest.RoleExecute(t, e, op, "SELECT sepgsql_setcon('R')")
+		for _, argument := range []string{"NULL", "-1", "'Infinity'::float8"} {
+			enginetest.RoleError(t, e, op, "SELECT count(*) FROM sampled_time TABLESAMPLE sampled_time_method("+argument+")", "42501", "SELinux: security policy violation", "")
+			sepgsqlPhaseRows(t, e, op, "SELECT sepgsql_getcon()", [][]driver.Value{{"R"}})
+		}
+	})
+	t.Run("genuine_source_receipt_not_ambient_or_other_owner", func(t *testing.T) {
+		e := sepgsqlSupportEngine(t)
+		for _, query := range []string{
+			"CREATE EXTENSION tsm_system_time",
+			"CREATE TABLE sampled_time(v integer)",
+			"SECURITY LABEL ON FUNCTION system_time(internal) IS 'S'",
+		} {
+			enginetest.Run(t, e, query)
+		}
+		op, scope, project, evaluation := sepgsqlInitializationBinding(t, e, "SELECT v FROM sampled_time TABLESAMPLE system_time(0)")
+		op.Session.Sepgsql.Set("R")
+		source := project.Child.(*plan.SourceNode)
+		site := exec.DirectRoutineInitializationSite{Routine: source.Sample.Procedure, Reference: source.Sample.Handler, Purpose: exec.DirectSample, Source: source.Ref, Occurrence: uint32(source.Occurrence)}
+		if err := exec.BeginDirectRoutineInitialization(evaluation, site); err != nil {
+			t.Fatal(err)
+		}
+		token, err := evaluation.EnterInitializedDirectRoutine(site)
+		if err != nil || op.Session.Sepgsql.Current() != "T" {
+			t.Fatal("actual initialized factory did not enter trusted subject", err, op.Session.Sepgsql.Current())
+		}
+		token.Leave()
+		if op.Session.Sepgsql.Current() != "R" {
+			t.Fatal("factory token did not restore caller")
+		}
+		for _, field := range []string{"source", "occurrence", "purpose", "reference", "routine"} {
+			wrong := site
+			switch field {
+			case "source":
+				wrong.Source.Epoch++
+			case "occurrence":
+				wrong.Occurrence++
+			case "purpose":
+				wrong.Purpose = exec.DirectAccessMethod
+			case "reference":
+				wrong.Reference.Epoch++
+			case "routine":
+				copy := *wrong.Routine
+				copy.ObjectRevision++
+				wrong.Routine = &copy
+			}
+			if _, err := evaluation.EnterInitializedDirectRoutine(wrong); err == nil {
+				t.Fatal("foreign factory selection adopted receipt", field)
+			}
+		}
+		other, err := core.HostOf(scope).NewRoutineInitialization()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, owner := range []exec.RoutineInitialization{{}, other} {
+			copy := *evaluation
+			copy.RoutineInitialization = owner
+			if _, err := copy.EnterInitializedDirectRoutine(site); err == nil {
+				t.Fatal("missing or sibling owner adopted factory receipt")
+			}
+		}
+		copy := *evaluation
+		copy.Catalog = catalog.Read{}
+		if _, err := copy.EnterInitializedDirectRoutine(site); err == nil {
+			t.Fatal("missing source catalog adopted live scope")
+		}
+		scope.Finish(nil)
+		if _, err := evaluation.EnterInitializedDirectRoutine(site); err == nil {
+			t.Fatal("finished scope retained callable factory owner")
+		}
+	})
+}
+
+func TestSepgsqlSimulationTimeFactoryRescan(t *testing.T) {
+	e := sepgsqlSupportEngine(t)
+	for _, query := range []string{
+		"CREATE EXTENSION tsm_system_time",
+		"CREATE TABLE sampled_time(v integer)",
+		"INSERT INTO sampled_time VALUES(1),(2)",
+		"SECURITY LABEL ON FUNCTION system_time(internal) IS 'S'",
+	} {
+		enginetest.Run(t, e, query)
+	}
+	op, scope, project, evaluation := sepgsqlInitializationBinding(t, e, "SELECT v FROM sampled_time TABLESAMPLE system_time(0)",
+		"SET client_min_messages=log", "SET sepgsql.debug_audit=on", "SELECT sepgsql_setcon('R')")
+	if err := view.ValidateQueryJoinExecution(evaluation, project, evaluation.Catalog, 0); err != nil {
+		t.Fatal(err)
+	}
+	// Publish the genuine initializer and catalog on the captured source header
+	// before either the child stage or the sampling bridge retains evaluators.
+	source := sepgsqlInitializationSource(t, scope, evaluation, "sampled_time")
+	if err := exec.SelectQuerySources(op.Context(), source); err != nil {
+		t.Fatal(err)
+	}
+	exec.AdmitScan(project, source)
+	leaf := project.Child.(*plan.SourceNode)
+	plain := *leaf
+	plain.Sample = nil
+	state := &exec.State{Source: source, SourceMode: exec.SourceBorrowed, Retain: true, Input: scope.Input, Output: scope.Output}
+	inner, err := exec.OpenNode(op.Context(), state, &plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inner.Close()
+	changed := false
+	inner.Reset = func(context.Context, *exec.Stage) (bool, error) { return changed, nil }
+	bridge := &exec.Source{Ref: source.Ref, Authority: source.Authority, NestedRoot: project, NestedInputs: source, NestedStage: &inner, Materialized: true, FlatWidth: len(leaf.Schema())}
+	defer bridge.Close()
+	node, sample := *leaf, *leaf.Sample
+	node.Sample = &sample
+	argument, err := sqltype.Float(sample.Argument.ResultUsage().Type, math.Inf(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluations := 0
+	sample.Argument = enginetest.QueryProbe(sample.Argument.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+		evaluations++
+		if op.Session.Sepgsql.Current() != "R" {
+			t.Fatal("argument evaluation inherited factory trusted context")
+		}
+		return argument, nil
+	})
+	entries := func() int {
+		n := 0
+		for _, notice := range op.Notices {
+			if strings.Contains(notice.Message, "tcontext=S tclass=db_procedure") && strings.Contains(notice.Message, "entrypoint") {
+				n++
+			}
+		}
+		return n
+	}
+	before := entries()
+	factoryState := &exec.State{Source: bridge, Input: scope.Input, Output: scope.Output}
+	stage, err := exec.OpenNode(op.Context(), factoryState, &node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stage.Close()
+	if stage.Count() != 2 || evaluations != 1 || entries() != before+1 || factoryState.RoutineInitialization != evaluation.RoutineInitialization {
+		t.Fatal("real time factory did not produce duration table and rows", stage.Count(), evaluations, op.Notices)
+	}
+	initializations := scope.MarkSepgsqlObservations().Initializations
+	if fresh, err := stage.Rewind(op.Context()); fresh || err != nil || stage.Count() != 2 || evaluations != 1 || entries() != before+1 {
+		t.Fatal("unchanged scan repeated argument/factory", fresh, err, evaluations)
+	}
+	changed = true
+	argument, err = sqltype.Float(argument.Type(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh, err := stage.Rewind(op.Context()); !fresh || err != nil || stage.Count() != 0 || evaluations != 2 {
+		t.Fatal("retained duration method failed zero rescan", fresh, err, stage.Count(), evaluations)
+	}
+	argument, err = sqltype.Float(argument.Type(), math.Inf(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh, err := stage.Rewind(op.Context()); !fresh || err != nil || stage.Count() != 2 || evaluations != 3 {
+		t.Fatal("retained duration method failed full rescan", fresh, err, stage.Count(), evaluations)
+	}
+	if entries() != before+1 || scope.MarkSepgsqlObservations().Initializations != initializations ||
+		factoryState.RoutineInitialization != evaluation.RoutineInitialization || source.Authority.RoutineInitialization != evaluation.RoutineInitialization ||
+		op.Session.Sepgsql.Current() != "R" || node.Sample != &sample || leaf.Sample == &sample {
+		t.Fatal("rescan repeated factory or mutated accepted source", op.Notices)
+	}
+	if err := stage.Close(); err != nil {
+		t.Fatal("time rescan stage cleanup failed", err)
+	}
+	// OpenNode owns only the local stage. Unlike OpenQueryProjectStage, it
+	// does not attach the capture owner's completion to that stage's Close.
+	if err := factoryState.FinishSources(nil); err != nil {
+		t.Fatal("time rescan source completion failed", err)
+	}
+	bridge.Close()
+	if bridge.NestedStage != nil || bridge.NestedInputs != nil || bridge.NestedRoot != nil || bridge.Flat != nil || bridge.Authority != nil ||
+		source.View != nil || source.Authority != nil || inner.Source != nil || inner.Reset != nil ||
+		stage.Source != nil || stage.Reset != nil || stage.Finish != nil || stage.Selection != nil {
+		t.Fatal("time rescan retained borrowed graph")
 	}
 }

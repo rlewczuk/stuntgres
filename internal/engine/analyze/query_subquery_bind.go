@@ -2,8 +2,10 @@ package analyze
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -141,13 +143,37 @@ func (b *Binder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	if raw.Kind == parser.SubqueryAny && operator == sqltype.CompareEqual && !properties.RowDependent {
-		families := make([]sqltype.Grouping, width)
+		families := make([]plan.Grouping, width)
 		for i, comparison := range e.Comparisons {
-			families[i], err = comparison.Predicate.EqualityGrouping()
-			if err != nil {
+			kernel, failure := comparison.Predicate.EqualityGrouping()
+			if failure != nil {
 				families = nil
 				break
 			}
+			source := comparison.Info
+			source.Usage = comparison.Left.ResultUsage()
+			group := plan.Grouping{Source: source}
+			group.Routine, group.Procedure, group.PrivateTree, err = b.groupingRoutineReference(source.Usage)
+			if err != nil {
+				return nil, err
+			}
+			if selected, ok := comparison.RoutineReference.(*catalog.Procedure); ok {
+				group.Procedure = selected
+				group.Routine = b.BindingCatalog().Domain().Ref(b.BindingCatalog().Epoch(), selected.Address())
+				group.RoutineRecipe = comparison.RoutineRecipeReference
+			}
+			kernel, err = b.captureGroupingCallbacks(kernel, source.Usage, source)
+			if err != nil {
+				return nil, err
+			}
+			if p, ok := comparison.RoutineReference.(*catalog.Procedure); ok && !source.Usage.Type.BaseType().IsArray() && !routine.FmgrBuiltin(p) && b.BindingCatalog().Owner().Sepgsql != nil {
+				kernel, err = kernel.WithEqualityCallback(catalog.GroupingRoutineCallback{Type: source.Usage.Type, Procedure: p, Reference: group.Routine, Occurrence: source.Occurrence, ExpressionSource: source.Source})
+				if err != nil {
+					return nil, err
+				}
+			}
+			group.Grouping = kernel
+			families[i] = group
 		}
 		e.Membership = families
 	}

@@ -16,8 +16,8 @@ import (
 type Host interface {
 	table.Host
 
-	// RemoveObject stages the removal of ref.
-	RemoveObject(ref ids.ObjectRef, namespace bool) error
+	// SelectDropRoot validates and selects a DROP root without retiring it.
+	SelectDropRoot(ref ids.ObjectRef, namespace bool) error
 	// ResolveRelation resolves a relation named by a utility statement:
 	// a missing schema is 3F000 and no diagnostic carries a position.
 	ResolveRelation(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)

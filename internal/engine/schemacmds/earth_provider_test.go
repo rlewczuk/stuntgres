@@ -138,6 +138,24 @@ func TestEarthDomainExpression(t *testing.T) {
 	if _, err := (stored.ScalarRenderer{DomainValue: &foreignUsage}).SQL(context.Background(), view, bad); err == nil {
 		t.Fatal("foreign generation admitted")
 	}
+	surface := d.DomainChecks[2].Expression.(plan.EarthCheckExpr)
+	if !surface.Valid() || !surface.Origin.Value.IsEarthCubeOrigin(base.Type) {
+		t.Fatal("surface CHECK lost its actual same-generation origin")
+	}
+	for _, snapshot := range []*sqltype.Descriptor{base.Type, foreign} {
+		for _, text := range []string{"(0)", "(1)"} {
+			origin, err := snapshot.Input(context.Background(), text, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bad := surface
+			bad.Origin = plan.LiteralExpr{Info: expr.Info{Usage: snapshot.Usage()}, Value: origin}
+			_, err = (stored.ScalarRenderer{DomainValue: &base}).SQL(context.Background(), view, bad)
+			if (snapshot == base.Type && text == "(0)") != (err == nil) {
+				t.Fatal("surface CHECK origin source authority", snapshot == base.Type, text, err)
+			}
+		}
+	}
 	for _, replacement := range []*sqltype.Descriptor{foreign, nil} {
 		_, _, err := stored.RetagTypes(view, n, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 			if typ == base.Type {
@@ -238,6 +256,12 @@ func TestEarthProviderControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	earthCheckDependencyWitness(t, target.CatalogRead(), imported)
+	surface := imported.DomainChecks[2].Expression.(plan.EarthCheckExpr)
+	if !surface.Origin.Value.IsEarthCubeOrigin(imported.SQLType.DomainBase().Type) ||
+		surface.Origin.Value.Type() == base ||
+		!d.DomainChecks[2].Expression.(plan.EarthCheckExpr).Origin.Value.IsEarthCubeOrigin(base) {
+		t.Fatal("replacement did not independently reown the actual CHECK origin")
+	}
 	mapped, err := typedef.ReownDomainDatum(v, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{d.SQLType: imported.SQLType, base: imported.SQLType.DomainBase().Type}, nil)
 	if err != nil {
 		t.Fatal(err)

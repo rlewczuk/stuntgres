@@ -52,6 +52,7 @@ const (
 	Notifications
 	AdvisorySession
 	ExternalSQL
+	SepgsqlSecurity
 	resourceKinds
 )
 
@@ -68,9 +69,10 @@ type SessionResource interface {
 	EndSession(ids.SessionToken, EndReason) error
 }
 type SessionStart struct {
-	ID            ids.SessionID
-	Defaults      settings.SessionDefaultProvider
-	NoticeHandler func(sqlstate.Error) // Startup delivery, outside all runtime locks.
+	ID             ids.SessionID
+	Defaults       settings.SessionDefaultProvider
+	NoticeHandler  func(sqlstate.Error) // Startup delivery, outside all runtime locks.
+	SepgsqlContext string
 }
 type State uint8
 
@@ -111,6 +113,7 @@ type Session struct {
 	Transactions           *TransactionOwner
 	Advisory               sessionAdvisory
 	Authorization          *AuthorizationState
+	Sepgsql                *SepgsqlSubject
 	DiscardPlansGeneration uint64 // serialized by physical-owner statement admission
 	TemporaryNamespace     ids.ObjectAddress
 	Random                 RandomState
@@ -133,6 +136,8 @@ type Operation struct {
 	Released                 bool
 	private                  bool
 	Notices                  []sqlstate.Error
+	sepgsqlAudit             []sepgsqlAuditDelivery
+	SepgsqlDebug             bool // Captured before authorization takes Session.Mu.
 	NoticeThreshold          NoticeLevel
 	TimerCancel              context.CancelFunc
 	LockTimeout              time.Duration
@@ -250,6 +255,7 @@ func (op *Operation) Done() {
 	if op == nil || op.Self != op || op.Session == nil {
 		return
 	}
+	defer op.deliverSepgsqlAudit()
 	s := op.Session
 	s.Mu.Lock()
 	defer s.Mu.Unlock()

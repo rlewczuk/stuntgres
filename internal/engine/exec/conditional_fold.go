@@ -15,7 +15,7 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 	if hook, ok := node.(expr.StrictFolding); ok {
 		strict = hook.StrictNull()
 	}
-	if strict == expr.StrictBefore && anyRandomLiteralNull(node.Children()) {
+	if strict == expr.StrictBefore && anyRandomLiteralNull(node.Children()) && !sepgsqlPlanningSensitive(c, node) {
 		return strictNullLiteral(node, strict), true, true, nil
 	}
 	call, sqlCall := node.(plan.SQLRoutineExpr)
@@ -40,7 +40,7 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 	if folded, did, handled, err := foldRandomNullInputs(c, next); handled {
 		return folded, changed || did, true, err
 	}
-	if (strict == expr.StrictAfter || strict == expr.StrictAfterBare) && anyRandomLiteralNull(next.(expr.Composite).Children()) {
+	if (strict == expr.StrictAfter || strict == expr.StrictAfterBare) && anyRandomLiteralNull(next.(expr.Composite).Children()) && !sepgsqlPlanningSensitive(c, next) {
 		return strictNullLiteral(node, strict), true, true, nil
 	}
 	switch planningFold(node) {

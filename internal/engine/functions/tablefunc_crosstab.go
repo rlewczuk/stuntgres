@@ -116,6 +116,13 @@ func (n TablefuncCrosstab) OpenSource(ctx expr.Context) (expr.SourceCursor, erro
 	if null {
 		return expr.OwnedSource(n.Usage.Type, nil), nil
 	}
+	if n.RoutineReference != nil {
+		body, err := ctx.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, expr.RoutineBodyInputs{Count: len(n.Args), First: n.Args[0].ResultUsage().Type, Occurrence: n.Occurrence, Source: n.Source})
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		defer body.Leave()
+	}
 	if n.Usage.Type == nil || !n.Usage.Type.IsComposite() {
 		return expr.SourceCursor{}, expr.ErrorAt("0A000", "function returning record called in context that cannot accept type record", parser.Position{})
 	}

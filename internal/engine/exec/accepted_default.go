@@ -184,7 +184,7 @@ type defaultActivation struct {
 	active   bool
 }
 
-func (a *AcceptedDefault) activate(c *Context, root *acceptedDefaultRoot) (*defaultActivation, error) {
+func (a *AcceptedDefault) activate(c *Context, root *acceptedDefaultRoot, initialize bool) (*defaultActivation, error) {
 	if !a.Valid() || root != a.root || root.self != root || c.AcceptedDefault != a || c.DefaultOccurrence != a.occurrence || c.RoutineConsumer != a.relation || c.FoldOrigin.Owner != a.ref || c.FoldOrigin.Attribute != a.attribute || c.FoldOrigin.Definition != a.definition.OID {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -201,6 +201,19 @@ func (a *AcceptedDefault) activate(c *Context, root *acceptedDefaultRoot) (*defa
 	if err := preparation.AcceptedDefaultSource(auth.Catalog, a); err != nil {
 		return nil, err
 	}
+	if owner := c.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+		host := c.LiveHost()
+		if host == nil {
+			return nil, ids.ErrCatalogReplaced
+		}
+		child, failure := host.DefaultRoutineInitialization(DefaultInitializationSource{Parent: c.RoutineInitialization, Artifact: a, Occurrence: c.DefaultOccurrence}, initialize)
+		if failure != nil {
+			return nil, failure
+		}
+		c.RoutineInitialization = child
+		c.InitializationPhase = AcceptedDefaultInitialization
+	}
+	c.ClearNativeBodySource()
 	return &defaultActivation{artifact: a, host: c.sqlRoutineInvocationHost(), context: c.Context, active: true}, nil
 }
 
@@ -300,7 +313,7 @@ func (n *acceptedDefaultRoot) Eval(context expr.Context) (sqltype.Value, error) 
 		return sqltype.Value{}, ids.ErrCatalogReplaced
 	}
 	local := *c
-	activation, err := n.artifact.activate(&local, n)
+	activation, err := n.artifact.activate(&local, n, false)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -364,7 +377,7 @@ func (n *acceptedDefaultCall) Eval(context expr.Context) (sqltype.Value, error) 
 
 func preflightAcceptedDefault(c *Context, root *acceptedDefaultRoot, decisive bool) (expr.Expr, bool, error) {
 	local := *c
-	activation, err := root.artifact.activate(&local, root)
+	activation, err := root.artifact.activate(&local, root, true)
 	if err != nil {
 		return nil, false, err
 	}
@@ -386,7 +399,7 @@ func AdmitAcceptedDefault(c *Context, node expr.Expr, visit func(*Context, expr.
 	switch n := node.(type) {
 	case *acceptedDefaultRoot:
 		local := *c
-		activation, err := n.artifact.activate(&local, n)
+		activation, err := n.artifact.activate(&local, n, true)
 		if err != nil {
 			return true, err
 		}

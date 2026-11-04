@@ -1,7 +1,6 @@
 package contrib
 
 import (
-	"errors"
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -16,7 +15,14 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func pgFreespaceAuthority[A Authority](auth A, n plan.InstalledPgFreespaceExpr) error {
+type pgFreespacePurpose uint8
+
+const (
+	pgFreespaceScalarProbe pgFreespacePurpose = iota
+	pgFreespaceWrapperExtent
+)
+
+func pgFreespaceAuthority[A Authority](auth A, n plan.InstalledPgFreespaceExpr, purpose pgFreespacePurpose) error {
 	view := auth.Access()
 	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != view.Catalog.Owner().Domain || n.Ref.Epoch != view.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
@@ -33,44 +39,29 @@ func pgFreespaceAuthority[A Authority](auth A, n plan.InstalledPgFreespaceExpr) 
 	if err := extension.ValidatePgFreespaceCall(view.Catalog, current, call); err != nil {
 		return err
 	}
+	if purpose == pgFreespaceScalarProbe && !n.Kind.Block() || purpose == pgFreespaceWrapperExtent && !n.Kind.Set() {
+		return fmt.Errorf("stuntgres: invalid pg_freespace capture purpose")
+	}
 	if err := auth.Check(access.Requirement{Object: view.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
 		return err
 	}
-	if err := auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true}); err != nil {
 		return err
 	}
-	if !n.Kind.Set() {
-		return nil
-	}
-	scalar, err := extension.PgFreespaceScalar(view.Catalog, current)
-	if err != nil {
-		return err
-	}
-	err = auth.Check(access.Requirement{Object: view.Ref(scalar.Address()), Privileges: authorization.ExecutePrivilege})
-	if err != nil {
-		return exec.SQLRoutineStatementContext(err, current.Name(), 1)
-	}
-	return err
-}
-
-// ValidatePgFreespace admits the preserved SQL-body call even when its
-// parameter is NULL and the wrapper produces no relation pages.
-func ValidatePgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr) error {
-	if err := h.Active(); err != nil {
-		return err
-	}
-	h.ReacquireEngine()
-	defer h.ReleaseEngineLocked()
-	auth, err := h.RoutineAuthorizationLocked()
-	if err != nil {
-		return err
-	}
-	return pgFreespaceAuthority(auth, n)
+	return nil
 }
 
 // PgFreespaceTargetCheckable dispatches genuine descriptor kinds, before block
 // bounds. Unlike visibility inquiries this operation reads no foreign buffers.
 func PgFreespaceTargetCheckable(v catalog.Read, target *catalog.Relation) error {
+	label, err := pgFreespaceStorageKind(v, target)
+	if err != nil || label == "" {
+		return err
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("relation %q does not have storage", target.Name()), Detail: "This operation is not supported for " + label + "."}
+}
+
+func pgFreespaceStorageKind(v catalog.Read, target *catalog.Relation) (string, error) {
 	label := ""
 	if target.RelationKind == catalog.CatalogRelation && target.CatalogView {
 		label = "views"
@@ -79,7 +70,7 @@ func PgFreespaceTargetCheckable(v catalog.Read, target *catalog.Relation) error 
 		case catalog.TableRelation, catalog.MaterializedViewRelation, catalog.CatalogRelation, catalog.SequenceRelation:
 		case catalog.IndexRelation:
 			if target.SQLIndex == nil {
-				return ids.ErrCatalogReplaced
+				return "", ids.ErrCatalogReplaced
 			}
 			if parent, ok := v.Relation(target.SQLIndex.Parent); ok && parent.Partition != nil {
 				label = "partitioned indexes"
@@ -94,35 +85,59 @@ func PgFreespaceTargetCheckable(v catalog.Read, target *catalog.Relation) error 
 			label = "composite types"
 		}
 	}
-	if label == "" {
-		return nil
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("relation %q does not have storage", target.Name()), Detail: "This operation is not supported for " + label + "."}
+	return label, nil
 }
 
 // PgFreespace captures only the caller's visible population, never the physical
 // statistics owner cohort. Entry and exit are unlocked; owner precedes Engine
 // when borrowing a view. Sizing and producer iteration run outside both locks.
 func PgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error) {
+	layout, _, err := capturePgFreespace(h, n, oid, block, pgFreespaceScalarProbe)
+	return layout, err
+}
+
+// PgFreespaceExtent borrows the same logical layout for the entered SQL
+// wrapper's relation-size child. It is not a scalar C2 invocation or admission.
+func PgFreespaceExtent[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid uint32) (storage.FreespaceLayout, bool, error) {
+	return capturePgFreespace(h, n, oid, 0, pgFreespaceWrapperExtent)
+}
+
+func capturePgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid uint32, block int64, purpose pgFreespacePurpose) (storage.FreespaceLayout, bool, error) {
 	if err := h.Active(); err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	h.ReacquireEngine()
 	auth, err := h.RoutineAuthorizationLocked()
 	if err == nil {
-		err = pgFreespaceAuthority(auth, n)
+		err = pgFreespaceAuthority(auth, n, purpose)
 	}
 	var target, parent *catalog.Relation
 	var store *storage.Relation
 	var generator *storage.SequenceGenerator
 	if err == nil {
-		// The released SQL wrapper's size function returns NULL for absent OIDs.
-		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
-		if _, ok := auth.Access().Catalog.Relation(address); !ok && n.Kind.Set() {
-			h.ReleaseEngineLocked()
-			return storage.FreespaceLayout{}, nil
+		if purpose == pgFreespaceWrapperExtent {
+			view := auth.Access().Catalog
+			var found bool
+			target, found = view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+			if !found {
+				h.ReleaseEngineLocked()
+				return storage.FreespaceLayout{}, false, h.Operation().Context().Err()
+			}
+			var kind string
+			kind, err = pgFreespaceStorageKind(view, target)
+			if err == nil && kind != "" {
+				h.ReleaseEngineLocked()
+				return storage.FreespaceLayout{}, true, h.Operation().Context().Err()
+			}
+			if err == nil && target.SQLIndex != nil {
+				parent, found = view.Relation(target.SQLIndex.Parent)
+				if !found {
+					err = ids.ErrCatalogReplaced
+				}
+			}
+		} else {
+			target, parent, err = amcheckTargetIdentity(auth.Access().Catalog, oid)
 		}
-		target, parent, err = amcheckTargetIdentity(auth.Access().Catalog, oid)
 	}
 	address := ids.ObjectAddress{}
 	if err == nil {
@@ -138,42 +153,34 @@ func PgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid ui
 	epoch := h.CatalogEpochLocked()
 	h.ReleaseEngineLocked()
 	if err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	ref := h.CatalogDomain().Ref(epoch, target.Address())
 	var contribution lock.RelationContribution
 	defer h.LockManager().ReleaseRelation(&contribution)
 	if err := h.AcquireRelationContribution(ref, lock.AccessShare, &contribution); err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	h.ReacquireOwnerEngine()
 	auth, err = h.RoutineAuthorizationLocked()
 	if err == nil {
-		err = pgFreespaceAuthority(auth, n)
+		err = pgFreespaceAuthority(auth, n, purpose)
 	}
 	valid := err == nil && auth.Access().Catalog.Epoch() == epoch && auth.Access().Catalog.Get(target.Address()) == target && h.PrivateStorageLocked(address) == store && (parent == nil || auth.Access().Catalog.Get(parent.Address()) == parent)
 	if err == nil && !valid {
 		err = ids.ErrCatalogReplaced
 	}
-	noStorage := false
 	if err == nil {
 		h.MarkTemporaryTargetLocked(ref)
-		if kindErr := PgFreespaceTargetCheckable(auth.Access().Catalog, target); kindErr != nil {
-			var diagnostic *sqlstate.Error
-			if n.Kind.Set() && errors.As(kindErr, &diagnostic) && diagnostic.Code == "42809" {
-				noStorage = true
-			} else {
-				err = kindErr
-			}
-		}
+		err = PgFreespaceTargetCheckable(auth.Access().Catalog, target)
 	}
-	if err == nil && n.Kind.Block() && (block < 0 || block > 4294967294) {
+	if err == nil && purpose == pgFreespaceScalarProbe && (block < 0 || block > 4294967294) {
 		err = sqlError("22023", "invalid block number")
 	}
 	var view *visibility.View
 	local := false
 	var allocation storage.Allocation
-	if err == nil && !noStorage {
+	if err == nil {
 		switch {
 		case target.Sequence != nil:
 			if generator == nil || h.SequenceGeneratorLocked(target.Address()) != generator {
@@ -199,12 +206,11 @@ func PgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid ui
 		defer view.Release()
 	}
 	if err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	var result storage.FreespaceLayout
 	ctx := h.Operation().Context()
 	switch {
-	case noStorage:
 	case target.Sequence != nil:
 		result, err = storage.FreespacePayload(ctx, 52)
 	case target.SQLIndex != nil:
@@ -252,12 +258,12 @@ func PgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid ui
 		}
 	}
 	if err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	h.ReacquireEngine()
 	auth, err = h.RoutineAuthorizationLocked()
 	if err == nil {
-		err = pgFreespaceAuthority(auth, n)
+		err = pgFreespaceAuthority(auth, n, purpose)
 	}
 	valid = err == nil && h.CatalogEpochLocked() == epoch && auth.Access().Catalog.Get(target.Address()) == target && h.PrivateStorageLocked(address) == store && (parent == nil || auth.Access().Catalog.Get(parent.Address()) == parent)
 	if target.Sequence != nil {
@@ -265,13 +271,13 @@ func PgFreespace[A Authority](h Host[A], n plan.InstalledPgFreespaceExpr, oid ui
 	}
 	h.ReleaseEngineLocked()
 	if err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
 	if !valid {
-		return storage.FreespaceLayout{}, ids.ErrCatalogReplaced
+		return storage.FreespaceLayout{}, false, ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
-		return storage.FreespaceLayout{}, err
+		return storage.FreespaceLayout{}, false, err
 	}
-	return result, nil
+	return result, true, nil
 }

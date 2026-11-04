@@ -13,22 +13,11 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 func domainRestrictError(stage *core.CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
 	return view.RestrictError(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, edges, originalRootCount, subject)
-}
-
-func stageDomainDependents(scope *core.StatementScope, stage *core.CatalogStage, mode parser.DropMode) error {
-	start := len(stage.DropCascadeNames)
-	if err := scope.StageExpressionDependents(stage, stage.DomainTargets, mode, nil); err != nil {
-		return err
-	}
-	stage.SchemaCascadeNames = append(stage.SchemaCascadeNames, stage.DropCascadeNames[start:]...)
-	stage.DropCascadeNames = stage.DropCascadeNames[:start]
-	return nil
 }
 
 func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
@@ -42,7 +31,7 @@ func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.A
 		if extension, ok := d.(*catalog.Extension); ok {
 			for _, member := range extension.Members {
 				stage.DomainTargets = append(stage.DomainTargets, member)
-				if err := stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), member), false); err != nil {
+				if err := stage.SelectDropRoot(e.Catalog.Domain.Ref(stage.Base.Epoch(), member), false); err != nil {
 					return err
 				}
 			}
@@ -53,7 +42,7 @@ func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.A
 	stage.DependencyPath, _ = core.ReferencePath(auth)
 	for _, d := range contained {
 		stage.MarkDrop(d.Address(), catalog.DropProvenance{Normal: true})
-		if err := stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
+		if err := stage.SelectDropRoot(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 	}
@@ -102,7 +91,7 @@ func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.A
 	}
 	for _, d := range schemas {
 		stage.MarkDrop(d.Address(), catalog.DropProvenance{Original: true})
-		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), true); err != nil {
+		if err = stage.SelectDropRoot(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), true); err != nil {
 			return err
 		}
 	}

@@ -870,6 +870,20 @@ func (d *Descriptor) Input(ctx context.Context, text string, typmod int32) (Valu
 }
 
 func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typmod int32, env InputEnvironment) (Value, error) {
+	return d.inputWithPurpose(ctx, text, typmod, env, implicitTypeIO)
+}
+
+// InputEnteredTypeIO executes the same kernel for an authenticated explicit
+// input routine whose actual body has already been entered by its SQL owner.
+// Only this exact installed scalar leaf is suppressed, never child codecs.
+func (d *Descriptor) InputEnteredTypeIO(ctx context.Context, text string, typmod int32, env InputEnvironment) (Value, error) {
+	if !d.HasInstalledScalarIO() {
+		return Value{}, fmt.Errorf("stuntgres: entered type input requires an exact installed scalar leaf")
+	}
+	return d.inputWithPurpose(ctx, text, typmod, env, enteredTypeIOLeaf)
+}
+
+func (d *Descriptor) inputWithPurpose(ctx context.Context, text string, typmod int32, env InputEnvironment, purpose typeIOPurpose) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -895,11 +909,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
-	if d.IsIntbigGkey() {
-		return Value{}, failure("0A000", "cannot accept a value of type intbig_gkey")
-	}
 	if env.ExactSnapshot && typmod >= 0 {
-		value, err := d.InputWithEnvironment(ctx, text, -1, env)
+		value, err := d.inputWithPurpose(ctx, text, -1, env, purpose)
 		if err != nil {
 			return Value{}, err
 		}
@@ -910,6 +921,16 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			return Value{}, err
 		}
 		return plan.Apply(ctx, value, env, OutputEnvironment{})
+	}
+	if purpose != enteredTypeIOLeaf && env.TypeIO != nil && d.HasInstalledScalarIO() {
+		body, err := env.TypeIO.EnterTypeIO(ctx, d, TypeIOInput)
+		if err != nil {
+			return Value{}, err
+		}
+		defer body.Leave()
+	}
+	if d.IsIntbigGkey() {
+		return Value{}, failure("0A000", "cannot accept a value of type intbig_gkey")
 	}
 	if d.IsCatalogVector() {
 		if err := ValidateTextInput(text); err != nil {
@@ -1281,11 +1302,32 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 }
 
 func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env OutputEnvironment) (string, error) {
+	return d.outputWithPurpose(ctx, v, env, implicitTypeIO)
+}
+
+// OutputEnteredTypeIO is the output counterpart of InputEnteredTypeIO. The
+// explicit routine owner, not a recursive array/domain/composite wrapper, owns
+// the already-entered leaf.
+func (d *Descriptor) OutputEnteredTypeIO(ctx context.Context, v Value, env OutputEnvironment) (string, error) {
+	if !d.HasInstalledScalarIO() {
+		return "", fmt.Errorf("stuntgres: entered type output requires an exact installed scalar leaf")
+	}
+	return d.outputWithPurpose(ctx, v, env, enteredTypeIOLeaf)
+}
+
+func (d *Descriptor) outputWithPurpose(ctx context.Context, v Value, env OutputEnvironment, purpose typeIOPurpose) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if d == nil || v.typ != d || v.null {
 		return "", fmt.Errorf("invalid output value")
+	}
+	if purpose != enteredTypeIOLeaf && env.TypeIO != nil && d.HasInstalledScalarIO() {
+		body, err := env.TypeIO.EnterTypeIO(ctx, d, TypeIOOutput)
+		if err != nil {
+			return "", err
+		}
+		defer body.Leave()
 	}
 	if d.id == 2277 && d.Usage().CatalogNullUsage() {
 		return v.statisticArrayOutput(ctx, env)
@@ -2501,6 +2543,78 @@ func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass 
 // Occurrence records and bounded vector sorting have no physical index opclass.
 func (p Comparison) OrderingBound() bool { return p.orderingBound }
 
+// VisitIndexSupports visits only callbacks retained by this comparison graph.
+// It is metadata-only; initialization never invokes an unused support member.
+func (p Comparison) VisitIndexSupports(visit func(IndexSupport, uint16) error) error {
+	if p.orderingSupport.Member != 0 {
+		if err := visit(p.orderingSupport, 1); err != nil {
+			return err
+		}
+	}
+	if p.element != nil {
+		if err := p.element.VisitIndexSupports(visit); err != nil {
+			return err
+		}
+	}
+	if p.composite != nil {
+		for _, field := range p.composite.fields {
+			if field.err == nil && !field.typeMismatch {
+				if err := field.operands.VisitIndexSupports(visit); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if p.left != nil {
+		if r := p.left.BaseType().RangeType(); r != nil && r.customRange != nil {
+			if support := r.customRange.Ordering.Support(); support.Member != 0 {
+				if err := visit(support, 1); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// CaptureIndexSupports maps only executable ordering leaves. Containers keep
+// their native wrapper and borrow each selected child at the actual comparison.
+func (p Comparison) CaptureIndexSupports(selectSupport func(Usage) (IndexSupport, error)) (Comparison, error) {
+	if p.element != nil {
+		element, err := p.element.CaptureIndexSupports(selectSupport)
+		if err != nil {
+			return Comparison{}, err
+		}
+		p.element = &element
+	} else if p.composite != nil {
+		copy := *p.composite
+		copy.fields = append([]compositeFieldComparison(nil), copy.fields...)
+		for i, field := range copy.fields {
+			if field.err != nil || field.typeMismatch {
+				continue
+			}
+			child, err := field.operands.CaptureIndexSupports(selectSupport)
+			if err != nil {
+				return Comparison{}, err
+			}
+			copy.fields[i].operands = child
+		}
+		p.composite = &copy
+	} else if p.left == p.right && !p.missingOrdering && p.left != nil {
+		base := p.left.BaseType()
+		if base.IsCube() || base.IsHstore() || base.IsLtree() || base.IsISN() {
+			usage := p.left.Usage()
+			usage.Collation = p.inputCollation
+			support, err := selectSupport(usage)
+			if err != nil {
+				return Comparison{}, err
+			}
+			p.orderingSupport = support
+		}
+	}
+	return p, nil
+}
+
 // OrderingFor checks exact operand-generation and collation ownership before
 // transporting a captured ordering; a type capability alone is insufficient.
 func (p Comparison) OrderingFor(u Usage) bool {
@@ -2689,6 +2803,13 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	if err := p.demandOrdering(input); err != nil {
 		return 0, err
 	}
+	if p.orderingSupport.Member != 0 {
+		body, err := enterIndexSupport(input, p.orderingSupport, 1)
+		if err != nil {
+			return 0, err
+		}
+		defer body.Leave()
+	}
 	if p.element != nil {
 		return p.compareArrays(ctx, a, b, input)
 	}
@@ -2731,13 +2852,13 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return compareCube(a.cube, b.cube), nil
 	}
 	if p.left.IsRange() {
-		return p.left.compareRangeValues(ctx, a.rangeDatum, b.rangeDatum)
+		return p.left.compareRangeValues(ctx, a.rangeDatum, b.rangeDatum, input)
 	}
 	if p.left.IsMultirange() {
 		if a.multirange == nil || b.multirange == nil {
 			return 0, fmt.Errorf("missing multirange comparison payload")
 		}
-		return p.left.multirangeRange.compareMultirangeValues(ctx, a.multirange.members, b.multirange.members)
+		return p.left.multirangeRange.compareMultirangeValues(ctx, a.multirange.members, b.multirange.members, input)
 	}
 	if p.left.IsEnum() {
 		if _, err := p.left.enumOutput(a); err != nil {

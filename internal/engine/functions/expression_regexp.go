@@ -38,6 +38,11 @@ func (e Regexp) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	value, err := e.Plan.Evaluate(c.FunctionContext(), values, c.FunctionRegexExecution())
 	return value, e.citextError(c, err)
 }
@@ -52,6 +57,11 @@ func (e RegexpSet) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return nil, err
+	}
+	defer body.Leave()
 	valuesOut, err := e.Plan.EvaluateSet(c.FunctionContext(), values, c.FunctionRegexExecution())
 	return valuesOut, e.citextError(c, err)
 }
@@ -219,7 +229,7 @@ func (call RegexpCall) IntrinsicVolatility() expr.Volatility { return expr.Immut
 
 func (e RegexpSet) PlanningFold() expr.Fold { return expr.FoldNever }
 
-func (e Regexp) ValidateStoredProvider() error { return e.validateCitext() }
+func (e Regexp) ValidateStoredProvider() error    { return e.validateCitext() }
 func (e RegexpSet) ValidateStoredProvider() error { return e.validateCitext() }
 
 // retag recomputes the input collation from the retagged arguments. It runs
@@ -233,7 +243,9 @@ func (call RegexpCall) retag(info expr.Info, children []expr.Expr, env expr.Reta
 		capture := *call.Citext
 		capture.Text.Type = env.Type(capture.Text.Type)
 		capture.Text.Collation, err = env.Collation(capture.Text.Collation)
-		if err != nil { return call, err }
+		if err != nil {
+			return call, err
+		}
 		call.Citext = &capture
 	}
 	return call.Reconstruct(info, children, input.Usage.Collation, input.CollationConflict)
@@ -314,7 +326,9 @@ func (e RegexpSet) PreflightFold() expr.Preflight { return expr.PreflightChildre
 
 // PreflightFold implements expr.Preflighting.
 func (e Regexp) PreflightFold() expr.Preflight {
-	if e.Citext != nil { return expr.PreflightRegexNullOrEvaluate }
+	if e.Citext != nil {
+		return expr.PreflightRegexNullOrEvaluate
+	}
 	return expr.PreflightEvaluate
 }
 
@@ -346,7 +360,9 @@ func (e RegexpCall) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, 
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
-	if err := e.validateCitext(); err != nil { return expr.CaptureOperands{}, true, err }
+	if err := e.validateCitext(); err != nil {
+		return expr.CaptureOperands{}, true, err
+	}
 	capture, ok, err := captureWritten(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args))
 	capture.SelectedImplicit = e.Citext != nil
 	return capture, ok, err

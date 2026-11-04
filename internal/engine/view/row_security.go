@@ -59,9 +59,9 @@ func SelectAdjacentRowSecurity(r RowSecurity, v access.View, enabled bool, b ana
 	if err := access.RowSecuritySettingGuard(enabled, v.Roles, b.Relation, principal); err != nil {
 		return r, err
 	}
-	reads := b.Returning != nil || len(b.UsedColumns) != 0
+	reads := b.Returning != nil || len(b.UsedColumns) != 0 || b.WholeRowRead || b.SystemAttributeRead
 	if b.ViewWrite != nil {
-		reads = reads || len(ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0
+		reads = reads || len(ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0 || ViewWriteOf(b.ViewWrite).Logical.WholeRowRead || ViewWriteOf(b.ViewWrite).Logical.SystemAttributeRead
 	}
 	if command != catalog.PolicyInsert {
 		decision, err := access.AdjacentRowSecurityGroups(v.Roles, b.Relation, principal, command, false, reads)

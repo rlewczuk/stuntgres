@@ -28,6 +28,7 @@ type Host interface {
 	// Context is the statement's current execution context (cancellation).
 	Context() context.Context
 	Operation() *session.Operation
+	EnterDirectRoutine(*catalog.Procedure, ids.ObjectRef) (sqltype.RoutineBodyToken, error)
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
 	AdmittedPlannerMethods() plan.PlannerMethods
 	// PendingCatalog is the statement's private catalog journal.
@@ -37,6 +38,7 @@ type Host interface {
 	// read, partition topology and pending detach snapshot.
 	PartitionCatalog(current catalog.Read) catalog.Read
 	EngineStorageLocked() *storage.Store
+	InitializeCapturedIndexMethodLocked(catalog.Read, *catalog.AccessMethod) (catalog.IndexMethod, error)
 	PrivateStorageLocked(address ids.ObjectAddress) *storage.Relation
 	// ImplicitStatement reports an implicit transaction without a statement
 	// catalog journal: the only case where scan presentation may choose a hash

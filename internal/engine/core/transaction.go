@@ -24,6 +24,9 @@ type EndResult struct{ Committed bool }
 func clearTransaction(t *session.TransactionOwner, committed bool) {
 	statsTransactionStopped(t)
 	statsTransactionOutcome(t, committed)
+	if t.Session.Sepgsql != nil {
+		t.Session.Sepgsql.Finish(committed)
+	}
 	if !committed {
 		discardStatementStatsPortals(t)
 		e := EngineOf(t.Session)
@@ -459,7 +462,10 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			} else {
 				utilityFrame = utilityFrame[:formal.Count]
 			}
-			importErr := importFrame(s.executionContext(), formal, utilityFrame, s.Input)
+			environment, importErr := s.borrowParameterInput(formal.Types)
+			if importErr == nil {
+				importErr = importFrame(s.executionContext(), formal, utilityFrame, environment)
+			}
 			clear(utilityFrame)
 			if importErr != nil {
 				return Result{}, importErr
@@ -530,7 +536,11 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if wrapped && count != 0 {
 			formal := s.Expected.Parameters
 			frame := make([]sqltype.Value, formal.Count)
-			if err := importFrame(s.executionContext(), formal, frame, s.Input); err != nil {
+			environment, captureErr := s.borrowParameterInput(formal.Types)
+			if captureErr != nil {
+				return Result{}, captureErr
+			}
+			if err := importFrame(s.executionContext(), formal, frame, environment); err != nil {
 				return Result{}, err
 			}
 		}

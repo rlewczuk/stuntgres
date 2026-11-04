@@ -120,8 +120,10 @@ func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env Di
 		}
 		return 0
 	})
-	if host:=evaluation.LiveHost();host!=nil {
-		if err:=host.PrepareUtilityIndexSnapshot(candidate,indexes);err!=nil{return nil,err}
+	if host := evaluation.LiveHost(); host != nil {
+		if err := host.PrepareUtilityIndexSnapshot(candidate, indexes); err != nil {
+			return nil, err
+		}
 	}
 	builds := make(map[string]*AlterIndexBuild, len(indexes))
 	validationStore, err := BuildVisibleStore(ctx, store, writes, deletes)
@@ -145,12 +147,16 @@ func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env Di
 			if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 || index.SQLIndex.Method == catalog.BrinMethod {
 				capture = &BuildCapture{Index: index, Outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
 			}
-			root, err := BuildRelationIndexRoot(local, parent, index, validationStore, capture)
+			method, err := exec.InitializeIndexMethod(local, index.SQLIndex.MethodIdentity())
+			if err != nil {
+				return err
+			}
+			root, err := BuildRelationIndexRoot(local, parent, index, method, validationStore, capture)
 			if err != nil {
 				return err
 			}
 			if index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
-				if err := ValidateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
+				if err := ValidateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true, local.FunctionInput()); err != nil {
 					return err
 				}
 			}
@@ -226,7 +232,7 @@ func PrepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 				continue
 			}
 		}
-		root, err := BuildRelationIndexRoot(evaluation, parent, index, baseline, nil)
+		root, err := BuildRelationIndexRoot(evaluation, parent, index, index.SQLIndex.Method, baseline, nil)
 		if err != nil {
 			return err
 		}

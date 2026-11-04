@@ -28,14 +28,14 @@ func TestSystemTimeNestedReaderDeadline(t *testing.T) {
 		{"ties_keys", "SELECT bool_and(f) FROM (SELECT f FROM (SELECT id,f FROM t LIMIT 2) bounded ORDER BY id > 0, id FETCH FIRST 1 ROW WITH TIES) s", "stuntgres/internal/engine/exec.QueryTiesPeer", "stuntgres/internal/sqltype.Comparison.Compare", 1, 2},
 		{"from_cursors", "SELECT bool_and(a > 0) FROM ROWS FROM (generate_series(1,3), generate_series(1,3)) s(a,b)", "stuntgres/internal/engine/exec.(*FunctionSetInvocation).NextFrom", "stuntgres/internal/engine/expr.(*SourceCursor).Next", 1, 8},
 		{"target_cursors", "SELECT bool_and(a > 0) FROM (SELECT generate_series(1,3) a, generate_series(1,3) b FROM t LIMIT 3) s", "stuntgres/internal/engine/exec.OpenSetProjectNode.func2", "stuntgres/internal/engine/expr.(*SourceCursor).Next", 3, 6},
-		{"recursive_keys", "WITH RECURSIVE r(n,k) AS (SELECT 1,1 FROM t UNION SELECT n,k FROM r WHERE false) SEARCH DEPTH FIRST BY n,k SET seq SELECT bool_and(n > 0) FROM r", "stuntgres/internal/engine/exec.(*recursiveUnionStage).FindTuple", "stuntgres/internal/sqltype.Grouping.Equal", 1, 2},
+		{"recursive_keys", "WITH RECURSIVE r(n,k) AS (SELECT 1,1 FROM t UNION SELECT n,k FROM r WHERE false) SEARCH DEPTH FIRST BY n,k SET seq SELECT bool_and(n > 0) FROM r", "stuntgres/internal/engine/exec.(*recursiveUnionStage).FindTuple", "stuntgres/internal/sqltype.Grouping.EqualWithBoundary", 1, 2},
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			for _, mode := range []string{"accepted_prefix", "expired_cancel", "infinity", "infinity_cancel"} {
 				timeRunDeadline(t, mode, func(t *testing.T) {
 					base, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
-					ctx := &timeLoopContext{Context: base, ancestor: phase.ancestor}
+					ctx := &timeLoopContext{Context: base, caller: phase.caller, ancestor: phase.ancestor}
 					f := timeNewLoopFixture(t, ctx, "SELECT *, ("+phase.scalar+") FROM t TABLESAMPLE system_time(100)")
 					if phase.name == "rows_reservoir" {
 						// Opening the plain producer does not produce its rows.
@@ -57,7 +57,7 @@ func TestSystemTimeNestedReaderDeadline(t *testing.T) {
 							return
 						}
 						// The two ordinary Err samples around one successful
-						// Grouping.Equal are not two recursive key comparisons.
+						// Grouping.EqualWithBoundary are not two recursive key comparisons.
 						if phase.name == "recursive_keys" && !timeSupportAdmission(stack[0], phase.caller, &supportEntry) {
 							return
 						}

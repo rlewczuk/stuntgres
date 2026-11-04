@@ -82,7 +82,7 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 			if !ok || proc.BrinSupport != uint8(slot) || catalog.ValidateBrinSupport(proc) != nil {
 				return class, fmt.Errorf("stuntgres: invalid BRIN summary support")
 			}
-			class = class.WithSupport(slot, sqltype.IndexSupport{Family: uint32(fact.Family), Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: uint32(member.Left), Right: uint32(member.Right), Revision: uint64(member.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(proc.Revision())})
+			class = class.WithSupport(slot, sqltype.IndexSupport{Class: uint32(fact.Address().ObjectID), Family: uint32(fact.Family), Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: uint32(member.Left), Right: uint32(member.Right), Revision: uint64(member.Revision()), ClassRevision: uint64(fact.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(proc.Revision())})
 		}
 		for strategy := int16(1); strategy <= 5; strategy++ {
 			if _, ok := view.FamilyOperator(fact.Family, fact.InputType, fact.InputType, strategy, 's'); !ok {
@@ -116,9 +116,8 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 				return class, fmt.Errorf("stuntgres: ltree support requires its installed class/family")
 			}
 		}
-		if support.Provider != sqltype.BuiltinIndexSupport {
-			support.ClassRevision = uint64(fact.Revision())
-		}
+		support.Class = uint32(fact.Address().ObjectID)
+		support.ClassRevision = uint64(fact.Revision())
 		class = class.WithSupport(slot, support)
 	}
 	return class, nil
@@ -313,6 +312,8 @@ func BindIndexForeignKey(view catalog.Read, parent, child sqltype.Usage, class s
 		if err != nil {
 			return sqltype.IndexForeignKeyComparison{}, err
 		}
+		support.Cross.Class, support.Cross.ClassRevision = same.Class, same.ClassRevision
+		support.Child.Class, support.Child.ClassRevision = same.Class, same.ClassRevision
 	}
 	return sqltype.BindIndexForeignKey(parent, child, class, support, view.LookupType)
 }
@@ -429,6 +430,7 @@ func RangeTypeRebinder(next *catalog.State, mapping map[ids.ObjectAddress]ids.Ob
 		}
 		capture := sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: mapped(ids.OperatorClassCatalogID, class.OID()), Method: mapped(ids.AccessMethodClassID, class.MethodOID()), Family: mapped(ids.OperatorFamilyClassID, class.FamilyOID()), Input: mapped(ids.TypeClassID, class.InputOID()), Storage: mapped(ids.TypeClassID, class.StorageOID()), Name: class.Name, FamilyName: class.Family, Hash: class.IsHash(), GiST: class.IsGiST(), Brin: class.IsBrin(), SPGiST: class.IsSPGiST()})
 		support := class.Support(1)
+		support.Class = mapped(ids.OperatorClassCatalogID, support.Class)
 		support.Family = mapped(ids.OperatorFamilyClassID, support.Family)
 		support.Member = mapped(ids.AccessMethodProcedureClassID, support.Member)
 		support.Routine = mapped(ids.ProcedureClassID, support.Routine)

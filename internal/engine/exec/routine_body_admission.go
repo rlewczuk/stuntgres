@@ -18,7 +18,7 @@ func bodyErrorContext(outer *catalog.Procedure, constant bool) RoutineBodyContex
 
 func inquiryRoutine(outer *catalog.Procedure) bool {
 	switch outer.Address().ObjectID {
-	case 1215, 1216, 1348, 1993:
+	case 1215, 1216, 1348, 1993, 6183, 6184:
 		return true
 	}
 	return false
@@ -27,6 +27,16 @@ func inquiryRoutine(outer *catalog.Procedure) bool {
 // The declaration edge chooses a candidate, not its lifetime. A current owned
 // descriptor can be selected only after matching the exact original manifest.
 func BodyRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, edge catalog.RoutineBodyEdge) (*catalog.Procedure, error) {
+	if ref, handled, err := nativeBodyRoutineLifetime(c, auth, edge.Routine, catalog.DefinitionDependency); handled {
+		if err != nil {
+			return nil, err
+		}
+		current, ok := auth.Catalog.Procedure(ref.Address)
+		if !ok {
+			return nil, ids.ErrCatalogReplaced
+		}
+		return current, nil
+	}
 	var original ids.ObjectRef
 	var revision ids.DefinitionRevision
 	if c.RoutineReferences != nil {
@@ -112,6 +122,10 @@ func admitRoutineBody(c *Context, node expr.Expr, outer *catalog.Procedure, cons
 	if err != nil || !auth.Live() {
 		return err
 	}
+	// An active native SQL body is initialized only after its real outer entry.
+	// This caller-side walk proves captured source lifetime, not the later
+	// body's SQL ACL/MAC grants or a synthetic consumed call.
+	activeInitialization := auth.Owner != nil && auth.Owner.Sepgsql != nil && !c.ControlLiteralAuthority.present()
 	if !constant && node != nil {
 		// Imported immutable scalar parameters are execution-frame constants.
 		// Classify their SQL-body diagnostics without evaluating arguments again.
@@ -128,7 +142,11 @@ func admitRoutineBody(c *Context, node expr.Expr, outer *catalog.Procedure, cons
 		}
 		body, err := BodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
-			err = AdmitRecipeRoutineDescriptor(&local, auth, dependencies, body)
+			if activeInitialization {
+				_, _, err = recipeRoutineLifetime(&local, auth, dependencies, body, catalog.DefinitionDependency)
+			} else {
+				err = AdmitRecipeRoutineDescriptor(&local, auth, dependencies, body)
+			}
 		}
 		if err != nil {
 			return local.RoutineBodyContext.Annotate(err)

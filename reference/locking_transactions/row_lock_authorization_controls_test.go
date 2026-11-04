@@ -39,6 +39,16 @@ func TestReferenceRowLockAuthorizationControl(t *testing.T) {
 					step = fixture.Prepared(step)
 				}
 				fixture.RunStep(t, p.Ctx, conn, record, step)
+				presence := fixture.Select("SELECT 1 AS marker FROM t WHERE false "+clause, []string{"marker"}, []string{"INT4"}, nil)
+				presence.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, conn, record, presence)
+				// Neither row locking nor its unprojected UPDATE(v) grant
+				// supplies SELECT(v), whole-row or system-column authority.
+				for _, query := range []string{"SELECT v FROM t ", "SELECT t FROM t ", "SELECT tableoid FROM t "} {
+					denied := fixture.ImplicitError(query+clause, fixture.Diagnostic{Code: "42501", Message: "permission denied for table t"})
+					denied.SelectRows, denied.ErrorStage, denied.Prepared = true, "execute", prepared
+					fixture.RunStep(t, p.Ctx, conn, record, denied)
+				}
 			}
 		}
 	}

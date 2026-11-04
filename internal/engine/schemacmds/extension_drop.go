@@ -42,9 +42,23 @@ func ExecuteDropExtension(e *core.Engine, scope *core.StatementScope, s *parser.
 			return core.Result{}, err
 		}
 	}
-	e.Mu.Lock()
 	for _, address := range roots {
 		stage.MarkDrop(address, catalog.DropProvenance{Original: slices.Contains(selected, address)})
+	}
+	subject := ids.ObjectAddress{}
+	if len(selected) == 1 {
+		subject = selected[0]
+	}
+	drop := core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(roots, s.Mode, subject)
+	if err != nil {
+		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" && len(selected) > 1 {
+			diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"
+		}
+		return core.Result{}, err
+	}
+	e.Mu.Lock()
+	for _, address := range roots {
 		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			break
 		}
@@ -53,17 +67,10 @@ func ExecuteDropExtension(e *core.Engine, scope *core.StatementScope, s *parser.
 	if err != nil {
 		return core.Result{}, err
 	}
-	subject := ids.ObjectAddress{}
-	if len(selected) == 1 {
-		subject = selected[0]
-	}
-	if err = core.StageExpressionDependencies(scope.Op.Context(), stage, roots, s.Mode, scope, nil, nil, subject); err != nil {
-		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" && len(selected) > 1 {
-			diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"
-		}
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
-	if err = scope.StageOwnedSequences(stage, roots, s.Mode, nil); err != nil {
+	if err = drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		return core.Result{}, err
 	}
 	if scope.ReplacementRead {

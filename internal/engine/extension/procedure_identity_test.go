@@ -82,7 +82,7 @@ func TestInstalledProcedureRelabelIdentity(t *testing.T) {
 }
 
 func TestInstalledProcedureForgery(t *testing.T) {
-	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "outputs", "missing_namespace", "missing_index", "origin", "source", "binary", "installed", "handler", "support", "dependencies"} {
+	for _, kind := range []string{"signature", "result", "kind", "owner", "duplicate", "reorder", "foreign", "payload", "outputs", "missing_namespace", "missing_index", "origin", "source", "binary", "installed", "handler", "support", "host", "host_conversion", "snowball", "dependencies"} {
 		t.Run(kind, func(t *testing.T) {
 			v, ext := identityFixture("1.2")
 			p := *v.MustProcedure(ext.Members[0])
@@ -132,6 +132,12 @@ func TestInstalledProcedureForgery(t *testing.T) {
 				p.PLHandler = catalog.PLCallHandler
 			case "support":
 				p.BrinSupport = 1
+			case "host":
+				p.Host = &catalog.HostRoutine{}
+			case "host_conversion":
+				p.HostConversion = &catalog.HostConversion{}
+			case "snowball":
+				p.SnowballHelper = 1
 			case "dependencies":
 				p.DeclarationDependencies = []ids.ObjectAddress{ext.Members[1]}
 			}

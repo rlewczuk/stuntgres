@@ -293,8 +293,9 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 	if len(mark.Catalog.RetiredRoles) != 1 {
 		t.Fatal("clone changed retained retirement mark")
 	}
-	target := databaseCreateUnitTarget(t, e, engine.New(), "retirement_unit_database")
-	if _, err := databaseCreateUnitPublish(e, context.Background(), "retirement_unit_database", target); err != nil {
+	seed := engine.New()
+	target := databaseCreateUnitTarget(t, e, seed, "retirement_unit_database")
+	if _, err := databaseCreateUnitPublish(t, e, seed, context.Background(), "retirement_unit_database", target); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()

@@ -36,7 +36,7 @@ type RegclassFormatter interface {
 }
 
 type OutputEnvironment struct {
-	ByteaOutput         ByteaOutput
+	ByteaOutput ByteaOutput
 	// XMLBinaryHex selects XML's uppercase hex mapping instead of base64.
 	XMLBinaryHex        bool
 	Zone                *Zone
@@ -56,6 +56,9 @@ type OutputEnvironment struct {
 	// ByteTransport is enabled only by wire/COPY, never native Unicode APIs.
 	ByteTransport bool
 	Transport     ClientEncodingPolicy
+	// TypeIO follows recursive actual output only; it is not descriptor state.
+	TypeIO     TypeIOBoundary
+	Conversion EncodingConversionBoundary
 	// XMLNotice is ephemeral actual-output delivery; nil keeps incidental output quiet.
 	XMLNotice func(sqlstate.Error)
 	// An unspecified precision retains canonical shortest serialization.

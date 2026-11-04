@@ -14,10 +14,16 @@ import (
 // EvalInsertUsername authenticates the selected installed body independently of
 // structural native-trigger classification. Scalar calls never borrow a frame.
 func (c *Context) EvalInsertUsername(n plan.InsertUsernameExpr) (sqltype.Value, error) {
-	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
-	if err := n.ValidateStoredProvider(); err != nil { return sqltype.Value{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := n.ValidateStoredProvider(); err != nil {
+		return sqltype.Value{}, err
+	}
 	auth, _, err := RoutineAdmissionAuthority(c)
-	if err != nil { return sqltype.Value{}, err }
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	if !auth.Live() || n.Ref.Domain() != auth.Catalog.Owner().Domain {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: insert_username lacks current routine authority")
 	}
@@ -29,12 +35,19 @@ func (c *Context) EvalInsertUsername(n plan.InsertUsernameExpr) (sqltype.Value, 
 		ref.Epoch = auth.Catalog.Epoch()
 	}
 	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, n.RoutineReference.(*catalog.Procedure))
-	if err != nil { return sqltype.Value{}, err }
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	if ref.Address != current.Address() || !extension.StockInsertUsername.SupportsDMLTrigger(current) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid insert_username provider")
 	}
 	if err := extension.StockInsertUsername.ValidateProcedure(auth.Catalog, current); err != nil {
 		return sqltype.Value{}, err
 	}
+	body, err := n.EnterRoutine(c, nil)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "XX000", Message: "insert_username: not fired by trigger manager"}
 }

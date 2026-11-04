@@ -19,7 +19,8 @@ import (
 )
 
 func TestStringSplitCopiedFunction(t *testing.T) {
-	b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
+	e := engine.New()
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	text, bigint := b.Type(sqltype.Text), b.Type(sqltype.Int8)
 	var evaluations []int
 	dependent := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
@@ -32,7 +33,14 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 		t.Fatal(err)
 	}
 	frozen := []sqltype.Value{sqltype.String(text, "old"), sqltype.String(text, "original"), ordinal}
-	scope := &core.StatementScope{QueryLockContext: &exec.LockContext{}}
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(b.Host.(*core.BindingHost).Op)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := &core.StatementScope{RoutineAuth: auth, QueryLockContext: &exec.LockContext{}}
+	scope.RoutineDependencies = b.Dependencies
 	inputs := &exec.Source{Host: core.HostOf(scope)}
 	width := exec.QueryLockRecheckWidth(node, inputs)
 	if width != 3 {
@@ -43,7 +51,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// As in PostgreSQL 18.6, a recheck keeps the function-scan tuple the row was
 	// produced with and evaluates no call again.
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope), Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	scratch := make([]sqltype.Value, width)
 	offset := 0
 	got, present, err := exec.RecheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)
@@ -60,6 +68,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 		t.Fatal(err)
 	}
 	filter := &plan.FilterNode{QuerySchema: filteredNode.QuerySchema, Child: filteredNode, Predicate: predicate}
+	scope.RoutineDependencies = b.Dependencies
 	for _, tc := range []struct {
 		field string
 		match bool

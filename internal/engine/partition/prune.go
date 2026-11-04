@@ -287,7 +287,7 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 		if parent.Partition.Strategy == parser.PartitionHash {
 			for i, entry := range parent.Partition.Keys {
 				var err error
-				key.Hash, err = AccumulateHash(p.ctx, entry, key.Values[i].Value, key.Hash)
+				key.Hash, err = AccumulateHash(p.ctx, entry, key.Values[i].Value, key.Hash, p.evaluation.FunctionInput())
 				if err != nil {
 					return false, err
 				}
@@ -297,7 +297,7 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 			}
 		}
 		if !bound.DefaultBound {
-			contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, bound, key, p.evaluation.Input)
+			contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, bound, key, p.evaluation.FunctionInput())
 			if err != nil {
 				return false, err
 			}
@@ -318,7 +318,7 @@ func (p *pruneProof) finish(domains []pruneDomain, requirements []pruneMembershi
 				if child.Membership.DefaultBound {
 					continue
 				}
-				contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, child.Membership, key, p.evaluation.Input)
+				contains, err := Contains(p.ctx, checkpoint, parent.Partition.Keys, child.Membership, key, p.evaluation.FunctionInput())
 				if err != nil {
 					return false, err
 				}

@@ -144,6 +144,11 @@ func (e PgTrgm) Eval(c expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	member := PgTrgmMembers[e.Member]
 	if member.Operation == pgTrgmSetLimit || member.Operation == pgTrgmShowLimit {
 		runtime, ok := c.(PgTrgmRuntime)

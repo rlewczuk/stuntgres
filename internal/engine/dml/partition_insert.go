@@ -234,6 +234,9 @@ func partitionForeignModification(ctx context.Context, h Host, ref ids.ObjectRef
 		return nil, err
 	}
 	h.ReleaseReplacementRead()
+	if err := source.InitializeHandler(h); err != nil {
+		return nil, err
+	}
 	modification, err := fdw.PlanModification(ctx, source, catalog.ForeignInsert, command.CopyFrom != nil)
 	if err != nil {
 		return nil, err

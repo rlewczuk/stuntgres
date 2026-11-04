@@ -17,18 +17,31 @@ const (
 
 func (k EarthCheck) Valid() bool { return k >= EarthNotPoint && k <= EarthOnSurface }
 
-// CheckEarthCube accepts only a non-NULL physical cube. NULL truth belongs to
-// the ordinary domain expression/evaluator, not a second constraint authority.
-func (v Value) CheckEarthCube(k EarthCheck) (bool, error) {
+// IsEarthCubeOrigin validates the retained '(0)' literal of the released
+// surface CHECK, including its exact installed cube generation.
+func (v Value) IsEarthCubeOrigin(d *Descriptor) bool {
+	return d != nil && d.IsCube() && v.typ == d && !v.null && v.validCube() &&
+		v.cube.point && v.cube.dimension == 1 && v.cube.coordinates[0] == 0
+}
+
+// EarthCubeCheckLeaf evaluates only the selected C helper. The SQL predicate
+// belongs outside that helper's entered body and contains no callback work.
+func (v Value) EarthCubeCheckLeaf(k EarthCheck, origin Value) (float64, error) {
 	if !k.Valid() || !v.typ.IsCube() || v.null || !v.validCube() {
-		return false, fmt.Errorf("invalid earth CHECK cube")
+		return 0, fmt.Errorf("invalid earth CHECK cube")
 	}
 	switch k {
 	case EarthNotPoint:
-		return v.cube.point, nil
+		if v.cube.point {
+			return 1, nil
+		}
+		return 0, nil
 	case EarthNot3D:
-		return v.cube.dimension <= 3, nil
+		return float64(v.cube.dimension), nil
 	default:
+		if !origin.IsEarthCubeOrigin(v.typ) {
+			return 0, fmt.Errorf("invalid earth CHECK origin")
+		}
 		// Released cube distance_1D uses ordered comparisons. NaN contributes
 		// zero; a conventional norm or Hypot would change domain acceptance.
 		sum := 0.0
@@ -49,6 +62,18 @@ func (v Value) CheckEarthCube(k EarthCheck) (bool, error) {
 			}
 			sum += d * d
 		}
-		return math.Abs(math.Sqrt(sum)/EarthRadius-1) < 1e-6, nil
+		return math.Sqrt(sum), nil
 	}
+}
+
+func (k EarthCheck) MatchLeaf(leaf float64) bool {
+	switch k {
+	case EarthNotPoint:
+		return leaf != 0
+	case EarthNot3D:
+		return leaf <= 3
+	case EarthOnSurface:
+		return math.Abs(leaf/EarthRadius-1) < 1e-6
+	}
+	return false
 }

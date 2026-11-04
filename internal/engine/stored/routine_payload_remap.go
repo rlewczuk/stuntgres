@@ -17,10 +17,10 @@ import (
 // NewRoutineRemap shares mappings by original immutable payload identity, not
 // routine address. Declarations are stabilized before any body is rebound.
 func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, typ func(*sqltype.Descriptor) *sqltype.Descriptor, principal catalog.ProcedureRemapper, typesOnly bool) *catalog.RoutineRemap {
-	return newRoutineRemap(view,mapping,typ,principal,typesOnly,nil,nil)
+	return newRoutineRemap(view, mapping, typ, principal, typesOnly, nil, nil)
 }
 
-func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectAddress,typ func(*sqltype.Descriptor)*sqltype.Descriptor,principal catalog.ProcedureRemapper,typesOnly bool,original func(*catalog.Procedure)error,refresh func(*catalog.Procedure,bool)error)*catalog.RoutineRemap {
+func newRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, typ func(*sqltype.Descriptor) *sqltype.Descriptor, principal catalog.ProcedureRemapper, typesOnly bool, original func(*catalog.Procedure) error, refresh func(*catalog.Procedure, bool) error) *catalog.RoutineRemap {
 	collation := typedef.RemappedCollationCapabilities(view.State(), mapping)
 	if typ == nil {
 		typ = func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -46,6 +46,7 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 	var constructors map[*catalog.RangeConstructor]*catalog.RangeConstructor
 	hostDeclarations := make(map[*catalog.HostRoutine]*catalog.HostRoutine)
 	hostConversions := make(map[*catalog.HostConversion]*catalog.HostConversion)
+	var sepgsqlDeclarations map[*catalog.SepgsqlRoutine]*catalog.SepgsqlRoutine
 	transformDeclarations := make(map[*catalog.RoutineTransforms]*catalog.RoutineTransforms)
 	transformDisplays := make(map[*catalog.RoutineTransforms]*catalog.RoutineTransformTypes)
 	bodyUsers := make(map[*RoutineProgram][]*catalog.Procedure)
@@ -107,7 +108,7 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 		return mapped, nil
 	}
 	attach := func(p *catalog.Procedure) error {
-		hostFresh:=false
+		hostFresh := false
 		if original := p.Transforms; original != nil {
 			mapped := transformDeclarations[original]
 			if mapped == nil {
@@ -115,17 +116,25 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 				for i := range entries {
 					entry := original.At(i)
 					entry.Type = r.Type(entry.Type)
-					if entry.Type == nil { return fmt.Errorf("stuntgres: missing transform destination type") }
-					if next, ok := mapping[entry.Pair]; ok { entry.Pair = next }
+					if entry.Type == nil {
+						return fmt.Errorf("stuntgres: missing transform destination type")
+					}
+					if next, ok := mapping[entry.Pair]; ok {
+						entry.Pair = next
+					}
 					pair, ok := view.Get(entry.Pair).(*catalog.Transform)
-					if !ok { return fmt.Errorf("stuntgres: missing transform destination association") }
+					if !ok {
+						return fmt.Errorf("stuntgres: missing transform destination association")
+					}
 					entry.Revision = pair.Revision()
 					entries[i] = entry
 				}
 				mapped = catalog.NewRoutineTransforms(entries)
 				transformDeclarations[original], transformDeclarations[mapped] = mapped, mapped
 				types := make([]ids.OID, mapped.Len())
-				for i := range types { types[i] = ids.OID(mapped.At(i).Type.ID()) }
+				for i := range types {
+					types[i] = ids.OID(mapped.At(i).Type.ID())
+				}
 				transformDisplays[mapped] = catalog.NewRoutineTransformTypes(types)
 			}
 			p.Transforms = mapped
@@ -171,6 +180,25 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 			}
 			p.Signature, p.Result = signature, ids.OID(mapped.ID())
 		}
+		if original := p.Sepgsql; original != nil {
+			mapped := sepgsqlDeclarations[original]
+			if mapped == nil {
+				var err error
+				mapped, err = catalog.NewSepgsqlRoutine(view, original.Policy(), original.Symbol(), p.Address(), p.RoutineDefinition().Formals)
+				if err != nil {
+					return err
+				}
+				if sepgsqlDeclarations == nil {
+					sepgsqlDeclarations = make(map[*catalog.SepgsqlRoutine]*catalog.SepgsqlRoutine)
+				}
+				sepgsqlDeclarations[original], sepgsqlDeclarations[mapped] = mapped, mapped
+			}
+			p.Sepgsql = mapped
+			if refresh != nil {
+				return refresh(p, false)
+			}
+			return nil
+		}
 		if p.RoutineDefinition() == nil {
 			return nil
 		}
@@ -181,9 +209,11 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 		if h := p.Host; h != nil {
 			mapped := hostDeclarations[h]
 			if mapped == nil {
-				hostFresh=true
+				hostFresh = true
 				copy := *h
-				if err := copy.SetLayout(definition); err != nil { return err }
+				if err := copy.SetLayout(definition); err != nil {
+					return err
+				}
 				copy.Converters = append([]ids.ObjectAddress(nil), h.Converters...)
 				copy.Pairs = append([]ids.ObjectAddress(nil), h.Pairs...)
 				for i, address := range copy.Converters {
@@ -229,13 +259,19 @@ func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectA
 				p.SQLDefaults = mapped
 			}
 		}
-		if refresh!=nil { return refresh(p,hostFresh) }
+		if refresh != nil {
+			return refresh(p, hostFresh)
+		}
 		return nil
 	}
 	var ready bool
 	var declarations []*catalog.Procedure
 	prepare := func(p *catalog.Procedure) error {
-		if original!=nil { if err:=original(p);err!=nil { return err } }
+		if original != nil {
+			if err := original(p); err != nil {
+				return err
+			}
+		}
 		if ready {
 			return attach(p)
 		}

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/util"
 )
@@ -26,6 +27,7 @@ type Owner struct {
 	// providers, it closes when construction ends.
 	Extensions   map[string]ExtensionImplementation
 	HostRuntimes []*host.Runtime
+	Sepgsql      *sepgsql.Runtime
 	// seed holds the descriptors the builtin seed installed, except the
 	// database descriptor. FinishSeedLocked sets it once; see SeedIdentical.
 	seed util.PersistentMap[ids.ObjectAddress, Descriptor]

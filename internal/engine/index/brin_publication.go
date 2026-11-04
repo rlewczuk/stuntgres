@@ -85,7 +85,7 @@ func MergeBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 				}
 				value = output.Keys[i]
 			} else {
-				value, err = extractIndexKey(b.Slot, program, row.Values, evaluation)
+				value, err = preparation.ExtractKey(b.Slot, program, row.Values, evaluation, parent, index.SQLIndex, i)
 			}
 			if err != nil {
 				return err

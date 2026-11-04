@@ -1,6 +1,7 @@
 package stuntgres
 
 import (
+	"strings"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/settings"
 )
@@ -62,6 +63,9 @@ func (d *Driver) RegisterSetting(def SettingDefinition) error {
 	defer d.mu.Unlock()
 	if d.settingsFrozen {
 		return core.RegistrationError("setting registry is frozen")
+	}
+	if d.sepgsql != nil && strings.HasPrefix(v.Name, "sepgsql.") {
+		return core.RegistrationError("sepgsql is a reserved setting prefix")
 	}
 	for _, old := range d.settings {
 		if old.Name == v.Name {

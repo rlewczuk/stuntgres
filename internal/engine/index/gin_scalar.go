@@ -52,7 +52,13 @@ func ginScalarCandidates(ctx context.Context, column storage.GinColumn, query sq
 	if query.IsNull() {
 		return nil, nil
 	}
-	token := sqltype.GinToken{Element: query}
+	var token sqltype.GinToken
+	if err := column.Binding.ExtractQueryWithEnvironment(ctx, query, func(extracted sqltype.GinToken) error {
+		token = extracted
+		return nil
+	}, input); err != nil {
+		return nil, err
+	}
 	if strategy == 3 {
 		postings, err := column.Lookup(ctx, token, input)
 		if err != nil {

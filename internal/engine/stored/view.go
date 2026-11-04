@@ -57,6 +57,8 @@ type ViewLeaf struct {
 	Reads               []int32
 	AnalysisOnly        bool
 	SystemAttributeRead bool
+	SystemColumns       []int32 // Frozen exact selected negative attribute IDs.
+	WholeRowRead        bool
 	Mark                plan.RowMark
 }
 

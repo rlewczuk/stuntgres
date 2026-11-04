@@ -33,7 +33,9 @@ type Binding struct {
 	Targets             []int
 	ArrayTargets        []*plan.ArrayAssignmentTarget
 	UsedColumns         []int
-	SystemAttributeRead bool // Target system reads demand relation-level SELECT.
+	SystemAttributeRead bool    // Target system reads demand relation-level SELECT.
+	SystemColumns       []int32 // Exact selected negative attribute IDs.
+	WholeRowRead        bool    // Genuine whole-row demand, independent of system reads.
 	Query               *plan.Query
 	CTEs                []*plan.CTEDefinition
 	CTESelectBodies     bool

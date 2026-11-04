@@ -3,9 +3,7 @@ package exec
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -29,7 +27,8 @@ func (c *Context) EvalInstalledEarthPoint(n plan.InstalledEarthPointExpr) (sqlty
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	boundary := functions.EarthPoint{Info: expr.Info{Usage: n.ResultUsage(), RoutineReference: current}, Plan: n.Plan, Args: n.Args}
+	boundary := n.EarthPoint
+	boundary.RoutineReference = current
 	if err := extension.ValidateEarthPointCall(view, current, boundary); err != nil {
 		return sqltype.Value{}, err
 	}

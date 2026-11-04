@@ -14,8 +14,9 @@ import (
 )
 
 // TableHost implements index.Host for CREATE INDEX, ALTER/DROP INDEX, REINDEX
-// and constraint-index staging; table.Host embeds it. Like DDLHost, every
-// method runs under Engine.mu and never waits.
+// and constraint-index staging. Metadata stays under Engine.mu; CompleteIndex*
+// use the stage-owned core suspension for genuine definition execution and
+// return only after readmission with Engine.mu held again.
 var _ index.Host = TableHost{}
 
 func (h TableHost) IndexStage() *index.Stage { return h.CatalogStage.Indexes() }
@@ -48,7 +49,7 @@ func (h TableHost) TransformIndexExpression(a ddl.Authority, parent *catalog.Rel
 }
 
 func (h TableHost) CompleteIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, transformed index.ExpressionTransform) (*catalog.DerivedIndexKey, string, error) {
-	return completeIndexExpression(h.Op, core.DDLAuthorityOf(a), parent, raw, transformed)
+	return completeIndexExpression(h, core.DDLAuthorityOf(a), parent, raw, transformed)
 }
 
 func (h TableHost) TransformIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (index.ExpressionTransform, error) {
@@ -56,5 +57,5 @@ func (h TableHost) TransformIndexPredicate(a ddl.Authority, parent *catalog.Rela
 }
 
 func (h TableHost) CompleteIndexPredicate(a ddl.Authority, parent *catalog.Relation, transformed index.ExpressionTransform) (*catalog.IndexPredicate, error) {
-	return completeIndexPredicate(h.Op, core.DDLAuthorityOf(a), parent, transformed)
+	return completeIndexPredicate(h, core.DDLAuthorityOf(a), parent, transformed)
 }

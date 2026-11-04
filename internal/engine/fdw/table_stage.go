@@ -125,7 +125,7 @@ func stageTableDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL) ([]Validat
 		if err := ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, err
 		}
-		if err := h.RemoveObject(ref, false); err != nil {
+		if err := h.SelectDropRoot(ref, false); err != nil {
 			return nil, nil, err
 		}
 		roots = append(roots, d.Address())

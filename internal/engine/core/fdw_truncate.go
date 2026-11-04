@@ -21,6 +21,10 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 		if err != nil {
 			return nil, err
 		}
+		s.foreignUnlocked()
+		if err := source.Foreign.InitializeHandler(HostOf(s)); err != nil {
+			return nil, err
+		}
 		sources = append(sources, source.Foreign)
 	}
 	groups := fdw.GroupTruncate(sources, s.truncateOrZero().ForeignCascade, s.truncateOrZero().Restart)

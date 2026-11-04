@@ -75,7 +75,7 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 			}
 			scratch[k] = value
 			if !state.Methods.NoHashAgg {
-				h, failure := n.Grouping[k].Hash(ctx, value)
+				h, failure := n.Grouping[k].HashWithEvaluation(ctx, value, &evaluation)
 				if failure != nil {
 					return Stage{}, failure
 				}
@@ -87,9 +87,9 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 		}
 		var index int
 		if state.Methods.NoHashAgg {
-			index, failure = findEqualityDistinctTuple(ctx, n.Grouping, scratch, source.Flat)
+			index, failure = findEqualityDistinctTuple(ctx, n.Grouping, scratch, source.Flat, &evaluation)
 		} else {
-			index, failure = FindDistinctTuple(ctx, n.Grouping, scratch, source.Flat, buckets[hash])
+			index, failure = FindDistinctTuple(ctx, n.Grouping, scratch, source.Flat, buckets[hash], &evaluation)
 		}
 		if failure != nil {
 			return Stage{}, failure
@@ -111,7 +111,7 @@ func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (
 // Hash collisions are candidate lists, never evidence of tuple equality.
 func FindDistinctTuple[G interface {
 	Equal(context.Context, sqltype.Value, sqltype.Value) (bool, error)
-}](ctx context.Context, grouping []G, tuple, flat []sqltype.Value, candidates []int) (int, error) {
+}](ctx context.Context, grouping []G, tuple, flat []sqltype.Value, candidates []int, evaluation expr.Context) (int, error) {
 	for _, index := range candidates {
 		if err := sampleCheckpoint(ctx); err != nil {
 			return -1, err
@@ -119,7 +119,13 @@ func FindDistinctTuple[G interface {
 		row := flat[index*len(grouping) : (index+1)*len(grouping)]
 		equal := true
 		for i, family := range grouping {
-			match, err := family.Equal(ctx, tuple[i], row[i])
+			var match bool
+			var err error
+			if selected, ok := any(family).(plan.Grouping); ok {
+				match, err = selected.EqualWithEvaluation(ctx, tuple[i], row[i], evaluation)
+			} else {
+				match, err = family.Equal(ctx, tuple[i], row[i])
+			}
 			if err != nil {
 				return -1, err
 			}
@@ -138,10 +144,10 @@ func FindDistinctTuple[G interface {
 	return -1, sampleCheckpoint(ctx)
 }
 
-func findEqualityDistinctTuple(ctx context.Context, grouping []plan.Grouping, tuple, flat []sqltype.Value) (int, error) {
+func findEqualityDistinctTuple(ctx context.Context, grouping []plan.Grouping, tuple, flat []sqltype.Value, evaluation expr.Context) (int, error) {
 	for candidate := range len(flat) / len(grouping) {
 		one := [1]int{candidate}
-		index, err := FindDistinctTuple(ctx, grouping, tuple, flat, one[:])
+		index, err := FindDistinctTuple(ctx, grouping, tuple, flat, one[:], evaluation)
 		if err != nil || index >= 0 {
 			return index, err
 		}
@@ -208,7 +214,7 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 				return Stage{}, failure
 			}
 			scratch[k] = value
-			h, failure := n.Grouping[k].Hash(ctx, value)
+			h, failure := n.Grouping[k].HashWithEvaluation(ctx, value, &evaluation)
 			if failure != nil {
 				return Stage{}, failure
 			}
@@ -217,7 +223,7 @@ func openDistinctOnNode(ctx context.Context, state *State, n *plan.DistinctOnNod
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		found, failure := FindDistinctTuple(ctx, n.Grouping, scratch, flat, buckets[hash])
+		found, failure := FindDistinctTuple(ctx, n.Grouping, scratch, flat, buckets[hash], &evaluation)
 		if failure != nil {
 			return Stage{}, failure
 		}
@@ -240,7 +246,12 @@ func (s *State) Evaluation(ctx context.Context) Context {
 	if frame == 0 {
 		frame = 1
 	}
+	sourceErr := s.refreshRoutineSource()
 	evaluation := Context{EvalFrame: EvalFrame{Scope: 1, Frame: frame, Outer: s.Outer, Query: s}, EvalStatement: EvalStatement{Parameters: s.Parameters, Input: s.Input, Output: s.Output, ClosedEvaluation: s.ClosedEvaluation}}
+	evaluation.RoutineInitialization = s.RoutineInitialization
+	if !evaluation.RoutineInitialization.Active() && s.Source != nil && s.Source.Authority != nil {
+		evaluation.RoutineInitialization = s.Source.Authority.RoutineInitialization
+	}
 	if s.Source != nil && s.Source.Authority != nil {
 		evaluation.PreserveParameterDemand = s.Source.Authority.PreserveParameterDemand
 	} else if s.Outer != nil {
@@ -249,12 +260,26 @@ func (s *State) Evaluation(ctx context.Context) Context {
 	if s.Outer != nil {
 		evaluation.Catalog = s.Outer.Catalog
 	}
+	if s.Source != nil && s.Source.Authority != nil && s.Source.Authority.RoutineCatalog.Owner() != nil {
+		evaluation.Catalog = s.Source.Authority.RoutineCatalog
+	}
 	if s.Source != nil && s.Source.View != nil {
 		evaluation.Catalog = s.Source.View.Catalog()
 	}
 	if s.Source != nil && (s.Source.RoutineRecipe != nil || s.Source.RoutineChecks != nil) {
 		evaluation.RoutineRecipe = true
 		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, s.Source.RoutineRecipe
+	}
+	evaluation.routineSourceError = sourceErr
+	if evaluation.routineSourceError == nil {
+		evaluation.routineSourceError = s.validateRoutineSourceCatalog()
+	}
+	if evaluation.routineSourceError == nil && s.ClosedEvaluation == nil && s.Source != nil && s.Source.Authority != nil &&
+		s.Source.Authority.Host != nil && evaluation.RoutineInitialization.Active() {
+		s.routineSource = routineSourceBinding{authority: s.Source.Authority, owner: evaluation.RoutineInitialization,
+			catalog: evaluation.Catalog, preserveCatalog: s.Source.View != nil || s.Outer != nil}
+		s.RoutineInitialization = evaluation.RoutineInitialization
+		evaluation.routineSource = s.routineSource
 	}
 	evaluation.setContext(ctx)
 	evaluation.Context = util.ActivateExecutionPause(evaluation.Context)

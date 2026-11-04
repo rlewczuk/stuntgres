@@ -363,6 +363,18 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*storage.IndexRoot
 	evaluation.Catalog, evaluation.Output = view, output
+	if env == nil && view.Owner() != nil && view.Owner().Sepgsql != nil {
+		// Nil env is the existing trusted, no-SQL-principal publication
+		// origin, not a way for a client to evade its real factory owner.
+		if evaluation.LiveHost() != nil || evaluation.ClosedEvaluation != nil || evaluation.Query != nil || evaluation.RoutineInitialization.Active() || evaluation.RoutineAuthority != nil && evaluation.RoutineAuthority.AdmissionAccess().Sepgsql.Policy != nil {
+			return nil, fmt.Errorf("stuntgres: client borrowed internal index publication")
+		}
+		local, err := exec.InternalIndexPublicationEvaluation(evaluation, view)
+		if err != nil {
+			return nil, err
+		}
+		evaluation = &local
+	}
 	if env != nil {
 		local := *evaluation
 		local.RoutineAuthority = env
@@ -471,11 +483,25 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				}
 			}
 		}
+		physical := index.SQLIndex.Method
+		hasPublication := false
+		for i := range publications {
+			if publications[i].Address == parent.Address() {
+				hasPublication = true
+				break
+			}
+		}
+		if env != nil && (rebuild || hasPublication) {
+			physical, err = exec.InitializeIndexMethod(evaluation, index.SQLIndex.MethodIdentity())
+			if err != nil {
+				return nil, err
+			}
+		}
 		var entries []storage.IndexEntry
 		if root != nil {
 			entries = root.Entries
 		}
-		if index.SQLIndex.Method == catalog.GinMethod {
+		if physical == catalog.GinMethod {
 			if !rebuild && old != nil && old != index {
 				oldParent, ok := current.Relation(old.SQLIndex.Parent)
 				if !ok {
@@ -516,7 +542,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			}
 			continue
 		}
-		if index.SQLIndex.Method == catalog.BloomMethod {
+		if physical == catalog.BloomMethod {
 			var err error
 			if rebuild {
 				if err := ValidateIndexDefinition(view, index); err != nil {
@@ -545,7 +571,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			}
 			continue
 		}
-		if index.SQLIndex.Method == catalog.BrinMethod {
+		if physical == catalog.BrinMethod {
 			var err error
 			if rebuild {
 				if err := ValidateIndexDefinition(view, index); err != nil {
@@ -574,7 +600,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			}
 			continue
 		}
-		if index.SQLIndex.Method == catalog.HashMethod {
+		if physical == catalog.HashMethod {
 			var err error
 			if rebuild {
 				if err := ValidateIndexDefinition(view, index); err != nil {
@@ -599,7 +625,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			}
 			if index.SQLIndex.IsExclusion() {
 				namespace := next.MustNamespace(parent.Namespace())
-				if err := ValidateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, &indexView, env, rebuild && !runtime); err != nil {
+				if err := ValidateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, &indexView, env, rebuild && !runtime, evaluation.FunctionInput()); err != nil {
 					return nil, err
 				}
 			}
@@ -631,6 +657,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				if err != nil {
 					return nil, err
 				}
+				ordering.BorrowSupport(evaluation)
 				if err := ValidateUniqueEntries(ctx, parent, index, entries, namespace.Name(), output, &indexView, env, !runtime, ordering); err != nil {
 					return nil, err
 				}

@@ -38,6 +38,7 @@ type SavepointMark struct {
 	Cursors             uint64
 	Exclusion           ExclusionMarkSlot // nil when zero; see index.ExclusionMarkSlotOf
 	Identity            authorization.RoleState
+	Sepgsql             SepgsqlMark
 	NotificationActions []NotificationAction
 	NotificationEvents  []Notification
 }
@@ -149,6 +150,9 @@ func (t *TransactionOwner) CaptureSavepoint(mark SavepointMark) SavepointMark {
 		writes[a] = rows[:len(rows):len(rows)]
 	}
 	t.SavepointSerial++
+	if t.Session.Sepgsql != nil {
+		mark.Sepgsql = t.Session.Sepgsql.Mark()
+	}
 	mark.Serial = t.SavepointSerial
 	mark.Writes, mark.Deletes, mark.Catalog = writes, t.Deletes, t.Catalog
 	mark.Stats = t.Stats.Clone()
@@ -176,6 +180,9 @@ func (t *TransactionOwner) FindSavepoint(name string) int {
 // portals, exclusions and SSI around it.
 func (t *TransactionOwner) RollbackToLocked(mark SavepointMark, settings SettingsMark) {
 	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
+	if t.Session.Sepgsql != nil {
+		t.Session.Sepgsql.Restore(mark.Sepgsql)
+	}
 	t.Stats = mark.Stats.Clone()
 	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
 	if mark.Invocation != nil {

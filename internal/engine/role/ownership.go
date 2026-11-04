@@ -23,6 +23,9 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 	}
 	owner, _, _ := access.DescriptorACL(d)
 	if owner == target {
+		if relation, ok := d.(*catalog.Relation); ok {
+			return stage.SepgsqlPostAlter(relation, relation.Address(), false)
+		}
 		return nil
 	}
 	revision, err := stage.CascadeRevision(d.Revision())
@@ -189,6 +192,7 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 				}
 			}
 		}
+		return stage.SepgsqlPostAlter(&next, next.Address(), false)
 	default:
 		return fmt.Errorf("stuntgres: object has no ownership handler")
 	}

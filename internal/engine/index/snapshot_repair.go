@@ -100,12 +100,16 @@ func (snapshot *Snapshot) Repair(ctx context.Context, evaluation *exec.Context, 
 		if store == nil {
 			return ids.ErrCatalogReplaced
 		}
-		root, err := BuildRelationIndexRoot(evaluation, parent, index, store, nil)
+		method, err := exec.InitializeIndexMethod(evaluation, index.SQLIndex.MethodIdentity())
+		if err != nil {
+			return err
+		}
+		root, err := BuildRelationIndexRoot(evaluation, parent, index, method, store, nil)
 		if err != nil {
 			return err
 		}
 		schema := evaluation.Catalog.Get(parent.Namespace()).Name()
-		if err := ValidateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &view, env, true); err != nil {
+		if err := ValidateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &view, env, true, evaluation.FunctionInput()); err != nil {
 			return err
 		}
 		// Transport needs pre-remint row/version identities. Candidate storage

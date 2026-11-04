@@ -67,6 +67,7 @@ func CheckBtree(evaluation *exec.Context, c AmcheckCapture, options AmcheckOptio
 	if err != nil {
 		return err
 	}
+	o.BorrowSupport(evaluation)
 	entries := c.Root.Entries
 	positions := make(map[ids.VersionID]int, len(entries))
 	for i, entry := range entries {

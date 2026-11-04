@@ -82,7 +82,7 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 				*occurrences = make(map[viewWriteOccurrence]int)
 			}
 			(*occurrences)[key] = slot
-			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead})
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead, SystemColumns: leaf.SystemColumns, WholeRowRead: leaf.WholeRowRead})
 			b.SubqueryDemand = true
 		}
 		return slot, nil

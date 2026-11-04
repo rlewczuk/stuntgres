@@ -55,6 +55,9 @@ type CatalogHost interface {
 	LookupAddress() regobj.AddressLookup
 	// AdmitInquiryBody admits a SQL routine inquiry body once per statement.
 	AdmitInquiryBody(c *exec.Context, provenance expr.Info) error
+	// InitializeInquiryIndexMethod runs the genuine zero-argument AM handler
+	// factory and returns its consumed native property authority.
+	InitializeInquiryIndexMethod(catalog.Read, *catalog.AccessMethod) (catalog.IndexMethod, error)
 
 	CatalogEpochLocked() ids.CatalogEpoch
 	PendingCatalog() *session.Journal

@@ -55,7 +55,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
 	provider := call.Provider.(*functions.ArrayAggregateProvider)
-	if call.Procedure != e.Catalog.State.Get(ext.Members[0]) || call.Ref.Address != ext.Members[0] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	if call.Procedure != e.Catalog.State.Get(ext.Members[2]) || call.Ref.Address != ext.Members[2] || !call.IncludeNulls || call.Operation != functions.AggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.SameAggregateCall(call, call) {
@@ -79,6 +79,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal("aggregate revision collapsed")
 	}
 	ctx := context.Background()
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: e.CatalogRead()}}
 	state, err := provider.Init(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range []sqltype.Value{two, sqltype.Null(integer), two} {
-		if err := provider.Advance(ctx, state, []sqltype.Value{value, sqltype.Value{}}, nil); err != nil {
+		if err := provider.Advance(ctx, state, []sqltype.Value{value}, evaluation); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -122,7 +123,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.Procedure != e.Catalog.State.Get(ext.Members[1]) || n.Ref.Address != ext.Members[1] || n.Usage.Type.ID() != sqltype.Int4 {
+	if n.Procedure != e.Catalog.State.Get(ext.Members[3]) || n.Ref.Address != ext.Members[3] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
@@ -218,10 +219,6 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
-	}
-	aggregate := before.MustProcedure(ext.Members[0])
-	for i, helper := range aggregate.Aggregate.Helpers {
-		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
 	next := catalog.CloneState(before.State())
 	for address := range before.Descriptors() {

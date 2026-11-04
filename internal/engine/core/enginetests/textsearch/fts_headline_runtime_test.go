@@ -169,7 +169,7 @@ func TestFTSHeadlineRichWalk(t *testing.T) {
 			if err != nil || text != want {
 				t.Fatal("rich configured associations", text, want, err)
 			}
-			if len(*h.ThesaurusMemos()) != 0 {
+			if len(*h.DictionaryMemos()) != 0 {
 				t.Fatal("walk published receipts")
 			}
 			if err := capture.Accept(ctx, h); err != nil {
@@ -179,8 +179,8 @@ func TestFTSHeadlineRichWalk(t *testing.T) {
 			if mode == "phrase" || mode == "replacement_positions" {
 				wantReceipts = 1
 			}
-			if len(*h.ThesaurusMemos()) != wantReceipts || context.lexicalCalls == 0 {
-				t.Fatal("consulted runtime/callback witness", len(*h.ThesaurusMemos()), context.lexicalCalls)
+			if len(*h.DictionaryMemos()) != wantReceipts || context.lexicalCalls == 0 {
+				t.Fatal("consulted runtime/callback witness", len(*h.DictionaryMemos()), context.lexicalCalls)
 			}
 			if mode == "unreached_dictionary" {
 				// Valid creation, then a real normalizer rename leaves only the
@@ -195,7 +195,7 @@ func TestFTSHeadlineRichWalk(t *testing.T) {
 				}
 				partial, err := demanded.WalkDocument(ctx, h, document)
 				var diagnostic *sqlstate.Error
-				if partial != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || diagnostic.Message != `text search dictionary "public.unit_rich_sub" does not exist` || len(*h.ThesaurusMemos()) != 0 {
+				if partial != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || diagnostic.Message != `text search dictionary "public.unit_rich_sub" does not exist` || len(*h.DictionaryMemos()) != 0 {
 					t.Fatal("consulted missing source escaped or published receipts", partial, err)
 				}
 			}
@@ -242,7 +242,7 @@ func TestFTSHeadlineAcquisition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(*h.ThesaurusMemos()) != 0 {
+			if len(*h.DictionaryMemos()) != 0 {
 				t.Fatal("fixture already initialized thesaurus")
 			}
 			if mode == "options_failure" || mode == "success" {
@@ -252,13 +252,13 @@ func TestFTSHeadlineAcquisition(t *testing.T) {
 				}
 				value, err := core.HostOf(scope).TextSearch().HeadlineTextSearch(t.Context(), true, configuration, sqltype.String(typeOf(sqltype.Text), "ONE TWO THREE"), query, sqltype.String(typeOf(sqltype.Text), options), typeOf(sqltype.Text))
 				if mode == "options_failure" {
-					if err == nil || len(*h.ThesaurusMemos()) != 0 {
+					if err == nil || len(*h.DictionaryMemos()) != 0 {
 						t.Fatal("failed headline published receipts", err)
 					}
 					return
 				}
 				text, textErr := value.Text()
-				if err != nil || textErr != nil || text != "<b>ONE</b><b> </b><b>TWO</b><b> </b><b>THREE</b>" || len(*h.ThesaurusMemos()) != 1 {
+				if err != nil || textErr != nil || text != "<b>ONE</b><b> </b><b>TWO</b><b> </b><b>THREE</b>" || len(*h.DictionaryMemos()) != 1 {
 					t.Fatal("complete headline failed to publish one receipt", text, err, textErr)
 				}
 				return
@@ -273,10 +273,10 @@ func TestFTSHeadlineAcquisition(t *testing.T) {
 			if err != nil || document == nil {
 				t.Fatal(err)
 			}
-			if len(*h.ThesaurusMemos()) != 0 {
+			if len(*h.DictionaryMemos()) != 0 {
 				t.Fatal("detached rich walk published private receipts")
 			}
-			before := len(*h.ThesaurusMemos())
+			before := len(*h.DictionaryMemos())
 			if mode == "cancel_before_accept" {
 				cancel()
 				err = capture.Accept(ctx, h)
@@ -290,7 +290,7 @@ func TestFTSHeadlineAcquisition(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if len(*h.ThesaurusMemos()) != before {
+			if len(*h.DictionaryMemos()) != before {
 				t.Fatal("rejected rich walk published receipts")
 			}
 		})

@@ -140,6 +140,9 @@ func BindExclusionOperator(u Usage, class IndexClass, name string, member uint32
 func (p ExclusionOperator) MatchesUsage(u Usage) bool { return p.usage == u }
 
 func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool, error) {
+	return p.MatchesWithEnvironment(ctx, left, right, InputEnvironment{})
+}
+func (p ExclusionOperator) MatchesWithEnvironment(ctx context.Context, left, right Value, input InputEnvironment) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -165,7 +168,7 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 		case p.geometryPlan.result != nil:
 			value, err = p.geometryPlan.Evaluate(ctx, values)
 		case p.rangePlan.result != nil:
-			value, err = p.rangePlan.Evaluate(ctx, values)
+			value, err = p.rangePlan.EvaluateWithEnvironment(ctx, values, input)
 		case values[0].typ.id == Box:
 			return boxSame(values[0], values[1])
 		default:
@@ -185,10 +188,10 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 		return a.family == b.family && a.masked() == b.masked(), nil
 	}
 	if p.index.comparison.left != nil {
-		comparison, err := p.index.Compare(ctx, left, right, InputEnvironment{})
+		comparison, err := p.index.Compare(ctx, left, right, input)
 		return comparison == 0, err
 	}
-	comparison, err := p.comparison.Compare(ctx, left, right, InputEnvironment{})
+	comparison, err := p.comparison.Compare(ctx, left, right, input)
 	if p.Name == "<>" {
 		return comparison != 0, err
 	}

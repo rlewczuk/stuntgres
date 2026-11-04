@@ -146,6 +146,9 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*core.Eng
 	var b analyze.Binding
 	if err == nil {
 		b, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		if err == nil {
+			scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
+		}
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.

@@ -205,7 +205,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	stage.RoleRevision = roles.Revision
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := role.StageOwnedCleanup(ctx, stage, e.RoleStore.Read(&e.Catalog.Owner, base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+	if _, err := role.PrepareOwnedCleanup(ctx, stage, e.RoleStore.Read(&e.Catalog.Owner, base, roles), roles, map[authorization.PrincipalRef]bool{source: true}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if stage.DescriptorCount() != 0 || e.Catalog.State != base.State() || e.RoleStore.Published != roles {
@@ -213,7 +213,11 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(base)
 	stage.RoleRevision = roles.Revision
-	if err := role.StageOwnedCleanup(context.Background(), stage, e.RoleStore.Read(&e.Catalog.Owner, base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	cleanup, err := role.PrepareOwnedCleanup(context.Background(), stage, e.RoleStore.Read(&e.Catalog.Owner, base, roles), roles, map[authorization.PrincipalRef]bool{source: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = cleanup.Apply(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)

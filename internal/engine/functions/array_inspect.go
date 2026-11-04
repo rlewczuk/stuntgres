@@ -124,6 +124,11 @@ func (e ArrayInspect) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
+	body, err := e.Info.EnterRoutine(c, values[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	for _, v := range values[:len(e.Args)] {
 		if v.IsNull() {
 			return sqltype.Null(e.Usage.Type), nil

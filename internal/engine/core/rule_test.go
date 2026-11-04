@@ -100,7 +100,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		output := plan.ArithmeticExpr{Info: view.RuleColumnInfo(src.Columns[1]), Left: pseudoV, Right: enginetest.RuleUnitInt(src, 10), Provider: provider}
 		projection := []expr.Expr{pseudo, output}
-		order, err := (*analyze.Binder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		order, err := binder.FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
 		if err != nil {
 			t.Fatal(err)
 		}

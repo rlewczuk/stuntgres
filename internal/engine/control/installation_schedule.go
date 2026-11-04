@@ -163,21 +163,6 @@ func (s *dumpScript) newInstallationSchedule(items []replayInstallation) (*insta
 					items[i].schema, items[i].retainedSchema = schedule.catalogSchema, true
 				}
 			}
-			for _, address := range items[i].recipe.Members {
-				procedure, ok := s.CatalogView.Procedure(address)
-				if !ok || procedure.Aggregate == nil || procedure.Aggregate.Helpers[0].ID == 0 {
-					continue
-				}
-				helpers := procedure.Aggregate.Helpers
-				if helpers[0].Namespace != helpers[1].Namespace {
-					return nil, fmt.Errorf("stuntgres: aggregate replay helpers have different creation namespaces")
-				}
-				namespace, ok := s.CatalogView.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helpers[0].Namespace})
-				if !ok || namespace.Temporary != (ids.SessionToken{}) {
-					return nil, fmt.Errorf("stuntgres: aggregate replay helper namespace is not portable")
-				}
-				items[i].schema, items[i].retainedSchema = namespace.Name(), true
-			}
 			if !items[i].retainedSchema {
 				items[i].schema = schedule.schema("__stuntgres_install_" + strconv.Itoa(i))
 			}

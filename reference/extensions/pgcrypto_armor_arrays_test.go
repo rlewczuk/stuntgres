@@ -30,16 +30,16 @@ func TestReferencePgcryptoArmorArraysAndNulls(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-				pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorError("SELECT armor($1,$2,$3)", tc.code, tc.message, []byte("zooka"), tc.keys, tc.values))
+				pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorError("SELECT armor($1,$2,$3)", tc.code, tc.message, []byte("zooka"), tc.keys, tc.values))
 				literal := "SELECT armor('zooka'::bytea,'" + tc.keys + "'::text[],'" + tc.values + "'::text[])"
-				pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorError(literal, tc.code, tc.message))
+				pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorError(literal, tc.code, tc.message))
 			})
 		})
 	}
 	t.Run("physical_pairs_and_controls", func(t *testing.T) {
 		pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", pgcryptoArmorTest, []byte("test"), "{}", "{}"))
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "[0:0]={foo}", "[7:7]={bar}"))
+			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", fixture.PgcryptoArmorZooka, []byte("zooka"), "[0:0]={foo}", "[7:7]={bar}"))
 			packet := "-----BEGIN PGP MESSAGE-----\nfoo: first\nfoo: second\n: \ncr\r\t\x01: value\r\t\x02\n\ndGVzdA==\n=+G7Q\n-----END PGP MESSAGE-----\n"
 			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT armor($1,$2,$3)", packet, []byte("test"), "{foo,foo,\"\",\"cr\r\t\x01\"}", "{first,second,\"\",\"value\r\t\x02\"}"))
 		})
@@ -56,13 +56,13 @@ func TestReferencePgcryptoArmorArraysAndNulls(t *testing.T) {
 				fixture.Select("SELECT armor($1,$2,$3)", []string{"armor"}, []string{"TEXT"}, [][]any{{nil}}, []byte("test"), "{NULL}", nil),
 				fixture.Select("SELECT armor('test'::bytea,NULL::text[],ARRAY[NULL]::text[])", []string{"armor"}, []string{"TEXT"}, [][]any{{nil}}),
 				fixture.Select("SELECT armor('test'::bytea,ARRAY[NULL]::text[],NULL::text[])", []string{"armor"}, []string{"TEXT"}, [][]any{{nil}}),
-				pgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers(NULL::text)", [][]any{}),
-				pgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", [][]any{}, nil),
+				fixture.PgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers(NULL::text)", [][]any{}),
+				fixture.PgcryptoArmorHeaders("SELECT * FROM pgp_armor_headers($1)", [][]any{}, nil),
 			} {
 				pgcryptoArmorBoth(t, p, c, r, s)
 			}
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorError("SELECT armor($1::bytea,ARRAY[($2::integer/$3::integer)::text],ARRAY['value'])", "22012", "division by zero", nil, 1, 0))
-			pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorError("SELECT armor(NULL::bytea,ARRAY[(1/0)::text],ARRAY['value'])", "22012", "division by zero"))
+			pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorError("SELECT armor($1::bytea,ARRAY[($2::integer/$3::integer)::text],ARRAY['value'])", "22012", "division by zero", nil, 1, 0))
+			pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorError("SELECT armor(NULL::bytea,ARRAY[(1/0)::text],ARRAY['value'])", "22012", "division by zero"))
 			pgcryptoArmorBoth(t, p, c, r, fixture.Select("SELECT CASE WHEN false THEN dearmor('not armor') ELSE NULL::bytea END", []string{"case"}, []string{"BYTEA"}, [][]any{{nil}}))
 		})
 	})
@@ -72,7 +72,7 @@ func TestReferencePgcryptoArmorArraysAndNulls(t *testing.T) {
 			run(fixture.Exec("CREATE TABLE armor_atomic(id integer,b bytea)", 0))
 			run(fixture.Exec("INSERT INTO armor_atomic VALUES(0,'sentinel'::bytea)", 1))
 			for _, prepared := range []bool{false, true} {
-				s := pgcryptoArmorCorrupt("INSERT INTO armor_atomic VALUES(1,dearmor($1)),(2,dearmor($2))", pgcryptoArmorTest, "invalid")
+				s := fixture.PgcryptoArmorCorrupt("INSERT INTO armor_atomic VALUES(1,dearmor($1)),(2,dearmor($2))", pgcryptoArmorTest, "invalid")
 				s.SelectRows = false
 				if prepared {
 					s = fixture.Prepared(s)

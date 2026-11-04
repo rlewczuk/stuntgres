@@ -30,6 +30,9 @@ type Journal struct {
 	InitialPrivileges    map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
 	InitialOriginals     map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
 	InitialReads         map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
+	SecurityLabels       map[catalog.SecurityLabelKey]*catalog.SecurityLabelRecord
+	LabelOriginals       map[catalog.SecurityLabelKey]*catalog.SecurityLabelRecord
+	LabelReads           map[catalog.SecurityLabelKey]*catalog.SecurityLabelRecord
 	Generators           map[ids.ObjectAddress]*storage.SequenceGenerator
 	Storage              map[ids.ObjectAddress]StorageChange
 	// Deferred genuine tuple debris retains its exact heap incarnation until
@@ -124,6 +127,9 @@ func (c *Journal) Clone() *Journal {
 	n.ParameterWritten, n.ParameterIncarnation = c.ParameterWritten, c.ParameterIncarnation
 	n.DiscardedHeaps = c.DiscardedHeaps[:len(c.DiscardedHeaps):len(c.DiscardedHeaps)]
 	cloneDefaults(c, n)
+	n.SecurityLabels = maps.Clone(c.SecurityLabels)
+	n.LabelOriginals = maps.Clone(c.LabelOriginals)
+	n.LabelReads = maps.Clone(c.LabelReads)
 	if c.Enum != nil {
 		n.Enum = c.Enum.Clone()
 	}

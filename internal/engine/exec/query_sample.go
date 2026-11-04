@@ -16,6 +16,12 @@ func sampledSource(node plan.Node) bool {
 }
 
 func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Stage, error) {
+	evaluation := state.Evaluation(ctx)
+	method, err := initializeSampleRoutine(&evaluation, n)
+	evaluation.Context = nil
+	if err != nil {
+		return Stage{}, err
+	}
 	value, err := sampleArgument(ctx, state, n.Sample)
 	if err != nil {
 		return Stage{}, err
@@ -25,26 +31,7 @@ func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Sta
 		return Stage{}, err
 	}
 	out := Stage{Source: child.Source, Columns: n.Schema(), Finish: child.Close, Pending: child.Pending}
-	selectRows := func(ctx context.Context, out *Stage, value sqltype.Value) error {
-		if value.Type().ID() == sqltype.Float8 {
-			millis, err := value.Float()
-			if err != nil {
-				return err
-			}
-			// Like positive row sampling, only a nonzero time sample consumes
-			// the initialized child and activates its physical read lease.
-			if millis != 0 {
-				child.beginRead()
-			}
-			return selectSampleTime(ctx, out, &child, millis)
-		}
-		count, err := value.Integer()
-		if err != nil {
-			return err
-		}
-		return selectSampleRows(ctx, out, &child, count)
-	}
-	if err := selectRows(ctx, &out, value); err != nil {
+	if err := method.selectRows(ctx, &out, &child, value); err != nil {
 		_ = out.Close()
 		return Stage{}, err
 	}
@@ -53,14 +40,15 @@ func openSampleStage(ctx context.Context, state *State, n *plan.SourceNode) (Sta
 		if err != nil || !changed {
 			return changed, err
 		}
-		// A changed child alone starts a new invocation. No execution state
-		// is written into the accepted expression, procedure or schema.
+		// A changed child starts a new scan with the retained method table, not
+		// another handler invocation. No execution state is written into the
+		// accepted expression, procedure or schema.
 		value, err := sampleArgument(ctx, state, n.Sample)
 		if err != nil {
 			return false, err
 		}
 		out.Done = false
-		return true, selectRows(ctx, out, value)
+		return true, method.selectRows(ctx, out, &child, value)
 	}
 	return out, nil
 }

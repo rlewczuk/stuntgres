@@ -182,6 +182,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, captureErr
 		}
 		s.foreignUnlocked()
+		if err := target.Foreign.InitializeHandler(HostOf(s)); err != nil {
+			return 0, err
+		}
 		foreign, err = fdw.PlanModification(s.Op.Context(), target.Foreign, catalog.ForeignInsert, true)
 		if err != nil {
 			return 0, err
@@ -252,8 +255,11 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	if err == nil {
 		err = auth.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets)
-		if err == nil && len(b.UsedColumns) != 0 {
-			err = auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
+		if err == nil && b.SystemAttributeRead {
+			err = auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.SelectPrivilege})
+		}
+		if err == nil && (len(b.UsedColumns) != 0 || b.SystemAttributeRead || b.WholeRowRead) {
+			err = auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.SelectPrivilege, Columns: b.UsedColumns, SystemColumns: b.SystemColumns, ColumnDemand: true, WholeRow: b.WholeRowRead})
 		}
 	}
 	if err == nil {
@@ -311,6 +317,10 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 	}
 	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate, Progress: &s.copyProgress.tuples}
+	if e.Sepgsql != nil {
+		state.InputIO = &evaluation
+		defer func() { state.InputIO = nil }()
+	}
 	if options.OnError == copyfmt.Ignore {
 		state.InputChecks = exec.InputDomainChecks(s.Input.DomainChecks, s.Domains.InputCatalog)
 	}
@@ -323,7 +333,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if options.Format == copyfmt.Binary {
 		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(input)))
 	} else {
-		converted := sqltype.NewEncodingReader(input, options.Conversion, s.Op.Context)
+		converted := sqltype.NewEncodingReader(input, options.Conversion, s.Op.Context, evaluation.FunctionInput().Conversion)
 		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(converted), dml.CopyLineTargets(b)), state)
 	}
 	rows, err := func() (index.WriteBatch, error) {
@@ -422,6 +432,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 			}
 		}
 		b.UsedColumns, b.Dependencies = binder.Target.Uses, binder.Dependencies
+		b.SystemAttributeRead, b.SystemColumns, b.WholeRowRead = binder.Target.SystemAttributeRead, binder.Target.SystemColumns, binder.Target.WholeRowRead
 		s.Input = binder.Input
 		s.RoutineDependencies = b.Dependencies
 		predicateVisibilitySnapshot = binder.Consumer.VisibilitySnapshot
@@ -436,8 +447,11 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		privilege = authorization.InsertPrivilege
 	}
 	err = auth.CheckColumns(b.Ref, b.Relation, privilege, b.Targets)
-	if err == nil && len(b.UsedColumns) != 0 {
-		err = auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
+	if err == nil && b.SystemAttributeRead {
+		err = auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.SelectPrivilege})
+	}
+	if err == nil && (len(b.UsedColumns) != 0 || b.SystemAttributeRead || b.WholeRowRead) {
+		err = auth.Check(access.Requirement{Object: b.Ref, Privileges: authorization.SelectPrivilege, Columns: b.UsedColumns, SystemColumns: b.SystemColumns, ColumnDemand: true, WholeRow: b.WholeRowRead})
 	}
 	if err == nil && predicateVisibilitySnapshot {
 		// Capture only after target and predicate-column authorization. Retained

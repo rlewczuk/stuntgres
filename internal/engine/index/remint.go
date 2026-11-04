@@ -185,7 +185,7 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			}
 			schema = namespace.Name()
 		}
-		if err := ValidateUniqueRoot(ctx, parent, idx, root, schema, sqltype.OutputEnvironment{}, &validationView, nil, true); err != nil {
+		if err := ValidateUniqueRoot(ctx, parent, idx, root, schema, sqltype.OutputEnvironment{}, &validationView, nil, true, sqltype.InputEnvironment{}); err != nil {
 			return nil, 0, 0, err
 		}
 	}

@@ -1,6 +1,8 @@
 package schemacmds
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +23,7 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
-	importer, request, err := fdw.PlanImport(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s, auth.RestrictedRelations())
+	selection, request, wrapperName, err := fdw.PlanImport(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s, auth.RestrictedRelations())
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err
@@ -29,6 +31,14 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
+	}
+	methods, err := selection.Methods(core.HostOf(scope))
+	if err != nil {
+		return core.Result{}, err
+	}
+	importer, ok := methods.(fdw.SchemaImporter)
+	if !ok {
+		return core.Result{}, core.SQLError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapperName))
 	}
 	definitions, err := importer.ImportForeignSchema(scope.Op.Context(), request)
 	if err != nil {

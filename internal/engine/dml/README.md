@@ -170,6 +170,9 @@ Final FK checks capture physical parent/child inventories only after an eligible
 row check demands them, reusing that immutable capture within the job. Unchanged
 parent keys and unrelated retained deferred exclusions do not demand private
 shadow maps, row grants or another comparison pass.
+The completion allocation witness compares two actual private rows in each lane:
+distinct keys with immediate timing versus a conflicting pair retained deferred.
+It keeps the original one-event-vector allowance and later real violation check.
 `Staged` never locks; the job, authority and
 row-image captures and the internal action windows each lock once and never
 wait; `GrantForeignKey` waits with the caller holding nothing, then locks to

@@ -94,14 +94,23 @@ vector/array payloads, validating the used prefix before target cardinality.
 It shares identifier and literal policies with their existing owners.
 
 `DblinkGetPkey` shares that admission and releases its contribution before
-returning detached nominal values. It reads only Primary constraint Attributes
-in declared order, resolves each stable attribute to its current live column,
-and emits INT4 key ordinals with raw TEXT column names. No-PK still requires
-SELECT; strict NULL skips relation lookup but not current routine admission.
+returning detached key names to the actual value-per-call kernel. It reads only
+Primary constraint Attributes in declared order, resolves each stable attribute
+to its selected live column, and emits INT4 key ordinals with raw TEXT column
+names. Released `dblink.c` `get_rel_from_relname` calls `pg_class_aclcheck`:
+table SELECT ACL is required even without a PK, but this metadata open and
+`get_pkey_attnames`' direct catalog scan do not invoke executor table/column
+DML MAC. Genuine namespace-search MAC remains. Constructors share this open;
+their actual nested SQL retains its independent executor DML checks.
+Current routine declaration and ordinary EXECUTE ACL are revalidated, including
+after a wait, without replaying expression-initialization execute MAC under an
+entered trusted subject. The actual borrowed source invocation owns each
+row/DONE body entry. Strict NULL skips the relation and body, not initialization.
 There is no tuple capture, remote call, Prepare-time name lookup or retained
 descriptor/authority. Emission requires a concrete nominal composite, never an
 anonymous RECORD or a domain lookalike. Normal source ownership carries the
-actual declaration's metadata on empty results.
+actual declaration's metadata on empty results; detached rows and selected key
+names stay unchanged across later relation rename, source close or NULL calls.
 
 INSERT and UPDATE share `dblink_source.go`: used-key and flattened-array validation,
 the released explicit SELECT with physical dropped-slot NULL placeholders, and
@@ -186,6 +195,13 @@ Owner then Engine readmission fences descriptors, parent, store, generator and
 provider authority. Sizing and producer iteration run outside both mutexes.
 Invocation-local routine carriers use the admitted current descriptor and epoch;
 retained source descriptors and their original lifetime proof remain unchanged.
+`PgFreespaceExtent` selects a separate typed purpose on this same capture worker
+for the authentic entered wrapper's size child. It returns explicit presence:
+missing numeric OID means NULL size, while a genuine no-storage descriptor means
+zero extent. This does not change global relation-size counters, grant C2 EXECUTE
+or manufacture a C2 body. Genuine storage captures retain the same snapshot,
+scoped locks and final fences as scalar probes. Execute MAC remains the original
+callsite initializer's decision; actual host checks retain ordinary routine ACLs.
 Destination DEFAULT/CHECK demand joins the statement's initial dynamic-root
 retention, not its outer routine-authority manifest.
 Catalog heaps use their actual producer; genuine indexes borrow shared allocation

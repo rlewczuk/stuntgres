@@ -123,12 +123,20 @@ func PlanForeignQuery(ctx context.Context, input ForeignPlanningInput, node plan
 		if !ok {
 			return nil, false, nil
 		}
+		if err := t.first.InitializeHandler(input.HandlerOwner); err != nil {
+			return nil, false, err
+		}
+		provider = t.first.Wrapper.(catalog.ForeignJoinPathProvider)
 		paths, err = provider.GetForeignJoinPaths(ctx, CopyForeignQueryRequest(request))
 	} else {
 		provider, ok := t.first.Wrapper.(catalog.ForeignUpperPathProvider)
 		if !ok {
 			return nil, false, nil
 		}
+		if err := t.first.InitializeHandler(input.HandlerOwner); err != nil {
+			return nil, false, err
+		}
+		provider = t.first.Wrapper.(catalog.ForeignUpperPathProvider)
 		paths, err = provider.GetForeignUpperPaths(ctx, CopyForeignQueryRequest(request))
 	}
 	if err != nil {
@@ -181,6 +189,7 @@ func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Sta
 	first := selected.Source
 	request := selected.Request
 	f := &ForeignQuerySource{Wrapper: first.Wrapper, Handler: first.Handler, Request: CopyForeignRequest(first.Request), Columns: selected.Columns, ImportValue: first.ImportValue, ExportValue: first.ExportValue, Query: &foreignComposite{request: request, path: selected.Path, width: selected.Width, cache: selected.Cache}}
+	f.Selection, f.methodsReady = first.Selection, first.methodsReady
 	first.lifetimeOwner.Add(f)
 	source := &Source{Foreign: f, Materialized: true, FlatWidth: selected.Width, Anonymous: [][]sqltype.Value{}, Authority: state.Source.Authority, Host: state.Source.Host}
 	for _, slot := range request.Stage.Slots {

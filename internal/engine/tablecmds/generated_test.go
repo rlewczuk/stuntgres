@@ -182,7 +182,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &session.Operation{Ctx: context.Background()}
 	declarations := []analyze.ColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
-	if err := tablecmds.BindCreateGenerations(e, op, core.AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
+	if err := tablecmds.BindCreateGenerations(core.DDLHost{E: e, Op: op}, core.AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()

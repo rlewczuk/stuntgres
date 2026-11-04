@@ -198,8 +198,15 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			}
 			removalA, removedA := stage.Removal(ua)
 			removalB, removedB := stage.Removal(ub)
-			if !removedA || !removedB || removalA.Ref.Address != ua || removalB.Ref.Address != ub {
-				t.Fatal("actual selected backing retirement missing")
+			if !removedA || removalA.Ref.Address != ua {
+				t.Fatal("earlier successful backing retirement missing")
+			}
+			if succeeds {
+				if !removedB || removalB.Ref.Address != ub {
+					t.Fatal("authorized backing retirement missing")
+				}
+			} else if removedB || stage.StageRead().Get(ub) != before.Get(ub) {
+				t.Fatal("failed RESTRICT removed its still-live backing before preparation")
 			}
 			if e.Catalog.State != before || e.Storage.Relations[old.Address()] != parentStore || e.Storage.Relations[child.Address()] != childStore || e.Storage.IndexRoots[ua] != uaRoot || e.Storage.IndexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
 				t.Fatal("private mixed-mode traversal changed live catalog/storage/roots")

@@ -40,7 +40,7 @@ func generatedAuthorizationFixture(t *testing.T) (*core.Engine, *session.Operati
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(admin)
 	if err == nil {
-		err = tablecmds.BindCreateGenerations(e, admin, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
+		err = tablecmds.BindCreateGenerations(core.DDLHost{E: e, Op: admin}, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
 		err = table.AssignDefinitionOIDs(core.DDLHost{E: e}, d)

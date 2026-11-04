@@ -45,6 +45,11 @@ func (e GeometryConversion) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
+	body, err := e.EnterRoutine(c, values[:e.Plan.Operation().Arity()])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	return e.Plan.Evaluate(ctx, values)
 }
 func (e GeometryConversion) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {

@@ -77,6 +77,9 @@ func TestReferenceRegProcPreparedAuthority(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TABLE public.regproc_data_only(p regprocedure)", 0))
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO public.regproc_data_only VALUES('unaccent(text)')", 1))
 		replacement := oid
+		// REL_18_6 regprocedurein returns an OID Const. setrefs.c's
+		// fix_expr_common records function dependencies for calls, not for
+		// REGPROCEDURE Consts: referent-only DROP must not re-input this literal.
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("DROP EXTENSION unaccent", 0))
 		regprocBoth(t, p, c, r, fixture.Select("SELECT p,p::oid::bigint AS id FROM public.regproc_data_only", []string{"p", "id"}, []string{"REGPROCEDURE", "INT8"}, [][]any{{strconv.FormatInt(oid, 10), oid}}))
 		regprocStep(t, p, fixture.HeldStatement{Executor: c, Statement: held, SQL: literal}, r, fixture.Select(literal, []string{"id"}, []string{"INT8"}, [][]any{{oid}}))
@@ -100,6 +103,10 @@ func TestReferenceRegProcPreparedAuthority(t *testing.T) {
 		if replacement == oid || replacement <= 0 {
 			t.Fatal("reinstall reused old identity", oid, replacement)
 		}
+		// A new same-signature routine is a fresh input result, not a reason
+		// to retarget the already accepted literal. Frame/TEXT inputs below
+		// resolve the new identity; true path/role invalidation still re-inputs.
+		regprocStep(t, p, fixture.HeldStatement{Executor: c, Statement: held, SQL: literal}, r, fixture.Select(literal, []string{"id"}, []string{"INT8"}, [][]any{{oid}}))
 		for _, fact := range []struct {
 			q    string
 			stmt *sql.Stmt

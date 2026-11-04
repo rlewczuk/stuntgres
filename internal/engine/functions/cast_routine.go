@@ -39,6 +39,11 @@ func NewCastRoutine(info expr.Info, name, namespace string, args []expr.Expr, vo
 func (n CastRoutine) Children() []expr.Expr { return n.Args[:n.Count] }
 func (n CastRoutine) Eval(c expr.Context) (sqltype.Value, error) {
 	if n.Count == 0 {
+		body, err := n.EnterRoutine(c, nil)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
 		return sqltype.MultirangeFromValues(c.FunctionContext(), n.Usage.Type, nil)
 	}
 	var values [3]sqltype.Value
@@ -54,6 +59,11 @@ func (n CastRoutine) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Null(n.Usage.Type), nil
 		}
 	}
+	body, err := n.EnterRoutine(c, values[:n.Count])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	target, mode := n.Usage, sqltype.Explicit
 	if n.Count > 1 {
 		width, err := values[1].Integer()

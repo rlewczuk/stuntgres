@@ -72,6 +72,11 @@ func (e UUIDGeneration) evalName(ctx context.Context, c expr.Context) (sqltype.V
 	if values[0].IsNull() || values[1].IsNull() {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, values[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	namespace, err := values[0].UUID()
 	if err != nil {
 		return sqltype.Value{}, err

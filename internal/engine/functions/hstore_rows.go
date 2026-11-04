@@ -12,11 +12,11 @@ import (
 // HstoreRows retains a selected declaration, never execution authority or state.
 type HstoreRows struct {
 	expr.Info
-	Arg expr.Expr
-	Formal *sqltype.Descriptor
-	Plan sqltype.HstoreRowsPlan
-	Ref ids.ObjectRef
-	Member uint8
+	Arg             expr.Expr
+	Formal          *sqltype.Descriptor
+	Plan            sqltype.HstoreRowsPlan
+	Ref             ids.ObjectRef
+	Member          uint8
 	Namespace, Name string
 }
 
@@ -33,14 +33,20 @@ func (e HstoreRows) Validate() error {
 }
 func (e HstoreRows) Children() []expr.Expr { return []expr.Expr{e.Arg} }
 func (e HstoreRows) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("HstoreRows", children, 1); err != nil { return nil, err }
+	if err := checkChildren("HstoreRows", children, 1); err != nil {
+		return nil, err
+	}
 	e.Info, e.Arg = info, children[0]
 	plan, err := sqltype.BindHstoreRows(e.Plan.Kind(), e.Arg.ResultUsage(), info.Usage)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	e.Plan = plan
 	return e, e.Validate()
 }
-func (e HstoreRows) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) { return e.Rebuild(info, children) }
+func (e HstoreRows) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}
 func (e HstoreRows) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
 	formal := env.Type(e.Formal)
 	changed = changed || formal != e.Formal
@@ -49,7 +55,9 @@ func (e HstoreRows) Retag(info expr.Info, children []expr.Expr, changed bool, en
 	return next, changed, err
 }
 func (e HstoreRows) Eval(c expr.Context) (sqltype.Value, error) {
-	if _, err := evaluationContext(c); err != nil { return sqltype.Value{}, err }
+	if _, err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted hstore rows set call")
 }
 func (e HstoreRows) SourceAdmission() (bool, bool) { return true, true }
@@ -58,22 +66,69 @@ func (e HstoreRows) SameSourceOccurrence(other expr.Expr) bool {
 	return ok && e.Ref == o.Ref && e.Member == o.Member && e.Plan.Kind() == o.Plan.Kind() && sqltype.SameRecordUsage(e.Usage, o.Usage)
 }
 func (e HstoreRows) OpenSource(c expr.Context) (expr.SourceCursor, error) {
-	ctx, err := evaluationContext(c)
-	if err != nil { return expr.SourceCursor{}, err }
+	if _, err := evaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	value, err := e.Arg.Eval(c)
-	if err != nil { return expr.SourceCursor{}, err }
-	cursor, err := e.Plan.Open(ctx, value)
-	if err != nil { return expr.SourceCursor{}, err }
-	return expr.NewSourceCursor(expr.SourceCursor{Type: e.Usage.Type, State: &cursor, Advance: nextHstoreRowsSource, Release: closeHstoreRowsSource}), nil
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	if value.IsNull() {
+		return expr.NewSourceCursor(expr.SourceCursor{Type: e.Usage.Type, Exhausted: true, Advance: nextHstoreRowsSource}), nil
+	}
+	// REL_18_6 performs first-call setup and its first row/DONE in the same
+	// actual function invocation. Open owns only caller argument evaluation.
+	state := &hstoreRowsSource{plan: e.Plan}
+	return expr.NewSourceCursor(expr.SourceCursor{Type: e.Usage.Type, Value: value, State: state, Advance: nextHstoreRowsSource, Release: closeHstoreRowsSource}), nil
 }
-func nextHstoreRowsSource(ctx context.Context, source *expr.SourceCursor) (sqltype.Value, bool, error) { return source.State.(*sqltype.HstoreRowsCursor).Next(ctx) }
-func closeHstoreRowsSource(state any) { state.(*sqltype.HstoreRowsCursor).Close() }
-func (e HstoreRows) ValidateStoredProvider() error { return e.Validate() }
+
+type hstoreRowsSource struct {
+	plan        sqltype.HstoreRowsPlan
+	cursor      sqltype.HstoreRowsCursor
+	initialized bool
+}
+
+func nextHstoreRowsSource(ctx context.Context, source *expr.SourceCursor) (sqltype.Value, bool, error) {
+	state := source.State.(*hstoreRowsSource)
+	if !state.initialized {
+		cursor, err := state.plan.Open(ctx, source.Value)
+		if err != nil {
+			return sqltype.Value{}, false, err
+		}
+		state.cursor, state.plan, state.initialized = cursor, sqltype.HstoreRowsPlan{}, true
+		source.Value = sqltype.Value{}
+	}
+	return state.cursor.Next(ctx)
+}
+func closeHstoreRowsSource(state any) {
+	owned := state.(*hstoreRowsSource)
+	owned.cursor.Close()
+	owned.plan = sqltype.HstoreRowsPlan{}
+}
+func (e HstoreRows) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted || cursor.State == nil || e.RoutineReference == nil {
+		return cursor.Next(ctx)
+	}
+	if evaluation == nil {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing hstore value-per-call authority")
+	}
+	body, err := evaluation.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{Count: 1, First: e.Formal, Occurrence: e.Occurrence, Source: e.Source})
+	if err != nil {
+		cursor.Close()
+		return sqltype.Value{}, false, err
+	}
+	defer body.Leave()
+	return cursor.Next(ctx)
+}
+func (e HstoreRows) ValidateStoredProvider() error        { return e.Validate() }
 func (e HstoreRows) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e HstoreRows) LooksLikeFunction() bool { return true }
-func (e HstoreRows) ClosureTransparent() {}
+func (e HstoreRows) LooksLikeFunction() bool              { return true }
+func (e HstoreRows) ClosureTransparent()                  {}
 func (e HstoreRows) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
-	if kind != expr.CaptureFunction { return expr.CaptureOperands{}, false, nil }
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
 	return expr.CaptureOperands{Args: e.Children(), Count: 1}, true, nil
 }
 func (e HstoreRows) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
@@ -81,6 +136,8 @@ func (e HstoreRows) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) b
 	return ok && e.Formal == o.Formal && e.Ref == o.Ref && e.Member == o.Member && e.Plan.Kind() == o.Plan.Kind() && e.RoutineReference == o.RoutineReference && same(e.Arg, o.Arg)
 }
 func (e HstoreRows) Render() (expr.Rendering, error) {
-	if err := e.Validate(); err != nil { return expr.Rendering{}, err }
+	if err := e.Validate(); err != nil {
+		return expr.Rendering{}, err
+	}
 	return expr.Rendering{Tree: "HstoreRows " + e.Namespace + "." + e.Name, Inputs: e.Children(), Form: expr.FormCall, Name: e.Name, Namespace: e.Namespace, Quote: expr.QuoteIdentifier, Args: []expr.RenderArg{{Expr: e.Arg, Transport: expr.TransportCast, TransportType: e.Formal.Usage()}}, Replay: expr.Replay{QuoteNamespace: true}}, nil
 }

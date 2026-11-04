@@ -12,18 +12,19 @@ import (
 // DropEffect is one ordered effect of a prepared drop. Exactly one kind is
 // set; the consumer replays them into the statement's stage in order.
 type DropEffect struct {
-	Descriptor    catalog.Descriptor // replaced descriptor
-	Remove        ids.ObjectRef      // removed object
-	Before, After *catalog.Relation  // column projection of a relation
-	Notice        string             // cascade notice
-	Missing       *sqlstate.Error    // emitted notice
-	RowType       ids.ObjectAddress  // removed row type
-	IdentityRoots []ids.ObjectAddress
-	IdentityState *catalog.State // nil: the preparation's base state
-	Index         ids.ObjectAddress
-	Layout        *index.LayoutLineage
-	Internal      bool // PERFORM_DELETION_INTERNAL on this removal operation.
-	Dropped       []catalog.DroppedObject
+	Descriptor     catalog.Descriptor // replaced descriptor
+	Remove         ids.ObjectRef      // removed object
+	Before, After  *catalog.Relation  // column projection of a relation
+	Notice         string             // cascade notice
+	Missing        *sqlstate.Error    // emitted notice
+	RowType        ids.ObjectAddress  // removed row type
+	IdentityRoots  []ids.ObjectAddress
+	IdentityState  *catalog.State // nil: the preparation's base state
+	Index          ids.ObjectAddress
+	Layout         *index.LayoutLineage
+	Internal       bool // PERFORM_DELETION_INTERNAL on this removal operation.
+	Dropped        []catalog.DroppedObject
+	SchemaDefaults ids.ObjectAddress // namespace AUTO default-ACL retirement
 }
 
 // Slots index only real ordered effects, never a second descriptor/name catalog.
@@ -47,10 +48,11 @@ type DropPreparation struct {
 	Base      catalog.Read
 	// Discovery is the authentic read returned by admission; it never
 	// replaces the original Base proofs.
-	Discovery catalog.Read
-	Input     catalog.DefinitionReader
-	Grants    []ids.ObjectRef
-	DropFlags map[ids.ObjectAddress]catalog.DropProvenance
+	Discovery       catalog.Read
+	Input           catalog.DefinitionReader
+	Grants          []ids.ObjectRef
+	DropFlags       map[ids.ObjectAddress]catalog.DropProvenance
+	LateConstraints []*index.ConstraintDropPlan
 
 	next     *catalog.Relation
 	effects  []DropEffect

@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// PgpArmorHeaders owns no invocation state. Each open validates the complete
-// header region and creates an inline cursor borrowing only immutable text.
+// PgpArmorHeaders owns no invocation state. Open evaluates only caller args;
+// the first actual source invocation validates the complete header region.
 type PgpArmorHeaders struct {
 	expr.Info
 	Arg expr.Expr
@@ -104,7 +104,7 @@ func ValidatePgpArmorShape(usage sqltype.Usage) error {
 }
 
 func (n PgpArmorHeaders) OpenSource(c expr.Context) (expr.SourceCursor, error) {
-	ctx, err := evaluationContext(c)
+	_, err := evaluationContext(c)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}
@@ -115,18 +115,38 @@ func (n PgpArmorHeaders) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 	if value.IsNull() {
 		return expr.OwnedSource(n.Usage.Type, nil), nil
 	}
-	text, err := value.Text()
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	start, stop, err := sqltype.PgcryptoArmorHeaderRegion(ctx, text)
-	if err != nil {
-		return expr.SourceCursor{}, err
-	}
-	return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, Value: value, Position: start, Stop: int64(stop), Advance: nextArmorHeader}), nil
+	return expr.NewSourceCursor(expr.SourceCursor{Type: n.Usage.Type, Value: value, Position: -1, Advance: nextArmorHeader}), nil
 }
 
-func nextArmorHeader(_ context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+func (n PgpArmorHeaders) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted || cursor.Value.Type() == nil || n.RoutineReference == nil {
+		return cursor.Next(ctx)
+	}
+	if evaluation == nil {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing pgp_armor_headers value-per-call authority")
+	}
+	body, err := evaluation.FunctionEnterRoutine(n.RoutineReference, n.RoutineRecipeReference, expr.RoutineBodyInputs{Count: 1, First: n.Arg.ResultUsage().Type, Occurrence: n.Occurrence, Source: n.Source})
+	if err != nil {
+		cursor.Close()
+		return sqltype.Value{}, false, err
+	}
+	defer body.Leave()
+	return cursor.Next(ctx)
+}
+
+func nextArmorHeader(ctx context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if cursor.Position < 0 {
+		text, err := cursor.Value.Text()
+		if err != nil {
+			return sqltype.Value{}, false, err
+		}
+		start, stop, err := sqltype.PgcryptoArmorHeaderRegion(ctx, text)
+		if err != nil {
+			return sqltype.Value{}, false, err
+		}
+		cursor.Position, cursor.Stop = start, int64(stop)
+	}
 	if int64(cursor.Position) >= cursor.Stop {
 		return sqltype.Value{}, false, nil
 	}

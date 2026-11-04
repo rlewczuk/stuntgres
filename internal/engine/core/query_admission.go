@@ -116,7 +116,7 @@ func (s *StatementScope) ValidateQuerySources(leaves []exec.Leaf) error {
 // Called once with e.mu held: all table roots share this statement frontier.
 func (e *Engine) CaptureQuerySourcesLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool) (*exec.Source, error) {
 	if scope.authority == nil {
-		scope.authority = &exec.Authority{Host: HostOf(scope)}
+		scope.authority = &exec.Authority{Host: HostOf(scope), RoutineCatalog: scope.RoutineAuth.Catalog}
 	}
 	if command := scope.rlsCommand; command != nil && command.sources != nil {
 		prepared := command.sources
@@ -520,7 +520,7 @@ type inquirySnapshot struct {
 // captureHashIndexesLocked captures hash and bloom roots from one published
 // engine state under the same e.mu window as visibility-prefix capture.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf, source *exec.Source, mark plan.RowMark) error {
-	in := index.HashCapture{Eligible: scope.implicit && scope.Catalog == nil, Live: e.Catalog.State, Relations: e.Storage.Relations, Roots: e.Storage.IndexRoots, Commit: e.Visibility.CommitSeq()}
+	in := index.HashCapture{Eligible: scope.implicit && scope.Catalog == nil, Live: e.Catalog.State, Relations: e.Storage.Relations, Roots: e.Storage.IndexRoots, Commit: e.Visibility.CommitSeq(), Factory: scope}
 	if err := index.CaptureHashIndexesLocked(in, leaf, source, mark); err != nil {
 		return err
 	}

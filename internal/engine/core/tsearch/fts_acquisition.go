@@ -3,6 +3,7 @@ package tsearch
 import (
 	"context"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
@@ -14,25 +15,41 @@ type tsAcquisition[A Authority[A]] struct {
 	ctx      context.Context
 	view     catalog.Read
 	config   *catalog.TSConfiguration
-	runtimes map[ids.ObjectAddress]catalog.DictionaryRuntime
-	memos    map[ids.ObjectAddress]thesaurusMemo
+	runtimes map[ids.ObjectAddress]dictionaryBinding
+	memos    map[ids.ObjectAddress]dictionaryMemo
+	roles    *access.RoleRecord // This invocation's actual cold-work predecessor.
 }
 
 func newTSAcquisition[A Authority[A]](ctx context.Context, view catalog.Read, config *catalog.TSConfiguration) *tsAcquisition[A] {
 	return &tsAcquisition[A]{ctx: ctx, view: view, config: config}
 }
 
+func captureDictionaryInvocation[A Authority[A]](h Host[A]) *tsAcquisition[A] {
+	h.ReacquireEngine()
+	view := h.PrivateCatalogLocked(h.PendingCatalog())
+	h.ReleaseEngineLocked()
+	return newTSAcquisition[A](h.Operation().Context(), view, nil)
+}
+
 // currentLocked checks metadata and already consulted executable inputs only.
 // It never resolves a logical normalizer or initializes an unreached dictionary.
 func (a *tsAcquisition[A]) currentLocked(view catalog.Read, auth A) bool {
-	if view.Domain() != a.view.Domain() || view.Epoch() != a.view.Epoch() || view.Get(a.config.Address()) != a.config || view.Get(a.config.Parser) != a.view.Get(a.config.Parser) {
+	if view.Domain() != a.view.Domain() || view.Epoch() != a.view.Epoch() {
 		return false
 	}
-	parser := a.view.MustTSParser(a.config.Parser)
-	for _, oid := range [...]ids.OID{parser.Start, parser.Token, parser.End, parser.Headline, parser.LexType} {
-		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		if view.Get(address) != a.view.Get(address) {
+	if a.roles != nil && a.roles != auth.Access().RoleRecord {
+		return false
+	}
+	if a.config != nil {
+		if view.Get(a.config.Address()) != a.config || view.Get(a.config.Parser) != a.view.Get(a.config.Parser) {
 			return false
+		}
+		parser := a.view.MustTSParser(a.config.Parser)
+		for _, oid := range [...]ids.OID{parser.Start, parser.Token, parser.End, parser.Headline, parser.LexType} {
+			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+			if view.Get(address) != a.view.Get(address) {
+				return false
+			}
 		}
 	}
 	for address := range a.runtimes {
@@ -65,16 +82,16 @@ func (a *tsAcquisition[A]) currentLocked(view catalog.Read, auth A) bool {
 	return true
 }
 
-func (a *tsAcquisition[A]) dictionary(h Host[A], address ids.ObjectAddress) (catalog.DictionaryRuntime, error) {
-	if runtime := a.runtimes[address]; runtime != nil {
+func (a *tsAcquisition[A]) dictionary(h Host[A], address ids.ObjectAddress) (dictionaryBinding, error) {
+	if runtime, ok := a.runtimes[address]; ok {
 		return runtime, nil
 	}
-	runtime, err := acquireDictionaryFor(h, address, a)
+	runtime, err := acquireDictionaryFor(h, address, a, nil)
 	if err != nil {
-		return nil, err
+		return dictionaryBinding{}, err
 	}
 	if a.runtimes == nil {
-		a.runtimes = make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
+		a.runtimes = make(map[ids.ObjectAddress]dictionaryBinding)
 	}
 	a.runtimes[address] = runtime
 	return runtime, nil
@@ -100,10 +117,10 @@ func (a *tsAcquisition[A]) accept(ctx context.Context, h Host[A]) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	payload := h.ThesaurusMemos()
+	payload := h.DictionaryMemos()
 	for address, memo := range a.memos {
 		if *payload == nil {
-			*payload = make(ThesaurusMemos)
+			*payload = make(DictionaryMemos)
 		}
 		(*payload)[address] = memo
 	}

@@ -34,13 +34,40 @@ Detached ALTER fills, rewrites, constraint scans and index-shape preparation
 activate through the statement runtime only after capture locks are released.
 `AlterRowEvaluation` is exclusively a detached row-work factory. ANALYZE likewise
 activates its sampling evaluator, not CREATE STATISTICS cooking. Generated, index,
-predicate and partition-bound binders remain dormant, including nested binding.
-Explicit row-generation context and evaluator context must agree.
+predicate and partition-bound binding itself remains dormant, including nested
+binding; the separately owned constant-definition prewalks below activate only
+their actual statement's work. Explicit row-generation and evaluator contexts
+must agree.
 `PendingPartitionDefinition.Finish` is the shared ordinary/foreign partition
 constructor continuation. It activates the operation's current context after
 private capture releases `Engine.Mu`, and supplies that context to bound demand
 and its evaluator. Reset/replacement still fences the captured stage and parent
 identity before publication.
+
+Index Transform methods remain dormant metadata binding. Complete methods keep
+the original coercion/constant prewalk and volatility/rendering order; active
+simulation uses the catalog stage's genuine statement through
+`DDLHost.PreflightIndexDefinitionLocked`. That narrow completion enters/returns
+with `Engine.Mu` held but suspends it for actual initializer/provider execution,
+then rejects changed settings, role/catalog predecessors or selected parent.
+It neither defers definition errors to the first build row nor replays work.
+
+Generation definitions retain their original conditional prewalk through
+`DDLHost.SimplifyGenerationDefinitionLocked`, without an added coercion prewalk.
+CREATE borrows its genuine catalog stage and retained binding read while its
+relation is still prospective; ALTER legitimately borrows its actual statement
+without a stage. The active initializer is created before conditional context
+copies, then constants run without `Engine.Mu` or a replacement reservation.
+Return readmission fences the same operation/settings, catalog/roles/actor and
+optional stage structural input; stale work is never rebound or replayed.
+Original source/virtual security precedes simplification, while immutability,
+storage coercion and original/planned dependency capture retain their order.
+Stored-program preparation and actual row invocation carry that definition's
+original manifest and consumer with one genuine execution owner; ALTER keeps the
+old installed consumer. SQL routine expressions retain their existing FoldNever
+contract: constant native helpers can be demanded by definition simplification,
+while a SQL wrapper's ordinary EXECUTE and MAC checks occur at its genuine
+stored-program demand, not an assumed definition-time inline expansion.
 
 ALTER expression snapshot demand includes already typed candidate indexes before
 DEFAULT preflight, even when the parent's first-index history bit is normalized
@@ -227,6 +254,23 @@ A later phase cannot upgrade an already fixed pair with current roots.
 - Dispatch (`core.Statements.Execute`): `ExecuteSequenceDDL`,
   `ExecuteSequenceComment` and `ExecuteVacuum` are entered with nothing held;
   they take `Engine.Mu` in short windows and release it around lock waits.
+  Explicit sequence creation admits its captured namespace/name binding before
+  the sequence postcreate hook and before OWNED BY. Genuine initial and concurrent
+  IF NOT EXISTS skips emit the ordinary notice without a sequence-create decision,
+  association rewrite or generator change. Core's narrow journal postcreate owner
+  shares the sequence semantic helper with serial/CREATE identity/ADD identity's
+  real CatalogStage producers: schema ADD_NAME, current-subject/default transition,
+  then sequence CREATE, recording one immutable selinux whole-object association.
+  The three sequence value columns never receive column-create hooks or labels.
+  The prospective descriptor, label and generator publish together through existing
+  Finish/transaction/savepoint fences. Namespace actual/private labels retain their
+  first committed predecessors; OWNED BY refresh does not replace original CREATE
+  authority. A denial precedes a later OWNED BY error and leaves no catalog objects
+  or generator, but already reserved monotonic OIDs/revisions are not rolled back.
+  TEMP inherits its genuine lazy/existing namespace label and uses ordinary
+  physical cleanup. Trusted isolated Restore preserves explicit/removed labels
+  and sequence state without synthesizing default associations; public SQL cannot
+  acquire import authority, and destination control consent remains independent.
 - Restore hooks: `CaptureRestoredForeignKeys`,
   `ResolveRestoredForeignKeyTargets`, `BindRestoredForeignKeys`,
   `RestoreAttributeRank`,
@@ -514,6 +558,9 @@ make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
 make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants
 make check RUN='^TestConstraintEnforcement'               # enforcement candidate, lifecycle, history and publication ownership
 make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
+make check RUN='^TestSepgsqlSimulationSequenceCreate(Currentness)?$'  # actual postcreate, consumers and admission/currentness
+make check RACE=1 RUN='^TestSepgsqlSimulationSequenceCreate(Currentness)?$'
+make check RUN='^Test(JournalSecurityLabelFirstPredecessor|SepgsqlSimulationControls)$'  # journal/replay/TEMP cleanup
 make check RUN='^TestAlterPersistence'                     # metadata, cache, post-grant fences and retained authority
 make check RUN='^TestAlterAccessMethod'                    # method intent, providers, publication and retained authority
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication

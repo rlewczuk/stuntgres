@@ -52,7 +52,31 @@ func (b *Binder) bindIntaggAggregate(raw parser.AggregateExpr, name parser.Objec
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.Info(array.Usage(), raw.Pos, properties)
-	call := plan.AggregateCall{Provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), Arguments: []expr.Expr{arg}, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
+	auth, err := b.BindingAuthorization()
+	if err != nil {
+		return nil, err
+	}
+	view := auth.ReadCatalog()
+	if proc.Aggregate == nil {
+		return nil, fmt.Errorf("stuntgres: missing intagg owning definition")
+	}
+	var supports [2]expr.RoutineReference
+	for i, identity := range proc.Aggregate.Helpers {
+		helper, exists := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID})
+		if !exists {
+			return nil, fmt.Errorf("stuntgres: missing genuine intagg support declaration")
+		}
+		if err = extension.StockIntagg.ValidateProcedure(view, helper); err != nil {
+			return nil, err
+		}
+		supports[i] = helper
+		b.captureDependency(b.Host.CatalogOwner().Domain.Ref(view.Epoch(), helper.Address()), helper.Revision(), catalog.AggregateSupportDependency)
+	}
+	provider, err := functions.NewIntaggArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), b.Type(sqltype.ID(2281)), proc, supports)
+	if err != nil {
+		return nil, err
+	}
+	call := plan.AggregateCall{Provider: provider, Arguments: []expr.Expr{arg}, Operation: functions.AggregateArrayScalar, IncludeNulls: true, Procedure: proc, Ref: ref, Routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
 

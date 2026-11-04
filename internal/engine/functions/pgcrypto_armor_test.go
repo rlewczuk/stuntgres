@@ -121,8 +121,11 @@ func TestPgcryptoArmorSourceValidation(t *testing.T) {
 	var order []int
 	n := armorSourceUnit(t, "-----BEGIN PGP MESSAGE-----\nfoo: bar\ninvalid later header\n\n-----END PGP MESSAGE-----\n", false, &order)
 	cursor, err := n.OpenSource(ctx)
-	if err == nil || cursor.Type != nil || cursor.Advance != nil {
-		t.Fatal("invalid later header published a cursor", cursor, err)
+	if err != nil {
+		t.Fatal("opening evaluated native body before first invocation", err)
+	}
+	if _, present, err := cursor.Next(context.Background()); err == nil || present || cursor.Value.Type() != nil || !cursor.Exhausted {
+		t.Fatal("first body exposed a row before validating all headers", cursor, err)
 	}
 }
 

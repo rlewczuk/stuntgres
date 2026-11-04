@@ -3,6 +3,7 @@ package index
 import (
 	"cmp"
 	"fmt"
+	"iter"
 	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -120,23 +121,6 @@ func PartitionIndexDropDependency(view catalog.Read, index *catalog.Relation) er
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because index %s requires it", index.Name(), parent.Name()), Hint: "You can drop index " + parent.Name() + " instead."}
 }
 
-// DroppedUniqueOIDs are the OIDs of old's UNIQUE and PRIMARY KEY constraints
-// that the DROP CONSTRAINT actions name, in action order.
-func DroppedUniqueOIDs(old *catalog.Relation, actions []parser.AlterTableAction) []ids.OID {
-	var dropped []ids.OID
-	for _, action := range actions {
-		if action.Action != parser.DropConstraint {
-			continue
-		}
-		for _, c := range old.Constraints.Unique {
-			if c.Name == action.Constraint.Text {
-				dropped = append(dropped, c.OID)
-			}
-		}
-	}
-	return dropped
-}
-
 func PartitionConstraintDropActions(table *catalog.Relation, actions []parser.AlterTableAction) bool {
 	if len(actions) == 0 {
 		return false
@@ -206,36 +190,74 @@ func StagePartitionIndexDrop(stage DropStage, idx *catalog.Relation, cause Parti
 	return stage.RemoveRelation(idx.Address())
 }
 
-// StagePartitionConstraintDrop stages the removal of every partition's
-// constraint inherited from oid, and of their indexes, depth first.
-func StagePartitionConstraintDrop(stage DropStage, oid ids.OID) error {
-	view := stage.StageRead()
-	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, c := range table.Constraints.Unique {
-			if c.Parent != oid {
+// ConstraintDropPlan is the captured depth-first inherited backing-index
+// program. It contains real selected identities, not catalog or MAC authority.
+type ConstraintDropPlan struct {
+	Indexes  []*catalog.Relation
+	source   catalog.Read
+	consumed bool
+}
+
+func PreparePartitionConstraintDrop(source catalog.Read, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], descriptor func(ids.ObjectAddress) catalog.Descriptor, oid ids.OID) (*ConstraintDropPlan, error) {
+	plan := &ConstraintDropPlan{source: source}
+	var visit func(ids.OID) error
+	visit = func(parent ids.OID) error {
+		for address := range descriptors {
+			table, ok := descriptor(address).(*catalog.Relation)
+			if !ok {
 				continue
 			}
-			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
-				return err
+			add := func(oid ids.OID, address ids.ObjectAddress) error {
+				if err := visit(oid); err != nil {
+					return err
+				}
+				index, ok := descriptor(address).(*catalog.Relation)
+				if !ok || index.SQLIndex == nil {
+					return ids.ErrCatalogReplaced
+				}
+				plan.Indexes = append(plan.Indexes, index)
+				return nil
 			}
-			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index), ConstraintDrivenDrop); err != nil {
-				return err
+			for _, c := range table.Constraints.Unique {
+				if c.Parent == parent {
+					if err := add(c.OID, c.Index); err != nil {
+						return err
+					}
+				}
+			}
+			for _, c := range table.Constraints.Exclusion {
+				if c.Parent == parent {
+					if err := add(c.OID, c.Index); err != nil {
+						return err
+					}
+				}
 			}
 		}
-		for _, c := range table.Constraints.Exclusion {
-			if c.Parent != oid {
-				continue
-			}
-			if err := StagePartitionConstraintDrop(stage, c.OID); err != nil {
-				return err
-			}
-			if err := StagePartitionIndexDrop(stage, view.MustRelation(c.Index), ConstraintDrivenDrop); err != nil {
-				return err
-			}
+		return nil
+	}
+	if err := visit(oid); err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
+func (plan *ConstraintDropPlan) Apply(stage DropStage) error {
+	if plan == nil || plan.consumed {
+		return ids.ErrCatalogReplaced
+	}
+	current := stage.StageRead()
+	if plan.source.Owner() == nil || current.Owner() != plan.source.Owner() || current.Epoch() != plan.source.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	for _, idx := range plan.Indexes {
+		if current.Get(idx.Address()) != idx {
+			return ids.ErrCatalogReplaced
+		}
+	}
+	plan.consumed = true
+	for _, idx := range plan.Indexes {
+		if err := StagePartitionIndexDrop(stage, idx, ConstraintDrivenDrop); err != nil {
+			return err
 		}
 	}
 	return nil

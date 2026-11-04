@@ -54,6 +54,13 @@ func (e HstoreArray) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	if e.RoutineReference != nil {
+		body, err := c.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{HasNull: value.IsNull(), Count: 1, First: value.Type(), Occurrence: e.Occurrence, Source: e.Source})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
 	return value.HstoreArray(ctx, e.Formal, e.Usage.Type, e.Matrix)
 }
 func (e HstoreArray) ValidateStoredProvider() error        { return e.Validate() }

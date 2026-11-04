@@ -53,7 +53,7 @@ func TestSynonymPublicationFences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := preparation.Compile(op.Context()); err != nil {
+			if err := preparation.Compile(op.Context(), core.DDLHost{E: e, Op: op, CatalogStage: stage}); err != nil {
 				t.Fatal(err)
 			}
 			compiled := preparation.Runtime

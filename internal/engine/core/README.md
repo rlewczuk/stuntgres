@@ -359,7 +359,14 @@ never retries or adopts a newer destination.
 `ReplaceCatalogInOperation` accepts only a live operation of its distinct,
 isolated source engine and validates that ownership before touching either
 catalog. Ordinary self/foreign replacement uses `ReplaceCatalog` without an
-operation; it admits its own private repair session when demanded.
+operation; it admits its own private repair session when demanded. Inactive
+maintenance has no simulation origin and supports distinct genuine sessions.
+Active import repair validates the original origin and exact session/staging
+binding before publication, projecting only its detached evaluation clone into
+that unchanged stage epoch. Principal, domain-check, routine and expression
+owners share that local view; the separately prepared destination image retains
+its destination next epoch. Only internally acquired operations own the temporary
+staging flag and its cleanup; supplied operation provenance remains caller-owned.
 
 Statistics runtime (the `pg_restore_*_stats`/`pg_clear_*_stats` imports, the
 `pg_stats` and `pg_statistic_ext_data` visitors, statistics expression recipes
@@ -910,6 +917,202 @@ an enclosing RI actor only for its body, without weakening genuine restrictions
 or later RI relation-write authority. Trigger frame/depth/diagnostic and
 SAVE/policy unwind covers success, error, partial entry and cancellation;
 event start/end/drop/rewrite retain their atomic utility owner.
+
+Simulated sepgsql execute initialization belongs to the actual executor frame,
+before argument effects; ordinary SQL/PL/host body dispatch consumes its exact
+completed receipt instead of rechecking execute under a changed argument subject.
+`SepgsqlObservationMark` snapshots observation length and independent monotonic
+initialization/retirement completion watermarks. Failed inner work discards only
+newer receipts even when both actions shared a deduplicated observation; counters
+never rewind. Command Finish and cursor detachment discard borrowed owners.
+Native entered and strict-NULL expanded declaration owners derive separately
+from the exact original source receipt and typed phase. DECLARE, FETCH, HOLD
+promotion and producer teardown clear the inert borrowed owner beside Host.
+Coordinator captures strip live codec/domain/support borrowers, then active
+workers and native aggregate leaders consume exact sealed source evidence.
+The internal initialization owner fixtures use real analyzed grants, including
+deduplicated rollback, constructor phase transfer and selected ordering kernels;
+they do not install receipt maps or fabricated policy authority.
+
+Trusted Restore keeps a distinct serial initialization completion record, never
+a client MAC receipt. Only a simulation-installed RestoreStage mints its private
+engine/domain/epoch/runtime origin; one successful StartRestoreSession binds the
+physical owner. Inactive private maintenance mints no origin and remains
+multi-session. Repair does not mutate, replace or rebind an existing origin.
+The actual command owner retains that exact origin beside its frame identity.
+Fresh operation, scope, private read, bootstrap, staging and source/SQL EXECUTE
+checks remain required at initialization and entry, including repeated sites.
+Import records contain no subject, policy decision, label predecessor or audit
+evidence; native body/type-input import boundaries remain unchanged. They cannot
+seal even an empty owner into a closed worker proof. Public control consent and
+the final replacement catalog/role/policy/cancellation fences are independent.
+
+Generic simulated SECURITY LABEL retains its real resolved object across the
+ordinary catalog-lock adapter. TYPE/DOMAIN use existing TypeExclusive; ordinary
+TABLESPACE objects alone join the shared RoleDomain AS/AX route. Their original
+local domain/epoch is validated after waiting outside Engine.Mu. Local catalog
+ACL writer resources remain distinct and unchanged. Current descriptor identity
+and ordinary ownership are recaptured before unsupported-provider rejection;
+no label candidate is staged for these unsupported classes. Composed coverage is
+`TestSepgsqlSimulationGenericLabel(NoPublication|FreshOwnership|LockLifecycle)`
+in `schemacmds`, including cross-database tablespace grant/wait projection.
+
+Public simulated `sepgsql_restorecon` checks the current SQL actor's superuser
+authority before looking up the immutable virtual profile. It selects every
+actual shared database descriptor and only the current root's local objects.
+Two filtered passes over that same selection visit databases first, using each
+database's own quoted key, then local objects; all permissions and predecessors
+belong to one stage and one atomic publication. Denial, cancellation or stale
+role/root/label authority publishes none of the requested associations.
+Private startup seed labels and both sides of native replacement consent retain
+their current-database-only scope and the existing sorted-union ordering.
+`TestSepgsqlSimulationRestoreconScopeAndOrder`, `SeedAndControlScope` and
+`PublicationFences` cover these actual owners; the dedicated reference
+restorecon scenarios cover direct/prepared two-root visibility, peer-local
+privacy and privilege/profile diagnostics without claiming active SELinux parity.
+
+Direct TypeIO, encoding and FDW factory fixtures establish a real transaction
+through Gate, then capture the current routine authority and identity. A bare
+StartStatement has no transaction epoch and cannot authorize MAC observations.
+Their actual direct callbacks still do not acquire fictional SQL execute
+initialization. Every fixture installs scope cleanup before a callback or
+assertion can fail, so diagnostics cannot be hidden by a busy-owner drain.
+The FDW no-importer audit witness keeps the same physical session but gives each
+IMPORT its own real operation. It observes host audit only after that operation's
+deferred `Done` releases the lease and delivers queued records; scope `Finish`
+alone does not deliver host callbacks. Setup operations finish before the audit
+slice is reset, so their events cannot contaminate the selected factory phase.
+Ordinary direct column defaults retain their exact routine source in the
+command's retained-expression phase. `AcceptedDefaultInitialization` instead
+belongs to the genuine sealed source artifact produced by protocol Bind and
+selected by Execute. Constructor witnesses exercise both lanes: direct calls
+prove the actual default routine's retained receipt; real Parse/Bind/Execute
+proves the sealed artifact, returned rows and all four typed constructor owners
+before Finish. Neither lane manufactures accepted provenance for the other.
+Actual PL exception checkpoints retain the same typed observation/completion
+mark. Their rollback removes only the failed suffix before a handler runs,
+including cancellation cleanup, while preserving older reused receipts and
+never rewinding completion counters.
+
+Index definition completion preserves its original predicate/key prewalk,
+including constant calls before any real build tuple exists. With simulation
+active, `DDLHost.PreflightIndexDefinitionLocked` authenticates the catalog
+stage's actual statement, suspends the engine mutex for genuine initialization
+and provider work, then readmits the same settings/session, stage/base, live
+catalog/roles/actor and selected parent before continuing. It never rebinds or
+replays the prewalk on a changed predecessor. Generation-definition conditional
+simplification uses `DDLHost.SimplifyGenerationDefinitionLocked`: CREATE borrows
+its genuine stage/read, not an installed parent; ALTER may legitimately have no
+stage. It creates the real command initializer before conditional context copies,
+suspends Mu and the replacement reservation for constant callbacks, restores its
+borrowed authority and readmits exact operation/settings/catalog/role/actor and
+optional stage structural predecessors without retry. It adds no coercion
+prewalk or prospective relation admission. Demanded stored-generation runtime
+preparation likewise initializes its parent before recipe copies; actual row
+evaluation carries each definition's original manifest and exact consumer
+(the old installed relation for ALTER) with the same command owner. Its cache
+contains expressions only, never receipt or session authority. UPDATE attaches
+the exact prepared command header to its captured physical target through the
+existing source borrower before dispatch; State never recovers a missing owner
+from an ambient Host. Original INTERNAL kernels retain their no-FHET contract:
+manifest admission, completed-site consumption and source opening validate at
+their actual boundaries, not through newly added per-row EXECUTE checks.
+Inactive metadata callers retain their original hostless, zero-owner behavior.
+Retained cursor evaluators refresh only their previously sealed live source-header
+association; they validate the last local owner/catalog first, never adopt ambient
+statement authority. The exact current attachment owner reaches cached projections
+and nested CTE states.
+
+Protocol producer construction detaches its former query header before the
+first real attachment. Terminal portal/XML motion leaves detach owner/catalog
+beside Host. COPY query pulls instead suspend Host and query scratch while the
+same lexical COPY command remains admitted; each real pull borrows that SAME
+owner without initialization replay. Final producer disposal detaches it.
+The multirow encoded-COPY witness checks a real initialized header at the
+response, stable owner and receipt watermark through suspended conversion work,
+actual Latin1 rows, restored subject and a fully detached terminal header.
+The finalized-simple INSERT RETURNING witness instead retains the real eager
+store and proves no live SELECT portal was created. At its actual unlocked
+metadata callback, the fixture activates the admitted scope's runtime on the
+operation context consumed by encoding, not a copied evaluator context; binding
+retains an inert request. Its installed hstore output and actual trusted Latin1
+converter then pause after entry at WorkEncodingConvert.
+Peer relabel or descriptor replacement must reject with the exact catalog
+publication conflict before the row callback sees fields; unchanged authority
+delivers the exact encoded value and SQL NULL. Both failure legs and the healthy
+leg preserve original predecessor/initialization evidence, restore the caller's
+subject phase, close the store and join the worker without encoding retries.
+
+Direct index-method factory initialization and entry authenticate the actual
+ownerless `pg_am` source through its catalog domain/epoch, whole-object identity,
+index-method provider and exact selected handler. They retain the real SQL actor
+and handler-owner admission without inventing an access-method owner or requesting
+procedure EXECUTE for a direct factory call. Reusing a completed initialization
+receipt still validates the current source; retiring the method revokes entry.
+Selected direct index-support callbacks likewise identify the actual ownerless
+`pg_amproc` member. Admission requires its exact domain/epoch/address, canonical
+family/operand/slot lookup, helper identity and both real registered providers,
+then checks ordinary authorization-object ownership on the real operator family.
+It neither invents a member principal nor grants procedure EXECUTE to a direct
+callback. Wrong-class, missing, column, foreign, stale-epoch and wrong-role/helper
+sources reject before any receipt is recorded; closed comparisons consume the
+same sealed selected source. Other direct callback sources retain ordinary
+authorization-object admission.
+IndexSupport itself is inert, domainless selection metadata: an equivalent token
+resolves against the supplied local catalog and may use that local sealed proof.
+Actual captured callback Reference/Source and initializer/read provenance carry
+the lifetime boundary. Foreign callback refs, owners or reads cannot borrow a
+local certificate merely because display OIDs and structural tokens agree.
+
+Actual native aggregate kernels do not own ordinary scalar callsite receipts.
+Their invocation-local, self-associated source is consumed at the selected
+postargument entry and, when simulation is active, authenticated with
+`Host.ValidateRoutineInitializationOwner(owner, read)`: active scope, genuine
+scope-map/CommandIdentity ownership, current authorization under Engine.Mu,
+original read owner/domain/epoch and cancellation. This check allocates/seals
+nothing and neither mints receipts nor replays EXECUTE. Existing aggregate
+membership and AggregateSupportDependency lifetime checks remain in exec; SQL
+helper EXECUTE stays aggregate-owner admission while body relation rights stay
+with the invoking scope. Direct native support retains execute=false FHET.
+A genuine native SQL wrapper used as support (round FINAL or lpad SFUNC) carries
+only its immediate authenticated parent through existing nativeBodyLineage,
+borrowing the SAME original initializer. Its real child calls still initialize
+under the entered subject with DefinitionDependency and exact Body/CallPart
+coordinates. Ordinary body parents continue their own receipt/child-owner path;
+no aggregate parent receipt/map/owner is fabricated. Closed native non-body
+workers authenticate the same sealed owner/read without a live host; conditional
+body work retains the existing serial gate and unrelated phases sever lineage.
+Inactive genuine SQL Body/DeclarationBody aggregate support retains the same
+immediate association and original AggregateSupportDependency lifetime. Its zero
+simulation owner remains zero: no MAC owner guard, parent mint, receipt or map is
+needed. Ordinary child lifetime/SQL ACL checks still run against the original
+aggregate parent source, not a fabricated DefinitionDependency for the wrapper.
+No-body/standalone inactive fast paths, closed-body rejection and existing
+parallel gates are unchanged. Inactive round/lpad fixtures use the exact public
+DDL without COMBINE/PARALLEL additions and assert zero MAC owner/receipt maps.
+The native aggregate fixtures capture physical inputs through the same admitted
+statement scope's relation/data-view owners, including genuinely empty inputs.
+Planner column shape comes from the captured relation descriptor, never a sample
+row or a SELECT result that can legitimately omit its source when empty.
+Foreign-declaration fixtures distinguish selected-call rejection before native
+evaluation from a foreign reference attempted at the genuine selected entry.
+Finished-owner witnesses resume retained frames only after normal Finish, while
+body continuation probes retain their active scope through observer unwind;
+they never finish a statement from inside its own entered-body callback.
+The owner fixtures retain actual native sum10/loops2, hstore/arithmetic fanout,
+SQL-support sum10/loops1, strict/nonstrict NULL demand, exact-source rejection,
+denial/unwind/retry and no terminal marker residue. These are authored contracts,
+not evidence of an exercised check or real SELinux enforcement.
+
+Retirement preparation uses the same raw-removal/index-evolution metadata owner
+and captures secondary owned/late constraint cohorts before effects, with ordinary
+grants and RESTRICT preceding combined MAC while parents/namespaces remain live.
+Live source descriptors come from the authenticated full stage read, including
+unchanged committed objects. `Candidate.Get` exposes staged deltas only and is
+not a source-existence test; committed predecessors remain independently fenced.
+Later effects consume exact stage/predecessor/completion-stamped decisions, not a
+new allow under the final caller. Explicit ON COMMIT/drained cleanup origins never
+fabricate a client SQL subject.
 `activeTriggerDepth` belongs to the root invocation owner, separately from
 routine safety depth and lexical scratch. Only admitted DML trigger bodies and
 individual internal RI callbacks enter it, with deferred unwind. WHEN and queue
@@ -1205,7 +1408,7 @@ the leaf [`core/tsearch`](tsearch/README.md). Core owns `tsearch.Host` on
 `statementHost` (`tsearch_statement_host.go`), the `tsearch.Authority` that
 `AuthorizationView` implements, `textSearchHost`'s `exec.TextSearchRuntime`
 adapters, the tsvector trigger's use of `tsearch.Capture`, and the session's
-`tsearch.ThesaurusMemos` in `sessionPayload`.
+`tsearch.DictionaryMemos` in `sessionPayload`.
 
 Generic folds retain immutable explicit vector/query results and their first
 execution notices are not replayed. Stable omitted forms and runtime arguments
@@ -1330,6 +1533,12 @@ adapters and `PageinspectNotice`, and these host pieces:
   Allocation roots are shared through the leaf host, with no new store or global
   relation_size cutover. Owner/Engine fences protect identity capture, never row
   arithmetic, producer iteration or callbacks.
+  The entered freespace wrapper's genuine relation-size child borrows that same
+  worker with an explicit nullable wrapper-extent purpose. Its checked
+  `FreespaceLayout.Blocks * 8192` is only this documented technical page estimate;
+  missing numeric OIDs give size NULL and genuine no-storage kinds size zero.
+  Neither path counterfeits C2 admission or entry; actual emitted blocks keep
+  their separate C2 probes and all existing currentness/cancellation fences.
 - `WithMaintenanceOwner` (`maintenance_environment.go`), the serial
   operation-local table-owner frame that amcheck (`CheckBtreeAsOwner`) and
   CLUSTER and FULL index rebuilding share, and `refreshRestrictedPresentation`
@@ -2600,6 +2809,19 @@ it by value without acquiring a lock. New logical databases copy the originating
 runtime's value before binding; Restore stages copy the destination's value
 before replay. Reset and catalog replacement neither serialize nor replace it.
 
+The genuine sealed `unaccent` script initializer uses its current candidate
+procedure/default label for direct FHET entry, without SQL EXECUTE admission,
+while its original committed descriptor/label predecessors remain absent.
+Detached compilation runs outside `Engine.Mu` and retains the exact original
+Base, helper/template/dictionary and installation identities, roles and resource
+capability. Completion compares candidate label-delta count and exact record
+pointers against the captured candidate read, not the fresh persistent-map root
+created by each `StageRead`. Retained nil delta keys make this an exact fence;
+peer labels, replacement and source retirement are not recaptured as authority.
+DDL initialization never warms the physical query dictionary memo. Failed or
+discarded candidates restore only their own newer observation/completion suffix,
+preserving earlier genuine initialization receipts.
+
 ## Read-only utility execution
 
 - ALTER SYSTEM describes an empty signature without snapshots or authority.
@@ -3334,8 +3556,12 @@ session, transaction, prepared-analysis and typed-frame authorities.
   partial rows. Stored typed rows are never rewritten or replayed.
   Retained rows are encoded and delivered before `Finish`, so output conversion
   failure rolls back commands such as INSERT RETURNING rather than committing
-  before the wire error. The wire captures the failing active pair before
-  unwind and reports restored settings afterward.
+  before the wire error. Finalized RETURNING, modifying-CTE and utility stored-row
+  output uses the same post-encoding/pre-sink `validateCodecOutput` frontier as
+  portal, FunctionCall and COPY output. It rejects peer-stale codec observations
+  without exposing fields or holding a lock over the external callback. The wire
+  captures the failing active pair before unwind and reports restored settings
+  afterward.
 - `client_encoding.go` resolves both actual default conversions using the
   ordinary conversion search path, lowest-OID tie-break and immutable handler
   signature validation. Explicit SET/startup candidates publish cache authority
@@ -3494,6 +3720,9 @@ snapshot supplies command policy only: patching scope dependencies after source
 capture neither creates a frozen recipe nor admits an old descriptor as fresh
 SQL. Keep the ordinary fresh-binding revision conflict intact. Source/cursor
 cleanup and scope/operation release precede reporting any assertion failure.
+The no-View command source keeps its own initializer/header catalog; the private
+retained-call evaluator explicitly supplies its separately admitted original
+recipe catalog, rather than relying on lexical catalog precedence.
 Use `make check RUN='^TestPgFreespaceWrapperParameterDemand$'`, adding `RACE=1`
 for the same ownership cases; public NULL planning/ACL outcomes remain in
 `TestReferencePgFreespacePermissions` in both modes.

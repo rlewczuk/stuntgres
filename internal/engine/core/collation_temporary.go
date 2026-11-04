@@ -19,10 +19,30 @@ func (e *Engine) definitionCreationNamespaceLocked(auth *AuthorizationView, stag
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
+	// Namespace postcreate already ran at the actual ordered creation site.
+	// Transfer its exact observations and generated labels, not a second hook
+	// invocation under a potentially later subject or map iteration order.
+	if len(changes.SecurityLabels) != 0 {
+		database := e.Catalog.Owner.DatabaseAddress()
+		if stage.DatabaseAuthority != auth.Catalog.Get(database) || stage.DatabasePredecessor != changes.Originals[database] {
+			return ids.ObjectRef{}, catalog.Conflict{}
+		}
+	}
+	for key, record := range changes.LabelReads {
+		address := key.Object
+		address.SubID = 0
+		if stage.Base.Get(address) != auth.Catalog.Get(address) || stage.Base.State().SecurityLabel(key) != record {
+			return ids.ObjectRef{}, catalog.Conflict{}
+		}
+		stage.ObserveSecurityLabel(key)
+	}
 	for _, d := range changes.Descriptors {
-		if err := stage.Create(d); err != nil {
+		if err := stage.Candidate.Create(d); err != nil {
 			return ids.ObjectRef{}, err
 		}
+	}
+	for key, record := range changes.SecurityLabels {
+		stage.RecordSecurityLabel(key, record)
 	}
 	if len(changes.Descriptors) != 0 {
 		auth.Catalog = e.StageRead(stage)
@@ -127,6 +147,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	}
 	stage = e.BeginCatalogStage(base)
 	stage.terminalCleanup = true
+	stage.dropCleanupOrigin = dropCleanupDrained
 	defer e.DiscardCatalogStage(stage)
 	for _, ns := range namespaces {
 		if ns.Temporary != token {
@@ -139,8 +160,12 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 			}
 		}
 	}
-	// Exclude owned targets before projecting their surviving dependents: a TEMP
-	// table being removed must not also receive a replacement row shape.
+	drop := StageDropProvider(op.Context(), stage, scope, nil, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(children, parser.DropCascade, ids.ObjectAddress{})
+	if err != nil {
+		return false, err
+	}
+	// Explicit drained maintenance cleanup retains its original physical order.
 	e.Mu.Lock()
 	for _, a := range children {
 		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(base.Epoch(), a), false); err != nil {
@@ -151,10 +176,10 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	if err != nil {
 		return false, err
 	}
-	if err = scope.StageExpressionDependents(stage, children, parser.DropCascade, nil); err != nil {
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
 		return false, err
 	}
-	if err = scope.StageOwnedSequences(stage, children, parser.DropCascade, nil); err != nil {
+	if err = drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		return false, err
 	}
 	var relations []ids.ObjectAddress

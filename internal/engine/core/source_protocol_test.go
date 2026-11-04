@@ -273,7 +273,7 @@ func TestSourceProtocolPresence(t *testing.T) {
 			row := make([]sqltype.Value, 1)
 			want := max(1, value.ArrayLen())
 			for i := 0; i <= want; i++ {
-				present, err := invocation.NextFrom(ctx, calls, row)
+				present, err := invocation.NextFrom(ctx, calls, row, nil)
 				if err != nil || present != (i < want) || !row[0].IsNull() || row[0].Type() != integer {
 					t.Fatal(input, reverse, i, present, row, err)
 				}

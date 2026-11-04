@@ -11,19 +11,12 @@ import (
 var errDefinitionOIDFound = errors.New("definition OID found")
 
 // VisitDefinitionOIDs calls visit with each identity the descriptor owns
-// besides its own address: aggregate helpers, domain constraints, and a
+// besides its own address: domain constraints, and a
 // relation's view rule, rules, triggers (including FK RI identities), policies,
 // constraints, defaults and generation expressions. It returns the first error visit returns.
 func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error {
 	d, relation := descriptor.(*Relation)
 	if !relation {
-		if proc, ok := descriptor.(*Procedure); ok && proc.Aggregate != nil && proc.Implementation != nil {
-			for _, helper := range proc.Aggregate.Helpers {
-				if err := visit(helper.ID); err != nil {
-					return err
-				}
-			}
-		}
 		if domain, ok := descriptor.(*Type); ok {
 			if domain.DomainNotNull != nil {
 				if err := visit(domain.DomainNotNull.OID); err != nil {

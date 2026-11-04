@@ -36,7 +36,9 @@ func pgvisibilityAuthority[A Authority](auth A, n plan.InstalledPgvisibilityExpr
 	if err := auth.Check(access.Requirement{Object: view.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
 		return err
 	}
-	return auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege})
+	// Execute MAC belongs to the original expression initializer, not each
+	// entered VPC body. Retain current ordinary SQL ACL admission here.
+	return auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true})
 }
 
 // pgvisibilityTargetCheckable reads descriptor facts only. Target kind precedes

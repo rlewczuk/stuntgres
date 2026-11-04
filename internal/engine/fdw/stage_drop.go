@@ -48,7 +48,7 @@ func stageDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL, target stageTar
 		} else if er = MappingAuthority(view, auth, target.server, target.role); er != nil {
 			return nil, er
 		}
-		if er = h.RemoveObject(ObjectRef(view, d), false); er != nil {
+		if er = h.SelectDropRoot(ObjectRef(view, d), false); er != nil {
 			return nil, er
 		}
 		roots = append(roots, d.Address())

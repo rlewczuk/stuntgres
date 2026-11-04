@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -217,9 +216,17 @@ func TestFDWStageTableOwnedSequences(t *testing.T) {
 			for _, root := range roots {
 				stage.MarkDrop(root, catalog.DropProvenance{Original: true})
 			}
-			err = core.StageExpressionDependencies(t.Context(), stage, roots, syntax.Mode, nil, nil, nil, ids.ObjectAddress{})
+			drop := core.StageDropProvider(t.Context(), stage, nil, nil, nil)
+			dependencies, failure := drop.PrepareExpressionDependencies(roots, syntax.Mode, ids.ObjectAddress{})
+			err = failure
 			if err == nil {
-				err = table.OwnedExpressionDependencies(core.StageDropProvider(t.Context(), stage, nil, nil, nil), roots, syntax.Mode)
+				err = stage.ApplySelectedDropRoots(dependencies)
+			}
+			if err == nil {
+				err = drop.ApplyExpressionDependencies(dependencies)
+			}
+			if err == nil {
+				err = drop.ApplyOwnedExpressionDependencies(dependencies)
 			}
 			if tc.restrict {
 				enginetest.State(t, err, "2BP01")

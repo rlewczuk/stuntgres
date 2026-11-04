@@ -43,6 +43,9 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		// The first assignment owns the query; later tuple outputs are leaves.
 	case EarthCheckExpr:
 		walk(e.Value)
+		if e.Kind == sqltype.EarthOnSurface {
+			walk(e.Origin)
+		}
 	case DomainValueExpr:
 		// Conversion-local VALUE is a lexical leaf, never a query column.
 	case AssignmentValueExpr:

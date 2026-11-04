@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -25,6 +26,7 @@ type plExceptionCheckpoint struct {
 	scope                                       *StatementScope
 	owner                                       *session.TransactionOwner
 	serial                                      uint64
+	sepgsql                                     access.SepgsqlObservationMark
 	rows                                        map[ids.ObjectAddress][]storage.RowVersion
 	deletes                                     map[ids.ObjectAddress]*visibility.PrivateDeletes
 	discardedHeaps                              []session.HeapDiscard
@@ -140,6 +142,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, ProjectedRoots: s.ProjectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
 	c.discardedHeaps = s.Stage.DiscardedHeaps[:len(s.Stage.DiscardedHeaps):len(s.Stage.DiscardedHeaps)]
+	c.sepgsql = s.MarkSepgsqlObservations()
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
 	c.afterTriggers = cloneAfterState(s.afterTriggers)
 	c.alterNames = maps.Clone(s.alterNames)
@@ -247,6 +250,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		s.Stage.Stats = nil
 		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
 		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority
+		s.RestoreSepgsqlObservations(c.sepgsql)
 		s.restoreForeignConstructions(c.foreignConstructions)
 		s.alterNames = c.alterNames
 		s.EventCommand = c.EventCommand

@@ -29,7 +29,7 @@ func admitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.Expressio
 	if err != nil {
 		return err
 	}
-	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true})
 }
 
 // Lifetime validation is independent of invocation demand. A strict NULL call
@@ -68,6 +68,9 @@ func routineDescriptorLifetime(auth RoutineAccess, dependencies []catalog.Expres
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
 func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComputation bool) error {
+	if err := BeginRoutineInitialization(c); err != nil {
+		return err
+	}
 	if call, ok := node.(*defaultPreparationCall); ok {
 		if !call.valid() {
 			return ids.ErrCatalogReplaced
@@ -76,7 +79,7 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	}
 	if root, ok := node.(*acceptedDefaultRoot); ok {
 		local := *c
-		activation, err := root.artifact.activate(&local, root)
+		activation, err := root.artifact.activate(&local, root, true)
 		if err != nil {
 			return err
 		}
@@ -151,6 +154,9 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	if err != nil || captured == nil {
 		return err
 	}
+	if owner := c.Catalog.Owner(); c.ClosedEvaluation != nil && owner != nil && owner.Sepgsql != nil {
+		return validateRoutineExpressionInitialization(c, captured, expr.InfoOf(node))
+	}
 	if scalarPlanning && preparation.ReturnsSet(captured) {
 		return nil
 	}
@@ -161,7 +167,8 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	// Slot STRICT semantics belong to invocation, after routine admission.
 	// In particular, a NULL drop parameter must not erase its EXECUTE check.
 	_, slotCall := node.(functions.ReplicationSlot)
-	if StrictScalarRoutine(captured) && !slotCall {
+	activeInitialization := auth.Owner != nil && auth.Owner.Sepgsql != nil && !c.ControlLiteralAuthority.present()
+	if StrictScalarRoutine(captured) && !slotCall && !activeInitialization {
 		null := false
 		var failure error
 		StrictRoutineArguments(node, func(child expr.Expr) {
@@ -183,7 +190,11 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			return nil
 		}
 	}
-	if err := AdmitRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
+	if activeInitialization {
+		if err := initializeRoutineExpression(c, auth, dependencies, captured, expr.InfoOf(node), 0); err != nil {
+			return err
+		}
+	} else if err := AdmitRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
 	if c.ClosedEvaluation == nil && captured.Implementation == extension.StockIsn && captured.Display.Language == catalog.CRoutineLanguage {
@@ -251,12 +262,23 @@ func checkIntbigNullRoutineLifetime(c *Context, auth RoutineAccess, dependencies
 }
 
 func AdmitCaseEquality(c *Context, arm plan.CaseBranch) error {
-	if arm.Routine == nil || arm.Routine.Strict && RandomLiteralNull(arm.Condition) {
+	if arm.Routine == nil {
 		return nil
+	}
+	if c.ClosedEvaluation != nil {
+		if owner := c.Catalog.Owner(); owner != nil && owner.Sepgsql != nil {
+			return validateRoutineExpressionInitialization(c, arm.Routine, arm.Source)
+		}
 	}
 	auth, dependencies, err := RoutineAdmissionAuthority(c)
 	if err != nil || !auth.Live() {
 		return err
+	}
+	if auth.Owner != nil && auth.Owner.Sepgsql != nil && !c.ControlLiteralAuthority.present() {
+		return initializeRoutineExpression(c, auth, dependencies, arm.Routine, arm.Source, 0)
+	}
+	if arm.Routine.Strict && RandomLiteralNull(arm.Condition) {
+		return nil
 	}
 	return AdmitRecipeRoutineDescriptor(c, auth, dependencies, arm.Routine)
 }
@@ -271,43 +293,102 @@ func AdmitRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies [
 	return nil
 }
 
+// AdmitInitializedBodyRoutine belongs only to an actually entered body's
+// selected initialization phase, not to an eager metadata footprint.
+func AdmitInitializedBodyRoutine(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, ordinal uint32) error {
+	outer := c.RoutineBodyContext.Outer
+	if outer == nil {
+		return fmt.Errorf("stuntgres: missing initialized routine body owner")
+	}
+	if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, outer); err != nil {
+		return err
+	}
+	member := false
+	for _, edge := range outer.Body {
+		if SameRoutineDeclaration(edge.Routine, captured) {
+			member = true
+			break
+		}
+	}
+	if !member {
+		return fmt.Errorf("stuntgres: unrelated initialized routine body declaration")
+	}
+	info := expr.Info{Occurrence: c.nativeBody.parent.Site.Occurrence, Source: c.nativeBody.parent.Site.Source}
+	if err := validateNativeBodyCallsite(c, auth, captured, info, ordinal); err != nil {
+		return err
+	}
+	if auth.Owner != nil && auth.Owner.Sepgsql != nil {
+		return initializeRoutineExpression(c, auth, dependencies, captured, info, ordinal)
+	}
+	ref, accepted, err := recipeRoutineLifetime(c, auth, dependencies, captured, catalog.DefinitionDependency)
+	if err != nil {
+		return err
+	}
+	if accepted {
+		ref = auth.View.Ref(captured.Address())
+	}
+	if err = auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
+		return err
+	}
+	if c.RoutineProgram != nil {
+		return c.RoutineProgram.Record(c, dependencies, captured)
+	}
+	return nil
+}
+
 func CheckRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	return checkRecipeRoutineDescriptor(c, auth, dependencies, captured, catalog.DefinitionDependency)
 }
 
 func checkRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, purpose catalog.DependencyPurpose) error {
-	if call := c.defaultCall; call != nil {
-		if purpose != catalog.DefinitionDependency || call.original.Procedure != captured {
-			return ids.ErrCatalogReplaced
-		}
-		_, err := c.acceptedDefaultInvocation(call)
+	ref, accepted, err := recipeRoutineLifetime(c, auth, dependencies, captured, purpose)
+	if err != nil || accepted {
 		return err
 	}
+	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true})
+}
+
+// recipeRoutineLifetime proves the original capture without acquiring EXECUTE.
+// A bounded accepted DEFAULT already owns its distinct invocation proof.
+func recipeRoutineLifetime(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, purpose catalog.DependencyPurpose) (ids.ObjectRef, bool, error) {
+	if ref, handled, err := nativeBodyRoutineLifetime(c, auth, captured, purpose); handled {
+		return ref, false, err
+	}
+	if call := c.defaultCall; call != nil {
+		if purpose != catalog.DefinitionDependency || call.original.Procedure != captured {
+			return ids.ObjectRef{}, false, ids.ErrCatalogReplaced
+		}
+		_, err := c.acceptedDefaultInvocation(call)
+		return ids.ObjectRef{}, true, err
+	}
 	if c.RoutineChecks != nil {
-		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, purpose)
+		ref, err := routineDescriptorLifetime(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, purpose)
+		return ref, false, err
 	}
 	if c.RoutineReferences != nil {
 		if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
-			return err
+			return ids.ObjectRef{}, false, err
 		}
 		for _, ref := range c.RoutineReferences {
 			if ref.Address != captured.Address() {
 				continue
 			}
 			if !preparation.StoredReferenceValid(auth.Catalog, c.RoutineConsumer, ref) {
-				return ids.ErrCatalogReplaced
+				return ids.ObjectRef{}, false, ids.ErrCatalogReplaced
 			}
-			// This exact retained recipe's established epoch bridge does not
-			// change the object identity or create a reference from an address.
 			ref.Epoch = auth.Catalog.Epoch()
-			return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+			if _, err := auth.Object(ref); err != nil {
+				return ids.ObjectRef{}, false, err
+			}
+			return ref, false, nil
 		}
-		return fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
+		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
 	}
 	if c.RoutineRecipe {
-		return fmt.Errorf("stuntgres: empty owning routine lifetime manifest")
+		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: empty owning routine lifetime manifest")
 	}
-	return admitRoutineDescriptor(auth, dependencies, captured, nil, false, purpose)
+	ref, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, purpose)
+	return ref, false, err
 }
 
 func RoutineAdmissionAuthority(c *Context) (RoutineAccess, []catalog.ExpressionDependency, error) {
@@ -420,6 +501,13 @@ func evaluateAdmittedPlanningExpression(c *Context, node expr.Expr) (sqltype.Val
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
 func SelectExpressionRecipe(c *Context, reference expr.RoutineRecipeReference) error {
+	if c.nativeAggregate.self != nil && reference != c.nativeAggregate.recipe {
+		c.nativeAggregate = nativeAggregateSource{}
+		c.nativeAggregateEntered = false
+	}
+	if c.nativeBody.parent.Site.Routine != nil && reference != c.nativeBody.parent.Site.Recipe {
+		c.ClearNativeBodySource()
+	}
 	c.AcceptedDefault, c.defaultActivation, c.defaultCall = nil, nil, nil
 	c.RoutineGraft = reference != nil
 	c.RoutineGraftSource = reference
@@ -438,33 +526,41 @@ func SelectExpressionRecipe(c *Context, reference expr.RoutineRecipeReference) e
 	if err != nil {
 		return err
 	}
-	if _, rule := reference.(*catalog.RuleRoutineRecipe); rule && !auth.Live() {
-		return ids.ErrCatalogReplaced
-	}
-	if auth.Live() {
-		current, ok := auth.Catalog.Relation(owner.Address())
-		if !ok || owner.Owner.ID() == 0 || auth.Roles.ValidatePrincipal(owner.Owner) != nil {
-			return ids.ErrCatalogReplaced
-		}
-		switch recipe := reference.(type) {
-		case *catalog.Relation:
-			if current.View != presentation {
-				return ids.ErrCatalogReplaced
-			}
-		case *catalog.RuleRoutineRecipe:
-			if current.Rules == nil || current.Rules.RoutineRecipe(recipe.Rule, recipe.Action) != presentation {
-				return ids.ErrCatalogReplaced
-			}
-			if consumer, temporary := presentation.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) || temporary != (ids.SessionToken{}) {
-				namespace, ok := auth.Catalog.Namespace(current.Namespace())
-				if !ok || consumer != current.Address() || temporary == (ids.SessionToken{}) || temporary != namespace.Temporary || temporary.Domain() != auth.Owner.Domain {
-					return ids.ErrCatalogReplaced
-				}
-			}
-		}
+	if err := validateRoutineRecipeSource(auth, reference, owner, presentation); err != nil {
+		return err
 	}
 	c.RoutineConsumer = owner
 	c.RoutineChecks = presentation.Dependencies()
+	return nil
+}
+
+func validateRoutineRecipeSource(auth RoutineAccess, reference expr.RoutineRecipeReference, owner *catalog.Relation, presentation catalog.ViewPayload) error {
+	if _, rule := reference.(*catalog.RuleRoutineRecipe); rule && !auth.Live() {
+		return ids.ErrCatalogReplaced
+	}
+	if !auth.Live() {
+		return nil
+	}
+	current, ok := auth.Catalog.Relation(owner.Address())
+	if !ok || owner.Owner.ID() == 0 || auth.Roles.ValidatePrincipal(owner.Owner) != nil {
+		return ids.ErrCatalogReplaced
+	}
+	switch recipe := reference.(type) {
+	case *catalog.Relation:
+		if current.View != presentation {
+			return ids.ErrCatalogReplaced
+		}
+	case *catalog.RuleRoutineRecipe:
+		if current.Rules == nil || current.Rules.RoutineRecipe(recipe.Rule, recipe.Action) != presentation {
+			return ids.ErrCatalogReplaced
+		}
+		if consumer, temporary := presentation.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) || temporary != (ids.SessionToken{}) {
+			namespace, ok := auth.Catalog.Namespace(current.Namespace())
+			if !ok || consumer != current.Address() || temporary == (ids.SessionToken{}) || temporary != namespace.Temporary || temporary.Domain() != auth.Owner.Domain {
+				return ids.ErrCatalogReplaced
+			}
+		}
+	}
 	return nil
 }
 

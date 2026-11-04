@@ -10,12 +10,12 @@ import (
 // DROP OWNED invokes an address-less REVOKE for each actual shared ACL role
 // dependency. Parent and column dependencies are independent, including repeated
 // table-wide revokes; owner, policy and default-ACL dependencies are not grants.
-func recordOwnedACLCommands(stage OwnedCleanupStage, descriptor catalog.Descriptor, sources map[authorization.PrincipalRef]bool) {
-	collector, ok := stage.(interface {
-		CollectsDDLCommands() bool
-		RecordDDLPrivileges(string, string)
-	})
-	if !ok || !collector.CollectsDDLCommands() {
+func recordOwnedACLCommands(stage interface {
+	CollectsDDLCommands() bool
+	RecordDDLPrivileges(string, string)
+}, descriptor catalog.Descriptor, sources map[authorization.PrincipalRef]bool) {
+	collector := stage
+	if !collector.CollectsDDLCommands() {
 		return
 	}
 	kind := ""

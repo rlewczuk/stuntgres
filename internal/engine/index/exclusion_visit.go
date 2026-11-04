@@ -166,7 +166,7 @@ func ExclusionDeferred(parent, idx *catalog.Relation, recheck bool) (bool, error
 
 func constraintKeysMatch(ctx context.Context, bound *UniqueBoundKey, left, right []sqltype.Value) (bool, error) {
 	if bound.Index.SQLIndex.IsExclusion() {
-		return ExclusionKeysMatch(ctx, bound.Index.SQLIndex, left, right)
+		return ExclusionKeysMatch(ctx, bound.Index.SQLIndex, left, right, bound.Ordering.input)
 	}
 	if !bound.Index.SQLIndex.NullsNotDistinct && (UniqueHasNull(left) || UniqueHasNull(right)) {
 		return false, nil

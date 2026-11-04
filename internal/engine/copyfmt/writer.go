@@ -33,8 +33,9 @@ func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 	buffer := make([]byte, 0, 4096)
 	var encoded []byte
 	nullText := o.Null
+	conversion := rows.OutputEnvironment().Conversion
 	if o.Transport {
-		nullText, err = o.Conversion.Convert(ctx, o.Null)
+		nullText, err = o.Conversion.ConvertWithBoundary(ctx, o.Null, conversion)
 		if err != nil {
 			return 0, err
 		}
@@ -45,7 +46,7 @@ func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 				buffer = append(buffer, o.Delimiter)
 			}
 			quoteNull := column.Name == o.Null
-			text, next, encodeErr := o.encodedField(ctx, column.Name, encoded)
+			text, next, encodeErr := o.encodedField(ctx, column.Name, encoded, conversion)
 			encoded = next
 			if encodeErr != nil {
 				return 0, encodeErr
@@ -84,7 +85,7 @@ func writeText(ctx context.Context, w io.Writer, rows RowSource, schema []catalo
 				return 0, outputErr
 			}
 			quoteNull := text == o.Null
-			text, encoded, err = o.encodedField(ctx, text, encoded)
+			text, encoded, err = o.encodedField(ctx, text, encoded, output.Conversion)
 			if err != nil {
 				return 0, err
 			}

@@ -51,6 +51,11 @@ func (e StringVariadic) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		scratch[i] = value
 	}
+	body, err := e.EnterRoutine(c, scratch[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	output := c.FunctionStringOutput()
 	if e.Name == "pg_client_encoding" {
 		return sqltype.String(e.Usage.Type, output.ClientEncoding), nil

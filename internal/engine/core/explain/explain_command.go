@@ -241,9 +241,9 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 	defer func() { r.policyTarget, r.policyCommand, r.targetOnly = policyTarget, policyCommand, targetOnly }()
 	reads, returning, principal := r.policyReads, r.policyReturning, r.policyPrincipal
 	defer func() { r.policyReads, r.policyReturning, r.policyPrincipal = reads, returning, principal }()
-	r.policyReads, r.policyReturning = binding.Returning != nil || len(binding.UsedColumns) != 0, binding.Returning != nil
+	r.policyReads, r.policyReturning = binding.Returning != nil || len(binding.UsedColumns) != 0 || binding.SystemAttributeRead || binding.WholeRowRead, binding.Returning != nil
 	if binding.ViewWrite != nil {
-		r.policyReads = r.policyReads || len(view.ViewWriteOf(binding.ViewWrite).Logical.UsedColumns) != 0
+		r.policyReads = r.policyReads || len(view.ViewWriteOf(binding.ViewWrite).Logical.UsedColumns) != 0 || view.ViewWriteOf(binding.ViewWrite).Logical.SystemAttributeRead || view.ViewWriteOf(binding.ViewWrite).Logical.WholeRowRead
 	}
 	r.policyPrincipal = access.RowSecurityPrincipal(r.auth.State.CurrentUser, view.RowSecurityLayers(r.auth.Catalog, binding))
 	r.policyTarget = binding.Ref.Address

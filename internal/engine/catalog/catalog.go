@@ -190,8 +190,7 @@ type State struct {
 	publications          util.PersistentMap[ids.ObjectAddress, *Publication]
 	publicationRelations  util.PersistentMap[ids.ObjectAddress, *PublicationRelation]
 	publicationNamespaces util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]
-	helperOwners          util.PersistentMap[ids.ObjectAddress, *Procedure]
-	foreignActionOwners foreignActionIndex
+	foreignActionOwners   foreignActionIndex
 	extensionMembers      util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress] // See extension_member_index.go.
 	temporaryNamespaces   util.PersistentMap[ids.ObjectAddress, *Namespace]
 	shared                util.PersistentMap[ids.ObjectAddress, Descriptor] // See shared_projection.go.
@@ -201,6 +200,7 @@ type State struct {
 	seedCeiling           ids.OID                                           // oidCeiling when the seed ended.
 	defaultACLs           map[DefaultACLKey]*DefaultACLRecord
 	initialPrivileges     map[ids.ObjectAddress]*InitialPrivilegeRecord
+	securityLabels        util.PersistentMap[SecurityLabelKey, *SecurityLabelRecord]
 	// Immutable seed comparison provenance, never live inventory/dependency data.
 	initialPrivilegeBaseline map[ids.ObjectAddress]*InitialPrivilegeRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
@@ -299,6 +299,7 @@ func CloneState(s *State) *State {
 	n.parameterIncarnation = s.parameterIncarnation
 	n.defaultACLs = s.defaultACLs
 	n.initialPrivileges = s.initialPrivileges
+	n.securityLabels = s.securityLabels
 	n.initialPrivilegeBaseline = s.initialPrivilegeBaseline
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames
@@ -310,7 +311,6 @@ func CloneState(s *State) *State {
 	n.publications = s.publications
 	n.publicationRelations = s.publicationRelations
 	n.publicationNamespaces = s.publicationNamespaces
-	n.helperOwners = s.helperOwners
 	n.foreignActionOwners = s.foreignActionOwners
 	n.extensionMembers = s.extensionMembers
 	n.temporaryNamespaces = s.temporaryNamespaces

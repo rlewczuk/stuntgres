@@ -103,6 +103,12 @@ func (n Pgrowlocks) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if value.IsNull() {
 		return expr.OwnedSource(n.Usage.Type, nil), nil
 	}
+	arguments := [1]sqltype.Value{value}
+	body, err := n.EnterRoutine(ctx, arguments[:])
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	defer body.Leave()
 	name, err := value.Text()
 	if err != nil {
 		return expr.SourceCursor{}, err

@@ -21,24 +21,24 @@ func PlannerSourceRows(store *storage.Relation) float64 {
 	return 1000
 }
 
-// explainScan uses only the admitted catalog and published maintenance/root
-// metadata. It never opens a source, reads rows/buckets, or evaluates a probe.
-func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanDecision {
+// explainScan consumes native planner metadata without scanning rows or
+// evaluating probes. Opening an eligible method still owns its real factory.
+func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) (plan.ScanDecision, error) {
 	costs := r.host.Operation().PlannerCosts
 	leaf, ok := filter.Child.(*plan.SourceNode)
 	if !ok {
-		return costs.Scan(1000, 1, ids.ObjectAddress{}, "")
+		return costs.Scan(1000, 1, ids.ObjectAddress{}, ""), nil
 	}
 	engineStore := r.host.EngineStorageLocked()
 	store := r.statisticsStorage(leaf.Ref.Address)
 	rows := PlannerSourceRows(store)
 	full := costs.Scan(rows, 1, ids.ObjectAddress{}, "")
 	if !r.host.ImplicitStatement() || len(r.leaves) != 1 || r.leaves[0].Mark.Mode != 0 {
-		return full
+		return full, nil
 	}
 	relation, ok := r.auth.Catalog.Relation(leaf.Ref.Address)
 	if !ok || relation.RelationKind != catalog.TableRelation || relation.Partition != nil || catalog.InheritanceHasChildren(r.auth.Catalog, relation.Address()) || store == nil {
-		return full
+		return full, nil
 	}
 	principal := r.auth.State.CurrentUser
 	if r.leaves[0].Principal != (authorization.PrincipalRef{}) {
@@ -46,7 +46,7 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 	}
 	security, err := access.SelectRowSecurity(r.auth.Roles, relation, principal, catalog.PolicySelect, false, false)
 	if err != nil || security.Count != 0 {
-		return full
+		return full, nil
 	}
 	var indexes []exec.CapturedHashIndex
 	var bloom []exec.CapturedBloomIndex
@@ -55,6 +55,17 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == leaf.Ref.Address && index.BloomRootCompatible(r.auth.Catalog, relation, idx, carrier) {
 			root := carrier.Bloom
 			if root.Storage == store && root.Generation == store.Generation && root.Prefix == len(store.Versions) && root.Ends == store.Ends {
+				method, ok := r.auth.Catalog.AccessMethod(idx.SQLIndex.MethodIdentity())
+				if !ok {
+					return plan.ScanDecision{}, ids.ErrCatalogReplaced
+				}
+				physical, err := r.host.InitializeCapturedIndexMethodLocked(r.auth.Catalog, method)
+				if err != nil {
+					return plan.ScanDecision{}, err
+				}
+				if physical != catalog.BloomMethod {
+					return plan.ScanDecision{}, ids.ErrCatalogReplaced
+				}
 				bloom = append(bloom, exec.CapturedBloomIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: carrier})
 			}
 		}
@@ -65,6 +76,17 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(store.Versions) || root.Ends != store.Ends {
 			continue
 		}
+		method, ok := r.auth.Catalog.AccessMethod(idx.SQLIndex.MethodIdentity())
+		if !ok {
+			return plan.ScanDecision{}, ids.ErrCatalogReplaced
+		}
+		physical, err := r.host.InitializeCapturedIndexMethodLocked(r.auth.Catalog, method)
+		if err != nil {
+			return plan.ScanDecision{}, err
+		}
+		if physical != catalog.HashMethod {
+			return plan.ScanDecision{}, ids.ErrCatalogReplaced
+		}
 		indexes = append(indexes, exec.CapturedHashIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: root, Usage: root.Binding.Usage})
 	}
 	slices.SortFunc(indexes, func(a, b exec.CapturedHashIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
@@ -72,5 +94,5 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 	// OrdinaryEquality/EqualityFor inspect concrete typed metadata only;
 	// neither invokes the class's hash/equality implementation.
 	decision := exec.ChooseScan(filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, indexes)
-	return exec.ChooseBloomScan(decision, filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, bloom)
+	return exec.ChooseBloomScan(decision, filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, bloom), nil
 }

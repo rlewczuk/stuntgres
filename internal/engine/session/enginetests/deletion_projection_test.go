@@ -17,7 +17,7 @@ func TestPrivateDeletionProjectionCollisions(t *testing.T) {
 	second := visibility.DeleteCandidate{Row: 1, Version: 12, Base: 2, Storage: original, RepairStamp: 5, BaseRepairStamp: 4, EndFullXID: 100, Moved: true}
 	root.Set(first)
 	root.Set(second)
-	owner := &session.TransactionOwner{Deletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{address: root}}
+	owner := &session.TransactionOwner{Session: &session.Session{}, Deletes: map[ids.ObjectAddress]*visibility.PrivateDeletes{address: root}}
 	mark := owner.CaptureSavepoint(session.SavepointMark{Name: "physical_siblings"})
 	projected := session.ProjectDeletions(root, replacement)
 	if projected == root || projected.Len() != 2 || mark.Deletes[address] != root {

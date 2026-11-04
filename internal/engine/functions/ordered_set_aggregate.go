@@ -300,3 +300,7 @@ func (p *OrderedSet) FractionType() *sqltype.Descriptor { return p.fraction }
 func (p *OrderedSet) Operation() AggregateOperation     { return p.operation }
 func (p *OrderedSet) Array() bool                       { return p.array }
 func (p *OrderedSet) Comparison() sqltype.Comparison    { return p.comparison }
+
+func (p *OrderedSet) VisitIndexSupports(visit func(sqltype.IndexSupport, uint16) error) error {
+	return p.comparison.VisitIndexSupports(visit)
+}

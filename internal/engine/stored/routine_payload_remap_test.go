@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -105,51 +106,161 @@ func TestRoutineDefinitionRemapOutputIdentity(t *testing.T) {
 	var types [3]*sqltype.Descriptor
 	for i, name := range []string{"remap_source", "remap_destination", "remap_next"} {
 		typ, err := sqltype.Domain(sqltype.ID(97000+i), name, name, integer.Usage())
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		types[i] = typ
-		d := &catalog.Type{SQLType:typ, ObjectNamespace:relation.Namespace(), ObjectRevision:1}
+		d := &catalog.Type{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: 1}
 		read.State().SetDescriptor(d.Address(), d)
 	}
 	var sources [2]*catalog.Procedure
 	for i, name := range []string{"first", "independent_second"} {
-		definition := &proc.Definition{Name:name, Result:types[i].Usage()}
+		definition := &proc.Definition{Name: name, Result: types[i].Usage()}
 		if err := definition.SetFormals([]proc.Formal{
-			{Mode:"i", Name:"value", Usage:types[i].Usage()},
-			{Mode:"o", Name:"answer", Usage:types[i].Usage()},
-		}); err != nil { t.Fatal(err) }
+			{Mode: "i", Name: "value", Usage: types[i].Usage()},
+			{Mode: "o", Name: "answer", Usage: types[i].Usage()},
+		}); err != nil {
+			t.Fatal(err)
+		}
 		signature := catalog.ProcedureSignature("97000")
-		if i == 1 { signature = "97001" }
+		if i == 1 {
+			signature = "97001"
+		}
 		p := &catalog.Procedure{
-			ObjectAddress:ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:ids.OID(98000+i)},
-			ObjectNamespace:relation.Namespace(), ObjectName:name, ObjectRevision:1,
-			Owner:read.Owner().Principals.Principal(10), Signature:signature,
-			Result:ids.OID(types[i].ID()), SQL:definition,
+			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(98000 + i)},
+			ObjectNamespace: relation.Namespace(), ObjectName: name, ObjectRevision: 1,
+			Owner: read.Owner().Principals.Principal(10), Signature: signature,
+			Result: ids.OID(types[i].ID()), SQL: definition,
 		}
 		sources[i] = p
 		read.State().SetDescriptor(p.Address(), p)
 	}
 	mapType := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == types[0] { return types[1] }
-		if old == types[1] { return types[2] }
+		if old == types[0] {
+			return types[1]
+		}
+		if old == types[1] {
+			return types[2]
+		}
 		return old
 	}
 	remap := NewRoutineRemap(read, nil, mapType, nil, false)
-	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil { t.Fatal(err) }
+	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
+		t.Fatal(err)
+	}
 	for i, source := range sources {
 		current, ok := read.Procedure(source.Address())
-		if !ok || current == source || current.SQL == source.SQL { t.Fatal("missing detached declaration") }
+		if !ok || current == source || current.SQL == source.SQL {
+			t.Fatal("missing detached declaration")
+		}
 		captured, err := remap.Definition(source.SQL)
-		if err != nil || captured != current.SQL { t.Fatal("original lost operation-owned definition identity",err) }
+		if err != nil || captured != current.SQL {
+			t.Fatal("original lost operation-owned definition identity", err)
+		}
 		again, err := remap.Definition(current.SQL)
-		if err != nil || again != current.SQL { t.Fatal("accepted output was remapped again",err) }
+		if err != nil || again != current.SQL {
+			t.Fatal("accepted output was remapped again", err)
+		}
 		if current.SQL.Result.Type != types[i+1] || current.SQL.Inputs[0].Type != types[i+1] {
-			t.Fatal("nonidentity mapping applied zero/two times",i,current.SQL)
+			t.Fatal("nonidentity mapping applied zero/two times", i, current.SQL)
 		}
 		for _, formal := range current.SQL.Formals {
-			if formal.Usage.Type != types[i+1] { t.Fatal("formal differs from operation-owned result",i,formal) }
+			if formal.Usage.Type != types[i+1] {
+				t.Fatal("formal differs from operation-owned result", i, formal)
+			}
 		}
 		if source.SQL.Result.Type != types[i] || source.SQL.Formals[0].Usage.Type != types[i] {
-			t.Fatal("operation changed source definition",i)
+			t.Fatal("operation changed source definition", i)
 		}
+	}
+}
+
+func TestSepgsqlRoutinePayloadRemap(t *testing.T) {
+	read, relation, _, _ := routineCaptureFixture(t)
+	policy, err := sepgsql.Compile(sepgsql.SimulationConfig{Policy: sepgsql.Policy{
+		ID: "payload-remap", Version: "1", Contexts: []string{"A", "U"}, InitialContext: "A", UnlabeledContext: "U",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read.Owner().Sepgsql = policy
+	var declarations []*catalog.Procedure
+	for i, symbol := range []string{"sepgsql_getcon", "sepgsql_setcon", "sepgsql_restorecon", "sepgsql_mcstrans_in", "sepgsql_mcstrans_out"} {
+		signature, result, strict, _ := catalog.SepgsqlDeclaration(symbol)
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(98500 + i)}
+		capability, err := catalog.NewSepgsqlRoutine(read, policy, symbol, address, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		declaration := &catalog.Procedure{
+			ObjectAddress: address, ObjectNamespace: relation.Namespace(), ObjectName: "renamed_" + symbol, ObjectRevision: 1,
+			Owner: read.Owner().Principals.Principal(10), Signature: signature, Result: result, RoutineKind: catalog.FunctionRoutine,
+			Volatility: expr.Volatile, Strict: strict, Parallel: 'u', Cost: 1,
+			Language: ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 13}, Sepgsql: capability,
+			Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/sepgsql", HasBinary: true},
+		}
+		read.State().SetDescriptor(address, declaration)
+		read.State().BindName(catalog.DescriptorNameKey(declaration), address)
+		if err := catalog.ValidateSepgsqlRoutine(read, declaration); err != nil {
+			t.Fatal("genuine source declaration", err)
+		}
+		declarations = append(declarations, declaration)
+	}
+	for round := range 2 {
+		mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
+		if round == 1 {
+			for _, declaration := range declarations {
+				mapped := declaration.Address()
+				mapped.ObjectID += 1000
+				mapping[declaration.Address()] = mapped
+			}
+		}
+		remap := NewRoutineRemap(read, mapping, nil, nil, false)
+		mappedDeclarations := make([]*catalog.Procedure, len(declarations))
+		aliases := make([]*catalog.Procedure, len(declarations))
+		for i, declaration := range declarations {
+			mapped, err := remap.Procedure(declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			historical := *declaration
+			aliases[i], err = remap.Procedure(&historical)
+			if err != nil {
+				t.Fatal(err)
+			}
+			read.State().RemoveDescriptor(declaration.Address())
+			read.State().UnbindName(catalog.DescriptorNameKey(declaration))
+			read.State().SetDescriptor(mapped.Address(), mapped)
+			read.State().BindName(catalog.DescriptorNameKey(mapped), mapped.Address())
+			mappedDeclarations[i] = mapped
+		}
+		if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil {
+			t.Fatal("shared declaration stabilization", round, err)
+		}
+		for i, mapped := range mappedDeclarations {
+			original := declarations[i]
+			if mapped.SQL != nil || mapped.SQLBody != nil || mapped.SQLDefaults != nil || mapped.Sepgsql == original.Sepgsql ||
+				mapped.Sepgsql != aliases[i].Sepgsql || mapped.RoutineDefinition().Kind != proc.NativeBody ||
+				mapped.Name() != original.Name() || mapped.Sepgsql.Symbol() != original.Sepgsql.Symbol() {
+				t.Fatal("native declaration acquired SQL payload or lost shared capability", round, mapped.Name())
+			}
+			if err := catalog.ValidateSepgsqlRoutine(read, mapped); err != nil {
+				t.Fatal("mapped destination capability", round, mapped.Name(), err)
+			}
+			if round == 1 {
+				foreign := *mapped
+				foreign.Sepgsql = original.Sepgsql
+				read.State().SetDescriptor(foreign.Address(), &foreign)
+				err := catalog.ValidateSepgsqlRoutine(read, &foreign)
+				read.State().SetDescriptor(mapped.Address(), mapped)
+				if err == nil {
+					t.Fatal("old address capability authenticated remapped declaration")
+				}
+			}
+			if original.SQL != nil || original.RoutineDefinition().Kind != proc.NativeBody || original.Address() == mapped.Address() && round == 1 {
+				t.Fatal("original declaration changed or address mapping was lost")
+			}
+		}
+		declarations = mappedDeclarations
 	}
 }

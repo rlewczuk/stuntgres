@@ -93,11 +93,11 @@ func BrinOptions(index *catalog.Relation) (width int, autosummarize bool) {
 
 // BuildRelationIndexRoot is the descriptor-aware root dispatcher: BRIN and
 // bloom need reloption build intent as well as the immutable key definition.
-func BuildRelationIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, store *storage.Relation, capture *BuildCapture) (*storage.IndexRoot, error) {
-	if index.SQLIndex.Method == catalog.BrinMethod {
+func BuildRelationIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, method catalog.IndexMethod, store *storage.Relation, capture *BuildCapture) (*storage.IndexRoot, error) {
+	if method == catalog.BrinMethod {
 		return BuildBrinIndexRoot(evaluation, parent, index, store, true, capture)
 	}
-	if index.SQLIndex.Method == catalog.BloomMethod {
+	if method == catalog.BloomMethod {
 		return BuildBloomIndexRoot(evaluation, parent, index, store, true, capture)
 	}
 	return BuildIndexRoot(evaluation, parent, index.SQLIndex, store, capture)
@@ -190,7 +190,7 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 					program = o.Derived[i]
 				}
 				var err error
-				value, err = extractIndexKey(b.Slot, program, row.Values, evaluation)
+				value, err = preparation.ExtractKey(b.Slot, program, row.Values, evaluation, parent, index.SQLIndex, i)
 				if err != nil {
 					return nil, err
 				}
@@ -223,14 +223,14 @@ func extendBrinSummary(evaluation *exec.Context, summary *storage.BrinSummary, b
 		summary.Min, summary.Max, summary.HasNonNull = value, value, true
 		return evaluation.Context.Err()
 	}
-	c, err := b.Comparison.Compare(evaluation.Context, value, summary.Min, evaluation.Input)
+	c, err := b.Comparison.Compare(evaluation.Context, value, summary.Min, evaluation.FunctionInput())
 	if err != nil {
 		return err
 	}
 	if c < 0 {
 		summary.Min = value
 	}
-	c, err = b.Comparison.Compare(evaluation.Context, value, summary.Max, evaluation.Input)
+	c, err = b.Comparison.Compare(evaluation.Context, value, summary.Max, evaluation.FunctionInput())
 	if err != nil {
 		return err
 	}

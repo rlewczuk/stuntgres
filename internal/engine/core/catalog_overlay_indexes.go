@@ -117,7 +117,11 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				outputs.Progress = observer
 			}
 		}
-		full, err := index.BuildRelationIndexRoot(&evaluation, parent, idx, visible, outputs)
+		method, err := exec.InitializeIndexMethod(&evaluation, idx.SQLIndex.MethodIdentity())
+		if err != nil {
+			return err
+		}
+		full, err := index.BuildRelationIndexRoot(&evaluation, parent, idx, method, visible, outputs)
 		if err != nil {
 			return err
 		}
@@ -128,7 +132,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			}
 		}
 		schema := view.Get(parent.Namespace()).Name()
-		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building); err != nil {
+		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building, evaluation.FunctionInput()); err != nil {
 			return err
 		}
 		build := &index.AlterIndexBuild{Index: idx, Root: full, Store: visible}

@@ -164,7 +164,7 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	if indexes != 3 {
 		t.Fatal("TEMP primary/B-tree, hash and BRIN metadata missing", indexes)
 	}
-	if _, err := databaseCreateUnitPublish(e, t.Context(), target.DatabaseName, target); err != nil {
+	if _, err := databaseCreateUnitPublish(t, e, source, t.Context(), target.DatabaseName, target); err != nil {
 		t.Fatal(err)
 	}
 	// Reuse the source's numeric ID in the destination: ordinary startup still
@@ -173,7 +173,12 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { physical.RequestEnd(session.CleanClose); if err := physical.WaitEnd(t.Context()); err != nil { t.Error(err) } }()
+	defer func() {
+		physical.RequestEnd(session.CleanClose)
+		if err := physical.WaitEnd(t.Context()); err != nil {
+			t.Error(err)
+		}
+	}()
 	if physical.SessionToken == detached || physical.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("equal numeric physical owner adopted detached metadata")
 	}
@@ -196,7 +201,10 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	// source now has detached and live groups that a re-clone must not merge.
 	target.Mu.Lock()
 	liveAddress, err := target.Catalog.AllocateOIDLocked()
-	if err != nil { target.Mu.Unlock(); t.Fatal(err) }
+	if err != nil {
+		target.Mu.Unlock()
+		t.Fatal(err)
+	}
 	live := *read.MustNamespace(namespace)
 	live.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: liveAddress}
 	live.ObjectName = "pg_temp_live_same_id"
@@ -204,10 +212,15 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	next := catalog.CloneState(target.Catalog.State)
 	next.SetDescriptor(live.Address(), &live)
 	next.BindName(catalog.DescriptorNameKey(&live), live.Address())
-	if err := (catalog.NamespaceProvider{}).Validate(target.Catalog.Read(next), &live); err != nil { target.Mu.Unlock(); t.Fatal(err) }
+	if err := (catalog.NamespaceProvider{}).Validate(target.Catalog.Read(next), &live); err != nil {
+		target.Mu.Unlock()
+		t.Fatal(err)
+	}
 	target.Catalog.PublishLocked(next)
 	target.Mu.Unlock()
-	physical.Mu.Lock(); physical.TemporaryNamespace = live.Address(); physical.Mu.Unlock()
+	physical.Mu.Lock()
+	physical.TemporaryNamespace = live.Address()
+	physical.Mu.Unlock()
 	again := templateTemporaryCopy(t, e, target, physical, "temp_metadata_reclone")
 	copied := again.CatalogRead()
 	oldGroup, liveGroup := copied.MustNamespace(namespace).Temporary, copied.MustNamespace(live.Address()).Temporary
@@ -228,7 +241,9 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	liveInsert := primaryKeyUnitInsert(2)
 	liveInsert.Name = templateTemporaryName("live_guard")
 	liveOp, err := physical.Acquire(t.Context())
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, statement := range []parser.Statement{liveTable, liveInsert} {
 		if _, err := target.Execute(liveOp, statement, 0, nil); err != nil {
 			liveOp.Done()
@@ -246,13 +261,15 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 		} else {
 			err = engine.Reset(t.Context(), target)
 		}
-		if err != nil { t.Fatal("detached metadata vetoed "+phase, err) }
+		if err != nil {
+			t.Fatal("detached metadata vetoed "+phase, err)
+		}
 		current := target.CatalogRead()
 		if current.Get(namespace) != nil || current.Get(address) != nil || current.Get(sequenceAddress) != nil {
-			t.Fatal("non-live copied metadata retained by "+phase)
+			t.Fatal("non-live copied metadata retained by " + phase)
 		}
 		if current.Get(live.Address()) != &live || target.Storage.Relations[liveTableAddress] != liveHeap || len(liveHeap.Versions) != 1 || physical.TemporaryNamespace != live.Address() {
-			t.Fatal("real live TEMP ownership/backing lost during "+phase)
+			t.Fatal("real live TEMP ownership/backing lost during " + phase)
 		}
 	}
 }

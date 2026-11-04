@@ -42,6 +42,16 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io
 	// One detached COPY output owns the current effective pull context.
 	execution := s.ActivateRuntime(s.executionContext())
 	source := copyOutputRows{RowResult: rows, notice: func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }}
+	if e := s.Engine(); e.Sepgsql != nil {
+		e.Mu.Lock()
+		auth, captureErr := e.AuthorizationLocked(s.Op)
+		e.Mu.Unlock()
+		if captureErr != nil {
+			return 0, captureErr
+		}
+		evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: execution, Host: HostOf(s), Catalog: auth.Catalog}}
+		source.typeIO, source.conversion = evaluation, evaluation
+	}
 	count, err := copyfmt.WriteRows(execution, copyWriter{s, w}, copyTransportRows{source, s.Op.EffectiveSettings()}, rows.Schema(), o, protocol.command || protocol.simple, s.copyProgress.completeRow)
 	if err != nil {
 		return 0, err
@@ -52,11 +62,15 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io
 // This send-only wrapper is never installed on the retained RowResult.
 type copyOutputRows struct {
 	exec.RowResult
-	notice func(sqlstate.Error)
+	notice     func(sqlstate.Error)
+	typeIO     sqltype.TypeIOBoundary
+	conversion sqltype.EncodingConversionBoundary
 }
 
 func (r copyOutputRows) OutputEnvironment() sqltype.OutputEnvironment {
 	output := r.RowResult.OutputEnvironment()
 	output.XMLNotice = r.notice
+	output.TypeIO = r.typeIO
+	output.Conversion = r.conversion
 	return output
 }

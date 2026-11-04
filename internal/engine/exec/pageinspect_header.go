@@ -7,6 +7,7 @@ import (
 
 func (c *Context) evalHeaderPageinspect(n plan.InstalledPageinspectExpr) (sqltype.Value, error) {
 	input, err := c.pageinspectInput(n)
+	defer input.token.Leave()
 	if err != nil {
 		return sqltype.Value{}, err
 	}

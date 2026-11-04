@@ -62,6 +62,8 @@ func TestSystemRowsProviderIdentity(t *testing.T) {
 	moved := *procedure
 	moved.ObjectName = "renamed_sample"
 	moved.ObjectNamespace = read.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "sample_moved"})
+	moved.ObjectRevision++
+	moved.Parallel, moved.Cost = 's', 7
 	read.State().UnbindName(catalog.DescriptorNameKey(procedure))
 	read.State().SetDescriptor(procedure.Address(), &moved)
 	read.State().BindName(catalog.DescriptorNameKey(&moved), moved.Address())

@@ -17,6 +17,10 @@ import (
 )
 
 func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+	if execution.authority != nil {
+		scope.authority = execution.authority
+		scope.authority.Host = HostOf(scope)
+	}
 	var observation *exec.Observation
 	if owner := scope.explain; owner != nil {
 		previous := scope.invocationContext
@@ -223,6 +227,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.Mu.Unlock()
 			return Result{}, err
 		}
+		borrowQueryAuthority(source, scope)
 		e.initializeTemporarySourceLocked(scope, source)
 		var from *exec.Source
 		if b.Update.From != nil || b.SubqueryDemand {

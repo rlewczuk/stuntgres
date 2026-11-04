@@ -204,6 +204,7 @@ func (b *Binder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 					return nil, err
 				}
 				arms[i].TestUsage = arms[i].Test.ResultUsage()
+				arms[i].Source = b.Info(b.Type(sqltype.Bool).Usage(), arm.Pos, expr.Properties{})
 				if selected, selectionErr := catalog.SelectCoercion(b.BindingCatalog(), test.ResultUsage().BaseUsage(), arms[i].TestUsage.BaseUsage(), sqltype.Implicit); selectionErr != nil {
 					return nil, selectionErr
 				} else if selected != nil {

@@ -18,8 +18,9 @@ import (
 // AlterHost implements table.AlterHost: TableHost bound to one statement
 // scope, whose input, output and inquiry state the ALTER bindings and captures
 // read and write. Callers build one per call because the ALTER
-// loop begins its stage lazily, so stage may be nil. Every method runs under
-// Engine.mu and never waits.
+// loop begins its stage lazily, so stage may be nil. Methods enter and return
+// under Engine.Mu; generation-definition simplification suspends Mu and the
+// statement's replacement reservation for initialized constant work.
 type AlterHost struct {
 	TableHost
 	Scope *core.StatementScope
@@ -58,7 +59,7 @@ func (h AlterHost) BindDefault(a ddl.Authority, relation *catalog.Relation, colu
 func (h AlterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error) {
 	auth := core.DDLAuthorityOf(a)
 	namespace := GenerationNamespace(h.E, auth, relation)
-	return BindGeneration(h.E, h.Op, auth, relation, slot, raw, h.Scope.Input, &namespace)
+	return BindGeneration(h.DDLHost, auth, relation, slot, raw, h.Scope.Input, &namespace)
 }
 
 func (h AlterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {

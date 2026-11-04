@@ -60,7 +60,7 @@ func bindGinSupport(view catalog.Read, class, captured sqltype.IndexClass, fact 
 		if err := view.Owner().Provider(ids.ProcedureClassID).Validate(view, proc); err != nil {
 			return class, err
 		}
-		support := sqltype.IndexSupport{Family: uint32(fact.Family), Member: uint32(member.Address().ObjectID), Routine: uint32(expected), Left: uint32(input), Right: uint32(input), Revision: uint64(member.Revision()), ClassRevision: uint64(fact.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(proc.Revision())}
+		support := sqltype.IndexSupport{Class: uint32(fact.Address().ObjectID), Family: uint32(fact.Family), Member: uint32(member.Address().ObjectID), Routine: uint32(expected), Left: uint32(input), Right: uint32(input), Revision: uint64(member.Revision()), ClassRevision: uint64(fact.Revision()), FamilyRevision: uint64(family.Revision()), RoutineRevision: uint64(proc.Revision())}
 		if scalar {
 			support.Authority = fact.Origin.Installation.IndexAuthority()
 		}

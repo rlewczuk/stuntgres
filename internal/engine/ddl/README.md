@@ -160,21 +160,30 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   `pg_tablespace_databases` row over the statement's retained `catalog.Read`.
   `TablespaceDatabase` returns its 01000 WARNING beside a NULL value; the caller
   emits it.
-- **SECURITY LABEL**: `SecurityLabel(ctx, view, s)` checks cancellation/current
-  authority and returns exact absent-provider 22023 diagnostics before target
-  lookup or ownership. Omitted and empty-string providers differ; decoded names
-  are not Go-escaped in diagnostics. PostgreSQL's native C provider ABI/loading
-  and SELinux/MAC integration are unavailable. No provider/store is fabricated.
-- **LOAD**: `Load(ctx, view, s)` first checks the current actor's SUPERUSER
-  attribute, plugin prefix/suffix restriction, slash-containing macro and context.
-  It then admits only `pg_overexplain`, `pg_overexplain.so`,
-  `$libdir/pg_overexplain` and `$libdir/pg_overexplain.so`; other native libraries
-  retain 0A000 (`LoadUnsupported`). It never expands paths, inspects files,
-  stages objects or allocates catalog identities. `schemacmds.ExecuteLoad` owns
-  argument count, Engine.Mu, fresh authority capture and actual physical-session
-  activation. Security precedes repeated activation; Prepare performs none of
-  these execution checks. The built-in capability is not an installed extension,
-  arbitrary ABI loading, or an entry in the physical native-module inventory.
+- **SECURITY LABEL**: without registration, cancellation/current authority and
+  absent-provider 22023 diagnostics precede target lookup or ownership. Omitted
+  and empty-string providers differ; decoded names are not Go-escaped.
+  Configured `selinux` simulation uses the schema command owner for genuine
+  target/ownership/context/relabel checks and ordinary immutable publication.
+  It is not a native C provider loader or kernel SELinux implementation.
+- **LOAD**: `Load(ctx, view, s)` returns an explicit supported `LoadModule`;
+  zero is never successful admission. Active enforcing sepgsql simulation
+  rejects LOAD (42501) before ordinary filename checks, even for superusers.
+  Otherwise it checks the current actor's SUPERUSER attribute, plugin
+  prefix/suffix restriction, slash-containing macro and context before selection.
+  The four aliases `pg_overexplain`, `pg_overexplain.so`,
+  `$libdir/pg_overexplain` and `$libdir/pg_overexplain.so` remain available without
+  simulation and in permissive simulation. Only an already registered,
+  permissive provider admits the exact `$libdir/sepgsql` spelling, with the same
+  ordinary SQL authorization. Other native libraries retain 0A000
+  (`LoadUnsupported`). It never expands paths, inspects files, stages objects or
+  allocates catalog identities. `schemacmds.ExecuteLoad` owns argument count,
+  Engine.Mu, fresh authority capture and physical-session admission; only an
+  overexplain selection activates its physical capability. Registered sepgsql
+  LOAD changes neither that capability nor provider, installation, catalog,
+  roles or policy. Prepare performs none of these execution checks. The built-in
+  capability is not an installed extension, arbitrary ABI loading, or an entry
+  in the physical native-module inventory.
 - **CHECKPOINT**: `Checkpoint(ctx, view, s)` checks current inherited
   `pg_checkpoint` authority, then returns `CheckpointUnsupported` without
   performing physical work. `schemacmds.ExecuteCheckpoint` captures fresh

@@ -300,7 +300,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 				}
 				copy.Grouping[i] = grouping(set.Grouping[i])
 				if err == nil {
-					copy.Grouping[i].Grouping, err = sqltype.BindGrouping(schema[slot].Usage)
+					copy.Grouping[i].Grouping, err = m.remapGroupingKernel(set.Grouping[i].Grouping, schema[slot].Usage)
 				}
 			}
 		}
@@ -322,7 +322,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		for i, expression := range copy.Expressions {
 			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
-				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.Grouping[i].Grouping, err = m.remapGroupingKernel(n.Grouping[i].Grouping, expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -335,7 +335,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		for i, expression := range copy.Expressions {
 			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
-				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.Grouping[i].Grouping, err = m.remapGroupingKernel(n.Grouping[i].Grouping, expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -366,7 +366,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 			for j, key := range spec.Partition {
 				spec.Grouping[j] = grouping(n.Specs[i].Grouping[j])
 				if err == nil {
-					spec.Grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
+					spec.Grouping[j].Grouping, err = m.remapGroupingKernel(n.Specs[i].Grouping[j].Grouping, key.ResultUsage())
 				}
 			}
 			spec.Order = append([]plan.SortKey(nil), spec.Order...)
@@ -424,7 +424,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		for i, key := range copy.Keys {
 			copy.Grouping[i] = grouping(n.Grouping[i])
 			if err == nil {
-				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
+				copy.Grouping[i].Grouping, err = m.remapGroupingKernel(n.Grouping[i].Grouping, key.ResultUsage())
 			}
 		}
 		copy.Calls = make([]plan.AggregateCall, len(n.Calls))
@@ -463,7 +463,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 				copy.Calls[i].Distinct[k] = grouping(call.Distinct[k])
 				arg := copy.Calls[i].Arguments[k]
 				if err == nil {
-					copy.Calls[i].Distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
+					copy.Calls[i].Distinct[k].Grouping, err = m.remapGroupingKernel(n.Calls[i].Distinct[k].Grouping, arg.ResultUsage())
 				}
 				if err == nil {
 					_, err = functions.AggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)

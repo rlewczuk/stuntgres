@@ -14,6 +14,7 @@ func (c *Candidate) ApplyTo(current *State) *State {
 	next := CloneState(current)
 	c.ApplyDefaultACLs(current, next)
 	c.ApplyInitialPrivileges(current, next)
+	c.ApplySecurityLabels(current, next)
 	operators := OperatorIndexEdit{Index: current.OperatorNames()}
 	procedures := ProcedureIndexEdit{Index: current.ProcedureNames()}
 	for a, removal := range c.Removals() {

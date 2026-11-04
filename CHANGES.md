@@ -12,8 +12,17 @@
   write diagnostics at actual prepare failure as well as direct execution.
   Exercise real column drop with the sentinel relation retained: held view
   metadata, empty catalogs, provider-first errors and surviving data stay exact.
-  No native label provider/store exists; successful assignments,
-  changes/removals and populated label projection are not fabricated or claimed.
+  Without simulation registration the real label inventory is empty and provider
+  commands fail; registered simulation projects actual immutable associations,
+  including successful changes/removals, without native SELinux enforcement.
+
+- Invoke and unwind the genuine IMPORT FOREIGN SCHEMA handler factory before
+  checking optional importer support. Preserve ordinary SQL error precedence,
+  false-execute trusted entry and captured SQL wrapper diagnostics: an allowed
+  no-importer still returns HV00P, while simulated denied entry returns 42501
+  first. Add native/public direct, prepared and held no-importer regressions
+  with audit/subject/no-publication invariants and an independent stock file_fdw
+  PostgreSQL boundary; no import capability or host-security claim is added.
 
 - Expose the read-only, fifteen-column `pg_catalog.pg_stat_wal_receiver` view
   with exact nullable metadata, ordinary PUBLIC SELECT, released view display
@@ -22,6 +31,20 @@
   rejected replication startup cannot fabricate a receiver or WAL progress.
   Document the future actual-row pid-only/all-stats visibility contract without
   promising physical replication or claiming populated masking evidence.
+
+- Revalidate captured codec authority after encoding finalized simple-query
+  RETURNING, modifying-CTE and utility stored rows, before their external row
+  callback. Retain the inactive path and existing COPY/portal/FunctionCall
+  frontiers. Add a genuine INSERT RETURNING store regression with installed
+  hstore output, entered trusted Latin1 conversion, deterministic peer relabel
+  and descriptor changes, exact pre-sink conflicts, unchanged-authority fields,
+  balanced subjects, original authority and joined cleanup.
+
+- Preserve escaped hyphens as literal restorecon bracket members in registered
+  SELinux simulation profiles, without changing ordinary ranges, negation or
+  first-match ordering. Add independent literal/negated/range registration
+  assertions and public direct/prepared restorecon catalog/data regressions;
+  ordinary PostgreSQL coverage retains the explicit inactive-provider boundary.
 
 - Expose the 21-column `pg_catalog.pg_replication_slots` metadata view with
   canonical nominal types, public unredacted visibility, owner-first full-owner/
@@ -49,6 +72,18 @@
   canonical metadata, retained rows and native-control table/column/routine ACL
   and progress replay. Extend the strict complete provider and routine inventories
   with the view and its backing declaration.
+
+- Restore inactive private maintenance's distinct genuine sessions without
+  simulation-only initialization origins. Keep active remapped generation/index
+  repair in its original authenticated stage lifetime, separate from destination
+  publication, with exact binding, cancellation and final consent fences.
+  Give CREATE/ALTER generation-definition constant work its genuine command
+  initializer outside engine/replacement locks, retaining original prewalk order,
+  SQL EXECUTE, simulated denial evidence and stale no-retry publication fences.
+  Preserve each stored generation's original runtime manifest and exact consumer
+  with its genuine parent initializer across preparation, cache hits and rows.
+  Attach UPDATE's original prepared owner/catalog to its captured target source,
+  keeping strict source-opening guards and original INTERNAL no-FHET behavior.
 
 - Close dedicated `pg_catalog.pg_publication_tables` acceptance coverage on the
   existing membership producer: exact raw shape and column/filter projection,

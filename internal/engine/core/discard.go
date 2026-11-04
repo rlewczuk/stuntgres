@@ -160,22 +160,28 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	for address := range owned {
 		stage.DomainBases = append(stage.DomainBases, base.MustNamespace(address))
 	}
-	// Exclude every owned target before projecting surviving dependents, exactly
-	// as physical collation cleanup does, but retain the namespace descriptor.
+	e.Mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	drop := StageDropProvider(s.Op.Context(), stage, s, changes, nil)
+	dependencies, err := drop.PrepareExpressionDependencies(children, parser.DropCascade, ids.ObjectAddress{})
+	if err != nil {
+		return err
+	}
+	// Keep the original root-removal frontier before surviving projections.
+	e.Mu.Lock()
 	for _, address := range children {
 		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(base.Epoch(), address), false); err != nil {
 			break
 		}
 	}
 	e.Mu.Unlock()
-	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return err
 	}
-	if err = s.StageExpressionDependents(stage, children, parser.DropCascade, changes); err != nil {
+	if err = drop.ApplyExpressionDependencies(dependencies); err != nil {
 		return err
 	}
-	if err = s.StageOwnedSequences(stage, children, parser.DropCascade, changes); err != nil {
+	if err = drop.ApplyOwnedExpressionDependencies(dependencies); err != nil {
 		return err
 	}
 	var relations []ids.ObjectAddress

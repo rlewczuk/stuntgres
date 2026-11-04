@@ -113,16 +113,19 @@ type CatalogStage struct {
 	DatabaseAuthority        catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
 	// separate role installation. Every other catalog caller leaves it nil.
-	RoleCandidateRecord *access.RoleRecord
-	SchemaCascadeNames  []string
-	DropCascadeNames    []string
-	DependencyPath      []ids.ObjectAddress
-	DomainTargets       []ids.ObjectAddress
-	DomainBases         []catalog.Descriptor
-	domainAlter         *typedef.DomainAlterStage
+	RoleCandidateRecord  *access.RoleRecord
+	SchemaCascadeNames   []string
+	DropCascadeNames     []string
+	DependencyPath       []ids.ObjectAddress
+	DomainTargets        []ids.ObjectAddress
+	selectedDropRoots    []selectedDropRoot
+	selectedDropsApplied bool
+	DomainBases          []catalog.Descriptor
+	domainAlter          *typedef.DomainAlterStage
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
-	terminalCleanup bool
+	terminalCleanup   bool
+	dropCleanupOrigin dropCleanupOrigin // Explicit trusted host cleanup, never inferred from absent SQL grants.
 	// DISCARD ALL's staged closure owns CLOSE at its successful frontier.
 	// This exempts only cursor pins, never unfinished constraint events.
 	closesCursors bool
@@ -139,6 +142,11 @@ type CatalogStage struct {
 	indexesSlot      *index.Stage
 	MaterializedSlot *view.MaterializedStage
 	DDLCommands      []sqltype.DDLCommand
+	sepgsqlAuth      access.View // Borrowed only until this stage publishes/discards.
+	// Detached dictionary compilation owns effects until this candidate
+	// publishes. Discard rolls back only its newer completion receipts.
+	dictionaryInitializationMark  access.SepgsqlObservationMark
+	dictionaryInitializationOwned bool
 }
 
 // RecordDDLCommand retains explicit successful producer annotations until the
@@ -199,6 +207,7 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) AuthorizeLocked(auth AuthorizationView, session *session.Session) {
 	s.AuthSession, s.AuthRevision, s.RoleRevision = session, auth.Revision, auth.RoleRecord.Revision
+	s.sepgsqlAuth = auth.View
 	s.statement = auth.Statement
 	s.DropRoles = auth.Roles
 	s.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
@@ -208,6 +217,9 @@ func (s *CatalogStage) AuthorizeLocked(auth AuthorizationView, session *session.
 func (s *CatalogStage) Create(d catalog.Descriptor) error {
 	if s == nil || s.Lifecycle != CatalogOpen || s.Invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
+	}
+	if err := s.sepgsqlCreate(d); err != nil {
+		return err
 	}
 	return s.Candidate.Create(d)
 }
@@ -231,6 +243,9 @@ func (s *CatalogStage) ReplaceDescriptor(d catalog.Descriptor, synchronize, pres
 		}
 	}
 	d = catalog.NormalizeTypeReplacement(previous, d, preserveDomainPlan)
+	if err := s.sepgsqlReplace(previous, d); err != nil {
+		return err
+	}
 	if err := s.Candidate.Replace(d); err != nil {
 		return err
 	}
@@ -334,6 +349,9 @@ func (provider *DropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	// Provider/ref validation above belongs to the authentic predecessor.
 	// AUTO retirement below follows the actual metadata entering this phase.
 	d := provider.RetirementDescriptor(ref.Address)
+	if err := provider.SepgsqlDropDescriptor(d, provider.InternalRemoval); err != nil {
+		return err
+	}
 	if provider.Removed(ref.Address) {
 		return nil
 	}
@@ -509,7 +527,7 @@ func (e *Engine) normalizeCatalogStage(ctx context.Context, s *CatalogStage) err
 
 func (e *Engine) catalogStageValidationRead(s *CatalogStage) (catalog.Read, error) {
 	var read catalog.Read
-	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 || s.InitialPrivilegeCount() != 0 {
+	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 || s.InitialPrivilegeCount() != 0 || s.SecurityLabelChangeCount() != 0 {
 		read = e.StageRead(s)
 		validate := s.Candidate.ValidateStagedDefinitionOIDs
 		if len(s.alterFinal) != 0 {
@@ -546,6 +564,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	read, err := e.catalogStageValidationRead(s)
 	if err != nil {
 		return nil, err
+	}
+	if s.SecurityLabelChangeCount() != 0 {
+		if err := catalog.ValidateSecurityLabels(read); err != nil {
+			return nil, err
+		}
 	}
 	if s.InitialPrivilegeCount() != 0 {
 		e.Mu.Lock()
@@ -677,6 +700,12 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			}
 		}
 		current := e.Catalog.State
+		if scope != nil {
+			if err := scope.validateSepgsqlObservations(current); err != nil {
+				e.Mu.Unlock()
+				return ChangeSet{}, err
+			}
+		}
 		if err := s.DefaultPreflight(current); err != nil {
 			e.Mu.Unlock()
 			return ChangeSet{}, err
@@ -1003,6 +1032,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			}
 			e.Catalog.PublishLocked(next)
 			e.reconcileLogicalBuffersLocked()
+			if scope != nil {
+				scope.advanceSepgsqlPublication(current, next)
+			}
 			sharedRoots.InstallLocked()
 			e.releaseStageReplicationOriginsLocked(s)
 			e.Storage.ReplaceRelationsLocked(relations)
@@ -1037,6 +1069,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.recordOriginCommitLocked(commitRef, actor)
 			}
 			s.Lifecycle = catalogPublished
+			s.dictionaryInitializationOwned = false
 		}
 		if op != nil {
 			op.Session.Mu.Unlock()
@@ -1073,6 +1106,12 @@ func extensionMaterializedViewsCurrent(s *CatalogStage, current *catalog.State) 
 
 func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	if s != nil && s.Owner == e && s.Lifecycle != catalogPublished {
+		if s.dictionaryInitializationOwned {
+			s.dictionaryInitializationOwned = false
+			if s.statement != nil && !s.statement.Finished {
+				s.statement.RestoreSepgsqlObservations(s.dictionaryInitializationMark)
+			}
+		}
 		s.Lifecycle = catalogDiscarded
 		if len(s.replicationOrigins) != 0 || len(s.subscriptionStats) != 0 {
 			e.Mu.Lock()
@@ -1095,10 +1134,10 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, source *Engine, replacement
 // Restore retains its genuine source-owned private operation through owner-cell
 // validation. Ordinary replacement callers use ReplaceCatalog without an op.
 func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation) (ChangeSet, error) {
-	return e.replaceCatalogContents(ctx, source, replacement, restoreOp, false)
+	return e.replaceCatalogContents(ctx, source, replacement, restoreOp, false, nil)
 }
 
-func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool) (ChangeSet, error) {
+func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool, controlAuthority *ControlSepgsqlAuthority) (ChangeSet, error) {
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
@@ -1139,6 +1178,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		replacement, err = control.PersistentReplacementCatalog(replacement)
 	}
 	if err != nil {
+		return ChangeSet{}, err
+	}
+	if err := catalog.ValidateSecurityLabels(replacement); err != nil {
 		return ChangeSet{}, err
 	}
 	if err := catalog.NormalizeReplacementIndexHistory(ctx, replacement); err != nil {
@@ -1282,6 +1324,11 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
+		if controlAuthority != nil {
+			if err := e.checkControlSepgsqlLocked(ctx, next, controlAuthority); err != nil {
+				return ChangeSet{}, err
+			}
+		}
 		e.installReplacementLocked(next, relations, sequences, metadata, roots, nextRow, nextVersion, nextRevision, oids.Next, progress)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
@@ -1357,7 +1404,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 	if !e.Catalog.State.StandaloneOriginsUnchanged(parameterPredecessor) || !e.Catalog.State.ParametersUnchanged(parameterPredecessor) {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics, attributeStatistics, relationStatistics, originPredecessor, originProgress); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics, attributeStatistics, relationStatistics, originPredecessor, originProgress, controlAuthority); err != nil {
 		return ChangeSet{}, err
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
@@ -1370,7 +1417,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot, attributeStatistics []storage.AttributeStatisticsSnapshot, relationStatistics []storage.RelationStatisticsSnapshot, originPredecessor originProgressPredecessor, originProgress map[replicationOriginProgressKey]uint64) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot, attributeStatistics []storage.AttributeStatisticsSnapshot, relationStatistics []storage.RelationStatisticsSnapshot, originPredecessor originProgressPredecessor, originProgress map[replicationOriginProgressKey]uint64, controlAuthority *ControlSepgsqlAuthority) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
 	}
@@ -1426,6 +1473,11 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if controlAuthority != nil {
+		if err := e.checkControlSepgsqlLocked(ctx, next, controlAuthority); err != nil {
+			return err
+		}
 	}
 	e.installReplacementLocked(next, relations, sequences, metadata, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next, progress)
 	return nil

@@ -21,8 +21,9 @@ type SchemaHost interface {
 	// StageSchemaDependents stages the drop of schemas with their relations
 	// and other dependent objects through the engine's dependency closure.
 	StageSchemaDependents(auth Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error
-	// RemoveObject stages the removal of ref; namespace marks a schema.
-	RemoveObject(ref ids.ObjectRef, namespace bool) error
+	// SelectDropRoot validates and records an actual DROP selector root.
+	// It does not retire its descriptor, namespace membership or labels.
+	SelectDropRoot(ref ids.ObjectRef, namespace bool) error
 	// AddCascadeNotice queues one "drop cascades to" line, emitted after
 	// publication.
 	AddCascadeNotice(string)

@@ -65,7 +65,10 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 		e.Mu.Unlock()
 		return false, err
 	}
-	capture.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
+	if err := capture.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true, s); err != nil {
+		e.Mu.Unlock()
+		return false, err
+	}
 	entry := s.BeginClusterProgressLocked(d.Address(), "VACUUM FULL")
 	e.Mu.Unlock()
 	defer e.EndClusterProgress(s.TxRef, entry)
@@ -136,7 +139,11 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 						return err
 					}
 				}
-				root, err := index.BuildRelationIndexRoot(evaluation, capture.Relation, idx, nextStore, nil)
+				method, err := exec.InitializeIndexMethod(evaluation, idx.SQLIndex.MethodIdentity())
+				if err != nil {
+					return err
+				}
+				root, err := index.BuildRelationIndexRoot(evaluation, capture.Relation, idx, method, nextStore, nil)
 				if err != nil {
 					return err
 				}
@@ -144,7 +151,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 				if !ok {
 					return ids.ErrCatalogReplaced
 				}
-				if err := index.ValidateUniqueRoot(s.Op.Context(), capture.Relation, idx, root, namespace.Name(), evaluation.Output, &ownerAuth.View, core.DisclosureEnv(&ownerAuth), true); err != nil {
+				if err := index.ValidateUniqueRoot(s.Op.Context(), capture.Relation, idx, root, namespace.Name(), evaluation.Output, &ownerAuth.View, core.DisclosureEnv(&ownerAuth), true, evaluation.FunctionInput()); err != nil {
 					return err
 				}
 				roots[address] = root
@@ -168,9 +175,15 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			}
 			return false, err
 		}
-		current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, false)
+		if err := current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, false, nil); err != nil {
+			e.Mu.Unlock()
+			return false, err
+		}
 		if !capture.SameLocked(current, &e.Storage, true) || e.Storage.RelationMetadata[d.Address()] != metadata || store.Maintenance != maintenance || store.RetainedOrigin != origin || store.TruncateBoundary != truncateBoundary || store.MaterializedLineage != materializedLineage || store.TruncateLineage != truncateLineage {
-			current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
+			if err := current.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true, s); err != nil {
+				e.Mu.Unlock()
+				return false, err
+			}
 			capture = current
 			e.Mu.Unlock()
 			continue
@@ -186,6 +199,10 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			}
 		}
 		if err := s.Op.Context().Err(); err != nil {
+			e.Mu.Unlock()
+			return false, err
+		}
+		if err := s.ValidateAccessMethodFactoriesLocked(); err != nil {
 			e.Mu.Unlock()
 			return false, err
 		}

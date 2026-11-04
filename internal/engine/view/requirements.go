@@ -27,7 +27,7 @@ func SourceRequirementLeaf(a access.View, owner *catalog.Relation, occurrence in
 	if err != nil {
 		return exec.Leaf{}, err
 	}
-	source := exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead, Mark: stored.ViewLeafRowMark(definition, occurrence, inherited), Uses: make([]int, 0, len(leaf.Reads))}
+	source := exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, SystemAttributeRead: leaf.SystemAttributeRead, SystemColumns: leaf.SystemColumns, WholeRowRead: leaf.WholeRowRead, Mark: stored.ViewLeafRowMark(definition, occurrence, inherited), Uses: make([]int, 0, len(leaf.Reads))}
 	for _, attribute := range leaf.Reads {
 		slot := relation.IndexForAttribute(attribute)
 		if slot < 0 {
@@ -68,7 +68,7 @@ func WriteTargetRequirement(stmt parser.Statement, layer WriteLayer, source *cat
 // and row marks for the main source; only actual command reads demand SELECT.
 func WriteSourceRequirementLeaf(a access.View, b analyze.Binding, owner *catalog.Relation, layer WriteLayer, occurrence int) (exec.Leaf, bool, error) {
 	logical := ViewWriteOf(b.ViewWrite).Logical
-	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(logical.Insert.Conflict.Reads) != 0
+	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.WholeRowRead || logical.SystemAttributeRead || logical.Insert.Conflict != nil && len(logical.Insert.Conflict.Reads) != 0
 	if occurrence == layer.MainOccurrence && !reads {
 		return exec.Leaf{}, false, nil
 	}

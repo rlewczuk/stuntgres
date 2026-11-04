@@ -160,7 +160,10 @@ func (r *Renderer) query(query *plan.Query) (*Tree, error) {
 		if frame == 0 {
 			frame = 1
 		}
-		r.scanDecision = r.explainScan(r.scanFilter, frame)
+		r.scanDecision, err = r.explainScan(r.scanFilter, frame)
+		if err != nil {
+			return nil, err
+		}
 	}
 	r.register(query.Root)
 	return r.node(query.Root)

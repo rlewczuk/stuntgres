@@ -73,7 +73,7 @@ func LookupPath(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAd
 	return analyze.LookupPath(PathInput(auth, true), kind)
 }
 
-func EffectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyze.LookupKind) []ids.ObjectAddress {
+func EffectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
 	return analyze.EffectivePath(PathInput(auth, false), path, kind)
 }
 

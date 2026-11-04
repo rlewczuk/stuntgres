@@ -195,6 +195,11 @@ func (e Cube) Eval(c expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	body, err := e.EnterRoutine(c, args[:len(e.Args)])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
 	if e.Operation >= sqltype.CubeSubset {
 		return sqltype.TransformCube(ctx, e.CubeType, e.Operation, args[:len(e.Args)])
 	}

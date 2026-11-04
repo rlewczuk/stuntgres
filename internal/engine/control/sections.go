@@ -65,6 +65,7 @@ var dumpSections = [...]dumpSection{
 	{"attribute statistics snapshots", emitDumpAttributeStatistics},
 	{"relation statistics snapshots", emitDumpRelationStatistics},
 	{"initial privileges inventory", emitDumpInitialPrivileges},
+	{"security labels", emitDumpSepgsql},
 }
 
 func emitDumpInitialPrivileges(_ context.Context, s *dumpScript, w *dumpWriter) error {

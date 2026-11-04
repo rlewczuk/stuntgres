@@ -15,23 +15,23 @@ type conversionDefault struct {
 
 // A statement lazily resolves each demanded pair from its immutable snapshot.
 // Later rows reuse the result (including absence) without catalog/path work.
-func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.Procedure, error) {
+func (s *StatementScope) conversionSelection(source, destination int) (conversionDefault, error) {
 	if s == nil || s.Inquiry.visibilityCatalog.State() == nil {
-		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
+		return conversionDefault{}, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
 	key := [2]int{source, destination}
 	if selected, ok := s.presentationOrZero().conversionDefaults[key]; ok {
-		return selected.procedure, nil
+		return selected, nil
 	}
 	selected, err := resolveConversionDefault(s.Inquiry.visibilityCatalog, s.Inquiry.visibilityOtherPath, source, destination)
 	if err != nil {
-		return nil, err
+		return conversionDefault{}, err
 	}
 	if s.presentationOrZero().conversionDefaults == nil {
 		s.presentation().conversionDefaults = make(map[[2]int]conversionDefault)
 	}
 	s.presentation().conversionDefaults[key] = selected
-	return selected.procedure, nil
+	return selected, nil
 }
 
 // Namespace priority, then the lowest conversion OID in that namespace, is the

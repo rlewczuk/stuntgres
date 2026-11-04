@@ -41,8 +41,6 @@ func (c *Context) EvalDblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateE
 	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
 		return sqltype.Value{}, err
 	}
-	n.Ref.Epoch = auth.Catalog.Epoch()
-	n.Procedure, n.RoutineReference = current, current
 	var values [5]sqltype.Value
 	null := false
 	for i, child := range n.Args {
@@ -55,6 +53,13 @@ func (c *Context) EvalDblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateE
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
+	body, err := n.EnterRoutine(c, values[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
+	n.Ref.Epoch = auth.Catalog.Epoch()
+	n.Procedure, n.RoutineReference = current, current
 	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing dblink statement runtime")

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -37,6 +38,19 @@ func (n InstalledPgBuffercacheExpr) OpenSource(ctx expr.Context) (expr.SourceCur
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing installed pg_buffercache runtime")
 	}
 	return runtime.OpenPgBuffercache(n)
+}
+func (n InstalledPgBuffercacheExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || cursor.Exhausted {
+		return cursor.Next(ctx)
+	}
+	runtime, ok := evaluation.(interface {
+		AdvancePgBuffercache(InstalledPgBuffercacheExpr, context.Context, *expr.SourceCursor) (sqltype.Value, bool, error)
+	})
+	if !ok {
+		cursor.Close()
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing pg_buffercache source authority")
+	}
+	return runtime.AdvancePgBuffercache(n, ctx, cursor)
 }
 func (n InstalledPgBuffercacheExpr) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(InstalledPgBuffercacheExpr)

@@ -123,6 +123,13 @@ func ExplicitPath[E access.Environment](in PathInput[E], kind LookupKind, allowF
 		if rights&authorization.UsagePrivilege == 0 {
 			continue
 		}
+		allowed, err := in.View.SepgsqlSearch(a, false)
+		if err != nil {
+			return nil, false, err
+		}
+		if !allowed {
+			continue
+		}
 		result = append(result, a)
 	}
 	return result, pendingTemp, nil
@@ -135,13 +142,13 @@ func LookupPath[E access.Environment](in PathInput[E], kind LookupKind) ([]ids.O
 	if err != nil {
 		return nil, err
 	}
-	return EffectivePath(in, path, kind), nil
+	return EffectivePath(in, path, kind)
 }
 
 // EffectivePath turns an explicit path into the path kind searches. Function,
 // operator, collation and conversion lookups drop TEMP namespaces (installed
 // functions keep peer ones) and may filter path in place.
-func EffectivePath[E access.Environment](in PathInput[E], path []ids.ObjectAddress, kind LookupKind) []ids.ObjectAddress {
+func EffectivePath[E access.Environment](in PathInput[E], path []ids.ObjectAddress, kind LookupKind) ([]ids.ObjectAddress, error) {
 	if kind == InstalledFunctionLookup || kind == FunctionLookup || kind == OperatorLookup || kind == CollationLookup || kind == ConversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
@@ -161,7 +168,13 @@ func EffectivePath[E access.Environment](in PathInput[E], path []ids.ObjectAddre
 		}
 	}
 	if !foundCatalog {
-		path = append([]ids.ObjectAddress{pgCatalog}, path...)
+		allowed, err := in.View.SepgsqlSearch(pgCatalog, false)
+		if err != nil {
+			return nil, err
+		}
+		if allowed {
+			path = append([]ids.ObjectAddress{pgCatalog}, path...)
+		}
 	}
 	if temp := in.Env.TemporaryNamespace(); temp != (ids.ObjectAddress{}) && (kind == RelationLookup || kind == TypeLookup) {
 		found := false
@@ -171,10 +184,16 @@ func EffectivePath[E access.Environment](in PathInput[E], path []ids.ObjectAddre
 			}
 		}
 		if !found {
-			path = append([]ids.ObjectAddress{temp}, path...)
+			allowed, err := in.View.SepgsqlSearch(temp, false)
+			if err != nil {
+				return nil, err
+			}
+			if allowed {
+				path = append([]ids.ObjectAddress{temp}, path...)
+			}
 		}
 	}
-	return path
+	return path, nil
 }
 
 // LookupNamespaces is the shared qualified and unqualified namespace

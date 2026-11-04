@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 )
@@ -23,7 +24,7 @@ func TestPGRewriteQueryStageAssociations(t *testing.T) {
 		{"correlation", "SELECT a.v,q.physical FROM audit_input a CROSS JOIN LATERAL unnest(ARRAY[a.v]) q(physical)", []string{"capture frame", "correlation_prefix"}},
 		{"set_projection", "SELECT generate_series(1,v) AS n FROM audit_input", []string{"plan.SetProjectNode", "call_slots", "group"}},
 		{"recursive", "WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SELECT n FROM q", []string{"plan.RecursiveUnionNode", "backedge", "cte owner"}},
-		{"search_cycle", "WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SEARCH DEPTH FIRST BY n SET ord CYCLE n SET cyc USING path SELECT n FROM q", []string{"search_slot", "cycle_slot", "equality 0", "cycle_inequality_collation"}},
+		{"search_cycle", "WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SEARCH DEPTH FIRST BY n SET ord CYCLE n SET cyc USING path SELECT n FROM q", []string{"search_slot", "cycle_slot", "grouping 0 type 23", "routine 1255/65/0", "cycle_inequality_collation"}},
 		{"locking", "SELECT v FROM audit_input FOR UPDATE NOWAIT", []string{"lock 0 mode", "wait"}},
 		{"window_frame", "SELECT v,sum(v) OVER(ORDER BY v RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS s FROM audit_input", []string{"window call 0 frame 1 slot 1 occurrence 0", "specs [0] sorts [0]", "bound 0 kind 1 key 23 offset 23 class 1978", "key 0 output 0 target 0 slot 0 cache 0"}},
 	} {
@@ -44,6 +45,7 @@ func TestPGRewriteQueryStageAssociations(t *testing.T) {
 					t.Fatal("missing actual stage association", fragment, out.String())
 				}
 			}
+			cycleEquality := false
 			var visit func(plan.Node)
 			visit = func(node plan.Node) {
 				if node == nil {
@@ -74,6 +76,25 @@ func TestPGRewriteQueryStageAssociations(t *testing.T) {
 					copy := *n
 					copy.Frame++
 					original, changed = n, &copy
+				case *plan.RecursiveUnionNode:
+					if n.Cycle != nil {
+						if len(n.Cycle.Grouping) != 1 || len(n.Cycle.Keys) != 1 {
+							t.Fatal("cycle lost its selected key equality")
+						}
+						group := n.Cycle.Grouping[0]
+						address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 65}
+						procedure, ok := read.Procedure(address)
+						usage, _ := group.Grouping.Selection()
+						if !ok || group.Procedure != procedure || group.Routine != read.Domain().Ref(read.Epoch(), address) ||
+							usage != n.Cycle.Record.CompositeMember(0).Usage || group.Source.Occurrence == 0 {
+							t.Fatal("cycle equality lost its actual analyzed declaration or source", group)
+						}
+						cycleEquality = true
+						copy, cycle := *n, *n.Cycle
+						cycle.Grouping = nil
+						copy.Cycle = &cycle
+						original, changed = n, &copy
+					}
 				}
 				if original != nil {
 					var a, b strings.Builder
@@ -92,6 +113,9 @@ func TestPGRewriteQueryStageAssociations(t *testing.T) {
 				visit(right)
 			}
 			visit(definition.Query().Root)
+			if tc.name == "search_cycle" && !cycleEquality {
+				t.Fatal("query traversal missed its actual cycle equality association")
+			}
 			// The expression and action routes use exactly the same query writer.
 			boolean, _ := read.LookupType(16)
 			sublink := plan.SubqueryExpr{Info: expr.Info{Usage: boolean.Usage()}, QueryPlan: definition.Query()}

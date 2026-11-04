@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/sqltype"
 )
 
 func TestDblinkGetPkeyAdmission(t *testing.T) {
@@ -60,7 +59,7 @@ func TestDblinkGetPkeyAdmission(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			scope.Op.Ctx = ctx
-			var rows []sqltype.Value
+			var rows []string
 			invoke := func() error {
 				var err error
 				rows, err = scope.WriteHost().Contrib().DblinkGetPkey(n, name)
@@ -104,7 +103,7 @@ func TestDblinkGetPkeyAdmission(t *testing.T) {
 			}
 			switch phase {
 			case "success", "prior_select":
-				if err != nil || len(rows) != 2 || rows[0].Type() != n.Usage.Type {
+				if err != nil || len(rows) != 2 || rows[0] != "b" || rows[1] != "a" {
 					t.Fatal("metadata admission", rows, err)
 				}
 			case "empty":

@@ -24,6 +24,7 @@ func icProviderInventory(c *icCase) {
 		"pg_enum": fixture.PGEnumColumns, "pg_extension": fixture.PGExtensionColumns,
 		"pg_init_privs": strings.Fields("objoid classoid objsubid privtype initprivs"),
 		"pg_seclabel":   strings.Fields("objoid classoid objsubid provider label"),
+		"pg_seclabels":  strings.Fields("objoid classoid objsubid objtype objnamespace objname provider label"),
 		"pg_namespace":  fixture.PGNamespaceColumns, "pg_type": fixture.PGTypeColumns,
 		"pg_group": fixture.PGGroupColumns, "pg_roles": fixture.PGRolesColumns,
 		"pg_language": fixture.PGLanguageColumns, "pg_parameter_acl": fixture.PGParameterACLColumns,
@@ -103,7 +104,6 @@ func icProviderInventory(c *icCase) {
 		"pg_wait_events":                    strings.Fields("type name description"),
 		"pg_policies":                       strings.Fields("schemaname tablename policyname permissive roles cmd qual with_check"),
 		"pg_rules":                          strings.Fields("schemaname tablename rulename definition"),
-		"pg_seclabels":                      strings.Fields("objoid classoid objsubid objtype objnamespace objname provider label"),
 		"pg_tables":                         strings.Fields("schemaname tablename tableowner tablespace hasindexes hasrules hastriggers rowsecurity"),
 		"pg_matviews":                       strings.Fields("schemaname matviewname matviewowner tablespace hasindexes ispopulated definition"),
 		"pg_indexes":                        strings.Fields("schemaname tablename indexname tablespace indexdef"),
@@ -206,7 +206,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
+			views := strings.Fields("pg_stats pg_seclabels pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription", "pg_stat_checkpointer", "pg_stat_ssl", "pg_stat_wal")
 			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_xact_user_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions", "pg_stat_user_functions", "pg_replication_origin_status")
 			views = append(views, "pg_replication_slots")

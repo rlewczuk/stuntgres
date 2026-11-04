@@ -39,7 +39,7 @@ type VacuumCapture struct {
 // records those roots. The final preflight counts existing roots without
 // allocating a second map; only a stale capture needs a fresh manifest.
 // Caller holds Engine.mu.
-func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids.ObjectAddress]*storage.IndexRoot, collect bool) {
+func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids.ObjectAddress]*storage.IndexRoot, collect bool, factory index.CapturedMethodFactory) error {
 	c.Attached, c.IndexCount = 0, 0
 	view := catalog.NewRead(owner, c.Catalog)
 	for a, descriptor := range view.Descriptors() {
@@ -48,6 +48,37 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 			if root := roots[a]; root != nil {
 				c.IndexCount++
 				if collect {
+					if factory != nil {
+						method, ok := view.AccessMethod(idx.SQLIndex.MethodIdentity())
+						if !ok {
+							return ids.ErrCatalogReplaced
+						}
+						physical, err := factory.InitializeCapturedIndexMethodLocked(view, method)
+						if err != nil {
+							return err
+						}
+						switch physical {
+						case catalog.HashMethod:
+							if root.Hash == nil {
+								return ids.ErrCatalogReplaced
+							}
+						case catalog.BrinMethod:
+							if root.Brin == nil {
+								return ids.ErrCatalogReplaced
+							}
+						case catalog.BloomMethod:
+							if root.Bloom == nil {
+								return ids.ErrCatalogReplaced
+							}
+						case catalog.GinMethod:
+							if root.Gin == nil {
+								return ids.ErrCatalogReplaced
+							}
+						case catalog.BtreeMethod, catalog.GistMethod, catalog.SpgistMethod:
+						default:
+							return fmt.Errorf("stuntgres: unavailable vacuum index operation authority")
+						}
+					}
 					if c.Indexes == nil {
 						c.Indexes = make(map[ids.ObjectAddress]*storage.IndexRoot)
 					}
@@ -56,6 +87,7 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 			}
 		}
 	}
+	return nil
 }
 
 // SameLocked reports whether current, captured again under Engine.mu after

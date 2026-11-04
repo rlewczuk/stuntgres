@@ -144,7 +144,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 		return session.ProtocolField{}, SQLError("08P01", fmt.Sprintf("function call message contains %d argument formats but %d arguments", len(formats), count))
 	}
 	var log session.ProtocolContext
-	if err = session.ImportProtocolParameters(evaluation.Context, s.Output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, session.ProtocolFunctionInput); err != nil {
+	if err = session.ImportProtocolParameters(evaluation.Context, s.Output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.FunctionInput(), &log, session.ProtocolFunctionInput); err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && diagnostic.Code == "22P03" {
 			copy := *diagnostic
@@ -184,10 +184,16 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 	output.Regclass, output.Regtype, output.Regproc, output.Regrole = rows, rows, rows, rows
 	output.Operator, output.Regcollation, output.Regnamespace, output.RegTS = rows, rows, rows, rows
 	output.ACLItem = rows
+	if e.Sepgsql != nil {
+		output.TypeIO, output.Conversion = &evaluation, &evaluation
+	}
 	output.Transport = s.Op.EffectiveSettings().ClientEncoding()
 	output.XMLNotice = func(d sqlstate.Error) { s.Op.EmitNotice(session.LevelWarning, d) }
 	fields, _, err := session.EncodeProtocolRow(s.Op.Context(), rows.Values, []int16{int16(format)}, output, nil, nil)
 	if err != nil {
+		return session.ProtocolField{}, err
+	}
+	if err = s.validateCodecOutput(); err != nil {
 		return session.ProtocolField{}, err
 	}
 	return fields[0], nil

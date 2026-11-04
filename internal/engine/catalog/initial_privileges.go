@@ -153,6 +153,12 @@ func (c *Candidate) InitialPrivilegesUnchanged(current *State) bool {
 	return true
 }
 
+// InitialPrivilegeRemoved is the canonical whole-object/stable-subobject
+// tombstone match, shared by physical retirement and pre-removal cleanup.
+func InitialPrivilegeRemoved(address, object ids.ObjectAddress) bool {
+	return address.ClassID == object.ClassID && address.ObjectID == object.ObjectID && (object.SubID == 0 || address.SubID == object.SubID)
+}
+
 // RemoveInitialPrivileges removes all column snapshots as well as the object.
 func (c *Candidate) RemoveInitialPrivileges(object ids.ObjectAddress) {
 	if object.SubID != 0 {
@@ -165,9 +171,7 @@ func (c *Candidate) RemoveInitialPrivileges(object ids.ObjectAddress) {
 		}
 		return
 	}
-	matches := func(address ids.ObjectAddress) bool {
-		return address.ClassID == object.ClassID && address.ObjectID == object.ObjectID && (object.SubID == 0 || address.SubID == object.SubID)
-	}
+	matches := func(address ids.ObjectAddress) bool { return InitialPrivilegeRemoved(address, object) }
 	for address := range c.Base.State().InitialPrivileges() {
 		if matches(address) {
 			c.RecordInitialPrivilege(address, 'e', authorization.ACLValue{})

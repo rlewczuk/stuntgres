@@ -234,7 +234,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 		if len(root.Entries) != 2 || len(root.Entries[0].Keys) != 1 {
 			t.Fatal(root)
 		}
-		err = index.ValidateUniqueRoot(ctx, parent, idx, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: operatorFamilyTestRead()}, nil, false)
+		err = index.ValidateUniqueRoot(ctx, parent, idx, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: operatorFamilyTestRead()}, nil, false, sqltype.InputEnvironment{})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Detail != "Key (a)=(1) already exists." {
 			t.Fatal("INCLUDE weakened actual unique root", err)

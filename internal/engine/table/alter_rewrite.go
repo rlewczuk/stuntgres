@@ -143,11 +143,18 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 				preparedGeneration = true
 			}
 			for i, attribute := range generations {
-				expression := GenerationRecipeExpression(next.ColumnMeta.Generations[attribute])
+				definition := next.ColumnMeta.Generations[attribute]
+				expression := GenerationRecipeExpression(definition)
 				if generationProgram != nil {
 					expression = generationProgram[generatedSlots[i]]
 				}
-				value, err := expression.Eval(&evaluation)
+				recipe := evaluation
+				recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+				recipe.RoutineChecks = nil
+				recipe.RoutineReferences = definition.Dependencies
+				recipe.RoutineConsumer = old
+				value, err := expression.Eval(&recipe)
+				evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 				if err != nil {
 					return nil, err
 				}

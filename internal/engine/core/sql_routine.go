@@ -39,17 +39,38 @@ type sqlRoutineAnalysis struct {
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
-func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *exec.AcceptedDefaultInvocation) (sqltype.Value, error) {
-	return h.scope().executeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, constantPlanning, nil, explicitSQLRoutineAdmission, accepted)
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *exec.AcceptedDefaultInvocation, initialized exec.RoutineInitializationCall) (sqltype.Value, error) {
+	admission, err := h.initializedSQLRoutineAdmission(d, initialized)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return h.scope().executeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, constantPlanning, nil, admission, accepted)
 }
 
-func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error) {
+func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, initialized exec.RoutineInitializationCall) ([]sqltype.Value, error) {
 	var values []sqltype.Value
-	_, err := h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, collation, assignmentPlanning, constantPlanning, &values)
+	admission, err := h.initializedSQLRoutineAdmission(d, initialized)
+	if err != nil {
+		return nil, err
+	}
+	_, err = h.scope().executeSQLRoutine(d, frame, resultUsage, nil, collation, assignmentPlanning, constantPlanning, &values, admission, nil)
 	if err != nil {
 		return nil, err
 	}
 	return values, nil
+}
+
+func (h *statementHost) initializedSQLRoutineAdmission(d *catalog.Procedure, call exec.RoutineInitializationCall) (sqlRoutineAdmission, error) {
+	if h.scope().Engine().Sepgsql == nil {
+		return explicitSQLRoutineAdmission, nil
+	}
+	if call.Site.Routine != d {
+		return explicitSQLRoutineAdmission, fmt.Errorf("stuntgres: foreign initialized routine invocation")
+	}
+	if _, err := h.ValidateRoutineInitialization(call.Owner, call.Site); err != nil {
+		return explicitSQLRoutineAdmission, err
+	}
+	return initializedSQLRoutineAdmission, nil
 }
 
 // InvokeAggregateRoutine supplies only the aggregate owner's support EXECUTE.
@@ -82,6 +103,7 @@ type sqlRoutineAdmission uint8
 const (
 	explicitSQLRoutineAdmission sqlRoutineAdmission = iota
 	fdwValidatorAdmission
+	initializedSQLRoutineAdmission
 )
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
@@ -102,6 +124,10 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	e := parent.Engine()
 	environment := d
 	e.Mu.Lock()
+	if e.Sepgsql != nil && admission == explicitSQLRoutineAdmission && supportOwner == nil {
+		e.Mu.Unlock()
+		return value, fmt.Errorf("stuntgres: missing ordinary routine initialization receipt")
+	}
 	auth, err := parent.RoutineAuthorizationLocked()
 	if err == nil {
 		var current *catalog.Procedure
@@ -126,8 +152,8 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 				}
 				auth.State.CurrentUser = current.Owner
 			}
-			if admission != fdwValidatorAdmission {
-				err = auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege})
+			if admission == explicitSQLRoutineAdmission {
+				err = auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege, RoutineACLOnly: supportOwner != nil})
 			}
 		}
 	}
@@ -142,6 +168,9 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	retained := PayloadOf(parent.Op.Session).sqlRoutines[d.Address()]
 	e.Mu.Unlock()
 	if err != nil {
+		if d.Sepgsql != nil {
+			return value, err
+		}
 		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 	}
 	if d.RoutineDefinition().Invocation != proc.OrdinaryInvocation {
@@ -169,6 +198,9 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	defer leavePolicy()
 	stats := parent.beginStatsFunction(e.Catalog.Domain.Ref(read.Epoch(), d.Address()), statsFunctionLanguage(d), constantPlanning)
 	defer func() { parent.endStatsFunction(stats, err == nil) }()
+	if d.Sepgsql != nil {
+		return parent.invokeSepgsql(d, frame, resultUsage)
+	}
 	if d.Host != nil {
 		if d.Host.Layout.Procedure {
 			scalar, failure := parent.invokeHostRoutine(d, frame, catalog.HostResultUsage(d.Host.Layout), auth)

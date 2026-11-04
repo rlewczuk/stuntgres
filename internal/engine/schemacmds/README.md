@@ -38,12 +38,31 @@ journal publication are the same path as other catalog objects. The host's
 cluster-wide OID reservation is separate from connection/option validation;
 Describe never stages metadata or attempts an external mechanism.
 
-SECURITY LABEL uses `ExecuteSecurityLabel`, a failure-only boundary before
-object lookup or permissions. No native module can register a label provider,
-so omitted providers and explicitly named providers return PostgreSQL 22023,
-including NULL removal. It stages no catalog data, publishes no utility
-completion and does not reuse COMMENT storage. Ordinary transaction,
-read-only and DDL-start admission still precede this executor.
+SECURITY LABEL uses `ExecuteSecurityLabel` after ordinary transaction, read-only
+and DDL-start admission. Without a registered provider it retains PostgreSQL's
+22023-before-target-lookup boundary, including NULL removal. Explicit simulated
+registration activates `selinux` only. The executor resolves actual descriptors
+and ordinary SQL ownership, acquires their existing class-aware catalog locks
+(including the shared subscription lock domain), then rechecks current authority,
+descriptor identity and ownership before provider admission. Publications and
+event triggers use their real local names; subscriptions use the current
+database-qualified key; large objects use OID input and actual metadata existence.
+Only large-object ownership honors the existing `lo_compat_privileges` setting.
+These four classes still reject provider support with 0A000 before context
+validation or staging, including NULL/empty labels; no labels/defaults are added.
+Role authorization uses the current actor's SUPERUSER or CREATEROLE plus real
+ADMIN traversal, with SUPERUSER targets requiring SUPERUSER first. Self identity
+is not ADMIN. This rejection-only branch has no synthetic catalog role address,
+lock or label store. DOMAIN checks the selected SQLType's actual domain kind
+before ownership, retaining decoded written type qualification in diagnostics;
+arrays of domains are not domains. COLUMN checks fresh postwait ownership before
+generic relation-kind integrity and then the provider: sequence/index columns
+reject with 42809 and the released kind detail, without touching a generator.
+Supported classes validate context membership and independent MAC relabel
+permissions through the same immutable Stage/Validate/Publish path as other
+schema commands. NULL removes their provider association; no COMMENT store,
+SQL-user subject substitution, arbitrary native loader or kernel enforcement is
+involved. Denial leaves all staged label changes unpublished.
 
 ## Layering
 
@@ -121,9 +140,44 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   Dictionary COMMENT lookup uses a copied semantic name without expression
   locations, retaining the original parsed name for utility ownership diagnostics.
 - `ExecuteSecurityLabel` owns zero-argument validation, the mutex and fresh
-  operation authority capture around `ddl.SecurityLabel`. All supported target
-  kinds fail provider selection before target lookup or ownership, without
-  publication; Describe is effect-free. The shared-label catalog remains empty.
+  operation authority capture around `ddl.SecurityLabel`. Without registration,
+  every target fails provider selection before lookup/ownership and publication;
+  Describe remains effect-free. With simulation registered, generic support,
+  real lookup/ownership, lock/currentness and provider-class rejection retain that
+  ordering. DOMAIN validates actual selected kind before ownership; a genuine
+  domain (including one over an array) and TYPE retain existing TypeExclusive.
+  Actual builtin/renamed TABLESPACE descriptors use ordinary shared AX grants and current
+  OwnerOnly admission. Physical CREATE TABLESPACE remains unsupported. Local
+  large-object authority is canonical2995; public object locks use released2613
+  and the current database, never a relation alias or shared database-zero tag.
+  All these provider-unsupported targets still reject before label validation or
+  staging, including NULL/empty/invalid labels; LO compatibility affects only its
+  ordinary owner check. `TestReferenceSepgsqlSimulationGenericLabelResolution`
+  covers ordinary released diagnostics and direct/prepared active simulation
+  separately. Its ordinary publication/subscription rename witnesses grant the
+  intended owner database CREATE, then revoke it at cleanup; they do not broaden
+  SECURITY LABEL admission or the unrelated reader's authority.
+  `TestSepgsqlSimulationGenericLabel(RoleOwnership|DomainKind|ColumnIntegrity)`
+  checks complete primary/detail records, real authority mutations and unchanged
+  roots, allocators, subjects and sequence generators.
+  Physical role actors explicitly have LOGIN; target-only and public SET ROLE
+  identities do not need that privilege. Exact native resolver evidence permits
+  only the real public/pg_catalog `db_schema:search` observations, including
+  predecessor descriptor/label and physical-phase identity; it permits no
+  relabel observation, receipt completion or audit queue growth. Column kind
+  fixtures construct their partitioned index through existing text-key SPGiST,
+  not unsupported default-method partition-index DDL or private descriptors.
+  Its kind detail follows the actual indexed parent's partition metadata in the
+  fresh catalog, not the index descriptor's unset partition field.
+  The corresponding public
+  `TestReferenceSepgsqlSimulationGenericLabel(RoleOwnership|DomainKind|ColumnIntegrity)`
+  definitions retain direct/prepared/held execution and separate ordinary
+  provider-unloaded/rename/drop/comment contrasts. Neither phase adds successful
+  label classes. `TestSepgsqlSimulationGenericLabel(NoPublication|FreshOwnership|LockLifecycle)`
+  covers genuine grants/waits/public projection (including domain TypeExclusive
+  and whole-sequence ShareUpdateExclusive), shared cross-root identity,
+  release/cancel/join, fresh ownership/descriptor/epoch fences and immutable
+  no-stage rejection, retaining publication/event-trigger/subscription/LO routes.
 - `ExecuteCreateTablespace`, `ExecuteLoad` and `ExecuteCheckpoint` keep the
   argument count, mutex and fresh authority capture around `ddl.CreateTablespace`,
   `ddl.Load` and `ddl.Checkpoint`; none publishes or marks a utility complete.
@@ -303,6 +357,14 @@ the session IDs `enginetest` mints, so a test may use both. The extension
 provider units stage through the shared extension host
 (`schemacmds.ExtensionHost`, `StageExtensionLocked`); the type, domain and
 enum units stage through `StageSchemaLocked`.
+Schema DROP units retain `CaptureSchemaDrop`'s real ordered identity/absence
+manifest and use `constructSchemaDropUnit` to run the same selected-root,
+expression-dependency and owned-tail preparation/application as the executor
+before validating publication. `StageSchemaLocked` alone only selects roots:
+publishing that unfinished stage does not exercise retirement fences.
+`TestExtensionSchemaClosure` introduces a genuine dependent from a separate
+physical session after completed capture, requires `catalog.Conflict`, and
+retains the exact committed root, provider and surviving relation on rejection.
 `StageExtensionLocked` transfers every nonnil candidate to its caller, including
 an uncommitted partial candidate returned with an error. Unlock `Engine.Mu`
 before disposing it; the executor owns that unlocked failure path. Internal

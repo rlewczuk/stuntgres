@@ -74,11 +74,8 @@ FROM (SELECT oid,pronamespace FROM pg_proc WHERE proname='int_array_enum') p,
 (SELECT oid FROM pg_namespace WHERE nspname='%s') n,
 (SELECT aggfnoid,aggtransfn,aggfinalfn FROM pg_aggregate WHERE aggfnoid::oid=%d) a
 WHERE n.oid=p.pronamespace`, schema, ids[0]), []string{"aggregate_distinct", "state_distinct", "final_distinct"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
-	if !b.PG {
-		pgAggregateBoth(t, p, b, e, fixture.Select("SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='"+schema+"' ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{{"int_array_aggregate"}, {"int_array_enum"}}))
-	} else {
-		pgAggregateBoth(t, p, b, e, fixture.Select(fmt.Sprintf("SELECT p.proname,n.nspname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.oid IN (%d,%d) ORDER BY proname", ids[1], ids[2]), []string{"proname", "nspname"}, []string{"NAME", "NAME"}, [][]any{{"int_agg_final_array", schema}, {"int_agg_state", schema}}))
-	}
+	pgAggregateBoth(t, p, b, e, fixture.Select("SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='"+schema+"' ORDER BY proname", []string{"proname"}, []string{"NAME"}, [][]any{{"int_agg_final_array"}, {"int_agg_state"}, {"int_array_aggregate"}, {"int_array_enum"}}))
+	pgAggregateBoth(t, p, b, e, fixture.Select(fmt.Sprintf("SELECT p.proname,n.nspname,p.proargtypes,p.prorettype,p.proisstrict,p.provolatile,p.proparallel,l.lanname,p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang WHERE p.oid IN (%d,%d) ORDER BY proname", ids[1], ids[2]), []string{"proname", "nspname", "proargtypes", "prorettype", "proisstrict", "provolatile", "proparallel", "lanname", "prosrc"}, []string{"NAME", "NAME", "OIDVECTOR", "OID", "BOOL", "CHAR", "CHAR", "NAME", "TEXT"}, [][]any{{"int_agg_final_array", schema, "2281", int64(1007), false, "v", "s", "internal", "array_agg_finalfn"}, {"int_agg_state", schema, "2281 23", int64(2281), false, "v", "s", "internal", "array_agg_transfn"}}))
 	return ids
 }
 func TestReferencePGAggregateIntaggIdentity(t *testing.T) {
@@ -139,8 +136,8 @@ func TestReferencePGAggregateHelperPlacement(t *testing.T) {
 		} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 		}
-		// Moving only the aggregate does not move the two real installed helper
-		// functions. Their lookup-only native identities retain their own schema.
+		// Moving only the aggregate does not move its two genuine installed
+		// helper procedures, which retain their own canonical namespace.
 		query := fmt.Sprintf("SELECT aggfnoid,aggtransfn,aggfinalfn FROM pg_aggregate WHERE aggfnoid::oid=%d", ids[0])
 		pgAggregateBoth(t, p, b, c, fixture.Select(query, []string{"aggfnoid", "aggtransfn", "aggfinalfn"}, []string{"REGPROC", "REGPROC", "REGPROC"}, [][]any{{"pga_helper_parent.int_array_aggregate", "pga_helper_home.int_agg_state", "pga_helper_home.int_agg_final_array"}}))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET search_path TO pga_helper_home,public", 0))

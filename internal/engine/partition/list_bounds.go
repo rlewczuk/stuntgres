@@ -52,7 +52,7 @@ func evaluateListBounds(ctx context.Context, d *Definition, binder BoundBinder, 
 		if err != nil {
 			return err
 		}
-		duplicate, err := listContains(ctx, context.Context.Err, key, d.Bound.Values, value, evaluation.Input)
+		duplicate, err := listContains(ctx, context.Context.Err, key, d.Bound.Values, value, evaluation.FunctionInput())
 		if err != nil {
 			return err
 		}

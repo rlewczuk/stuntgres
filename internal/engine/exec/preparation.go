@@ -58,6 +58,9 @@ func InstallPreparation(p Preparation) { preparation = p }
 
 // AdmitExpression runs the installed execution admission of e.
 func AdmitExpression(c *Context, e expr.Expr, view catalog.Read) error {
+	if err := BeginRoutineInitialization(c); err != nil {
+		return err
+	}
 	return preparation.AdmitExpression(c, e, view)
 }
 

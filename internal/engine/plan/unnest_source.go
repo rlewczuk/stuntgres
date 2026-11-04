@@ -29,7 +29,7 @@ func (e UnnestExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 		}
 		return expr.NewSourceCursor(expr.SourceCursor{
 			Type: e.Usage.Type, Value: value,
-			Exhausted: value.IsNull() || value.ArrayLen() == 0, Advance: nextArraySource,
+			Exhausted: value.IsNull() || e.Procedure == nil && value.ArrayLen() == 0, Advance: nextArraySource,
 		}), nil
 	}
 	cursor, err := sqltype.OpenMultirange(ctx.FunctionContext(), e.Args[0].ResultUsage(), e.ResultUsage(), value)
@@ -40,6 +40,22 @@ func (e UnnestExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 		Type: e.Usage.Type, State: &cursor,
 		Advance: nextMultirangeSource, Release: closeMultirangeSource,
 	}), nil
+}
+
+func (e UnnestExpr) AdvanceSource(ctx context.Context, evaluation expr.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if ctx.Err() != nil || !cursor.Initialized() || e.Procedure == nil || cursor.Exhausted {
+		return cursor.Next(ctx)
+	}
+	if evaluation == nil || e.RoutineReference != e.Procedure {
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing intagg value-per-call authority")
+	}
+	body, err := evaluation.FunctionEnterRoutine(e.RoutineReference, e.RoutineRecipeReference, expr.RoutineBodyInputs{Count: 1, First: cursor.Value.Type(), HasNull: cursor.Value.IsNull(), Occurrence: e.Occurrence, Source: e.Source})
+	if err != nil {
+		cursor.Close()
+		return sqltype.Value{}, false, err
+	}
+	defer body.Leave()
+	return cursor.Next(ctx)
 }
 
 func nextArraySource(_ context.Context, s *expr.SourceCursor) (sqltype.Value, bool, error) {

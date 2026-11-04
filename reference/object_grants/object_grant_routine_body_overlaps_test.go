@@ -13,15 +13,21 @@ func TestReferenceObjectGrantRoutineBodyOverlapsDemand(t *testing.T) {
 		endpoint := "pg_catalog.overlaps(timestamp without time zone,timestamp without time zone,timestamp without time zone,timestamp without time zone)"
 		defer objectGrantRoutineCleanup(t, p, c, []string{addition, endpoint})
 		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO og_object_reader", 0))
-		run(fixture.Exec("CREATE TABLE og_overlap_source(a TIMESTAMP,b TIMESTAMP,c TIMESTAMP)", 0))
-		run(fixture.Exec("INSERT INTO og_overlap_source VALUES(TIMESTAMP '2001-01-02',TIMESTAMP '2001-01-01',TIMESTAMP '2001-01-04')", 1))
+		run(fixture.Exec("CREATE TABLE og_overlap_source(a TIMESTAMP,b TIMESTAMP,c TIMESTAMP,d INTERVAL)", 0))
+		run(fixture.Exec("INSERT INTO og_overlap_source VALUES(TIMESTAMP '2001-01-02',TIMESTAMP '2001-01-01',TIMESTAMP '2001-01-04',NULL)", 1))
 		run(fixture.Exec("GRANT SELECT ON og_overlap_source TO og_object_reader", 0))
 		nullDuration := "SELECT (a,NULL::INTERVAL) OVERLAPS (b,c) AS v FROM og_overlap_source"
 		allNull := "SELECT (NULL::TIMESTAMP,NULL::INTERVAL) OVERLAPS (b,c) AS v FROM og_overlap_source"
+		nullRight := "SELECT (b,c) OVERLAPS (a,NULL::INTERVAL) AS v FROM og_overlap_source"
+		runtimeNull := "SELECT (a,d) OVERLAPS (b,c) AS v FROM og_overlap_source"
+		runtimeNullRight := "SELECT (b,c) OVERLAPS (a,d) AS v FROM og_overlap_source"
 		partial := "SELECT (TIMESTAMP '2001-01-01',INTERVAL '2 days') OVERLAPS (b,c) AS v FROM og_overlap_source"
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select(nullDuration, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
 			run(fixture.Select(allNull, []string{"v"}, []string{"BOOL"}, [][]any{{nil}}))
+			run(fixture.Select(nullRight, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
+			run(fixture.Select(runtimeNull, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
+			run(fixture.Select(runtimeNullRight, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
 			run(fixture.Select(partial, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
 		})
 		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+addition+" FROM PUBLIC", 0))
@@ -29,6 +35,11 @@ func TestReferenceObjectGrantRoutineBodyOverlapsDemand(t *testing.T) {
 			// Strict NULL removes the addition, not the nonstrict endpoint call.
 			run(fixture.Select(nullDuration, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
 			run(fixture.Select(allNull, []string{"v"}, []string{"BOOL"}, [][]any{{nil}}))
+			run(fixture.Select(nullRight, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
+			// A row value that happens to be NULL is not a folded literal:
+			// its retained strict addition still requires EXECUTE.
+			fixture.RoleGrantPermissionDenied(run, runtimeNull, "function", "timestamp_pl_interval")
+			fixture.RoleGrantPermissionDenied(run, runtimeNullRight, "function", "timestamp_pl_interval")
 			for _, suffix := range []string{"", " WHERE FALSE"} {
 				// A constant pair still computes its addition while inlining,
 				// even though the other pair is row-dependent or source-empty.
@@ -42,7 +53,7 @@ func TestReferenceObjectGrantRoutineBodyOverlapsDemand(t *testing.T) {
 		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+addition+" FROM og_object_reader", 0))
 		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+endpoint+" FROM PUBLIC", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
-			for _, q := range []string{nullDuration, allNull, nullDuration + " WHERE FALSE"} {
+			for _, q := range []string{nullDuration, allNull, nullRight, nullDuration + " WHERE FALSE"} {
 				fixture.RoleGrantPermissionDenied(run, q, "function", "overlaps")
 			}
 		})

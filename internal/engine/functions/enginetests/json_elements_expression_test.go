@@ -136,21 +136,21 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		row := make([]sqltype.Value, 2)
-		present, err := invocation.NextFrom(context.Background(), calls, row)
+		present, err := invocation.NextFrom(context.Background(), calls, row, nil)
 		if err != nil || !present || row[1].IsNull() != (name == "json_array_elements_text") || row[1].Type() != marker.ResultUsage().Type {
 			t.Fatal("null presence", row, present, err)
 		}
 		if n, _ := row[0].Integer(); n != 7 {
 			t.Fatal("first sibling", row)
 		}
-		present, err = invocation.NextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row, nil)
 		if err != nil || !present || !row[1].IsNull() || row[1].Type() != marker.ResultUsage().Type {
 			t.Fatal("typed padding", row, present, err)
 		}
 		if n, _ := row[0].Integer(); n != 8 {
 			t.Fatal("second sibling", row)
 		}
-		present, err = invocation.NextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row, nil)
 		invocation.Close()
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)

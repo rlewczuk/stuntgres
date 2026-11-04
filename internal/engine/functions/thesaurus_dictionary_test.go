@@ -35,7 +35,7 @@ func thesaurusUnitCompile(t *testing.T, file string) *ThesaurusDictionary {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := CompileThesaurusDictionary(ctx, rules, sub)
+	d, err := CompileThesaurusDictionary(ctx, rules, sub, sub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestThesaurusCompiler(t *testing.T) {
 		{"stuntgres_thes_comments", "alpha", []expr.PhraseLexeme{{Text: "ok"}}},
 	} {
 		d := thesaurusUnitCompile(t, tc.file)
-		words, _, err := d.NewMatcher().Step(ctx, tc.input, false)
+		words, _, err := d.NewMatcher(d.normalizer).Step(ctx, tc.input, false)
 		if err != nil || !reflect.DeepEqual(words, tc.want) {
 			t.Fatal(tc.file, words, err)
 		}
@@ -69,7 +69,7 @@ func TestThesaurusCompiler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, err := CompileThesaurusDictionary(ctx, rules, sub)
+		d, err := CompileThesaurusDictionary(ctx, rules, sub, sub)
 		var diagnostic *sqlstate.Error
 		if d != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "F0000" || diagnostic.Context != "" {
 			t.Fatal(d, err)
@@ -99,10 +99,10 @@ func TestThesaurusCompiler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failed, err := CompileThesaurusDictionary(ctx, rules, rejecting); failed != nil || err == nil {
+	if failed, err := CompileThesaurusDictionary(ctx, rules, rejecting, rejecting); failed != nil || err == nil {
 		t.Fatal("normalization failure published parsed rules as executable state", failed, err)
 	}
-	compiled, err := CompileThesaurusDictionary(ctx, rules, sub)
+	compiled, err := CompileThesaurusDictionary(ctx, rules, sub, sub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestThesaurusCompiler(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if d, err := CompileThesaurusDictionary(canceled, rules, sub); d != nil || !errors.Is(err, context.Canceled) {
+	if d, err := CompileThesaurusDictionary(canceled, rules, sub, sub); d != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled compiler publication", d, err)
 	}
 	reading, stop := context.WithCancel(ctx)
@@ -130,7 +130,7 @@ func TestThesaurusCompiler(t *testing.T) {
 func TestThesaurusMatcher(t *testing.T) {
 	ctx := context.Background()
 	d := thesaurusUnitCompile(t, "thesaurus_sample")
-	first, second := d.NewMatcher(), d.NewMatcher()
+	first, second := d.NewMatcher(d.normalizer), d.NewMatcher(d.normalizer)
 	step := func(m expr.PhraseMatcher, input string, want []expr.PhraseLexeme, more bool) {
 		t.Helper()
 		got, next, err := m.Step(ctx, input, false)
@@ -161,10 +161,12 @@ func TestThesaurusMatcher(t *testing.T) {
 	}
 	second.Reset()
 	step(second, "one", []expr.PhraseLexeme{{Text: "1"}}, true)
-	ties := thesaurusUnitCompile(t, "stuntgres_thes_ties").NewMatcher()
+	tiesDictionary := thesaurusUnitCompile(t, "stuntgres_thes_ties")
+	ties := tiesDictionary.NewMatcher(tiesDictionary.normalizer)
 	step(ties, "ALPHA", nil, true)
 	step(ties, "beta", []expr.PhraseLexeme{{Text: "last"}}, false)
-	reverse := thesaurusUnitCompile(t, "stuntgres_thes_ties_reverse").NewMatcher()
+	reverseDictionary := thesaurusUnitCompile(t, "stuntgres_thes_ties_reverse")
+	reverse := reverseDictionary.NewMatcher(reverseDictionary.normalizer)
 	step(reverse, "alpha", nil, true)
 	step(reverse, "BETA", []expr.PhraseLexeme{{Text: "first"}}, false)
 }

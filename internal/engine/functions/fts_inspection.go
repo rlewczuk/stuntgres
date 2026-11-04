@@ -17,7 +17,7 @@ type FTSInspection struct {
 }
 
 type FTSInspectionRuntime interface {
-	DebugTextSearch(context.Context, bool, sqltype.Value, string, *sqltype.Descriptor) ([]sqltype.Value, error)
+	DebugTextSearch(context.Context, expr.Info, bool, sqltype.Value, string, *sqltype.Descriptor) ([]sqltype.Value, error)
 	StatTextSearch(context.Context, string, string, *sqltype.Descriptor) ([]sqltype.Value, error)
 }
 
@@ -121,6 +121,11 @@ func (e FTSInspection) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 			return expr.OwnedSource(e.Usage.Type, nil), nil
 		}
 	}
+	body, err := e.EnterRoutine(c, values[:e.Count])
+	if err != nil {
+		return expr.SourceCursor{}, err
+	}
+	defer body.Leave()
 	runtime, ok := c.(FTSInspectionRuntime)
 	if !ok {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing inspection authority")
@@ -144,7 +149,7 @@ func (e FTSInspection) OpenSource(c expr.Context) (expr.SourceCursor, error) {
 		if errText != nil {
 			return expr.SourceCursor{}, errText
 		}
-		rows, err = runtime.DebugTextSearch(ctx, e.Count == 2, values[0], text, e.Usage.Type)
+		rows, err = runtime.DebugTextSearch(ctx, e.Info, e.Count == 2, values[0], text, e.Usage.Type)
 	}
 	if err != nil {
 		return expr.SourceCursor{}, err

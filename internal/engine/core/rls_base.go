@@ -39,9 +39,9 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 		scope.RLS, err = view.SelectAdjacentRowSecurity(scope.RLS, auth.View, scope.RowSecurity, b, stmt, command)
 		return err
 	}
-	reads := b.Returning != nil || len(b.UsedColumns) != 0
+	reads := b.Returning != nil || len(b.UsedColumns) != 0 || b.SystemAttributeRead || b.WholeRowRead
 	if b.ViewWrite != nil {
-		reads = reads || len(view.ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0
+		reads = reads || len(view.ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0 || view.ViewWriteOf(b.ViewWrite).Logical.SystemAttributeRead || view.ViewWriteOf(b.ViewWrite).Logical.WholeRowRead
 	}
 	if command != catalog.PolicyInsert {
 		scope.RLS.Old, err = e.captureRowSecurityLocked(scope, b.Relation, principal, command, false, reads)

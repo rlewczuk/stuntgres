@@ -6,6 +6,10 @@ survive detachment, foreign membership and retirement of their original
 extension, and the native Dump/Reset/Restore controls of these states. The
 extension registry, installation and removal themselves are in
 [reference/extensions](../extensions/README.md).
+The sepgsql family owns explicit simulated provider identities, labels, physical
+subjects and their query/control effects. This registration is not an operating
+system security mechanism; its ordinary PostgreSQL phases remain independent
+from source-grounded active native policy expectations.
 
 The bounded `isn_conversion_*_test.go` and `isn_validation_*_test.go` corpora own
 installed ISN comparison, conversion, ordering and validity declarations,
@@ -37,6 +41,201 @@ helpers shared with `reference/extension_ownership_ltree` live in
 `OwnershipSurvivorControls`, ...); the rest are in
 `extension_ownership_helpers_test.go` and
 `extension_ownership_survivor_helpers_test.go`.
+- Explicit simulated SELinux provider: `RUN='^TestReferenceSepgsqlSimulation'`.
+  Each definition keeps meaningful ordinary/inactive PostgreSQL phases and a
+  separately named native simulation phase. This is query compatibility, not
+  kernel enforcement or an active PostgreSQL SELinux oracle.
+  Both callbacks receive the actual fixture backend, so dynamic extension-type
+  metadata uses existing backend-specific helpers: lib/pq reports an empty cube
+  type name while native reports `CUBE`; neither result is cast away or inferred.
+  `LoadDispatch` preserves SQL authority and distinguishes real module selection
+  from unrelated activation. `RestoreconSharedDatabases` and
+  `RestoreconAuthorization` check all shared database labels, current-root local
+  traversal, denied-peer atomicity and superuser/profile precedence. Genuine
+  post-peer Dump/Reset/Restore retains destination peer labels and peer-local
+  data while restoring only the selected database's serialized state.
+  `RestoreconEscapedBrackets` independently checks inactive-provider rejection,
+  ordinary catalogs/data, and direct/prepared native restorecon with literal
+  bracket escapes versus ordinary ranges and first-match labels. It verifies
+  actual `pg_seclabel` associations and unchanged unrelated labels/data; select
+  `make check RUN='^TestReferenceSepgsqlSimulationRestoreconEscapedBrackets$'`
+  natively, with `REFERENCE=1`, and with `RACE=1`.
+  `GenericLabelResolution` retains actual object lookup, lock and ownership
+  precedence before unsupported label-class rejection, including type/domain and
+  existing shared tablespaces. `GenericLabelRoleOwnership` checks current actor
+  CREATEROLE plus actual ADMIN (not self/mere membership), SUPERUSER-target
+  precedence and held role-store changes. `GenericLabelDomainKind` checks actual
+  domain kind before ownership and decoded written qualification, including
+  array/domain distinctions and held DROP/recreation. `GenericLabelColumnIntegrity`
+  checks sequence ownership before generic kind before provider, full primary/
+  detail diagnostics, held owner changes and unchanged generators/labels/data.
+  All three use direct/prepared/held native simulation and separate ordinary
+  provider-unloaded plus role rename/domain drop/sequence comment contrasts in
+  native and pinned PostgreSQL modes; no active SELinux parity, new label class
+  or physical tablespace creation is implied.
+  `SequenceCreate` covers actual CREATE SEQUENCE directly, prepared and through
+  the same held handle: default P/name-selected Q labels without relabel,
+  exactly one whole association/no sequence-column labels, options/generator
+  metadata and owners/owned links. Independent ordinary inactive-native/pinned
+  PostgreSQL phases retain option/namespace/ACL/notice diagnostics and supported
+  SERIAL/CREATE identity/ADD identity behavior. Active-native phases retain
+  schema-before-sequence denial, ordinary ACL precedence, actual denied audit
+  bits/permissive success, initial IF NOT EXISTS noevent and TX/TEMP atomicity.
+  Genuine concurrent name-binding skip and namespace/OWNED BY wait-currentness
+  use the core `TestSepgsqlSimulationSequenceCreate(Currentness)?` fixtures;
+  the public fixture has no namespace/name-binding admission observer.
+  Existing `Controls`, `ControlConsent` and `FeatureSmoke` definitions include
+  persistent explicit/serial/identity sequence labels (including relabeled and
+  absent NULL associations), generators/options/ACLs/owners/owned dependencies,
+  TEMP exclusion and real sequence transfer-consent/policy/root/role/cancel
+  fences. Public sequence CREATE denial remains independent: CREATE-only policy
+  denial rejects SQL but permits trusted replay with admitted transfer consent.
+  Replay must not synthesize a default label for an absent association.
+  Focused public proof: `make check RUN='^TestReferenceSepgsqlSimulationSequenceCreate$'`,
+  also with `REFERENCE=1` and `RACE=1`. Select
+  `RUN='^TestReferenceSepgsqlSimulation(Control(s|Consent)|FeatureSmoke)$'` in
+  both native and real modes (plus `RACE=1` for controls).
+  `FTS` exercises
+  actual nested SQL/native callback subjects, original catalog permissions and
+  direct/prepared/strict-NULL behavior with literal expectations; `Dictionaries`
+  separates physical cold Init denial from warm reuse and genuine descriptor
+  invalidation. `Codecs` checks genuine hstore scalar/domain/composite text I/O
+  and concrete ltree-array nested I/O, independent execute versus trusted entry
+  permissions, NULL leaves, renamed helper identity and denial before parsing.
+  Literal-input policy errors retain the released parser callback's original
+  literal position: scalar/domain position 8 and nested array position 9 in the
+  selected witnesses. Runtime input/output callbacks do not acquire a fictional
+  literal position.
+  Select every changed definition in native and `REFERENCE=1` modes; neither mode
+  substitutes for the other. Audit assertions use discriminating phase witnesses,
+  not planner-dependent count equality.
+  `ControlConsent` retains effective-unlabeled replacement checks and peer
+  publication fences; portable labels retain genuine zero-argument aggregate
+  identity as `count(*)`, not invalid `count()`. The registered foreign-factory
+  fixture stages writes privately and publishes only on participant commit,
+  retaining transaction rollback alongside denied-factory no-callback checks.
+  `ForeignFactory` also registers a genuine scan-only method table with no
+  optional importer: direct/prepared/held IMPORT yields exact `HV00P` after an
+  allowed false-execute factory, but simulated `42501` at a denied entrypoint.
+  SQL wrapper aliases/renames remain diagnostic text, handler rename retains
+  identity, ordinary server/schema/handler and ACL errors keep precedence, and
+  failed statements leave subjects, provider calls, rows and dumps unchanged.
+  Its independent ordinary dual-mode boundary uses stock `file_fdw` in pinned
+  PostgreSQL, without a foreign file, remote host or active SELinux oracle.
+  Before role cleanup, closed scenario handles precede ordinary-admin retirement
+  of its database-wide wrappers/servers and non-public destination schema.
+  Teardown uses separate bounded cleanup contexts, never a refreshed scenario
+  deadline; the schema's surviving USAGE grant must not strand the reader role.
+  `Callbacks` independently specifies scalar hstore and concrete ltree-array
+  SELECT DISTINCT grouping plus actual UTF8/LATIN1 conversion, distinguishing
+  direct trusted entry from SQL execute and empty/same-encoding/NULL no-work.
+  `PageSources` covers hstore NULL rows, dblink key capture, relation visibility,
+  strict-NULL empty sources without body entry, and raw heap or new B-tree pages.
+  Dblink's isolated trusted subject has namespace search but no procedure-execute
+  or table/column SELECT permission: genuine initialization executes once as the
+  caller, and PK metadata retains ordinary table SELECT ACL without fabricated
+  executor DML MAC. Separate direct/prepared ACL denial and actual table-DML MAC
+  denial remain required. Its exact native row/DONE entry witnesses are
+  source-protocol assertions, not PostgreSQL optimizer/AVC-count parity.
+  `Support` exercises genuine scalar hstore equality/order/hash and concrete
+  ltree-array GIN/grouping plus ltree-subtype range kernels. It distinguishes
+  ordinary execute initialization from direct callback entry, including identity
+  replacement, denied nested leaves, no-work inputs and caller restoration.
+  Its initial mixed B-tree/hash/GIN INSERT must publish all four genuine rows;
+  array GIN uses the real default ltree B-tree comparator, not a fabricated
+  array GIN role-1 support member.
+  The original ordered-table query retains exact IDs 1,2,3,4 before and after
+  comparator rename. Its genuine serial sort callback borrows the admitted
+  evaluator, rather than the bare statement environment. Direct/prepared
+  renamed-helper and range denials require full context-free diagnostics, no
+  result cursor and restored caller; permitted relabel retries retain the exact
+  rows/count. Empty and all-NULL ordering still invoke no installed comparator.
+  The unbounded range witness first asserts its real generated two-argument
+  constructor identity and original inherited P label, before any relabel.
+  The complete real range/multirange constructor cohort separately requires all
+  five released source/strictness/public-namespace/result declarations and all
+  five inherited P labels. Exact `regprocedure` signatures select each identity
+  and its raw label separately; a narrow `pg_range` lookup retains the genuine
+  range/multirange family relationship without a broad catalog join.
+  Labels cross the same candidate-to-journal transfer as the actual descriptors;
+  no fixture relabel supplies a missing creation label.
+  Both NULL bounds still invoke this nonstrict constructor: U denies its own
+  direct/prepared entry, while restoring the asserted original P must return
+  exact `isempty=false` with the subtype comparator still U and caller R.
+  No generated-constructor label defect is hidden by setup relabeling, and no
+  subtype callback is invented for infinite bounds.
+  Its original-INTERNAL versus alias witness uses the genuinely installed
+  `citext(boolean)` alias of `booltext`, compared with original
+  `pg_catalog.text(boolean)`: both return TEXT `true` ordinarily; only the alias
+  receives the denied trusted entry under the active policy. Direct/prepared
+  strict-NULL calls skip both bodies. No arbitrary `LANGUAGE internal` loader is
+  introduced for fixture setup.
+  `AccessMethodFactories` keeps actual Bloom factory denials distinct from
+  ordinary table reads. Its explicit-transaction direct/prepared filtered count
+  returns 1 without a captured-index factory; the adjacent property inquiry
+  genuinely invokes the denied handler, even for an unknown property. A WHERE
+  predicate is not itself evidence of an index-method factory invocation.
+  `Initialization` distinguishes retained preargument execute authority from
+  actual strict/body entry and fresh executions from row/VPC reuse, including
+  SQL/PL cleanup and default/domain/index/trigger/cursor attachment ownership.
+  Conditional NULL and ordinary arithmetic retain independently expected
+  outcomes without claiming optimizer or audit-multiplicity parity.
+  Genuine round(numeric) FINAL and lpad(text,integer) SFUNC aggregate bodies also
+  run directly and prepared: numeric4/empty0, TEXT two-spaces-x/empty-x/NULL-x.
+  The native active phase separately proves the actual wrapper's trusted R-to-T
+  entry, denied child execute under T before output, exact SQL-wrapper statement-1
+  diagnostics, restored R and permitted exact-value retry. These wrappers keep
+  their original aggregate support owner, not a fabricated scalar parent receipt.
+  Native inactive execution derives that same aggregate-purpose body lifetime
+  with zero simulation initializer/receipt state, rather than inventing an
+  ordinary wrapper dependency. Its public DDL has no COMBINE/PARALLEL additions;
+  this is not an extension of closed-body or worker eligibility.
+  Ordinary both-mode SQL is the PostgreSQL18.6 compatibility witness, not active
+  kernel enforcement or cross-backend worker-count evidence.
+  Its ordinary SQL error witness sets a routine-local search_path: released
+  `clauses.c:inline_function` rejects non-NULL proconfig, so division-by-zero
+  remains an actual statement-1 executor/unwind error in both direct and prepared
+  routes, not an optimizer-context parity claim. Scalar attachment denials
+  require real execute masks. Direct trigger dispatch instead uses the existing
+  R-to-T trusted transition with denied entrypoint permission; removing a
+  transition is not an execute denial and would let its R body reach an ordinary
+  domain error. Audit masks, no body initialization, unchanged rows and granted
+  retry distinguish that genuine FHET boundary.
+  `NativeBodies` checks selected Earth/pageinspect/freespace nested kernels,
+  source-order errors and NULL demand with borrowed per-invocation ownership;
+  protocol-entry witnesses remain native source contracts, not an active oracle.
+  Actual successful entrypoint witnesses match the qualified quoted database,
+  namespace and basename, without invented function-signature suffixes. The
+  expanded row-NULL Earth case runs direct and prepared: conversion enters once,
+  with neither the strict outer box nor strict cube enlargement body entered.
+  `Demands` keeps ordinary relation SELECT separate from exact signed system
+  attributes and whole-row user-column expansion, including empty inherited
+  sources and stored views. Denying one system attribute must not deny an
+  unselected different attribute or turn whole-row demand into a system sweep.
+  `SurgeryIncoming` keeps actual freeze/kill changes, strict NULL, diagnostics
+  and denial-before-mutation separate from ordinary table DML permissions.
+  `IncomingVPC` exercises buffer snapshots and visibility checks at real
+  borrowed first/row/DONE calls, including independent visibility-map and page
+  flags. `Handlers` covers both `system_rows` and `system_time`, restoring the
+  caller before runtime arguments and retaining the selected sampler on reset.
+  `Retirement` uses the supported root-only hierarchy DROP CONSTRAINT: inherited
+  leaf rejection precedes MAC, a late secret-leaf denial preserves both primary
+  keys and their real backing-index identities, and a granted retry removes both.
+  Multi-root DROP separately retains all tables, labels, attributes and rows on
+  late denial. An ordinary-table composite DROP CONSTRAINT + ADD COLUMN + DROP
+  COLUMN proves direct/prepared late column-denial atomicity without inventing
+  mixed hierarchy ALTER support. Its granted result and the independent ordinary
+  PostgreSQL phase require no primary key or backing index, live marker and no
+  blocked column, preserved `k=1`, typed NULL marker, and exact surviving attribute
+  numbers/types/nullability, with direct/prepared result metadata.
+
+  Selected retirement proof (both modes required; these are commands, not passing
+  evidence):
+
+  ```sh
+  make check RUN='^TestReferenceSepgsqlSimulationRetirement$'
+  make check REFERENCE=1 RUN='^TestReferenceSepgsqlSimulationRetirement$'
+  ```
 
 `extension_ownership_*_test.go` exercises mutable membership separately from
 installed provider identity: relocatable unaccent, stock nonrelocatable plpgsql,

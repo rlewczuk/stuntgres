@@ -7,6 +7,14 @@ record (`DumpRelation`) with its emitters and Restore parsers, and inheritance.
 FK write-time enforcement and actions live in [`dml`](../dml/README.md); the
 materialized snapshot codec is in `view`.
 
+DROP execution separates ordinary discovery/grants from semantic retirement and
+physical effects. `DropPreparation` records only the actual worker's ordered
+metadata products, including namespace default-ACL tombstones and captured late
+constraint-index programs. Whole owned sequences use the canonical
+`SelectOwnedSequences`/`OwnedSequenceTargets` selectors before primary removal;
+column AUTO payload remains column-owned. No after-parent owned-expression
+rediscovery helper, shadow catalog, fake removal or persisted MAC grant is used.
+
 ## Imports
 
 It sits above `index` and below `partition`, `view`, `dml` and `control` in
@@ -222,6 +230,17 @@ call live here.
   types and selected routine declarations before conditional simplification.
   Non-builtin routine provenance is rejected independently of volatility or
   spelling; stored generation keeps its separate immutability admission.
+  The first demanded stored program initializes its actual parent execution owner
+  before per-definition context copies; unused/virtual-only slots mint nothing.
+  Its cache retains only expression programs. Each row invokes the same selected
+  definition with its original manifest and relation consumer, sharing that
+  command owner without reminting or borrowing an enclosing query's manifest.
+  ALTER rewrite retains the exact old installed consumer, including genuine
+  historical TEMP references, not its prospective replacement. Recipe-local
+  domain preparation propagates back without changing the invoker; receipts and
+  session/context handles never enter catalog payloads or the expression cache.
+  Original INTERNAL kernels retain no-FHET entry semantics; their required
+  initialization and source/manifest validation are not late per-row EXECUTE.
   `ValidateCheckRow` prepares every enforced CHECK before completed-row truth,
   retaining each constraint's immutable original manifest and relation consumer.
   `CheckRecipeHost` shares cooked expressions within the live statement and

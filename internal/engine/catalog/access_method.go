@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"iter"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -141,6 +142,57 @@ func NativeHandler(oid ids.OID) NativeAccessMethod {
 		}
 	}
 	return NoAccessMethod
+}
+
+// ValidateNativeAccessMethodProcedure authenticates an original installed
+// fmgrtab handler capability. Names and owners are mutable presentation, while
+// the original address and registered handler association cannot be borrowed by
+// a newly installed alias.
+func ValidateNativeAccessMethodProcedure(d *Procedure) error {
+	if !OriginalNativeAccessMethodProcedure(d) {
+		return fmt.Errorf("stuntgres: invalid native access method procedure")
+	}
+	identity, _ := BuiltinRoutineIdentityByOID(d.Address().ObjectID)
+	if !supportedInternalProcedureMetadata(d, identity.Name, expr.Volatile) {
+		return fmt.Errorf("stuntgres: invalid native access method procedure")
+	}
+	return nil
+}
+
+// OriginalNativeAccessMethodProcedure is the canonical intrinsic association
+// shared by current descriptor validation and fmgr applicability. SQL metadata
+// edits cannot manufacture or revoke the original generated fmgr identity.
+func OriginalNativeAccessMethodProcedure(d *Procedure) bool {
+	if d == nil || d.AccessMethod == NoAccessMethod || d.Address().ClassID != ids.ProcedureClassID || d.Address().SubID != 0 || d.Revision() == 0 {
+		return false
+	}
+	identity, known := BuiltinRoutineIdentityByOID(d.Address().ObjectID)
+	result, _ := BuiltinRoutineResultByOID(d.Address().ObjectID)
+	return known && NativeHandler(d.Address().ObjectID) == d.AccessMethod &&
+		d.BrinSupport == 0 && d.GinSupport == 0 &&
+		originalInternalProcedure(d, d.Address().ObjectID, identity.Signature, result)
+}
+
+// originalInternalProcedure is the common fixed fmgr ABI and exclusive
+// implementation proof for the special AM, BRIN and GIN declarations. Current
+// SQL metadata is checked separately by their providers, not used as origin.
+func originalInternalProcedure(d *Procedure, oid ids.OID, signature ProcedureSignature, result ids.OID) bool {
+	return d.Address() == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}) &&
+		d.Revision() != 0 && d.Signature == signature && d.Result == result && d.RoutineKind == FunctionRoutine &&
+		d.Builtin == nil && d.Installed == (InstalledRoutineDeclaration{}) && d.SQL == nil && d.SQLBody == nil && d.SQLDefaults == nil && d.Aggregate == nil && d.Foreign == nil && d.RangeConstructor == nil &&
+		d.Origin == nil && d.PLHandler == NoPLHandler && d.Implementation == nil && d.Host == nil && d.HostHandler == nil && d.HostConversion == nil && d.Sepgsql == nil &&
+		d.Conversion.Name() == "" && d.Dictionary == (ids.ObjectAddress{}) && d.SnowballHelper == NoSnowballHelper && len(d.Body) == 0 && len(d.DeclarationDependencies) == 0 &&
+		d.DeclarationBody == nil && d.LiteralDefaults == nil && d.InputNames == nil && d.Transforms == nil
+}
+
+// These non-set native providers support rename, namespace/owner/ACL COW and
+// Parallel/Cost overrides. They do not implement replacement INTERNAL sources,
+// strictness/volatility changes or SQL execution environments.
+func supportedInternalProcedureMetadata(d *Procedure, source string, volatility expr.Volatility) bool {
+	return d.Strict && d.Volatility == volatility && !d.SecurityDefiner && d.Configuration == nil &&
+		(d.Parallel == 0 || d.Parallel == 's' || d.Parallel == 'r' || d.Parallel == 'u') &&
+		d.Cost >= 0 && d.Rows == 0 && d.Language == (ids.ObjectAddress{}) &&
+		d.Display == (RoutineDisplay{Language: InternalRoutineLanguage, Source: source})
 }
 
 type AccessMethodProvider struct{}

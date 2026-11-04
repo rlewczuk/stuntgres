@@ -76,6 +76,9 @@ func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 		return fail(err)
 	}
 	if change.Object == nil {
+		if err = auth.View.SepgsqlRelationPostAlter(old); err != nil {
+			return fail(err)
+		}
 		scope.RecordDDLCommand("ALTER "+strings.ToUpper(kind), ref.Address)
 		e.Mu.Unlock()
 		scope.CompleteUtility()

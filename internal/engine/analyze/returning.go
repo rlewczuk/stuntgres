@@ -282,7 +282,7 @@ func (b *Binder) returningColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 			}
 		}
 		if !column {
-			if expr, found, err := b.returningWholeRow(parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, raw.Pos); found {
+			if expr, found, err := b.returningWholeRow(parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, raw.Pos, true); found {
 				return expr, err
 			}
 		}
@@ -394,8 +394,12 @@ func (b *Binder) outerReturningWholeRow(scope *queryBindingScope, pos parser.Pos
 		if newValues {
 			name = scope.returning.new
 		}
-		expr, _, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, pos)
+		expr, _, err := b.returningWholeRow(name, scope.relation, scope.frame, scope.returning, pos, true)
 		return expr, err
+	}
+	if scope.relation == b.Target.Relation {
+		b.Target.WholeRowRead = true
+		b.Target.returningReadRequired = true
 	}
 	fields := make([]expr.Expr, len(scope.relation.Columns))
 	props := expr.Properties{}

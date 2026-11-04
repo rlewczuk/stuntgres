@@ -68,14 +68,23 @@ func (e IntbigIO) Eval(c expr.Context) (sqltype.Value, error) {
 	if value.IsNull() {
 		return sqltype.Null(e.Usage.Type), nil
 	}
+	var arguments [1]sqltype.Value
+	arguments[0] = value
+	body, err := e.Info.EnterRoutine(c, arguments[:])
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	defer body.Leave()
+	// The selected SQL owner has entered exactly this I/O leaf. Preserve the
+	// actual environments for any other codec work, without a second FHET.
 	if e.Member == 4 {
-		text, err := e.Formal.Output(ctx, value)
+		text, err := e.Formal.OutputWithEnvironment(ctx, value, c.FunctionOutput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return e.Datum.Input(ctx, text, -1)
+		return e.Datum.InputEnteredTypeIO(ctx, text, -1, c.FunctionInput())
 	}
-	text, err := e.Datum.OutputWithEnvironment(ctx, value, c.FunctionStringOutput())
+	text, err := e.Datum.OutputEnteredTypeIO(ctx, value, c.FunctionOutput())
 	if err != nil {
 		return sqltype.Value{}, err
 	}

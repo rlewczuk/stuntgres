@@ -121,7 +121,7 @@ func (d *Descriptor) multirangeInput(ctx context.Context, input string, env Inpu
 	if at != len(input) {
 		return Value{}, malformedMultirange(input, "Junk after closing right brace.")
 	}
-	members, err := r.normalizeRangeMembers(ctx, members)
+	members, err := r.normalizeRangeMembers(ctx, members, env)
 	if err != nil {
 		return Value{}, err
 	}
@@ -130,7 +130,7 @@ func (d *Descriptor) multirangeInput(ctx context.Context, input string, env Inpu
 
 // normalizeRangeMembers consumes writable owned storage. Codecs and aggregate
 // finals share the released strict-sort/right-bound tie rules.
-func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeDatum) ([]rangeDatum, error) {
+func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeDatum, env InputEnvironment) ([]rangeDatum, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 			return 0
 		}
 		var cmp int
-		cmp, failure = r.compareRanges(ctx, a, b)
+		cmp, failure = r.compareRanges(ctx, a, b, env)
 		return cmp
 	})
 	if failure != nil {
@@ -164,7 +164,7 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 		separated := used == 0
 		if used > 0 {
 			var err error
-			separated, err = r.rangesSeparated(ctx, members[used-1], member)
+			separated, err = r.rangesSeparated(ctx, members[used-1], member, env)
 			if err != nil {
 				return nil, err
 			}
@@ -174,11 +174,11 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 			used++
 		} else {
 			last := &members[used-1]
-			lo, err := r.compareRangeEndpoint(ctx, *last, true, member, true)
+			lo, err := r.compareRangeEndpoint(ctx, *last, true, member, true, env)
 			if err != nil {
 				return nil, err
 			}
-			hi, err := r.compareRangeEndpoint(ctx, *last, false, member, false)
+			hi, err := r.compareRangeEndpoint(ctx, *last, false, member, false, env)
 			if err != nil {
 				return nil, err
 			}
@@ -198,7 +198,7 @@ func (r *Descriptor) normalizeRangeMembers(ctx context.Context, members []rangeD
 }
 
 // Endpoint order includes infinity direction, inclusivity and lower/upper side.
-func (d *Descriptor) compareRangeEndpoint(ctx context.Context, a rangeDatum, lowerA bool, b rangeDatum, lowerB bool) (int, error) {
+func (d *Descriptor) compareRangeEndpoint(ctx context.Context, a rangeDatum, lowerA bool, b rangeDatum, lowerB bool, env InputEnvironment) (int, error) {
 	boundA, absentA, inclusiveA := a.upper, a.flags&rangeUpperUnbounded != 0, a.flags&rangeUpperInclusive != 0
 	boundB, absentB, inclusiveB := b.upper, b.flags&rangeUpperUnbounded != 0, b.flags&rangeUpperInclusive != 0
 	if lowerA {
@@ -228,7 +228,7 @@ func (d *Descriptor) compareRangeEndpoint(ctx context.Context, a rangeDatum, low
 		}
 		return -1, nil
 	}
-	cmp, err := d.compareRangeBounds(ctx, boundA, boundB)
+	cmp, err := d.compareRangeBounds(ctx, boundA, boundB, env)
 	if err != nil || cmp != 0 {
 		return cmp, err
 	}
@@ -256,19 +256,19 @@ func (d *Descriptor) compareRangeEndpoint(ctx context.Context, a rangeDatum, low
 	return 0, nil
 }
 
-func (d *Descriptor) compareRanges(ctx context.Context, a, b rangeDatum) (int, error) {
-	cmp, err := d.compareRangeEndpoint(ctx, a, true, b, true)
+func (d *Descriptor) compareRanges(ctx context.Context, a, b rangeDatum, env InputEnvironment) (int, error) {
+	cmp, err := d.compareRangeEndpoint(ctx, a, true, b, true, env)
 	if err != nil || cmp != 0 {
 		return cmp, err
 	}
-	return d.compareRangeEndpoint(ctx, a, false, b, false)
+	return d.compareRangeEndpoint(ctx, a, false, b, false, env)
 }
 
-func (d *Descriptor) rangesSeparated(ctx context.Context, a, b rangeDatum) (bool, error) {
+func (d *Descriptor) rangesSeparated(ctx context.Context, a, b rangeDatum, env InputEnvironment) (bool, error) {
 	if a.flags&rangeUpperUnbounded != 0 || b.flags&rangeLowerUnbounded != 0 {
 		return false, nil
 	}
-	cmp, err := d.compareRangeBounds(ctx, a.upper, b.lower)
+	cmp, err := d.compareRangeBounds(ctx, a.upper, b.lower, env)
 	return cmp < 0 || cmp == 0 && a.flags&rangeUpperInclusive == 0 && b.flags&rangeLowerInclusive == 0, err
 }
 
@@ -312,14 +312,14 @@ func (v Value) validateMultirange(ctx context.Context) error {
 			return fmt.Errorf("invalid multirange member")
 		}
 		if i > 0 {
-			cmp, err := r.compareRanges(ctx, v.multirange.members[i-1], member)
+			cmp, err := r.compareRanges(ctx, v.multirange.members[i-1], member, InputEnvironment{})
 			if err != nil {
 				return err
 			}
 			if cmp >= 0 {
 				return fmt.Errorf("unordered multirange member")
 			}
-			separated, err := r.rangesSeparated(ctx, v.multirange.members[i-1], member)
+			separated, err := r.rangesSeparated(ctx, v.multirange.members[i-1], member, InputEnvironment{})
 			if err != nil {
 				return err
 			}

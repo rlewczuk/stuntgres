@@ -18,9 +18,13 @@ func IndexProperty(h CatalogHost, kind functions.IndexPropertyKind, oid uint32, 
 		if !ok {
 			return false, false, nil
 		}
-		physical, indexKind := method.IndexImplementation()
+		_, indexKind := method.IndexImplementation()
 		if !indexKind {
 			return false, false, nil
+		}
+		physical, err := h.InitializeInquiryIndexMethod(read, method)
+		if err != nil {
+			return false, false, err
 		}
 		value, known := index.MethodProperty(physical, property)
 		return value, known, nil
@@ -29,14 +33,28 @@ func IndexProperty(h CatalogHost, kind functions.IndexPropertyKind, oid uint32, 
 	if !ok || relation.SQLIndex == nil {
 		return false, false, nil
 	}
-	if kind == functions.WholeIndexProperty {
-		value, known = index.Property(read, relation.SQLIndex, true, 0, property)
-	} else {
-		ordinal, err := ordinalValue.Integer()
+	ordinal := int64(0)
+	if kind != functions.WholeIndexProperty {
+		ordinal, err = ordinalValue.Integer()
 		if err != nil {
 			return false, false, err
 		}
-		value, known = index.Property(read, relation.SQLIndex, false, ordinal, property)
+		// Released amutils returns NULL for an invalid attribute before
+		// invoking the handler, even for an unknown property name.
+		if ordinal < 0 || ordinal > int64(len(relation.SQLIndex.Keys)+len(relation.SQLIndex.Include)) {
+			return false, false, nil
+		}
 	}
+	method, ok := read.AccessMethod(relation.SQLIndex.MethodIdentity())
+	if !ok || method.MethodKind() != "i" {
+		return false, false, nil
+	}
+	physical, err := h.InitializeInquiryIndexMethod(read, method)
+	if err != nil {
+		return false, false, err
+	}
+	definition := *relation.SQLIndex
+	definition.Method = physical
+	value, known = index.Property(read, &definition, kind == functions.WholeIndexProperty, ordinal, property)
 	return value, known, nil
 }

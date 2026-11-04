@@ -257,6 +257,15 @@ wrapper Context. Rebuild/capture/render/retag use the ordinary stored-expression
 protocol and preserve written arity.
 
 `ArrayTransform` evaluates its child operands before parent transformation.
+`ArrayTransform` and `ArrayInspect` enter their actual selected routine through
+the common `Info.EnterRoutine` boundary after evaluating the original arguments
+once and before parent work or NULL-result handling. The boundary borrows their
+existing fixed value buffer, balances its body token, and neither re-evaluates
+operands nor introduces an aggregate-specific lane. This includes nonstrict
+array_append with a NULL element and cardinality used as a genuine aggregate
+final. Original fmgr declarations retain their no-FHET behavior; strict NULL
+suppression and ordinary/closed initialization proof remain owned by the common
+routine boundary, while the existing typed kernels keep result/error semantics.
 `array_to_string` consumes one `WorkArrayTransform` runtime admission grant per
 input element, after strict NULL handling and separator/replacement conversion.
 An element grant is not a byte bound on its type's output. Refusal publishes no
@@ -855,6 +864,12 @@ binary operators: visible types are unqualified, while hidden or shadowed types
 retain their schema qualification. The shared operator diagnostic owns the hint
 and source position independently of type presentation.
 
+OVERLAPS carries literal-NULL duration-pair demand from its actual retained
+operands into native SQL-body initialization. Only the corresponding strict
+addition is absent; the nonstrict endpoint still initializes. A row or generic
+parameter that happens to be NULL is not that source proof and retains addition
+admission. Entry facts contain no borrowed argument buffer or persistent grant.
+
 Setting calls share fixed-formal typed binding across ordinary queries and routine
 bodies. `Setting` retains only its builtin recipe and typed children;
 `SettingRuntime` resolves the executing operation's effective store, read grants
@@ -1227,6 +1242,13 @@ host, which owns all locking and returns owned values.
   unknown NULL. Its signature errors are distinct from the native entrypoint's
   private aggregate-context validation.
   Owned moving inverse/restart capability stays with the executor provider.
+- `ArrayAggregateProvider` accepts exactly one evaluated transition argument.
+  Its intagg specialization retains the genuine installed aggregate and two
+  helper declarations. Support admission preserves an inherited stored-view
+  manifest unless the call actually changes graft ancestry; each helper keeps
+  its separate `AggregateSupportDependency` lane and current aggregate owner.
+  `TestIntaggArrayAggregateSupportRecipe` uses a real installed view to distinguish
+  that source from missing, wrong-purpose, foreign and stale helper captures.
 - Providers a view may store implement `RemappableProvider`
   (`aggregate_remap.go`); without it view creation fails with "unpersistable
   view aggregate".
@@ -1703,8 +1725,21 @@ publication and lock-manager tickets stay in the engine.
   `EarthCoordinateRuntime` resolves the checked current query/helper names;
   immutable operation selection never follows mutable presentation. Argument and
   coercion errors keep their own origin. Successful calls perform no diagnostic
-  lookup. `InstalledEarthExpr` retains callable authority through reconstruction
+  lookup. Nested helper diagnostics keep their complete leaf fields and context;
+  the selected outer statement/inlining frame is appended, not substituted only
+  when the helper context is empty. Helper-only routes append no outer frame.
+  `InstalledEarthExpr` retains callable authority through reconstruction
   and catalog replacement.
+  Actual selected declaration work is borrowed through `EarthCoordinateBody`,
+  not a fixed-radius fused substitute for dynamic SQL/C child calls. The exec
+  adapter consumes canonical parsed-preorder occurrences for each real
+  `earth`, conversion, cube constructor/coordinate/distance/enlargement call,
+  keeping its real operands, strict gate and lexical subject around the kernel.
+  CASE dead branches do not invoke their dynamic children; repeated source
+  occurrences remain distinct. Only conversion-demanded box with NULL center
+  and nonNULL radius uses caller-expanded initialization: no outer strict-NULL
+  FHET, actual `gc_to_sec`, and no strict-NULL `cube_enlarge` entry. Existing
+  literal prewalk, `BoxExecutionRoute` and diagnostic presentation are unchanged.
   `EarthPoint` separately owns two POINT operands and a checked mile-distance
   plan, without domain/cube generations or SQL-body error wrapping.
   `InstalledEarthPointExpr` retains its selected procedure through the same
@@ -1840,8 +1875,9 @@ Autoinc installed scalar provenance and reconstruction units use
   observer wait on a runaway query; update the probe with it. The aggregate
   cancellation tests in `enginetests/` match `IntegralBitwiseAggregateProvider`,
   `BitStringAggregateProvider.fold` and `(*HypotheticalSet).PrepareOrdered` and
-  `FinalizeOrdered` here, plus `exec` and `sqltype` frames; grep them before
-  renaming.
+  `FinalizeOrdered` here, plus the actual `Grouping.HashWithBoundary`,
+  `Grouping.EqualWithBoundary` and `RangeAggregate.AdvanceWithEnvironment`
+  kernels in `sqltype`; update those observers when moving real work.
 
 ```sh
 make check RUN='^Test(LookupClaimsRegisteredNames|InstalledRegistryBindingFamilies|DefinitionsAreWellFormed|AggregateDefinitionsAreWellFormed|Lookup(Aggregate|WindowFunction)ClaimsRegisteredNames)$'  # registries

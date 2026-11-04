@@ -25,7 +25,7 @@ func (e Binary) evalConversion(c expr.Context, values []sqltype.Value) (sqltype.
 			return sqltype.Value{}, sqltype.MissingBinaryConversion(source, destination)
 		}
 		var consumed int
-		output, consumed, err := handler.ConvertValidated(ctx, raw, source, destination)
+		output, consumed, err := handler.ConvertValidatedWithBoundary(ctx, raw, source, destination, c.FunctionInput().Conversion)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

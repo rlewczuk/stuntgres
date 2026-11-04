@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/sepgsql"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -157,10 +158,14 @@ func visibilityCheckFindings(t *testing.T, e *core.Engine, scope *core.Statement
 		t.Fatal(name, "genuine source", err)
 	}
 	defer cursor.Close()
-	if cursor.Type == nil || cursor.Type.ID() != sqltype.Tid || len(cursor.Values) != len(want) {
-		t.Fatal("scalar TID source ownership", cursor.Type, len(cursor.Values), want)
+	if cursor.Type == nil || cursor.Type.ID() != sqltype.Tid || cursor.Values != nil || cursor.State == nil {
+		t.Fatal("argument-only TID source ownership", cursor.Type, cursor.Values, cursor.State)
 	}
-	for i, value := range cursor.Values {
+	for i := range want {
+		value, present, err := n.AdvanceSource(t.Context(), &evaluation, &cursor)
+		if err != nil || !present {
+			t.Fatal(name, "actual borrowed TID row", i, present, err)
+		}
 		// Independent bijection, not a value learned from the implementation.
 		n := uint64(want[i]) - 1
 		wantBlock, wantOffset := uint32(n/65535), uint16(n%65535+1)
@@ -172,6 +177,9 @@ func visibilityCheckFindings(t *testing.T, e *core.Engine, scope *core.Statement
 		if err != nil || b != wantBlock || o != wantOffset {
 			t.Fatal("shared TID bijection", want[i], b, o, err)
 		}
+	}
+	if _, present, err := n.AdvanceSource(t.Context(), &evaluation, &cursor); err != nil || present || !cursor.Exhausted || cursor.State != nil || cursor.Values != nil {
+		t.Fatal(name, "consumed DONE must detach findings", present, err, cursor)
 	}
 }
 
@@ -384,4 +392,191 @@ func TestPgvisibilityCheckControlledMap(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func visibilityBorrowedEvaluation(t *testing.T, e *core.Engine, scope *core.StatementScope, n plan.InstalledPgvisibilityExpr) *exec.Context {
+	t.Helper()
+	view := e.CatalogRead()
+	e.Mu.Lock()
+	auth, err := scope.RoutineAuthorizationLocked()
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluation := &exec.Context{
+		EvalStatement: exec.EvalStatement{Context: t.Context(), Host: core.HostOf(scope), Catalog: view, Input: scope.Input, Output: scope.Output},
+		EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}},
+	}
+	if err := exec.BeginRoutineInitialization(evaluation); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.AdmitRoutineCall(evaluation, n, false, false); err != nil {
+		t.Fatal(err)
+	}
+	return evaluation
+}
+
+func TestPgvisibilityBorrowedCapture(t *testing.T) {
+	for _, name := range []string{"pg_check_visible", "pg_check_frozen"} {
+		t.Run("findings_first_demand_and_detached_tail/"+name, func(t *testing.T) {
+			e, ref := visibilityCheckFixture(t, false, false)
+			enginetest.Run(t, e, "INSERT INTO visibility_heap VALUES(2)")
+			visibilityActivateIncoming(t, e)
+			writer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, writer, "BEGIN")
+			enginetest.SessionSQL(t, writer, "DELETE FROM visibility_heap")
+			defer enginetest.SessionSQL(t, writer, "ROLLBACK")
+			scope, finish := visibilityScope(t, e, enginetest.StartSession(t, e, nil))
+			defer finish(nil)
+			visibilityCheckMark(t, e, scope, ref, false, false)
+			n := visibilityCheckNode(t, e, name)
+			evaluation := visibilityBorrowedEvaluation(t, e, scope, n)
+			cursor, err := n.OpenSource(evaluation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cursor.Close()
+			// The claims change AFTER metadata Open. Both actual unfrozen tuples
+			// have real pending deletions, so both checks must capture their TIDs.
+			visibilityCheckMark(t, e, scope, ref, true, true)
+			versions := e.Storage.Relations[ref.Address].Versions
+			if len(versions) != 2 {
+				t.Fatal("missing real unfrozen tuple cohort", versions)
+			}
+			for i, version := range versions {
+				value, present, err := n.AdvanceSource(t.Context(), evaluation, &cursor)
+				want := uint64(version.Version) - 1
+				block, offset, tidErr := value.TID()
+				if err != nil || !present || tidErr != nil || block != uint32(want/65535) || offset != uint16(want%65535+1) {
+					t.Fatal("first-demand captured TID", i, value, present, err, tidErr)
+				}
+				if scope.Op.Session.Sepgsql.Current() != "A" {
+					t.Fatal("actual finding invocation leaked trusted subject")
+				}
+				if i == 0 {
+					// A new healthy map cannot mutate this invocation's findings.
+					visibilityCheckMark(t, e, scope, ref, false, false)
+				}
+			}
+			if _, present, err := n.AdvanceSource(t.Context(), evaluation, &cursor); err != nil || present || cursor.State != nil || !cursor.Exhausted {
+				t.Fatal("actual findings DONE did not detach", present, err, cursor)
+			}
+			if err := finish(nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, present, err := n.AdvanceSource(t.Context(), nil, &cursor); err != nil || present {
+				t.Fatal("detached EOF requested a dead evaluator", present, err)
+			}
+		})
+	}
+	t.Run("map_and_independent_page_runs", func(t *testing.T) {
+		e, ref := visibilityCheckFixture(t, false, true)
+		visibilityActivateIncoming(t, e)
+		scope, finish := visibilityScope(t, e, enginetest.StartSession(t, e, nil))
+		defer finish(nil)
+		visibilityCheckMark(t, e, scope, ref, false, false)
+		n := visibilityCheckNode(t, e, "pg_visibility")
+		evaluation := visibilityBorrowedEvaluation(t, e, scope, n)
+		cursor, err := n.OpenSource(evaluation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cursor.Close()
+		root, _ := visibilityCheckMark(t, e, scope, ref, true, true)
+		if root.Map.Blocks != 2 {
+			t.Fatal("wide row must cross two actual modeled pages", root.Map)
+		}
+		for block := range int64(2) {
+			value, present, err := n.AdvanceSource(t.Context(), evaluation, &cursor)
+			if err != nil || !present {
+				t.Fatal("borrowed visibility row", block, present, err)
+			}
+			if scope.Op.Session.Sepgsql.Current() != "A" {
+				t.Fatal("actual page invocation leaked trusted subject")
+			}
+			got, failure := value.CompositeField(0).Integer()
+			av, avErr := value.CompositeField(1).Boolean()
+			af, afErr := value.CompositeField(2).Boolean()
+			pd, pdErr := value.CompositeField(3).Boolean()
+			if failure != nil || avErr != nil || afErr != nil || pdErr != nil || got != block || !av || !af || pd {
+				t.Fatal("VM claims must not replace independent page truth", value, failure, avErr, afErr, pdErr)
+			}
+			if block == 0 {
+				visibilityCheckMark(t, e, scope, ref, false, false)
+			}
+		}
+		if _, present, err := n.AdvanceSource(t.Context(), evaluation, &cursor); err != nil || present || cursor.State != nil {
+			t.Fatal("map DONE did not release captured runs", present, err)
+		}
+	})
+	t.Run("truncate_source_waits_for_borrowed_demand", func(t *testing.T) {
+		e, ref := visibilityCheckFixture(t, true, false)
+		visibilityActivateIncoming(t, e)
+		scope, finish := visibilityScope(t, e, enginetest.StartSession(t, e, nil))
+		defer finish(nil)
+		root, _ := visibilityCheckMark(t, e, scope, ref, true, true)
+		n := visibilityCheckNode(t, e, "pg_truncate_visibility_map")
+		evaluation := visibilityBorrowedEvaluation(t, e, scope, n)
+		cursor, err := n.OpenSource(evaluation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cursor.Close()
+		store := e.Storage.Relations[ref.Address]
+		if store.Visibility != root || root.Invalidated || cursor.State == nil || cursor.Values != nil {
+			t.Fatal("scalar source Open ran truncate", root, store.Visibility, cursor)
+		}
+		value, present, err := n.AdvanceSource(t.Context(), evaluation, &cursor)
+		if err != nil || !present || value.IsNull() || value.Type().ID() != sqltype.Void || store.Visibility == root || !store.Visibility.Invalidated || root.Invalidated {
+			t.Fatal("first scalar demand failed real immutable truncate", value, present, err, root, store.Visibility)
+		}
+		if scope.Op.Session.Sepgsql.Current() != "A" {
+			t.Fatal("actual truncate invocation leaked trusted subject")
+		}
+		if _, present, err := n.AdvanceSource(t.Context(), nil, &cursor); err != nil || present || cursor.State != nil {
+			t.Fatal("scalar DONE reentered truncate", present, err)
+		}
+		page := visibilityCheckNode(t, e, "pg_visibility")
+		pageEvaluation := visibilityBorrowedEvaluation(t, e, scope, page)
+		rows, err := page.OpenSource(pageEvaluation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		value, present, err = page.AdvanceSource(t.Context(), pageEvaluation, &rows)
+		if err != nil || !present {
+			t.Fatal("post-truncate page", present, err)
+		}
+		for i, want := range []bool{false, false, true} {
+			got, err := value.CompositeField(i + 1).Boolean()
+			if err != nil || got != want {
+				t.Fatal("truncate must suppress VM only, retaining actual PD", i, got, want, err)
+			}
+		}
+	})
+}
+
+func visibilityActivateIncoming(t *testing.T, e *core.Engine) {
+	t.Helper()
+	runtime, err := sepgsql.Compile(sepgsql.SimulationConfig{InstallSQL: true, Policy: sepgsql.Policy{
+		ID: "incoming-visibility-owner", Version: "1", Contexts: []string{"A", "P", "S", "T"}, InitialContext: "A", UnlabeledContext: "P",
+		Rules: []sepgsql.Rule{
+			{Source: "A", Target: "*", Class: "*", Allow: []string{"*"}},
+			{Source: "T", Target: "*", Class: "*", Allow: []string{"*"}},
+			{Source: "T", Target: "S", Class: "db_procedure", Deny: []string{"execute"}},
+		},
+		TrustedTransitions: []sepgsql.TrustedTransition{{Source: "A", Procedure: "S", Result: "T"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Mu.Lock()
+	err = e.InstallSepgsqlSimulation(runtime, true)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, signature := range []string{"pg_check_visible(regclass)", "pg_check_frozen(regclass)", "pg_visibility(regclass)", "pg_truncate_visibility_map(regclass)"} {
+		enginetest.Run(t, e, "SECURITY LABEL ON FUNCTION "+signature+" IS 'S'")
+	}
 }

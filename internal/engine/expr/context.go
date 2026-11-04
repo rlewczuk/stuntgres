@@ -20,6 +20,9 @@ type Context interface {
 	// FunctionContext returns the statement's cancellation context, or nil
 	// when no evaluation context is available.
 	FunctionContext() context.Context
+	// FunctionEnterRoutine is the actual native body boundary, after ordinary
+	// arguments. It takes immutable input facts, never evaluates a child.
+	FunctionEnterRoutine(RoutineReference, RoutineRecipeReference, RoutineBodyInputs) (sqltype.RoutineBodyToken, error)
 
 	// Presentation environments. Input and output follow the session; the
 	// JSON, string and format outputs add the live statement scope for

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -170,29 +171,13 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 		return nil, 0, err
 	}
 	ctx = ParallelOperationContext(ctx)
-	newEvaluation := func() *EvaluationCapture { return &EvaluationCapture{} }
-	if host := source.LiveHost(); host != nil {
-		newEvaluation = host.CaptureParallelEvaluation()
+	host := source.LiveHost()
+	input, output := sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}
+	if host != nil {
+		input, output = host.Environments()
 	}
-	capture := newEvaluation()
-	leader := &State{Methods: sourcePlannerMethods(source), methodsCaptured: true, Source: source, Parameters: parameters, Input: capture.Input, Output: capture.Output, ExecutionContext: ctx}
+	leader := &State{Methods: sourcePlannerMethods(source), methodsCaptured: true, Source: source, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx}
 	leader.inheritCTEs()
-	leader.ClosedEvaluation = capture
-	// Construct evaluator-private caches before any support invocation/fanout.
-	captures := make([]*EvaluationCapture, workers)
-	for i := range captures {
-		captures[i] = newEvaluation()
-	}
-	defer func() {
-		for _, c := range captures {
-			if c.FlushDiagnostics != nil {
-				c.FlushDiagnostics()
-			}
-		}
-		if capture.FlushDiagnostics != nil {
-			capture.FlushDiagnostics()
-		}
-	}()
 	defer leader.ReleaseMemberships()
 	evaluation := leader.Evaluation(ctx)
 	auth, dependencies, err := RoutineAdmissionAuthority(&evaluation)
@@ -201,7 +186,13 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	}
 	var admission *parallelAggregateAdmission
 	if auth.Live() {
-		admission = &parallelAggregateAdmission{access: auth, dependencies: dependencies}
+		closedAuth := auth
+		if auth.Owner != nil && auth.Owner.Sepgsql != nil {
+			closedAuth.Env = nil
+			closedAuth.coordinatorCaptured = true
+			closedAuth.Sepgsql = access.SepgsqlAuthority{}
+		}
+		admission = &parallelAggregateAdmission{access: closedAuth, dependencies: dependencies}
 	}
 	for i := range aggregate.Calls {
 		call := aggregate.Calls[i]
@@ -221,6 +212,37 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	if host := source.LiveHost(); host != nil {
 		access = host.CaptureRelationAccess(source.Ref)
 	}
+	// All actual coordinator support initialization above precedes proof sealing.
+	newEvaluation, err := captureClosedQuery(ctx, root, source, parameters)
+	if err != nil {
+		return nil, 0, err
+	}
+	capture := newEvaluation()
+	if auth.Owner != nil && auth.Owner.Sepgsql != nil {
+		leader.Input, leader.Output = capture.Input, capture.Output
+		leader.aggregateAdmission = admission
+		evaluation.Input, evaluation.Output = capture.Input, capture.Output
+		evaluation.RoutineAuthority = admission
+		evaluation.RoutineRecipe, evaluation.RoutineChecks = true, dependencies
+	}
+	leader.ClosedEvaluation = capture
+	evaluation.ClosedEvaluation = capture
+	leader.routineSource = routineSourceBinding{}
+	evaluation.routineSource = routineSourceBinding{}
+	captures := make([]*EvaluationCapture, workers)
+	for i := range captures {
+		captures[i] = newEvaluation()
+	}
+	defer func() {
+		for _, c := range captures {
+			if c.FlushDiagnostics != nil {
+				c.FlushDiagnostics()
+			}
+		}
+		if capture.FlushDiagnostics != nil {
+			capture.FlushDiagnostics()
+		}
+	}()
 	workerCtx, cancel := context.WithCancel(ParallelWorkerContext(ctx))
 	defer cancel()
 	runs := make([][]QueryGroup, workers)
@@ -384,13 +406,13 @@ func mergeAggregatePartitions(ctx context.Context, n *plan.AggregateNode, runs [
 			}
 			hash := uint64(14695981039346656037)
 			for i, family := range n.Grouping {
-				h, err := family.Hash(ctx, incoming.Keys[i])
+				h, err := family.HashWithEvaluation(ctx, incoming.Keys[i], evaluation)
 				if err != nil {
 					return nil, err
 				}
 				hash = (hash ^ h) * 1099511628211
 			}
-			index, err := FindQueryGroup(ctx, n.Grouping, incoming.Keys, active, groups, buckets[hash])
+			index, err := FindQueryGroup(ctx, n.Grouping, incoming.Keys, active, groups, buckets[hash], evaluation)
 			if err != nil {
 				return nil, err
 			}

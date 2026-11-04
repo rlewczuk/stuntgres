@@ -311,6 +311,9 @@ func (h *BindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Auth
 	}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(owner), Catalog: read, Input: input, Output: owner.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
 	input.DomainChecks = &eval
+	if owner.Engine().Sepgsql != nil {
+		input.TypeIO = &eval
+	}
 	return owner.DecodeLockedDomainInput(ctx, typ, text, typmod, input)
 }
 

@@ -152,6 +152,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
 	d.Transforms, d.Display.TransformTypes = transforms, transformTypes
 	d.Parallel, d.Cost = 'u', 100
+	if execution == catalog.ExternalLanguage {
+		d.Cost = 1
+	}
 	if layout.ReturnsSet {
 		d.Rows = 1000
 	}
@@ -206,6 +209,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	validateBody, err := h.ValidateRoutineConfiguration(d)
 	if err != nil {
 		return err
+	}
+	if execution == catalog.ExternalLanguage {
+		return stageSepgsqlFunction(h, auth, s, d, layout, previous, language)
 	}
 	if execution == catalog.HostLanguage {
 		if layout.ReturnsSet || layout.TableResult || (!s.Procedure && len(layout.OutputFormals) != 0) || (s.Procedure && len(layout.OutputFormals) != 1) {

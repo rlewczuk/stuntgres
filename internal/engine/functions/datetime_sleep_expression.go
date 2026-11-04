@@ -81,6 +81,13 @@ func (x DatetimeSleep) Eval(c expr.Context) (sqltype.Value, error) {
 	if value.IsNull() {
 		return sqltype.Null(x.Usage.Type), nil
 	}
+	if x.RoutineReference != nil {
+		body, err := c.FunctionEnterRoutine(x.RoutineReference, x.RoutineRecipeReference, expr.RoutineBodyInputs{Count: 1, First: value.Type(), Occurrence: x.Occurrence, Source: x.Source})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		defer body.Leave()
+	}
 	switch x.Kind {
 	case DatetimeSleepSeconds:
 		var seconds float64

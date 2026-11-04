@@ -25,6 +25,9 @@ func (c EncodingConversion) Available() bool {
 	return c.source == c.destination || c.source == 0 || c.destination == 0 || c.handler.Supports(c.source, c.destination)
 }
 func (c EncodingConversion) Convert(ctx context.Context, raw string) (string, error) {
+	return c.ConvertWithBoundary(ctx, raw, nil)
+}
+func (c EncodingConversion) ConvertWithBoundary(ctx context.Context, raw string, boundary EncodingConversionBoundary) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -41,7 +44,7 @@ func (c EncodingConversion) Convert(ctx context.Context, raw string) (string, er
 	if !c.Available() {
 		return "", MissingBinaryConversion(c.source, c.destination)
 	}
-	output, consumed, err := c.handler.ConvertValidated(ctx, raw, c.source, c.destination)
+	output, consumed, err := c.handler.ConvertValidatedWithBoundary(ctx, raw, c.source, c.destination, boundary)
 	if err == nil && consumed != len(raw) {
 		return "", failure("XX000", "encoding conversion did not consume complete input")
 	}
@@ -52,6 +55,9 @@ func (c EncodingConversion) Convert(ctx context.Context, raw string) (string, er
 // current datum, including cancellation during emission. Existing scratch is
 // reused without a temporary converted string or per-character allocation.
 func (c EncodingConversion) Append(ctx context.Context, dst []byte, raw string) ([]byte, error) {
+	return c.AppendWithBoundary(ctx, dst, raw, nil)
+}
+func (c EncodingConversion) AppendWithBoundary(ctx context.Context, dst []byte, raw string, boundary EncodingConversionBoundary) ([]byte, error) {
 	start := len(dst)
 	validation := c.source
 	if c.source == 0 {
@@ -66,6 +72,11 @@ func (c EncodingConversion) Append(ctx context.Context, dst []byte, raw string) 
 	if !c.Available() {
 		return dst, MissingBinaryConversion(c.source, c.destination)
 	}
+	body, err := c.handler.enter(boundary)
+	if err != nil {
+		return dst, err
+	}
+	defer body.Leave()
 	if !binaryEncodingInputSize(len(raw)) {
 		return dst, binaryEncodingSizeError(len(raw))
 	}
@@ -155,7 +166,7 @@ func (p ClientEncodingPolicy) DefaultIdentity() [3]uint64 { return p.defaultIden
 
 func (env InputEnvironment) DecodeTransport(ctx context.Context, raw string) (string, error) {
 	if env.ByteTransport {
-		return env.Transport.Decode(ctx, raw)
+		return env.Transport.Incoming().ConvertWithBoundary(ctx, raw, env.Conversion)
 	}
 	if err := ValidateTextInput(raw); err != nil {
 		return "", err
@@ -164,7 +175,7 @@ func (env InputEnvironment) DecodeTransport(ctx context.Context, raw string) (st
 }
 func (env OutputEnvironment) AppendTransport(ctx context.Context, dst []byte, raw string) ([]byte, error) {
 	if env.ByteTransport {
-		return env.Transport.Append(ctx, dst, raw)
+		return env.Transport.Outgoing().AppendWithBoundary(ctx, dst, raw, env.Conversion)
 	}
 	return append(dst, raw...), ctx.Err()
 }

@@ -9,6 +9,9 @@ import (
 // A partial constant body addition can fail during inlining even when another
 // pair uses table columns. Stable zoned addition is never ordinarily folded.
 func SimplifyOverlapsRoute(c *Context, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
+	if sepgsqlPlanningSensitive(c, e) {
+		return e, false, nil
+	}
 	old := e.WrapperContext
 	oldFolded := e.Folded
 	e.WrapperContext = !OverlapsInlineSafe(e)

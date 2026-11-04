@@ -65,7 +65,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 			t.Fatal("membership reordered", root)
 		}
 		before := append([]storage.IndexEntry(nil), root.Entries...)
-		err = index.ValidateExclusionRoot(context.Background(), parent, idx, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: operatorFamilyTestRead()}, nil, true)
+		err = index.ValidateExclusionRoot(context.Background(), parent, idx, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: operatorFamilyTestRead()}, nil, true, sqltype.InputEnvironment{})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("nonadjacent overlap not rejected", err)

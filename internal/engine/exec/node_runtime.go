@@ -12,7 +12,7 @@ func (c *Context) BeginEvaluation() error { return EvaluationContext(c) }
 // presentedOutput is the statement output environment with every reg* and
 // aclitem formatter reading the statement's presentation snapshot.
 func (c *Context) presentedOutput() sqltype.OutputEnvironment {
-	output := c.Output
+	output := c.FunctionOutput()
 	p := c.Presentation()
 	output.Regclass, output.Regtype, output.Regproc = p, p, p
 	output.Regrole, output.Regcollation, output.Regnamespace = p, p, p
@@ -29,11 +29,11 @@ func (c *Context) presentedOutput() sqltype.OutputEnvironment {
 
 // XML value mapping alone borrows live binary and zone settings on demand.
 func (c *Context) FunctionXMLOutput() sqltype.OutputEnvironment {
-	output:=c.presentedOutput()
-	if c.ClosedEvaluation==nil {
-		if host:=c.LiveHost();host!=nil {
-			_,current:=host.Environments()
-			output.XMLBinaryHex,output.Zone=current.XMLBinaryHex,current.Zone
+	output := c.presentedOutput()
+	if c.ClosedEvaluation == nil {
+		if host := c.LiveHost(); host != nil {
+			_, current := host.Environments()
+			output.XMLBinaryHex, output.Zone = current.XMLBinaryHex, current.Zone
 		}
 	}
 	return output

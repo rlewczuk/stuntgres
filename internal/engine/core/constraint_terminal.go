@@ -40,6 +40,9 @@ func (s *StatementScope) releaseTerminalScope() {
 	s.afterTriggers, s.indexesSlot, s.foreignActionsSlot = nil, nil, nil
 	s.activeConstraintTriggers = nil
 	s.routinePrograms, s.checkPrograms = nil, nil
+	s.sepgsqlObservations = nil
+	s.sepgsqlRetirements = nil
+	s.clearRoutineInitializations()
 	s.rlsPrograms, s.rlsActive = nil, nil
 	s.RoutineAuth, s.ForeignActionAuth = AuthorizationView{}, nil
 	s.RoutineDependencies = nil

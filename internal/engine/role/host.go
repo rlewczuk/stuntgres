@@ -49,8 +49,8 @@ type StageHost interface {
 
 	// AddDomainBase records d among the stage's observed dependencies.
 	AddDomainBase(d catalog.Descriptor)
-	// RemoveObject stages the removal of ref.
-	RemoveObject(ref ids.ObjectRef, namespace bool) error
+	// SelectDropRoot validates a DROP OWNED root without retiring it.
+	SelectDropRoot(ref ids.ObjectRef, namespace bool) error
 	// OwnerStage is the statement's stage.
 	OwnerStage() OwnedCleanupStage
 }

@@ -9,7 +9,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -131,4 +133,94 @@ func (r Runtime) routineDefaultNode(ctx context.Context, capture catalog.Read, d
 		node = plan.CoercionExpr{Info: expr.Info{Usage: target.SQLType.Usage()}, Child: node, Plan: coercion, Mode: sqltype.Assignment}
 	}
 	return node, nil
+}
+
+// RoutineArguments shares exact pg_get_function_arguments presentation between
+// routine inquiries and pg_seclabels. It borrows one coherent captured root and
+// never executes defaults or grants target invocation authority.
+func (r Runtime) RoutineArguments(ctx context.Context, capture catalog.Read, d *catalog.Procedure, defaults bool) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if capture != r.View.Catalog || d == nil || capture.Get(d.Address()) != d {
+		return "", ids.ErrCatalogReplaced
+	}
+	names, err := pgcatalog.ProcedureNameProjection(capture, d)
+	if err != nil {
+		return "", err
+	}
+	renderer := stored.Deparser{View: capture, Path: r.Presentation.Path, Output: r.Presentation.Output, NonstandardStrings: r.Presentation.NonstandardStrings, TemporaryOwner: r.Presentation.TemporaryOwner, RoutineDeclaration: true}
+	var out strings.Builder
+	written := 0
+	var aggregate *catalog.AggregateDefinition
+	if d.Aggregate != nil {
+		aggregate = &d.Aggregate.Definition
+	} else if d.RoutineKind == catalog.AggregateRoutine {
+		for i := range pgcatalog.AggregateDefinitions {
+			if pgcatalog.AggregateDefinitions[i].Function == d.Address().ObjectID {
+				aggregate = &pgcatalog.AggregateDefinitions[i]
+				break
+			}
+		}
+		if aggregate == nil {
+			return "", fmt.Errorf("stuntgres: missing aggregate declaration")
+		}
+	}
+	ordered := aggregate != nil && aggregate.Kind != "n"
+	err = pgcatalog.VisitProcedureFormals(ctx, d, sqltype.Value{}, func(f pgcatalog.ProcedureFormal) error {
+		if f.Mode == "t" {
+			return nil
+		}
+		boundary := ordered && written == int(aggregate.DirectArgs)
+		if boundary {
+			if written > 0 {
+				out.WriteByte(' ')
+			}
+			out.WriteString("ORDER BY ")
+		} else if written > 0 {
+			out.WriteString(", ")
+		}
+		start := out.Len()
+		switch f.Mode {
+		case "i":
+			if d.RoutineKind == catalog.ProcedureRoutine {
+				out.WriteString("IN ")
+			}
+		case "o":
+			out.WriteString("OUT ")
+		case "b":
+			out.WriteString("INOUT ")
+		case "v":
+			out.WriteString("VARIADIC ")
+		default:
+			return fmt.Errorf("stuntgres: invalid declaration argument mode")
+		}
+		if name := names.At(f.Index); name != "" {
+			out.WriteString(renderer.Identifier(name) + " ")
+		}
+		if _, ok := capture.LookupType(sqltype.ID(f.Type)); !ok {
+			return fmt.Errorf("stuntgres: missing routine declaration type %d", f.Type)
+		}
+		typ, err := regobj.FormatDeclarationType(capture, r.Presentation.Path, sqltype.ID(f.Type), renderer.Identifier)
+		if err != nil {
+			return err
+		}
+		out.WriteString(typ)
+		declarationEnd := out.Len()
+		if defaults && f.HasDefault {
+			text, err := r.RoutineDefault(ctx, capture, d, f.Input)
+			if err != nil {
+				return err
+			}
+			out.WriteString(" DEFAULT " + text)
+		}
+		if ordered && f.Mode == "v" && written+1 == int(aggregate.DirectArgs) && f.Input+1 == int(pgcatalog.ProcedureArity(d)) {
+			declaration := out.String()[start:declarationEnd]
+			out.WriteString(" ORDER BY ")
+			out.WriteString(declaration)
+		}
+		written++
+		return nil
+	})
+	return out.String(), err
 }

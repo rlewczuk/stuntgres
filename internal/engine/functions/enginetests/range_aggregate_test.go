@@ -124,7 +124,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 	if rows, count, err := exec.Finalize(context.Background(), root, source, nil); rows != nil || count != 0 || err != failure || *calls != 3 {
 		t.Fatal("late error published", rows, count, err, *calls)
 	}
-	for _, target := range []string{"stuntgres/internal/sqltype.RangeAggregate.Advance", "stuntgres/internal/sqltype.(*Descriptor).normalizeRangeMembers"} {
+	for _, target := range []string{"stuntgres/internal/sqltype.RangeAggregate.AdvanceWithEnvironment", "stuntgres/internal/sqltype.(*Descriptor).normalizeRangeMembers"} {
 		root, source, _ = build(nil)
 		if strings.Contains(target, "normalizeRangeMembers") {
 			union := rangeAggregateUnitProvider(t, d, sqltype.RangeAggregateUnion)

@@ -55,5 +55,10 @@ func (r ScalarRenderer) earthSQL(ctx context.Context, view catalog.Read, n plan.
 	if _, err := r.SQL(ctx, view, n.Value); err != nil {
 		return "", err
 	}
+	if n.Kind == sqltype.EarthOnSurface {
+		if _, err := r.SQL(ctx, view, n.Origin); err != nil {
+			return "", err
+		}
+	}
 	return earthCheckSQL(view, n)
 }

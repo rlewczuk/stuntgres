@@ -28,6 +28,11 @@ formals; otherwise source is assembled from the parts. Formal slots, the current
 routine-name qualifier, routine/operator identities, types, relation attributes,
 catalog-alias literals and installation-member identities remain explicit metadata,
 not token replacement or a second per-name SQL output table.
+Callable parts are linked once to genuine parsed expression preorder, retaining
+repeated routine/operator/member occurrences. The current routine-name qualifier
+only qualifies formal arguments; it is not itself a selected function call.
+`TestNativeDeclarationSelfQualification` distinguishes that metadata from the
+actual typed call beside the preorder and missing-source regressions.
 
 The recipe's `Return` flag owns SQL-standard RETURN metadata; its expression
 parts are parsed as a readonly SELECT. That normalized AST does not acquire the

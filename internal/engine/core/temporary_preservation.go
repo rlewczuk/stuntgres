@@ -168,6 +168,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.RetainTemporaryInitialPrivileges(current, next, temporary); err != nil {
 		return err
 	}
+	if err := control.RetainTemporarySecurityLabels(current, next, temporary); err != nil {
+		return err
+	}
 	next.SetOperatorNames(operators.Index)
 	next.SetProcedureNames(procedures.Index)
 	// These consumers originate in the captured destination, not the import.

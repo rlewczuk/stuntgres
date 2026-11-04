@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -90,7 +91,7 @@ func TestSystemRowsVisibleSelection(t *testing.T) {
 	if captured.Count() != 4 {
 		t.Fatal("private sampling changed committed source")
 	}
-	empty := &exec.Source{Ref: captured.Ref, Anonymous: [][]sqltype.Value{}}
+	empty := &exec.Source{View: captured.View, Ref: captured.Ref, Anonymous: [][]sqltype.Value{}}
 	check(empty, map[int64]bool{}, math.MaxInt64)
 	if _, _, eligible := exec.ParallelQueryPlan(query.Root, captured); eligible {
 		t.Fatal("sampling split independently across workers")
@@ -121,5 +122,51 @@ func TestSystemRowsVisibleSelection(t *testing.T) {
 	}
 	if !slices.Equal(ends, hierarchy.Source.InheritanceEnds) {
 		t.Fatal("sampling mutated captured physical boundaries")
+	}
+}
+
+func TestSamplingHandlerOriginalDeclaration(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE EXTENSION tsm_system_rows")
+	query, captured := enginetest.QueryFixture(t, e, "SELECT id FROM t TABLESAMPLE system_rows(3)")
+	leaf := query.Root.(*plan.ProjectNode).Child.(*plan.SourceNode)
+	for _, change := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.ObjectAddress.ObjectID++ },
+		func(p *catalog.Procedure) { p.Signature = "23" },
+		func(p *catalog.Procedure) { p.Result = 23 },
+		func(p *catalog.Procedure) { p.Origin = nil },
+		func(p *catalog.Procedure) { p.BrinSupport = 1 },
+		func(p *catalog.Procedure) { p.GinSupport = 1 },
+		func(p *catalog.Procedure) { p.SnowballHelper = 1 },
+		func(p *catalog.Procedure) { p.Display.Source = "forged_handler" },
+	} {
+		node, sample, procedure := *leaf, *leaf.Sample, *leaf.Sample.Procedure
+		change(&procedure)
+		sample.Procedure = &procedure
+		evaluated := false
+		sample.Argument = enginetest.QueryProbe(leaf.Sample.Argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			evaluated = true
+			return leaf.Sample.Argument.Eval(c)
+		})
+		node.Sample = &sample
+		stage, err := exec.OpenNode(context.Background(), &exec.State{Source: captured}, &node)
+		stage.Close()
+		if err == nil || evaluated {
+			t.Fatal("forged selected declaration reached sampling argument", err, evaluated)
+		}
+	}
+	// The original plan may retain its declaration after a lawful SQL rename.
+	// A newly captured source supplies the genuine current catalog, not an old
+	// descriptor installed into a fabricated read.
+	enginetest.Run(t, e, "ALTER FUNCTION system_rows(internal) RENAME TO genuine_rows")
+	current := enginetest.Run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
+	defer current.Close()
+	stage, err := exec.OpenNode(context.Background(), &exec.State{Source: current.Source}, leaf)
+	if err != nil {
+		t.Fatal("genuine retained handler lost renamed current identity", err)
+	}
+	defer stage.Close()
+	if stage.Count() != 3 {
+		t.Fatal("renamed handler changed actual rows recipe", stage.Count())
 	}
 }
