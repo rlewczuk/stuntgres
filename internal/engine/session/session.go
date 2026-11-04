@@ -136,7 +136,7 @@ type Operation struct {
 	Released                 bool
 	private                  bool
 	Notices                  []sqlstate.Error
-	sepgsqlAudit             []sepgsqlAuditDelivery
+	sepgsqlAudit             []sepgsqlAuditDelivery // Command-owned until the winning Done detaches it under Session.Mu.
 	SepgsqlDebug             bool // Captured before authorization takes Session.Mu.
 	NoticeThreshold          NoticeLevel
 	TimerCancel              context.CancelFunc
@@ -255,14 +255,19 @@ func (op *Operation) Done() {
 	if op == nil || op.Self != op || op.Session == nil {
 		return
 	}
-	defer op.deliverSepgsqlAudit()
 	s := op.Session
 	s.Mu.Lock()
-	defer s.Mu.Unlock()
 	if op.Released {
+		s.Mu.Unlock()
 		return
 	}
 	op.Released = true
+	events := op.sepgsqlAudit
+	op.sepgsqlAudit = nil
+	// Only the lease-release winner owns this batch. Unlock before invoking
+	// host code, which may overlap another Done or reenter it itself.
+	defer deliverSepgsqlAudit(events)
+	defer s.Mu.Unlock()
 	op.LockWait.Reset()
 	delete(s.Operations, op)
 	op.Cancel(nil)
@@ -491,7 +496,7 @@ func (s *Session) end() {
 	for s.Leases != 0 || s.detaching {
 		s.Cond.Wait()
 	}
-	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, ExternalSQL, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
+	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, ExternalSQL, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization, SepgsqlSecurity} {
 		entry := s.Resources[kind]
 		if entry == nil {
 			continue

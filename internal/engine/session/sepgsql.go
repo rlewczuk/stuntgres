@@ -122,15 +122,14 @@ type sepgsqlAuditDelivery struct {
 	event  sepgsql.AuditEvent
 }
 
-// SepgsqlAudit only queues detached records. Host code runs in Done after lease
-// release. LOG notice filtering is independent of the host audit selection.
+// SepgsqlAudit queues detached records during serial command execution, before
+// Done. Host code runs only after the winning Done releases the lease and locks.
+// LOG notice filtering is independent of the host audit selection.
 func (op *Operation) SepgsqlAudit(policy *sepgsql.Runtime, event sepgsql.AuditEvent) {
 	op.sepgsqlAudit = append(op.sepgsqlAudit, sepgsqlAuditDelivery{policy, event})
 	op.EmitNotice(LevelLog, sqlstate.Error{Severity: "LOG", SeverityUnlocalized: "LOG", Code: "00000", Message: event.Message})
 }
-func (op *Operation) deliverSepgsqlAudit() {
-	events := op.sepgsqlAudit
-	op.sepgsqlAudit = nil
+func deliverSepgsqlAudit(events []sepgsqlAuditDelivery) {
 	for _, delivery := range events {
 		delivery.policy.Deliver(delivery.event)
 	}

@@ -44,3 +44,10 @@ func EngineDatabaseAdmissionCount(e *Engine) int {
 	defer e.Cluster.AdmissionMu.Unlock()
 	return e.Cluster.admissions[e]
 }
+
+// DatabaseAdmissionSession observes the physical owner before startup publishes it.
+func DatabaseAdmissionSession(a *DatabaseAdmission) *session.Session {
+	a.cluster.AdmissionMu.Lock()
+	defer a.cluster.AdmissionMu.Unlock()
+	return a.owner
+}

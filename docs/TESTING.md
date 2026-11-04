@@ -416,6 +416,22 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   `TestSepgsqlSimulationTimeFactory(Rescan)?`, `TestSepgsqlSimulationIncomingVPC` and
   `TestPgBuffercacheBorrowedSnapshot` cover the incoming factory and source owners;
   run their selected `RACE=1` variants alongside the corresponding legacy owners.
+  `TestSepgsqlSimulationAuditDone(Concurrent|Detached)` covers operation-owned
+  audit delivery: barrier-start concurrent completion with no provider, enforcing
+  denial and permissive denial, plus a blocked callback that reenters Done while
+  a competing Done and fresh session operation complete. Select it natively and
+  with `RACE=1`, alongside `TestSessionTimeoutPending(Completed)?Lifecycle`.
+  These are internal lifecycle/ownership units, not new SQL or active-provider
+  PostgreSQL parity claims. The unchanged shared Audit and FeatureSmoke scenarios
+  retain the independently specified ordinary and native-simulation SQL outcomes.
+  `TestSepgsqlSimulation(Session|Initialization)Cleanup` in core covers actual
+  simulation-session startup and production RequestEnd/WaitEnd cleanup, not a
+  direct subject EndSession substitute. It verifies operation cancellation and
+  drain, subject lifetime through unlocked terminal consumers, continuation after
+  a cleanup error, once-only resource consumption, erased contexts/trusted state
+  and failed initialization after subject attachment with no leaked reservation.
+  Run `make check RUN='^TestSepgsqlSimulation(Session|Initialization)Cleanup$'`
+  natively and with `RACE=1`; no active PostgreSQL SELinux oracle is claimed.
   Use `RACE=1` for Subject/Routine/Codecs/CodecTransport/Conversions/Dictionaries/Publication/Controls/Cleanup/Retirement
   with joined deterministic synchronization. Native controls prove admitted
   physical subject ownership, immutable labels, TEMP retention and atomic

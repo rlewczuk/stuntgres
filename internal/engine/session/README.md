@@ -124,7 +124,9 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   under `Session.Mu` for publication. Detached catalog ownership is rejected by
   these gates and by `TokenAttached`, independently of matching numeric IDs.
   External SQL resources attach before real Open and drain after Transaction and
-  Cursors, before PreparedSQL/Temporary. SessionResource callbacks run outside
+  Cursors, before PreparedSQL/Temporary. `SepgsqlSecurity` drains last, after all
+  operation leases and subject-consuming resources; initialization failure uses
+  the same sweep. SessionResource callbacks run outside
   engine/session/transaction mutexes and may perform owned, joined terminal
   cleanup I/O; they must not synchronously reenter lifecycle, acquire new commands
   or leases, or perform catalog maintenance. Existing foreign rollback uses an
@@ -510,8 +512,15 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   With simulation active, the physical session owns a separate `SepgsqlSubject`
   resource: original/committed/pending contexts, savepoint marks and balanced
   lexical trusted overrides. SQL role/owner substitution never changes it.
-  Operation audit records queue detached events; host callbacks run only after
-  request locks/leases release, independently of client LOG filtering.
+  The terminal sweep consumes its resource handle once and clears every context
+  and trusted frame after consumers drain, even when an earlier cleanup returns
+  an error. Repeated RequestEnd/WaitEnd never repeats subject cleanup.
+  Audit enqueue and client LOG notices belong to serial command execution, which
+  finishes before `Operation.Done`. The winning Done detaches the audit batch
+  under `Session.Mu` with the once-only lease release; losing calls never read
+  or clear it. The winner delivers only its detached local batch after unlocking
+  and releasing the lease. Host callbacks may reenter Done without waiting on
+  themselves; client LOG filtering and notice ownership remain independent.
   admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
   `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes
@@ -791,6 +800,15 @@ TEMP selector, immutable-assignment ownership and lifecycle units use
 `RUN='^TestTempTablespaces'` from the external `enginetests` package.
 
 New-operation workload activation/source-identity units use `RUN='^TestWorkAdmission'`.
+
+Sepgsql subject and audit ownership units use `RUN='^TestSepgsqlSimulation(Subject|Cleanup|AuditDone(Concurrent|Detached))$'`,
+also with `RACE=1`; audit barriers retain concurrent/reentrant completion,
+once-only lease release and an independently progressing physical session.
+The core production lifecycle regressions use
+`RUN='^TestSepgsqlSimulation(Session|Initialization)Cleanup$'`, also with `RACE=1`.
+They retain actual initialized subject attachment, active-operation cancellation
+and drain, unlocked consumer cleanup, joined errors, once-only resource removal,
+cleared contexts/trusted frames and post-attachment startup-failure unwind.
 
 Package units cover the journal with its fences, capture and merge, notices,
 SET/LOCAL/SAVE actions, RESET ALL and SHOW ALL, the 2PC registry's claim and preflight, CHAIN modes and

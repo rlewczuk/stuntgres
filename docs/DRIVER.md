@@ -909,8 +909,11 @@ virtual restorecon profiles and optional one-to-one translations are validated
 and copied during registration. Empty grants deny, explicit denies win, and SQL
 ACLs remain independently necessary. Permissive mode records denied permissions
 without making them policy grants. `sepgsql.debug_audit` changes audit selection,
-not permission decisions. Host Audit records are detached from decision storage
-and delivered outside engine/session locks; client LOG filtering is independent.
+not permission decisions. Host Audit records are detached from decision storage.
+An operation's completion winner delivers its queued batch once, after releasing
+its lease and engine/session locks. Repeated or concurrent completion neither
+redelivers the batch nor waits for an in-flight host callback. Client LOG
+filtering remains independent.
 Virtual restorecon profiles never read host files. No kernel SELinux, libselinux,
 policy daemon, or arbitrary loader compatibility is claimed.
 Profiles use first-match class/pattern rules with fnmatch-style `*`, `?`, bracket
