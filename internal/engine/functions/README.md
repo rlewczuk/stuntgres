@@ -40,6 +40,12 @@ ordinary routine references and execution-time admission. Backend NULL returns
 typed SQL NULL without runtime authority; the nonstrict defaults execute reset-all.
 No expression retains a provider, session, cache or ACL decision.
 
+`StatsResetDatabase` retains zero operands for database reset or one unnamed,
+strict OID operand for relation/function reset. All three VOID recipes are
+volatile/nonfolding and borrow only current statement runtime authority.
+Strict NULL returns typed NULL without reset; rebuilding, capture and stored
+replay retain routine provenance, never provider state or an EXECUTE decision.
+
 `PgStatStatements` binds only genuine stock installed declarations. The Boolean
 showtext SRF has the released 52-column RECORD shape; the info scalar has two
 OUT fields. STRICT NULL returns no SRF rows without borrowing runtime authority.

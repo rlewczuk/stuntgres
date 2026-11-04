@@ -3524,6 +3524,23 @@ Replication reset expression, owner-routing, retained-reader and actual subscrip
 lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
 Shared/backend reset routing, provider composition, immutable expression and
 physical reader lifetime use `RUN='^TestStatsResetShared'`, also with `RACE=1`.
+Database/object reset composition and retained graph/writer/reader authority use
+`RUN='^TestStatsResetDatabase'`, also with `RACE=1`. The typed statement bridge
+checks current routine authority under Engine.Mu before provider leaf locks.
+Composed inquiries consume TIMESTAMPTZ/VOID through typed cursors. Initialized
+portals retain their ordinary admission lifetime; a new execution of the held
+prepared definition checks current EXECUTE. Genuine delivery failure detaches
+the live producer without mutating separately retained graph/fold backing.
+Catalog classification routes shared relations across actual target partitions;
+dboid-zero reset metadata belongs to DefaultTarget, never the caller database.
+SQL publication does not touch transaction journals, physical data, pending
+writers, active functions, reader caches or lifecycle generation.
+Forced custom/generic parameter witnesses retain one described definition through
+grant/revoke and observe genuine PL calls, including strict-NULL/denial no-effects.
+The database-wide maintenance witness starts from independently positive real
+vacuum/analyze/tuple history and retains actual optimizer roots, column objects
+and backing while clearing cumulative facts. Physical maintenance metadata stays
+unchanged; later ANALYZE samples it into fresh estimates and starts new history.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share

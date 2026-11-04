@@ -12,7 +12,7 @@ address/category and updates the original stored domain/epoch key; catalog
 visibility is not a reset prerequisite. Creation initializes records immediately,
 while staged DROP retains them until commit and creation abort retires them.
 There is no parallel OID registry or projection-owned statistics copy. Legacy
-categories retain their database reset timestamp; absent per-entry categories have
+categories retain their lifecycle reset baseline; absent per-entry categories have
 NULL reset timestamps, including in retained full snapshots. `EnsureSubscription`
 is reserved for actual admitted creation, never a reset/read. Category merges add
 pending counters without replacing the current shared per-entry reset timestamp.
@@ -53,9 +53,10 @@ reads and rejected calls add nothing. The current event's Counts policy gates
 collection before writer work; other tracking switches do not. Suppression never
 changes generator state or value-cache tails and enabling never replays events.
 Existing-object encounters survive later rollback and publish through the same
-writer gate/throttle. Relation retirement rejects late batches. Reset fences
-pending counts without clearing sequence value caches. Projection after the
-Reader gives one logical resident page: N=0 maps to reads/hits (0,0), N>0 to
+writer gate/throttle. Relation retirement rejects late batches. SQL resets change
+only published counts and preserve pending encounters and sequence value caches;
+lifecycle Reset/Replace fence old pending counts. Projection after the Reader
+gives one logical resident page: N=0 maps to reads/hits (0,0), N>0 to
 (1,N-1), regardless of concurrent first-batch ordering. Missing facts are zero.
 Native replacement starts persistent/imported histories empty and transplants
 only published facts of surviving attached destination TEMP identities into the
@@ -320,10 +321,17 @@ Database facts share this provider/writer/reader, not a second collector.
 statistics-only epoch zero; catalog epoch replacement cannot erase database
 history accidentally. Provider generation still fences whole-catalog lifecycle
 replacement. The database `ResetAt` field is a distinct explicit event, never
-the blanket `Fact.ResetAt` startup baseline. A future published-only SQL reset
-must preserve pending writers, unresolved ledgers, active function usage and
-retained captures; it must not call generation-invalidating `Reset`/`Replace`.
-This part exposes no SQL reset operation.
+the blanket `Fact.ResetAt` startup baseline. `ResetDatabase` clears published
+local relation/function facts and every DatabaseFact field, except classified
+shared relations. `ResetObject` clears exactly one qualified relation or function
+and stamps its database timestamp even when absent, without allocating an object.
+Both preserve pending writers, unresolved ledgers, active function usage,
+generation, tombstones, backend registrations and retained captures. SQL rollback
+cannot undo publication. Neither operation calls lifecycle `Reset`/`Replace`.
+Core supplies actual catalog domain/incarnation/class/category authority before
+the leaf lock. Shared relation resets traverse actual target partitions and
+stamp dboid zero in the default provider's same local reset cut, not the caller
+database. Other databases, fixed families and statement history are untouched.
 
 Settlement adds the same ledger I/U/D attempts to database history once, before
 relation retirement, without relation live/dead/truncate estimate effects.

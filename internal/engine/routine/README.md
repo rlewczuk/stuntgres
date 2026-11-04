@@ -265,14 +265,16 @@ preserves explicitly replaced raw NULL ACLs rather than reapplying restrictions.
 Only exact restricted identity, bootstrap owner and one ordered owner-EXECUTE
 entry are omitted as reconstructed authority; untouched seeds add no dump repairs.
 
-`SeedStatsResetACLs` installs owner-only EXECUTE for shared (3775), SLRU (2307),
-backend (6387) and the two replication statistics reset declarations before
-initial-privilege capture. Shared/SLRU retain one named TEXT input and typed NULL
-default; backend has one unnamed strict INT4 PID. Their VOID result and
-volatile/parallel-safe metadata belong to the ordinary inventory. Mutable direct,
+`SeedStatsResetACLs` installs owner-only EXECUTE for database (2274), relation
+(3776), function (3777), shared (3775), SLRU (2307), backend (6387) and the two
+replication statistics reset declarations before initial-privilege capture.
+Database reset has no inputs; relation/function have one unnamed strict OID.
+Shared/SLRU retain one named TEXT input and typed NULL default; backend has one
+unnamed strict INT4 PID. Their VOID result and volatile/parallel-safe metadata
+belong to the ordinary inventory. Mutable direct,
 PUBLIC and inherited grants govern demanded execution, including held statements;
 monitoring membership, subscription ownership and replication attributes do not
-bypass ACLs. Known strict backend NULL retains ordinary strict-call avoidance.
+bypass ACLs. Known strict object/backend NULL retains ordinary call avoidance.
 Native replay preserves raw NULL, explicit-empty and modified grants separately
 from the exact bootstrap owner-only seed.
 

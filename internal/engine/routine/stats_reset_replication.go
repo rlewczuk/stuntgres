@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-var restrictedStatsResetRoutines = [...]ids.OID{2307, 3775, 6170, 6232, 6387}
+var restrictedStatsResetRoutines = [...]ids.OID{2274, 2307, 3775, 3776, 3777, 6170, 6232, 6387}
 
 func RestrictedStatsResetRoutine(oid ids.OID) bool {
 	_, found := slices.BinarySearch(restrictedStatsResetRoutines[:], oid)

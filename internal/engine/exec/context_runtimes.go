@@ -111,6 +111,17 @@ func (c *Context) StatsResetShared(kind functions.StatsResetSharedKind, argument
 	return host.StatsResetShared(kind, argument, result)
 }
 
+func (c *Context) StatsResetDatabase(kind functions.StatsResetDatabaseKind, argument sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: database statistics reset lacks statement authority")
+	}
+	return host.StatsResetDatabase(kind, argument, result)
+}
+
 var _ functions.TriggerDepthRuntime = (*Context)(nil)
 
 func (c *Context) TriggerDepthValue(result *sqltype.Descriptor) (sqltype.Value, error) {

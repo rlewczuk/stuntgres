@@ -1,5 +1,18 @@
 # Changes
 
+- Add typed database, relation and function statistics resets with ordinary
+  mutable owner-only EXECUTE seeds and complete routine inventory metadata.
+  Reset only published qualified facts, stamp the correct local/shared database
+  reset timestamp, and preserve pending work, transaction ledgers, active calls,
+  retained readers and lifecycle fences. Cover public SQL/driver/ACL/control
+  behavior and genuine composed provider/function/shared-partition lifetimes.
+  Preserve exact timestamp instants independently of scan location pointers,
+  once-only reporting-owner retirement, typed capture and the distinction between
+  initialized portal lifetime and current prepared-statement admission. Exercise
+  retained custom/generic parameters across grant/revoke and database-wide reset
+  of genuine positive maintenance history without losing physical maintenance,
+  optimizer data or rows. Later ANALYZE derives fresh estimates from that state.
+
 - Add the eleven-column `pg_catalog.pg_statio_user_tables` on the existing
   ALL/SYS producer, events and transaction Reader, with the exact complementary
   namespace predicate before identity allocation or fact demand. Preserve typed

@@ -48,13 +48,8 @@ func TestReferencePGStatSLRULifecycle(t *testing.T) {
 		statsExec(t, p, b, c, "CREATE TABLE slru_sentinel(v integer)", 0)
 		statsExec(t, p, b, c, "INSERT INTO slru_sentinel VALUES(37)", 1)
 		before := slruGet(t, p, b, c)
-		// Database-local reset is outside this view's embedded capability:
-		// assert the native boundary independently, not as PostgreSQL parity.
-		if b.PG {
-			resetReplicationVoid(t, p, b, c, "SELECT pg_stat_reset()", "pg_stat_reset")
-		} else {
-			activityError(t, p, c, "SELECT pg_stat_reset()", activityDiagnostic("0A000", "functions are unsupported", 8))
-		}
+		// Database-local reset preserves the independent cluster-wide SLRU family.
+		resetReplicationVoid(t, p, b, c, "SELECT pg_stat_reset()", "pg_stat_reset")
 		slruSame(t, before, slruGet(t, p, b, c))
 		resetReplicationVoid(t, p, b, c, "SELECT pg_stat_reset_shared('wal')", "pg_stat_reset_shared")
 		slruSame(t, before, slruGet(t, p, b, c))

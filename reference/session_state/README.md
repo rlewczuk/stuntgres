@@ -131,6 +131,26 @@ diagnostics, live EXECUTE and native ACL controls use
 effects and retained reader/pending ownership are composed internal witnesses;
 these SQL scenarios do not manufacture physical work or use neighboring getters.
 
+Database/relation/function reset signatures, effects, exact diagnostics, mutable
+EXECUTE and cache/transaction/native-control lifetimes use
+`RUN='^TestReferenceStatsResetDatabase'` in both fixture modes. Public scenarios
+publish real table/index/database work through ordinary owners. Genuine PL
+function effects and qualified shared-provider partitions without neighboring
+SQL getters use composed core witnesses, alongside private pending/ledger/frame,
+accepted-fold/backing and generation/retirement assertions.
+Reset timestamp assertions preserve NULL validity and compare exact instants,
+not Go location-pointer representation. Reporting owners retire exactly once;
+the shared reporting helper owns failure cleanup.
+`ParameterPrivileges` retains each unary driver's statement across explicit
+custom/generic modes and grant/revoke, asserting full execute-stage diagnostics
+and unchanged positive counters/timestamps for noninvoking demands.
+`Maintenance` proves database-wide clearing from genuine positive tuple,
+scan and vacuum/analyze history, preserving physical rows and optimizer data
+before a subsequent real ANALYZE. Reset leaves physical maintenance metadata
+untouched, so the later scan can repopulate estimates without resurrecting old
+tuple counters. Its reset observation holds the observer's own new deltas pending
+in a transaction, not an assumed throttle interval.
+
 Recovery-prefetch monitoring uses `RUN='^TestReferencePGStatRecoveryPrefetch'`
 with `make check` in native and `REFERENCE=1` modes.
 

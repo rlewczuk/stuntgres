@@ -81,7 +81,7 @@ func resetStatsACLReplay(t *testing.T) {
 				}
 			}
 			statsFunctionExec(t, targetActor, "SET ROLE reset_acl_reader")
-			for _, call := range []string{"SELECT pg_stat_reset_replication_slot(NULL::text)", "SELECT pg_stat_reset_subscription_stats(NULL::oid)", "SELECT pg_stat_reset_shared(NULL::text)", "SELECT pg_stat_reset_slru(NULL::text)", "SELECT pg_stat_reset_backend_stats(0)"} {
+			for _, call := range []string{"SELECT pg_stat_reset()", "SELECT pg_stat_reset_single_table_counters(0::oid)", "SELECT pg_stat_reset_single_function_counters(0::oid)", "SELECT pg_stat_reset_replication_slot(NULL::text)", "SELECT pg_stat_reset_subscription_stats(NULL::oid)", "SELECT pg_stat_reset_shared(NULL::text)", "SELECT pg_stat_reset_slru(NULL::text)", "SELECT pg_stat_reset_backend_stats(0)"} {
 				err := resetStatsSQL(t, targetActor, call)
 				allowed := state == "null" || state == "grant_option"
 				if (err == nil) != allowed {

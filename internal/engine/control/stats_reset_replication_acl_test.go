@@ -65,10 +65,10 @@ func TestStatsResetReplicationACLReconstruction(t *testing.T) {
 		}
 	}
 	slices.Sort(seen)
-	if !slices.Equal(seen, []ids.OID{2307, 3775, 6170, 6232, 6387}) {
+	if !slices.Equal(seen, []ids.OID{2274, 2307, 3775, 3776, 3777, 6170, 6232, 6387}) {
 		t.Fatal("restricted roster", seen)
 	}
-	for _, identity := range []string{"pg_catalog.pg_stat_reset_slru(text)", "pg_catalog.pg_stat_reset_shared(text)", "pg_catalog.pg_stat_reset_backend_stats(integer)", "pg_catalog.pg_stat_reset_replication_slot(text)", "pg_catalog.pg_stat_reset_subscription_stats(oid)"} {
+	for _, identity := range []string{"pg_catalog.pg_stat_reset()", "pg_catalog.pg_stat_reset_single_table_counters(oid)", "pg_catalog.pg_stat_reset_single_function_counters(oid)", "pg_catalog.pg_stat_reset_slru(text)", "pg_catalog.pg_stat_reset_shared(text)", "pg_catalog.pg_stat_reset_backend_stats(integer)", "pg_catalog.pg_stat_reset_replication_slot(text)", "pg_catalog.pg_stat_reset_subscription_stats(oid)"} {
 		for _, value := range []struct {
 			sql, text string
 			absent    bool

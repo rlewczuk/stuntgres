@@ -113,6 +113,7 @@ type Host interface {
 	StatsXactBlocksValue(functions.StatsXactBlocksKind, uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsResetReplication(functions.StatsResetReplicationKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	StatsResetShared(functions.StatsResetSharedKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
+	StatsResetDatabase(functions.StatsResetDatabaseKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TriggerDepthRuntime
 	TriggerDepthValue(*sqltype.Descriptor) (sqltype.Value, error)
 	// Capability groups (host_capabilities.go). Each accessor converts the
