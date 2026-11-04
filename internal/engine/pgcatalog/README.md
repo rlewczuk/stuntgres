@@ -680,13 +680,21 @@ diagnostics; retained rows own their original immutable typed backing.
 - Publication membership inquiries reuse the same protected capture boundary.
   `pg_publication_tables` resolves current effective membership, including
   implicit partition descendants and current/future schema/all-table coverage.
+  It enumerates and deduplicates presented relations separately per publication;
+  overlap never duplicates a row or suppresses another publication's row.
   Its native relation identity is source-specific, not a PostgreSQL allocator
   constant. All four readers retain the same protected capture boundary.
   Direct metadata for each selected presented relation arrives as borrowed
   `PublicationTableFact` values through `Runtime.VisitPublicationTables`; core
   shares its projection with the publication-table inquiry, separately from
-  DML-effective ancestry coverage. Empty attribute projections produce typed NULL
-  `attnames`, matching the canonical aggregate. Producers use the existing
+  DML-effective ancestry coverage. Physical attribute order produces owned typed
+  `name[]` values; empty projections produce typed NULL `attnames`, matching the
+  canonical aggregate. Absent filters are NULL; stored filters are deparsed, not
+  evaluated against local data. Ineligible/internal/temp relations are excluded,
+  but represented-table SELECT, schema USAGE and search-path visibility do not
+  redact membership. The view's own current SELECT ACL still controls admission.
+  These are local metadata rows, not WAL/network replication effects.
+  Producers use the existing
   `PolicyTree`/`PolicyDisplay` bridges and never import the higher publication,
   stored-expression, routine or table command packages.
 - A producer returns rows and nothing else. It never builds a query source,

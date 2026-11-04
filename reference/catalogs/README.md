@@ -34,6 +34,19 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Publication-table membership scenarios use
+`make check RUN='^TestReferencePGPublicationTables(ShapeProjection|MembershipLifecycle|VisibilityDiagnostics|NativeControls|FeatureSmoke)$'`
+(also with `REFERENCE=1`). The five dedicated families assert raw five-column
+metadata and physical-order `name[]`/filter projection, immediate held membership
+and transaction visibility, per-publication overlap deduplication, released
+eligibility and complete English diagnostics. Represented-table SELECT and schema
+USAGE do not redact this public view; its own current SELECT ACL still applies.
+Native controls retain actual rows across Dump/Reset/Restore and check ordinary
+pre-canceled reads. The genuine feature smoke composes local metadata changes,
+rollback, failed temporary membership and unchanged local data, not replication
+transport. Existing publication presentation tests own the partition/generated/
+empty-projection matrix rather than duplicating it in these families.
+
 Table-I/O scenarios use `make check RUN='^TestReferencePGStatio(All|Sys|User)Tables'`
 (also with `REFERENCE=1`). ALL, SYS and USER share eleven-column metadata,
 exact identity/optional-counter NULL semantics, publication and transaction

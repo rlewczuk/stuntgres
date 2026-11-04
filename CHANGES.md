@@ -1,5 +1,13 @@
 # Changes
 
+- Close dedicated `pg_catalog.pg_publication_tables` acceptance coverage on the
+  existing membership producer: exact raw shape and column/filter projection,
+  per-publication overlap deduplication, live held/transaction membership,
+  released eligibility and own-view versus represented-table ACL distinctions.
+  Add complete membership/privilege diagnostics, retained native Dump/Reset/
+  Restore and pre-canceled reads, plus a genuine local-metadata feature smoke;
+  no replication transport or second membership path is introduced.
+
 - Add exactly the twelve-column `pg_catalog.pg_stat_xact_user_tables` view
   (relation12170, rowtype12172, array12171) on the unchanged ALL/SYS pending
   provider. Apply the exact case-sensitive USER namespace complement and key
