@@ -13,6 +13,7 @@ import (
 // claim that PostgreSQL initdb-generated view OIDs are portable.
 const StatAllIndexesOID ids.OID = 12187
 const StatSysIndexesOID ids.OID = 12192
+const StatUserIndexesOID ids.OID = 12196
 
 type IndexStatisticsFact struct {
 	Scans, Entries, Fetches int64
@@ -51,7 +52,8 @@ func captureIndexStatistics(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing statistics index namespace")
 		}
-		if in.Source.Address().ObjectID == StatSysIndexesOID && ns.Name() != "pg_catalog" && ns.Name() != "information_schema" && !strings.HasPrefix(ns.Name(), "pg_toast") {
+		system := ns.Name() == "pg_catalog" || ns.Name() == "information_schema" || strings.HasPrefix(ns.Name(), "pg_toast")
+		if (in.Source.Address().ObjectID == StatSysIndexesOID && !system) || (in.Source.Address().ObjectID == StatUserIndexesOID && system) {
 			continue
 		}
 		row := make([]sqltype.Value, len(indexStatisticsColumns))

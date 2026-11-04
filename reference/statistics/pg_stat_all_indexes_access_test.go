@@ -14,26 +14,34 @@ func TestReferencePGStatAllIndexesAccessOwnership(t *testing.T) {
 		for _, step := range []fixture.Step{fixture.Exec("CREATE EXTENSION bloom", 0), fixture.Exec("CREATE TABLE stat_ownership(n integer,payload text)", 0), fixture.Exec("INSERT INTO stat_ownership VALUES(2,'a'),(2,'b'),(3,'z'),(NULL,NULL)", 4), fixture.Exec("CREATE INDEX stat_ownership_bloom ON stat_ownership USING bloom(n) WITH(length=1,col1=1)", 0)} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
 		}
+		fixture.StatisticsCreateTables(t, p, b, c, "stat_ownership_marker")
 		writer, retire := fixture.StatisticsReportingConn(t, p, b)
 		fixture.StatisticsExec(t, p, b, writer, "SET enable_seqscan=off", 0)
 		q := "SELECT payload FROM stat_ownership WHERE n=2"
 		method := indexStatPlan(t, p, writer, q)
-		if b.PG {
-			if !strings.Contains(method, "Bitmap Index Scan on stat_ownership_bloom") || !strings.Contains(method, "Bitmap Heap Scan") {
-				t.Fatal("real bitmap ownership witness missing", method)
-			}
-		} else if !strings.Contains(method, "Access Method: Bloom Candidates") {
+		if !b.PG && !strings.Contains(method, "Access Method: Bloom Candidates") {
 			t.Fatal("native logical bulk bloom not chosen", method)
 		}
 		indexStatPayloads(t, p, b, writer, q, []string{"a", "b"})
+		fixture.StatisticsExec(t, p, b, writer, "INSERT INTO stat_ownership_marker VALUES(1)", 1)
 		retire()
+		fixture.StatisticsAwaitTableCount(t, p, b, "stat_ownership_marker", "n_tup_ins", 1)
 		// Entry count can include genuine lossy candidates; it must not be replaced
 		// by output cardinality, and per-index heap fetches remain zero.
 		observer := fixture.IdentityConnection(t, p.Ctx, b.DB)
 		fixture.StatisticsExec(t, p, b, observer, "SET stats_fetch_consistency=none", 0)
-		r := indexStatAwaitPositive(t, p, observer, "stat_ownership_bloom")
-		if r.Scans != 1 || r.Entries < 2 || r.Fetches != 0 {
-			t.Fatal("bulk ownership", r)
+		var r indexStatRow
+		if !b.PG || strings.Contains(method, "Bitmap Index Scan") {
+			r = indexStatAwaitPositive(t, p, observer, "stat_ownership_bloom")
+			if r.Scans != 1 || r.Entries < 2 || r.Fetches != 0 {
+				t.Fatal("bulk candidate ownership", r)
+			}
+		} else {
+			delta := indexStatDelta(t, b, method, 1, 2)
+			r = indexStatAwait(t, p, b, "stat_ownership_bloom", delta[0], delta[1], delta[2])
+		}
+		if got := userIndexShared(t, p, b, c, r.Name); !got.equal(r) {
+			t.Fatal("bulk USER ownership differs from ALL", got, r)
 		}
 		fixture.StatisticsExec(t, p, b, c, "CREATE TABLE stat_indexonly(n integer)", 0)
 		fixture.StatisticsExec(t, p, b, c, "INSERT INTO stat_indexonly VALUES(2),(2),(3)", 3)
@@ -45,8 +53,11 @@ func TestReferencePGStatAllIndexesAccessOwnership(t *testing.T) {
 				t.Fatal("B-tree presence invented native access", method)
 			}
 			fixture.RunStep(t, p.Ctx, treeWriter, b.Recorder, fixture.Select("SELECT n FROM stat_indexonly WHERE n=2", []string{"n"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(2)}}))
+			fixture.StatisticsExec(t, p, b, treeWriter, "INSERT INTO stat_ownership_marker VALUES(1)", 1)
 			retireTree()
+			fixture.StatisticsAwaitTableCount(t, p, b, "stat_ownership_marker", "n_tup_ins", 2)
 			indexStatWant(t, indexStatGet(t, p, c, "stat_indexonly_btree"), 0, 0, 0)
+			indexStatWant(t, userIndexShared(t, p, b, c, "stat_indexonly_btree"), 0, 0, 0)
 			return
 		}
 		fixture.StatisticsExec(t, p, b, c, "VACUUM stat_indexonly", 0)
@@ -80,11 +91,22 @@ func TestReferencePGStatAllIndexesAccessOwnership(t *testing.T) {
 		}
 		rows.Close()
 		method = strings.Join(lines, "\n")
-		if !strings.Contains(method, "Index Only Scan using stat_indexonly_btree") || heap < 0 {
-			t.Fatal("actual index-only/heap ownership not observed", method)
+		delta := [3]int64{}
+		if strings.Contains(method, "Index Only Scan using stat_indexonly_btree") {
+			if heap < 0 {
+				t.Fatal("actual index-only heap fallback not observed", method)
+			}
+			delta = [3]int64{1, 2, int64(heap)}
+		} else {
+			delta = indexStatDelta(t, b, method, 1, 2)
 		}
+		fixture.StatisticsExec(t, p, b, only, "INSERT INTO stat_ownership_marker VALUES(1)", 1)
 		retireOnly()
-		indexStatAwait(t, p, b, "stat_indexonly_btree", 1, 2, int64(heap))
+		fixture.StatisticsAwaitTableCount(t, p, b, "stat_ownership_marker", "n_tup_ins", 2)
+		r = indexStatAwait(t, p, b, "stat_indexonly_btree", delta[0], delta[1], delta[2])
+		if got := userIndexShared(t, p, b, c, r.Name); !got.equal(r) {
+			t.Fatal("actual heap fallback USER ownership differs from ALL", got, r)
+		}
 	})
 }
 

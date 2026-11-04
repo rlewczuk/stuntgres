@@ -108,11 +108,6 @@ func TestPGStatAllIndexesCatalog(t *testing.T) {
 			t.Fatal("typed nullable origin", i, c)
 		}
 	}
-	for _, spec := range pgcatalog.Specs {
-		if spec.Name == "pg_stat_user_indexes" {
-			t.Fatal("neighbor view registered")
-		}
-	}
 	if def := pgcatalog.SummaryViewDefinition(pgcatalog.StatAllIndexesOID); !strings.Contains(def, "pg_index") || strings.Contains(def, "stats_reset") {
 		t.Fatal("display definition", def)
 	}

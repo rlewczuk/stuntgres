@@ -95,7 +95,11 @@ func sysIndexPartition(t *testing.T, p *fixture.Pair, c *sql.Conn, positive, neg
 	all := read("pg_stat_all_indexes", "")
 	sys := read("pg_stat_sys_indexes", "")
 	s := read("pg_stat_all_indexes", sysIndexPredicate)
-	u := read("pg_stat_all_indexes", userIndexPredicate)
+	u := read("pg_stat_user_indexes", "")
+	wantUser := read("pg_stat_all_indexes", userIndexPredicate)
+	if !reflect.DeepEqual(u, wantUser) {
+		t.Fatal("USER differs from exact release predicate", u, wantUser)
+	}
 	if !reflect.DeepEqual(sys, s) {
 		t.Fatal("SYS differs from exact release predicate", sys, s)
 	}

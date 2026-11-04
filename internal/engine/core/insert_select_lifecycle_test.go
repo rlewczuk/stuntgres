@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
@@ -13,24 +14,53 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
 func TestInsertSelectSourceTimeoutPosition(t *testing.T) {
+	timeout := func(e *core.Engine, blocker *session.Session, start func(context.Context) <-chan error, position ...string) {
+		t.Helper()
+		tx := enginetest.TransactionBegin(t, blocker)
+		ctx, cancel := context.WithCancel(context.Background())
+		var done <-chan error
+		joined := false
+		await := func() error {
+			t.Helper()
+			select {
+			case err := <-done:
+				joined = true
+				return err
+			case <-time.After(enginetest.Liveness):
+				t.Fatal("INSERT SELECT timeout worker not joined")
+				return context.DeadlineExceeded
+			}
+		}
+		defer func() {
+			cancel()
+			defer func() {
+				if done != nil && !joined {
+					await()
+				}
+				enginetest.LockEmpty(t, e)
+			}()
+			enginetest.TransactionEnd(t, blocker, tx, false)
+		}()
+		enginetest.SessionSQL(t, blocker, "LOCK TABLE s IN ACCESS EXCLUSIVE MODE")
+		done = start(ctx)
+		// The exact terminal diagnostic proves the wait; its pending request
+		// may already be gone when this goroutine is scheduled.
+		enginetest.WaitDiagnostic(t, await(), "55P03", "canceling statement due to lock timeout", position...)
+	}
 	for _, prepare := range []bool{false, true} {
 		e := engine.New()
 		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, a, "CREATE TABLE t(i INT)")
 		enginetest.SessionSQL(t, a, "CREATE TABLE s(i INT)")
 		enginetest.SessionSQL(t, b, "SET lock_timeout='80ms'")
-		tx := enginetest.TransactionBegin(t, a)
-		enginetest.SessionSQL(t, a, "LOCK TABLE s IN ACCESS EXCLUSIVE MODE")
-		done := waitsCommandAsync(e, b, context.Background(), "INSERT INTO t SELECT i FROM s", prepare)
-		enginetest.LockPending(t, e, 1)
-		err := <-done
-		enginetest.WaitDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "29")
-		enginetest.TransactionEnd(t, a, tx, false)
-		enginetest.LockEmpty(t, e)
+		timeout(e, a, func(ctx context.Context) <-chan error {
+			return waitsCommandAsync(e, b, ctx, "INSERT INTO t SELECT i FROM s", prepare)
+		}, "29")
 	}
 	// Cached execution retains no parse-analysis position callback.
 	e := engine.New()
@@ -45,28 +75,25 @@ func TestInsertSelectSourceTimeoutPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 	enginetest.SessionSQL(t, b, "SET lock_timeout='80ms'")
-	tx := enginetest.TransactionBegin(t, a)
-	enginetest.SessionSQL(t, a, "LOCK TABLE s IN ACCESS EXCLUSIVE MODE")
-	done := make(chan error, 1)
-	go func() {
-		op, _, err := b.AcquireCommand(context.Background())
-		if err == nil {
-			scope, startErr := e.StartStatement(op)
-			err = startErr
+	timeout(e, a, func(ctx context.Context) <-chan error {
+		done := make(chan error, 1)
+		go func() {
+			op, _, err := b.AcquireCommand(ctx)
 			if err == nil {
-				scope.Expected = &desc
-				_, err = scope.Execute(ast, 0, nil)
-				err = scope.Finish(err)
+				scope, startErr := e.StartStatement(op)
+				err = startErr
+				if err == nil {
+					scope.Expected = &desc
+					_, err = scope.Execute(ast, 0, nil)
+					err = scope.Finish(err)
+				}
+				err = op.CommandError(err)
+				op.Done()
 			}
-			err = op.CommandError(err)
-			op.Done()
-		}
-		done <- err
-	}()
-	enginetest.LockPending(t, e, 1)
-	enginetest.WaitDiagnostic(t, <-done, "55P03", "canceling statement due to lock timeout")
-	enginetest.TransactionEnd(t, a, tx, false)
-	enginetest.LockEmpty(t, e)
+			done <- err
+		}()
+		return done
+	})
 }
 
 func TestInsertSelectStaleEpoch(t *testing.T) {

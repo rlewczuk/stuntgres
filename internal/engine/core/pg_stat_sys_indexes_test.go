@@ -48,9 +48,6 @@ func TestPGStatSysIndexesCatalog(t *testing.T) {
 		if spec.Name == "pg_stat_sys_indexes" {
 			registered = true
 		}
-		if spec.Name == "pg_stat_user_indexes" {
-			t.Fatal("out-of-scope USER registered")
-		}
 	}
 	if !registered {
 		t.Fatal("SYS not registered")

@@ -214,6 +214,7 @@ func icProviderInventory(c *icCase) {
 			views = append(views, "pg_replication_slots")
 			views = append(views, "pg_stat_wal_receiver")
 			views = append(views, "pg_stat_io")
+			views = append(views, "pg_stat_user_indexes")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

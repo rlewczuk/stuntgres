@@ -3702,6 +3702,9 @@ Low-level relation-admission owner tests must pass the statement through `Gate`
 before acquiring its relation: `StartStatement` alone does not attach the
 transaction incarnation or lock ticket. Wait witnesses inspect the real grant
 and queued owner, and fail immediately if the worker completes before admission.
+Short lock-timeout diagnostics instead await the bounded terminal result: a
+transient pending request is not a synchronization barrier. Cancel, release the
+blocker and join workers on assertion failure as well as success.
 
 Transaction-control publication units use
 `make check RUN='^TestTransactionControlsPublicationBoundary$'`, adding `RACE=1`

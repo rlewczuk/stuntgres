@@ -2,8 +2,8 @@
 
 This bounded feature package owns public SQL scenarios for the seven-column
 cluster archiver, five-column cluster WAL, four-column cluster bgwriter, eleven-column cluster checkpointer,
-nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`, 30-column
-`pg_stat_all_tables`/`pg_stat_sys_tables`/`pg_stat_user_tables` and twelve-column
+nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`/`pg_stat_user_indexes`,
+30-column `pg_stat_all_tables`/`pg_stat_sys_tables`/`pg_stat_user_tables` and twelve-column
 `pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables`/`pg_stat_xact_user_tables` views.
 All Go tests are untagged external tests using public stuntgres and
 `reference/fixture` APIs. The same scenario bodies serve native and
@@ -15,6 +15,9 @@ native-only phases, not a simulated PostgreSQL Restore or Reset API.
 - Actual parent/index/schema identities, independent index OIDs, nullable typed
   metadata, direct/prepared/empty/retained results and raw adapter values. Fresh
   activity is zero counters and SQL NULL `last_idx_scan`, not an invented date.
+- Actual SYS and USER identity bags partition ALL by the case-sensitive parent
+  namespace predicate, independently on each backend. Membership refreshes after
+  rename/move/drop and through held statements without changing retained values.
 - Actual access ownership authenticated by EXPLAIN: native hash hit/miss and
   lossy bulk bloom, PostgreSQL simple/bitmap/index-only behavior and actual
   `Heap Fetches`. Candidate entries are not inferred from output cardinality.
@@ -180,43 +183,30 @@ Composed interrupted-prefix proof, including race mode, uses
 `make check RUN='^TestPGStatAllIndexesInterruptedAccess$'` and the same command
 with `RACE=1`. Whole-project Docker-free verification remains `make quickcheck`.
 
-### SYS index statistics
+### SYS and USER index statistics
 
-The six SYS definitions own ordinary `information_schema` hash fixtures and
-public negatives; no bootstrap indexes or physical TOAST storage are fabricated.
-They check the exact `pg_catalog`/`information_schema`/case-sensitive `^pg_toast`
-parent predicate and ALL/SYS/USER-predicate identity bags, fixed native row/array
-relationships, nine-column metadata and dependency-aware view display. Current
-own-view ACL denial is distinct from unredacted parent facts. DML errors name
-the underlying ALL view; TRUNCATE/COPY retain SYS. Rename/move/drop/recreation
-reexecute held reads against current identities and preserve provider history.
+The named subsets own ordinary public and `information_schema` hash fixtures;
+no bootstrap indexes or physical TOAST storage are fabricated. Actual SYS and
+USER identity bags partition ALL using the exact case-sensitive parent predicate.
+The scenarios cover fixed native row/array relationships, nine-column metadata
+and dependency-aware display. Own-view ACL denial is distinct from unredacted
+private-parent facts. DML errors name underlying ALL; TRUNCATE/COPY retain the
+addressed subset. Rename/move/drop/recreation reexecute held reads against current
+identities while retained rows and metadata remain immutable.
 
 EXPLAIN and Prepare alone count nothing. A native direct hash hit contributes
 1 search / 2 entries / 2 heap fetches; a second held hit and prepared miss bring
 the total to3/4/4. PostgreSQL expectations classify the actual simple, bitmap or
 sequential path rather than requiring an index choice. Every phase, including
 the confirmed sequential negative, retires its reporter and awaits a separate
-publication marker before asserting counters and the last-scan instant. SYS and
-ALL facts are read under one existing snapshot contract, not a per-view cache.
+publication marker before asserting counters and the last-scan instant. All three
+views share the existing Reader; none/cache/snapshot and clear have no per-view cache.
 
 ```sh
-make check RUN='^TestReferencePGStatSysIndexes(IdentityAndMetadata|Events|Lifetime|Privileges|ReadOnly|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePGStatSysIndexes(IdentityAndMetadata|Events|Lifetime|Privileges|ReadOnly|FeatureSmoke)$'
-make check RUN='^TestReferenceInfoColumnsPopulation$'
-make check REFERENCE=1 RUN='^TestReferenceInfoColumnsPopulation$'
-make check RUN='^TestPGStatSysIndexes(Catalog|Membership|SourceSelection)$'
-make check RACE=1 RUN='^TestPGStatSysIndexesSourceSelection$'
+make check RUN='^TestReferencePGStat(Sys|User)Indexes'
+make check REFERENCE=1 RUN='^TestReferencePGStat(Sys|User)Indexes'
 ```
 
-The standalone feature walkthrough creates positive/negative fixtures, checks
-fresh0/NULL metadata, consumes real direct/held hit/miss accesses, awaits
-publication, checks positive typed time and ALL equality, proves sequential zero
-delta, rejects zero-row UPDATE with the full ALL diagnostic, then observes DROP:
-
-```sh
-make check RUN='^TestReferencePGStatSysIndexesFeatureSmoke$'
-make check REFERENCE=1 RUN='^TestReferencePGStatSysIndexesFeatureSmoke$'
-```
 
 ## Cumulative table statistics
 

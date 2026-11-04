@@ -1632,20 +1632,20 @@ catalog writes or bypass a provider's independent backing-source checks.
   Dynamic statistics never enter the catalog-state CaptureCache. Exact displayed
   current names/identities follow rename/move/drop without changing retained
   result values. Bootstrap HasIndexes flags do not create native index inventory.
-  `pg_stat_sys_indexes` (relation12192, rowtype12194, array12193) is registered
-  on that same producer and Reader, with all nine typed columns. SYS admits
-  exactly parent namespaces `pg_catalog`, `information_schema`, or the entire
-  case-sensitive `^pg_toast` prefix (including `pg_toasty`), before allocating
-  a row or demanding statistics. ALL remains unfiltered; the complementary USER
-  predicate can be queried over ALL but no named USER view is registered.
-  The shared r/t/m parent-kind check precedes demand; native has no physical
-  TOAST relation descriptors. Neither view invents ordering or bootstrap indexes.
-  SYS's own current SELECT ACL applies even to prepared/WHERE FALSE reads,
+  `pg_stat_sys_indexes` (relation12192, rowtype12194, array12193) and
+  `pg_stat_user_indexes` (relation12196, rowtype12198, array12197) reuse that
+  producer and Reader with all nine typed columns. SYS admits exactly parent
+  namespaces `pg_catalog`, `information_schema`, or the entire case-sensitive
+  `^pg_toast` prefix (including `pg_toasty`); USER admits their complement.
+  Membership and the shared r/t/m parent-kind check precede row allocation and
+  Reader demand. ALL remains unfiltered; native has no physical TOAST descriptors.
+  Each view's current SELECT ACL applies even to prepared/WHERE FALSE reads,
   without parent redaction or requiring the caller's ALL SELECT privilege.
-  Missing counters/time remain0/NULL/0/0. Canonical/pretty dependency-aware
-  display and read-only events share builtinViews. SYS INSERT/UPDATE/DELETE
-  diagnostics name the underlying `pg_stat_all_indexes` join view; TRUNCATE
-  and COPY diagnostics retain `pg_stat_sys_indexes`.
+  Missing counters/time remain0/NULL/0/0. Real searches, candidate entries and
+  executor-owned heap fetches share one event history; sequential access adds none.
+  Canonical/pretty dependency-aware display and read-only events share builtinViews.
+  SYS/USER INSERT/UPDATE/DELETE diagnostics name underlying `pg_stat_all_indexes`;
+  TRUNCATE and COPY diagnostics retain the addressed view's identity.
 - `pg_stat_all_tables` (registry relation12146, rowtype12148, array12147),
   `pg_stat_sys_tables` (relation12156, rowtype12158, array12157), and
   `pg_stat_user_tables` (relation12165, rowtype12167, array12166) share
