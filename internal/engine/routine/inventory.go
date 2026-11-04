@@ -60,6 +60,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{2162, ids.PGCatalogNamespaceOID, "pg_get_function_arguments", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2232, ids.PGCatalogNamespaceOID, "pg_get_function_identity_arguments", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2165, ids.PGCatalogNamespaceOID, "pg_get_function_result", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3165, ids.PGCatalogNamespaceOID, "pg_wal_lsn_diff", "3220,3220"}, catalog.FunctionRoutine, 1700, true, expr.Immutable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{1291, ids.PGCatalogNamespaceOID, "suppress_redundant_updates_trigger", ""}, catalog.FunctionRoutine, 2279, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3752, ids.PGCatalogNamespaceOID, "tsvector_update_trigger", ""}, catalog.FunctionRoutine, 2279, false, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3753, ids.PGCatalogNamespaceOID, "tsvector_update_trigger_column", ""}, catalog.FunctionRoutine, 2279, false, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},

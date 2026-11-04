@@ -88,6 +88,7 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{5022, "pg_lsn_pli", "pg_lsn_pli", "INTERNAL", "INVOKER"},
 		irBuiltinFact{5023, "numeric_pl_pg_lsn", "", "SQL", "INVOKER"},
 		irBuiltinFact{5024, "pg_lsn_mii", "pg_lsn_mii", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3165, "pg_wal_lsn_diff", "pg_wal_lsn_diff", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3810, "pg_is_in_recovery", "pg_is_in_recovery", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3073, "pg_is_wal_replay_paused", "pg_is_wal_replay_paused", "INTERNAL", "INVOKER"},
 		irBuiltinFact{1137, "pg_get_wal_replay_pause_state", "pg_get_wal_replay_pause_state", "INTERNAL", "INVOKER"},
@@ -143,8 +144,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3171, "lo_tell64", "be_lo_tell64", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2282, "pg_get_backend_memory_contexts", "pg_get_backend_memory_contexts", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1824 {
-		t.Fatalf("released represented inventory: got %d, want 1824", len(facts))
+	if len(facts) != 1825 {
+		t.Fatalf("released represented inventory: got %d, want 1825", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

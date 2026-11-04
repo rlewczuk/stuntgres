@@ -927,6 +927,10 @@ host methods.
   `QueryRenderer` and `Presentation` (`view_deparse*.go`,
   `view_render_sources.go`, `sqljson_deparse.go`): whole queries,
   `View.SelectSQL`, `ViewDefinitionSQL` (`pg_get_viewdef`) and `PolicySQL`.
+  Frozen-query function presentation is independent of scalar-node `Render`.
+  Its ordinary replay branch schema-qualifies `pg_wal_lsn_diff`, while catalog
+  display uses ordinary identifier formatting. Both paths preserve captured
+  provider authentication and current names for renamed or moved routines.
   Public display of a sole noncorrelated aliased table uses current relation/
   attribute names, unqualified columns and only nonredundant column aliases.
   Correlation-participating frames retain lexical qualification; local keys use

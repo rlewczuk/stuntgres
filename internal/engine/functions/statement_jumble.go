@@ -426,7 +426,8 @@ func (PartitionAncestors) JumbleFields(s expr.StatementFields) {
 func (snapshotExpression) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.snapshotExpression")
 }
-func (Pgcrypto) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Pgcrypto") }
+func (Pgcrypto) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.Pgcrypto") }
+func (PGLSNDiff) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.PGLSNDiff") }
 func (PgpArmorHeaders) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgpArmorHeaders")
 }
@@ -494,10 +495,12 @@ func (Soundex) JumbleFields(s expr.StatementFields)       { s.JumbleText("functi
 func (sqlJSONDocument) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.sqlJSONDocument")
 }
-func (SSLInfo) JumbleFields(s expr.StatementFields)        { s.JumbleText("functions.SSLInfo") }
-func (StatisticsIO) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.StatisticsIO") }
-func (StatsSnapshot) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.StatsSnapshot") }
-func (StatsXactBlocks) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.StatsXactBlocks") }
+func (SSLInfo) JumbleFields(s expr.StatementFields)       { s.JumbleText("functions.SSLInfo") }
+func (StatisticsIO) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.StatisticsIO") }
+func (StatsSnapshot) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.StatsSnapshot") }
+func (StatsXactBlocks) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.StatsXactBlocks")
+}
 func (StringVariadic) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.StringVariadic") }
 func (TablefuncCrosstab) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.TablefuncCrosstab")

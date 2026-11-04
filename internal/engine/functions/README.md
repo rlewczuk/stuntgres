@@ -288,6 +288,17 @@ including the distinction between optimizer-elided NULLs and surviving calls.
 Capture, checked reconstruction and stored rendering preserve routine provenance,
 operand order and named destinations through ordinary native control replay.
 
+`PGLSNDiff` owns two typed PG_LSN operands and the existing exact subtraction
+provider with an unconstrained NUMERIC result. Its immutable, strict recipe uses
+ordinary folding, routine admission, capture and checked provider reconstruction.
+Its `StatementJumbler` projects only the static `functions.PGLSNDiff` discriminator;
+the analyzer owns the selected routine OID, ordered lexical children and
+literal/parameter replacement locations, without evaluating the expression.
+Scalar and frozen view replay use the ordinary schema-qualified builtin call;
+catalog deparsing retains its ordinary display spelling.
+It retains no WAL runtime, position, control object or permission decision;
+physical WAL calls remain separately owned by the volatile runtime families.
+
 `WALPosition` owns six stateless, volatile PG_LSN scalar calls and at most one
 typed TEXT operand. Central live EXECUTE admission and ordinary strict planning
 remain authoritative, including folded NULL versus surviving column-NULL calls.

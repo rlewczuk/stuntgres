@@ -46,3 +46,43 @@ func TestRuleRoutineIdentifiers(t *testing.T) {
 		})
 	}
 }
+
+// Isolate frozen-query spelling from scalar Render; the public stored scenario
+// separately exercises authenticated capture and actual Dump/Restore.
+func TestPGLSNDiffFrozenCallRendering(t *testing.T) {
+	read, _, _, _ := routineCaptureFixture(t)
+	var usage sqltype.Usage
+	for _, typ := range sqltype.Builtins() {
+		if typ.ID() == sqltype.PgLSN {
+			usage = typ.Usage()
+			break
+		}
+	}
+	if usage.Type == nil {
+		t.Fatal("missing pg_lsn fixture type")
+	}
+	statements, err := parser.Parse("SELECT pg_wal_lsn_diff($1,$2)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := statements[0].(*parser.Select).Targets[0]
+	view := &View{routineInputs: []sqltype.Usage{usage, usage}}
+	for _, mode := range []struct {
+		name   string
+		policy Presentation
+		want   string
+	}{
+		{"replay", Presentation{}, "pg_catalog.pg_wal_lsn_diff($1, $2)"},
+		{"deparse", Presentation{Deparse: true}, "pg_wal_lsn_diff($1, $2)"},
+		{"quoted", Presentation{Deparse: true, Output: sqltype.OutputEnvironment{QuoteAllIdentifiers: true}}, `"pg_wal_lsn_diff"($1, $2)`},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			renderer := NewQueryRenderer(view)
+			renderer.Presentation = mode.policy
+			got, err := renderer.ExpressionSQL(context.Background(), read, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+			if err != nil || got != mode.want {
+				t.Fatalf("frozen call = %q, %v; want %q", got, err, mode.want)
+			}
+		})
+	}
+}

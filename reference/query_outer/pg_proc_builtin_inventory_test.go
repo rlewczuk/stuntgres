@@ -83,6 +83,8 @@ import (
 // one-regclass INT8 declaration, cost 1 and released internal symbol.
 // Array-vector construction and current-config identity add strict scalar,
 // parallel-safe declarations3327/3759 with immutable/stable volatility.
+// Pure LSN difference OID3165 retains two unnamed PG_LSN inputs, a NUMERIC
+// result, strict IMMUTABLE/parallel-safe defaults and its internal source.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -265,8 +267,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// declaration3781, no inputs, twenty ordered OUT fields and rows10.
 	// WAL adds metadata-only non-strict STABLE/restricted scalar RECORD1136:
 	// no inputs, five OUT fields including exact NUMERIC bytes, and rows0.
-	if len(facts) != 2281 {
-		t.Fatalf("released represented overloads: got %d, want 2281", len(facts))
+	// Pure LSN difference adds released OID3165 with pg_proc.h defaults.
+	if len(facts) != 2282 {
+		t.Fatalf("released represented overloads: got %d, want 2282", len(facts))
 	}
 	return facts
 }

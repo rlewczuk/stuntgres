@@ -120,6 +120,7 @@ Rules:
 - TID: `RUN='^TestReferenceTID'`. Controls also check typed direct/prepared ctid
   reads, distinct valid physical identities and lookup by a captured physical TID,
   independently of stored user TID values.
+- Pure LSN difference calls, metadata, diagnostics and stored recipes: `RUN='^TestReferencePGLSNDiff'`
 - Internal quoted CHAR: `RUN='^TestReferenceInternalChar'`
 - Catalog integer/OID vectors: `RUN='^TestReferenceCatalogVectors'`
 - BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`
