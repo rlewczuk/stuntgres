@@ -642,7 +642,7 @@ func OpenNode(ctx context.Context, state *State, node plan.Node) (Stage, error) 
 	}
 	var record *stageObservation
 	var started time.Time
-	if observer != nil {
+	if observer != nil && !observer.presentationOnly {
 		identity := node
 		if join, ok := node.(*plan.JoinNode); ok && join.ScanOwner != nil {
 			identity = join.ScanOwner
@@ -651,6 +651,9 @@ func OpenNode(ctx context.Context, state *State, node plan.Node) (Stage, error) 
 			identity = aliases[node]
 		}
 		record = observer.stage(identity)
+		if _, source := node.(*plan.SourceNode); source && observer.logicalAccesses {
+			record.baseSource = true
+		}
 		if eagerObservationNode(node) {
 			record.entered, record.loops = true, 1
 		}

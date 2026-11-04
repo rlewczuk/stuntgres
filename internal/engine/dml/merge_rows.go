@@ -81,6 +81,17 @@ func stageMergeWindow(ctx context.Context, h Host, rows *MergeRows, ref ids.Obje
 func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*MergeRows, error) {
 	ctx, b, target := in.Context, in.Binding, in.Target
 	target.Host = h
+	roles := exec.DMLObservationOf(ctx)
+	candidates := roles.Role(exec.DMLMergeCandidates)
+	targetPass := roles.Role(exec.DMLMergeTarget)
+	candidates.BeginLoop()
+	candidates.StartWork()
+	membershipComplete := false
+	defer func() {
+		if !membershipComplete {
+			candidates.EndWork()
+		}
+	}()
 	sourceSchema := cursor.Schema()
 	width := len(sourceSchema)
 	scratch := make([]sqltype.Value, width)
@@ -181,6 +192,8 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 		var old storage.RowVersion
 		if sourceCount == 0 {
 			old = target.ReadSequentialVersion(i)
+			exec.ObserveLogicalAccess(ctx)
+			targetPass.Emit()
 		} else {
 			old = target.VersionAt(slot) // Already visited candidate metadata.
 		}
@@ -198,31 +211,49 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 		copy(frame[len(b.Relation.Columns):], sources[j*width:(j+1)*width])
 		bindIdentity(j)
 		matched := false
+		targetPass.BeginLoop()
+		targetPass.StartWork()
 		for i := range target.Count() {
 			old := target.ReadSequentialVersion(i)
+			exec.ObserveLogicalAccess(ctx)
+			targetPass.Emit()
 			copy(frame, old.Values)
 			evaluation.PhysicalTable, evaluation.PhysicalVersion = b.Ref, old
 			truth, err := MergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
+				targetPass.EndWork()
 				return nil, err
 			}
 			if truth {
 				pairs = append(pairs, capture(i, parser.MergeMatched, j))
+				candidates.Emit()
 				matched = true
 				if targetMatched != nil {
 					targetMatched[i] = true
 				}
 			}
 		}
+		targetPass.EndWork()
 		if !matched && b.Merge.HasByTarget {
 			pairs = append(pairs, MergeCandidate{UpdateCandidate: UpdateCandidate{SourceIndex: j}, Class: parser.MergeNotMatched})
+			candidates.Emit()
 		}
+	}
+	if sourceCount == 0 && b.Merge.HasBySource {
+		targetPass.BeginLoop()
+		targetPass.StartWork()
 	}
 	for i, matched := range targetMatched {
 		if !matched {
 			pairs = append(pairs, capture(i, parser.MergeNotMatchedBySource, -1))
+			candidates.Emit()
 		}
 	}
+	if sourceCount == 0 && b.Merge.HasBySource {
+		targetPass.EndWork()
+	}
+	candidates.EndWork()
+	membershipComplete = true
 	var nullSource []sqltype.Value
 	if b.Merge.HasBySource && (b.Merge.HasInsert || b.Returning != nil) {
 		nullSource = make([]sqltype.Value, width)

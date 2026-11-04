@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
@@ -122,22 +123,33 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 		}
 	}
 	var setter authorization.PrincipalRef
-	if d.Name == settings.PgcryptoBuiltinCrypto {
+	setterSuperuser := false
+	if d.Name == settings.PgcryptoBuiltinCrypto || strings.HasPrefix(d.Name, "auto_explain.") {
 		auth, authErr := e.AuthorizationLocked(op)
 		if scope := ActiveScopeOfLease(op.Lease); scope != nil {
 			auth, authErr = scope.RoutineAuthorizationLocked()
 		}
-		if authErr != nil { return "", authErr }
+		if authErr != nil {
+			return "", authErr
+		}
 		setter = auth.State.CurrentUser
+		role, exists := auth.Roles.Find(setter)
+		setterSuperuser = exists && role.Superuser
 	}
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	if err := owner.PgcryptoAssignmentHeadroomLocked(d.Name, value != nil); err != nil { return "", err }
+	if err := owner.PgcryptoAssignmentHeadroomLocked(d.Name, value != nil); err != nil {
+		return "", err
+	}
+	if err := owner.AutoExplainAssignmentHeadroomLocked(d.Name, value != nil); err != nil {
+		return "", err
+	}
 	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, action)
 	if err == nil {
 		owner.CapturePgcryptoSetterLocked(d.Name, setter, value != nil)
+		owner.CaptureAutoExplainSetterLocked(d.Name, setter, setterSuperuser, value != nil)
 		if d.Name == "temp_tablespaces" {
 			owner.AcceptTempTablespacesLocked(tempAssignment)
 		}

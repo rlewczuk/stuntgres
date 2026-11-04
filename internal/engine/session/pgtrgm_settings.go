@@ -30,9 +30,10 @@ func pgTrgmDefinition(name string) (settings.Definition, bool) {
 // afterwards it materializes the same ordered union as VisitDefinitionsLocked.
 func (s *SettingsStore) EffectiveSettingNamesLocked(registry settings.Registry) []string {
 	s.reconcilePgTrgmLocked()
+	s.reconcileAutoExplainLocked()
 	isnLoaded, pgTrgmLoaded := s.IsnLoaded(), s.pgTrgmAuthority().pgTrgmLoaded.Load()
 	pgcryptoLoaded := s.pgcryptoAuthority().loaded.Load()
-	if !isnLoaded && !pgTrgmLoaded && !pgcryptoLoaded {
+	if !isnLoaded && !pgTrgmLoaded && !pgcryptoLoaded && !s.AutoExplainLoaded() {
 		return registry.Order()
 	}
 	capacity := len(registry.Order())
@@ -44,6 +45,9 @@ func (s *SettingsStore) EffectiveSettingNamesLocked(registry settings.Registry) 
 	}
 	if pgTrgmLoaded {
 		capacity += len(settings.PgTrgmDefinitions())
+	}
+	if s.AutoExplainLoaded() {
+		capacity += len(settings.AutoExplainDefinitions())
 	}
 	names := make([]string, 0, capacity)
 	_ = s.VisitDefinitionsLocked(registry, func(d settings.Definition) error {

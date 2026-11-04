@@ -14,12 +14,17 @@ import (
 // Each opened stage writes only its own record. The registry lock is used at
 // stage creation and after joined completion, never in the row loop.
 type Observation struct {
-	mu                sync.Mutex
-	timing            bool
-	records           map[plan.Node][]*stageObservation
-	foreignOptions    catalog.ForeignExplainOptions
-	foreignStructured bool
-	foreign           map[plan.Node]ForeignObservation
+	mu                                             sync.Mutex
+	timing                                         bool
+	presentationOnly                               bool
+	records                                        map[plan.Node][]*stageObservation
+	foreignOptions                                 catalog.ForeignExplainOptions
+	foreignStructured                              bool
+	foreign                                        map[plan.Node]ForeignObservation
+	logicalAccesses, logicalWrites, triggerMetrics bool
+	accesses, writes                               int64 // Mutation target/provider demand and staging are serial.
+	triggers                                       []TriggerActual
+	dml                                            []*DMLObservation // Serial accepted-command invocations, not retained plans.
 }
 
 type Actual struct {
@@ -45,6 +50,21 @@ func Observe(ctx context.Context, timing bool) (context.Context, *Observation) {
 	return context.WithValue(ctx, observationKey{}, o), o
 }
 
+// ObservePresentation captures actual provider selection without row counters.
+func ObservePresentation(ctx context.Context) (context.Context, *Observation) {
+	o := &Observation{presentationOnly: true}
+	return context.WithValue(ctx, observationKey{}, o), o
+}
+
+// WithoutObservation keeps runtime admission/cancellation but prevents a nested
+// executor from contributing source events to its suspended parent's identity.
+func WithoutObservation(ctx context.Context) context.Context {
+	if !HasObservation(ctx) {
+		return ctx
+	}
+	return context.WithValue(ctx, observationKey{}, (*Observation)(nil))
+}
+
 // Context carries this command identity without replacing the caller's runtime
 // cancellation, pause admission or evaluation environment.
 func (o *Observation) Context(ctx context.Context) context.Context {
@@ -57,7 +77,7 @@ func (o *Observation) Context(ctx context.Context) context.Context {
 // Register admits genuine prepared graph identities, including never-demanded
 // descendants. Synthetic presentation-only DML scans are deliberately absent.
 func (o *Observation) Register(root plan.Node) {
-	if o == nil {
+	if o == nil || o.presentationOnly {
 		return
 	}
 	o.mu.Lock()
@@ -117,6 +137,8 @@ type stageObservation struct {
 	rows, loops int64
 	elapsed     time.Duration
 	depth       int
+	baseSource  bool
+	accesses    int64
 	started     time.Time
 }
 
@@ -156,6 +178,9 @@ func (r *stageObservation) end() {
 func (r *stageObservation) emitted(ordinal int) {
 	if ordinal >= r.frontier {
 		r.rows++
+		if r.baseSource {
+			r.accesses++
+		}
 		r.frontier = ordinal + 1
 	}
 }
@@ -199,6 +224,9 @@ func (s *Stage) observeDrained(count int) {
 	}
 	for _, r := range s.observations {
 		if count > r.frontier {
+			if r.baseSource {
+				r.accesses += int64(count - r.frontier)
+			}
 			r.rows += int64(count - r.frontier)
 			r.frontier = count
 		}
@@ -212,6 +240,9 @@ func (s *Stage) observeIndexedRead() {
 	s.databaseFetched(1, true)
 	for _, record := range s.observations {
 		record.start()
+		if record.baseSource {
+			record.accesses++
+		}
 		record.rows++
 		record.frontier++
 		record.end()

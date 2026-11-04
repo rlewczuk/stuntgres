@@ -49,6 +49,10 @@ type sqlRoutineScratch struct {
 	statementStatsOffset      int
 	statementStatsSpans       []statementStatsSpan
 	statementStatsCompletions []*statementStatsFrame
+	autoExplain               *autoExplainFrame
+	autoExplainFamily         *bool
+	autoExplainCompletions    []*autoExplainFrame
+	autoExplainStatement      parser.Statement
 	currentSnapshot           *sqltype.Snapshot
 	snapshotFrontier          ids.CommitSeq
 	exportCapture             *exportedSnapshot
@@ -101,7 +105,9 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		statementStatsOffset:      s.statementStatsOffset,
 		statementStatsSpans:       s.statementStatsSpans,
 		statementStatsCompletions: s.statementStatsCompletions,
-		currentSnapshot:           s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
+		autoExplain:               s.autoExplain, autoExplainFamily: s.autoExplainFamily, autoExplainCompletions: s.autoExplainCompletions,
+		autoExplainStatement: s.autoExplainStatement,
+		currentSnapshot:      s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
 		exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
 		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
@@ -131,6 +137,8 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.statementStatsOffset = c.statementStatsOffset
 	s.statementStatsSpans = c.statementStatsSpans
 	s.statementStatsCompletions = c.statementStatsCompletions
+	s.autoExplain, s.autoExplainFamily, s.autoExplainCompletions = c.autoExplain, c.autoExplainFamily, c.autoExplainCompletions
+	s.autoExplainStatement = c.autoExplainStatement
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
 	s.exportCapture, s.exportRootDemand = c.exportCapture, c.exportRootDemand
 	s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission = c.snapshotTarget, c.snapshotTargets, c.snapshotTargetAdmission
@@ -216,6 +224,7 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	}
 	s.installSQLRoutineScratch(child)
 	s.statementStatsDepth = saved.statementStatsDepth + 1
+	s.autoExplainFamily = saved.autoExplainFamily
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
@@ -248,6 +257,7 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 		s.captureStatementStatsTerminal(s.statementStats)
 		childStatistics := s.statementStats
 		childCompletions := s.statementStatsCompletions
+		s.finishAutoExplain(primary == nil)
 		s.statementStats = nil
 		s.installSQLRoutineScratch(saved)
 		// Scratch-only activation has no live operation/publication authority.
@@ -330,8 +340,10 @@ func (s *StatementScope) rebaseRoutineScratch(c sqlRoutineScratch) sqlRoutineScr
 		statementStats: c.statementStats, statementStatsDepth: c.statementStatsDepth, statementStatsSource: c.statementStatsSource, statementStatsOffset: c.statementStatsOffset,
 		statementStatsUtilityBody: c.statementStatsUtilityBody,
 		statementStatsCompletions: c.statementStatsCompletions,
-		statementStatsSpans:       c.statementStatsSpans,
-		currentSnapshot:           s.currentSnapshot, snapshotFrontier: s.snapshotFrontier, exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
+		autoExplain:               c.autoExplain, autoExplainFamily: c.autoExplainFamily, autoExplainCompletions: c.autoExplainCompletions,
+		autoExplainStatement: c.autoExplainStatement,
+		statementStatsSpans:  c.statementStatsSpans,
+		currentSnapshot:      s.currentSnapshot, snapshotFrontier: s.snapshotFrontier, exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
 		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		initialParameters: c.initialParameters, sqlRoutine: demand, expected: c.expected,
 		protocol: c.protocol, ownWrites: s.Owner.Writes, ownDeletes: s.Owner.Deletes}

@@ -321,9 +321,9 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   placeholders are removed permanently. In `setting_values.go`, the single
   `EffectiveDefinitionLocked` resolves active ISN and pgcrypto metadata before
   the immutable registry, then loaded pg_trgm definitions. The single
-  `VisitDefinitionsLocked` merges a bounded five-name overlay with registry
-  order; `EffectiveSettingNamesLocked` materializes that same union, including
-  crypto-only activation, without duplicates or placeholder definitions.
+  `VisitDefinitionsLocked` merges the bounded active overlay with registry
+  order; `EffectiveSettingNamesLocked` materializes that same union without
+  duplicates or placeholder definitions.
   `PgTrgmThresholdLocked` reads typed numbers and never activates the library.
   The threshold API setter reaches ordinary `ApplyLocked` with `SettingSet`,
   sharing session/local/savepoint restoration rather than writing an override
@@ -337,6 +337,17 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   sources or repeating load warnings. Transaction, exception, routine and catalog
   restoration cannot unload the physical overlay;
   only physical session retirement releases it.
+  `autoexplain.go` owns the analogous twelve-name privileged physical overlay.
+  Successful pre-load assignments retain original principal, assignment identity
+  and superuser-versus-ordinary context in existing journal originals/masked
+  actions. First LOAD freezes exact-name replay permissions from its current
+  coherent ACL root, not from the loader's authority; original superuser context
+  remains independently authoritative. `autoexplain_replay.go` reconstructs only
+  successful actions bottom-up: permission failures precede parsing, preserve the
+  successful predecessor and create no journal node. Retained mark/ancestor
+  copies remain immutable; shared assignment identities prevent duplicate
+  warnings without collapsing distinct equal assignments. Physical retirement
+  clears recognition and replay authority; no frame or live execution is stored.
   Command admission captures `plan.PlannerMethods` under the effective store's
   mutex. Disabled bits make detached zero values preserve enabled algorithms;
   the value retains no settings owner. Core separately captures effective
@@ -791,6 +802,10 @@ types.
 
 Private deletion projection and savepoint backing preserve every physical
 sibling through `RUN='^TestPrivateDeletionProjectionCollisions$'`.
+
+Automatic-explanation physical overlay, original assignment/context replay and
+retained-image retirement use `RUN='^TestAutoExplainModuleSettings$'`, also with
+`RACE=1`; public settings/privilege behavior belongs to `reference/query_order`.
 
 Physical pgcrypto activation, combined ISN/pgcrypto/pg_trgm projection and precise
 typed resets, journals, ancestry and detached/retained ownership use

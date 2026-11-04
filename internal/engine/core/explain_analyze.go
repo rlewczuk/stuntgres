@@ -2,10 +2,14 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -29,13 +33,36 @@ type explainExecution struct {
 // captureExplainCommandLocked borrows the real prepared execution graph, after
 // canonical binding and preflight and before any executor startup. Presentation
 // is frozen now; rendering after execution only reads scalar measurements.
-func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation) (*explain.Tree, error) {
+func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation, cteOwner *exec.CTEInvocation, cteDefinition *plan.CTEDefinition) (*explain.Tree, error) {
 	owner := scope.explain
 	if owner == nil {
 		return nil, nil
 	}
+	renderer, tree, err := e.captureExecutedPlanLocked(scope, statement, execution, observation, owner.options, cteOwner, cteDefinition)
+	if err != nil {
+		return nil, err
+	}
+	renderer.Commands = &owner.renderers
+	owner.renderers = append(owner.renderers, renderer)
+	if statement == owner.statement {
+		copy(owner.renderers[1:], owner.renderers[:len(owner.renderers)-1])
+		owner.renderers[0] = renderer
+	}
+	if owner.executing.IsZero() && owner.options.Summary {
+		owner.planning = time.Since(owner.started)
+		owner.executing = time.Now()
+	}
+	return tree, nil
+}
+
+// Both explicit ANALYZE and the automatic hook borrow this actual accepted
+// execution, including current expressions and provider-selection identity.
+func (e *Engine) captureExecutedPlanLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation, options explain.Options, cteOwner *exec.CTEInvocation, cteDefinition *plan.CTEDefinition) (*explain.Renderer, *explain.Tree, error) {
 	binding := execution.binding
 	binding.Expressions = execution.expressions
+	if err := reserveExecutedCTEs(observation, scope.cteInvocation, binding); err != nil {
+		return nil, nil, err
+	}
 	observation.Register(execution.queryRoot)
 	if binding.Update != nil {
 		observation.Register(binding.Update.From)
@@ -49,32 +76,94 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 		query.Root = execution.queryRoot
 		binding.Query = &query
 	}
-	renderer, err := newExplainRenderer(scope, execution.auth, owner.options)
+	renderer, err := newExplainRenderer(scope, execution.auth, options)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	renderer.Observation = observation
+	renderer.DML = exec.DMLObservationOf(scope.executionContext())
+	renderer.CTEs = scope.cteInvocation
+	renderer.CTEOwner, renderer.CTEDefinition = cteOwner, cteDefinition
 	if _, err = renderer.Command(statement, explain.Bound{Binding: binding}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if scope.ruleAction.Auth != nil {
 		renderer.MarkRuleRewrite()
 	}
-	owner.renderers = append(owner.renderers, renderer)
-	if statement == owner.statement {
-		copy(owner.renderers[1:], owner.renderers[:len(owner.renderers)-1])
-		owner.renderers[0] = renderer
-	}
-	if owner.executing.IsZero() && owner.options.Summary {
-		owner.planning = time.Since(owner.started)
-		owner.executing = time.Now()
-	}
 	tree := renderer.CommandTree()
 	if tree == nil {
-		return nil, nil
+		return renderer, nil, nil
 	}
-	tree.Actual = &exec.Actual{Loops: 1}
-	return tree, nil
+	if options.Analyze {
+		if tree.Actual == nil {
+			tree.Actual = &exec.Actual{}
+		}
+		tree.Actual.Loops = 1
+	}
+	return renderer, tree, nil
+}
+
+// Only actual accepted invocation owners reserve mutation measurements. Lazy
+// CTEs may be displayed before demand enters them, so their exact owner's
+// record is reserved now and populated at the existing child handoff.
+func reserveExecutedDML(observation *exec.Observation, owner *exec.CTEInvocation, definition *plan.CTEDefinition, statement parser.Statement, binding analyze.Binding) *exec.DMLObservation {
+	switch statement.(type) {
+	case *parser.Insert:
+		if binding.Query == nil {
+			return observation.ReserveDML(owner, definition, exec.DMLInsertInput)
+		}
+	case *parser.Merge:
+		return observation.ReserveDML(owner, definition, exec.DMLMergeTarget, exec.DMLMergeCandidates)
+	case *parser.Update, *parser.Delete:
+		var roles [4]exec.DMLRole
+		roles[0] = exec.DMLTargetScan
+		count := 1
+		if binding.Update != nil && binding.Update.From != nil || binding.Delete.Using != nil {
+			roles[count], count = exec.DMLCandidateJoin, count+1
+		}
+		predicate := binding.Predicate
+		if binding.Update != nil {
+			predicate = binding.Update.Predicate
+		}
+		if predicate != nil {
+			roles[count], count = exec.DMLPredicate, count+1
+		}
+		if binding.CurrentOf != "" {
+			roles[count], count = exec.DMLCursorLocator, count+1
+		}
+		return observation.ReserveDML(owner, definition, roles[:count]...)
+	default:
+		return nil
+	}
+	return observation.ReserveDML(owner, definition)
+}
+
+func reserveExecutedCTEs(observation *exec.Observation, owners *exec.CTEInvocation, binding analyze.Binding) error {
+	if observation == nil {
+		return nil
+	}
+	for _, definition := range binding.CTEs {
+		mutation, ok := analyze.MutationBinding(definition)
+		if !ok {
+			continue
+		}
+		owner := owners
+		for owner != nil && owner.Frame != definition.Owner {
+			owner = owner.Parent
+		}
+		if owner == nil {
+			return fmt.Errorf("stuntgres: missing EXPLAIN CTE invocation owner")
+		}
+		statement, command := definition.Statement, *mutation
+		if rewrite := view.RuleCTEsOf(binding.Rule.CTEs)[definition]; rewrite != nil {
+			statement, command = rewrite.Command.Syntax, rewrite.Command.Binding
+		}
+		reserveExecutedDML(observation, owner, definition, statement, command)
+		if err := reserveExecutedCTEs(observation, owners, command); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options explain.Options) (Result, error) {
@@ -88,6 +177,7 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 	previous, invocation := scope.explain, scope.invocationContext
 	scope.explain, scope.invocationContext = owner, ctx
 	defer func() { scope.explain, scope.invocationContext = previous, invocation }()
+	defer func() { owner.renderers = nil }()
 	result, err := e.executeDataStatement(scope, statement.Statement, count, importFrame)
 	if frame := scope.statementStats; frame != nil && !frame.utility {
 		scope.statementStatsReturned(&result, err)
@@ -111,6 +201,9 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 	var execution time.Duration
 	if options.Summary && !owner.executing.IsZero() {
 		execution = time.Since(owner.executing)
+	}
+	if err := explain.ResolveCommands(owner.renderers); err != nil {
+		return Result{}, err
 	}
 	var lines []string
 	if !options.Structured() {

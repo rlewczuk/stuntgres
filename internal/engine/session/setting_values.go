@@ -17,6 +17,7 @@ import (
 func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, name string) (settings.Definition, bool) {
 	s.syncPgcryptoLocked(nil)
 	s.reconcilePgTrgmLocked()
+	s.reconcileAutoExplainLocked()
 	key := settings.FoldName(name)
 	if key == "isn.weak" && s.IsnLoaded() {
 		return IsnDefinition(), true
@@ -30,6 +31,11 @@ func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, na
 	if d, ok := registry.Definitions()[key]; ok {
 		return d, true
 	}
+	if s.AutoExplainLoaded() {
+		if d, ok := autoExplainDefinition(key); ok {
+			return d, true
+		}
+	}
 	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
 		return pgTrgmDefinition(key)
 	}
@@ -41,7 +47,8 @@ func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, na
 func (s *SettingsStore) VisitDefinitionsLocked(registry settings.Registry, visit func(settings.Definition) error) error {
 	s.syncPgcryptoLocked(nil)
 	s.reconcilePgTrgmLocked()
-	var overlay [5]string
+	s.reconcileAutoExplainLocked()
+	var overlay [17]string
 	names := overlay[:0]
 	if s.IsnLoaded() {
 		names = append(names, IsnDefinition().Name)
@@ -51,6 +58,11 @@ func (s *SettingsStore) VisitDefinitionsLocked(registry settings.Registry, visit
 	}
 	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
 		for _, d := range settings.PgTrgmDefinitions() {
+			names = append(names, d.Name)
+		}
+	}
+	if s.AutoExplainLoaded() {
+		for _, d := range settings.AutoExplainDefinitions() {
 			names = append(names, d.Name)
 		}
 	}
@@ -96,6 +108,9 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 		if _, active := registry.Definitions()["sepgsql.permissive"]; active {
 			return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"sepgsql" is a reserved prefix.`}
 		}
+	}
+	if create && s.AutoExplainLoaded() && strings.HasPrefix(key, "auto_explain.") {
+		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"auto_explain" is a reserved prefix.`}
 	}
 	if create && s.pgcryptoAuthority().loaded.Load() && strings.HasPrefix(key, "pgcrypto.") {
 		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pgcrypto" is a reserved prefix.`}

@@ -56,6 +56,11 @@ func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, err
 		var text string
 		var err error
 		switch n := node.(type) {
+		case plan.PLLocalExpr:
+			// Reached lexical inputs already own their current immutable value.
+			// Presentation shares literal output without evaluating or retaining
+			// a live PL activation, or admitting lexical nodes to persistence.
+			text, err = deparser.Literal(r.host.Context(), plan.LiteralExpr{Info: n.Info, Value: n.Value})
 		case plan.SubqueryExpr:
 			if n.CTEEdge {
 				return "", true, fmt.Errorf("stuntgres: analysis-only subquery in EXPLAIN output")

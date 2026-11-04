@@ -143,6 +143,9 @@ func (d Definition) Parse(input string) (Value, error) {
 		return v, parameterError(fmt.Sprintf(`parameter "%s" requires a Boolean value`, d.Name), "")
 	case Enum:
 		key := FoldName(input)
+		if d.Name == "auto_explain.log_level" && key == "debug" {
+			key = "debug2"
+		}
 		if d.Normalize != nil {
 			var err error
 			v.Text, _, err = d.Normalize(input)

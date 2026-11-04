@@ -18,6 +18,7 @@ type CTEInvocation struct {
 	Closed         bool
 	failure        error
 	cleanupFailure error
+	dml            *DMLObservation // Optional exact auxiliary-command records, invocation-local.
 }
 type CTEProducer struct {
 	state                State
@@ -41,6 +42,7 @@ func (o *CTEInvocation) Close() error {
 		return o.failure
 	}
 	o.Closed = true
+	o.dml = nil
 	for _, producer := range o.Order {
 		if err := producer.close(); o.failure == nil {
 			o.failure = err

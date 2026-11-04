@@ -127,6 +127,30 @@ func explainDebugOwnership(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal("renderer replaced actual bound root")
 			}
+			for node := range actual {
+				derived, ok := node.(*plan.DerivedNode)
+				if !ok || derived.CTE == nil || derived.CTE.Folded() {
+					continue
+				}
+				producer := derived.Query
+				if producer == nil {
+					producer = derived.CTE.Query
+				}
+				if producer == nil || producer.Root == nil {
+					e.Mu.Unlock()
+					t.Fatal("materialized CTE fixture lost its genuine producer graph")
+				}
+				occurrences := 0
+				for _, presented := range nodes {
+					if presented == producer.Root {
+						occurrences++
+					}
+				}
+				if occurrences != 1 {
+					e.Mu.Unlock()
+					t.Fatal("synthetic CTE wrapper duplicated its real producer identity", occurrences)
+				}
+			}
 			typ, _ := auth.Catalog.LookupType(sqltype.JSON)
 			schema := []catalog.Column{{Name: "QUERY PLAN", Usage: typ.Usage()}}
 			e.Mu.Unlock()
@@ -150,7 +174,7 @@ func explainDebugOwnership(t *testing.T) {
 			var visit func(map[string]any)
 			visit = func(n map[string]any) {
 				if d, ok := n["Embedded Debug"].(map[string]any); ok {
-					if n["Node Type"] == "SubPlan" || n["Node Type"] == "Rule Rewrite" {
+					if n["Node Type"] == "CTE" || n["Node Type"] == "SubPlan" || n["Node Type"] == "Rule Rewrite" {
 						t.Fatal("synthetic wrapper got graph identity")
 					}
 					projected = append(projected, d)

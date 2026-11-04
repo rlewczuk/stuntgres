@@ -17,6 +17,7 @@ type LoadModule uint8
 const (
 	LoadOverexplain LoadModule = iota + 1
 	LoadSepgsql
+	LoadAutoExplain
 )
 
 // checkLoad checks current execution authority and lexical restrictions before
@@ -57,6 +58,8 @@ func Load(ctx context.Context, view access.View, s *parser.Load) (LoadModule, er
 	switch s.Filename {
 	case "pg_overexplain", "pg_overexplain.so", "$libdir/pg_overexplain", "$libdir/pg_overexplain.so":
 		return LoadOverexplain, nil
+	case "auto_explain", "auto_explain.so", "$libdir/auto_explain", "$libdir/auto_explain.so":
+		return LoadAutoExplain, nil
 	case "$libdir/sepgsql":
 		if view.Sepgsql.Policy != nil {
 			return LoadSepgsql, nil

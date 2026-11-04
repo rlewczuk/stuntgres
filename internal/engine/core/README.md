@@ -409,6 +409,19 @@ retain ordinary Commit/Rollback semantics and a failed publication cannot expose
 a successful plan. The wrapper fold owner stays inert; actual child preflight
 graphs, presentation and runtime observations belong only to the current
 activation, never a prepared description or portal.
+Accepted mutation handoff reserves one optional fixed producer-role set and
+shares its existing command-root Actual scalar between explicit and automatic
+presentation. Real input/fetch/membership events remain independent of writes
+and no-RETURNING root0. Modifying CTE presentation uses the exact current
+CTEInvocation plus definition, not AST spelling or a retained prepared graph:
+lazy reservations stay unentered until genuine child demand, then existing
+command completion populates the shared root. Invocation-context restoration
+and CTE close retire these associations with their actual owners.
+Explicit and automatic explanation share the same canonical command's actual
+Observation; independent nested commands retain their own. The settled family
+resolves modifying-CTE children to their already captured accepted command trees,
+including current preflight source nodes and parameters; it never marks static
+definition copies executed. Both encoders delegate to the actual child renderer.
 Foreign presentation attaches only after the executor selects its real scan,
 composite or modification plan, using defensive callback copies and detached
 properties. ANALYZE never reruns metadata-only provider planning. Composite
@@ -418,6 +431,23 @@ The composed foreign ownership witnesses pair selected opaque tokens, current
 typed parameter frames and modification targets with actual Begin/Exec requests
 through capture, detached rendering and Finish. Provider property failure or
 cancellation prevents startup/publication; a begun source still closes once.
+
+Authorized `LOAD 'auto_explain'` activates a physical-session hook. Canonical
+accepted executor startup snapshots its typed policy and current parameters;
+Describe/Prepare/Bind do not sample or allocate an observer. The command-local
+frame shares actual graph/provider capture and presentation with analyzed
+EXPLAIN, never replaying execution. Sampling is inherited by lexical nested
+commands, whose source and settings remain their own. Retained portal/cursor
+producers transfer frames; resumed work and finalizers contribute active time,
+not client idle lifetime. Normal completion remains prospective until the owning
+Finish/publication succeeds; failure, cancellation and terminal teardown release
+without a completed-plan notice. Detached transport rows own no hook. Parameter
+formatting clips original UTF8 bytes before quote doubling. Logical writes are
+counted only after real row-version staging/provider acceptance; trigger counters
+retain actual trigger identity independently of shared procedure identity.
+An absent frame takes the terminal nil path before inspecting operation-owned
+diagnostics, including lexical restoration without an admitted operation.
+
 Ordinary foreign query capture forwards the bound occurrence's dense `Uses`
 ordinals without changing its manifest. A nil query-use slice denotes presence
 only and becomes a nonnil empty scan-use slice; it must not become the foreign
@@ -3706,6 +3736,17 @@ admission and generation-fence witnesses.
 Sampling lifetime units use `RUN='^TestSystemRows'` over actual child failure and
 cancellation, statement pins, independent prepared protocol resources and retained
 immutable graph/fold/schema backing through Close and Reset.
+
+Automatic explanation policy, accepted/current graph ownership, genuine
+source/write metrics and retained/terminal completion use `RUN='^TestAutoExplain'`.
+These private ownership witnesses supplement public dual-mode scenarios in
+`reference/query_order`; they retain real accepted artifacts and exercise
+provider failure, joined workers and Finish veto without replaying statements.
+Parameterized ownership witnesses retain genuine protocol Bind groups/resources,
+not the deliberately empty reusable definition cell. Saved accepted generations,
+backing and graphs survive later invocations and rejected publication. MERGE
+ordering is observed before membership at its real source OpenNode handoff;
+provider startup inside membership independently observes an entered producer.
 
 Genuine pgcrypto activation, dormant/closed evaluation boundaries and retained
 fold ownership components use `RUN='^TestPgcryptoPolicy'`.

@@ -23,6 +23,8 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -57,6 +59,11 @@ type StatementScope struct {
 	statementStatsOffset      int
 	statementStatsSpans       []statementStatsSpan
 	statementStatsCompletions []*statementStatsFrame
+	autoExplain               *autoExplainFrame
+	autoExplainFamily         *bool
+	autoExplainCompletions    []*autoExplainFrame
+	autoExplainStatement      parser.Statement
+	autoExplainNoticeContexts map[int]sqlstate.Error
 	statsPopulation           statistics.Ledger
 	Owner                     *session.TransactionOwner
 	Op                        *session.Operation

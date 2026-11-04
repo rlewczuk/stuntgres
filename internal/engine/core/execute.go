@@ -27,6 +27,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	defer func() { scope.statementStatsReturned(&result, failure) }()
+	defer func() { scope.autoExplainReturned(&result, failure) }()
+	previousAutoStatement := scope.autoExplainStatement
+	scope.autoExplainStatement = stmt
+	defer func() { scope.autoExplainStatement = previousAutoStatement }()
 	if statementStatsUtilityStatement(stmt) {
 		previous := scope.statementStatsUtilityBody
 		scope.statementStatsUtilityBody = true

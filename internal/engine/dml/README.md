@@ -40,6 +40,22 @@ version access. Foreign/materialized rows do not impersonate local heap fetches.
 Mutation I/U/D still come only from accepted storage staging and the existing
 ledger, never from scan cardinality or final affected rows.
 
+Optional analyzed execution measures literal/default INSERT input at original
+row production, before triggers/conflicts/admission: suppression and DO NOTHING
+do not erase reached input or create writes. MERGE's membership owner measures
+each entered target pass and genuine sequential fetch, plus each emitted pair.
+An empty source enters a target pass only for BY SOURCE; metadata replay and
+action/EPQ retries add no initial scan or pair emission. The context carries
+that accepted command's fixed role set; active timing excludes later action
+waits. These are source/candidate measurements, independent of accepted writes,
+affected counts and the no-RETURNING command's zero emitted rows.
+UPDATE/DELETE record the real target-fetch, candidate-frame and initial
+predicate-survivor boundaries before action waits. CURRENT OF has its own actual
+position lookup; it does not claim that only one physical tuple was examined.
+Foreign identity fetches and logical view-output producers use those same roles
+at their real production owners, without extra provider calls or base-access
+charges for intermediate view rows.
+
 
 COPY decoding obtains the current selected effective child through
 `Host.CopyInputContext`, reusing its invocation projection until the actual child

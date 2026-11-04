@@ -31,6 +31,11 @@ type Tree struct {
 	unknownEstimate bool
 	node            plan.Node
 	Actual          *exec.Actual
+	actualChild     *Tree                // Synthetic wrapper borrows child measurements, never its graph identity.
+	dml             *exec.DMLMeasurement // Actual producer role, never a synthetic node record.
+	cteOwner        *exec.CTEInvocation
+	cteDefinition   *plan.CTEDefinition
+	commandRenderer *Renderer // Resolved actual accepted auxiliary, never a rebound source graph.
 }
 
 // These are execution's metadata-only composite eligibility facts. They do not
@@ -87,6 +92,13 @@ type Renderer struct {
 	foreign                      explainForeignContext
 	foreignOwners                map[uint32]explainForeignContext
 	Observation                  *exec.Observation
+	DML                          *exec.DMLObservation
+	CTEs                         *exec.CTEInvocation // Borrowed exact invocation chain for auxiliary presentation.
+	CTEOwner                     *exec.CTEInvocation
+	CTEDefinition                *plan.CTEDefinition
+	Commands                     *[]*Renderer // Borrowed existing family; lazy captures append here.
+	commandsResolved             bool
+	SuppressActual               bool // Automatic non-ANALYZE still observes provider selection.
 	trees                        []*Tree
 	rangeTable                   map[string]any // Detached query-level facts; nil unless requested.
 }
@@ -474,7 +486,7 @@ func (r *Renderer) node(root plan.Node, synthetic ...plan.Node) (*Tree, error) {
 			tree.nodeType = "CTE Scan"
 			r.property(tree, "CTE Name", n.CTE.Name)
 			if !n.CTE.Folded() {
-				producer, err := r.cte(n.CTE)
+				producer, err := r.cte(n.CTE, n.Query)
 				if err != nil {
 					return nil, err
 				}
@@ -715,20 +727,39 @@ func explainDerivedAlias(node *plan.DerivedNode) string {
 	return ""
 }
 
+// actual is shared by every encoder. Missing node/role evidence stays absent;
+// registered but unentered roles supply their measured zero rows and loops.
+func (r *Renderer) actual(tree *Tree) (exec.Actual, bool) {
+	if r.SuppressActual || r.Observation == nil {
+		return exec.Actual{}, false
+	}
+	if tree.Actual != nil {
+		return *tree.Actual, true
+	}
+	if tree.actualChild != nil {
+		return r.actual(tree.actualChild)
+	}
+	if tree.dml != nil {
+		return tree.dml.Actual(), true
+	}
+	if r.Observation.Known(tree.node) {
+		return r.Observation.Actual(tree.node), true
+	}
+	return exec.Actual{}, false
+}
+
 func (r *Renderer) lines(tree *Tree, depth int, lines *[]string) {
+	if tree.commandRenderer != nil {
+		tree.commandRenderer.lines(tree.commandRenderer.CommandTree(), depth, lines)
+		return
+	}
 	tree = r.effective(tree)
 	indent := strings.Repeat("  ", depth)
 	line := indent + tree.label
 	if r.options.Costs && !tree.unknownEstimate {
 		line += fmt.Sprintf(" (estimated rows=%.0f logical cost=%.2f)", tree.estimate.RoundedRows(), tree.estimate.Cost)
 	}
-	if r.Observation != nil && (r.Observation.Known(tree.node) || tree.Actual != nil) {
-		actual := exec.Actual{}
-		if tree.Actual != nil {
-			actual = *tree.Actual
-		} else {
-			actual = r.Observation.Actual(tree.node)
-		}
+	if actual, known := r.actual(tree); known {
 		if actual.Loops == 0 {
 			line += " (never executed)"
 		} else {

@@ -432,7 +432,7 @@ func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 		return err
 	}
 	defer s.leaveSQLRoutine()
-	_, err = s.invokePLTrigger(d, frame, auth.Catalog, event.relation)
+	_, err = s.invokePLTrigger(d, frame, auth.Catalog, event.relation, p)
 	return err
 }
 

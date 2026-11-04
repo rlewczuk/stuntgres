@@ -14,10 +14,10 @@ func explainJSONActual(t *testing.T, b fixture.Backend, document explainJSONDocu
 	if root["Actual Rows"] != count || root["Actual Loops"] != float64(1) {
 		t.Fatalf("actual root=%v; want rows=%v loops=1", root, count)
 	}
-	for _, entry := range document {
+	for i, entry := range document {
 		for _, key := range []string{"Planning Time", "Execution Time"} {
 			value, exists := entry[key]
-			if summary {
+			if summary && i == 0 {
 				if number, ok := value.(float64); !exists || !ok || number < 0 || math.IsNaN(number) || math.IsInf(number, 0) {
 					t.Fatalf("missing measured %s: %v", key, entry)
 				}
@@ -50,10 +50,27 @@ func TestReferenceExplainJSONAnalyze(t *testing.T) {
 						{"VALUES(1),(2),(3)", 3},
 						{"SELECT id FROM explain_json WHERE id>1 LIMIT 1", 1},
 						{"SELECT id FROM explain_json LIMIT 0", 0},
+						{"WITH x AS MATERIALIZED (SELECT id FROM explain_json WHERE id<3) SELECT id FROM x UNION ALL SELECT id FROM x ORDER BY id", 4},
 					} {
 						query := fmt.Sprintf("EXPLAIN (FORMAT JSON, ANALYZE, COSTS false, TIMING %t, SUMMARY %t) %s", timing, summary, tc.query)
 						explainJSONRoutes(t, p, b, query, func(document explainJSONDocument, _ string) {
 							explainJSONActual(t, b, document, tc.count, timing, summary)
+							if tc.count == 4 {
+								field, value := "Subplan Name", "CTE x"
+								if !b.PG {
+									field, value = "Node Type", "CTE"
+								}
+								cte := explainJSONFind(t, document, field, value)
+								if cte["Actual Rows"] != float64(2) || cte["Actual Loops"] != float64(1) {
+									t.Fatal("CTE producer was measured once, independently of repeated consumer rows", cte)
+								}
+								if !b.PG {
+									child := cte["Plans"].([]any)[0].(map[string]any)
+									if child["Actual Rows"] != float64(2) || child["Actual Loops"] != float64(1) {
+										t.Fatal("synthetic CTE wrapper lost real producer measurements", cte)
+									}
+								}
+							}
 							if tc.count == 0 {
 								knownZero := false
 								for _, node := range explainJSONNodes(document) {

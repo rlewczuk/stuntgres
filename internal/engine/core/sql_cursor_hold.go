@@ -171,6 +171,9 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	c.authority.Expression = &exec.CursorExpressionData{Identity: s.Identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
 	execution := s.ActivateRuntime(s.executionContext())
+	if c.autoExplain != nil {
+		execution = c.autoExplain.observation.Context(execution)
+	}
 	stage, err := exec.OpenQueryProjectStage(execution, &c.state, c.Root)
 	if err != nil {
 		return err
@@ -183,6 +186,23 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
+	auto := c.autoExplain
+	auto.resume()
+	previousAuto, previousContext := s.autoExplain, s.invocationContext
+	previousFamily := s.autoExplainFamily
+	s.autoExplainFamily = c.autoExplainFamily
+	if auto != nil {
+		s.autoExplain = auto
+		s.invocationContext = auto.observation.Context(s.executionContext())
+	}
+	defer func() {
+		auto.pause()
+		if auto != nil {
+			auto.failed = auto.failed || err != nil
+		}
+		s.autoExplain, s.invocationContext = previousAuto, previousContext
+		s.autoExplainFamily = previousFamily
+	}()
 	frame := c.statementStats
 	var statsStart time.Time
 	if frame != nil {
@@ -259,6 +279,10 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		statsStart = time.Time{}
 	}
 	s.captureStatementStatsTerminal(frame)
+	if auto != nil {
+		c.deferAutoExplain = true
+		s.autoExplainCompletions = append(s.autoExplainCompletions, auto)
+	}
 	if err = c.releaseProducer(s.Op.Context()); err != nil {
 		return err
 	}

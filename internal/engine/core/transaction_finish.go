@@ -32,6 +32,13 @@ func (s *StatementScope) Finish(err error) (result error) {
 			s.releaseSlotsAfterError()
 		}
 	}()
+	defer func() {
+		s.finishAutoExplain(s.Finished && result == nil)
+		s.autoExplainNoticeContexts = nil
+	}()
+	if f := s.autoExplain; f != nil {
+		f.resume()
+	}
 	if f := s.statementStats; f != nil {
 		f.finishStart = time.Now()
 	}

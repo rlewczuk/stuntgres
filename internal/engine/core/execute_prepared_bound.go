@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -16,16 +17,55 @@ import (
 	"time"
 )
 
-func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation, cteOwner *exec.CTEInvocation, cteDefinition *plan.CTEDefinition) (result Result, failure error) {
 	if execution.authority != nil {
 		scope.authority = execution.authority
 		scope.authority.Host = HostOf(scope)
 	}
+	var auto *autoExplainFrame
+	var err error
+	plSimple := scope.sqlRoutine.lexical != nil && scope.sqlRoutine.cursor == nil && !scope.sqlRoutine.plArgumentRow && !scope.sqlRoutine.plExpressionFallback && execution.binding.Query != nil && plan.PLSimpleExpression(execution.binding.Query.Root)
+	if !plSimple {
+		auto, err = scope.beginAutoExplainLocked(stmt)
+		if err == nil {
+			err = e.captureAutoExplainParametersLocked(scope, auto, canonical)
+		}
+	}
+	if err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
 	var observation *exec.Observation
-	if owner := scope.explain; owner != nil {
+	if owner := scope.explain; owner != nil || auto != nil {
 		previous := scope.invocationContext
-		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.Timing)
-		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.Verbose, Costs: owner.options.Costs}, owner.options.Structured())
+		timing := auto != nil && auto.options.Timing
+		if owner != nil {
+			timing = timing || owner.options.Timing
+		}
+		if auto != nil && auto.observation != nil {
+			observation = auto.observation
+			scope.invocationContext = observation.Context(scope.executionContext())
+		} else if owner == nil && !auto.options.Analyze {
+			scope.invocationContext, observation = exec.ObservePresentation(scope.executionContext())
+		} else {
+			scope.invocationContext, observation = exec.Observe(scope.executionContext(), timing)
+		}
+		options := catalog.ForeignExplainOptions{}
+		structured := false
+		if auto != nil {
+			options.Costs = true
+			options.Verbose, structured = auto.options.Verbose, auto.options.Structured()
+			auto.observation = observation
+			observation.SetLogicalMetrics(auto.buffers, auto.wal, auto.triggers)
+		}
+		if owner != nil {
+			options.Verbose = options.Verbose || owner.options.Verbose
+			options.Costs = options.Costs || owner.options.Costs
+			structured = structured || owner.options.Structured()
+		}
+		observation.SetForeignOptions(options, structured)
+		dml := reserveExecutedDML(observation, cteOwner, cteDefinition, stmt, execution.binding)
+		scope.invocationContext = dml.Context(scope.executionContext())
 		defer func() { scope.invocationContext = previous }()
 		evaluationContext := execution.evaluation.Context
 		previousEvaluationContext := evaluationContext
@@ -34,14 +74,52 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			evaluationContext = scope.executionContext()
 		}
 		execution.evaluation.Context = observation.Context(evaluationContext)
+	} else if scope.statementStatsDepth != 0 && exec.HasObservation(scope.executionContext()) {
+		previous, evaluation := scope.invocationContext, execution.evaluation.Context
+		scope.invocationContext = exec.WithoutObservation(scope.executionContext())
+		execution.evaluation.Context = scope.executionContext()
+		defer func() { scope.invocationContext, execution.evaluation.Context = previous, evaluation }()
 	}
-	actualTree, captureErr := e.captureExplainCommandLocked(scope, stmt, execution, observation)
+	actualTree, captureErr := e.captureExplainCommandLocked(scope, stmt, execution, observation, cteOwner, cteDefinition)
 	if captureErr != nil {
 		e.Mu.Unlock()
 		return Result{}, captureErr
 	}
+	var autoTree *explain.Tree
+	if auto != nil {
+		renderer, tree, err := e.captureExecutedPlanLocked(scope, stmt, execution, observation, auto.options, cteOwner, cteDefinition)
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+		renderer.Commands = &auto.renderers
+		renderer.SuppressActual = !auto.options.Analyze
+		auto.renderers = append(auto.renderers, renderer)
+		if stmt == auto.primary && len(auto.renderers) > 1 {
+			copy(auto.renderers[1:], auto.renderers[:len(auto.renderers)-1])
+			auto.renderers[0] = renderer
+		}
+		autoTree = tree
+		auto.resume()
+		autoStarted := auto.started
+		sharedRoot := actualTree != nil && autoTree != nil && actualTree.Actual == autoTree.Actual
+		defer func() {
+			auto.pause()
+			auto.failed = auto.failed || failure != nil
+			if autoTree != nil && autoTree.Actual != nil && !sharedRoot && failure == nil {
+				if auto.options.Timing {
+					autoTree.Actual.Elapsed = time.Since(autoStarted)
+				}
+				if rows, ok := result.Rows.(*exec.FinalRows); ok {
+					autoTree.Actual.Rows = int64(rows.Count)
+				} else if _, selectStatement := stmt.(*parser.Select); selectStatement {
+					autoTree.Actual = nil
+				}
+			}
+		}()
+	}
 	var actualStart time.Time
-	if actualTree != nil && scope.explain.options.Timing {
+	if actualTree != nil && (scope.explain.options.Timing || auto != nil && auto.options.Timing) {
 		actualStart = time.Now()
 	}
 	if actualTree != nil {
@@ -82,7 +160,6 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	defer func() { scope.rlsCommand = previousRLSCommand }()
 	op := scope.Op
 	ctx := scope.executionContext()
-	var err error
 	b, auth := view.PhysicalBinding(execution.binding), execution.auth
 	scope.installExportDemandFor(&b, stmt)
 	switch stmt.(type) {
@@ -322,6 +399,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
 		if scope.protocolOrZero().bind != nil && scope.explain == nil {
+			bind := scope.protocolOrZero().bind
+			bind.autoExplainBinding = execution.binding
+			bind.autoExplainBinding.Expressions = execution.expressions
+			bind.autoExplainStatement = stmt
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
 		if scope.sqlRoutine.plCapture || scope.sqlRoutine.nestedCursor || scope.sqlRoutine.rows && !parser.HasModifyingCTE(stmt) {

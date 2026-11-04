@@ -45,16 +45,22 @@ type SettingsStore struct {
 	clientEncodingOwner  *SettingsStore
 	// Library recognition is physical and sticky; detached logical images
 	// reconcile their values under their own mutex before use.
-	pgTrgmLoaded       atomic.Bool
-	pgTrgmOwner        *SettingsStore
-	pgTrgmParent       *SettingsStore // Serial invocation ancestry, not retained by expressions.
-	pgTrgmPromoted     bool
-	pgcrypto           pgcryptoModule
-	pgcryptoOwner      *SettingsStore
-	pgcryptoPromoted   bool
-	pgcryptoSetter     authorization.PrincipalRef
-	pgcryptoAssignment uint64
-	TempTablespaces    *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
+	pgTrgmLoaded        atomic.Bool
+	pgTrgmOwner         *SettingsStore
+	pgTrgmParent        *SettingsStore // Serial invocation ancestry, not retained by expressions.
+	pgTrgmPromoted      bool
+	autoExplainLoaded   atomic.Bool
+	autoExplainOwner    *SettingsStore
+	autoExplainParent   *SettingsStore
+	autoExplainPromoted bool
+	autoExplainReplay   autoExplainReplay
+	autoExplainSetters  map[string]autoExplainSetter
+	pgcrypto            pgcryptoModule
+	pgcryptoOwner       *SettingsStore
+	pgcryptoPromoted    bool
+	pgcryptoSetter      authorization.PrincipalRef
+	pgcryptoAssignment  uint64
+	TempTablespaces     *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -73,6 +79,7 @@ func (s *Session) Setting(name string) (string, bool) {
 		return "", false
 	}
 	store.syncPgcryptoLocked(nil)
+	store.reconcileAutoExplainLocked()
 	_, hasDefault := store.Defaults[name]
 	_, hasValue := store.Values[name]
 	if name == "isn.weak" && store.IsnLoaded() {
@@ -85,12 +92,13 @@ func (s *Session) Setting(name string) (string, bool) {
 }
 
 type settingOverride struct {
-	Present         bool
-	Text            string
-	Typed           settings.Value
-	TempTablespaces *TempTablespaceAssignment
-	Setter          authorization.PrincipalRef
-	Assignment      uint64
+	Present          bool
+	Text             string
+	Typed            settings.Value
+	TempTablespaces  *TempTablespaceAssignment
+	Setter           authorization.PrincipalRef
+	Assignment       uint64
+	SuperuserContext bool // Original assignment context, not today's role attribute.
 }
 type settingAction struct {
 	original  settingOverride
@@ -172,6 +180,9 @@ func (s *SettingsStore) override(name string) settingOverride {
 	if name == settings.PgcryptoBuiltinCrypto {
 		v.Setter, v.Assignment = s.pgcryptoSetter, s.pgcryptoAssignment
 	}
+	if setter, ok := s.autoExplainSetters[name]; ok {
+		v.Setter, v.Assignment, v.SuperuserContext = setter.principal, setter.assignment, setter.superuser
+	}
 	if name == "temp_tablespaces" {
 		v.TempTablespaces = s.TempTablespaces
 	}
@@ -202,6 +213,16 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 		s.pgcryptoSetter, s.pgcryptoAssignment = v.Setter, v.Assignment
 		if !v.Present {
 			s.pgcryptoSetter, s.pgcryptoAssignment = authorization.PrincipalRef{}, 0
+		}
+	}
+	if _, selected := autoExplainDefinition(name); selected {
+		if !v.Present || s.autoExplainPromoted {
+			delete(s.autoExplainSetters, name)
+		} else {
+			if s.autoExplainSetters == nil {
+				s.autoExplainSetters = make(map[string]autoExplainSetter)
+			}
+			s.autoExplainSetters[name] = autoExplainSetter{v.Setter, v.Assignment, v.SuperuserContext}
 		}
 	}
 	if name == "session_replication_role" {
@@ -396,6 +417,14 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.pgTrgmOwner = nil
 	s.pgTrgmParent = nil
 	s.pgTrgmPromoted = false
+	s.autoExplainLoaded.Store(false)
+	s.autoExplainOwner = nil
+	s.autoExplainParent = nil
+	s.autoExplainPromoted = false
+	s.autoExplainSetters = nil
+	s.autoExplainReplay.mu.Lock()
+	s.autoExplainReplay.setters, s.autoExplainReplay.permissions = nil, nil
+	s.autoExplainReplay.mu.Unlock()
 	s.overexplainLoaded.Store(false)
 	s.overexplainOwner = nil
 	s.Placeholders = nil

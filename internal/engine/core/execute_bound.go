@@ -558,5 +558,5 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.Mu.Unlock()
 		return Result{}, nil
 	}
-	return e.executePreparedCommandLocked(scope, stmt, &execution, canonical, creationStage, creationDescriptor)
+	return e.executePreparedCommandLocked(scope, stmt, &execution, canonical, creationStage, creationDescriptor, nil, nil)
 }

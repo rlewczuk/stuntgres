@@ -182,6 +182,7 @@ func (m *Modification) InsertRows(ctx context.Context, rt WriteRuntime, rows [][
 				}
 			}
 			count++
+			exec.ObserveLogicalWrite(ctx, 1)
 		}
 		return count, nil
 	}
@@ -216,6 +217,7 @@ func (m *Modification) InsertRows(ctx context.Context, rt WriteRuntime, rows [][
 				}
 			}
 			count++
+			exec.ObserveLogicalWrite(ctx, 1)
 		}
 		offset += n
 	}

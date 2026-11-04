@@ -163,6 +163,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	e.initializeTemporaryBuffersLocked(s, candidate.Ref)
 	s.recordStatsTuple(candidate.Ref, 0, 0, 1, statsWriteStart.counts)
 	s.finishDatabaseWrite(statsWriteStart)
+	s.recordAutoExplainWrite(1)
 	return nil
 }
 

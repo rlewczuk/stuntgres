@@ -35,7 +35,6 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 		return nil, errors.New("stuntgres: COPY query did not initialize its producer")
 	}
 	rows := &protocolCopyQueryRows{scope: s, producer: capture.producer, schema: capture.producer.schema}
-	capture.producer = nil
 	// The capture is not a registered portal. Keep its genuine executor frame
 	// with COPY's lexical child until actual output and producer close complete.
 	s.statementStats, capture.statementStats = capture.statementStats, nil
@@ -44,13 +43,26 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	err = func() error {
 		s.enterProtocolProducer(rows.producer)
 		defer s.suspendProtocolProducer(rows.producer)
-		return s.authorizeSQLCursor(rows.producer)
+		if err := s.authorizeSQLCursor(rows.producer); err != nil {
+			return err
+		}
+		s.setProtocolBind(nil)
+		defer s.setProtocolBind(&capture)
+		if err := s.startAutoExplainPortal(&capture); err != nil {
+			return err
+		}
+		s.autoExplain, capture.autoExplain = capture.autoExplain, nil
+		rows.producer.autoExplain, rows.producer.deferAutoExplain = s.autoExplain, true
+		rows.producer.autoExplainFamily = s.autoExplainFamily
+		return nil
 	}()
 	if err != nil {
 		_ = rows.Close()
 		return nil, err
 	}
+	capture.producer = nil
 	result := Result{Rows: rows}
+	s.autoExplainReturned(&result, nil)
 	s.statementStatsReturned(&result, nil)
 	return result.Rows, nil
 }

@@ -32,5 +32,18 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 	defer leavePolicy()
 	stats := s.beginStatsFunction(p.Procedure, statsFunctionLanguage(d), false)
 	defer func() { s.endStatsFunction(stats, err == nil) }()
+	auto := s.autoExplain
+	ownsInterval := auto != nil && auto.started.IsZero()
+	if ownsInterval {
+		auto.resume()
+	}
+	defer func() {
+		if ownsInterval {
+			auto.pause()
+		}
+	}()
+	observation := s.autoExplainObservation()
+	index, started := observation.BeginTrigger(p.OID, p.Name, relation.Name())
+	defer func() { observation.EndTrigger(index, started) }()
 	return nativetrig.Invoke[AuthorizationView](s.WriteHost(), d, relation, p, event, next, old, targets)
 }

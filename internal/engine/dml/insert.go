@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -89,74 +88,23 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 	if command.InsertReturning == nil {
 		rows.Values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 	}
-	for i, source := range b.Insert.Rows {
+	input := exec.DMLObservationOf(ctx).Role(exec.DMLInsertInput)
+	input.BeginLoop()
+	for i := range b.Insert.Rows {
 		if err = ctx.Err(); err != nil {
 			return Outcome{}, err
 		}
+		input.StartWork()
 		row := make([]sqltype.Value, len(b.Relation.Columns))
 		for j, c := range b.Relation.Columns {
 			row[j] = sqltype.Null(c.Usage.Type)
 		}
-		if len(b.Insert.Projection) != 0 {
-			if err = EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], source, row, len(b.Insert.Rows) > 1, evaluation); err != nil {
-				return Outcome{}, err
-			}
-			schema := in.Catalog.Get(b.Relation.Namespace()).Name()
-			proceed, failure := ValidateInsertRow(h, b, schema, row, evaluation)
-			if failure != nil {
-				return Outcome{}, failure
-			}
-			if !proceed {
-				continue
-			}
-			candidate := index.WriteCandidate{Values: row}
-			admitted, admitErr := AdmitInsertProducer(ctx, h, b, &candidate, rows, evaluation)
-			if admitErr != nil {
-				return Outcome{}, admitErr
-			}
-			if admitted {
-				if err := CheckViewRow(h, &b, row, evaluation); err != nil {
-					return Outcome{}, err
-				}
-				rows.Append(candidate)
-			}
-			continue
+		err = evaluateInsertLiteral(&in, i, row)
+		input.EndWork()
+		if err != nil {
+			return Outcome{}, err
 		}
-		if len(b.Insert.Defaults) != 0 {
-			supplied := b.Expressions[i]
-			for j, target := range b.Targets {
-				if j < len(supplied) && supplied[j] != nil && (len(b.ArrayTargets) == 0 || b.ArrayTargets[j] == nil) {
-					row[target] = sqltype.Value{}
-				}
-			}
-			for j, expression := range b.Insert.Defaults {
-				if expression != nil && row[j].Type() != nil {
-					row[j], err = view.EvalBindingDefault(&b, evaluation, j, expression)
-					if err != nil {
-						return Outcome{}, err
-					}
-				}
-			}
-		}
-		for j, v := range source {
-			if b.Expressions[i][j] == nil {
-				continue
-			}
-			target := b.Targets[j]
-			c := b.Relation.Columns[target]
-			var value sqltype.Value
-			if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
-				value, err = b.ArrayTargets[j].ApplyExpression(evaluation, row[target], in.Expressions[i][j])
-			} else {
-				value, err = in.Expressions[i][j].Eval(evaluation)
-			}
-			if err == nil {
-				row[target] = value
-			}
-			if err != nil {
-				return Outcome{}, analyze.InsertValueError(in.Catalog, err, c, v, nil)
-			}
-		}
+		input.Emit()
 		schema := in.Catalog.Get(b.Relation.Namespace()).Name()
 		proceed, failure := ValidateInsertRow(h, b, schema, row, evaluation)
 		if failure != nil {

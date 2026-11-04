@@ -44,6 +44,9 @@ func (s *StatementScope) appendPLNoticeContext(start int, origin plNoticeOrigin)
 func (s *StatementScope) appendNoticeContext(start int, context string) {
 	for i := start; i < len(s.Op.Notices); i++ {
 		diagnostic := &s.Op.Notices[i]
+		if complete, ok := s.autoExplainNoticeContexts[i]; ok && complete == *diagnostic {
+			continue
+		}
 		if diagnostic.Context != "" {
 			diagnostic.Context += "\n"
 		}

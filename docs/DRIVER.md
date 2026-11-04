@@ -1857,6 +1857,25 @@ notice filtering on rollback; SET LOCAL lasts only until transaction completion.
 Filtering never suppresses returned SQL errors, and INFO notices always reach
 the handler.
 
+On a pinned physical connection, authorized `LOAD 'auto_explain'` installs the
+embedded execution hook; it creates no SQL extension object. For example, set
+`auto_explain.log_min_duration=0`, `auto_explain.sample_rate=1`,
+`auto_explain.log_analyze=on`, `auto_explain.log_timing=off`,
+`auto_explain.log_format=json` and `auto_explain.log_level=notice` to receive
+actual completed plans through this handler without changing ordinary results.
+The default LOG level requires `client_min_messages=log` for client delivery.
+Completed-plan diagnostics retain the selected severity: WARNING uses SQLSTATE
+`01000`; the lower non-error log levels use `00000`.
+All twelve module settings use typed privileged SET/parameter-grant admission.
+Loading is physical-session lifetime: pool reuse retains it, Dump/Restore never
+transports it, and physical teardown releases it. Sampling/thresholds observe
+actual executor work, not a second EXPLAIN execution or retained transport time.
+Buffer/WAL flags expose explicitly named Logical Tuple Accesses/Writes for the
+embedded model, never invented disk/cache/WAL counters. OS dynamic linking,
+shared-preload configuration, restart and process/filesystem log routing are
+external mechanisms; this bounded LOAD dispatch does not simulate them.
+
+
 `stuntgres.WaitForNotification(ctx, conn)` waits on a pinned, unwrapped native
 `*sql.Conn` for the next committed `NOTIFY` on a channel it `LISTEN`s to and returns
 `Notification{PID, Channel, Payload}` (`PID` is the sender's session identity, not an

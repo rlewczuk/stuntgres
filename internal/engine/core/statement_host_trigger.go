@@ -208,7 +208,7 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 			frame.Close()
 			return result, err
 		}
-		value, err := s.invokePLTrigger(d, frame, current.Catalog, relation)
+		value, err := s.invokePLTrigger(d, frame, current.Catalog, relation, p)
 		s.leaveSQLRoutine()
 		frame.Close()
 		if err != nil {

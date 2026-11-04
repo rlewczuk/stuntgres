@@ -40,14 +40,33 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 		targetCount = source.Count()
 	}
 	var candidates []DeleteUsingCandidate
+	roles := exec.DMLObservationOf(ctx)
+	targetActual := roles.Role(exec.DMLTargetScan)
+	pairActual := roles.Role(exec.DMLCandidateJoin)
+	predicateActual := roles.Role(exec.DMLPredicate)
+	pairActual.BeginLoop()
+	predicateActual.BeginLoop()
 	scan := exec.NewRelationScan(source)
-	if err := ctx.Err(); err != nil { return Outcome{}, err }
-	if sourceCount != 0 { scan.Reach(0) }
+	if err := ctx.Err(); err != nil {
+		return Outcome{}, err
+	}
+	if sourceCount != 0 {
+		scan.Reach(0)
+	}
+	if sourceCount != 0 {
+		targetActual.BeginLoop()
+	}
 	for i := range targetCount {
-		if err := ctx.Err(); err != nil { return Outcome{}, err }
+		if err := ctx.Err(); err != nil {
+			return Outcome{}, err
+		}
 		scan.Reach(i)
+		targetActual.StartWork()
 		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
+		exec.ObserveLogicalAccess(ctx)
+		targetActual.Emit()
+		targetActual.EndWork()
 		version := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
 			continue
@@ -66,21 +85,29 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 			if err := ctx.Err(); err != nil {
 				return Outcome{}, err
 			}
+			pairActual.StartWork()
 			copy(frame, physical.Values(version))
 			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
 			evaluation.Row = frame
 			evaluation.BindQueryIdentity(stage.Source, stage.Index(j))
 			evaluation.PhysicalTable, evaluation.PhysicalVersion = physical.Leaf.Ref, version
+			pairActual.Emit()
+			pairActual.EndWork()
+			predicateActual.StartWork()
 			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
+			predicateActual.EndWork()
 			if err != nil {
 				return Outcome{}, err
 			}
 			if matches {
+				predicateActual.Emit()
 				candidates = append(candidates, DeleteUsingCandidate{DeleteCandidate: candidate, SourceIndex: j, Physical: physical})
 			}
 		}
 	}
-	if sourceCount != 0 { scan.Reach(source.Count()) }
+	if sourceCount != 0 {
+		scan.Reach(source.Count())
+	}
 	var deletedIDs map[MutationRowIdentity]bool
 	if len(candidates) != 0 {
 		deletedIDs = make(map[MutationRowIdentity]bool, min(len(candidates), source.Count()))

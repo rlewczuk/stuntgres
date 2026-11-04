@@ -172,18 +172,19 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   Otherwise it checks the current actor's SUPERUSER attribute, plugin
   prefix/suffix restriction, slash-containing macro and context before selection.
   The four aliases `pg_overexplain`, `pg_overexplain.so`,
-  `$libdir/pg_overexplain` and `$libdir/pg_overexplain.so` remain available without
-  simulation and in permissive simulation. Only an already registered,
+  `$libdir/pg_overexplain` and `$libdir/pg_overexplain.so`, and the corresponding
+  four `auto_explain` aliases, remain available without simulation and in
+  permissive simulation. Only an already registered,
   permissive provider admits the exact `$libdir/sepgsql` spelling, with the same
   ordinary SQL authorization. Other native libraries retain 0A000
   (`LoadUnsupported`). It never expands paths, inspects files, stages objects or
   allocates catalog identities. `schemacmds.ExecuteLoad` owns argument count,
-  Engine.Mu, fresh authority capture and physical-session admission; only an
-  overexplain selection activates its physical capability. Registered sepgsql
-  LOAD changes neither that capability nor provider, installation, catalog,
-  roles or policy. Prepare performs none of these execution checks. The built-in
-  capability is not an installed extension, arbitrary ABI loading, or an entry
-  in the physical native-module inventory.
+  Engine.Mu, fresh authority capture and physical-session admission; each
+  explanation module selection activates only its own physical capability.
+  Registered sepgsql LOAD changes neither explanation capability nor provider,
+  installation, catalog, roles or policy. Prepare performs none of these execution
+  checks. The built-in capabilities are not installed extensions, arbitrary ABI
+  loading, or entries in the physical native-module inventory.
 - **CHECKPOINT**: `Checkpoint(ctx, view, s)` checks current inherited
   `pg_checkpoint` authority, then returns `CheckpointUnsupported` without
   performing physical work. `schemacmds.ExecuteCheckpoint` captures fresh

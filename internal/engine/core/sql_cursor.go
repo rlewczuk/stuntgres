@@ -55,6 +55,9 @@ type sqlCursor struct {
 	cleanupError                                error
 	statementStats                              *statementStatsFrame
 	deferStatementStats                         bool
+	autoExplain                                 *autoExplainFrame
+	deferAutoExplain                            bool
+	autoExplainFamily                           *bool
 	leaves                                      []exec.Leaf
 	locks                                       *exec.LockContext
 	catalog                                     catalog.Read
@@ -76,6 +79,8 @@ type sqlCursor struct {
 // and schema own their codecs; no declaration catalog or execution survives.
 func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	frame := c.statementStats
+	auto := c.autoExplain
+	auto.resume()
 	var statsStart time.Time
 	if frame != nil {
 		statsStart = time.Now()
@@ -138,6 +143,15 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		}
 		c.statementStats = nil
 	}
+	if auto != nil {
+		auto.pause()
+		auto.executed = true
+		auto.failed = auto.failed || failure != nil || c.Place == exec.CursorFailed || ctx.Err() != nil
+		if !c.deferAutoExplain {
+			auto.finish(nil, false)
+		}
+		c.autoExplain = nil
+	}
 	return c.cleanupError
 }
 func (c *sqlCursor) dispose(ctx context.Context) error {
@@ -189,6 +203,9 @@ func (r *cursorRegistry) rollback(mark uint64) []*sqlCursor {
 		if c.ordinal <= mark {
 			return false
 		}
+		if c.autoExplain != nil {
+			c.autoExplain.failed = true
+		}
 		if c.statementStats != nil {
 			c.statementStats.failed = true
 		}
@@ -200,6 +217,10 @@ func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor, scope *Stateme
 	for _, cursor := range cursors {
 		if scope != nil {
 			scope.captureStatementStatsTerminal(cursor.statementStats)
+			cursor.deferAutoExplain = true
+			if cursor.autoExplain != nil {
+				scope.autoExplainCompletions = append(scope.autoExplainCompletions, cursor.autoExplain)
+			}
 		}
 		alreadyFailed := cursor.Place == exec.CursorFailed
 		if err := cursor.dispose(ctx); failure == nil && !alreadyFailed {
@@ -322,6 +343,16 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 		}
 		c.statementStats.execStart = time.Time{}
 	}
+	c.autoExplain, s.autoExplain = s.autoExplain, nil
+	c.autoExplainFamily = s.autoExplainFamily
+	if c.autoExplain != nil {
+		for _, renderer := range c.autoExplain.renderers {
+			if tree := renderer.CommandTree(); tree != nil {
+				tree.Actual = nil
+			}
+		}
+	}
+	c.autoExplain.pause()
 	keep = true
 	return c, name, nil
 }
@@ -353,6 +384,9 @@ func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
 	in := exec.CursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
 	if !c.promoted {
 		in.Producer = sqlCursorProducer{cursor: c, scope: s, ctx: s.ActivateRuntime(s.executionContext())}
+		if c.autoExplain != nil {
+			in.Producer = sqlCursorProducer{cursor: c, scope: s, ctx: c.autoExplain.observation.Context(s.ActivateRuntime(s.executionContext()))}
+		}
 		if c.statementStats != nil {
 			in.Processed = &c.statementStats.rows
 		}
@@ -469,6 +503,23 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	if c.promoted {
 		return s.fetchHeldCursor(c, fetch)
 	}
+	auto := c.autoExplain
+	auto.resume()
+	previousAuto, previousContext := s.autoExplain, s.invocationContext
+	previousFamily := s.autoExplainFamily
+	s.autoExplainFamily = c.autoExplainFamily
+	if auto != nil {
+		s.autoExplain = auto
+		s.invocationContext = auto.observation.Context(s.executionContext())
+	}
+	defer func() {
+		auto.pause()
+		if auto != nil {
+			auto.failed = auto.failed || err != nil
+		}
+		s.autoExplain, s.invocationContext = previousAuto, previousContext
+		s.autoExplainFamily = previousFamily
+	}()
 	frame := c.statementStats
 	var statsStart time.Time
 	if frame != nil {

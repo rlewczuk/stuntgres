@@ -14,6 +14,8 @@ func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	op.Session.Transactions.Mu.Lock()
+	defer op.Session.Transactions.Mu.Unlock()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)
@@ -27,6 +29,12 @@ func ExecuteLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count
 	switch module {
 	case ddl.LoadOverexplain:
 		return core.Result{}, op.EffectiveSettings().LoadOverexplain(op.Context())
+	case ddl.LoadAutoExplain:
+		warnings, err := e.ActivateAutoExplainLocked(op)
+		for _, warning := range warnings {
+			op.EmitNotice(session.LevelWarning, *warning)
+		}
+		return core.Result{}, err
 	case ddl.LoadSepgsql:
 		// Registration already owns provider activation. Keep physical terminal
 		// admission without activating another module or changing settings.

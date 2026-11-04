@@ -172,13 +172,16 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 // Enter held; execute only already prepared commands with the original stage.
 func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *PreparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
+	previousAutoStatement := scope.autoExplainStatement
+	scope.autoExplainStatement = statement
+	defer func() { scope.autoExplainStatement = previousAutoStatement }()
 	scope.ActiveMutation = prepared.MainMutation
 	scope.installRuleScratch(prepared.MainScratch)
 	if prepared.main.authority != nil {
 		scope.authority = prepared.main.authority
 	}
 	if len(b.CTEs) == 0 {
-		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor, nil, nil)
 	}
 	originalRuleAction := scope.ruleAction
 	main := prepared.MainMutation
@@ -380,7 +383,7 @@ targets:
 					start = len(scope.afterTriggers.frames[scope.effectCommand].producers)
 				}
 				e.Mu.Lock()
-				output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
+				output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil, commandOwner, command.definition)
 				if err != nil {
 					return err
 				}
@@ -420,13 +423,14 @@ targets:
 			if command.ruleOwner {
 				scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
 			}
-			output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
-			if err != nil {
-				return Result{}, err
-			}
 			commandOwner := findOwner(command.definition.Owner)
 			if commandOwner == nil {
+				e.Mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
+			}
+			output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil, commandOwner, command.definition)
+			if err != nil {
+				return Result{}, err
 			}
 			if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
 				return Result{}, err
@@ -446,7 +450,7 @@ targets:
 	scope.installRuleScratch(prepared.MainScratch)
 	scope.ruleAction = originalRuleAction
 	scope.deferAfterProducers = false
-	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor, nil, nil)
 	var finishModifiers func() error
 	if consumerEffects {
 		finishModifiers = func() error {

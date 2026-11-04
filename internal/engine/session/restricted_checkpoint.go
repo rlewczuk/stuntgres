@@ -18,6 +18,7 @@ func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 	source.syncPgcryptoLocked(nil)
 	image := cloneInvocationSettingsLocked(source)
 	image.pgTrgmParent = source
+	image.autoExplainParent = source
 	return image
 }
 
@@ -35,6 +36,10 @@ func cloneInvocationSettingsLocked(source *SettingsStore) *SettingsStore {
 		pgTrgmOwner:          source.pgTrgmAuthority(),
 		pgTrgmParent:         source.pgTrgmParent,
 		pgTrgmPromoted:       source.pgTrgmPromoted,
+		autoExplainOwner:     source.autoExplainAuthority(),
+		autoExplainParent:    source.autoExplainParent,
+		autoExplainPromoted:  source.autoExplainPromoted,
+		autoExplainSetters:   maps.Clone(source.autoExplainSetters),
 		pgcryptoOwner:        source.pgcryptoPhysicalOwner(),
 		pgcryptoPromoted:     source.pgcryptoPromoted,
 		pgcryptoSetter:       source.pgcryptoSetter,
@@ -53,6 +58,7 @@ func cloneInvocationSettingsLocked(source *SettingsStore) *SettingsStore {
 		image.Placeholders, image.Actions = maps.Clone(source.Placeholders), maps.Clone(source.Actions)
 		image.ProviderDefaults, image.DefaultSources = maps.Clone(source.ProviderDefaults), maps.Clone(source.DefaultSources)
 	}
+	image.reconcileAutoExplainLocked()
 	return image
 }
 func (op *Operation) CaptureInvocation() *InvocationMark {
@@ -62,6 +68,7 @@ func (op *Operation) CaptureInvocation() *InvocationMark {
 	source := op.EffectiveSettings()
 	image := cloneInvocationSettings(source)
 	image.pgTrgmParent = source.pgTrgmParent
+	image.autoExplainParent = source.autoExplainParent
 	return &InvocationMark{frame: op.Restricted, operation: op, image: image, safePath: op.Restricted.SafePath}
 }
 
@@ -70,6 +77,7 @@ func (op *Operation) CaptureInvocation() *InvocationMark {
 func (m *InvocationMark) PrepareRestore() {
 	m.prepared = cloneInvocationSettings(m.image)
 	m.prepared.pgTrgmParent = m.image.pgTrgmParent
+	m.prepared.autoExplainParent = m.image.autoExplainParent
 }
 func (m *InvocationMark) Restore() {
 	// One unnamed exception checkpoint is consumed once. Its complete image is

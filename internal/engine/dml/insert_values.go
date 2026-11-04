@@ -70,3 +70,47 @@ func EvaluateInsertValuesRow(read catalog.Read, b *analyze.Binding, supplied []e
 	}
 	return nil
 }
+
+// evaluateInsertLiteral is the existing VALUES/default producer, before row
+// triggers, conflict checks and admission. Observation wraps this work once.
+func evaluateInsertLiteral(in *InsertInput, i int, row []sqltype.Value) error {
+	b, evaluation := &in.Binding, in.Evaluation
+	if len(b.Insert.Projection) != 0 {
+		return EvaluateInsertValuesRow(in.Catalog, b, in.Expressions[i], b.Insert.Rows[i], row, len(b.Insert.Rows) > 1, evaluation)
+	}
+	if len(b.Insert.Defaults) != 0 {
+		supplied := b.Expressions[i]
+		for j, target := range b.Targets {
+			if j < len(supplied) && supplied[j] != nil && (len(b.ArrayTargets) == 0 || b.ArrayTargets[j] == nil) {
+				row[target] = sqltype.Value{}
+			}
+		}
+		for j, expression := range b.Insert.Defaults {
+			if expression != nil && row[j].Type() != nil {
+				value, err := view.EvalBindingDefault(b, evaluation, j, expression)
+				if err != nil {
+					return err
+				}
+				row[j] = value
+			}
+		}
+	}
+	for j, raw := range b.Insert.Rows[i] {
+		if b.Expressions[i][j] == nil {
+			continue
+		}
+		target := b.Targets[j]
+		var value sqltype.Value
+		var err error
+		if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
+			value, err = b.ArrayTargets[j].ApplyExpression(evaluation, row[target], in.Expressions[i][j])
+		} else {
+			value, err = in.Expressions[i][j].Eval(evaluation)
+		}
+		if err != nil {
+			return analyze.InsertValueError(in.Catalog, err, b.Relation.Columns[target], raw, nil)
+		}
+		row[target] = value
+	}
+	return nil
+}

@@ -515,6 +515,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		return Result{}, err
 	}
 	defer func() { s.statementStatsReturned(&result, err) }()
+	defer func() { s.autoExplainReturned(&result, err) }()
 	if err := s.parallelExecutionEligibility(stmt); err != nil {
 		return Result{}, err
 	}

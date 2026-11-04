@@ -124,13 +124,17 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 			if stream == nil {
 				rows = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 			}
+			inputActual := exec.DMLObservationOf(h.Context()).Role(exec.DMLInsertInput)
+			inputActual.BeginLoop()
 			for i, raw := range b.Insert.Rows {
+				inputActual.StartWork()
 				row := make([]sqltype.Value, len(b.Relation.Columns))
 				for j, c := range b.Relation.Columns {
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
 				if len(b.Insert.Projection) != 0 {
 					if err := EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
+						inputActual.EndWork()
 						return Outcome{}, err
 					}
 				} else {
@@ -148,6 +152,7 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 						if !supplied {
 							row[j], err = defaultExpr.Eval(&evaluation)
 							if err != nil {
+								inputActual.EndWork()
 								return Outcome{}, err
 							}
 						}
@@ -163,10 +168,13 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 							row[target], err = in.Expressions[i][j].Eval(&evaluation)
 						}
 						if err != nil {
+							inputActual.EndWork()
 							return Outcome{}, analyze.InsertValueError(in.Catalog, err, b.Relation.Columns[target], rawValue, nil)
 						}
 					}
 				}
+				inputActual.EndWork()
+				inputActual.Emit()
 				before, failure := Before(h, b.Relation, BeforeRow{Relation: b.Ref, Event: BeforeInsert, New: row})
 				if failure != nil {
 					return Outcome{}, failure
@@ -241,17 +249,23 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 		return nil, sqlError("0A000", "foreign modification scan does not supply row identity")
 	}
 	var rows []ForeignMutationRow
+	targetActual := exec.DMLObservationOf(ctx).Role(exec.DMLTargetScan)
+	targetActual.BeginLoop()
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		targetActual.StartWork()
 		row, identity, present, err := identityScan.IterateForeignIdentity(ctx)
+		targetActual.EndWork()
 		if err != nil {
 			return nil, exec.ForeignCallbackError(err)
 		}
 		if !present {
 			break
 		}
+		exec.ObserveLogicalAccess(ctx)
+		targetActual.Emit()
 		if len(identity) != len(m.Request.Targets.Names) {
 			return nil, errors.New("stuntgres: foreign row identity width does not match its descriptor")
 		}
@@ -336,12 +350,18 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 	}
 	var seen fdw.IdentitySet
 	var count int64
+	roles := exec.DMLObservationOf(ctx)
+	pairActual := roles.Role(exec.DMLCandidateJoin)
+	predicateActual := roles.Role(exec.DMLPredicate)
+	pairActual.BeginLoop()
+	predicateActual.BeginLoop()
 	for _, candidate := range rows {
 		identityChecked := false
 		for i := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Outcome{}, err
 			}
+			pairActual.StartWork()
 			evaluation.Row = candidate.Row
 			if from != nil {
 				copy(frame, candidate.Row)
@@ -349,13 +369,18 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 				evaluation.Row = frame
 				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
 			}
+			pairActual.Emit()
+			pairActual.EndWork()
+			predicateActual.StartWork()
 			matches, err := exec.UpdateMatches(evaluation, predicate)
+			predicateActual.EndWork()
 			if err != nil {
 				return Outcome{}, err
 			}
 			if !matches {
 				continue
 			}
+			predicateActual.Emit()
 			if identityChecked {
 				continue
 			}
@@ -435,6 +460,7 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 				return Outcome{}, err
 			}
 			count++
+			exec.ObserveLogicalWrite(ctx, 1)
 		}
 	}
 	result, err := finishMutationResult(h, b, output, count)

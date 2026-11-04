@@ -338,7 +338,10 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 				cursor.statementStats.failed = true
 			}
 			s.captureStatementStatsTerminal(cursor.statementStats)
+			auto := cursor.autoExplain
+			cursor.deferAutoExplain = true
 			cleanupErr := cursor.dispose(context.WithoutCancel(s.executionContext()))
+			s.finishAutoExplainFrame(auto, err == nil && cleanupErr == nil)
 			if err == nil {
 				err = cleanupErr
 			}

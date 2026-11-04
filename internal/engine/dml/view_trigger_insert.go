@@ -67,13 +67,17 @@ func viewTriggerInsert(h Host, in ViewTriggerCommand, state *exec.State, evaluat
 			}
 		}
 	}
+	inputActual := exec.DMLObservationOf(h.Context()).Role(exec.DMLInsertInput)
+	inputActual.BeginLoop()
 	for i, raw := range b.Insert.Rows {
 		if err := h.Context().Err(); err != nil {
 			return err
 		}
+		inputActual.StartWork()
 		row := newRow()
 		if len(b.Insert.Projection) != 0 {
 			if err := EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], raw, row, len(b.Insert.Rows) > 1, evaluation); err != nil {
+				inputActual.EndWork()
 				return err
 			}
 		} else {
@@ -91,6 +95,7 @@ func viewTriggerInsert(h Host, in ViewTriggerCommand, state *exec.State, evaluat
 				if !supplied {
 					row[j], err = view.EvalBindingDefault(&b, evaluation, j, expression)
 					if err != nil {
+						inputActual.EndWork()
 						return err
 					}
 				}
@@ -106,10 +111,13 @@ func viewTriggerInsert(h Host, in ViewTriggerCommand, state *exec.State, evaluat
 					row[target], err = in.Expressions[i][j].Eval(evaluation)
 				}
 				if err != nil {
+					inputActual.EndWork()
 					return analyze.InsertValueError(in.Catalog, err, b.Relation.Columns[target], rawValue, nil)
 				}
 			}
 		}
+		inputActual.EndWork()
+		inputActual.Emit()
 		if err = accept(row); err != nil {
 			return err
 		}

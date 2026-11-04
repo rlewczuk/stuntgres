@@ -56,6 +56,23 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   including whole rows and correlated subplans. Prepared-admission coverage
   follows stored aliases through rename/replacement and native Dump/Restore,
   retaining independent PostgreSQL SQL-lifecycle expectations.
+  Automatic-explanation helpers capture complete unlocked driver diagnostics
+  and decode the log's object envelope independently of SQL EXPLAIN arrays.
+  Shared scenarios assert current parameters, effects once, nested/session
+  policy and real lifecycle. Named native logical metric counts and genuine
+  PostgreSQL physical fields have separate independently specified expectations.
+  DML action filters are identified by their immediate mutation owner and condition,
+  not global node-type uniqueness; independent source filters retain their own
+  exact actual counts. Literal/default input labels follow the accepted binding's
+  shared renderer, while input production, command output and writes remain
+  independently asserted measurements.
+  Settings promotion uses fresh physical owners on direct and driver-prepared
+  routes, with exact-name replay authority, owned original context/assignment
+  identity and complete ordered retained-stack warnings. Held SET/LOAD utilities
+  have no prepare-time effects and recheck execution-time authority.
+  Native-control phases inspect restored extension/member, namespace/owner and
+  relation links as well as provider values, allowing legitimate identity
+  remapping without comparing allocator values across independent engines.
 - Standalone ANALYZE families (`analyze_*_test.go`) are untagged public scenarios.
   They use retained relation facts, real notices and EXPLAIN output, never an
   internal collector or a native `pg_stats` replacement. Independent expected
@@ -136,6 +153,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Aggregates and `COUNT(expr)`: `RUN='^TestReference(QueryAggregate|CountExpression)'`
 - EXPLAIN: `RUN='^TestReferenceExplain'`
 - LOAD/DEBUG and structured formats: `RUN='^TestReferenceOverexplain'`
+- Automatic explanation: `RUN='^TestReferenceAutoExplain'`
 - Standalone ANALYZE: `RUN='^TestReferenceAnalyze'`
 - ANALYZE feature smoke: `RUN='^TestReferenceAnalyzeSmoke$'`
 - ANALYZE diagnostics and permissions:

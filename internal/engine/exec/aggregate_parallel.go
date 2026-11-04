@@ -314,7 +314,7 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 }
 
 func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, capture *EvaluationCapture, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods, scanCounts *relationScanCounts, facts *statistics.DatabaseFact) ([]QueryGroup, error) {
-	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil {
+	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil && !observer.presentationOnly {
 		work := observer.stage(aggregate)
 		work.startWork()
 		defer work.end()
@@ -355,7 +355,7 @@ func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, s
 }
 
 func finalizeAggregatePartitions(ctx context.Context, aggregate *plan.AggregateNode, runs [][]QueryGroup, evaluation *Context) ([][]sqltype.Value, error) {
-	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil {
+	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil && !observer.presentationOnly {
 		work := observer.stage(aggregate)
 		work.startWork()
 		defer work.end()

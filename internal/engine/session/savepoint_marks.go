@@ -46,21 +46,26 @@ type SavepointMark struct {
 }
 
 type SettingsMark struct {
-	Values             map[string]string
-	Typed              map[string]settings.Value
-	Actions            map[string]settingAction
-	RoleAction         roleSettingAction
-	CurrentRole        roleSetting
-	NestLevel          int
-	TempTablespaces    *TempTablespaceAssignment
-	pgTrgmOwner        *SettingsStore
-	pgTrgmPromoted     bool
-	pgTrgmDefaults     map[string]string // Immutable bounded pre-load reset capture.
-	pgTrgmPlaceholders map[string]bool
-	pgcryptoSetter     authorization.PrincipalRef
-	pgcryptoAssignment uint64
-	pgcryptoOwner      *SettingsStore
-	pgcryptoPromoted   bool
+	Values                  map[string]string
+	Typed                   map[string]settings.Value
+	Actions                 map[string]settingAction
+	RoleAction              roleSettingAction
+	CurrentRole             roleSetting
+	NestLevel               int
+	TempTablespaces         *TempTablespaceAssignment
+	pgTrgmOwner             *SettingsStore
+	pgTrgmPromoted          bool
+	pgTrgmDefaults          map[string]string // Immutable bounded pre-load reset capture.
+	pgTrgmPlaceholders      map[string]bool
+	pgcryptoSetter          authorization.PrincipalRef
+	pgcryptoAssignment      uint64
+	pgcryptoOwner           *SettingsStore
+	pgcryptoPromoted        bool
+	autoExplainOwner        *SettingsStore
+	autoExplainPromoted     bool
+	autoExplainDefaults     map[string]string
+	autoExplainPlaceholders map[string]bool
+	autoExplainSetters      map[string]autoExplainSetter
 }
 
 func (m SettingsMark) Clone() SettingsMark {
@@ -75,6 +80,8 @@ func (m SettingsMark) Clone() SettingsMark {
 	} else {
 		m = m.cloneRaw()
 	}
+	m = m.promoteAutoExplain(nil)
+	m.autoExplainSetters = maps.Clone(m.autoExplainSetters)
 	return m.promotePgcrypto(nil, nil)
 }
 
@@ -109,6 +116,26 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 			}
 		}
 	}
+	m.autoExplainOwner, m.autoExplainPromoted = s.autoExplainAuthority(), s.autoExplainPromoted
+	m.autoExplainSetters = s.autoExplainSetters
+	if !s.autoExplainPromoted {
+		for _, d := range settings.AutoExplainDefinitions() {
+			if text, ok := s.Defaults[d.Name]; ok {
+				if m.autoExplainDefaults == nil {
+					m.autoExplainDefaults = make(map[string]string)
+				}
+				m.autoExplainDefaults[d.Name] = text
+			}
+		}
+		for name := range s.Placeholders {
+			if len(name) >= len("auto_explain.") && name[:len("auto_explain.")] == "auto_explain." {
+				if m.autoExplainPlaceholders == nil {
+					m.autoExplainPlaceholders = make(map[string]bool)
+				}
+				m.autoExplainPlaceholders[name] = true
+			}
+		}
+	}
 	if s.Session != nil {
 		s.Session.Mu.Lock()
 		if s.Session.Authorization != nil {
@@ -128,6 +155,7 @@ func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity 
 	beforeStats := s.Value("stats_fetch_consistency")
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
 	s.pgcryptoSetter, s.pgcryptoPromoted = candidate.pgcryptoSetter, candidate.pgcryptoPromoted
+	s.autoExplainSetters = candidate.autoExplainSetters
 	s.pgcryptoAssignment = candidate.pgcryptoAssignment
 	s.restoreTempTablespaces(candidate.TempTablespaces)
 	s.RoleAction = candidate.RoleAction

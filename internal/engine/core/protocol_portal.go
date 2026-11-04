@@ -32,27 +32,33 @@ const (
 
 type protocolPortal struct {
 	PreparedBinding
-	resource            PreparedResource
-	context             session.ProtocolContext
-	columns             []catalog.Column
-	formats             []int16
-	values              []sqltype.Value
-	producer            *sqlCursor
-	rows                exec.RowResult
-	started             bool
-	running             bool
-	rowPosition         exec.CursorPosition // Sole position for eager non-producer tuple results.
-	state               protocolPortalState
-	tag                 string
-	completionBase      string // Actual executed command, independent of outer syntax/resources.
-	completionCounted   bool
-	completionInsert    bool
-	row                 []sqltype.Value
-	fields              []session.ProtocolField
-	scratch             []byte
-	outputRows          *exec.FinalRows
-	statementStats      *statementStatsFrame
-	deferStatementStats bool
+	resource             PreparedResource
+	context              session.ProtocolContext
+	columns              []catalog.Column
+	formats              []int16
+	values               []sqltype.Value
+	producer             *sqlCursor
+	rows                 exec.RowResult
+	started              bool
+	running              bool
+	rowPosition          exec.CursorPosition // Sole position for eager non-producer tuple results.
+	state                protocolPortalState
+	tag                  string
+	completionBase       string // Actual executed command, independent of outer syntax/resources.
+	completionCounted    bool
+	completionInsert     bool
+	row                  []sqltype.Value
+	fields               []session.ProtocolField
+	scratch              []byte
+	outputRows           *exec.FinalRows
+	statementStats       *statementStatsFrame
+	deferStatementStats  bool
+	autoExplain          *autoExplainFrame
+	deferAutoExplain     bool
+	autoExplainBinding   analyze.Binding // Only live SELECT portal ownership.
+	autoExplainStatement parser.Statement
+	autoExplainStarted   bool
+	autoExplainFamily    *bool
 }
 type ProtocolExecution struct {
 	CommandTag string
@@ -81,6 +87,8 @@ func (p *protocolPortal) Close(ctx context.Context) error { return p.releaseExec
 
 // Executor release does not remove the portal's name, descriptor or birth.
 func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
+	auto := p.autoExplain
+	auto.resume()
 	var statsStart time.Time
 	if p.statementStats != nil {
 		statsStart = time.Now()
@@ -109,6 +117,17 @@ func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
 		}
 		p.statementStats = nil
 	}
+	if auto != nil {
+		auto.pause()
+		auto.executed = p.started || initialized
+		auto.failed = auto.failed || err != nil || p.state == protocolPortalFailed || ctx.Err() != nil
+		if !p.deferAutoExplain {
+			auto.finish(nil, false)
+		}
+		p.autoExplain = nil
+	}
+	p.autoExplainBinding = analyze.Binding{}
+	p.autoExplainStatement = nil
 	return err
 }
 
@@ -440,6 +459,23 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		out.CommandTag, out.Count = result.CommandTag, result.Count
 		return out, nil
 	}
+	auto := p.autoExplain
+	auto.resume()
+	previousAuto, previousContext := s.autoExplain, s.invocationContext
+	previousFamily := s.autoExplainFamily
+	s.autoExplainFamily = p.autoExplainFamily
+	if auto != nil {
+		s.autoExplain = auto
+		s.invocationContext = auto.observation.Context(s.executionContext())
+	}
+	defer func() {
+		auto.pause()
+		if auto != nil {
+			auto.failed = auto.failed || err != nil
+		}
+		s.autoExplain, s.invocationContext = previousAuto, previousContext
+		s.autoExplainFamily = previousFamily
+	}()
 	if p.statementStats != nil {
 		start := time.Now()
 		defer func() {
@@ -459,6 +495,18 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		defer s.leaveProtocolProducer(c)
 		if err = s.authorizeSQLCursor(c); err != nil {
 			return out, err
+		}
+		if !p.autoExplainStarted {
+			if err = s.startAutoExplainPortal(p); err != nil {
+				return out, err
+			}
+			p.autoExplainStarted = true
+			auto = p.autoExplain
+			if auto != nil {
+				auto.resume()
+				s.autoExplain = auto
+				s.invocationContext = auto.observation.Context(s.executionContext())
+			}
 		}
 		if err = c.openProducer(s); err != nil {
 			return out, err
@@ -591,6 +639,12 @@ func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader
 		if rows, ok := result.Rows.(*statementStatsRows); ok {
 			// The portal owns producer timing/counting from this handoff onward;
 			// do not observe each demand through both result and portal wrappers.
+			result.Rows = rows.RowResult
+		}
+	}
+	if s.autoExplain != nil && result.Rows != nil {
+		p.autoExplain, s.autoExplain = s.autoExplain, nil
+		if rows, ok := result.Rows.(*autoExplainRows); ok {
 			result.Rows = rows.RowResult
 		}
 	}

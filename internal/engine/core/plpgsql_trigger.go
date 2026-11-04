@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,7 @@ func plTriggerRelation(read catalog.Read, relation *catalog.Relation) (proc.PLTr
 
 // invokePLTrigger is reached only by the admitted trigger payload entry, never
 // by ordinary SQL routine dispatch. Its caller owns routine safety depth and live provenance.
-func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation) (value sqltype.Value, err error) {
+func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, relation *catalog.Relation, trigger stored.TriggerParts) (value sqltype.Value, err error) {
 	s.enterTrigger()
 	defer s.leaveTrigger()
 	previousAtomic := s.plAtomic
@@ -46,5 +47,18 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
 	stats := s.beginStatsFunction(read.Owner().Domain.Ref(read.Epoch(), d.Address()), statsFunctionLanguage(d), false)
 	defer func() { s.endStatsFunction(stats, err == nil) }()
+	auto := s.autoExplain
+	ownsInterval := auto != nil && auto.started.IsZero()
+	if ownsInterval {
+		auto.resume()
+	}
+	defer func() {
+		if ownsInterval {
+			auto.pause()
+		}
+	}()
+	observation := s.autoExplainObservation()
+	index, started := observation.BeginTrigger(trigger.OID, trigger.Name, relation.Name())
+	defer func() { observation.EndTrigger(index, started) }()
 	return s.newPLRun(d, f, read).Trigger(relation.RowType)
 }

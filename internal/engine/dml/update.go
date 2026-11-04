@@ -57,16 +57,25 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 		}
 		return Outcome{}, ids.ErrCatalogReplaced
 	}
+	roles := exec.DMLObservationOf(ctx)
+	targetActual := roles.Role(exec.DMLTargetScan)
+	pairActual := roles.Role(exec.DMLCandidateJoin)
+	predicateActual := roles.Role(exec.DMLPredicate)
 	var positioned MutationRowIdentity
 	if b.CurrentOf != "" {
 		var err error
+		locator := roles.Role(exec.DMLCursorLocator)
+		locator.BeginLoop()
+		locator.StartWork()
 		positioned, err = h.PositionedRow(b)
+		locator.EndWork()
 		if err != nil {
 			if from != nil {
 				from.Close()
 			}
 			return Outcome{}, err
 		}
+		locator.Emit()
 	}
 	inputs := source
 	if from != nil {
@@ -148,13 +157,24 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []UpdateCandidate
 	scan := exec.NewRelationScan(source)
-	if err := ctx.Err(); err != nil { return Outcome{}, err }
+	if err := ctx.Err(); err != nil {
+		return Outcome{}, err
+	}
+	targetActual.BeginLoop()
+	pairActual.BeginLoop()
+	predicateActual.BeginLoop()
 	scan.Reach(0)
 	for i := range source.Count() {
-		if err := ctx.Err(); err != nil { return Outcome{}, err }
+		if err := ctx.Err(); err != nil {
+			return Outcome{}, err
+		}
 		scan.Reach(i)
+		targetActual.StartWork()
 		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
+		exec.ObserveLogicalAccess(ctx)
+		targetActual.Emit()
+		targetActual.EndWork()
 		old := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
 			continue
@@ -175,6 +195,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			if err := ctx.Err(); err != nil {
 				return Outcome{}, err
 			}
+			pairActual.StartWork()
 			eval.Row = physical.Values(old)
 			eval.PhysicalTable, eval.PhysicalVersion = physical.Leaf.Ref, old
 			if b.Update.From != nil {
@@ -183,11 +204,16 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				eval.Row = frame
 				eval.BindQueryIdentity(stage.Source, stage.Index(j))
 			}
+			pairActual.Emit()
+			pairActual.EndWork()
+			predicateActual.StartWork()
 			matches, err := exec.UpdateMatches(&eval, b.Update.Predicate)
+			predicateActual.EndWork()
 			if err != nil {
 				return Outcome{}, err
 			}
 			if matches {
+				predicateActual.Emit()
 				candidates = append(candidates, UpdateCandidate{RowVersion: old, Slot: physical.Hint, SourceIndex: j, Physical: physical})
 			}
 		}

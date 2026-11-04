@@ -151,6 +151,18 @@ func (r *Renderer) PresentedNodes() []plan.Node {
 	return nodes
 }
 
+// measureDML attaches a real producer role only to its designated adapter.
+// Accepted source identities continue to use their ordinary stage records.
+func (tree *Tree) measureDML(adapter plan.Node, measurement *exec.DMLMeasurement) {
+	if tree.node == adapter {
+		tree.dml = measurement
+		return
+	}
+	for _, child := range tree.children {
+		child.measureDML(adapter, measurement)
+	}
+}
+
 // Render returns the TEXT lines of the presentation.
 func (r *Renderer) Render() []string {
 	var lines []string
@@ -164,16 +176,31 @@ func (r *Renderer) Render() []string {
 	if r.options.Costs {
 		lines = append(lines, "Estimates: logical heuristics; not execution measurements")
 	}
-	if r.Observation != nil {
+	if r.Observation != nil && !r.SuppressActual {
 		lines = append(lines, "Measurements: emitted rows and active elapsed milliseconds per loop; elapsed includes child work, sums parallel worker plus leader work, excludes consumer idle time and transaction publication")
 	}
 	return lines
 }
 
-func (r *Renderer) cte(definition *plan.CTEDefinition) (*Tree, error) {
+func (r *Renderer) cte(definition *plan.CTEDefinition, query *plan.Query) (*Tree, error) {
 	if tree, ok := r.ctes[definition]; ok {
 		return tree, nil
 	}
+	if query == nil {
+		query = definition.Query
+	}
+	previousDML := r.DML
+	r.DML = nil
+	var commandOwner *exec.CTEInvocation
+	if definition.Mutation != nil {
+		owner := r.CTEs
+		for owner != nil && owner.Frame != definition.Owner {
+			owner = owner.Parent
+		}
+		r.DML = owner.DMLFor(definition)
+		commandOwner = owner
+	}
+	defer func() { r.DML = previousDML }()
 	tree := &Tree{label: "CTE " + catalog.Identifier(definition.Name), nodeType: "CTE"}
 	r.property(tree, "CTE Name", definition.Name)
 	r.ctes[definition] = tree
@@ -198,12 +225,19 @@ func (r *Renderer) cte(definition *plan.CTEDefinition) (*Tree, error) {
 	} else if mutation, ok := definition.Mutation.(*analyze.Binding); ok {
 		child, err = r.binding(definition.Statement, *mutation)
 	} else {
-		child, err = r.query(definition.Query)
+		child, err = r.query(query)
 	}
 	if err != nil {
 		return nil, err
 	}
+	if definition.Mutation != nil && r.Observation != nil {
+		child.cteOwner, child.cteDefinition = commandOwner, definition
+	}
 	tree.children, tree.estimate = []*Tree{child}, child.estimate
+	tree.Actual = child.Actual
+	if definition.Mutation == nil && r.Observation != nil && !r.SuppressActual {
+		tree.actualChild = child
+	}
 	r.producers = append(r.producers, tree)
 	return tree, nil
 }
@@ -223,7 +257,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 	}
 	for _, definition := range binding.CTEs {
 		if definition.Mutation != nil {
-			if _, err := r.cte(definition); err != nil {
+			if _, err := r.cte(definition, nil); err != nil {
 				return nil, err
 			}
 		}
@@ -331,6 +365,7 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid EXPLAIN mutation binding")
 	}
+	candidateSource := source
 	if predicate != nil {
 		source = &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Schema()), Child: source, Predicate: predicate}
 		if r.options.Debug {
@@ -381,7 +416,28 @@ func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) 
 	if err != nil {
 		return nil, err
 	}
-	tree := &Tree{label: label + " on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), children: []*Tree{child}, estimate: plan.ExplainMutationEstimate(child.estimate, binding.Returning != nil)}
+	switch statement.(type) {
+	case *parser.Insert:
+		if binding.Query == nil {
+			child.dml = r.DML.Role(exec.DMLInsertInput)
+		}
+	case *parser.Update, *parser.Delete:
+		if binding.CurrentOf != "" {
+			child.dml = r.DML.Role(exec.DMLCursorLocator)
+		} else {
+			child.measureDML(target, r.DML.Role(exec.DMLTargetScan))
+			if candidateSource != target {
+				child.measureDML(candidateSource, r.DML.Role(exec.DMLCandidateJoin))
+			}
+			if predicate != nil {
+				child.dml = r.DML.Role(exec.DMLPredicate)
+			}
+		}
+	case *parser.Merge:
+		child.dml = r.DML.Role(exec.DMLMergeCandidates)
+		child.measureDML(target, r.DML.Role(exec.DMLMergeTarget))
+	}
+	tree := &Tree{label: label + " on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), children: []*Tree{child}, estimate: plan.ExplainMutationEstimate(child.estimate, binding.Returning != nil), Actual: r.DML.CommandActual()}
 	tree.properties = modificationTree.properties
 	if r.options.Debug {
 		tree.commandDebug = map[string]any{"Relation OID": uint32(binding.Ref.Address.ObjectID), "Returning Target List": []string{}}

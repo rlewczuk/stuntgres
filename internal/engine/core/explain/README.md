@@ -34,6 +34,33 @@ estimates, statistics, pruning and foreign-provider details, and TEXT/XML/JSON/Y
   and `ExplainObservationForTest` (the existing recorded T6 test seam).
 - `SetForeignParameters` supplies the typed parameter frame and its provider
   export for foreign planning.
+- `LogOutput` consumes those same typed trees for automatic explanation without
+  SQL row publication. JSON logs are objects, XML retains the namespace, and
+  YAML uses typed flow collections. Query text/current clipped parameters and
+  explicitly named logical metrics are separate document facts, never recovered
+  from rendered text or presented as physical pages/cache/WAL.
+
+Analyzed mutation adapters borrow their actual producer-role records, not
+synthetic OpenNode registrations or affected-count-derived child actuals.
+Every format reads the same rows/loops/active spans; known unentered roles are
+0/0, while a no-RETURNING command root remains0 independently of input/writes.
+Synthetic read-only CTE wrappers borrow their child's measured actuals without
+acquiring its graph identity or provider presentation; only the genuine child
+appears in `PresentedNodes` and DEBUG. No alias is needed without analyzed work.
+Core supplies the exact invocation CTE owner chain so duplicate modifying-CTE
+presentations share their actual command-root scalar and producer roles,
+including lazy producers captured before their genuine entry.
+At settled rendering, modifying-CTE children resolve the exact invocation and
+definition against the existing family renderer slice, including lazy captures.
+The chosen child's renderer retains its own effective provider/options state;
+no second graph, stale static actuals or missing-capture zero fallback is used.
+Self/cyclic/missing captures are errors. The existing command owner retires the
+borrowed family and CTE associations on all exits.
+
+EXPLAIN-only `PLLocalExpr` presentation uses `stored.Deparser.Literal` with the
+immutable original Value and Info. It neither evaluates the expression nor
+extends persistence deparse admission. Query Text stays the exact executor
+source; detached live PL/SPI Context is not reconstructed from rendered literals.
 
 ## Host and authority
 

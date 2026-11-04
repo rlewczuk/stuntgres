@@ -94,6 +94,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 // invoked again. Caller holds Settings.Mu then Session.Mu of s.Session.
 func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 	s.reconcilePgTrgmLocked()
+	s.reconcileAutoExplainLocked()
 	beforeRole := s.TypedValue("session_replication_role").Text
 	beforeStats := s.Value("stats_fetch_consistency")
 	timeoutChanged, transactionAssignment := false, false

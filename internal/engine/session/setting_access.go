@@ -39,6 +39,12 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and unlisted builtins remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
+	case "auto_explain.log_min_duration", "auto_explain.log_parameter_max_length",
+		"auto_explain.log_analyze", "auto_explain.log_verbose", "auto_explain.log_buffers",
+		"auto_explain.log_wal", "auto_explain.log_timing", "auto_explain.log_triggers",
+		"auto_explain.log_nested_statements", "auto_explain.log_format",
+		"auto_explain.sample_rate", "auto_explain.log_level":
+		return true
 	case settings.PgcryptoBuiltinCrypto, settings.PasswordCheckMinimum:
 		return true
 	case "pg_stat_statements.track", "pg_stat_statements.track_utility", "pg_stat_statements.track_planning":

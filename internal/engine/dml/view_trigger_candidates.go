@@ -57,31 +57,47 @@ func viewTriggerCandidates(h Host, in ViewTriggerCommand, state *exec.State, eva
 	if from != nil {
 		frame = make([]sqltype.Value, width+sourceWidth)
 	}
+	roles := exec.DMLObservationOf(h.Context())
+	targetActual := roles.Role(exec.DMLTargetScan)
+	pairActual := roles.Role(exec.DMLCandidateJoin)
+	predicateActual := roles.Role(exec.DMLPredicate)
+	targetActual.BeginLoop()
+	pairActual.BeginLoop()
+	predicateActual.BeginLoop()
 	for {
 		// Project every view output, not its unprojected source prefix. This is
 		// essential for computed, joined, aggregate and source-free OLD rows.
+		targetActual.StartWork()
 		present, failure := target.Next(h.Context(), scratch)
+		targetActual.EndWork()
 		if failure != nil {
 			return failure
 		}
 		if !present {
 			break
 		}
+		targetActual.Emit()
 		var old []sqltype.Value
 		for j := range sourceCount {
+			pairActual.StartWork()
 			if from != nil {
 				copy(frame, scratch)
 				copy(frame[width:], source.Source.Row(source.Index(j)))
 				evaluation.BindQueryIdentity(source.Source, source.Index(j))
 			}
 			evaluation.Row = frame
+			pairActual.Emit()
+			pairActual.EndWork()
+			predicateActual.StartWork()
 			matches, failure := exec.UpdateMatches(evaluation, predicate)
+			predicateActual.EndWork()
 			if failure != nil {
 				return failure
 			}
 			if !matches {
 				continue
 			}
+			predicateActual.Emit()
 			if old == nil {
 				old = make([]sqltype.Value, width)
 				copy(old, scratch)

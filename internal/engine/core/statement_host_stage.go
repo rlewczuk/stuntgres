@@ -267,6 +267,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		e.initializeTemporaryBuffersLocked(s, ref)
 		s.recordStatsTuple(ref, 0, int64(len(versions)), 0, statsWriteStart.counts)
 		s.finishDatabaseWrite(statsWriteStart)
+		s.recordAutoExplainWrite(int64(len(versions)))
 	}
 	return result, nil
 }
@@ -403,6 +404,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	e.initializeTemporaryBuffersLocked(s, ref)
 	s.recordStatsTuple(ref, int64(len(versions)), 0, 0, statsWriteStart.counts)
 	s.finishDatabaseWrite(statsWriteStart)
+	s.recordAutoExplainWrite(int64(len(versions)))
 	return false, nil
 }
 
@@ -493,6 +495,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	e.initializeTemporaryBuffersLocked(s, ref)
 	s.recordStatsTuple(ref, 1, 0, 0, statsWriteStart.counts)
 	s.finishDatabaseWrite(statsWriteStart)
+	s.recordAutoExplainWrite(1)
 	return true, false, version, nil
 }
 

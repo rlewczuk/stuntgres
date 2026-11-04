@@ -136,6 +136,27 @@ to their original nodes. This is not CPU time or a physical startup measurement.
 No observation means no counter allocation or clock sampling. Observations own
 neither source pins nor statement/publication authority and are never retained
 in prepared definitions.
+Mutation producers additionally own a fixed set of optional DML-role records,
+not fabricated OpenNode identities. Literal/default input counts successful
+source production before admission; MERGE records actual target passes/fetches
+and emitted membership pairs before action selection. Known unentered roles
+remain rows0/loops0; entered empty passes retain their real loops. Timing uses
+the same active-span machinery and no row-loop map, lock or allocation.
+UPDATE/DELETE roles separately measure original target fetches, reached joined
+candidate frames, initial predicate survivors and actual cursor-position lookup.
+EPQ retries and rejected/duplicate actions do not emit another initial candidate;
+an empty FROM still permits UPDATE's real target scan, whereas empty USING can
+leave DELETE's target genuinely unentered.
+Each accepted mutation command owns separate roles and one command-root scalar,
+shared by explicit and automatic rendering. Modifying CTE associations use the
+exact invocation owner plus definition: lazy reservations remain unentered
+until actual demand, sibling commands never accumulate together, and closing
+the CTE owner drops its associations. Provider-presentation-only and nil paths
+create no DML records. Real query source nodes keep their ordinary identities.
+Final modifying-CTE presentation resolves the exact invocation/definition through
+the already captured renderer family, so real query source identities survive
+preflight copies and lazy startup rather than inheriting stale static nodes.
+
 Foreign observations capture detached properties at actual provider plan
 selection, before runtime startup, rather than rediscovering paths for display.
 Composite observations retain the original replaced node key, not a synthetic
@@ -160,6 +181,17 @@ completed operation through a live cursor. Owned external connections and existi
 transaction participants have their separate physical-session lifetime.
 Modification planning checks observation presence before making its optional
 defensive callback request; ordinary unobserved execution makes no unused copy.
+
+Automatic explanation uses the same optional observation. A presentation-only
+observation captures actual provider choice without stage counters. Requested
+Logical Tuple Accesses count genuine base-source demand frontiers, including
+indexed candidate fetches and real rescans, not projected fields, materialized
+replay or backing capacity. Logical Tuple Writes count accepted staged/provider
+operations, not commit outcomes or WAL. Trigger calls/timing use actual trigger
+identity. Stage-private access counters are read only after workers join;
+serial command staging and trigger invocation own their separate scalars.
+No observer means no metric allocation, per-row locks or clock sampling.
+
 
 ## Imports
 

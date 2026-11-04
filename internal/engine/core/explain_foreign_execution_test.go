@@ -42,6 +42,7 @@ type explainExecutionWrapper struct {
 	tx                                               fdwUnitTransaction
 	check                                            func() error
 	failure                                          error
+	endFailure                                       error
 	invalid                                          bool
 	cancel                                           context.CancelFunc
 	cancelFetch                                      context.CancelFunc
@@ -351,7 +352,7 @@ func (s *explainExecutionScan) EndForeignScan(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("canceled cleanup context: %w", err)
 	}
-	return nil
+	return s.owner.endFailure
 }
 func (w *explainExecutionWrapper) ForeignTransactionCapabilities(context.Context, catalog.ForeignRequest) (catalog.ForeignTransactionCapabilities, error) {
 	return catalog.ForeignTransactionCapabilities{StatementRollback: true, TransactionRollback: true, Savepoints: true}, nil

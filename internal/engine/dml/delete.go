@@ -31,6 +31,9 @@ type DeleteInput struct {
 func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
 	source.Host = h
+	roles := exec.DMLObservationOf(in.Context)
+	targetActual := roles.Role(exec.DMLTargetScan)
+	predicateActual := roles.Role(exec.DMLPredicate)
 	if err := BeforeStatement(h, b, stored.TriggerDelete); err != nil {
 		if inputs != nil {
 			inputs.Close()
@@ -54,13 +57,18 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	var positioned MutationRowIdentity
 	if b.CurrentOf != "" {
 		var err error
+		locator := roles.Role(exec.DMLCursorLocator)
+		locator.BeginLoop()
+		locator.StartWork()
 		positioned, err = h.PositionedRow(b)
+		locator.EndWork()
 		if err != nil {
 			if inputs != nil {
 				inputs.Close()
 			}
 			return Outcome{}, err
 		}
+		locator.Emit()
 	}
 	ctx := in.Context
 	input, output := h.Environments()
@@ -101,7 +109,11 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 		}()
 	}
 	scan := exec.NewRelationScan(source)
-	if err := ctx.Err(); err != nil { return Outcome{}, err }
+	if err := ctx.Err(); err != nil {
+		return Outcome{}, err
+	}
+	targetActual.BeginLoop()
+	predicateActual.BeginLoop()
 	scan.Reach(0)
 deleteCandidate:
 	for i := range source.Count() {
@@ -109,8 +121,12 @@ deleteCandidate:
 			return Outcome{}, err
 		}
 		scan.Reach(i)
+		targetActual.StartWork()
 		scan.Fetch(i)
 		physical := MutationPhysicalRow(source, i, b)
+		exec.ObserveLogicalAccess(ctx)
+		targetActual.Emit()
+		targetActual.EndWork()
 		version := physical.Version
 		if b.CurrentOf != "" && !MutationPositionMatches(positioned, physical, source) {
 			continue
@@ -118,13 +134,16 @@ deleteCandidate:
 		evaluation.Row = physical.Values(version)
 		evaluation.PhysicalTable, evaluation.PhysicalVersion = physical.Leaf.Ref, version
 		evaluation.PhysicalXmaxValid, evaluation.OldPhysicalXmaxValid = false, false
+		predicateActual.StartWork()
 		matches, err := MutationMatches(h, &evaluation, b.Predicate)
+		predicateActual.EndWork()
 		if err != nil {
 			return Outcome{}, err
 		}
 		if !matches {
 			continue
 		}
+		predicateActual.Emit()
 		candidate := physical.Deletion()
 		if err := h.AcquireRow(candidate); err != nil {
 			return Outcome{}, err

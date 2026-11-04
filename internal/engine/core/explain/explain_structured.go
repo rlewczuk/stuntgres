@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
@@ -85,6 +84,9 @@ func (r *Renderer) effective(tree *Tree) *Tree {
 }
 
 func (r *Renderer) structuredNode(tree *Tree) map[string]any {
+	if tree.commandRenderer != nil {
+		return tree.commandRenderer.structuredNode(tree.commandRenderer.CommandTree())
+	}
 	tree = r.effective(tree)
 	object := maps.Clone(tree.properties)
 	if object == nil {
@@ -101,13 +103,7 @@ func (r *Renderer) structuredNode(tree *Tree) map[string]any {
 		object["Plan Rows"], object["Logical Cost"] = tree.estimate.RoundedRows(), tree.estimate.Cost
 		object["Estimate Model"] = "logical heuristics; not execution measurements"
 	}
-	if r.Observation != nil && (r.Observation.Known(tree.node) || tree.Actual != nil) {
-		actual := exec.Actual{}
-		if tree.Actual != nil {
-			actual = *tree.Actual
-		} else {
-			actual = r.Observation.Actual(tree.node)
-		}
+	if actual, known := r.actual(tree); known {
 		rows := float64(0)
 		if actual.Loops != 0 {
 			rows = float64(actual.Rows) / float64(actual.Loops)
