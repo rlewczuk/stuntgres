@@ -268,8 +268,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// WAL adds metadata-only non-strict STABLE/restricted scalar RECORD1136:
 	// no inputs, five OUT fields including exact NUMERIC bytes, and rows0.
 	// Pure LSN difference adds released OID3165 with pg_proc.h defaults.
-	if len(facts) != 2282 {
-		t.Fatalf("released represented overloads: got %d, want 2282", len(facts))
+	// Subscription cumulative statistics adds strict STABLE/restricted scalar
+	// RECORD declaration6231, one named IN OID, eleven OUT fields and rows0.
+	if len(facts) != 2283 {
+		t.Fatalf("released represented overloads: got %d, want 2283", len(facts))
 	}
 	return facts
 }

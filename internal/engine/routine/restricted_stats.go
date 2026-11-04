@@ -44,6 +44,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 2978, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_calls", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 2979, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_total_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 2980, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_self_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 6231, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_subscription_stats", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 2249, Strict: true, Volatility: expr.Stable, Parallel: 'r', Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 20, 20, 20, 20, 20, 20, 20, 20, 20, 1184}, "subid", "subid", "apply_error_count", "sync_error_count", "confl_insert_exists", "confl_update_origin_differs", "confl_update_exists", "confl_update_missing", "confl_delete_origin_differs", "confl_delete_missing", "confl_multiple_unique_conflicts", "stats_reset")},
 }
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
@@ -92,7 +93,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 
 func publicStatsGetter(id ids.OID) bool {
 	switch id {
-	case 1136, 3195, 2306, 2772, 2773, 2859, 3075, 6118, 3781,
+	case 1136, 3195, 2306, 2772, 2773, 2859, 3075, 6118, 6231, 3781,
 		2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314, 3046, 3047, 3048, 2978, 2979, 2980:
 		return true
 	}

@@ -52,6 +52,8 @@ type Input struct {
 	// GSSAPISessions contains detached real clients visible to this execution.
 	// Raw transaction membership and current authorization remain core-owned.
 	GSSAPISessions []GSSAPISession
+	// SubscriptionStats contains detached facts read through genuine owning keys.
+	SubscriptionStats map[ids.ObjectAddress]statistics.Fact
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress
@@ -93,6 +95,8 @@ const (
 	ClassNameColumn         = 1 // pg_class.relname
 	ProcedureOIDColumn      = 0 // pg_proc.oid
 
+	StatSubscriptionStatsNameColumn = 1 // pg_stat_subscription_stats.subname (catalog-owned)
+
 	InfoRoutinesSpecificSchemaColumn   = 1 // information_schema.routines.specific_schema
 	InfoRoutinesSpecificNameColumn     = 2 // information_schema.routines.specific_name
 	InfoRoutinesSchemaColumn           = 4 // information_schema.routines.routine_schema
@@ -120,6 +124,8 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{0, 1, 3, 4}
 	case StatDatabaseOID:
 		return []int{0, 1}
+	case StatSubscriptionStatsOID:
+		return []int{StatSubscriptionStatsNameColumn}
 	case ids.ProcedureClassID:
 		return []int{ProcedureOIDColumn}
 	case InfoRoutinesOID:

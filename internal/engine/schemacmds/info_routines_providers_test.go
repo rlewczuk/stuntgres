@@ -60,6 +60,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		{5052, "pg_get_shmem_allocations", 2249, true, 2, ""},
 		{6014, "pg_show_replication_origin_status", 2249, true, 1, ""},
 		{6118, "pg_stat_get_subscription", 2249, true, 0, "26"},
+		{6231, "pg_stat_get_subscription_stats", 2249, false, 0, "26"},
 		{6250, "pg_ident_file_mappings", 2249, true, 1, ""},
 		{6314, "pg_stat_get_checkpointer_stat_reset_time", 1184, false, 0, ""},
 		{6327, "pg_stat_get_checkpointer_restartpoints_timed", 20, false, 0, ""},
@@ -179,6 +180,30 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 				}
 			}
 		}
+		if want.oid == 6231 {
+			if !p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.RowEstimate() != 0 || p.CostEstimate() != 1 || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+				t.Fatal("released subscription statistics backing declaration", p)
+			}
+			outputs := p.OutputDeclaration()
+			if outputs == nil || outputs.Inputs() != 1 || outputs.Len() != 11 || outputs.Name(0) != "subid" || p.InputNames != nil {
+				t.Fatal("released subscription statistics IN/OUT signature", outputs)
+			}
+			for i, field := range [...]struct {
+				name string
+				typ  ids.OID
+			}{
+				{"subid", 26},
+				{"apply_error_count", 20}, {"sync_error_count", 20},
+				{"confl_insert_exists", 20}, {"confl_update_origin_differs", 20},
+				{"confl_update_exists", 20}, {"confl_update_missing", 20},
+				{"confl_delete_origin_differs", 20}, {"confl_delete_missing", 20},
+				{"confl_multiple_unique_conflicts", 20}, {"stats_reset", 1184},
+			} {
+				if outputs.Name(i+1) != field.name || outputs.Type(i) != field.typ {
+					t.Fatal("released subscription statistics OUT field", i, outputs.Name(i+1), outputs.Type(i), field)
+				}
+			}
+		}
 		seen[want.oid] = true
 	}
 	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
@@ -215,6 +240,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		6118: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_subscription"},
 		6014: {Language: catalog.InternalRoutineLanguage, Source: "pg_show_replication_origin_status"},
 		3781: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_replication_slots"},
+		6231: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_subscription_stats"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},

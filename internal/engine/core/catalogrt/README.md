@@ -97,11 +97,17 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   parameter frames remain errors, not successful empty results. Bgwriter and
   checkpointer scalar getter ACLs remain admitted before this proof; their broader
   aggregate read-only suppression remains independent of direct-input source elision.
-  Xact-function metadata admission alone additionally consumes this direct-input
-  proof before admitting retained volatile getters, matching capture's undemanded
-  input elision and the pinned custom-plan parameter-FALSE behavior. Every held
-  execution supplies its current canonical binding; TRUE still requires all three
-  backing getters. The literal-only scalar-family proof is not broadened.
+  Xact-function metadata admission additionally consumes this direct-input proof
+  before admitting retained volatile getters; TRUE still requires all three.
+  Subscription-stats admission and capture share one additional shallow proof:
+  exactly one physical AND pairs direct source-owned `subname` column1 equality
+  with a literal/current imported BOOL. The equality must be builtin immutable
+  NAME equality to a same-usage literal/imported NAME, with exact origin,
+  attribute, frame and type generation. No wrappers, custom routines, recursive
+  logic or arbitrary counterpart work qualify. FALSE/NULL elides getter6231 and
+  Reader configuration/capture only after SELECT; TRUE rechecks current EXECUTE.
+  These current-parameter witnesses use custom planning, not an automatic held
+  generic/custom choice. The generic and literal-only scalar proofs stay unchanged.
 - `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links. It copies relation
   templates built once per process and sets this engine's owner, ACL and

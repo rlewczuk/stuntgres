@@ -196,7 +196,10 @@ func TestPGStatXactUserTablesSourceSelection(t *testing.T) {
 	if err != nil || !stamp.IsNull() {
 		t.Fatal("USER initialized cumulative Reader", stamp, err)
 	}
+	// Standalone cumulative runtimes acquire the initial shared-capture fence.
+	e.Mu.Unlock()
 	runtime.TableStatistics(x.Address)
+	e.Mu.Lock()
 	cut, err := ctx.StatsSnapshotValue(false, timestampType)
 	if err != nil || cut.IsNull() {
 		t.Fatal("missing established cumulative cut", cut, err)

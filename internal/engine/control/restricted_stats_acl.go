@@ -74,6 +74,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_function_total_time", 0
 		case 2980:
 			name, entries = "pg_stat_get_function_self_time", 0
+		case 6231:
+			name, entries = "pg_stat_get_subscription_stats", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:

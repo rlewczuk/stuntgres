@@ -16,6 +16,22 @@ func statsReader(s *session.Session, settings *session.SettingsStore) *statistic
 	p.statsReader.Configure(mode, generation)
 	return &p.statsReader
 }
+
+func (e *Engine) prepareStatsSnapshot(reader *statistics.Reader) {
+	if reader.NeedsSnapshot() {
+		e.Mu.Lock()
+		captureDatabaseStats(e, reader)
+		e.Mu.Unlock()
+	}
+}
+
+func (r *catalogRuntime) prepareStatsSnapshot(reader *statistics.Reader) {
+	if r.engineLocked {
+		captureDatabaseStats(r.engine, reader)
+	} else {
+		r.engine.prepareStatsSnapshot(reader)
+	}
+}
 func (h *statementHost) StatsSnapshotValue(clear bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	if s == nil || s.Op == nil || s.Op.Session == nil || PayloadOf(s.Op.Session) == nil || s.Op.EffectiveSettings() == nil || result == nil {
@@ -45,7 +61,7 @@ func (r *catalogRuntime) relationStatistics(address ids.ObjectAddress) statistic
 	}
 	reader := statsReader(r.auth.Session, settings)
 	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}
-	captureDatabaseStats(r.engine, reader)
+	r.prepareStatsSnapshot(reader)
 	return reader.Read(&r.engine.Statistics, key, time.Time{})
 }
 func (r *catalogRuntime) TableBlockStatistics(address ids.ObjectAddress) pgcatalog.IndexBlockFact {

@@ -143,6 +143,7 @@ var producers = [...]Registration{
 	{StatIOOID, captureStatIO},
 	{StatWALOID, capturePGStatWAL},
 	{ReplicationOriginStatusOID, capturePGReplicationOriginStatus},
+	{StatSubscriptionStatsOID, capturePGStatSubscriptionStats},
 	{WaitEventsOID, capturePGWaitEvents},
 	{AIOSOID, captureAIOS},
 	{StatioAllIndexesOID, captureStatioIndexes},

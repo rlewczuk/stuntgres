@@ -182,6 +182,49 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		// Identity-only inactive rows need no cumulative Reader or provider
 		// mutation. The shared provider still owns actual counter lifetime.
 		return catalogrt.CaptureRows(in, produce)
+	case pgcatalog.StatSubscriptionStatsOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6231}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
+		captureDatabaseStats(e, reader)
+		in.SubscriptionStats = make(map[ids.ObjectAddress]statistics.Fact)
+		owners := make(map[ids.ObjectAddress]*Engine)
+		if e.Cluster != nil {
+			for _, target := range e.Cluster.Targets {
+				owners[target.Catalog.DatabaseAddress()] = target
+			}
+		}
+		for _, subscription := range auth.Catalog.Subscriptions() {
+			// Only catalog-owned subname constrains getter demand. The initial
+			// full snapshot above still captures every genuine owning fact.
+			if keep.Rejects(pgcatalog.StatSubscriptionStatsNameColumn, func() (sqltype.Value, error) {
+				return sqltype.String(source.Columns[pgcatalog.StatSubscriptionStatsNameColumn].Usage.Type, subscription.Name()), nil
+			}) {
+				continue
+			}
+			owner := e
+			epoch := auth.Catalog.Epoch()
+			if subscription.Database != e.Catalog.DatabaseAddress() {
+				owner = owners[subscription.Database]
+				if owner != nil {
+					epoch = owner.Catalog.Current().Epoch()
+				}
+			}
+			if owner != nil {
+				key := statistics.Key{Object: owner.Catalog.Domain.Ref(epoch, subscription.Address()), Category: statistics.Subscription}
+				in.SubscriptionStats[subscription.Address()] = reader.Read(&owner.Statistics, key, time.Time{})
+			}
+		}
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatRecoveryPrefetchOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
@@ -463,6 +506,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 		}
 	}
+	runtime.engineLocked = !unlockBefore
 	in.Runtime = newCatalogRuntime(runtime)
 	if unlockBefore {
 		e.Mu.Unlock()

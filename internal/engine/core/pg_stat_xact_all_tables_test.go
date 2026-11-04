@@ -82,7 +82,10 @@ func TestPGStatXactAllTablesSourceSelection(t *testing.T) {
 		fresh,err:=produce(in);if err!=nil{t.Fatal(err)};n,_:=fresh[0][7].Integer();if n!=2||!reflect.DeepEqual(rows[0],retained){t.Fatal("retained values recomputed",n)}
 		ctx:=&exec.Context{EvalStatement:exec.EvalStatement{Context:context.Background(),Host:core.HostOf(scope)}}
 		timestamp,err:=ctx.StatsSnapshotValue(false,timestampType);if err!=nil||!timestamp.IsNull(){t.Fatal("xact projection created cumulative snapshot",timestamp,err)}
+		// Standalone cumulative runtimes acquire the initial shared-capture fence.
+		e.Mu.Unlock()
 		runtime.TableStatistics(x.Address)
+		e.Mu.Lock()
 		cut,err:=ctx.StatsSnapshotValue(false,timestampType);if err!=nil||cut.IsNull(){t.Fatal("missing established cumulative cut",cut,err)}
 		if _,err:=produce(in);err!=nil{t.Fatal(err)}
 		still,err:=ctx.StatsSnapshotValue(false,timestampType);if err!=nil||!reflect.DeepEqual(cut,still){t.Fatal("xact inquiry changed established cumulative cut",cut,still,err)}

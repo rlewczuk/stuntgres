@@ -81,6 +81,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		pgDependUnitEdge(2618, pgcatalog.StatDatabaseRuleOID, 0, 1259, pgcatalog.StatDatabaseOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.StatWALRuleOID, 0, 1259, pgcatalog.StatWALOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.SeclabelsRuleOID, 0, 1259, pgcatalog.SeclabelsOID, 0, 'i'),
+		pgDependUnitEdge(2618, pgcatalog.StatSubscriptionStatsRuleOID, 0, 1259, pgcatalog.StatSubscriptionStatsOID, 0, 'i'),
 	}
 	for _, declaration := range []struct {
 		name, signature string

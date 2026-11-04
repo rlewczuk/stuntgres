@@ -161,3 +161,4 @@
 2978	pg_stat_get_function_calls	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	20	26	\N	\N	\N	false	\N	pg_stat_get_function_calls	\N	false	\N
 2979	pg_stat_get_function_total_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_total_time	\N	false	\N
 2980	pg_stat_get_function_self_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_self_time	\N	false	\N
+6231	pg_stat_get_subscription_stats	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	2249	26	{26,26,20,20,20,20,20,20,20,20,20,1184}	{i,o,o,o,o,o,o,o,o,o,o,o}	{subid,subid,apply_error_count,sync_error_count,confl_insert_exists,confl_update_origin_differs,confl_update_exists,confl_update_missing,confl_delete_origin_differs,confl_delete_missing,confl_multiple_unique_conflicts,stats_reset}	false	\N	pg_stat_get_subscription_stats	\N	false	\N

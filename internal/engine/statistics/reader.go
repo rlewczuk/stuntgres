@@ -164,7 +164,7 @@ func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time)
 }
 
 // CaptureSource describes the accessible capture domain: all current-database
-// objects, and the database category alone from every other database.
+// objects, and database plus subscription facts from every other database.
 type CaptureSource struct {
 	Provider *Provider
 	Database Key
@@ -195,6 +195,11 @@ func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
 	} else {
 		f, exists := p.readEntry(database)
 		r.cache[database] = factRead{f, exists}
+		for key := range p.facts {
+			if key.Category == Subscription {
+				r.cache[key] = factRead{p.read(key), true}
+			}
+		}
 	}
 }
 

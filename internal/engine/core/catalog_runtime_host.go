@@ -31,6 +31,8 @@ type CatalogRuntimeFields struct {
 	Presentation       stored.Presentation
 	SequenceBase       *catalog.State
 	SequenceOwn        *session.Journal
+	// engineLocked is a synchronous capture borrow, never inspection state.
+	engineLocked bool
 }
 
 // catalogRuntime is the core Host of one Runtime. Both live in one
@@ -43,11 +45,12 @@ type catalogRuntime struct {
 	preparedStatements *PreparedRegistry
 	settings           *session.SettingsStore
 	registry           settings.Registry
+	engineLocked       bool
 }
 
 // newCatalogRuntime builds the runtime a catalog producer reads.
 func newCatalogRuntime(f CatalogRuntimeFields) *catalogrt.Runtime {
-	c := &catalogRuntime{engine: f.Engine, auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry}
+	c := &catalogRuntime{engine: f.Engine, auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry, engineLocked: f.engineLocked}
 	c.rt = catalogrt.Runtime{Host: c, View: f.Auth.View, Input: f.Input, Database: f.Database, Temporary: f.Temporary, Presentation: f.Presentation, SequenceBase: f.SequenceBase, SequenceOwn: f.SequenceOwn}
 	return &c.rt
 }

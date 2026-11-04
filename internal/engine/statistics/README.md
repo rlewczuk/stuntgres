@@ -24,6 +24,10 @@ apply-worker authority. The subscription monitoring view enumerates actual share
 catalog identities and leaves absent-worker fields typed NULL without reading,
 allocating or mutating these facts. Command creation/drop/replacement hooks retain
 sole ownership of subscription baselines and qualified retirement.
+The cumulative subscription-stats view reads those same facts through their
+owning database's full key. Missing facts yield nine zero counters and NULL reset;
+real apply/sync/conflict events alone may advance them. It does not confer worker
+authority or perform external apply.
 
 Relation facts also carry additive `BlocksFetched`/`BlocksHit` request counters.
 `Writer.PendingBlocks` returns a copied pair from only that physical owner's
@@ -130,10 +134,15 @@ semantics, without changing generation/pending work or retained Reader cuts.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.
-The same Reader captures all modeled partitions coherently on first snapshot
-access. Cache mode retains fixed families as whole kinds, including the entire
-SLRU array; prefetch always reads current provider state without constructing a
-snapshot. Clear releases every cumulative partition and cached activity together.
+The same Reader captures every local modeled partition and only Database and
+Subscription facts from actual peer providers on first snapshot access, even
+when a relation, sequence, index or fixed-family source triggers that access.
+Core holds the shared cluster mutex across the cut; provider locks remain leaves.
+Original owning keys and per-entry NULL reset semantics survive in one cache.
+No peer relation/function/backend partitions enter the local cut. Cache mode
+retains only actually accessed keys or fixed families, including the whole SLRU
+array; prefetch remains current and non-triggering. Clear releases all partitions
+and cached activity together.
 The core traverses actual per-database providers for cluster-wide reset effects;
 there is no second cluster provider or competing IO/WAL counter copy.
 `ReadSLRUs` returns one detached eight-entry family under one leaf lock, so none
@@ -327,8 +336,9 @@ periodic worker, polling loop or SQL force-flush helper.
 
 A transaction owns one `Reader`. `none` reads published facts, `cache` retains
 whole accessed objects (including missing entries), and `snapshot` coherently
-captures all database facts and a construction timestamp on first cumulative
-access. Timestamp inspection never constructs a capture. Clear removes cumulative
+captures all local facts plus shared peer subscription facts with one construction
+timestamp on first cumulative access. Timestamp inspection never constructs a
+capture. Clear removes cumulative
 and independently cached activity information without changing counters, reset
 state, pending work or the publication throttle. Effective setting generations
 invalidate even a mode round trip between accesses. Returned facts/maps are owned
@@ -382,12 +392,14 @@ database. Other databases, fixed families and statement history are untouched.
 Settlement adds the same ledger I/U/D attempts to database history once, before
 relation retirement, without relation live/dead/truncate estimate effects.
 Committed and aborted executed work both count under existing first-pre-truncate
-and child/prepared rules. Reader capture includes every database-category key
-in the cluster plus the current database's other categories and the shared key.
+and child/prepared rules. The existing `CaptureSource`/`Capture` traversal includes
+each peer's database and Subscription keys, the current database's other
+categories and the shared database key in one initial cut.
 All cumulative production entry points establish that domain before keyed or
 fixed-family reads can mark the snapshot full: database statistics, table/
 heap-block/index-block/sequence statistics, index access statistics, IO reset
-timestamps, and the archiver/SLRU and demand-admitted bgwriter source captures. Core admission
+timestamps, and the archiver/SLRU, subscription-stats and demand-admitted bgwriter
+source captures. Core admission
 precedes the capture; undemanded/suppressed bgwriter reads stay lazy. The provider
 never invokes an engine/session callback. The current provider's fixed/shared,
 SLRU and backend partitions remain part of its same all-kind cut. The shared

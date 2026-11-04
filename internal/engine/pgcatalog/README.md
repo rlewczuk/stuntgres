@@ -172,6 +172,7 @@ type Input struct {
     SLRU [statistics.SLRUCount]statistics.SLRUFact // detached cumulative family
     BGWriter statistics.SharedFact // detached demand-admitted cumulative Reader cut
     Checkpointer statistics.SharedFact // detached demand-admitted cumulative Reader cut
+    SubscriptionStats map[ids.ObjectAddress]statistics.Fact // owning-key detached cut
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -304,6 +305,32 @@ definitions preserve released join formatting. Native `_RETURN` rule12251 uses
 the existing parsed default rewrite declaration, not a
 callable SRF or executable rule. Common non-updatable-view admission owns mutation
 diagnostics; retained rows own their original immutable typed backing.
+
+`pg_stat_subscription_stats` (relation12347, rowtype12349, array12348) enumerates
+those same shared identities into twelve nullable OID/NAME/INT8/TIMESTAMPTZ
+attributes. Nine distinct cumulative fields come from detached owning-key facts,
+not desired state or local DML. Missing history is nine non-NULL zeros and a NULL
+reset instant. Provider-only orphan keys cannot add rows. Current view/column
+SELECT and getter6231 EXECUTE admit ordinary readers without an owner/stats-role
+mask; conninfo stays protected in the underlying catalog. The strict STABLE,
+parallel-restricted, non-SETOF getter declaration supplies metadata/default PUBLIC
+EXECUTE only. Symbolic lateral display and native `_RETURN` rule12350 reuse the
+common dependency/read-only machinery. Projection never retains a live provider.
+Catalog-owned `subname` alone is a Keep key: core rejects excluded descriptors
+before owning-provider lookup/Reader.Read, and the producer rejects them before
+row allocation or detached-fact lookup. The NAME cell uses the captured source
+descriptor and current execution parameters. Getter-produced `subid` is not a
+demand-isolating key. The first admitted snapshot capture still includes all
+genuine owning subscription facts, irrespective of the name-filtered result.
+Core's direct-input proof may also eliminate this getter and cumulative capture
+for one shallow AND pairing safe direct builtin NAME-key equality with a
+literal/current imported BOOL FALSE or NULL. SELECT remains mandatory; TRUE
+requires current getter EXECUTE. The proof never evaluates comparisons, calls,
+casts, domains or nested logic and does not expand the generic predicate proof.
+Descriptor and symbolic definition registration do not replace executable source
+registration: its OID must remain in ascending order in the common producer
+registry so binary lookup reaches the core's existing authority/snapshot capture.
+
 
 - `pg_stat_activity` (12226) projects one detached unmasked cluster activity cut
   with exactly 22 nullable fields and independently live actual wait ownership.
@@ -842,7 +869,8 @@ diagnostics; retained rows own their original immutable typed backing.
   producer omits the rows it rejects, which the statement's own filter rejects
   anyway (`exec.CatalogSourceKeep`). `KeyColumns` lists them: `pg_settings.name`,
   `pg_attribute.attrelid` (one test per relation), `pg_class.oid` or
-  `relname`, `pg_proc.oid`, `information_schema.routines.specific_schema`,
+  `relname`, `pg_proc.oid`, `pg_stat_subscription_stats.subname`,
+  `information_schema.routines.specific_schema`,
   `specific_name` or `routine_schema`, and `information_schema.parameters`'
   `specific_schema` or `specific_name` (domain columns, compared through
   their base-type relabel). Captures made with `Keep` are never shared; a
@@ -2203,9 +2231,10 @@ through the shared usage-origin projector.
 Detached archiver projection, typed absence and source authority use
 `make check RUN='^TestPGStatArchiverProjection$'` in `enginetests/`.
 
-Subscription identity/absence, authenticated source rejection and retained
-type-generation ownership use `make check RUN='^TestPGStatSubscriptionSource$'`
-in `enginetests/`; composed provider lifetime witnesses live with core.
+Subscription identity/absence, distinct cumulative field mapping, authenticated
+source rejection and retained type-generation ownership use
+`make check RUN='^TestPGStatSubscription(Stats)?Source$'` in `enginetests/`;
+composed provider/Reader lifetime and admission witnesses live with core.
 
 Replication capture/ownership units use
 `make check RUN='^TestPGStatReplication(Capture|Ownership)$'`: exact twenty-field

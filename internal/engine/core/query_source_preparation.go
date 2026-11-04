@@ -115,7 +115,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 				}
 			}
 		}
-		if oid := leaf.Relation.Address().ObjectID; oid == pgcatalog.ReplicationOriginStatusOID || oid == pgcatalog.ReplicationSlotsOID {
+		if oid := leaf.Relation.Address().ObjectID; oid == pgcatalog.ReplicationOriginStatusOID || oid == pgcatalog.ReplicationSlotsOID || oid == pgcatalog.StatSubscriptionStatsOID {
 			// Function-scan initialization requires current EXECUTE even when
 			// LIMIT 0 never requests a row. A proven false WHERE can instead
 			// eliminate the input itself, before function initialization.
@@ -127,6 +127,8 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 				procedure := ids.OID(6014)
 				if oid == pgcatalog.ReplicationSlotsOID {
 					procedure = 3781
+				} else if oid == pgcatalog.StatSubscriptionStatsOID {
+					procedure = 6231
 				}
 				if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedure}), Privileges: authorization.ExecutePrivilege}); err != nil {
 					return nil, err

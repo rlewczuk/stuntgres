@@ -23,6 +23,7 @@ func addDatabaseStats(e *Engine, s *session.Session, fact statistics.DatabaseFac
 
 // Every cumulative first-access authority calls this with the shared engine
 // mutex held, before a keyed or fixed-family read can mark a snapshot complete.
+// The same cut retains peer database/subscription facts and owning defaults.
 // Timestamp/clear, activity and uncached recovery-prefetch reads stay lazy.
 func captureDatabaseStats(e *Engine, reader *statistics.Reader) {
 	if !reader.NeedsSnapshot() {
@@ -53,6 +54,12 @@ func captureDatabaseStats(e *Engine, reader *statistics.Reader) {
 }
 
 func (r *catalogRuntime) DatabaseStatistics(oid ids.OID) pgcatalog.DatabaseStatisticsFact {
+	// Standalone runtimes have no synchronous capture borrow. Keep membership
+	// authority through both the cumulative cut and live backend enumeration.
+	if !r.engineLocked {
+		r.engine.Mu.Lock()
+		defer r.engine.Mu.Unlock()
+	}
 	var result pgcatalog.DatabaseStatisticsFact
 	settings := r.settings
 	if settings == nil {

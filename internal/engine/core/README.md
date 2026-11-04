@@ -617,6 +617,33 @@ after successful creation. Unadopted stage discard and adopted journal retiremen
 own provisional lifetime; drop waits for successful ordinary/direct/prepared
 publication. Native replacement seeds only selected-database restored subscriptions
 under fresh identities, leaving peer providers and retained captures unchanged.
+Cumulative subscription capture resolves each shared descriptor to its actual
+owning provider/domain/epoch under the same cluster fence and passes detached
+facts to the pure producer. Current SELECT/getter6231 EXECUTE precedes Reader
+configuration. There is no dynamic owner mask or callable getter implementation.
+The existing typed Keep for catalog-owned `subname` rejects excluded descriptors
+before owning-provider lookup and Reader.Read, and the pure producer applies the
+same name restriction before projecting facts. Cache mode therefore retains only
+demanded names; a held statement uses its current parameter on each execution.
+Getter-produced `subid` does not supply that demand boundary.
+For a direct single-source Project→Filter, admission and capture consume the
+same occurrence-owned `KeepQuery.RejectsInput` decision. In addition to its
+literal/imported-BOOL predicate proof, subscription stats alone accepts one
+shallow AND of safe direct builtin NAME-key equality and a literal/current
+imported BOOL. Exact source/attribute/frame/type authority is required; casts,
+domains, calls, nested logic and other topology keep ordinary demand. Rejected
+FALSE/NULL skips getter6231 and Reader configuration without bypassing SELECT;
+TRUE rechecks current EXECUTE. Each execution imports current values, never a
+retained rejection or permission. Parameter reference witnesses explicitly use
+custom planning, not an automatic held-plan choice.
+The existing Reader's initial full cut includes all peer Database and Subscription
+facts even if the first cumulative access filters a subscription name or reads a
+local relation/index/sequence or fixed family. Filtering never narrows that cut.
+Peer relation/function/backend facts stay excluded; no second cache exists.
+Synchronous catalog producers carry a private lexical Engine.Mu borrow to select
+locked preparation without recursive acquisition. Standalone runtimes acquire
+the mutex only for a needed initial cut; inspection roundtrips discard the borrow.
+None/cache modes never enumerate peers for initial snapshot preparation.
 Shared and SLRU resets traverse these same actual cluster target providers.
 Target validation precedes mutation. Backend reset classifies the actual PID in
 session registries, releases registry ownership before lifecycle locking, then
@@ -651,8 +678,8 @@ The archiver view checks current SELECT and backing routine3195 EXECUTE before
 configuring/fetching its session Reader, then projects detached facts outside
 Engine.Mu. Describe and denied admission cannot populate the Reader. Fixed/shared
 families retain their current provider's coherent values; snapshot additionally
-includes accessible peer-database totals, never another runtime's relation or
-function facts.
+includes accessible peer-database totals and genuine shared subscription keys,
+never another runtime's relation/function/backend data.
 Backing routine3195 is a zero-provider catalog descriptor with ordinary default
 PUBLIC EXECUTE and live GRANT/REVOKE, not a getter implementation. Current native
 admission remains independent of retained statistics backing; portable peer-ACL
@@ -726,16 +753,19 @@ source, not an empty materialized result.
 `stats_database.go` projects database facts through the same catalog runtime.
 Database-category keys use the immutable database/domain identity (epoch zero),
 not unsynchronized catalog roots. Every cumulative first-access authority invokes
-the same complete-domain capture before a Reader method can mark the cut full:
-`DatabaseStatistics`; `relationStatistics` (table, heap/index-block and sequence
-projections); `IndexStatistics`; and the archiver/SLRU and demanded bgwriter
-source-capture branches. Bgwriter retains its presence-only and proven-FALSE
-no-read guards; neither those paths nor denied getter admission capture peers.
+the same `captureDatabaseStats` complete-domain capture before a Reader method
+can mark the cut full: `DatabaseStatistics`; `relationStatistics` (table,
+heap/index-block and sequence projections); `IndexStatistics`; and the
+archiver/SLRU, subscription-stats and demanded bgwriter source-capture branches.
+Bgwriter retains its presence-only and proven-FALSE no-read guards; neither
+those paths nor denied getter admission capture peers.
 Existing SELECT and backing-routine EXECUTE checks precede capture. Providers
 are visited in stable database order under shared membership authority, with
 leaf-only provider locks. The current provider's keyed, fixed/shared, SLRU and
 backend partitions and each provider's reset/missing defaults keep their existing
-owners; the shared database key is copied in its owning leaf-lock interval.
+owners; peer Subscription facts and the shared database key are copied in their
+owning leaf-lock interval. Standalone DatabaseStatistics retains Engine.Mu across
+both capture and target/live-registry enumeration; synchronous calls reuse their borrow.
 `statsReader` only configures. Timestamp/clear and independent activity capture
 do not construct a cumulative snapshot; recovery-prefetch stays a fresh direct
 provider read. None/cache behavior and clear-without-publication are unchanged.
@@ -3861,6 +3891,12 @@ The cancellation fixture asserts retained output before the failing demand,
 which owns stage closure, and never calls `Count` on a released stage.
 Replication reset expression, owner-routing, retained-reader and actual subscription
 lifetime units use `RUN='^TestStatsResetReplication'`, also with `RACE=1`.
+Shared subscription projection, exact owning-key participation, initial peer
+snapshot capture and current backing authority use
+`RUN='^TestPGStatSubscriptionStats(Provider|Snapshots|RoutineAuthority|RuntimeBorrow)$'`,
+also with `RACE=1`. Subscription-first captures consume the twelve-field typed
+cursor directly, preserving OID/reset types and all nine distinct provider fields
+before inspecting the Reader's initial shared cut and retained backing.
 Shared/backend reset routing, provider composition, immutable expression and
 physical reader lifetime use `RUN='^TestStatsResetShared'`, also with `RACE=1`.
 Database/object reset composition and retained graph/writer/reader authority use

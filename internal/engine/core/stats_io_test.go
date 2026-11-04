@@ -27,9 +27,7 @@ func statIOCaptureReset(t *testing.T, e *core.Engine, s *session.Session, table 
 	if err!=nil { scope.Finish(err); t.Fatal(err) }
 	runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine:e, Auth:auth, Settings:op.EffectiveSettings()})
 	if tableFirst {
-		e.Mu.Lock()
 		runtime.TableStatistics(table)
-		e.Mu.Unlock()
 	}
 	at := runtime.IOStatisticsReset()
 	if err:=scope.Finish(nil); err!=nil { t.Fatal(err) }

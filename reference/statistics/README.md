@@ -138,12 +138,44 @@ xact terminal witness uses a fresh native recorded pool, with BEGIN as its first
 command, so its first report is unthrottled; reused-session throttling remains
 covered independently rather than cleared at transaction end.
 
+Subscription cumulative scenarios cover twelve exact nullable descriptors and
+nine non-NULL zero counters without apply events, genuine reset instants and
+shared cross-database identity/lifetime. Worker status remains independently NULL
+without a worker. Authenticated nonowners see counters/reset without a monitoring
+role mask; view/column SELECT, getter EXECUTE and reset EXECUTE remain separate
+live admissions. Conninfo remains protected. Unrelated local cumulative access
+establishes a snapshot containing peer subscription history; cache retains only
+facts actually evaluated, not just output rows. Differently named subscriptions
+exercise catalog-owned `subname=$1` demand through direct and held A→B→A→B
+execution: cache first reads B's current reset while preserving A's earlier
+positive history; snapshot retains both original facts from the first A read.
+Getter-produced `subid` predicates do not establish selective getter demand.
+Name-filtered getter-admission scenarios separately exercise literal FALSE/NULL
+and current Boolean-parameter conjunctions through direct and held definitions.
+The parameter actor sets and verifies `plan_cache_mode=force_custom_plan` before
+Prepare and restores it afterward; the repeated witness does not assume an
+automatic held-plan choice. Rejected input expects typed emptiness without getter
+EXECUTE, TRUE rechecks current getter authority, and SELECT remains mandatory
+for every predicate.
+Public table/bgwriter-first witnesses separately distinguish first-unread peer
+access from later snapshot supplementation.
+Native controls preserve peer history while rebuilding selected definitions
+without statistics; exact raw getter ACL distinctions survive repair/replay.
+ACL controls select the actual emitted repair by its canonical qualified routine
+and argument-type identity and replay that unchanged SQL on PostgreSQL; explicit
+raw ACLs require exactly one repair, with no synthesized replay fallback.
+
+
 ## Testing
 
 The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|WAL|BGWriter|Checkpointer)'`
 and the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
 The cumulative function family uses `make check RUN='^TestReferencePGStatUserFunctions'`
 and the same selector with `REFERENCE=1`; selected definitions are required in both modes.
+Subscription status and cumulative scenarios share
+`make check RUN='^TestReferencePGStatSubscription'` and the same selector with
+`REFERENCE=1`; internal positive counter vectors do not fabricate a public apply
+worker or external replication facility.
 
 Selected bgwriter admission/aggregate proofs (both modes are required):
 

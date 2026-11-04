@@ -92,11 +92,11 @@ func PartitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(
 	return partitionReplayAllowed(op, auth)
 }
 
-
 // NewCatalogRuntime builds a catalog source runtime from f.
 func NewCatalogRuntime(f CatalogRuntimeFields) *catalogrt.Runtime { return newCatalogRuntime(f) }
 
-// CatalogRuntimeFieldsOf returns the fields NewCatalogRuntime built r from.
+// CatalogRuntimeFieldsOf returns ordinary construction inputs, excluding any
+// synchronous capture's borrowed engine-lock context.
 func CatalogRuntimeFieldsOf(r pgcatalog.Runtime) CatalogRuntimeFields {
 	return r.(*catalogrt.Runtime).Host.(*catalogRuntime).fields()
 }
