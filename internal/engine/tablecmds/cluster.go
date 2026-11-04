@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -211,11 +212,20 @@ func clusterRelation(e *core.Engine, s *core.StatementScope, raw *parser.Cluster
 	stage.DomainBases = append(stage.DomainBases, parent, selected)
 	s.LockedRef, s.LockedDescriptor, s.LockedStorage = target.ref, parent, store
 	_, err = table.ClusterCandidate(core.DDLHost{E: e, Op: s.Op, CatalogStage: stage}, parent, parent, parser.AlterTableAction{Action: parser.ClusterOn, ClusterIndex: parser.Identifier{Text: selected.Name()}})
+	progress := s.BeginClusterProgressLocked(parent.Address(), "CLUSTER")
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
+	defer e.EndClusterProgress(s.TxRef, progress)
 	if err != nil {
 		return false, err
 	}
+	targets := make(map[ids.ObjectAddress]ids.ObjectAddress)
+	for address, idx := range auth.Catalog.Relations() {
+		if idx.SQLIndex != nil && idx.SQLIndex.Parent == parent.Address() {
+			targets[address] = parent.Address()
+		}
+	}
+	stage.Indexes().Progress = index.ProgressBinding{Targets: targets, Observer: progress}
 	err = s.WithMaintenanceOwner(parent, func(evaluation *exec.Context) error {
 		if err := refreshClusterIndexRecipes(e, evaluation, parent, stage, s.PendingCatalog()); err != nil {
 			return err

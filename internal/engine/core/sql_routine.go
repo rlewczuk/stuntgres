@@ -236,11 +236,14 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 		binding := initializing
 		value, err = parent.executeSQLRoutineCommand(d, retained.activation, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values, &binding)
 		if err != nil {
-			// Preserve the reached support statement frame when the root's
-			// genuine statement timer fires. Only CommandError classifies the
-			// root cause; sibling/caller cancellation remains an ordinary error.
-			if parent.invocationContext != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(parent.Op.Context()), session.StatementTimeoutCause) {
-				err = parent.Op.CommandError(err)
+			// Classify a genuine user cancel while the reached SQL frame still
+			// owns its context. Aggregate support also retains its statement
+			// timer frame; caller/sibling cancellation remains an ordinary error.
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				cause := context.Cause(parent.Op.Context())
+				if cause == session.UserCancelCause || parent.invocationContext != nil && errors.Is(cause, session.StatementTimeoutCause) {
+					err = parent.Op.CommandError(err)
+				}
 			}
 			var diagnostic *sqlstate.Error
 			var terminalFailure *sqlRoutineTerminalError

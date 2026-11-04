@@ -51,8 +51,7 @@ func TestReferenceClusterProgressSchema(t *testing.T) {
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})
 		fixture.RelationLockPending(t, p, b, workerPID, holderPID, oid, "AccessExclusiveLock", finished)
-		// Neither backend has started rewriting while awaiting heap admission.
-		// Native simulation never starts a physical progress worker at all.
+		// Progress begins only after ordinary heap admission and eligibility.
 		persistenceRun(t, p, b, observer, clusterCommandProgressIdle())
 		if err = tx.Rollback(); err != nil {
 			t.Fatal(err)

@@ -998,6 +998,11 @@ and operation policy refresh after effective changes and restoration; demanded
 catalog/visibility snapshots and output spellings remain query-owned.
 Entry recaptures presentation after the complete configuration list, independently
 of whether a routine command is already active.
+Reached SQL body statements classify genuine operation user cancellation through
+`Operation.CommandError` before adding their own statement frame, preserving the
+complete nested diagnostic without mutating the shared cancel cause. Aggregate
+support retains the same boundary for its statement timer; ordinary caller or
+sibling cancellation remains an ordinary context error.
 Within an actual parallel operation, leave checks both original-operation and
 active-invocation cancellation before recapture and after a successful capture.
 Authorization can still read coherent facts after cancellation; that is not
@@ -2639,9 +2644,15 @@ before replay. Reset and catalog replacement neither serialize nor replace it.
   Validated unpopulated materialized views skip before changing descriptors,
   preference, population or storage, and restore the pretarget lock checkpoint
   outside metadata locks. Earlier ordinary/scoped holdings survive.
-  Simulation starts no physical progress worker: the twelve-column
-  `pg_stat_progress_cluster` view is typed and honestly empty. There is no
-  unordered SELECT ordering promise or physical file/counter simulation.
+  Admitted target progress uses one pointer-owned CLUSTER/FULL entry per TxRef.
+  Engine.Mu owns membership; entry-local locking owns changing facts, with
+  Engine → entry capture order. Builder callbacks never enter the engine.
+  Exact-entry cleanup precedes bare-target retirement and cannot erase a newer
+  target. Catalog replacement detaches old entries and callbacks permanently.
+  CLUSTER counts successful necessary index builds only after baseline/output
+  attachment; absent heap work/index OID remain exact zero. FULL retains genuine
+  rewrite counts. Detached eager captures and fresh role disclosure share the
+  existing twelve-column view, with no unordered-result ordering promise.
 - `session.TransactionalSchemaUtility` selects the table, schema, rule, trigger,
   view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
   definitions, domain/composite creation and alterations, type/domain identity/drop,

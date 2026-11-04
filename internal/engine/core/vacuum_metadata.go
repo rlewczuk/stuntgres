@@ -75,10 +75,6 @@ func (r *catalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgc
 	return nil
 }
 
-type ClusterProgress struct {
-	Fact  pgcatalog.ClusterProgressFact
-	Owner authorization.PrincipalRef
-}
 
 func (r *catalogRuntime) VisitClusterProgress(ctx context.Context, visit func(pgcatalog.ClusterProgressFact) error) error {
 	if len(r.engine.ClusterProgress) == 0 {
@@ -89,8 +85,10 @@ func (r *catalogRuntime) VisitClusterProgress(ctx context.Context, visit func(pg
 		return err
 	}
 	for _, p := range r.engine.ClusterProgress {
-		fact := p.Fact
-		fact.Visible = viewer.Visible(p.Owner)
+		p.mu.Lock()
+		fact := p.fact
+		p.mu.Unlock()
+		fact.Visible = viewer.Visible(p.owner)
 		if err := visit(fact); err != nil {
 			return err
 		}

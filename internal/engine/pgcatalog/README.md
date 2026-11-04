@@ -1458,9 +1458,21 @@ ordinary PostgreSQL invalid-index artifact without retaining progress.
 
 `pg_stat_progress_cluster` retains its exact twelve typed columns and view/
 `_RETURN` metadata, with native identities independent of initdb allocation.
-Simulated CLUSTER starts no physical worker, so the validated, cancellation-aware
-producer is honestly empty, including during heap admission and targeted recipe
-maintenance. No runtime registry, fabricated phases or counters are exposed.
+The cancellation-aware producer captures admitted CLUSTER and VACUUM FULL
+targets from one live owner store. CLUSTER records actual metadata and necessary
+changed-recipe index reconstruction, never heap reorganization or unchanged-index
+work. Its `cluster_index_relid`, heap tuples scanned/written and heap blocks
+total/scanned are exactly zero throughout: absent physical work has B(0)=0,
+not an unknown estimate. Index counts advance only after successful root,
+baseline and output attachment. FULL retains its real completed heap tuple and
+index counts with native physical blocks zero.
+Rows begin after heap admission and eligibility, end on success/error/cancel,
+and have no ordering promise. Each capture checks the fresh current role:
+owners, inherited owner members and `pg_read_all_stats` can see all fields;
+other observers retain PID/database identity and typed NULL for all nine fields
+from `relid` onward. Prepared reads cache neither facts nor authorization.
+INSERT/UPDATE/DELETE reject even zero-match writes with SQLSTATE55000 and the
+ordinary non-updatable-view Message/Detail/Hint; TRUNCATE rejects with42809.
 
 
 Build callbacks describe actual scan/sort work; frozen transaction cohorts
@@ -2083,9 +2095,9 @@ renders `pg_views` and `views` in default
 format and serves the boolean `pg_get_viewdef` presentation selector.
 `cluster_progress.go` owns the single CLUSTER/FULL source, canonical relation
 OID12208/rule OID12209 and REL_18_6 default/pretty projection, including command/
-phase CASEs, OID cast and parameter aliases. Its real FULL visitor uses the
-current private catalog runtime and authenticated viewer; this metadata grants
-no simulated CLUSTER execution provider. COPY, CLUSTER/FULL, CREATE INDEX,
+phase CASEs, OID cast and parameter aliases. Its shared CLUSTER/FULL visitor uses
+the current private catalog runtime and authenticated viewer; symbolic metadata
+does not perform maintenance work. COPY, CLUSTER/FULL, CREATE INDEX,
 database statistics, subscription statistics and WAL statistics declare native `_RETURN`
 identities, stamped into immutable relation descriptors during bootstrap.
 The rewrite declaration regression checks this complete view/rule inventory

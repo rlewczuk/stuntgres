@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -67,21 +66,10 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 		return false, err
 	}
 	capture.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
-	if e.ClusterProgress == nil {
-		e.ClusterProgress = make(map[ids.TxRef]core.ClusterProgress)
-	}
-	e.ClusterProgress[s.TxRef] = core.ClusterProgress{Fact: pgcatalog.ClusterProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: d.Address().ObjectID, Phase: "initializing"}, Owner: auth.State.Authenticated}
+	entry := s.BeginClusterProgressLocked(d.Address(), "VACUUM FULL")
 	e.Mu.Unlock()
-	defer func() { e.Mu.Lock(); delete(e.ClusterProgress, s.TxRef); e.Mu.Unlock() }()
+	defer e.EndClusterProgress(s.TxRef, entry)
 	ctx := s.ActivateRuntime(s.Op.Context())
-	progress := func(phase string, scanned, written, indexes int64) {
-		e.Mu.Lock()
-		if p, ok := e.ClusterProgress[s.TxRef]; ok && s.TxRef.Epoch() == e.Catalog.State.Epoch() {
-			p.Fact.Phase, p.Fact.Scanned, p.Fact.Written, p.Fact.Indexes = phase, scanned, written, indexes
-			e.ClusterProgress[s.TxRef] = p
-		}
-		e.Mu.Unlock()
-	}
 	for {
 		e.Mu.Lock()
 		maintenance := store.Maintenance
@@ -99,7 +87,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			next.Imported = storage.WithoutImportedRelationStatistics(next.Imported, storage.RelationStatisticsAll)
 			nextMetadata = &next
 		}
-		progress("seq scanning heap", 0, 0, 0)
+		entry.RewriteProgress("seq scanning heap", 0, 0, 0)
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
@@ -107,7 +95,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 		access.Record(1, 0, 0)
 		candidate, err := storage.RewriteHeapVacuum(ctx, storage.Relation{Versions: capture.Rows, Ends: capture.Ends, Retained: capture.Retained, Discarded: capture.Discarded, Headers: capture.Headers}, capture.Frontier, capture.Cutoff, capture.Retire, storage.VacuumProgress{
 			Fetched: func() { access.Record(0, 1, 0) },
-			Completed: func(scanned int, written int64) { progress("seq scanning heap", int64(scanned), written, 0) },
+			Completed: func(scanned int, written int64) { entry.RewriteProgress("seq scanning heap", int64(scanned), written, 0) },
 		})
 		if err != nil {
 			return false, err
@@ -141,7 +129,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 				if idx.SQLIndex == nil || idx.SQLIndex.Parent != d.Address() {
 					continue
 				}
-				progress("rebuilding index", int64(len(capture.Rows)), int64(len(candidate.Versions)), rebuilt)
+				entry.RewriteProgress("rebuilding index", int64(len(capture.Rows)), int64(len(candidate.Versions)), rebuilt)
 				if idx.SQLIndex.HasRuntimeDomainConversion() {
 					evaluation.Input.TypeDiagnosticName, err = core.CaptureTypeDiagnosticName(ownerAuth)
 					if err != nil {
@@ -161,7 +149,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 				}
 				roots[address] = root
 				rebuilt++
-				progress("rebuilding index", int64(len(capture.Rows)), int64(len(candidate.Versions)), rebuilt)
+				entry.RewriteProgress("rebuilding index", int64(len(capture.Rows)), int64(len(candidate.Versions)), rebuilt)
 			}
 			return s.Op.Context().Err()
 		})
@@ -201,10 +189,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			e.Mu.Unlock()
 			return false, err
 		}
-		if p, ok := e.ClusterProgress[s.TxRef]; ok {
-			p.Fact.Phase = "swapping relation files"
-			e.ClusterProgress[s.TxRef] = p
-		}
+		entry.SetPhase("swapping relation files")
 		e.Storage.InstallRelationLocked(d.Address(), nextStore)
 		if expandedRoots != nil {
 			e.Storage.ReplaceIndexRootsLocked(expandedRoots)
@@ -217,10 +202,7 @@ func vacuumFullRelation(e *core.Engine, s *core.StatementScope, selected table.V
 			e.Storage.RelationMetadata[d.Address()] = nextMetadata
 		}
 		e.Catalog.PublishLocked(nextCatalog)
-		if p, ok := e.ClusterProgress[s.TxRef]; ok {
-			p.Fact.Phase = "performing final cleanup"
-			e.ClusterProgress[s.TxRef] = p
-		}
+		entry.SetPhase("performing final cleanup")
 		e.Mu.Unlock()
 		if o.Verbose {
 			message := table.VacuumFullReport(catalog.NewRead(&e.Catalog.Owner, capture.Catalog), capture.Relation, candidate, rebuilt)

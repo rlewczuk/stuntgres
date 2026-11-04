@@ -79,6 +79,20 @@
   access/publication, lifecycle, privilege, read-only and feature-smoke scenarios;
   the named USER counterpart remains unregistered.
 
+- Expose admitted CLUSTER metadata/necessary changed-recipe index work through
+  the existing twelve-column CLUSTER/FULL progress source, preserving minimal
+  clustering simulation and genuine FULL rewrite behavior. Count successful
+  baseline/output attachment, keep absent heap work exactly zero, and detach
+  exact target owners on every terminal path. Entry-local callbacks avoid engine
+  lock reentry; fresh role disclosure preserves typed redaction. Add independent
+  public lifecycle, cancellation/error, prepared, privacy, read-only and native
+  control coverage plus real changed-recipe feature smoke and ownership units.
+  Preserve reached SQL function context for genuine user cancellation through
+  the existing command-error owner, without changing ordinary context errors.
+  Keep live privilege changes subject to the existing publication authority
+  fence, with independent stable-authority success and exact retained-row
+  projection coverage across native Reset/Restore.
+
 - Add the eleven-column `pg_catalog.pg_statio_user_tables` on the existing
   ALL/SYS producer, events and transaction Reader, with the exact complementary
   namespace predicate before identity allocation or fact demand. Preserve typed

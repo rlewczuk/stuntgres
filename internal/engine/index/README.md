@@ -365,6 +365,11 @@ builds a binder.
   builds, uniqueness validation and retained candidates; unchanged siblings and
   heap storage remain untouched. Baseline private-write/domain outputs remain
   authoritative; no CLUSTER-specific heap/output transport exists.
+  Progress bindings select only actual captures. Optional IndexStart/IndexComplete
+  notifications bracket real index work; scan completion alone is not success.
+  Overlay completion follows successful uniqueness validation, baseline retention
+  and row-output attachment, while preserving partition-tree completion.
+  Callbacks must never enter engine/session/publication locks.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
   fence of catalog publication and of overlay capture; the caller picks each

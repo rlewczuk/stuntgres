@@ -131,7 +131,6 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building); err != nil {
 			return err
 		}
-		stage.IndexesOrZero().Progress.Complete(idx.Address())
 		build := &index.AlterIndexBuild{Index: idx, Root: full, Store: visible}
 		if outputs != nil {
 			build.Outputs = outputs.Outputs
@@ -161,6 +160,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				scope.StageProjectedColumnRoots(parent.Address(), updated, deletes)
 			}
 		}
+		stage.IndexesOrZero().Progress.Complete(idx.Address())
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()

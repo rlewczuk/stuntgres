@@ -114,6 +114,21 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   waits are outside the native simulation contract, not shared test assertions.
   Combined method-before-predicate eligibility is an owning private-stage check
   over genuine descriptor facts, not a claim of partial-hash CREATE support.
+  Progress scenarios hold two genuinely changed SQL-expression recipes through
+  public advisory locks without assuming index traversal order. Direct/fresh/held
+  commands and direct/held/fresh reads independently assert admitted identity,
+  actual rebuilding phases, stable bounded completed index counts, success,
+  cancellation/failure atomicity, fresh role disclosure and read-only diagnostics.
+  Native absent heap/index-scan work is exact zero; PostgreSQL's actual heap rewrite
+  and additional unchanged-index rebuild are specified independently. Native
+  control phases preserve eager results and keep live progress out of replay.
+  Live grant/revoke visibility checks retain the native worker's admission-time
+  publication authority fence: changed authority rejects publication with the
+  exact ordinary error and unchanged storage/preferences. A second real gated
+  command under stable authority separately proves successful publication and
+  terminal cleanup. Cancellation retains the complete reached SQL function
+  diagnostic on every command route; retained control rows assert their exact
+  projection metadata as well as values across Reset/Restore.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

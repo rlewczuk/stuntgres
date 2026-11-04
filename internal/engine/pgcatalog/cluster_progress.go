@@ -11,13 +11,16 @@ import (
 const ProgressClusterOID ids.OID = 12208
 const ProgressClusterRuleOID ids.OID = 12209
 
-// ClusterProgressFact describes one genuine FULL worker. Simulated CLUSTER
-// never registers a physical rewrite worker.
+// ClusterProgressFact is a detached snapshot of an admitted CLUSTER or FULL
+// target. Numeric zero denotes absent authorized work; visibility masks it NULL.
 type ClusterProgressFact struct {
 	PID                       int64
 	Database                  ids.OID
 	DatabaseName              string
 	Relation                  ids.OID
+	Command                   string
+	ClusterIndex              ids.OID
+	HeapBlocksTotal, HeapBlocksScanned int64
 	Phase                     string
 	Scanned, Written, Indexes int64
 	Visible                   bool
@@ -66,13 +69,13 @@ func captureClusterProgress(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return err
 			}
-			row[4] = sqltype.String(in.Source.Columns[4].Usage.Type, "VACUUM FULL")
+			row[4] = sqltype.String(in.Source.Columns[4].Usage.Type, f.Command)
 			row[5] = sqltype.String(in.Source.Columns[5].Usage.Type, f.Phase)
-			row[6], err = sqltype.OIDValue(in.Source.Columns[6].Usage.Type, 0)
+			row[6], err = sqltype.OIDValue(in.Source.Columns[6].Usage.Type, uint32(f.ClusterIndex))
 			if err != nil {
 				return err
 			}
-			for i, value := range [...]int64{f.Scanned, f.Written, 0, 0, f.Indexes} {
+			for i, value := range [...]int64{f.Scanned, f.Written, f.HeapBlocksTotal, f.HeapBlocksScanned, f.Indexes} {
 				row[i+7], err = sqltype.Integer(in.Source.Columns[i+7].Usage.Type, value)
 				if err != nil {
 					return err
@@ -86,8 +89,7 @@ func captureClusterProgress(in Input) ([][]sqltype.Value, error) {
 }
 
 // REL_18_6 src/backend/catalog/system_views.sql pg_stat_progress_cluster.
-// These are structural display fragments, not execution of the released view
-// or authority to manufacture CLUSTER workers in the native FULL producer.
+// These are structural display fragments, not execution of the released view.
 func clusterProgressViewParts(pretty bool) []builtinViewPart {
 	var parts []builtinViewPart
 	text := func(s string) { parts = append(parts, viewText(s)) }

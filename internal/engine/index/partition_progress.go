@@ -61,6 +61,11 @@ func (b ProgressBinding) Complete(address ids.ObjectAddress) {
 	if b.partitions != nil {
 		b.partitions.complete(address)
 	}
+	if _, selected := b.target(address); selected {
+		if observer, ok := b.Observer.(interface{ IndexComplete(ids.ObjectAddress) }); ok {
+			observer.IndexComplete(address)
+		}
+	}
 }
 
 func (p *partitionBuildProgress) complete(address ids.ObjectAddress) {

@@ -248,6 +248,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Active FULL progress/cancellation pins an explicit unrelated pre-DELETE RR
   snapshot, so exact scanned3/written3 is justified independently in both engines:
   observation queries cannot race an assumed observer-free retirement window.
+  FULL and CLUSTER share the same twelve-column progress source and entry-local
+  ownership. FULL retains genuine rewrite counts; changed-recipe CLUSTER
+  lifecycle/privacy/read-only scenarios belong to `reference/alter`, without
+  replacing these FULL regressions.
   The retained reader touches the target only after worker AX ends, proves old
   rows1/2/3 versus current2/3, then rolls back before retry/quiescent rewrite.
   Progress also checks independent default/pretty `pg_get_viewdef` definitions

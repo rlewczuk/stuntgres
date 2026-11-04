@@ -77,6 +77,14 @@ A later phase cannot upgrade an already fixed pair with current roots.
   Completed targets release one normal transaction each; earlier target commits
   survive a later failure. Neither path creates physical files or assumes a
   portable unordered result order.
+  Each admitted, eligible target owns live CLUSTER progress until every exit,
+  before bare-target commit/next admission. Initialization describes metadata
+  preparation; `rebuilding index` begins only at a necessary changed-recipe
+  build. Successful root/baseline/output attachment increments the completed
+  index count once. Index scans never become CLUSTER heap work: heap tuple/block
+  counters and clustering heap-index OID are exactly zero. The shared FULL owner
+  retains actual rewrite counters. Entry-local callbacks acquire no engine lock,
+  and pointer-identity cleanup cannot remove another target's progress.
 
 
 - Dispatch (`core.Statements.ExecuteLocked`): `AlterTableLocked`,

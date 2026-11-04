@@ -15,7 +15,7 @@ type BuildProgress interface {
 	ScanFinish(tuples int, method catalog.IndexMethod)
 }
 
-// ProgressBinding selects one index, never every rebuild of its parent.
+// ProgressBinding selects admitted index targets, never every parent rebuild.
 type ProgressBinding struct {
 	Index      ids.ObjectAddress
 	Targets    map[ids.ObjectAddress]ids.ObjectAddress
@@ -35,20 +35,26 @@ func (b ProgressBinding) ObserverFor(address ids.ObjectAddress) BuildProgress {
 	if b.Observer == nil {
 		return nil
 	}
+	parent, selected := b.target(address)
+	if !selected {
+		return nil
+	}
 	if b.Targets != nil {
-		parent, ok := b.Targets[address]
-		if !ok {
-			return nil
-		}
 		if observer, ok := b.Observer.(interface {
 			IndexStart(ids.ObjectAddress, ids.ObjectAddress)
 		}); ok {
 			observer.IndexStart(parent, address)
 		}
-	} else if b.Index != address {
-		return nil
 	}
 	return b.Observer
+}
+
+func (b ProgressBinding) target(address ids.ObjectAddress) (ids.ObjectAddress, bool) {
+	if b.Targets != nil {
+		parent, ok := b.Targets[address]
+		return parent, ok
+	}
+	return ids.ObjectAddress{}, b.Index == address
 }
 
 // Only the selected admitted SQL utility build carries Progress. Validation,
