@@ -18,6 +18,7 @@ func TestStatDatabaseSnapshotFirstAccess(t *testing.T) {
 		{"archiver", "SELECT archived_count FROM pg_catalog.pg_stat_archiver"},
 		{"bgwriter", "SELECT buffers_clean FROM pg_catalog.pg_stat_bgwriter"},
 		{"slru", "SELECT blks_hit FROM pg_catalog.pg_stat_slru WHERE name='transaction'"},
+		{"io", "SELECT reads FROM pg_catalog.pg_stat_io WHERE backend_type='client backend' AND object='relation' AND context='normal'"},
 	} {
 		for _, terminal := range []string{"COMMIT", "ROLLBACK"} {
 			t.Run(first.name+"/"+terminal, func(t *testing.T) {

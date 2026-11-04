@@ -180,6 +180,9 @@ preserve absent defaults and non-updatability without oracle column filtering.
 `pg_stat_ssl` contributes all eight release-ordered transport columns and view
 classification to that same complete inventory, without removing existing
 provider, authority or direct/prepared metadata assertions.
+The same complete provider bag includes `pg_stat_io`, independently listing all
+20 release-ordered column names and ordinals for direct/prepared reads and
+classifying it as a view without filtering out other providers.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and

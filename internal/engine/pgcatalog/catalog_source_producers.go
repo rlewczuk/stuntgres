@@ -138,6 +138,7 @@ var producers = [...]Registration{
 	{StatArchiverOID, capturePGStatArchiver},
 	{StatBGWriterOID, capturePGStatBGWriter},
 	{StatCheckpointerOID, capturePGStatCheckpointer},
+	{StatIOOID, captureStatIO},
 	{StatWALOID, capturePGStatWAL},
 	{ReplicationOriginStatusOID, capturePGReplicationOriginStatus},
 	{WaitEventsOID, capturePGWaitEvents},

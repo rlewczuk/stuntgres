@@ -58,6 +58,7 @@ func icProviderInventory(c *icCase) {
 		"pg_stat_subscription":              strings.Fields("subid subname worker_type pid leader_pid relid received_lsn last_msg_send_time last_msg_receipt_time latest_end_lsn latest_end_time"),
 		"pg_stat_replication":               strings.Fields("pid usesysid usename application_name client_addr client_hostname client_port backend_start backend_xmin state sent_lsn write_lsn flush_lsn replay_lsn write_lag flush_lag replay_lag sync_priority sync_state reply_time"),
 		"pg_stat_wal_receiver":              strings.Fields("pid status receive_start_lsn receive_start_tli written_lsn flushed_lsn received_tli last_msg_send_time last_msg_receipt_time latest_end_lsn latest_end_time slot_name sender_host sender_port conninfo"),
+		"pg_stat_io":                        strings.Fields("backend_type object context reads read_bytes read_time writes write_bytes write_time writebacks writeback_time extends extend_bytes extend_time hits evictions reuses fsyncs fsync_time stats_reset"),
 		"pg_publication":                    strings.Fields("oid pubname pubowner puballtables pubinsert pubupdate pubdelete pubtruncate pubviaroot pubgencols"),
 		"pg_publication_namespace":          strings.Fields("oid pnpubid pnnspid"),
 		"pg_publication_rel":                strings.Fields("oid prpubid prrelid prqual prattrs"),
@@ -211,7 +212,7 @@ func icProviderInventory(c *icCase) {
 			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_xact_user_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions", "pg_stat_user_functions", "pg_replication_origin_status")
 			views = append(views, "pg_replication_slots")
 			views = append(views, "pg_stat_wal_receiver")
-			views = append(views, "pg_seclabels")
+			views = append(views, "pg_stat_io")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

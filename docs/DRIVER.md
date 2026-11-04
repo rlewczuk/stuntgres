@@ -466,6 +466,36 @@ INSTEAD OF trigger-or-rule Hint. TRUNCATE rejects with 42809
 (`cannot copy to view "pg_stat_replication_slots"`) and its INSTEAD OF INSERT Hint.
 There is no portable row order without ORDER BY.
 
+### IO capability monitoring
+
+`pg_catalog.pg_stat_io` is PUBLIC-selectable, without row filtering or field
+redaction. Its twenty nullable columns preserve PostgreSQL 18 order and types:
+`backend_type text`, `object text`, `context text`, `reads bigint`,
+`read_bytes numeric`, `read_time double precision`, `writes bigint`,
+`write_bytes numeric`, `write_time double precision`, `writebacks bigint`,
+`writeback_time double precision`, `extends bigint`, `extend_bytes numeric`,
+`extend_time double precision`, `hits bigint`, `evictions bigint`, `reuses bigint`,
+`fsyncs bigint`, `fsync_time double precision`, `stats_reset timestamptz`.
+Byte totals are unconstrained exact numeric values; times are milliseconds.
+
+The 79 backend/object/context combinations describe static IO capabilities,
+including relation/init, not actual embedded workers or observed physical IO.
+Unsupported operations and all their companion fields are NULL. Supported
+operations use a declared deterministic absent-facility technical estimate:
+the physical PostgreSQL IO event set is empty, so counts, summed bytes and
+summed durations are typed zero. Logical table and sequence activity never
+invents physical IO, and timing settings do not change capability NULL masks.
+
+One existing transaction-owned statistics reader supplies the common SharedIO
+reset timestamp to every row, including `object='wal'`. IO/all-shared resets
+update it; a WAL-only reset does not. Reset does not clear a retained cache or
+snapshot and survives rollback; clear/end releases the retained cut.
+The existing reset function retains its EXECUTE ACL. Read-only INSERT, UPDATE
+and DELETE use 55000 with the common view Detail and operation-specific Hint,
+even with false predicates; TRUNCATE and COPY FROM use 42809.
+Prepared and empty results retain ordinary metadata. Use ORDER BY when order
+matters; no implicit row order is portable.
+
 ### Session activity monitoring
 
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is

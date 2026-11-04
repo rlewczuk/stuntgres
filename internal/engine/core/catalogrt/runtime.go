@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
+	"time"
 )
 
 // Runtime implements pgcatalog.Runtime for one catalog source capture.
@@ -66,6 +67,7 @@ type Host interface {
 	IndexStatistics(ids.ObjectAddress) pgcatalog.IndexStatisticsFact
 	IndexBlockStatistics(ids.ObjectAddress) pgcatalog.IndexBlockFact
 	DatabaseStatistics(ids.OID) pgcatalog.DatabaseStatisticsFact
+	IOStatisticsReset() time.Time
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64

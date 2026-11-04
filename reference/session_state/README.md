@@ -492,7 +492,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   work without assuming catalog U/D zero. Cumulative cache/snapshot/none cases
   include B and C and a first read through existing table statistics.
   `TestReferenceStatDatabaseSnapshotFirstAccess` adds fresh independent index,
-  archiver, bgwriter and SLRU vectors, each projecting a cumulative field from an
+  archiver, bgwriter, SLRU and IO vectors, each projecting a cumulative field from an
   actual local row before any held B/C read. Exact published user-insert deltas +2/+3
   establish distinct positive peers; +4/+5 remain hidden until clear, and +6/+7
   remain hidden until transaction end. A separate none-mode observer proves

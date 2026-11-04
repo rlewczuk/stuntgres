@@ -37,6 +37,15 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   the `Runtime`, so a capture allocates once.
   `SequenceIOStatistics` supplies only an owned encounter count through the
   physical session's transaction reader, never provider/writer authority.
+  `IOStatisticsReset` supplies one SharedIO reset timestamp through that same
+  reader with operation-effective settings. Core releases Engine.Mu before the
+  call; a needed full snapshot briefly reacquires it to capture the complete
+  accessible database domain through the shared cumulative first-access helper.
+  Only that capture samples a construction clock. Zero time is absent reset
+  information, not permission to synthesize a read timestamp.
+  Every pg_stat_io row uses this one cut, including its WAL capabilities;
+  SharedWAL remains a distinct family. Neither capability leaks a live reader,
+  provider, writer or authorization handle into the producer.
 - A `Runtime` without a `Host` serves only the presentation methods: core's
   deparse functions and `BuiltinViewDefinition`.
 - Provenance is same-pointer authority (the engine's `catalog.Owner`), never

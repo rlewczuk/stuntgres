@@ -1462,6 +1462,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
 | `Maintenance`, `TableStatistics`, `SequenceIOStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
 | `XactRelationStatistics` | copied physical-owner pending access facts plus live current tuple frames, independent of cumulative Reader cuts |
+| `IOStatisticsReset` | one SharedIO reset timestamp from the transaction-owned statistics reader, with no provider or session authority crossing the interface |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
@@ -1774,6 +1775,24 @@ catalog writes or bypass a provider's independent backing-source checks.
   Tuple prefixes and completed rebuilt roots are genuine logical work; absent
   physical block work reports zero. `pg_class.relfilenode` projects the catalog's
   current logical storage incarnation without adding physical file inquiries.
+- `pg_stat_io` is one PUBLIC-readable, nonupdatable source with twenty nullable
+  attributes in release order: three TEXT keys; INT8 counts, unconstrained NUMERIC
+  byte totals and FLOAT8 milliseconds; and TIMESTAMPTZ `stats_reset`.
+  The immutable backend/object/context matrix has 79 unique capabilities,
+  including relation/init and WAL rows. Worker labels describe capabilities,
+  not embedded processes. Unsupported operations and their byte/time companions
+  are typed NULL; supported absent physical events are typed zero. No role-based
+  row filtering, redaction or backing-routine EXECUTE gate applies.
+  `stat_io.go` owns the released operation masks: temp relations exclude
+  writeback/fsync, ring contexts exclude fsync, bulkread excludes extension,
+  reuse exists only in ring contexts, and WAL admits only write/fsync plus
+  supported normal-context reads; backend exclusions further narrow the masks.
+  `IOStatisticsReset` reads SharedIO once through the physical session's reader,
+  after core releases Engine.Mu. Every row, including WAL, shares that cut.
+  These rows never enter a catalog-revision capture cache. The displayed
+  pg_stat_get_io projection uses unqualified columns and the full SRF alias column
+  list; it supplies nonupdatability, not a callable provider.
+  No row order is promised without ORDER BY.
 - `pg_statio_all_sequences`, `pg_statio_sys_sequences` and
   `pg_statio_user_sequences` are PUBLIC-readable, read-only five-column sources:
   OID/NAME/NAME/INT8/INT8, all nullable metadata, five non-NULL cells per row.
@@ -2269,6 +2288,8 @@ a hash root alone does not select that access method.
   `RUN='^TestReferencePGStatReplicationSlots'` in both fixture modes.
 - Session monitoring SQL: `RUN='^TestReferencePGStatGSSAPI'`
 - Session capture/producer ownership (core): `RUN='^TestPGStatGSSAPI'`, also `RACE=1`
+- IO producer units: `RUN='^TestPGStatIOCapabilities$'`;
+  public IO scenarios: `RUN='^TestReferencePGStatIO'`.
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`

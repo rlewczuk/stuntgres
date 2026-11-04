@@ -141,7 +141,6 @@ mode cannot tear a family-wide reset between category rows. Cache admits the
 whole family on first entry/view read; snapshot shares its all-provider cut with
 keyed relation facts. Peer resets do not invalidate either retained cut.
 
-
 Index searches, returned entries and simple live heap fetches occupy the existing
 Relation category under the exact qualified index identity. `CaptureIndexAccess`
 captures collection policy/generation once per actual search; the value-carried
@@ -187,6 +186,20 @@ only start/tuple scalars at actual demand. The serial coordinator captures the
 same qualified relation capability before fanout and merges every reached lane
 after join, including failed/canceled prefixes before returning their error.
 Workers never capture capabilities, touch pending maps or publish batches.
+
+`pg_stat_io` reads only SharedIO.ResetAt through that same physical-session
+Reader. Its 79 backend/object/context rows are static capabilities, not worker
+registrations. All objects, including WAL, use the IO reset family; resetting
+SharedWAL does not change their timestamp. None/cache/snapshot, clear and
+transaction termination retain their existing reader semantics.
+The engine has no physical PostgreSQL relation-buffer, WAL or worker IO events
+at this granularity: for each supported operation E is empty, so count=|E|=0,
+numeric bytes=sum(E.bytes)=0 and float8 milliseconds=sum(E.duration)=0.
+This declared deterministic technical estimate applies only to the sixteen
+IO operation fields; exact metadata, support NULLs and reset events are not
+estimates. Logical tuple/sequence events and unrelated keyed IO/WAL facts never
+become physical measurements. Timing switches leave absent-event zeros and
+unsupported NULLs unchanged. No new writer, provider or reset path is involved.
 
 A physical session owns one `Writer` for its database provider, serialized by
 transaction admission; its pending map is not a cross-provider batch. Captured
@@ -373,8 +386,8 @@ and child/prepared rules. Reader capture includes every database-category key
 in the cluster plus the current database's other categories and the shared key.
 All cumulative production entry points establish that domain before keyed or
 fixed-family reads can mark the snapshot full: database statistics, table/
-heap-block/index-block/sequence statistics, index access statistics, and the
-archiver/SLRU and demand-admitted bgwriter source captures. Core admission
+heap-block/index-block/sequence statistics, index access statistics, IO reset
+timestamps, and the archiver/SLRU and demand-admitted bgwriter source captures. Core admission
 precedes the capture; undemanded/suppressed bgwriter reads stay lazy. The provider
 never invokes an engine/session callback. The current provider's fixed/shared,
 SLRU and backend partitions remain part of its same all-kind cut. The shared

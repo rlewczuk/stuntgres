@@ -253,6 +253,14 @@
   Reuse ordinary live routine ACLs and strict NULL planning/preflight, keeping
   optimized NULL distinct from surviving runtime calls.
 
+- Add the twenty-column PUBLIC-readable `pg_catalog.pg_stat_io` view with 79
+  released backend/object/context capabilities and exact operation NULL masks.
+  Supported absent-physical-IO counters, numeric bytes and float8 milliseconds
+  use declared deterministic zero estimates, never logical DML or fake workers.
+  Project one genuine SharedIO reset timestamp through the existing physical
+  session reader for every row, including WAL; preserve WAL-reset isolation,
+  retained snapshots, reset ACLs and common read-only diagnostics.
+
 - Add the 22-column, fully nullable `pg_catalog.pg_stat_activity` monitoring view
   on the existing shared provider. Report real cluster sessions, original query
   text, application/settings restoration, transaction/state clocks through the

@@ -224,6 +224,7 @@ type Runtime interface {
 	IndexStatistics(ids.ObjectAddress) IndexStatisticsFact
 	IndexBlockStatistics(ids.ObjectAddress) IndexBlockFact
 	DatabaseStatistics(ids.OID) DatabaseStatisticsFact
+	IOStatisticsReset() time.Time
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64

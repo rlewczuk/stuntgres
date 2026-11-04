@@ -65,6 +65,25 @@ func (r *catalogRuntime) SequenceIOStatistics(address ids.ObjectAddress) int64 {
 	return r.relationStatistics(address).SequencePageAccesses
 }
 
+func (r *catalogRuntime) IOStatisticsReset() time.Time {
+	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
+		return time.Time{}
+	}
+	settings := r.settings
+	if settings == nil {
+		settings = r.auth.Session.Settings
+	}
+	reader := statsReader(r.auth.Session, settings)
+	if reader.NeedsSnapshot() {
+		// IO sources run unlocked; cluster snapshot membership requires the
+		// shared engine mutex before any fixed-family read marks it complete.
+		r.engine.Mu.Lock()
+		captureDatabaseStats(r.engine, reader)
+		r.engine.Mu.Unlock()
+	}
+	return reader.ReadShared(&r.engine.Statistics, statistics.SharedIO, time.Time{}).ResetAt
+}
+
 // recordStatsTuple is called at real accepted row mutation, not at COMMIT.
 // Engine and transaction owner locks are held. Estimate ownership stays beside
 // writes; collecting a tuple never creates a catalog journal or changes routing.
