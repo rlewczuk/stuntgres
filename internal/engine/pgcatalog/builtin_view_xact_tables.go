@@ -35,14 +35,15 @@ func xactTableStatisticsViewParts() []builtinViewPart {
 	)
 }
 
-func xactSysTableStatisticsViewParts(pretty bool) []builtinViewPart {
-	parts := []builtinViewPart{viewText(" SELECT ")}
-	for i, column := range xactTableStatisticsColumns {
+func sysTableStatisticsViewParts(columns []ColumnSpec, source string, pretty bool) []builtinViewPart {
+	parts := make([]builtinViewPart, 1, 3*len(columns)+14)
+	parts[0] = viewText(" SELECT ")
+	for i, column := range columns {
 		if i != 0 {
 			parts = append(parts, viewText("    "))
 		}
 		parts = append(parts, viewIdentifier(column.Name))
-		if i != len(xactTableStatisticsColumns)-1 {
+		if i != len(columns)-1 {
 			parts = append(parts, viewText(",\n"))
 		} else {
 			parts = append(parts, viewText("\n"))
@@ -50,12 +51,12 @@ func xactSysTableStatisticsViewParts(pretty bool) []builtinViewPart {
 	}
 	if pretty {
 		return append(parts,
-			viewText("   FROM "), viewClass("pg_stat_xact_all_tables"), viewText("\n"),
+			viewText("   FROM "), viewClass(source), viewText("\n"),
 			viewText("  WHERE ("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR "), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText(";"),
 		)
 	}
 	return append(parts,
-		viewText("   FROM "), viewClass("pg_stat_xact_all_tables"), viewText("\n"),
+		viewText("   FROM "), viewClass(source), viewText("\n"),
 		viewText("  WHERE (("), viewIdentifier("schemaname"), viewText(" = ANY (ARRAY['pg_catalog'::"), viewType("name"), viewText(", 'information_schema'::"), viewType("name"), viewText("])) OR ("), viewIdentifier("schemaname"), viewText(" ~ '^pg_toast'::"), viewType("text"), viewText("));"),
 	)
 }

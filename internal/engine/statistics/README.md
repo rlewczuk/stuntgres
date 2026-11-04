@@ -164,7 +164,9 @@ builds and fetched versions rejected later by index membership or NULL keys.
 Generic index-root reconstruction has no utility-scan authority. Maintenance
 reporting remains source-specific, not a blanket count of every utility loop.
 
-The ALL table view's HOT and newpage update estimates are explicitly zero:
+The ALL and SYS table projections consume these same qualified facts and Reader
+modes; namespace selection does not own a second cache or publication boundary.
+Their HOT and newpage update estimates are explicitly zero:
 native replacement has no HOT-chain or physical page-placement optimization.
 Live/dead are the existing nonnegative logical version estimates; completed
 maintenance reconciles them. The four elapsed totals are technical elapsed
@@ -189,8 +191,10 @@ successful child release merges privately, with distinct truncate rules.
 Top-level commit reports surviving current work; abort restores first-pre-truncate
 work. PREPARE transfers unresolved frames without reporting on preparing exit;
 only completion settles them into the finishing writer. Every reported insert,
-including aborts, contributes to inserts-since-vacuum. Statistics collection never
-creates a catalog journal or changes physical publication.
+including aborts, contributes to inserts-since-vacuum. ALL/SYS cumulative events
+therefore describe executed work, not only committed row counts; transaction-local
+projections read the current owner's unresolved activity instead. Statistics
+collection never creates a catalog journal or changes physical publication.
 Maintenance uses immediate atomic `Provider.ReportAnalyze`/`ReportVacuum` updates,
 not the ordinary writer batch. Reports preserve pending tuple prefixes and their
 throttle/timer; later drains add those deltas after the shared reset. ANALYZE

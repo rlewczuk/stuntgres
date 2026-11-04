@@ -184,18 +184,38 @@ make check RUN='^TestReferencePGStatSysIndexesFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferencePGStatSysIndexesFeatureSmoke$'
 ```
 
-## ALL table statistics
+## Cumulative table statistics
 
-The ten `TestReferencePGStatAllTables` definitions independently specify identity
-and all 30 typed fields; r/t/m/p membership and unredacted inaccessible parents;
-cumulative abort/commit attempts (including NULL payload rows); actual
-sequential demand and transaction-stop timestamps; attached-index SUM/MAX and
-no-index NULL versus untouched-index zero; source-specific completed maintenance;
-none/cache/snapshot and predicate-before-reader ordering; qualified object
-lifetimes; genuine native controls; complete read-only diagnostics; and a
-standalone feature walkthrough. Public publication probes name ALL directly and
-use actual writer retirement. The xact consumer independently exercises the
-current physical writer and live tuple frames, rather than cumulative history.
+ALL and SYS reuse `tableStatFamily` for independent 30-column catalog/driver
+metadata, actual sequential and attached-index access, tuple settlement,
+completed maintenance, Reader modes, lifetime and native-control scenarios.
+Each family's publication probes demand its named projection through real
+physical writer retirement. SYS owns ordinary information_schema fixtures;
+the public lifetime matrix narrows its schema predicate with A's identity first,
+matching the shared Keep contract's first-evaluated-conjunct authority.
+Composed ownership coverage separately gives owned namespace descriptors unique
+system-prefix spellings, without assuming information_schema has no builtin heaps,
+and uses the real shared Provider/Reader to distinguish pure schema rejection:
+cache retains A but not B, snapshot retains both, and clear refreshes table and
+attached-index facts without publishing pending work. Cleanup removes only
+owned objects; no writable pg_catalog fixture or DDL bypass is involved.
+
+SYS membership is compared as an identity bag against ALL's exact
+pg_catalog/information_schema/case-sensitive pg_toast prefix subset; USER is
+the complement. Privilege scenarios distinguish the named view's current ACL
+from underlying schema/table access and from ALL's ACL. Read-only scenarios
+assert complete underlying grouped-ALL diagnostics, including zero-row DML,
+while TRUNCATE/COPY retain the named projection.
+Canonical and pretty SYS disclosure have independent full-definition expectations
+under quoted/unquoted identifiers and actual ALL-name shadowing, through direct
+and prepared execution. Their membership expression and all thirty columns stay
+identical while redundant display parentheses differ.
+The xact consumer independently exercises the current physical writer and
+live tuple frames, rather than cumulative history.
+Terminal-local witnesses begin on a reporter before any setup command can
+establish its publication throttle; their DML uses qualified fixture names.
+Per-backend lifetime destinations remain callback-local, so one backend's
+schema round trip cannot alter the other's scenario.
 
 Native HOT/newpage estimates are zero because there are no corresponding
 physical optimizations. Live/dead use logical version estimates. Elapsed totals
@@ -228,31 +248,12 @@ foreign-arm negative control: the proof consumes no fabricated foreign data and
 makes no claim about foreign transport. Existing foreign hierarchy lineage,
 rewind and identity regressions remain separate coverage.
 
-```sh
-make check RUN='^TestPGStatAllTables(CatalogIdentity|Provider|ScanDemand|ParallelAccess|InterruptedAccess|CurrentTransaction|IndexBuild|FullRewrite)$'
-make check RACE=1 RUN='^TestPGStatAllTables(Provider|ParallelAccess|InterruptedAccess|CurrentTransaction|IndexBuild|FullRewrite)$'
-make check RUN='^Test(ProducerRegistryLookup|CatalogProducerLookup)$'
-make check RUN='^(TestPartitionPruningEmptySegments|TestPlannerSettingsPruningSelection|TestQueryBranchPruning(EmptyDemand)?)$'
-make check RUN='^(TestForeignHierarchy(Lineage|RewindOwnership|RecheckIdentity)|TestPgBuffercacheMixedHierarchyReadFrontier)$'
-make check RACE=1 RUN='^(TestForeignHierarchy(Lineage|RewindOwnership|RecheckIdentity)|TestPgBuffercacheMixedHierarchyReadFrontier)$'
-make check RUN='^TestReferencePGStatAllTables(IdentityAndMetadata|MembershipAndPrivileges|EventsAndRollback|SequentialAccess|IndexAggregation|Maintenance|SnapshotsAndLifetime|NativeControls|ReadOnly|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePGStatAllTables(IdentityAndMetadata|MembershipAndPrivileges|EventsAndRollback|SequentialAccess|IndexAggregation|Maintenance|SnapshotsAndLifetime|NativeControls|ReadOnly|FeatureSmoke)$'
-make check RUN='^TestReferencePGStatio(All|Sys)SequencesMembership$'
-make check REFERENCE=1 RUN='^TestReferencePGStatio(All|Sys)SequencesMembership$'
-make check RUN='^TestReferencePGStatAllTablesFeatureSmoke$'
-make check REFERENCE=1 RUN='^TestReferencePGStatAllTablesFeatureSmoke$'
-```
-
-The feature smoke creates a fresh three-row heap, observes scan1/read3 including
-a NULL result, creates attached hash and untouched B-tree controls (two actual
-builds add2 scans/read6), publishes that DDL baseline, then executes held prepared
-hit+miss (index scans2/fetch1, no further sequential work). It rolls back two inserts while cumulative
-inserts rise to5 and physical rows stay3, completes ANALYZE/VACUUM, checks
-unchanged maintenance on repeated ALL reads, rejects UPDATE with GROUP BY detail,
-and proves committed drop absence. These are expected assertions, not a recorded
-verification claim. The fixture remains pinned PostgreSQL 18.6; both selected
-modes and the existing index regression selectors above are required after
-changes. Whole-project Docker-free verification remains `make quickcheck`.
+The reusable cumulative family selector is
+`make check RUN='^TestReferencePGStat(All|Sys)Tables'` and the same command
+with `REFERENCE=1`. Internal ownership supplements use
+`make check RUN='^TestPGStat(All|Sys)Tables'`, adding `RACE=1` for synchronized
+ownership coverage. Native controls retain the same general TEMP assertions
+while SYS also holds persistent system-namespace rows through replacement.
 
 ## Transaction-local table statistics
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -12,11 +13,11 @@ import (
 	"time"
 )
 
-// ALL follows the repository's PG18 inventory; adjacent source IDs are retained.
+// ALL and SYS follow the repository's PG18 inventory; adjacent IDs are retained.
 // PostgreSQL initdb-generated view OIDs are not portable fixed identities.
 const (
 	StatAllTablesOID  ids.OID = 12146
-	StatSysTablesOID  ids.OID = 12010
+	StatSysTablesOID  ids.OID = 12156
 	StatUserTablesOID ids.OID = 12011
 	ProgressVacuumOID ids.OID = 12012
 )
@@ -37,8 +38,8 @@ type MaintenanceFact struct {
 	ForeignAnalyzed                                        bool
 	ForeignRows, ForeignDeadRows, ForeignPages             float64
 	VacuumTime, AnalyzeTime                                time.Duration
-	SeqScans, SeqTuples, TableIndexFetches int64
-	LastSeqScan time.Time
+	SeqScans, SeqTuples, TableIndexFetches                 int64
+	LastSeqScan                                            time.Time
 }
 type VacuumProgressFact struct {
 	PID                                                                 int64
@@ -147,7 +148,7 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing statistics namespace")
 		}
-		system := ns.Name() == "pg_catalog" || ns.Name() == "information_schema" || ns.TemporaryToast
+		system := ns.Name() == "pg_catalog" || ns.Name() == "information_schema" || strings.HasPrefix(ns.Name(), "pg_toast")
 		if in.Ref.Address.ObjectID == StatSysTablesOID && !system || in.Ref.Address.ObjectID == StatUserTablesOID && system {
 			continue
 		}
@@ -202,7 +203,7 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 			if err := integer(6, scans); err != nil {
 				return nil, err
 			}
-			if err := integer(8, fact.TableIndexFetches + fetches); err != nil {
+			if err := integer(8, fact.TableIndexFetches+fetches); err != nil {
 				return nil, err
 			}
 			if !last.IsZero() {
