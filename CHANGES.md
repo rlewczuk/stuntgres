@@ -1,5 +1,15 @@
 # Changes
 
+- Expose the 21-column `pg_catalog.pg_replication_slots` metadata view with
+  canonical nominal types, public unredacted visibility, owner-first full-owner/
+  PUBLIC initial ACL metadata, independent live SELECT/backing EXECUTE admission
+  and genuine database LEFT JOIN definitions.
+  Native unsupported creates publish no inventory or synthetic WAL progress;
+  typed empty reads, exact relation/column ACL serialization and replay through
+  raw-absence/empty/reordered authority, complete provider inventory, exact view/
+  routine/cancellation presentation and real PostgreSQL physical/logical slot
+  lifecycle witnesses are covered.
+
 - Expose `pg_catalog.pg_replication_origin_status` from actual captured origin
   progress slots, including allocated zero and orphan names. Preserve exact
   unsigned remote LSNs and honestly unset local WAL positions, with independent

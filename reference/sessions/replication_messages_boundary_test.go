@@ -22,15 +22,9 @@ func TestReferenceReplicationMessagesPhysicalBoundary(t *testing.T) {
 			run(fixture.Select("SELECT v FROM replication_messages_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			run(fixture.Select("SELECT session_user,current_user", []string{"session_user", "current_user"}, []string{"NAME", "NAME"}, [][]any{{session, current}}))
 			run(fixture.Select("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{"replication_messages_boundary"}}))
-			if !b.PG {
-				// This engine has no physical slot catalog view. Preserve that
-				// observable absence rather than inventing an empty inventory.
-				s := fixture.ImplicitError("SELECT slot_name FROM pg_replication_slots ORDER BY slot_name", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_replication_slots" does not exist`, Position: fixture.Position(23)})
-				s.SelectRows, s.ErrorStage = true, "execute"
-				run(s)
-				s.Prepared, s.ErrorStage = true, "prepare"
-				run(s)
-			}
+			s := fixture.Select("SELECT slot_name FROM pg_replication_slots ORDER BY slot_name", []string{"slot_name"}, []string{"NAME"}, nil)
+			run(s)
+			run(fixture.Prepared(s))
 		}
 		check()
 		for _, call := range []string{"pg_logical_emit_message(false,'p','x')", "pg_logical_emit_message(true,'p','x',true)", `pg_logical_emit_message(false,'p','\x00ff'::bytea,true)`, `pg_logical_emit_message(true,'','\x'::bytea,false)`} {

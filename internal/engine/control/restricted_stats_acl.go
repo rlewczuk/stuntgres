@@ -14,6 +14,7 @@ import (
 func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats authorization.PrincipalRef) bool {
 	var name string
 	ownerMask, statsMask := authorization.ExecutePrivilege, authorization.ExecutePrivilege
+	reader := authorization.ACLGrantee{Role: stats}
 	entries := 2
 	switch object := d.(type) {
 	case *catalog.Procedure:
@@ -35,6 +36,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_bgwriter_stat_reset_time", 0
 		case 6118:
 			name, entries = "pg_stat_get_subscription", 0
+		case 3781:
+			name, entries = "pg_get_replication_slots", 0
 		case 2769:
 			name, entries = "pg_stat_get_checkpointer_num_timed", 0
 		case 2770:
@@ -107,6 +110,9 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_ident_file_mappings", 1
 		case pgcatalog.ReplicationOriginStatusOID:
 			name, entries = "pg_replication_origin_status", 1
+		case pgcatalog.ReplicationSlotsOID:
+			name = "pg_replication_slots"
+			reader = authorization.ACLGrantee{Public: true}
 		default:
 			return false
 		}
@@ -119,7 +125,7 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	if entries == 0 {
-		// Shared-statistics getters have ordinary implicit PUBLIC EXECUTE.
+		// These backing routines have ordinary implicit PUBLIC EXECUTE.
 		// Even an explicit ACL with identical effective rights is user state.
 		return !acl.Explicit && len(acl.Entries) == 0
 	}
@@ -127,5 +133,5 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	return acl.Entries[0] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: bootstrap}, Privileges: ownerMask}) &&
-		(entries == 1 || acl.Entries[1] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: statsMask}))
+		(entries == 1 || acl.Entries[1] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: reader, Privileges: statsMask}))
 }

@@ -80,6 +80,15 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
 		}}},
 	})
+	descriptors = append(descriptors, &catalog.Relation{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12261},
+		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
+		ObjectName:      "pg_replication_slots", Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true,
+		Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
+		}}},
+	})
 	for _, descriptor := range descriptors {
 		t.Run(descriptor.Name(), func(t *testing.T) {
 			if !restrictedStatsACLReconstructed(descriptor, owner, stats) {
@@ -87,7 +96,7 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			}
 			_, baseline, _ := access.DescriptorACL(descriptor)
 			oid := descriptor.Address().ObjectID
-			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075 || oid == 6118 || oid == 2769 || oid == 2770 || oid == 6377 || oid == 6327 || oid == 6328 || oid == 6329 || oid == 3160 || oid == 3161 || oid == 2771 || oid == 6366 || oid == 6314 || oid == 3046 || oid == 3047 || oid == 3048 || oid == 2978 || oid == 2979 || oid == 2980)
+			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075 || oid == 6118 || oid == 3781 || oid == 2769 || oid == 2770 || oid == 6377 || oid == 6327 || oid == 6328 || oid == 6329 || oid == 3160 || oid == 3161 || oid == 2771 || oid == 6366 || oid == 6314 || oid == 3046 || oid == 3047 || oid == 3048 || oid == 2978 || oid == 2979 || oid == 2980)
 			if implicit != !baseline.Explicit || implicit && len(baseline.Entries) != 0 {
 				t.Fatal("backing routine default ACL classification", descriptor)
 			}
@@ -145,6 +154,12 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 						*a = authorization.ACLValue{Explicit: true, Entries: slices.Clone(entries)}
 					})
 				}
+			}
+			if descriptor.Address().ClassID == ids.RelationClassID && oid == 12261 {
+				changes = append(changes,
+					func(a *authorization.ACLValue) { a.Entries[1].Grantee = authorization.ACLGrantee{Role: stats} },
+					func(a *authorization.ACLValue) { a.Entries[1].Grantee.Public = false },
+				)
 			}
 			for _, change := range changes {
 				var modified catalog.Descriptor

@@ -60,7 +60,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			table, column = "pg_type", "typacl"
 			locator = "oid=" + dump.CommentLiteral(regobj.TypeSpelling(c.OriginalCatalog, nil, d.Address().ObjectID)) + "::pg_catalog.regtype"
 		case *catalog.Relation:
-			if d.RelationKind == catalog.CatalogRelation && d.Address().ObjectID != pgcatalog.ShmemAllocationsOID && d.Address().ObjectID != pgcatalog.ShmemAllocationsNUMAOID && d.Address().ObjectID != pgcatalog.AIOSOID && d.Address().ObjectID != pgcatalog.BackendMemoryContextsOID && d.Address().ObjectID != pgcatalog.ConfigOID && d.Address().ObjectID != pgcatalog.FileSettingsOID && d.Address().ObjectID != pgcatalog.IdentFileMappingsOID && d.Address().ObjectID != pgcatalog.ReplicationOriginStatusOID {
+			if d.RelationKind == catalog.CatalogRelation && d.Address().ObjectID != pgcatalog.ShmemAllocationsOID && d.Address().ObjectID != pgcatalog.ShmemAllocationsNUMAOID && d.Address().ObjectID != pgcatalog.AIOSOID && d.Address().ObjectID != pgcatalog.BackendMemoryContextsOID && d.Address().ObjectID != pgcatalog.ConfigOID && d.Address().ObjectID != pgcatalog.FileSettingsOID && d.Address().ObjectID != pgcatalog.IdentFileMappingsOID && d.Address().ObjectID != pgcatalog.ReplicationOriginStatusOID && d.Address().ObjectID != pgcatalog.ReplicationSlotsOID {
 				continue
 			}
 			if restrictedStatsACLReconstructed(d, bootstrap.Ref, stats.Ref) {
@@ -74,7 +74,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 				return fmt.Errorf("stuntgres: missing ACL relation namespace")
 			}
 			identity := dump.CommentLiteral(catalog.QuoteIdentifier(ns.Name())+"."+catalog.QuoteIdentifier(d.Name())) + "::pg_catalog.regclass"
-			if acl.Explicit || d.Address().ObjectID == pgcatalog.ShmemAllocationsOID || d.Address().ObjectID == pgcatalog.ShmemAllocationsNUMAOID || d.Address().ObjectID == pgcatalog.AIOSOID || d.Address().ObjectID == pgcatalog.BackendMemoryContextsOID || d.Address().ObjectID == pgcatalog.ConfigOID || d.Address().ObjectID == pgcatalog.FileSettingsOID || d.Address().ObjectID == pgcatalog.IdentFileMappingsOID || d.Address().ObjectID == pgcatalog.ReplicationOriginStatusOID {
+			if acl.Explicit || d.Address().ObjectID == pgcatalog.ShmemAllocationsOID || d.Address().ObjectID == pgcatalog.ShmemAllocationsNUMAOID || d.Address().ObjectID == pgcatalog.AIOSOID || d.Address().ObjectID == pgcatalog.BackendMemoryContextsOID || d.Address().ObjectID == pgcatalog.ConfigOID || d.Address().ObjectID == pgcatalog.FileSettingsOID || d.Address().ObjectID == pgcatalog.IdentFileMappingsOID || d.Address().ObjectID == pgcatalog.ReplicationOriginStatusOID || d.Address().ObjectID == pgcatalog.ReplicationSlotsOID {
 				literal, err := objectACLLiteral(ctx, c, acl)
 				if err != nil {
 					return err

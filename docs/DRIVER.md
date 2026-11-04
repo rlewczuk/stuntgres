@@ -426,6 +426,24 @@ INSTEAD OF trigger/rule Hint, even with WHERE FALSE. TRUNCATE rejects with 42809
 (`"pg_stat_slru" is not a table`); COPY FROM rejects with 42809
 (`cannot copy to view "pg_stat_slru"`) and the INSTEAD OF INSERT trigger Hint.
 
+### Replication slot inventory
+
+`pg_catalog.pg_replication_slots` exposes the released 21 nullable typed fields,
+including NAME slot/plugin/database identities, OID database identity, XID
+horizons, PG_LSN retention/confirmation positions and TIMESTAMPTZ inactivity.
+Empty direct and prepared results preserve the full descriptors. Native create
+commands reject unavailable WAL/decoding machinery before publishing state, so
+the inventory is genuinely empty, not a NULL row or synthetic progress report.
+Dump/Reset/Restore preserve user-view recipes and edited metadata ACLs without
+creating slots or claiming replication transport.
+
+PUBLIC SELECT exposes metadata without creator/database/monitor-role filtering.
+Current view/column SELECT and backing `pg_get_replication_slots` EXECUTE remain
+independent checks on every held execution; LIMIT0 still initializes the backing
+function, while a proven false input can avoid that initialization. The backing
+declaration grants no callable API. The released database LEFT JOIN is preserved
+in view definitions; ordinary read-only view and COPY diagnostics apply.
+
 ### Logical replication slot monitoring
 
 `pg_catalog.pg_stat_replication_slots` (also unqualified on the ordinary catalog

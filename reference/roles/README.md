@@ -87,6 +87,11 @@ Logical-slot monitoring lifecycle uses `RUN='^TestReferencePGStatReplicationSlot
 in both modes: genuine logical inclusion, physical exclusion, unredacted reader
 fields and held prepared disappearance after drop; native rejected creation
 leaves the inventory empty.
+Slot inventory lifecycle and feature composition use
+`RUN='^TestReferencePGReplicationSlots'` in both modes. Full metadata is public,
+without creator/database/statistics-role redaction; temporary active PID denotes
+its actual physical owner, not a network sender. Dynamic positions/timestamps
+are checked against real command results and stored state, never fixed LSNs.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The CHECKPOINT family uses `make check RUN='^TestReferenceCheckpoint'` for exact

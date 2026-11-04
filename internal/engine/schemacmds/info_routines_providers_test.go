@@ -53,6 +53,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		{3195, "pg_stat_get_archiver", 2249, false, 0, ""},
 		{3329, "pg_show_all_file_settings", 2249, true, 1, ""},
 		{3400, "pg_config", 2249, true, 1, ""},
+		{3781, "pg_get_replication_slots", 2249, true, 0, ""},
 		{4100, "pg_get_shmem_allocations_numa", 2249, true, 2, ""},
 		{5052, "pg_get_shmem_allocations", 2249, true, 2, ""},
 		{6014, "pg_show_replication_origin_status", 2249, true, 1, ""},
@@ -152,6 +153,30 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 				}
 			}
 		}
+		if want.oid == 3781 {
+			if p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 's' || p.RowEstimate() != 10 || p.CostEstimate() != 1 || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 {
+				t.Fatal("released slot inventory backing declaration", p)
+			}
+			outputs := p.OutputDeclaration()
+			if outputs == nil || outputs.Inputs() != 0 || outputs.Len() != 20 || p.InputNames != nil {
+				t.Fatal("released slot inventory OUT-only signature", outputs)
+			}
+			for i, field := range [...]struct {
+				name string
+				typ  ids.OID
+			}{
+				{"slot_name", 19}, {"plugin", 19}, {"slot_type", 25}, {"datoid", 26},
+				{"temporary", 16}, {"active", 16}, {"active_pid", 23}, {"xmin", 28},
+				{"catalog_xmin", 28}, {"restart_lsn", 3220}, {"confirmed_flush_lsn", 3220},
+				{"wal_status", 25}, {"safe_wal_size", 20}, {"two_phase", 16}, {"two_phase_at", 3220},
+				{"inactive_since", 1184}, {"conflicting", 16}, {"invalidation_reason", 25},
+				{"failover", 16}, {"synced", 16},
+			} {
+				if outputs.Name(i) != field.name || outputs.Type(i) != field.typ {
+					t.Fatal("released slot inventory OUT field", i, outputs.Name(i), outputs.Type(i), field)
+				}
+			}
+		}
 		seen[want.oid] = true
 	}
 	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
@@ -185,6 +210,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
 		6118: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_subscription"},
 		6014: {Language: catalog.InternalRoutineLanguage, Source: "pg_show_replication_origin_status"},
+		3781: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_replication_slots"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},

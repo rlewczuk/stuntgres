@@ -113,6 +113,9 @@ ordered real-table columns, `roident` and `roname`.
 The restricted `pg_replication_origin_status` view contributes its four ordered
 columns, `local_id`, `external_id`, `remote_lsn` and `local_lsn`, to the complete
 administrator provider bag and direct/prepared ordinal and view-kind assertions.
+The PUBLIC-readable `pg_replication_slots` view contributes all21 released
+ordered slot/identity/activity/WAL columns to that same complete provider bag,
+with direct/prepared ordinal and view-kind assertions even when inventory is empty.
 Database-local `pg_subscription_rel` contributes four ordered real-table columns,
 with nullable synchronization position and PUBLIC visibility from table SELECT.
 Database-local `pg_publication` contributes all ten ordered real-table columns,

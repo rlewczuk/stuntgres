@@ -34,6 +34,23 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Replication-slot inventory scenarios use
+`make check RUN='^TestReferencePGReplicationSlots'` (also with `REFERENCE=1`).
+Catalog shape, nominal links, genuine join definitions and independent live
+view/column SELECT and backing EXECUTE gates share complete diagnostics and
+native no-state control roundtrips. Positive logical lifecycle and feature smoke
+belong to `reference/roles`, whose oracle enables logical WAL; native rejected
+creation never establishes a metadata row.
+Each pre-canceled inventory probe returns its borrower before independent health
+reads. Native requires ordinary cancellation with no rows; pq can instead finish
+a typed empty result or report the exact server user-request cancellation
+diagnostic, including during row draining/close. Unrelated transport errors fail.
+Control witnesses compare exact relation/column ACLs and separately executable
+ordinary outsiders, explicit grantees and column-only readers. Native phases
+exercise the actual Dump→Reset→Restore path for raw absence, explicit empty,
+ordinary-default-equivalent, reordered-seed and column-only authority, as well
+as omission of the exact canonical seed; stable redumps alone are not proof.
+
 Replication-origin status scenarios use
 `make check RUN='^TestReferencePGReplicationOriginStatus(ShapeIdentity|RowsProgress|Transactions|SessionProgress|Privileges|Diagnostics|Controls|FeatureSmoke)$'`
 (also with `REFERENCE=1`). The shared bodies assert allocated-slot presence,

@@ -259,8 +259,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// with STABLE rather than VOLATILE initialization semantics.
 	// Origin status adds metadata-only non-strict VOLATILE/restricted SETOF
 	// RECORD declaration6014, no inputs, four ordered OUT fields and rows100.
-	if len(facts) != 2278 {
-		t.Fatalf("released represented overloads: got %d, want 2278", len(facts))
+	// Slot inventory adds metadata-only non-strict STABLE/safe SETOF RECORD
+	// declaration3781, no inputs, twenty ordered OUT fields and rows10.
+	if len(facts) != 2279 {
+		t.Fatalf("released represented overloads: got %d, want 2279", len(facts))
 	}
 	return facts
 }

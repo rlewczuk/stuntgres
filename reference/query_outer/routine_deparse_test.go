@@ -119,6 +119,13 @@ func TestReferenceRoutineDeparseBuiltins(t *testing.T) {
 		routineDeparseFour(t, p, b, c, "abs(integer)", [4]any{routineDeparseAbs, "integer", "integer", "integer"})
 		routineDeparseFour(t, p, b, c, "macaddr8_cmp(macaddr8,macaddr8)", [4]any{"CREATE OR REPLACE FUNCTION pg_catalog.macaddr8_cmp(macaddr8, macaddr8)\n RETURNS integer\n LANGUAGE internal\n IMMUTABLE PARALLEL SAFE STRICT LEAKPROOF\nAS $function$macaddr8_cmp$function$\n", "macaddr8, macaddr8", "macaddr8, macaddr8", "integer"})
 		routineDeparseFour(t, p, b, c, "gin_clean_pending_list(regclass)", [4]any{"CREATE OR REPLACE FUNCTION pg_catalog.gin_clean_pending_list(regclass)\n RETURNS bigint\n LANGUAGE internal\n STRICT\nAS $function$gin_clean_pending_list$function$\n", "regclass", "regclass", "bigint"})
+		// REL_18_6 pg_proc.dat3781 and ruleutils.c: zero IN formals do not
+		// suppress twenty OUT formals in either argument inquiry.
+		const slotFormals = "OUT slot_name name, OUT plugin name, OUT slot_type text, OUT datoid oid, OUT temporary boolean, OUT active boolean, OUT active_pid integer, OUT xmin xid, OUT catalog_xmin xid, OUT restart_lsn pg_lsn, OUT confirmed_flush_lsn pg_lsn, OUT wal_status text, OUT safe_wal_size bigint, OUT two_phase boolean, OUT two_phase_at pg_lsn, OUT inactive_since timestamp with time zone, OUT conflicting boolean, OUT invalidation_reason text, OUT failover boolean, OUT synced boolean"
+		routineDeparseFour(t, p, b, c, "pg_catalog.pg_get_replication_slots()", [4]any{
+			"CREATE OR REPLACE FUNCTION pg_catalog.pg_get_replication_slots(" + slotFormals + ")\n RETURNS SETOF record\n LANGUAGE internal\n STABLE PARALLEL SAFE ROWS 10\nAS $function$pg_get_replication_slots$function$\n",
+			slotFormals, slotFormals, "SETOF record",
+		})
 		for _, tc := range []struct {
 			id                 int
 			name, args, result string

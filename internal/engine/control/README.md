@@ -234,11 +234,18 @@ The replication statistics reset roster uses the same exact raw-seed comparison.
 Default PUBLIC EXECUTE from raw NULL must never be mistaken for owner-only
 bootstrap; modified grants and grant options retain ordered principal remapping.
 The metadata-only Archiver3195, SLRU2306, four bgwriter getters, eleven
-checkpointer getters and Subscription6118 backing descriptors start with implicit
+checkpointer getters, Subscription6118 and slot-inventory3781 backing
+descriptors start with implicit
 PUBLIC EXECUTE ACLs. Only canonical declaration identity and exact input signature
 (including subscription `(oid)`), bootstrap owner and absent raw ACL reconstruct
 without SQL. Every explicit ACL, including an empty array or an effective default,
 retains its ordered entries and grant options.
+The slot-inventory view's exact owner-first full-owner/PUBLIC SELECT seed also
+reconstructs without SQL. Changed entry ordering, principals, privileges/options
+or column ACLs remain replay state; PUBLIC is not a monitoring-role grant.
+The actual object-ACL serializer admits this catalog relation for both relation
+and column repairs, including a raw-absent relation ACL that must replace the
+destination's explicit builtin seed. Only exact baseline equality omits repair.
 Stateless WAL builtins add no physical WAL or restore-marker serialization.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.

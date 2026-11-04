@@ -118,6 +118,12 @@ named OUT fields and cost1/rows100. Its owner-only ACL and immutable initial
 privileges share the restricted-origin predicate and symbolic ACL replay.
 Neither monitoring membership nor declaration metadata grants execution.
 
+`pg_get_replication_slots` (3781) is a zero-provider view-authority declaration:
+non-strict STABLE/parallel-safe SETOF RECORD, zero inputs, twenty named OUT
+fields, cost1/rows10 and implicit PUBLIC EXECUTE. The view supplies its database
+name through a semantic LEFT JOIN, not a twenty-first OUT field. Live EXECUTE
+and ordinary ACL replay do not add callable slot or WAL capabilities.
+
 The eleven checkpointer view getters use that same scalar-only metadata contract:
 eight INT8 counters, two FLOAT8 times and a TIMESTAMPTZ reset, in view order
 2769/2770/6377/6327/6328/6329/3160/3161/2771/6366/6314.

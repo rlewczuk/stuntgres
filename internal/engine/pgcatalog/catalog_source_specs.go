@@ -174,6 +174,7 @@ var Specs = [...]Spec{
 		{"remote_lsn", sqltype.PgLSN, true, 0, 0, -1},
 		{"local_lsn", sqltype.PgLSN, true, 0, 0, -1},
 	}, true, false, true, true, "stuntgres: missing replication origin status source type"},
+	{ReplicationSlotsOID, ids.PGCatalogNamespaceOID, "pg_replication_slots", slotInventoryColumns, true, false, true, false, "stuntgres: missing replication slot inventory source type"},
 	{SubscriptionOID, ids.PGCatalogNamespaceOID, "pg_subscription", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"subdbid", sqltype.Oid, false, 0, 0, -1},

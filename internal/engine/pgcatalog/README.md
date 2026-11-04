@@ -233,6 +233,21 @@ rejects rather than redacts. Metadata-only getter identities remain noncallable.
 Rows are detached; singleton cardinality adds no ordering contract for joins.
 
 
+`pg_replication_slots` (relation12261, rowtype12263, array12262) owns the
+21-column nullable slot inventory shape. Its pure producer validates registered
+source/type and paired catalog/role authority, then returns no rows: native
+creation publishes no slots. It neither allocates absent-slot rows nor consults
+statistics, origin progress or subscription metadata. PUBLIC SELECT and default
+PUBLIC backing3781 EXECUTE are independent current ACL gates, including held
+statements and LIMIT0 initialization; a proven false input can avoid backing
+initialization, not referenced-column SELECT. The metadata-only20-OUT routine
+is noncallable. Semantic display retains the released database LEFT JOIN and
+ordinary join-view mutation diagnostics; there is no role-based field masking
+or synthetic WAL position.
+Initial relation privileges materialize the full owner grant before PUBLIC
+SELECT, preserving that exact owner-first seed in `pg_init_privs`; mutable
+relation/column grants remain separate from this initial history.
+
 `pg_stat_replication_slots` (12266) validates current registered catalog/source
 and paired role authority for ten nullable attributes: TEXT identity, eight INT8
 counters and TIMESTAMPTZ reset metadata. Only actual logical-slot inventory can

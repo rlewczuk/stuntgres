@@ -24,6 +24,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 3075, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_stat_reset_time"}, Kind: catalog.FunctionRoutine, Result: 1184, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 6118, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_subscription", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 26, 23, 23, 3220, 1184, 1184, 3220, 1184, 25}, "subid", "subid", "relid", "pid", "leader_pid", "received_lsn", "last_msg_send_time", "last_msg_receipt_time", "latest_end_lsn", "latest_end_time", "worker_type")},
 	{Identity: catalog.RoutineIdentity{ID: 6014, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_show_replication_origin_status"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Volatile, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 25, 3220, 3220}, "local_id", "external_id", "remote_lsn", "local_lsn")},
+	{Identity: catalog.RoutineIdentity{ID: 3781, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_get_replication_slots"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 's', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{19, 19, 25, 26, 16, 16, 23, 28, 28, 3220, 3220, 25, 20, 16, 3220, 1184, 16, 25, 16, 16}, "slot_name", "plugin", "slot_type", "datoid", "temporary", "active", "active_pid", "xmin", "catalog_xmin", "restart_lsn", "confirmed_flush_lsn", "wal_status", "safe_wal_size", "two_phase", "two_phase_at", "inactive_since", "conflicting", "invalidation_reason", "failover", "synced")},
 	{Identity: catalog.RoutineIdentity{ID: 2769, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_timed"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 2770, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_requested"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 6377, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_performed"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
@@ -46,7 +47,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
 // pg_config, pg_show_all_file_settings, pg_ident_file_mappings and origin status retain owner-only EXECUTE.
-// Archiver, SLRU, bgwriter, checkpointer and subscription retain PUBLIC EXECUTE.
+// Archiver, SLRU, bgwriter, checkpointer, subscription and slots retain PUBLIC EXECUTE.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
 	for i := range restrictedStatsDeclarations {
@@ -88,7 +89,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 
 func publicStatsGetter(id ids.OID) bool {
 	switch id {
-	case 3195, 2306, 2772, 2773, 2859, 3075, 6118,
+	case 3195, 2306, 2772, 2773, 2859, 3075, 6118, 3781,
 		2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314, 3046, 3047, 3048, 2978, 2979, 2980:
 		return true
 	}
