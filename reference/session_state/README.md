@@ -59,11 +59,21 @@ are not `0/0`, unavailable lag is not zero, and idle measured lag may briefly
 persist before NULL. Native empty role results prove access/absence, **not
 positive-row masking**; no genuine native sender exists for that evidence.
 
+WAL receiver monitoring uses `RUN='^TestReferencePGStatWALReceiver'` with
+`make check` and `make check REFERENCE=1`. The family covers the exact fifteen
+nullable descriptors, symbolic view display, direct/fresh/retained prepared
+emptiness, PUBLIC readability under current ordinary/inherited-stats roles,
+read-only diagnostics, ordinary workload invariance and native cancellation/
+Dump/Reset/Restore. There is no actual native physical receiver and no own-role
+exception to the released all-stats-only detail visibility rule. Empty role
+results are absence/readability evidence, not positive masking proof.
+
 The existing `RUN='^TestReferenceServerProtocol$'` also runs in both modes:
 native `replication=database` startup remains FATAL/0A000 with
 `replication connections are not supported`, while a separate ordinary
-observer sees count0 before/after. Genuine PostgreSQL superuser replication
-startup remains successful and its connection is closed as before.
+observer sees both sender and receiver count0 before/after. Genuine PostgreSQL
+superuser replication startup remains successful and its connection is closed
+as before.
 
 The full 22-column monitoring view uses
 `RUN='^TestReferencePGStatActivity(Metadata|Lifecycle|Privileges|RoleIdentity|WaitsAndSignals|Snapshots|IdentityAndTracking|ReadOnly|FeatureSmoke)$'`

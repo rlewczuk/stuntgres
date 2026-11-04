@@ -1,5 +1,13 @@
 # Changes
 
+- Expose the read-only, fifteen-column `pg_catalog.pg_stat_wal_receiver` view
+  with exact nullable metadata, ordinary PUBLIC SELECT, released view display
+  and normal mutation diagnostics. With no actual physical receiver it is
+  truthfully empty, including across prepared, role and native-control lifetimes;
+  rejected replication startup cannot fabricate a receiver or WAL progress.
+  Document the future actual-row pid-only/all-stats visibility contract without
+  promising physical replication or claiming populated masking evidence.
+
 - Expose the 21-column `pg_catalog.pg_replication_slots` metadata view with
   canonical nominal types, public unredacted visibility, owner-first full-owner/
   PUBLIC initial ACL metadata, independent live SELECT/backing EXECUTE admission

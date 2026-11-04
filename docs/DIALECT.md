@@ -85,6 +85,32 @@ authority, not a callable getter. Ordinary non-updatable-view diagnostics reject
 mutations even with WHERE FALSE. No portable row order exists without ORDER BY.
 
 
+## WAL receiver monitoring
+
+`pg_catalog.pg_stat_wal_receiver` is a read-only, PUBLIC-readable system view
+with exactly fifteen nullable columns: `pid`, `status`, `receive_start_lsn`,
+`receive_start_tli`, `written_lsn`, `flushed_lsn`, `received_tli`,
+`last_msg_send_time`, `last_msg_receipt_time`, `latest_end_lsn`,
+`latest_end_time`, `slot_name`, `sender_host`, `sender_port`, `conninfo`.
+It preserves INT4, TEXT, PG_LSN and TIMESTAMPTZ metadata even when empty,
+including prepared results and retained native Rows across Reset/Restore.
+The shared provider has no display-ready physical receiver, so every reader
+gets zero rows, never an all-NULL or zero-progress worker. Ordinary SQL,
+peer activity, application names and slot/standby settings do not create one.
+
+The released future-row visibility contract is pid-only for ordinary readers:
+every other field requires superuser or effective inherited `pg_read_all_stats`
+authority, **without an own-role exception**. Absent/meaningless LSNs, timestamps,
+slot/connection fields and zero sender port remain NULL; actual conninfo must
+conceal sensitive options even from privileged readers. Empty native role
+scenarios prove PUBLIC readability and absence, not populated masking.
+Physical WAL reception/transport and external replication startup are not
+implemented. Native startup still rejects with FATAL/0A000
+`replication connections are not supported`, without registering a receiver.
+The released view definition is display-only, not a callable receiver getter.
+Mutations, including WHERE FALSE, COPY FROM and TRUNCATE reject through normal
+registered-view diagnostics. No portable row order exists without ORDER BY.
+
 ## Subscription monitoring
 
 `pg_catalog.pg_stat_subscription` is the eleven-column, read-only PostgreSQL 18

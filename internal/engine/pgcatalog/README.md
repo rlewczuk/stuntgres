@@ -337,6 +337,38 @@ diagnostics; retained rows own their original immutable typed backing.
   inferred. Idle measured lag may persist briefly before becoming NULL.
   Cardinality is one row per actual WAL sender, not per slot or receiver.
 
+- `pg_stat_wal_receiver` (12240, row type 12242, array 12241) is the
+  fifteen-column nullable, PUBLIC-readable, read-only receiver view. Its one
+  registered producer validates captured catalog/source/type ownership and
+  returns nonnil typed emptiness through the common immutable row wrapper.
+  The shared provider has no actual display-ready physical receiver: ordinary
+  sessions, application names, slots and configuration cannot create a row.
+  No worker, progress, receiver provider/cache or executable
+  `pg_stat_get_wal_receiver` is fabricated. Its symbolic view display retains
+  the released function alias list and `WHERE pid IS NOT NULL`; it is display
+  metadata, not another execution path. Generic registered-view admission owns
+  DML, COPY FROM and TRUNCATE errors. Reset/Restore regenerate owned descriptors,
+  retained Rows keep their original generation, and Dump omits monitoring state.
+
+  The [PostgreSQL 18 receiver contract](https://www.postgresql.org/docs/18/monitoring-stats.html#MONITORING-PG-STAT-WAL-RECEIVER-VIEW)
+  exposes only `pid` to an ordinary admitted reader. Any future actual-row path
+  must make **all fourteen other fields NULL** without superuser or effective
+  inherited `pg_read_all_stats` authority: status, every LSN/timeline/time, slot,
+  sender host/port and conninfo. There is **no own-role/session exception**;
+  activity's own-role access gate is inappropriate. No dead mask is installed
+  for the current absence-only path, and empty role tests establish readability
+  and absence, not positive-row masking or secret-redaction evidence.
+
+  Actual connection facts must come from an established receiver connection.
+  Invalid LSNs, zero timestamps, missing slot/host/conninfo and sender port zero
+  remain NULL, never fabricated `0/0`, times or endpoints. Host may be a hostname,
+  IP or Unix-socket directory; sender-view port -1 semantics do not apply.
+  Sensitive conninfo options must be concealed even for privileged readers.
+  Independently sampled written LSN has no artificial cross-field synchronization
+  or monotonicity guarantee. Physical replication and external replication
+  startup remain unavailable; rejected startup cannot publish a receiver.
+  No row order is promised without ORDER BY.
+
 - `pg_stat_ssl` (relation12253, rowtype12255, array12254) projects that same
   canonical unmasked physical activity cut into eight nullable columns:
   INT4 pid, BOOL ssl, TEXT version/cipher, INT4 bits, TEXT client_dn,

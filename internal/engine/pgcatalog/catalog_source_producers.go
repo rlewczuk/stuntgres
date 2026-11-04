@@ -125,6 +125,7 @@ var producers = [...]Registration{
 	{StatActivityOID, capturePGStatActivity},
 	{StatReplicationOID, capturePGStatReplication},
 	{StatSLRUOID, capturePGStatSLRU},
+	{StatWALReceiverOID, capturePGStatWALReceiver},
 	{StatRecoveryPrefetchOID, capturePGStatRecoveryPrefetch},
 	{StatSubscriptionOID, capturePGStatSubscription},
 	{StatSSLOID, capturePGStatSSL},

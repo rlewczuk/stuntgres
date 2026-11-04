@@ -6,6 +6,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: ReplicationOriginStatusOID, parts: replicationOriginStatusViewDefinitionParts, prettyParts: replicationOriginStatusViewDefinitionParts},
 	{oid: ReplicationSlotsOID, parts: slotInventoryViewParts(false), prettyParts: slotInventoryViewParts(true)},
 	{oid: StatReplicationOID, parts: replicationViewDefinitionParts, prettyParts: replicationViewDefinitionParts},
+	{oid: StatWALReceiverOID, parts: walReceiverViewParts(false), prettyParts: walReceiverViewParts(true)},
 	{oid: StatSSLOID, parts: sslViewDefinitionParts, prettyParts: sslViewDefinitionParts},
 	{oid: StatRecoveryPrefetchOID, parts: recoveryPrefetchViewParts, prettyParts: recoveryPrefetchViewParts},
 	{oid: StatSLRUOID, parts: slruViewParts, prettyParts: slruViewParts},

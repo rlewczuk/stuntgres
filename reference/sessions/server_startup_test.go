@@ -48,6 +48,7 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 			if c.name == "replication" && !b.PG {
 				observer = serverAuthenticated(t, dsn)
 				serverScalar(t, observer, "SELECT count(*) FROM pg_catalog.pg_stat_replication", "0")
+				serverScalar(t, observer, "SELECT count(*) FROM pg_catalog.pg_stat_wal_receiver", "0")
 			}
 			w := serverDial(t, dsn)
 			frames := w.login(t, dsn, c.version, c.extra...)
@@ -69,6 +70,7 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 						}
 					}
 					serverScalar(t, observer, "SELECT count(*) FROM pg_catalog.pg_stat_replication", "0")
+					serverScalar(t, observer, "SELECT count(*) FROM pg_catalog.pg_stat_wal_receiver", "0")
 				}
 			}
 		})
