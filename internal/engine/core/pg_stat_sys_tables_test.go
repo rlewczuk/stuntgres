@@ -18,14 +18,24 @@ import (
 )
 
 func TestPGStatSysTablesCatalogIdentity(t *testing.T) {
+	tableStatisticsCatalogIdentity(t, false)
+}
+
+func tableStatisticsCatalogIdentity(t *testing.T, user bool) {
+	oid, rowOID, arrayOID, legacy := ids.OID(12156), sqltype.ID(12158), sqltype.ID(12157), ids.OID(12010)
+	name := "pg_stat_sys_tables"
+	if user {
+		oid, rowOID, arrayOID, legacy = 12165, 12167, 12166, 12011
+		name = "pg_stat_user_tables"
+	}
 	e := engine.New()
 	read := e.CatalogRead()
-	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.StatSysTablesOID}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 	view := read.MustRelation(a)
-	if a.ObjectID != 12156 || view.RowType != 12158 || view.Namespace().ObjectID != 11 || pgcatalog.ClassKind(read, view) != "v" || !view.VirtualView || len(view.Columns) != 30 {
+	if a.ObjectID != oid || view.RowType != rowOID || view.Namespace().ObjectID != 11 || pgcatalog.ClassKind(read, view) != "v" || !view.VirtualView || len(view.Columns) != 30 {
 		t.Fatal("SYS inventory", view)
 	}
-	if _, ok := read.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12010}); ok {
+	if _, ok := read.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: legacy}); ok {
 		t.Fatal("obsolete SYS alias")
 	}
 	names := strings.Fields("relid schemaname relname seq_scan last_seq_scan seq_tup_read idx_scan last_idx_scan idx_tup_fetch n_tup_ins n_tup_upd n_tup_del n_tup_hot_upd n_tup_newpage_upd n_live_tup n_dead_tup n_mod_since_analyze n_ins_since_vacuum last_vacuum last_autovacuum last_analyze last_autoanalyze vacuum_count autovacuum_count analyze_count autoanalyze_count total_vacuum_time total_autovacuum_time total_analyze_time total_autoanalyze_time")
@@ -41,23 +51,23 @@ func TestPGStatSysTablesCatalogIdentity(t *testing.T) {
 		case 26, 27, 28, 29:
 			kind = sqltype.Float8
 		}
-		if c.Name != names[i] || c.Usage.Type.ID() != kind || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || !c.Nullable || !c.NullabilityKnown || c.OriginTable != 12156 || c.OriginAttribute != int16(i+1) {
+		if c.Name != names[i] || c.Usage.Type.ID() != kind || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || !c.Nullable || !c.NullabilityKnown || c.OriginTable != uint32(oid) || c.OriginAttribute != int16(i+1) {
 			t.Fatal("typed owned SYS column", i, c)
 		}
 	}
-	row, ok := read.LookupType(sqltype.ID(12158))
-	if !ok || row.AssociatedArray() != 12157 {
+	row, ok := read.LookupType(rowOID)
+	if !ok || row.AssociatedArray() != arrayOID {
 		t.Fatal("SYS row/array", row)
 	}
-	array, ok := read.LookupType(sqltype.ID(12157))
+	array, ok := read.LookupType(arrayOID)
 	if !ok || array.Element() != row {
 		t.Fatal("SYS reciprocal array", array, row)
 	}
 	registered := 0
 	for _, spec := range pgcatalog.Specs {
-		if spec.Name == "pg_stat_sys_tables" {
+		if spec.Name == name {
 			registered++
-			if spec.OID != 12156 {
+			if spec.OID != oid {
 				t.Fatal("SYS source identity", spec)
 			}
 		}
@@ -108,6 +118,10 @@ func (r *sysTableDemand) clear() {
 }
 
 func TestPGStatSysTablesSourceSelection(t *testing.T) {
+	tableStatisticsSourceSelection(t, false)
+}
+
+func tableStatisticsSourceSelection(t *testing.T, user bool) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	statsFunctionExec(t, s, "CREATE SCHEMA sst_selection", "CREATE TABLE sst_selection.sst_x(n integer)", "CREATE TABLE sst_selection.sst_plain(n integer)", "CREATE TABLE sst_outside(n integer)", "SET track_counts=off", "CREATE INDEX sst_xi ON sst_selection.sst_x(n)", "CREATE INDEX sst_oi ON sst_outside(n)", "SET track_counts=on")
@@ -116,6 +130,11 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 	outside := enginetest.RoleTableRef(t, e, "sst_outside")
 	xi := enginetest.RoleTableRef(t, e, "sst_selection.sst_xi")
 	oi := enginetest.RoleTableRef(t, e, "sst_oi")
+	var second ids.ObjectRef
+	if user {
+		statsFunctionExec(t, s, "SET track_counts=off", "CREATE INDEX sst_xj ON sst_selection.sst_x(n)", "SET track_counts=on")
+		second = enginetest.RoleTableRef(t, e, "sst_selection.sst_xj")
+	}
 	configureStats(s, "none")
 	enginetest.TransactionBegin(t, s)
 	op := enginetest.TransactionOperation(t, s)
@@ -137,6 +156,9 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 	namespace, _ := auth.Catalog.Namespace(auth.Catalog.MustRelation(x.Address).Namespace())
 	selectedNamespace := *namespace
 	selectedNamespace.ObjectName = "pg_toast_selection"
+	if user {
+		selectedNamespace.ObjectName = "sut_selection"
+	}
 	selectedNamespace.ObjectRevision = namespace.Revision() + 1
 	state.SetDescriptor(selectedNamespace.Address(), &selectedNamespace)
 	read := e.Catalog.Read(state)
@@ -145,6 +167,9 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 	demand := &sysTableDemand{Runtime: runtime}
 	demand.clear()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.StatSysTablesOID}
+	if user {
+		a.ObjectID = pgcatalog.StatUserTablesOID
+	}
 	in := pgcatalog.Input{Context: context.Background(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Ref: e.Catalog.Domain.Ref(read.Epoch(), a), Source: read.MustRelation(a), Runtime: demand}
 	produce, ok := pgcatalog.ProducerFor(a.ObjectID)
 	if !ok {
@@ -159,7 +184,7 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 			}
 			name, _ := v.Text()
 			if column == 1 {
-				return name == "pg_toast_selection"
+				return name == selectedNamespace.ObjectName
 			}
 			return name == "sst_x"
 		}}
@@ -174,7 +199,11 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 		if column == 1 {
 			wantTables[plain.Address] = 1
 		}
-		if !reflect.DeepEqual(demand.tables, wantTables) || !reflect.DeepEqual(demand.indexes, map[ids.ObjectAddress]int{xi.Address: 1}) {
+		wantIndexes := map[ids.ObjectAddress]int{xi.Address: 1}
+		if user {
+			wantIndexes[second.Address] = 1
+		}
+		if !reflect.DeepEqual(demand.tables, wantTables) || !reflect.DeepEqual(demand.indexes, wantIndexes) {
 			t.Fatal("exact selected runtime demands", column, demand.tables, demand.indexes)
 		}
 	}
@@ -202,6 +231,11 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	writer.TransactionStopped(at)
 	writer.Flush(&e.Statistics, at, true)
+	if user {
+		writer.IndexAccess(&e.Statistics, statistics.Key{Object: second}, statistics.Policy{Counts: true}, 3, 5, 5)
+		writer.TransactionStopped(at.Add(time.Second))
+		writer.Flush(&e.Statistics, at.Add(time.Second), true)
+	}
 	e.Statistics.ReportAnalyze(statistics.Key{Object: x}, statistics.Policy{Counts: true}, at, 1500*time.Microsecond, 2, 1, true)
 	fresh, err := produce(in)
 	if err != nil || len(fresh) != 1 {
@@ -211,6 +245,12 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 		column int
 		want   int64
 	}{{3, 1}, {5, 3}, {6, 2}, {8, 11}, {12, 0}, {13, 0}, {24, 1}} {
+		if user && tc.column == 6 {
+			tc.want = 5
+		}
+		if user && tc.column == 8 {
+			tc.want = 16
+		}
 		n, err := fresh[0][tc.column].Integer()
 		if err != nil || n != tc.want {
 			t.Fatal("shared provider projection", tc, n, err)
@@ -219,6 +259,12 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 	elapsed, err := fresh[0][28].Float()
 	if err != nil || elapsed != 1.5 {
 		t.Fatal("fractional milliseconds", elapsed, err)
+	}
+	if user {
+		last, err := fresh[0][7].TimestampTime()
+		if err != nil || !last.Equal(at.Add(time.Second)) {
+			t.Fatal("MAX across attached index stop times", last, err)
+		}
 	}
 	if !reflect.DeepEqual(held[0], retained) {
 		t.Fatal("retained SYS rows mutated")
@@ -238,6 +284,9 @@ func TestPGStatSysTablesSourceSelection(t *testing.T) {
 		name  string
 		admit bool
 	}{{"pg_catalog", true}, {"information_schema", true}, {"pg_toast", true}, {"pg_toast_extra", true}, {"pg_toast_temp_7", true}, {"pg_toasty", true}, {"public", false}, {"xpg_toast", false}, {"PG_TOAST", false}, {"pg_catalog_extra", false}, {"information_schema_extra", false}, {"pg_temp_7", false}} {
+		if user {
+			tc.admit = !tc.admit
+		}
 		state := catalog.CloneState(base)
 		ns, _ := read.Namespace(read.MustRelation(x.Address).Namespace())
 		copyNS := *ns

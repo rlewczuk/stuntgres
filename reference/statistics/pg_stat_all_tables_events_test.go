@@ -29,7 +29,7 @@ func tableStatEventsAndRollback(t *testing.T, f tableStatFamily) {
 				target = "information_schema." + name
 			}
 			fixture.StatisticsExec(t, p, b, w, "BEGIN", 0)
-			fixture.StatisticsExec(t, p, b, w, "INSERT INTO "+target+" VALUES(1,'a'),(2,NULL)", 2)
+			fixture.StatisticsExec(t, p, b, w, "INSERT INTO "+target+" VALUES(1,NULL),(2,'b')", 2)
 			if r := f.get(t, p, c, name); r.Inserts != 0 || r.Updates != 0 || r.Deletes != 0 {
 				t.Fatal("unresolved cumulative ownership", r)
 			}
@@ -40,10 +40,32 @@ func tableStatEventsAndRollback(t *testing.T, f tableStatFamily) {
 					t.Fatal("owner unresolved cumulative work", cut)
 				}
 			}
-			if f.system {
+			if f.user {
+				xactTableCounts(t, xactUserGet(t, p, w, name), 2, 0, 0)
+				xactTableCounts(t, xactUserGet(t, p, c, name), 0, 0, 0)
+				stmt, err := w.PrepareContext(p.Ctx, xactUserSelect)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var pending xactTableRow
+				err = stmt.QueryRowContext(p.Ctx, name).Scan(pending.destinations()...)
+				stmt.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				xactTableCounts(t, pending, 2, 0, 0)
+				if cut := f.get(t, p, w, name); cut.Inserts != 0 {
+					t.Fatal("owner unresolved cumulative work", cut)
+				}
+			}
+			if f.system || f.user {
 				xactTableEnd(t, p, b, w, end)
 				fixture.StatisticsExec(t, p, b, w, "BEGIN", 0)
-				xactTableCounts(t, xactSysGet(t, p, w, name), 0, 0, 0)
+				if f.user {
+					xactTableCounts(t, xactUserGet(t, p, w, name), 0, 0, 0)
+				} else {
+					xactTableCounts(t, xactSysGet(t, p, w, name), 0, 0, 0)
+				}
 				fixture.StatisticsExec(t, p, b, w, "ROLLBACK", 0)
 			} else {
 				fixture.StatisticsExec(t, p, b, w, end, 0)

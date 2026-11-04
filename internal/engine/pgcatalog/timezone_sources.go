@@ -68,7 +68,7 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	if d.Address().ObjectID == StatXactSysTablesOID || d.Address().ObjectID == StatXactUserTablesOID {
 		name = "pg_stat_xact_all_tables"
 	}
-	if d.Address().ObjectID == StatSysTablesOID {
+	if d.Address().ObjectID == StatSysTablesOID || d.Address().ObjectID == StatUserTablesOID {
 		name = "pg_stat_all_tables"
 	}
 	message := fmt.Sprintf(`cannot update view "%s"`, name)
@@ -88,7 +88,7 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		detail = "Views containing DISTINCT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignServerOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
 		detail = "Views that return set-returning functions are not automatically updatable."
-	} else if d.Address().ObjectID == StatAllTablesOID || d.Address().ObjectID == StatSysTablesOID || d.Address().ObjectID == StatXactAllTablesOID || d.Address().ObjectID == StatXactSysTablesOID || d.Address().ObjectID == StatXactUserTablesOID {
+	} else if d.Address().ObjectID == StatAllTablesOID || d.Address().ObjectID == StatSysTablesOID || d.Address().ObjectID == StatUserTablesOID || d.Address().ObjectID == StatXactAllTablesOID || d.Address().ObjectID == StatXactSysTablesOID || d.Address().ObjectID == StatXactUserTablesOID {
 		detail = "Views containing GROUP BY are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)

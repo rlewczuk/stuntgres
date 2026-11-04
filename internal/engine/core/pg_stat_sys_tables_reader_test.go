@@ -18,6 +18,10 @@ import (
 )
 
 func TestPGStatSysTablesSchemaReader(t *testing.T) {
+	tableStatisticsSchemaReader(t, false)
+}
+
+func tableStatisticsSchemaReader(t *testing.T, user bool) {
 	for _, mode := range []string{"none", "cache", "snapshot"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
@@ -60,6 +64,9 @@ func TestPGStatSysTablesSchemaReader(t *testing.T) {
 				ref  ids.ObjectRef
 				name string
 			}{{a, "pg_toast_reader_a"}, {b, "pg_toast_reader_b"}} {
+				if user {
+					continue
+				}
 				ns, _ := auth.Catalog.Namespace(auth.Catalog.MustRelation(fixture.ref.Address).Namespace())
 				copyNS := *ns
 				copyNS.ObjectName = fixture.name
@@ -70,7 +77,12 @@ func TestPGStatSysTablesSchemaReader(t *testing.T) {
 			auth.Catalog = read
 			runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth, Settings: s.Settings})
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.StatSysTablesOID}
-			in := pgcatalog.Input{Context: context.Background(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Ref: e.Catalog.Domain.Ref(read.Epoch(), address), Source: read.MustRelation(address), Runtime: runtime, Keep: pgcatalog.Keep{Column: 1, Test: func(v sqltype.Value) bool { name, _ := v.Text(); return name == "pg_toast_reader_a" }}}
+			selectedSchema := "pg_toast_reader_a"
+			if user {
+				address.ObjectID = pgcatalog.StatUserTablesOID
+				selectedSchema = "sst_reader_selected"
+			}
+			in := pgcatalog.Input{Context: context.Background(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Ref: e.Catalog.Domain.Ref(read.Epoch(), address), Source: read.MustRelation(address), Runtime: runtime, Keep: pgcatalog.Keep{Column: 1, Test: func(v sqltype.Value) bool { name, _ := v.Text(); return name == selectedSchema }}}
 			produce, ok := pgcatalog.ProducerFor(address.ObjectID)
 			if !ok {
 				t.Fatal("missing executable SYS source")

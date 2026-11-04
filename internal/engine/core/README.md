@@ -3382,6 +3382,13 @@ Fixed-family view capture, cumulative Reader backing and cluster publication/
 replacement ownership use `make check RUN='^TestPGStat(Archiver|BGWriter|Checkpointer)'`;
 add `RACE=1` for the same families' synchronized ownership witnesses.
 
+Cumulative table source identity, selection-before-demand, attached-index
+aggregation and actual transaction Reader cuts use
+`make check RUN='^TestPGStat(All|Sys|User)Tables'`; add `RACE=1` for synchronized
+ownership coverage. SYS and USER share composed bodies, with ordinary USER
+namespaces and descriptor-only reserved-prefix boundaries; public SQL stays
+in the statistics reference package.
+
 Transaction-local statistics ownership and source capture use
 `make check RUN='^TestPGStatXactAllTables'`; add `RACE=1` for owner-local
 admission and generation-fence witnesses.

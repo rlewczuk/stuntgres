@@ -9,13 +9,16 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Both projections exercise the same scenarios, but each publication probe must
-// demand the named view. SYS fixtures are genuine owned system-namespace heaps.
-type tableStatFamily struct{ system bool }
+// Each projection exercises the same scenarios and demands its own named view.
+// SYS fixtures are genuine owned system-namespace heaps.
+type tableStatFamily struct{ system, user bool }
 
 func (f tableStatFamily) view() string {
 	if f.system {
 		return "pg_stat_sys_tables"
+	}
+	if f.user {
+		return "pg_stat_user_tables"
 	}
 	return "pg_stat_all_tables"
 }

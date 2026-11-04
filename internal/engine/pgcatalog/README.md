@@ -1514,8 +1514,9 @@ catalog writes or bypass a provider's independent backing-source checks.
   display and read-only events share builtinViews. SYS INSERT/UPDATE/DELETE
   diagnostics name the underlying `pg_stat_all_indexes` join view; TRUNCATE
   and COPY diagnostics retain `pg_stat_sys_indexes`.
-- `pg_stat_all_tables` (registry relation12146, rowtype12148, array12147) and
-  `pg_stat_sys_tables` (relation12156, rowtype12158, array12157) share
+- `pg_stat_all_tables` (registry relation12146, rowtype12148, array12147),
+  `pg_stat_sys_tables` (relation12156, rowtype12158, array12157), and
+  `pg_stat_user_tables` (relation12165, rowtype12167, array12166) share
   exactly 30 nullable typed columns in PostgreSQL 18 order and the same provider.
   The current catalog supplies r/t/m/p membership and names, including inaccessible schemas/tables;
   there is no parent ACL filter or per-field redaction. The view's own SELECT
@@ -1529,20 +1530,25 @@ catalog writes or bypass a provider's independent backing-source checks.
   immutable across clear, rename, drop and replacement.
   Sequential counters follow real demand before filtering; tuple attempts can
   include rolled-back operations. Completed manual maintenance is immediate,
-  not manufactured by reads. HOT/newpage are declared zero logical optimization
-  estimates, live/dead are logical version estimates, and FLOAT8 elapsed totals
-  are milliseconds. No automatic worker is synthesized. The released grouped
+  not manufactured by reads. Only `n_tup_hot_upd`, `n_tup_newpage_upd`,
+  `n_live_tup`, `n_dead_tup`, `total_vacuum_time`, `total_autovacuum_time`,
+  `total_analyze_time` and `total_autoanalyze_time` are estimates: HOT/newpage
+  are zero logical optimization estimates, live/dead are logical version
+  estimates, and FLOAT8 elapsed totals measure technical milliseconds.
+  No automatic worker is synthesized. The released grouped
   definition remains authoritative for display and GROUP BY read-only diagnostics.
   SYS includes only exact namespace names pg_catalog/information_schema and the
-  case-sensitive prefix pg_toast; USER is the complementary ALL subset. This
-  classification and identity/schema/name Keep rejection precede Reader demands
-  for both the table and its attached indexes. SYS's own current SELECT privilege
-  is independent of ALL and parent table/schema privileges; no fields are masked.
-  SYS INSERT/UPDATE/DELETE diagnose the underlying grouped `pg_stat_all_tables`;
-  TRUNCATE and COPY retain the named SYS target. Neither projection promises
-  traversal order without ORDER BY or fabricates native TOAST descriptors.
-  Cumulative and transaction-local SYS display share the same column/source
-  fragment formatter. Canonical and pretty forms retain dependency-aware
+  case-sensitive prefix pg_toast; USER is the complementary ALL subset,
+  including TEMP and uppercase PG_TOAST namespaces. This classification and
+  identity/schema/name Keep rejection precede Reader demands for both the table
+  and its attached indexes. Each view's own current SELECT privilege is
+  independent of ALL and parent table/schema privileges; no fields are masked.
+  SYS/USER INSERT/UPDATE/DELETE diagnose the underlying grouped
+  `pg_stat_all_tables`; TRUNCATE and COPY retain the named target.
+  No projection promises traversal order without ORDER BY or fabricates
+  native TOAST descriptors. Cumulative and transaction-local SYS/USER display
+  share their parameterized column/source fragment formatters.
+  Canonical and pretty forms retain dependency-aware
   identifier quoting and search-path qualification; pretty removes the
   redundant outer predicate parentheses without changing membership.
 - `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152),

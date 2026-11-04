@@ -227,6 +227,10 @@ func TestReferencePGStatAllTablesNativeControls(t *testing.T) {
 }
 
 func tableStatNativeControls(t *testing.T, f tableStatFamily) {
+	tempFamily := tableStatFamily{}
+	if f.user {
+		tempFamily = f
+	}
 	var emitted []byte
 	f.scenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		if b.PG {
@@ -310,7 +314,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 			if err := keeper.QueryRowContext(ctx, "SELECT 1").Scan(&one); err != nil || one != 1 {
 				t.Fatal(err)
 			}
-			temp, err = tableStatRead(ctx, c, "sat_control_temp")
+			temp, err = tempFamily.read(ctx, c, "sat_control_temp")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -329,7 +333,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 		heldConn := fixture.IdentityConnection(t, p.Ctx, b.DB)
 		var heldSys *sql.Rows
 		var heldSysColumns []*sql.ColumnType
-		if f.system {
+		if f.system || f.user {
 			heldSys, err = heldConn.QueryContext(p.Ctx, f.query(), "sat_control_rows")
 			if err != nil {
 				t.Fatal(err)
@@ -341,7 +345,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 			}
 			tableStatMetadata(t, heldSysColumns, false)
 		}
-		held, err := heldConn.QueryContext(p.Ctx, tableStatSelect, "sat_control_temp")
+		held, err := heldConn.QueryContext(p.Ctx, tempFamily.query(), "sat_control_temp")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -357,7 +361,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 			if got := f.get(t, p, c, "sat_control_rows"); !got.equal(old) {
 				t.Fatal("failed Restore changed persistent identity/history", got, old)
 			}
-			if got := tableStatGet(t, p, c, "sat_control_temp"); !got.equal(temp) {
+			if got := tempFamily.get(t, p, c, "sat_control_temp"); !got.equal(temp) {
 				t.Fatal("failed Restore changed TEMP identity/history", got, temp)
 			}
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT n,payload FROM sat_control_rows ORDER BY n", []string{"n", "payload"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(2), nil}, {int64(3), "c"}}))
@@ -389,10 +393,10 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 		if fresh.Inserts != 0 || fresh.Seq != 0 || fresh.Read != 0 || fresh.LastSeq.Valid {
 			t.Fatal("persistent history crossed replacement", fresh)
 		}
-		if got := tableStatGet(t, p, c, "sat_control_temp"); !got.equal(temp) {
+		if got := tempFamily.get(t, p, c, "sat_control_temp"); !got.equal(temp) {
 			t.Fatal("surviving TEMP did not transplant", got, temp)
 		}
-		if _, err := tableStatRead(p.Ctx, c, "sat_source_temp"); err != sql.ErrNoRows {
+		if _, err := tempFamily.read(p.Ctx, c, "sat_source_temp"); err != sql.ErrNoRows {
 			t.Fatal("foreign source TEMP imported", err)
 		}
 		if !held.Next() {
@@ -407,7 +411,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 			t.Fatal("retained cursor changed through replacement", retained, temp)
 		}
 		tableStatMetadata(t, heldColumns, false)
-		if f.system {
+		if f.system || f.user {
 			if !heldSys.Next() {
 				t.Fatal("held SYS row lost", heldSys.Err())
 			}
@@ -425,7 +429,7 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT n,payload FROM sat_control_rows ORDER BY n", []string{"n", "payload"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(2), nil}, {int64(3), "c"}}))
 		var resetHeld *sql.Rows
 		var resetColumns []*sql.ColumnType
-		if f.system {
+		if f.system || f.user {
 			resetConn := f.connection(t, p, b)
 			resetHeld, err = resetConn.QueryContext(p.Ctx, f.query(), "sat_control_rows")
 			if err != nil {
@@ -444,10 +448,10 @@ func tableStatNativeControls(t *testing.T, f tableStatFamily) {
 		if _, err := f.read(p.Ctx, c, "sat_control_rows"); err != sql.ErrNoRows {
 			t.Fatal("Reset retained persistent relation", err)
 		}
-		if got := tableStatGet(t, p, c, "sat_control_temp"); !got.equal(temp) {
+		if got := tempFamily.get(t, p, c, "sat_control_temp"); !got.equal(temp) {
 			t.Fatal("Reset lost attached TEMP history", got, temp)
 		}
-		if f.system {
+		if f.system || f.user {
 			if !resetHeld.Next() {
 				t.Fatal("held SYS lost through Reset", resetHeld.Err())
 			}

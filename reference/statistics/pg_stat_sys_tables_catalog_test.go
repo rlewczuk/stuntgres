@@ -143,6 +143,10 @@ func TestReferencePGStatSysTablesMembership(t *testing.T) {
 // display removes only the redundant outer WHERE parentheses; quote/path
 // presentation must still render every explicit identifier dependency.
 func TestReferencePGStatSysTablesViewDefinition(t *testing.T) {
+	tableStatViewDefinition(t, tableStatFamily{system: true})
+}
+
+func tableStatViewDefinition(t *testing.T, f tableStatFamily) {
 	fixture.StatisticsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		fixture.StatisticsExec(t, p, b, c, "CREATE TABLE public.pg_stat_all_tables(n integer)", 0)
 		for _, shadow := range []bool{false, true} {
@@ -174,15 +178,24 @@ func TestReferencePGStatSysTablesViewDefinition(t *testing.T) {
 				projection := " SELECT " + strings.Join(columns, ",\n    ") + "\n   FROM " + base + "\n"
 				membership := identifier("schemaname") + " = ANY (ARRAY['pg_catalog'::" + identifier("name") + ", 'information_schema'::" + identifier("name") + "])"
 				toast := identifier("schemaname") + " ~ '^pg_toast'::" + identifier("text")
+				operator := " OR "
+				if f.user {
+					membership = identifier("schemaname") + " <> ALL (ARRAY['pg_catalog'::" + identifier("name") + ", 'information_schema'::" + identifier("name") + "])"
+					toast = identifier("schemaname") + " !~ '^pg_toast'::" + identifier("text")
+					operator = " AND "
+				}
 				for _, pretty := range []bool{false, true} {
-					want := projection + "  WHERE ((" + membership + ") OR (" + toast + "));"
+					want := projection + "  WHERE ((" + membership + ")" + operator + "(" + toast + "));"
 					if pretty {
-						want = projection + "  WHERE (" + membership + ") OR " + toast + ";"
+						want = projection + "  WHERE (" + membership + ")" + operator + toast + ";"
 					}
 					for _, prepared := range []bool{false, true} {
-						step := fixture.Select("SELECT pg_catalog.pg_get_viewdef('pg_catalog.pg_stat_sys_tables'::regclass,$1::boolean) AS definition", []string{"definition"}, []string{"TEXT"}, [][]any{{want}}, pretty)
+						step := fixture.Select("SELECT pg_catalog.pg_get_viewdef('pg_catalog."+f.view()+"'::regclass,$1::boolean) AS definition", []string{"definition"}, []string{"TEXT"}, [][]any{{want}}, pretty)
 						step.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+					}
+					if !pretty {
+						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT view_definition::text FROM information_schema.views WHERE table_schema='pg_catalog' AND table_name='"+f.view()+"'", []string{"view_definition"}, []string{"TEXT"}, [][]any{{want}}))
 					}
 				}
 			}

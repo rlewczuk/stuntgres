@@ -29,8 +29,11 @@ Native Dump/Restore preserves installed identities, stored packet bytes and
 ordinary SQL consumers; live cryptographic scratch and entropy sources are not
 serialized. See [OpenPGP ownership boundaries](docs/DIALECT.md#pgcrypto-openpgp).
 
-`pg_catalog.pg_stat_all_tables` exposes the 30 PostgreSQL 18 typed fields through
-the shared cumulative statistics provider. Sequential counters follow actual
+`pg_catalog.pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
+expose the 30 PostgreSQL 18 typed fields through the shared cumulative statistics
+provider. SYS selects pg_catalog/information_schema and the case-sensitive
+pg_toast namespace prefix; USER selects the complement, including TEMP.
+Sequential counters follow actual
 source demand before filtering; attached indexes aggregate scans, last scan and
 heap fetches, preserving no-index NULL versus untouched-index zero. Cumulative
 tuple attempts can include rolled-back inserts, while ANALYZE/VACUUM counts and
@@ -39,8 +42,8 @@ statistics; the view retains its own SELECT ACL and is read-only.
 HOT/newpage are zero logical optimization estimates, live/dead are logical
 version estimates, and elapsed totals are milliseconds; no automatic worker or
 physical HOT/page engine is implied. Runtime history is not serialized by Dump.
-See [statistics scenarios](reference/statistics/README.md#all-table-statistics)
-for the independent acceptance definitions and feature smoke commands.
+See [statistics scenarios](reference/statistics/README.md#cumulative-table-statistics)
+for the independent acceptance contract and reusable family selectors.
 
 ## Installation
 

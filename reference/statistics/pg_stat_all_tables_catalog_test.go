@@ -35,6 +35,9 @@ func tableStatIdentityAndMetadata(t *testing.T, f tableStatFamily) {
 		if f.system {
 			wantID, wantRow, wantArray = 12156, 12158, 12157
 		}
+		if f.user {
+			wantID, wantRow, wantArray = 12165, 12167, 12166
+		}
 		if !b.PG && (id != wantID || rowType != wantRow || array != wantArray) {
 			t.Fatal("native inventory identity", id, rowType, array)
 		}
@@ -56,6 +59,9 @@ func tableStatIdentityAndMetadata(t *testing.T, f tableStatFamily) {
 		terms := []string{"sum(pg_stat_get_numscans(i.indexrelid))", "max(pg_stat_get_lastscan(i.indexrelid))", "GROUP BY c.oid, n.nspname, c.relname"}
 		if f.system {
 			terms = []string{"FROM pg_stat_all_tables", "schemaname = ANY (ARRAY['pg_catalog'::name, 'information_schema'::name])", "schemaname ~ '^pg_toast'::text"}
+		}
+		if f.user {
+			terms = []string{"FROM pg_stat_all_tables", "schemaname <> ALL (ARRAY['pg_catalog'::name, 'information_schema'::name])", "schemaname !~ '^pg_toast'::text"}
 		}
 		for _, term := range terms {
 			if !strings.Contains(definition, term) || !strings.Contains(information, term) {

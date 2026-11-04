@@ -4,11 +4,15 @@ import (
 	"database/sql"
 	"testing"
 
+	"stuntgres"
 	"stuntgres/reference/fixture"
 )
 
 func TestReferencePGStatSysTablesFeatureSmoke(t *testing.T) {
-	f := tableStatFamily{system: true}
+	tableStatFeatureSmoke(t, tableStatFamily{system: true})
+}
+
+func tableStatFeatureSmoke(t *testing.T, f tableStatFamily) {
 	f.scenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		fixture.StatisticsExec(t, p, b, c, "SET stats_fetch_consistency=none", 0)
 		f.create(t, p, b, c, "sst_smoke")
@@ -17,7 +21,16 @@ func TestReferencePGStatSysTablesFeatureSmoke(t *testing.T) {
 		tableStatCreate(t, p, b, c, "public.sst_smoke_public")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_stat_sys_tables WHERE relname='sst_smoke_public'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		initial := f.get(t, p, c, "sst_smoke")
-		if initial.ID <= 0 || initial.Schema != "information_schema" || initial.Name != "sst_smoke" || initial.Inserts != 0 || initial.Seq != 0 || initial.Read != 0 || initial.Index.Valid || initial.Fetch.Valid || initial.LastIndex.Valid || initial.LastSeq.Valid || initial.LastVacuum.Valid || initial.LastAnalyze.Valid {
+		schema := "public"
+		if f.system {
+			schema = "information_schema"
+		}
+		if f.user {
+			for _, tc := range []struct{ view string; count int64 }{{"all", 1}, {"user", 1}, {"sys", 0}} {
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_stat_"+tc.view+"_tables WHERE relid=$1", []string{"count"}, []string{"INT8"}, [][]any{{tc.count}}, initial.ID))
+			}
+		}
+		if initial.ID <= 0 || initial.Schema != schema || initial.Name != "sst_smoke" || initial.Inserts != 0 || initial.Seq != 0 || initial.Read != 0 || initial.Index.Valid || initial.Fetch.Valid || initial.LastIndex.Valid || initial.LastSeq.Valid || initial.LastVacuum.Valid || initial.LastAnalyze.Valid {
 			t.Fatal("initial SYS contract", initial)
 		}
 		tableStatAutomatic(t, initial)
@@ -35,15 +48,19 @@ func TestReferencePGStatSysTablesFeatureSmoke(t *testing.T) {
 		// BEGIN must precede any reporter setup that establishes a flush throttle.
 		w, retire := fixture.StatisticsReportingConn(t, p, b)
 		fixture.StatisticsExec(t, p, b, w, "BEGIN", 0)
-		fixture.StatisticsExec(t, p, b, w, "INSERT INTO information_schema.sst_smoke VALUES(1,NULL),(2,'b')", 2)
-		xactTableCounts(t, xactSysGet(t, p, w, "sst_smoke"), 2, 0, 0)
-		xactTableCounts(t, xactSysGet(t, p, c, "sst_smoke"), 0, 0, 0)
+		fixture.StatisticsExec(t, p, b, w, "INSERT INTO "+schema+".sst_smoke VALUES(1,NULL),(2,'b')", 2)
+		xactGet := xactSysGet
+		if f.user {
+			xactGet = xactUserGet
+		}
+		xactTableCounts(t, xactGet(t, p, w, "sst_smoke"), 2, 0, 0)
+		xactTableCounts(t, xactGet(t, p, c, "sst_smoke"), 0, 0, 0)
 		if r := f.get(t, p, c, "sst_smoke"); r.Inserts != 0 {
 			t.Fatal("open transaction published", r)
 		}
 		xactTableEnd(t, p, b, w, "ROLLBACK")
 		fixture.StatisticsExec(t, p, b, w, "BEGIN", 0)
-		xactTableCounts(t, xactSysGet(t, p, w, "sst_smoke"), 0, 0, 0)
+		xactTableCounts(t, xactGet(t, p, w, "sst_smoke"), 0, 0, 0)
 		fixture.StatisticsExec(t, p, b, w, "ROLLBACK", 0)
 		retire()
 		aborted := f.await(t, p, b, "sst_smoke", "aborted I2", func(r tableStatRow) bool { return r.Inserts == 2 })
@@ -95,13 +112,21 @@ func TestReferencePGStatSysTablesFeatureSmoke(t *testing.T) {
 				t.Fatal("statistics reads changed completed history", direct, prepared, maintained)
 			}
 		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic("UPDATE pg_stat_sys_tables SET seq_scan=0 WHERE FALSE", tableStatDiagnostic("UPDATE")))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic("UPDATE "+f.view()+" SET seq_scan=0 WHERE FALSE", tableStatDiagnostic("UPDATE")))
 		if got := f.get(t, p, c, "sst_smoke"); !got.equal(maintained) {
 			t.Fatal("read-only error changed SYS", got, maintained)
 		}
 		fixture.StatisticsExec(t, p, b, c, "DROP TABLE sst_smoke", 0)
 		if _, err := f.read(p.Ctx, c, "sst_smoke"); err != sql.ErrNoRows {
 			t.Fatal("committed drop still present", err)
+		}
+		if f.user && !b.PG {
+			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.read(p.Ctx, c, "sst_smoke_scan"); err != sql.ErrNoRows {
+				t.Fatal("Reset retained persistent USER relation", err)
+			}
 		}
 		if !held.Next() {
 			t.Fatal("held SYS row lost", held.Err())

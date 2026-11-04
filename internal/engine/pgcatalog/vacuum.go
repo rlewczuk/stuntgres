@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-// ALL and SYS follow the repository's PG18 inventory; adjacent IDs are retained.
+// ALL, SYS and USER follow the repository's PG18 inventory.
 // PostgreSQL initdb-generated view OIDs are not portable fixed identities.
 const (
 	StatAllTablesOID  ids.OID = 12146
 	StatSysTablesOID  ids.OID = 12156
-	StatUserTablesOID ids.OID = 12011
+	StatUserTablesOID ids.OID = 12165
 	ProgressVacuumOID ids.OID = 12012
 )
 

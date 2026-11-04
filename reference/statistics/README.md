@@ -2,7 +2,8 @@
 
 This bounded feature package owns public SQL scenarios for the seven-column
 cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
-nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`, 30-column `pg_stat_all_tables` and twelve-column
+nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`, 30-column
+`pg_stat_all_tables`/`pg_stat_sys_tables`/`pg_stat_user_tables` and twelve-column
 `pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables`/`pg_stat_xact_user_tables` views.
 All Go tests are untagged external tests using public stuntgres and
 `reference/fixture` APIs. The same scenario bodies serve native and
@@ -206,7 +207,7 @@ make check REFERENCE=1 RUN='^TestReferencePGStatSysIndexesFeatureSmoke$'
 
 ## Cumulative table statistics
 
-ALL and SYS reuse `tableStatFamily` for independent 30-column catalog/driver
+ALL, SYS and USER reuse `tableStatFamily` for independent 30-column catalog/driver
 metadata, actual sequential and attached-index access, tuple settlement,
 completed maintenance, Reader modes, lifetime and native-control scenarios.
 Each family's publication probes demand its named projection through real
@@ -226,7 +227,7 @@ the complement. Privilege scenarios distinguish the named view's current ACL
 from underlying schema/table access and from ALL's ACL. Read-only scenarios
 assert complete underlying grouped-ALL diagnostics, including zero-row DML,
 while TRUNCATE/COPY retain the named projection.
-Canonical and pretty SYS disclosure have independent full-definition expectations
+Canonical and pretty SYS/USER disclosure have independent full-definition expectations
 under quoted/unquoted identifiers and actual ALL-name shadowing, through direct
 and prepared execution. Their membership expression and all thirty columns stay
 identical while redundant display parentheses differ.
@@ -269,11 +270,31 @@ makes no claim about foreign transport. Existing foreign hierarchy lineage,
 rewind and identity regressions remain separate coverage.
 
 The reusable cumulative family selector is
-`make check RUN='^TestReferencePGStat(All|Sys)Tables'` and the same command
+`make check RUN='^TestReferencePGStat(All|Sys|User)Tables'` and the same command
 with `REFERENCE=1`. Internal ownership supplements use
-`make check RUN='^TestPGStat(All|Sys)Tables'`, adding `RACE=1` for synchronized
+`make check RUN='^TestPGStat(All|Sys|User)Tables'`, adding `RACE=1` for synchronized
 ownership coverage. Native controls retain the same general TEMP assertions
-while SYS also holds persistent system-namespace rows through replacement.
+while SYS and USER also hold their own persistent rows through replacement/Reset.
+
+USER identity is exactly native relation12165/row12167/array12166, with no
+legacy relation alias. Public composition joins the selected identity to
+pg_class and preserves projected metadata even for empty results. Membership
+uses identity bags, includes TEMP, and excludes ordinary views/sequences/indexes/
+foreign tables. Reserved lowercase pg_ namespace boundary spellings are checked
+through composed descriptors, not a DDL bypass. Denied private parents still
+expose full facts; own-view SELECT denial applies to direct, new prepared,
+held and FALSE reads independently of ALL's ACL.
+
+The USER settlement vector is pending I2 (one NULL payload), then pending0 at
+transaction end, physical0 after rollback and published cumulative I2/Since2/
+Mods0. COMMIT gives physical2/Mods2. Incremental RETURNING failures count genuine
+accepted prefixes while remaining statement-atomic. Shared access scenarios
+assert exact scan/read and attached-index SUM/MAX events, not output cardinality.
+Completed maintenance, immutable held USER results and native controls reuse
+the same family bodies. The compact USER walkthrough independently observes
+rollback settlement, direct hit plus held miss scan2/read6, real manual
+ANALYZE/VACUUM completion, stable repeated reads, grouped read-only diagnostics,
+and a held row surviving drop and native Reset.
 
 ## Transaction-local table statistics
 
