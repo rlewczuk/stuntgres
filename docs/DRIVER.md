@@ -490,10 +490,11 @@ a directly parsed pg_roles read and independently assert pg_auth_members and
 pg_has_role, then execute the same retained SELECT against the same activity cut.
 They do not confuse queued PostgreSQL catalog invalidations with activity caching.
 
-The first activity access retains an unmasked detached transaction cut, including
-membership, query/state/clocks and sampled XID/xmin, independently of cumulative
-none/cache/snapshot mode. `pg_stat_clear_snapshot()` and transaction end release
-it. Activity-only access does not construct a cumulative snapshot timestamp.
+The first activity or SSL access retains one unmasked detached transaction cut,
+including membership, query/state/clocks and canonical sampled XID/xmin,
+independently of cumulative none/cache/snapshot mode. Either view sees that same
+cut until `pg_stat_clear_snapshot()` or transaction end releases it. Activity/SSL
+access alone does not construct or replace a cumulative snapshot timestamp.
 Waits are live on every execution: a cached active row can lose its wait after
 cancellation, or retain old membership after termination until clear/end.
 Returned Rows itself is detached. Actual blocking locks report Lock/relation,
@@ -527,6 +528,32 @@ INSERT/UPDATE/DELETE reject with 55000 and the released non-updatable-view
 Detail/INSTEAD OF trigger-or-rule Hint, even for zero matching rows. TRUNCATE
 rejects with 42809 (`"pg_stat_activity" is not a table`); COPY FROM rejects with
 42809 (`cannot copy to view "pg_stat_activity"`) and its INSTEAD OF INSERT Hint.
+
+`pg_catalog.pg_stat_ssl` is the read-only, eight-column transport projection of
+that same physical-session cut: `pid integer`, `ssl boolean`, `version text`,
+`cipher text`, `bits integer`, `client_dn text`, `client_serial numeric`,
+`issuer_dn text`. All eight descriptors are nullable, including empty/prepared
+results; unconstrained NUMERIC has no declared precision/scale. Embedded physical
+sessions performed no TLS, so authorized rows contain their actual PID, false,
+and six genuine NULLs. Native endpoint columns stay NULL; no artificial port is
+needed to represent authorized physical sessions.
+
+Unlike activity's field redaction, unauthorized SSL peers are absent. Current
+inherited privileges of the target's immutable login or `pg_read_all_stats`
+(including superuser) authorize a row; mere noninheriting/SET-only/ADMIN-only
+membership does not. Authorized SET ROLE and current grants/revokes are reapplied
+on each held prepared execution, not cached with membership. Target SET ROLE
+does not change its authenticated login owner. `track_activities=off` preserves
+transport rows and their false/NULL values.
+
+A borrowed `sql.Conn.Close` returns to the pool, not necessarily a physical
+retirement. Drained physical close removes its row from the next fresh/cleared
+shared activity cut; retained transaction cuts and already returned results keep
+their captured identities. No portable row order exists without ORDER BY.
+INSERT/UPDATE/DELETE reject with 55000 and the common non-updatable-view
+Detail/operation-specific INSTEAD OF Hint even with WHERE FALSE. TRUNCATE rejects
+with 42809 (`"pg_stat_ssl" is not a table`), and COPY FROM with 42809
+(`cannot copy to view "pg_stat_ssl"`) and the INSTEAD OF INSERT trigger Hint.
 
 The native built-in logical pg_stat_statements module is available at cluster
 startup; `CREATE EXTENSION ... VERSION '1.12'` installs its genuine functions and

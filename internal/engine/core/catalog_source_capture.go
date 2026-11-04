@@ -52,8 +52,8 @@ func admitScalarStatsGetters(auth AuthorizationView, oid ids.OID, uses []int) er
 // eligible OIDs use the same immutable registry and common row wrapper.
 func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressScalarStatsRead bool) (*exec.Source, error) {
 	oid := source.Address().ObjectID
-	if oid == pgcatalog.StatActivityOID {
-		return e.capturePGStatActivityLocked(scope, ref, source, keep)
+	if oid == pgcatalog.StatActivityOID || oid == pgcatalog.StatSSLOID {
+		return e.captureActivityViewsLocked(scope, ref, source, keep)
 	}
 	// These two sources own multi-stage capture/completion, not row producers.
 	if oid == pgcatalog.LocksOID {

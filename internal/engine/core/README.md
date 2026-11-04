@@ -467,11 +467,17 @@ without moving cumulative facts. Physical attachment owns backend birth and
 immutable login identity; real command/finish/settings boundaries publish source,
 state, transaction start and application name. Source-less native transaction
 controls preserve actual prior SQL rather than synthesizing command text.
-`pg_stat_activity_capture.go` consumes cluster Engine.Mu, captures provider values
-and canonical visibility associations, installs the independent unmasked Reader
-cut, then releases Engine.Mu before detached manager wait capture. It never takes
-peer admission or retains a live session pointer in results. Waits are live even
-against cached membership; inherited current-role masking is execution-local.
+`activity_views_capture.go` consumes cluster Engine.Mu and installs one detached,
+unmasked transaction Reader cut shared by `pg_stat_activity`, `pg_stat_ssl` and
+`pg_stat_gssapi`, independently of cumulative consistency mode. Any first consumer
+completes canonical target-database XID/xmin associations before installing the
+cut. Clear/end invalidate all three projections; physical retirement changes only
+fresh membership. Current inherited observer authority is reapplied per execution.
+After releasing Engine.Mu, only activity samples manager waits and overlays live
+provider waits, even against cached membership. SSL skips both live wait work
+and unauthorized peers, returning actual PID/false/six typed NULLs without
+fabricated endpoints. None of these projections takes peer admission or retains
+live session pointers.
 Login identity is an immutable principal, not a stored usename spelling. The
 producer applies the current role-name join on each execution, including cached
 cuts after rename/drop; missing same-domain targets leave NAME NULL and preserve
@@ -730,9 +736,9 @@ smoke live in untagged `reference/` definitions.
 
 `pg_stat_gssapi` reads this same sole cluster activity map through the real
 transaction's raw reader, independently of cumulative snapshot mode or timestamp.
-Both monitoring views use `captureActivitiesLocked` to install one complete cut
-including canonical assigned XID and accepted xmin enrichment, even when GSSAPI
-is read first. Only activity refreshes post-unlock live wait overlays. At each
+All three monitoring views use `captureActivitiesLocked` to install one complete
+cut including canonical assigned XID and accepted xmin enrichment, even when SSL
+or GSSAPI is read first. Only activity refreshes post-unlock live wait overlays. At each
 GSSAPI execution core captures current authorization under Engine.Mu and
 classifies the cached immutable `Activity.Principal` startup identities using
 inherited login-role or
@@ -2821,7 +2827,7 @@ Producers, the OID registry and descriptor specs live in
   `pgcatalog.ProducerFor` and chooses the per-OID catalog/role roots,
   presentation and unlock timing; it is not a second dispatcher. `pg_locks`
   owns its detached manager projection and lazy `pg_sequences` its sequence cut.
-  Activity uses multi-stage capture but still renders through the common producer.
+  Activity and SSL share multi-stage canonical capture and the common producer registry.
   Information-schema domain and column inquiry sources use the statement's
   paired catalog and authorization roots, including `column_domain_usage`,
   `domain_udt_usage` and `information_schema_catalog_name`; source opening
@@ -3502,6 +3508,12 @@ Session activity command/portal authority units use `RUN='^TestSessionActivity'`
 Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
 Logical-slot source/orphan-provider and cumulative-reader ownership uses
 `RUN='^TestPGStatReplicationSlots'`; public SQL stays in the reference family.
+SSL descriptor/projection and shared-cut ownership units use `RUN='^TestPGStatSSL'`;
+add `RACE=1` for synchronized capture, current authority and physical retirement.
+The shared-capture consistency/order/end matrix compares the target database's
+visibility entry, canonical XID allocation and public snapshot frontier before
+monitoring, after SSL capture and after activity projection. Observer-database
+transaction bookkeeping is deliberately outside that nonmutation assertion.
 Sequence value-tail/reset, TEMP replacement and producer key-filter ownership
 units use `RUN='^TestStatsSequence'`, also with `RACE=1`.
 TEMP replacement fixtures identify sequences in the attached owner's actual

@@ -11,36 +11,39 @@ import (
 
 // Consumes Engine.Mu. The cluster mutex precedes only the provider's leaf lock;
 // manager metadata is entered after it is released. No peer admission is taken.
-func (e *Engine) capturePGStatActivityLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep) (*exec.Source, error) {
+func (e *Engine) captureActivityViewsLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep) (*exec.Source, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		e.Mu.Unlock()
 		return nil, err
 	}
-	live, activities := e.captureActivitiesLocked(scope, true)
+	activity := source.Address().ObjectID == pgcatalog.StatActivityOID
+	live, activities := e.captureActivitiesLocked(scope, activity)
 	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep, Catalog: auth.Catalog, Roles: auth.Roles, ActivityObserver: auth.State.CurrentUser, Activities: activities}
 	e.Mu.Unlock()
-	waits := e.Locks.ActivityWaits()
-	for token, a := range activities {
-		a.WaitType, a.Wait = "", ""
-		current, exists := live[token]
-		if exists && current.Active {
-			a.WaitType, a.Wait = current.WaitType, current.Wait
-			if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
-				a.WaitType, a.Wait = "Lock", wait.Event
+	if activity {
+		waits := e.Locks.ActivityWaits()
+		for token, a := range activities {
+			a.WaitType, a.Wait = "", ""
+			current, exists := live[token]
+			if exists && current.Active {
+				a.WaitType, a.Wait = current.WaitType, current.Wait
+				if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
+					a.WaitType, a.Wait = "Lock", wait.Event
+				}
 			}
+			activities[token] = a
 		}
-		activities[token] = a
 	}
-	produce, _ := pgcatalog.ProducerFor(pgcatalog.StatActivityOID)
+	produce, _ := pgcatalog.ProducerFor(source.Address().ObjectID)
 	return catalogrt.CaptureRows(in, produce)
 }
 
-// Engine.Mu and transaction admission are held. Both session monitoring views
+// Engine.Mu and transaction admission are held. Activity, SSL and GSSAPI
 // initialize the same raw transaction cut, including canonical XID enrichment.
-// Capturing GSSAPI first must not leave a partial cut for pg_stat_activity.
+// Capturing SSL or GSSAPI first must not leave a partial cut for pg_stat_activity.
 // liveWaits requests a fresh live cut for activity's wait overlay even when the
-// transaction cut already exists; GSSAPI does not allocate that unused live cut.
+// transaction cut already exists; SSL and GSSAPI do not allocate that unused cut.
 func (e *Engine) captureActivitiesLocked(scope *StatementScope, liveWaits bool) (map[ids.SessionToken]statistics.Activity, map[ids.SessionToken]statistics.Activity) {
 	reader := statsReader(scope.Op.Session, scope.Op.EffectiveSettings())
 	provider := e.activityProvider()

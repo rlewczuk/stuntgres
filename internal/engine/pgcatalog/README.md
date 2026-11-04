@@ -290,6 +290,19 @@ diagnostics; retained rows own their original immutable typed backing.
   inferred. Idle measured lag may persist briefly before becoming NULL.
   Cardinality is one row per actual WAL sender, not per slot or receiver.
 
+- `pg_stat_ssl` (relation12253, rowtype12255, array12254) projects that same
+  canonical unmasked physical activity cut into eight nullable columns:
+  INT4 pid, BOOL ssl, TEXT version/cipher, INT4 bits, TEXT client_dn,
+  NUMERIC client_serial and TEXT issuer_dn. Text uses default collation100.
+  Native sessions have no TLS: authorized rows contain actual PID, false and
+  six typed NULLs. Current inherited login/stats authority omits denied peers
+  before row construction; target SET ROLE never relabels its login principal.
+  The pure producer has no transport/provider callbacks and needs no wait work.
+  The released display uses unqualified output names, all 31 SRF OUT aliases and
+  client_port filtering as display/dependency metadata, not an executable
+  endpoint predicate or a new public getter. Existing
+  registered-view machinery owns read-only diagnostics and catalog identities.
+
 - `pg_matviews` (12006) projects captured materialized descriptors and paired
   roles, using the runtime's current definition presentation. Population is
   independent of stored row count; index presence follows sticky publication
@@ -1954,6 +1967,9 @@ owned metadata, nonnil empty rows, malformed/foreign/stale authority rejection,
 cancellation-first publication and retained Reset generations. Public SQL proof
 belongs to `reference/session_state` under `TestReferencePGStatReplication`;
 the existing `TestReferenceServerProtocol` owns rejected replication startup.
+
+SSL descriptor, typed absence, current principal authority and detached projection
+use `make check RUN='^TestPGStatSSLDescriptorAndProjection$'` in `enginetests/`.
 
 Build-configuration capture/ownership units in `enginetests/` use
 `make check RUN='^TestPGConfig'`. They retain real catalog/type generations,

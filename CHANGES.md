@@ -55,6 +55,21 @@
   The named USER counterpart remains separately coordinated; no new provider,
   event interface, TOAST storage or physical I/O is introduced.
 
+- Add the typed, read-only eight-column `pg_catalog.pg_stat_ssl` view using the
+  existing physical activity provider and canonical transaction cut. Authorized
+  actual PIDs report false and six typed NULLs (including NUMERIC client_serial),
+  without invented TLS or endpoints; unauthorized peers are omitted using current
+  inherited authority over immutable login identity. Either first consumer
+  completes canonical XID/xmin; SSL avoids live activity wait sampling and leaves
+  cumulative snapshots untouched. Preserve tracking-off membership, physical
+  retirement/clear/end, common view identities/display and mutation diagnostics.
+  Add independent private ownership/race and dual-mode public scenarios without
+  changing the authoritative PostgreSQL18.6 fixture.
+  Preserve explicit default text collation100 and the released full SRF alias
+  display. Include SSL in the complete information-schema provider inventory;
+  establish private high-epoch xmin through a genuine committed-row read after
+  high-epoch completion, rather than an own-private-row-only snapshot.
+
 - Add exactly the eleven-column PostgreSQL 18 `pg_catalog.pg_statio_all_tables`
   view with existing row/array identities, PUBLIC SELECT, ordinary read-only
   diagnostics and exact represented r/t/m membership without parent privilege

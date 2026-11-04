@@ -35,36 +35,18 @@ func capturePGStatActivity(in Input) ([][]sqltype.Value, error) {
 		!in.Roles.BelongsTo(in.Owner.Principals) {
 		return nil, fmt.Errorf("stuntgres: invalid activity source authority")
 	}
-	observer, err := in.Roles.Descriptor(in.ActivityObserver)
+	allStats, err := activityAllStats(in)
 	if err != nil {
 		return nil, err
-	}
-	allStats := observer.Superuser
-	if !allStats {
-		if stats, ok := in.Roles.Lookup("pg_read_all_stats"); ok {
-			allStats, err = in.Roles.InheritsRole(in.ActivityObserver, stats.Ref)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 	rows := make([][]sqltype.Value, 0, len(in.Activities))
 	for token, activity := range in.Activities {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
-		// A retained backend identity may legitimately outlive its role.
-		// Keep provenance strict, but model the released LEFT JOIN's absence.
-		if err := in.Roles.ValidatePrincipal(activity.Principal); err != nil {
+		role, present, allowed, err := activityAccess(in, activity.Principal, allStats)
+		if err != nil {
 			return nil, err
-		}
-		role, present := in.Roles.Find(activity.Principal)
-		allowed := allStats
-		if !allowed && present {
-			allowed, err = in.Roles.InheritsRole(in.ActivityObserver, activity.Principal)
-			if err != nil {
-				return nil, err
-			}
 		}
 		row, err := activityRow(in, token, activity, allowed, role.Name, present)
 		if err != nil {

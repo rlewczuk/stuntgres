@@ -135,6 +135,23 @@ snapshots and identity/tracking scenarios also use their selected `RACE=1` modes
 The migrated internal activity-registration/routing units additionally use
 `RUN='^(TestStatsProvider(Collection|ResetShared|TargetedReset)|TestStatsResetSharedBackendLifetime)$'`.
 
+Transport monitoring uses `RUN='^TestReferencePGStatSSL'` in both fixture modes.
+Shape, Lifecycle, Privileges, ReadOnly, Snapshots and FeatureSmoke assert eight
+declared nullable types, real PID membership, truthful false/sixNULL transport,
+unauthorized peer omission and current inherited authority over immutable login.
+Held prepared queries retain their explicit transaction cut across SET/RESET ROLE:
+self visibility is present/absent/present when switching away from login authority;
+SET-only, noninherited pg_read_all_stats access is absent/present/absent. Empty
+results retain the exact eight-column metadata.
+Both activity/SSL first-consumer orders share a canonical transaction cut across
+all consistency modes, clear/end and physical retirement/new attachment; SSL
+alone leaves cumulative timestamps untouched. Unread public Rows is held across
+peer lifetime changes, then consumed before more SQL on its streaming observer.
+Internal `RUN='^TestPGStatSSL'` covers descriptor/provenance, SSL-first high-epoch
+cross-database XID/xmin, unchanged target visibility entries/allocation and snapshot
+frontiers after monitoring, and detached backing; add `RACE=1` for shared/concurrent
+capture. SQL without ORDER BY never promises physical traversal order.
+
 
 Pending relation block signatures, complete diagnostics, actual source/index
 reads, tracking/cache independence, publication lifetime and mutable EXECUTE

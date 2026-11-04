@@ -160,6 +160,10 @@ and held projections independently check eight BIGINT precision/scale facts,
 two DOUBLE PRECISION fields with precision53/radix2 and absent scale, and the
 TIMESTAMPTZ reset with datetime precision6. All fields have absent defaults and
 are non-updatable; the oracle projection does not filter column names.
+
+`pg_stat_ssl` contributes all eight release-ordered transport columns and view
+classification to that same complete inventory, without removing existing
+provider, authority or direct/prepared metadata assertions.
 Select `make check RUN='^TestReferenceInfoColumnsPopulation$'` and the same
 command with `REFERENCE=1` for this migrated complete-inventory witness.
 The sequence-I/O views `pg_statio_all_sequences`, `pg_statio_sys_sequences` and
