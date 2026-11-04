@@ -270,6 +270,11 @@ The retained member is a sealed declaration slot, not a position in current
 extension membership. Both qualified operators and genuine direct calls survive
 detach, foreign attachment, original-header retirement and authorized transport;
 mutable names and equal numeric OIDs never authorize remapping.
+`IntarraySet` follows the same source/current routine authentication with exact
+builtin integer-array/integer formals and BOOL or integer-array result.
+Reference remapping, retagging and current-name rendering preserve its selected
+operation and original installation, including detached genuine routines;
+same-OID foreign generations and copied origins cannot acquire destination authority.
 SQL dependency recording extracts each real selected routine declaration through
 the shared call-reference carrier, independently of its concrete expression
 family. Operators instead reference their operator identity and actual operands,

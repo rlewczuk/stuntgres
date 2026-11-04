@@ -179,6 +179,12 @@ Rules:
   transport metadata never determines ownership of a replayed dump. Replay
   registers bounded unconditional authorization/schema cleanup before executing
   SQL, so failed assertions cannot pollute the next backend's fresh setup.
+- Selected intarray set predicates and bag/set operations, including all ten
+  executable backers, ten operators and six genuine metadata-only estimators:
+  `RUN='^TestReferenceIntarraySet'`. Direct/fresh/held calls, exact diagnostics,
+  stored consumers, presentation changes and destination-recorded native
+  controls share independent expectations. Operators are schema-qualified so
+  builtin polymorphic array overloads cannot stand in for the installed provider.
 - `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
   `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,

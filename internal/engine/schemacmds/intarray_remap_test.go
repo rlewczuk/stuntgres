@@ -89,3 +89,70 @@ func TestIntarrayProviderRemap(t *testing.T) {
 		t.Fatal("import replaced live destination TEMP authority")
 	}
 }
+
+func TestIntarraySetRemap(t *testing.T) {
+	source, original, _ := intarrayUnitInstalled(t)
+	sv := source.CatalogRead()
+	target := engine.New()
+	op, done := extensionTemporaryOperation(t, target, "postgres")
+	defer done()
+	namespace := intarrayUnitTemporaryNamespace(t, target, op)
+	extensionUnitPublish(t, target, op, intarrayUnitStage(t, target, op, "unaccent", namespace.Name()))
+	if _, err := target.ReplaceCatalog(t.Context(), source, sv); err != nil {
+		t.Fatal(err)
+	}
+	tv := target.CatalogRead()
+	destination := tv.MustExtension(tv.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}))
+	if destination.Installation == original.Installation || len(destination.Installation.Members) != 32 || tv.Owner().Domain == sv.Owner().Domain {
+		t.Fatal("destination retained source installation")
+	}
+	displacedProcedure := false
+	for slot := 6; slot < 22; slot++ {
+		before := sv.MustProcedure(original.Installation.Members[slot])
+		after := tv.MustProcedure(destination.Installation.Members[slot])
+		if after == before || tv.Get(after.Address()) != after || !after.Origin.Valid(after.Address()) || after.Origin.Installation != destination.Installation || after.Origin.Declaration != slot || after.Namespace() != destination.TargetNamespace || after.Signature != before.Signature || after.Result != before.Result || after.Owner != destination.Owner {
+			t.Fatal("procedure destination role", slot)
+		}
+		// Only collisions move numeric addresses. Every declaration still
+		// acquires the destination's descriptor, installation and domain.
+		displacedProcedure = displacedProcedure || after.Address() != before.Address()
+		if _, err := extension.ProcedureSymbol(tv, after); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := extension.ProcedureSymbol(tv, before); err == nil {
+			t.Fatal("source artifact acquired destination authority")
+		}
+		if _, err := extension.ProcedureSymbol(sv, before); err != nil {
+			t.Fatal("source mutated", err)
+		}
+	}
+	if !displacedProcedure {
+		t.Fatal("TEMP spacer did not displace any selected procedure")
+	}
+	for i := range 10 {
+		before := sv.MustOperator(original.Installation.Members[22+i])
+		after := tv.MustOperator(destination.Installation.Members[22+i])
+		if after == before || after.Function != destination.Installation.Members[6+i].ObjectID || after.Left != 1007 || after.Right != before.Right || after.Result != before.Result || after.Origin.Installation != destination.Installation || after.Owner != destination.Owner {
+			t.Fatal("operator destination role", i)
+		}
+		if i < 3 && (after.Restriction != destination.Installation.Members[16+i].ObjectID || after.Join != destination.Installation.Members[19+i].ObjectID) {
+			t.Fatal("estimator references retained source identity")
+		}
+		if before.Commutator != 0 {
+			for j := range 10 {
+				if before.Commutator == original.Installation.Members[22+j].ObjectID && after.Commutator != destination.Installation.Members[22+j].ObjectID {
+					t.Fatal("commutator retained source identity")
+				}
+			}
+		}
+		if before.Function != original.Installation.Members[6+i].ObjectID {
+			t.Fatal("source graph mutated")
+		}
+	}
+	if err := extension.StockIntarray.ValidateExtension(tv, destination); err != nil {
+		t.Fatal(err)
+	}
+	if target.Catalog.State.Get(namespace.Address()) != namespace {
+		t.Fatal("destination TEMP authority displaced")
+	}
+}

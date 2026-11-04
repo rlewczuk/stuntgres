@@ -25,10 +25,7 @@ func TestIntbigGkeyAdapter(t *testing.T) {
 		if got := scanType(descriptor); got != reflect.TypeFor[string]() {
 			t.Fatalf("family metadata %s got=%v want=string", descriptor.Name(), got)
 		}
-		rawValues := []driver.Value{nil}
-		if descriptor == typ {
-			rawValues = append(rawValues, []byte(nil))
-		}
+		rawValues := []driver.Value{nil, []byte(nil)}
 		for _, raw := range rawValues {
 			value, err := importParameter(t.Context(), raw, descriptor.Usage(), sqltype.InputEnvironment{})
 			if err != nil || value.Type() != descriptor || !value.IsNull() {

@@ -60,6 +60,49 @@ func (p *IntarrayProvider) validateRecipe(v catalog.Read, ext *catalog.Extension
 			}
 		}
 	}
+	for slot := IntarraySetProcedureStart; slot < IntarraySetOperatorStart; slot++ {
+		if ext.Members[slot].ClassID != ids.ProcedureClassID {
+			return invalid()
+		}
+		proc, ok := v.Procedure(ext.Members[slot])
+		if !ok {
+			return invalid()
+		}
+		if _, err := ProcedureSymbol(v, proc); err != nil {
+			return err
+		}
+	}
+	for i, recipe := range intarraySetRecipes {
+		address := ext.Members[IntarraySetOperatorStart+i]
+		op, ok := v.Operator(address)
+		if !ok || address.ClassID != ids.OperatorClassID || op.Function != ext.Members[IntarraySetProcedureStart+i].ObjectID || op.Left != 1007 || op.Right != recipe.right || op.Result != recipe.result {
+			return invalid()
+		}
+		if !catalog.SameInstallation(op, ext.Installation) {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, op, ids.OperatorClassID); err != nil {
+			return err
+		}
+		if err := catalog.ValidateInstalledClassOrigin(v, op); err != nil {
+			return err
+		}
+		canonical, ok := ext.Installation.Declarations[IntarraySetOperatorStart+i].(*catalog.Operator)
+		if !ok || canonical.Name() != recipe.operator {
+			return invalid()
+		}
+		var commutator, restriction, join ids.OID
+		if recipe.commutator >= 0 {
+			commutator = ext.Members[IntarraySetOperatorStart+recipe.commutator].ObjectID
+		}
+		if i < 3 {
+			restriction = ext.Members[IntarrayEstimatorStart+i].ObjectID
+			join = ext.Members[IntarrayEstimatorStart+3+i].ObjectID
+		}
+		if op.Commutator != commutator || op.Restriction != restriction || op.Join != join || op.Negator != 0 || op.Hash || op.Merge {
+			return invalid()
+		}
+	}
 	return nil
 }
 

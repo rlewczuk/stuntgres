@@ -87,6 +87,11 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
+		if target.Type.BaseType().IsArray() {
+			// A typed-nil buffer is SQL NULL, not empty array text. Reuse the
+			// ordinary NULL importer so domains retain their input checks.
+			return importParameter(ctx, nil, target, input)
+		}
 		if target.Type.BaseType().ID() == sqltype.Text {
 			return sqltype.Null(target.Type), nil
 		}

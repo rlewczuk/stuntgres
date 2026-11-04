@@ -180,8 +180,9 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			return failure
 		}
 		if null {
-			if _, supportIO := node.(functions.IntbigIO); supportIO {
-				return checkIntbigNullRoutineLifetime(c, auth, dependencies, captured)
+			switch node.(type) {
+			case functions.IntbigIO, functions.IntarraySet:
+				return checkIntarrayNullRoutineLifetime(c, auth, dependencies, captured)
 			}
 			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {
 				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, catalog.DefinitionDependency)
@@ -229,10 +230,10 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	return admitRoutineBody(c, node, captured, constantComputation)
 }
 
-// Strict support I/O may avoid invocation and EXECUTE, never its original
-// declaration lifetime. Keep the established checks/ref-only/direct ownership
-// precedence without recording a consumed call or changing other strict nodes.
-func checkIntbigNullRoutineLifetime(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+// Strict intarray calls may avoid invocation and EXECUTE, never their original
+// declaration lifetime. Keep checks/ref-only/direct ownership precedence without
+// recording a consumed call or changing unrelated strict nodes.
+func checkIntarrayNullRoutineLifetime(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if c.RoutineChecks != nil {
 		_, err := routineDescriptorLifetime(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, catalog.DefinitionDependency)
 		return err

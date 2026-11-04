@@ -611,6 +611,15 @@ while nonnull elements reach the rejecting element input. Existing integer[]
 values, bounds and NULL elements are unaffected by installing or dropping the
 provider; operation-specific array restrictions belong to executable leaves.
 
+`IntarraySetOperation` owns the ten selected builtin integer-array signatures.
+Whole-array NULL is strict; every nonnull array is checked for NULL elements
+before empty-result shortcuts. Concatenation preserves storage order and
+duplicates. Set and predicate kernels sort private int32 scratch, never operand
+backing; constructed set/concat results are flat lower-one arrays. Scalar
+deletion preserves rank/lower bounds and survivor order, returns the immutable
+original on no match, and resizes surviving dimensions to count × 1 × ….
+Constructed outputs transfer exclusively owned buffers through `OwnedArrayValue`.
+
 ### Range families
 
 `NewRangeFamily` creates reciprocal range/multirange descriptors with a captured
@@ -675,8 +684,10 @@ or widen it.
 - `SelectCommonUsage` is the single domain/type/typmod fold for common
   expressions and anycompatible inference.
 - `ResolveOperator` and `ResolveOperatorWithCoercion` share one ranking body;
-  exact signatures win and no literal spelling or caller is special-cased. The
-  optional pure `can(source, target)` predicate supplies implicit feasibility
+  exact signatures win and no literal spelling or caller is special-cased.
+  Unknown-category conflicts are independent of candidate order, including
+  category-zero inputs; a known operand's matching pair still wins first.
+  The optional pure `can(source, target)` predicate supplies implicit feasibility
   from the caller's captured catalog and is never stored or called during
   evaluation.
 - `PlanBinaryCoercion`/`PlanDeclaredBinaryCoercion` capture exact descriptor
@@ -1106,9 +1117,10 @@ match engine tests of the same mechanism):
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Installed rejecting support-key identity, NULL and generic arrays: `RUN='^TestIntbigGkey'`
+- Selected integer-array kernels and immutable backing: `RUN='^TestIntarraySet'`
 - Earth domain, coordinate, point and surface-query kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel|QueryKernel|QueryCancellation)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
-- Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
+- Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|Operator(BitUnknownPreference|UnknownCategoryOrder)|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps|JSONPath)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|Isn|Upc|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`

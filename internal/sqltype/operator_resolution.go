@@ -262,11 +262,12 @@ func ResolveOperatorWithCoercion(candidates []OperatorInputs, left, right *Descr
 		}
 		category := byte(0)
 		conflict := false
-		for _, i := range active {
+		for position, i := range active {
 			c := equalityCategory(idAt(i))
 			if c == 'S' {
 				category = 'S'
-			} else if category == 0 {
+			} else if position == 0 {
+				// Zero is also a category result, not an unset marker.
 				category = c
 			} else if category != c && category != 'S' {
 				conflict = true

@@ -10,6 +10,16 @@
   and final canonical/Journal publication without adding progress counters or
   changing inherited collection and completed-local publication semantics.
 
+- Implement the ten selected intarray predicate, concatenation, deletion and set
+  overloads through authentic installed backers and ordinary operator binding.
+  Preserve duplicate/order and multidimensional deletion semantics, strict NULL
+  and exact NULL-element errors, and original provider authority through stored,
+  prepared and native-control lifetimes. Install genuine metadata-only estimator
+  dependencies without a fictitious runtime. Preserve typed-nil array parameters
+  as SQL NULL through shared input and domain validation, distinct from nonnil
+  empty byte input. Keep unknown-operand ambiguity independent of operator
+  declaration order while preserving known-array overload selection.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

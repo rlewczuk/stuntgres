@@ -254,3 +254,67 @@ func TestOperatorBitUnknownPreference(t *testing.T) {
 		t.Fatal("released bit-category preference")
 	}
 }
+
+func TestOperatorUnknownCategoryOrder(t *testing.T) {
+	types := testTypes()
+	arrayPair := OperatorInputs{1007, 1007}
+	arrayScalar := OperatorInputs{1007, Int4}
+	scalarArray := OperatorInputs{Int4, 1007}
+	for _, tc := range []struct {
+		name        string
+		candidates  []OperatorInputs
+		left, right *Descriptor
+		unary       bool
+		want        OperatorInputs
+		ambiguous   bool
+	}{
+		{"unknown_right_categories", []OperatorInputs{arrayPair, arrayScalar}, nil, nil, false, OperatorInputs{}, true},
+		{"unknown_left_categories", []OperatorInputs{arrayPair, scalarArray}, nil, nil, false, OperatorInputs{}, true},
+		{"unknown_prefix_categories", []OperatorInputs{{0, 1007}, {0, Int4}}, nil, nil, true, OperatorInputs{}, true},
+		{"known_array_left", []OperatorInputs{arrayPair, arrayScalar}, types[1007], nil, false, arrayPair, false},
+		{"known_array_right", []OperatorInputs{arrayPair, arrayScalar}, nil, types[1007], false, arrayPair, false},
+		{"known_scalar_right", []OperatorInputs{arrayPair, arrayScalar}, nil, types[Int4], false, arrayScalar, false},
+		{"known_array_scalar", []OperatorInputs{arrayPair, arrayScalar}, types[1007], types[Int4], false, arrayScalar, false},
+		{"same_zero_category", []OperatorInputs{arrayPair, {1007, 1016}}, nil, nil, false, OperatorInputs{}, true},
+		{"string_after_conflict", []OperatorInputs{arrayPair, arrayScalar, {1007, Text}}, nil, nil, false, OperatorInputs{1007, Text}, false},
+	} {
+		// Exercise both declaration orders deterministically, including every
+		// permutation of the three-way string-category preference.
+		for start := range len(tc.candidates) {
+			for _, reverse := range []bool{false, true} {
+				if len(tc.candidates) == 2 && reverse {
+					continue
+				}
+				candidates := make([]OperatorInputs, len(tc.candidates))
+				for i := range candidates {
+					slot := (start + i) % len(candidates)
+					if reverse {
+						slot = (start + len(candidates) - i) % len(candidates)
+					}
+					candidates[i] = tc.candidates[slot]
+				}
+				for _, catalogCoercion := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/order%d/reverse%t/catalog%t", tc.name, start, reverse, catalogCoercion), func(t *testing.T) {
+						var index int
+						var err error
+						if catalogCoercion {
+							index, err = ResolveOperatorWithCoercion(candidates, tc.left, tc.right, tc.unary, func(source *Descriptor, target ID) bool {
+								return equalityImplicit(source.BaseType().ID(), target)
+							})
+						} else {
+							index, err = ResolveOperator(candidates, tc.left, tc.right, tc.unary)
+						}
+						if tc.ambiguous {
+							var diagnostic *sqlstate.Error
+							if index != -1 || !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Message != "operator is not unique" {
+								t.Fatalf("index=%d error=%v want ambiguity candidates=%v", index, err, candidates)
+							}
+						} else if err != nil || index < 0 || index >= len(candidates) || candidates[index] != tc.want {
+							t.Fatalf("index=%d error=%v want=%v candidates=%v", index, err, tc.want, candidates)
+						}
+					})
+				}
+			}
+		}
+	}
+}

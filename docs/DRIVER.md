@@ -1611,6 +1611,10 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
+Array parameters preserve this distinction through ordinary array/domain input:
+typed-nil bytes follow SQL NULL validation, while nonnil empty bytes are empty
+array text and fail the array input syntax check. Nonnil byte buffers acquire
+immutable ownership before parameter input runs.
 Native SQL source, identifiers, Go string/typed parameters and returned text
 remain Unicode regardless of `client_encoding`, including characters that the
 selected network encoding cannot represent. This setting governs the server

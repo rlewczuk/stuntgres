@@ -415,21 +415,25 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 	case StockIntarray:
 		count = IntarrayMemberCount
-		if len(ext.Members) != count || slot%3 == 0 || slot >= count {
+		if len(ext.Members) != count || slot < 0 || slot >= IntarraySetOperatorStart || slot == 0 || slot == 3 || ext.Provider != "intarray" || ext.Version != "1.5" {
 			return invalid()
 		}
-		baseSlot := slot / 3 * 3
-		base, ok := v.Type(ext.Members[baseSlot])
-		if !ok || base.SQLType == nil || !catalog.SameInstallation(base, ext) || baseSlot == 0 && !base.SQLType.IsQueryInt() || baseSlot == 3 && !base.SQLType.IsIntbigGkey() {
-			return invalid()
-		}
-		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
-			return invalid()
-		}
-		name = intarrayIONames[slot/3*2+slot%3-1]
-		signature, result = "2275", ids.OID(base.SQLType.ID())
-		if slot%3 == 2 {
-			signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+		if slot >= IntarraySetProcedureStart {
+			name, signature, result, volatility = intarrayProcedureDeclaration(slot)
+		} else {
+			baseSlot := slot / 3 * 3
+			base, ok := v.Type(ext.Members[baseSlot])
+			if !ok || base.SQLType == nil || !catalog.SameInstallation(base, ext) || baseSlot == 0 && !base.SQLType.IsQueryInt() || baseSlot == 3 && !base.SQLType.IsIntbigGkey() {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+				return invalid()
+			}
+			name = intarrayIONames[slot/3*2+slot%3-1]
+			signature, result = "2275", ids.OID(base.SQLType.ID())
+			if slot%3 == 2 {
+				signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+			}
 		}
 		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/_int", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()

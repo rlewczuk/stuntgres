@@ -768,7 +768,7 @@ close their cursor on every exit and publish no partial map or tuple collection.
   Explicit no-SQL-principal index publication uses a guarded exact-catalog-root
   context origin for pure support kernels. A missing live Host alone never
   establishes this origin; client, closed, query and initialized contexts reject.
-  Intarray support-I/O strict NULL calls retain lifetime-only admission through
+  Intarray support-I/O and selected set strict NULL calls retain lifetime-only admission through
   their owning checks, stored-reference or direct-source lane. Missing/foreign
   manifests and stale direct revisions remain invalid even when invocation is
   elided; genuine NULL does not acquire EXECUTE or a consumed-call record.

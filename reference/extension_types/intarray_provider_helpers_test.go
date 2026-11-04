@@ -39,7 +39,8 @@ func intarrayBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.E
 	fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Prepared(s))
 }
 
-// Nullable is nil for expressions and contains declared nullability for tables.
+// Nullable is nil for computed results and contains declaration-based nullability
+// for stored table/view columns. Stored view columns are always nullable.
 // All public accessors are checked, including before an empty cursor is consumed.
 func intarrayMetadata(t *testing.T, pg bool, columns []*sql.ColumnType, names, families []string, nullable []bool) {
 	t.Helper()
@@ -53,7 +54,9 @@ func intarrayMetadata(t *testing.T, pg bool, columns []*sql.ColumnType, names, f
 			if pg {
 				scan = reflect.TypeFor[int32]()
 			}
-		} else if pg {
+		} else if families[i] == "BOOL" {
+			scan = reflect.TypeFor[bool]()
+		} else if pg && families[i] != "TEXT" {
 			scan = reflect.TypeFor[any]()
 			if families[i] == "QUERY_INT" || families[i] == "INTBIG_GKEY" || families[i] == "_INTBIG_GKEY" {
 				name = ""
@@ -69,7 +72,11 @@ func intarrayMetadata(t *testing.T, pg bool, columns []*sql.ColumnType, names, f
 		if !pg && nullable != nil {
 			wantNullable, wantKnown = nullable[i], true
 		}
-		if n != wantNullable || nk != wantKnown || length != 0 || lk || precision != 0 || scale != 0 || dk {
+		wantLength, wantLengthKnown := int64(0), false
+		if families[i] == "TEXT" {
+			wantLength, wantLengthKnown = 1<<63-1, true
+		}
+		if n != wantNullable || nk != wantKnown || length != wantLength || lk != wantLengthKnown || precision != 0 || scale != 0 || dk {
 			t.Fatalf("accessors %s nullable=%t/%t length=%d/%t decimal=%d/%d/%t", names[i], n, nk, length, lk, precision, scale, dk)
 		}
 	}

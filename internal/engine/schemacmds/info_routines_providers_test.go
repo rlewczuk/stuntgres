@@ -285,7 +285,14 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 			"", "", // regexp_split_to_table
 			"", "", "", "", // strpos, replace, split_part, translate: unnamed SQL scalars
 		}},
-		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out", "_intbig_in", "_intbig_out"}},
+		{"intarray", catalog.CRoutineLanguage, []string{
+			"bqarr_in", "bqarr_out", "_intbig_in", "_intbig_out",
+			"_int_overlap", "_int_contains", "_int_contained", "intarray_push_elem",
+			"intarray_push_array", "intarray_del_elem", "intset_subtract",
+			"intset_union_elem", "_int_union", "_int_inter",
+			"_int_overlap_sel", "_int_contains_sel", "_int_contained_sel",
+			"_int_overlap_joinsel", "_int_contains_joinsel", "_int_contained_joinsel",
+		}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out", "ismn_in", "isn_out", "ismn_in", "ean13_out", "issn_in", "isn_out", "issn_in", "ean13_out", "upc_in", "isn_out"}},
 		{"intagg", catalog.InternalRoutineLanguage, []string{"array_agg_transfn", "array_agg_finalfn", "aggregate_dummy", "array_unnest"}},
 		{"pgrowlocks", catalog.CRoutineLanguage, []string{"pgrowlocks"}},

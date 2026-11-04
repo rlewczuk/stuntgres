@@ -416,3 +416,66 @@ func TestIdentifierAdapterOwnership(t *testing.T) {
 		}
 	}
 }
+
+// These are adapter ownership checks, not SQL scenarios. The shared intarray
+// reference family exercises the same inputs through direct and prepared calls.
+func TestIntarraySetParameterImport(t *testing.T) {
+	e := engine.New()
+	array, ok := e.CatalogRead().LookupType(1007)
+	if !ok {
+		t.Fatal("integer array missing")
+	}
+	domain, err := sqltype.Domain(49010, "array_input", "public.array_input", array.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []*sqltype.Descriptor{array, domain} {
+		for _, raw := range []any{nil, []byte(nil)} {
+			args, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, err := importParameter(t.Context(), args[0], target.Usage(), sqltype.InputEnvironment{})
+			if err != nil || value.Type() != target || !value.IsNull() {
+				t.Fatal("array NULL input", value, err)
+			}
+			if output, err := exportValue(t.Context(), value, sqltype.OutputEnvironment{}); err != nil || output != nil {
+				t.Fatal("array NULL output", output, err)
+			}
+		}
+		raw := []byte("{3,1,3,2}")
+		args, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw[1] = '9'
+		value, err := importParameter(t.Context(), args[0], target.Usage(), sqltype.InputEnvironment{})
+		if err != nil || value.Type() != target || value.IsNull() {
+			t.Fatal("owned array input", value, err)
+		}
+		if output, err := exportValue(t.Context(), value, sqltype.OutputEnvironment{}); err != nil || output != "{3,1,3,2}" {
+			t.Fatal("borrowed byte input leaked into array", output, err)
+		}
+		for _, raw := range []any{"", []byte{}} {
+			args, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: raw}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, err := importParameter(t.Context(), args[0], target.Usage(), sqltype.InputEnvironment{})
+			var diagnostic *Error
+			if value.Type() != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" {
+				t.Fatal("empty array text became NULL", value, err)
+			}
+		}
+	}
+	required, err := sqltype.Domain(49011, "required_array", "public.required_array", array.Usage(), false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []driver.Value{nil, []byte(nil)} {
+		value, err := importParameter(t.Context(), raw, required.Usage(), sqltype.InputEnvironment{})
+		if value.Type() != nil || err == nil || err.Error() != "missing domain constraint evaluation environment" {
+			t.Fatal("array NULL bypassed domain checks", value, err)
+		}
+	}
+}

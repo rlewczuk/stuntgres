@@ -125,7 +125,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		providerOverride = true
 	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
-	if extension.LtreePathProcedureName(name) || name == "_intbig_in" || name == "_intbig_out" {
+	if extension.IntarrayProcedureName(name) || extension.LtreePathProcedureName(name) || name == "_intbig_in" || name == "_intbig_out" {
 		providerOverride = true
 	}
 	if !raw.ProcedureCall && !typeName && !cubeFamily && !hstoreFamily && !pgTrgmFamily && !extension.LtreeLqueryProcedureName(name) && !extension.LtreeLtxtqueryProcedureName(name) && !extension.LtreeHierarchyProcedureName(name) && !extension.LtreeArrayProcedureName(name) && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
@@ -187,7 +187,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.PgTrgmProviderOf(d) == extension.StockPgTrgm || extension.LtreeProviderOf(d) == extension.StockLtree || extension.IsnProviderOf(d) == extension.StockIsn {
 				hasSQL = true
 			}
-			if extension.IntarrayProviderOf(d) == extension.StockIntarray && d.Origin != nil && (d.Origin.Declaration == 4 || d.Origin.Declaration == 5) {
+			if extension.IntarrayProviderOf(d) == extension.StockIntarray && d.Origin != nil && (d.Origin.Declaration >= 4 && d.Origin.Declaration < extension.IntarrayEstimatorStart) {
 				hasSQL = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
@@ -849,6 +849,24 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			return nil, err
 		}
 		return node, nil
+	}
+	if d != nil {
+		if operation, ok := extension.IntarraySetProcedure(selected.auth.ReadCatalog(), d); ok {
+			node, err := b.bindSelectedIntarraySet(raw, selected, operation)
+			if err == nil && freezeSyntax {
+				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+				if failure != nil {
+					return nil, failure
+				}
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 	}
 	if d != nil && extension.IntarrayProviderOf(d) == extension.StockIntarray && d.Origin != nil && (d.Origin.Declaration == 4 || d.Origin.Declaration == 5) {
 		node, err := b.bindSelectedIntbigIO(raw, selected)

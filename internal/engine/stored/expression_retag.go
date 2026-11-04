@@ -195,6 +195,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, installed := node.(functions.IntarraySet); installed {
+				if failure := remapIntarraySetRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if call, isLtree := node.(functions.LtreeArray); isLtree {
 				if failure := remapLtreeArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil {
 					return nil, false, failure

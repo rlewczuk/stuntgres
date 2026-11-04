@@ -95,10 +95,13 @@ released SQL recipe independently of C symbols and mutable public names;
 engine-owned specialized families retain executable-symbol dispatch, including
 hstore's polymorphic constructor and record replacement. Selected gateway
 attachment still checks the exact registered family and genuine current provider.
-The intarray support-I/O binder admits only authenticated original slots 4/5
-after ordinary callable selection. It captures the actual dynamic support
-family, cstring formal/result, routine revision and stored provider symbol.
-This does not enable declaration-only bqarr/seg routines or a general C loader.
+The intarray support-I/O binder admits authenticated original slots 4/5 after
+ordinary callable selection, retaining the dynamic support family and cstring
+formal/result. Selected set roles 6–15 use the same catalog selection/coercion
+path for named calls and operators, capturing exact builtin formals, routine
+revision and stored provider symbol. Genuine renamed/detached roles remain
+selectable; six INTERNAL estimators remain metadata-only. This does not enable
+declaration-only bqarr/seg routines or a general C loader.
 
 Installed `gin_enum_cmp` selection authenticates its original btree_gin procedure
 and ordinary callable ACL/dependencies before constructing `GinEnumCompareExpr`.

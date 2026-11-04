@@ -12,7 +12,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const IntarrayMemberCount = 6
+const (
+	IntarraySetProcedureStart = 6
+	IntarrayEstimatorStart    = 16
+	IntarraySetOperatorStart  = 22
+	IntarrayMemberCount       = 32
+)
 
 var intarrayTypeNames = [2]string{"query_int", "intbig_gkey"}
 var intarrayIONames = [4]string{"bqarr_in", "bqarr_out", "_intbig_in", "_intbig_out"}
@@ -34,8 +39,11 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 	ext.Members = make([]ids.ObjectAddress, IntarrayMemberCount)
 	for i := range ext.Members {
 		class := ids.ProcedureClassID
-		if i%3 == 0 {
+		if i < IntarraySetProcedureStart && i%3 == 0 {
 			class = ids.TypeClassID
+		}
+		if i >= IntarraySetOperatorStart {
+			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
@@ -105,5 +113,5 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 			}
 		}
 	}
-	return nil
+	return p.stageSet(stage, ext, owner)
 }

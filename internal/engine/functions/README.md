@@ -70,6 +70,15 @@ Its strict NULL result is typed; nonnull input/output invoke the real rejecting
 support codec. Rebuild and retag follow destination result/formal generations,
 never a source catalog, execution handle or mutable name-based capability.
 
+`IntarraySet` retains two exact typed formals, the selected installed routine
+reference and closed overload role. Ordinary operator binding delegates to the
+same immutable node as named calls. Children evaluate once in source order;
+strict typed NULL, routine entry/leave, capture, reconstruction, retagging,
+grouping and scalar FROM opening use the shared protocols. Type-owned kernels
+borrow immutable arrays. No catalog, session, ACL decision or estimator runtime
+is retained. Stored owners authenticate original routine provenance before
+rendering or generation remapping; NULL never repairs invalid lifetime evidence.
+
 
 `LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
 and descriptor functions. Descriptor IDs, modes and seek whence use signed INT4
@@ -1886,6 +1895,8 @@ live in `core` and use `RUN='^TestLogicalDecoding'`; public shared scenarios liv
 in `reference/roles`.
 Legacy snapshot and transaction-identity protocols, binding and source ownership
 use `RUN='^TestLegacy(Snapshot|TransactionIdentity)'`.
+Selected intarray node, accepted-definition and stored-remap ownership units
+use `RUN='^TestIntarraySet'`; public scenarios remain in `reference/extension_types`.
 
 Native ordered support state, tuple ownership and cancellation units use
 `RUN='^TestAggregateOrderedSupportState'`; public aggregate behavior remains in
