@@ -184,10 +184,10 @@ func TestStatsResetReplicationReaders(t *testing.T) {
  if err:=scope.Finish(nil); err!=nil { t.Fatal(err) }; op.Done(); op=nil
  owned:=reflect.ValueOf(core.PayloadOf(s)).Elem().FieldByName("statsReader")
  capture:=owned.FieldByName("cache").MapIndex(reflect.ValueOf(a))
- if !capture.IsValid() || capture.FieldByName("ApplyErrorCount").Int()!=beforeA.ApplyErrorCount { t.Fatal("session snapshot did not capture actual subscription") }
+ if !capture.IsValid() || !capture.FieldByName("exists").Bool() || capture.FieldByName("fact").FieldByName("ApplyErrorCount").Int()!=beforeA.ApplyErrorCount { t.Fatal("session snapshot did not capture actual subscription") }
  resetStatsExec(t,s,"SELECT pg_stat_reset_subscription_stats(NULL)")
  retained:=owned.FieldByName("cache").MapIndex(reflect.ValueOf(a))
- if retained.FieldByName("ApplyErrorCount").Int()!=beforeA.ApplyErrorCount { t.Fatal("reset invalidated resetting session reader") }
+ if !retained.IsValid() || !retained.FieldByName("exists").Bool() || retained.FieldByName("fact").FieldByName("ApplyErrorCount").Int()!=beforeA.ApplyErrorCount { t.Fatal("reset invalidated resetting session reader") }
  resetStatsExec(t,s,"SELECT pg_stat_clear_snapshot()")
  if owned.FieldByName("cache").Len()!=0 { t.Fatal("explicit clear retained session cache") }
  statsFunctionExec(t,s,"ROLLBACK")

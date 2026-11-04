@@ -255,8 +255,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Xact function view authority adds three strict VOLATILE/restricted
 	// unnamed OID-input scalar declarations3046/3047/3048, with INT8/FLOAT8
 	// results, no OUT/default/set metadata and default PUBLIC EXECUTE.
-	if len(facts) != 2274 {
-		t.Fatalf("released represented overloads: got %d, want 2274", len(facts))
+	// Cumulative function getters2978/2979/2980 have the same scalar shape
+	// with STABLE rather than VOLATILE initialization semantics.
+	if len(facts) != 2277 {
+		t.Fatalf("released represented overloads: got %d, want 2277", len(facts))
 	}
 	return facts
 }

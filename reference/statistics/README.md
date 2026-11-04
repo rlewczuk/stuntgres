@@ -104,10 +104,29 @@ ACLs round-trip implicit/explicit distinctions through real controls; no callabl
 getter or serialized monitoring history is introduced. Owning internal tests
 seed all eight counters and both sub-millisecond times independently.
 
+Cumulative function scenarios use the same physical reporter/publication and
+reader helpers. Exact current identities/names/completed calls, disabled and
+inlined exclusion, present-zero failure, nested timing, xact-boundary regression,
+negative cache/full snapshots, current ACL demand and lifetime are independently
+expected. Native times are logical invocation milliseconds; real timings are
+finite, nonnegative and inclusive. Nonowners see the same distribution despite
+observed routine/schema revokes; retained getter EXECUTE and view/column SELECT
+remain separate. Direct/fresh/first-five-held custom parameter witnesses retain
+projected getter authority across false input while avoiding Reader capture.
+Natural outer joins preserve six genuine NULLs; unordered results are bags.
+First admission prepares shared presence with zero counters, while completed calls
+and timings remain pending until actual reporting. Snapshot and smoke witnesses
+distinguish this real zero from disabled/never-called absence. The same-session
+xact terminal witness uses a fresh native recorded pool, with BEGIN as its first
+command, so its first report is unthrottled; reused-session throttling remains
+covered independently rather than cleared at transaction end.
+
 ## Testing
 
 The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|BGWriter|Checkpointer)'`
 and the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
+The cumulative function family uses `make check RUN='^TestReferencePGStatUserFunctions'`
+and the same selector with `REFERENCE=1`; selected definitions are required in both modes.
 
 Selected bgwriter admission/aggregate proofs (both modes are required):
 

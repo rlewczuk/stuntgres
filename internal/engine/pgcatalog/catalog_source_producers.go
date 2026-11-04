@@ -130,6 +130,7 @@ var producers = [...]Registration{
 	{StatSSLOID, capturePGStatSSL},
 	{StatGSSAPIOID, captureStatGSSAPI},
 	{StatReplicationSlotsOID, capturePGStatReplicationSlots},
+	{StatUserFunctionsOID, captureFunctionStatistics},
 	{StatXactUserFunctionsOID, captureXactFunctionStatistics},
 	{StatArchiverOID, capturePGStatArchiver},
 	{StatBGWriterOID, capturePGStatBGWriter},

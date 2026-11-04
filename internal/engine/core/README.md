@@ -664,7 +664,7 @@ by monitoring-role membership, and the four bgwriter getters remain noncallable.
 the same physical backend's pending Function facts, never the tuple ledger or a
 cumulative Reader. Ordinary/configured/trigger body entry retains its existing
 tracking selection inside the installed environment. The provider's elapsed
-measurements remain unchanged; this view alone projects deterministic completed
+measurements remain unchanged; function views project deterministic completed
 invocation cost (one millisecond own work), including nested tracked descendants.
 Admission's zero entry remains visible on failure without counting a completion.
 Completed events survive savepoint rollback; ordinary publication/throttling and
@@ -683,6 +683,26 @@ source occurrences and canonical parameters around the earlier row-security/sour
 metadata prewalk, then restores the prior scope value on success or error.
 Admission order is unchanged; materialization still installs its own capture proof.
 None of these paths populates a Reader or masks fields by monitoring-role status.
+
+`pg_stat_user_functions` reads the same qualified Function event provider through
+the authenticated cumulative Reader, never the backend's unpublished batch.
+Shared membership and published counters share one none/cache/snapshot cut,
+including negative cache entries and admission's shared zero before reporting.
+Admission never publishes completed calls or timing. Current Procedure names and
+identity Keep filtering precede inquiry. Nonowner/schema/routine ACLs do not
+redact distribution. Own view/column SELECT precedes invoker EXECUTE on the
+retained STABLE calls/total/self expressions (2978/2979/2980).
+An execution-owned occurrence decision separates the three-bit getter mask from
+provider input capture: ordinary input always needs calls for membership; false
+input retains projected getters but discards predicate-only getters. LIMIT0
+retains ordinary initialization. Physical BOOL/imported-parameter false or NULL
+conjuncts, a transparent identity-derived input, and an unused uncorrelated false
+LEFT JOIN side have bounded ownership proofs; unsupported shapes remain ordinary.
+Whole-query admission finishes before any Reader cut; low-level capture rechecks
+current authority. Prepared roots retain neither permission nor a prior decision.
+Elided inputs remain explicit empty anonymous row sources with the admitted
+identity and full typed width; nil anonymous storage means a missing physical
+source, not an empty materialized result.
 
 
 `stats_database.go` projects database facts through the same catalog runtime.

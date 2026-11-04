@@ -124,8 +124,9 @@ columns and view classification. These are checked through direct and prepared
 information-schema consumers alongside the other progress and statistics sources.
 SYS and USER also have a full 44-field columns projection: nullable OID/NAME/INT8 facts,
 NAME C collation, absent defaults/identity/generation and no updatable columns.
-The same full projection includes `pg_stat_xact_user_functions` as a six-column
-view: OID/NAME/NAME/INT8/FLOAT8/FLOAT8, nullable YES and updatable NO, NAME C
+The same full projection includes `pg_stat_user_functions` and
+`pg_stat_xact_user_functions` as six-column views:
+OID/NAME/NAME/INT8/FLOAT8/FLOAT8, nullable YES and updatable NO, NAME C
 collation, bigint precision64/radix2/scale0, float8 precision53/radix2 without
 fabricated scale, and absent defaults/identity/generated metadata. Direct,
 fresh-prepared and held consumers share the complete provider inventory.

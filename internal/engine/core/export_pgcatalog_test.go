@@ -15,5 +15,5 @@ func EngineCapturePGPredicateLocksLocked(x *Engine) ([]lock.Record, error) {
 
 // EngineOpenCatalogSourceLocked calls x.openCatalogSourceLocked.
 func EngineOpenCatalogSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, outputUses []int) (*exec.Source, error) {
-	return x.openCatalogSourceLocked(scope, ref, source, pgcatalog.Keep{}, outputUses, false)
+	return x.openCatalogSourceLocked(scope, ref, source, pgcatalog.Keep{}, outputUses, false, nil)
 }

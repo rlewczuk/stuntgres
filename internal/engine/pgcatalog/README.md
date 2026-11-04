@@ -1220,9 +1220,11 @@ registered: the engine handles those two itself.
 Concurrent source additions must retain strict numeric ordering when combined:
 backend memory (12142) precedes all-table statistics (12146); cumulative SYS
 tables (12156) lies between xact ALL (12151) and xact SYS (12161), before
-all-index statistics (12187). Identity cutovers must reposition the existing
-producer: registration presence alone is insufficient for binary-search
-reachability, including for unrelated sources between the old and new IDs.
+all-index statistics (12187). Cumulative function statistics (12279) precedes
+xact function statistics (12284), followed by archiver (12289). Identity cutovers
+must reposition the existing producer: registration presence alone is insufficient
+for binary-search reachability, including unrelated sources between the old and
+new IDs.
 
 `catalog_source_specs.go` holds `Specs`, the ordered descriptor metadata for
 every system relation (OID, namespace, name, columns with type, typmod,
@@ -1584,6 +1586,23 @@ catalog writes or bypass a provider's independent backing-source checks.
   Detached results have no portable order without ORDER BY. The structured default/
   pretty LEFT JOIN definition is display-only and yields ordinary join-view
   read-only diagnostics, never public getter execution.
+- `pg_stat_user_functions` (native relation12279, rowtype12281, array12280)
+  shares the six-column typed FunctionFact projection, but uses shared membership
+  and published counters from one Reader cut. These initialized-release native
+  identities are not cross-server OID allocation promises. Current non-INTERNAL
+  identities/names qualify only when present in that cut. First admission prepares
+  shared calls0 without publishing pending counts/timing; disabled/excluded calls
+  create no entry. Only timing uses
+  deterministic logical invocation milliseconds, inclusive total and own self;
+  genuine provider elapsed measurements remain independent. Ordinary missing
+  statistics produce no row, while outer joins retain genuine typed NULLs.
+  Distribution is unredacted by observed routine/schema/owner ACLs. Current
+  view/column SELECT and retained STABLE backing-expression EXECUTE are separate
+  authority: calls is a live membership dependency, timing getters are demanded
+  by live outputs/predicates/sorts, and false input retains only surviving
+  targets. LIMIT0 retains initialization. Structured released default/pretty
+  display and read-only join-view diagnostics use the existing registry.
+  Rows are detached; no sequence is promised without ORDER BY.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership

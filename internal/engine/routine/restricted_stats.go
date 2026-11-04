@@ -37,6 +37,9 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 3046, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_xact_function_calls", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Volatile, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 3047, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_xact_function_total_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Volatile, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 3048, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_xact_function_self_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Volatile, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 2978, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_calls", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 2979, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_total_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
+	{Identity: catalog.RoutineIdentity{ID: 2980, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_function_self_time", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 701, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 }
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
@@ -85,7 +88,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 func publicStatsGetter(id ids.OID) bool {
 	switch id {
 	case 3195, 2306, 2772, 2773, 2859, 3075, 6118,
-		2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314, 3046, 3047, 3048:
+		2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314, 3046, 3047, 3048, 2978, 2979, 2980:
 		return true
 	}
 	return false

@@ -51,9 +51,17 @@ func admitScalarStatsGetters(auth AuthorizationView, oid ids.OID, uses []int) er
 	return nil
 }
 
+func admitFunctionStatsGetters(auth AuthorizationView, mask uint8) error {
+	for i, oid := range [...]ids.OID{2978, 2979, 2980} {
+		if mask & (1 << i) == 0 { continue }
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}), Privileges: authorization.ExecutePrivilege}); err != nil { return err }
+	}
+	return nil
+}
+
 // Consumes Engine.mu. These cases select capture policy, never producers: all
 // eligible OIDs use the same immutable registry and common row wrapper.
-func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressScalarStatsRead bool) (*exec.Source, error) {
+func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation, keep pgcatalog.Keep, outputUses []int, suppressScalarStatsRead bool, functionStats *catalogrt.FunctionStatsDemand) (*exec.Source, error) {
 	oid := source.Address().ObjectID
 	if oid == pgcatalog.StatActivityOID || oid == pgcatalog.StatSSLOID {
 		return e.captureActivityViewsLocked(scope, ref, source, keep)
@@ -240,11 +248,20 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatSysIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
 		fallthrough
-	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserTablesOID, pgcatalog.StatXactUserFunctionsOID:
+	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserTablesOID, pgcatalog.StatXactUserFunctionsOID, pgcatalog.StatUserFunctionsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
 			return nil, err
+		}
+		if oid == pgcatalog.StatUserFunctionsOID {
+			demand := catalogrt.FunctionStatsOrdinary(nil)
+			if functionStats != nil { demand = *functionStats }
+			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil { e.Mu.Unlock(); return nil, err }
+			if !demand.ReadInput {
+				e.Mu.Unlock()
+				return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(source.Columns), Anonymous: [][]sqltype.Value{}}, nil
+			}
 		}
 		if oid == pgcatalog.StatXactUserFunctionsOID && !suppressScalarStatsRead {
 			if err := admitScalarStatsGetters(auth, oid, nil); err != nil {

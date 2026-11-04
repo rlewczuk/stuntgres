@@ -25,6 +25,9 @@ func TestReferenceInfoRoutinesProviders(t *testing.T) {
 		{"pg_catalog", "plpgsql_inline_handler", "internal", "FUNCTION", "void", "void", "C", "plpgsql_inline_handler", false, true},
 		{"pg_catalog", "plpgsql_validator", "oid", "FUNCTION", "void", "void", "C", "plpgsql_validator", false, true},
 		{"pg_catalog", "koi8r_to_mic", "integer,integer,cstring,internal,integer,boolean", "FUNCTION", "integer", "int4", "C", "koi8r_to_mic", true, true},
+		{"pg_catalog", "pg_stat_get_function_calls", "oid", "FUNCTION", "bigint", "int8", "INTERNAL", "pg_stat_get_function_calls", false, true},
+		{"pg_catalog", "pg_stat_get_function_total_time", "oid", "FUNCTION", "double precision", "float8", "INTERNAL", "pg_stat_get_function_total_time", false, true},
+		{"pg_catalog", "pg_stat_get_function_self_time", "oid", "FUNCTION", "double precision", "float8", "INTERNAL", "pg_stat_get_function_self_time", false, true},
 	} {
 		t.Run(tc.name+tc.inputs, func(t *testing.T) {
 			irScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, db string) {

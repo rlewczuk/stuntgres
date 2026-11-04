@@ -79,7 +79,7 @@ func xactFunctionLogicalRows(t *testing.T,s *session.Session,want map[string][3]
 }
 
 type xactFunctionSelectionRuntime struct { pgcatalog.Runtime; seen map[ids.ObjectAddress]int }
-func (r *xactFunctionSelectionRuntime) XactFunctionStatistics(a ids.ObjectAddress) (pgcatalog.XactFunctionFact,bool) { r.seen[a]++; return r.Runtime.XactFunctionStatistics(a) }
+func (r *xactFunctionSelectionRuntime) XactFunctionStatistics(a ids.ObjectAddress) (pgcatalog.FunctionFact,bool) { r.seen[a]++; return r.Runtime.XactFunctionStatistics(a) }
 
 func TestPGStatXactUserFunctionsSourceSelection(t *testing.T) {
 	for _, column := range []int{0,1,2} { t.Run([]string{"oid","schema","name"}[column],func(t *testing.T) {

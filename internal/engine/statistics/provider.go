@@ -114,6 +114,13 @@ type Provider struct {
 
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
 
+// ReadEntry returns presence and counters from the same published cut.
+func (p *Provider) ReadEntry(k Key) (Fact, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.readEntry(k)
+}
+
 // Generation is the pending/event fence, independent of cumulative read caches.
 func (p *Provider) Generation() uint64 {
 	p.mu.Lock()
@@ -121,12 +128,16 @@ func (p *Provider) Generation() uint64 {
 	return p.generation
 }
 func (p *Provider) read(k Key) Fact {
-	f := p.facts[k]
+	f, _ := p.readEntry(k)
+	return f
+}
+func (p *Provider) readEntry(k Key) (Fact, bool) {
+	f, exists := p.facts[k]
 	f.Generation = p.generation
 	if !perEntryReset(k.Category) {
 		f.ResetAt = p.factReset(k.Category)
 	}
-	return f
+	return f, exists
 }
 func (p *Provider) Reset(at time.Time) {
 	p.mu.Lock()
@@ -406,6 +417,14 @@ func (w *Writer) BeginFunction(p *Provider, k Key) (FunctionUsage, bool) {
 	if !w.initialized || w.generation != p.generation {
 		w.clearPending()
 		w.generation, w.initialized = p.generation, true
+	}
+	// Shared membership is established at admission, independently of local
+	// pending counters. Existing published work must not be overwritten.
+	if p.facts == nil {
+		p.facts = make(map[Key]Fact)
+	}
+	if _, exists := p.facts[k]; !exists {
+		p.facts[k] = Fact{}
 	}
 	if w.pending == nil {
 		w.pending = make(map[Key]Fact)

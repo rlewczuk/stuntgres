@@ -63,7 +63,9 @@ func TestStatsResetDatabaseCacheLifetime(t *testing.T) {
 						t.Fatal("incomplete actual capture domain")
 					}
 					if mode == "snapshot" {
-						shared := cache.MapIndex(reflect.ValueOf(x.sharedDB)).FieldByName("Database")
+						entry := cache.MapIndex(reflect.ValueOf(x.sharedDB))
+						if !entry.FieldByName("exists").Bool() { t.Fatal("shared database fact lost captured presence") }
+						shared := entry.FieldByName("fact").FieldByName("Database")
 						if shared.FieldByName("Inserts").Int() != 13 || !shared.FieldByName("ResetAt").Equal(reflect.ValueOf(time.Unix(100, 0))) {
 							t.Fatal("shared timestamp not in original first-access cut")
 						}
@@ -73,7 +75,7 @@ func TestStatsResetDatabaseCacheLifetime(t *testing.T) {
 					if cache.UnsafePointer() != backing || !owned.FieldByName("stamp").Equal(stamp) {
 						t.Fatal("SQL reset changed Reader backing")
 					}
-					if mode != "none" && cache.MapIndex(reflect.ValueOf(x.a)).FieldByName("Inserts").Int() != 5 {
+					if mode != "none" && cache.MapIndex(reflect.ValueOf(x.a)).FieldByName("fact").FieldByName("Inserts").Int() != 5 {
 						t.Fatal("old object capture lost")
 					}
 					resetStatsExec(t, observer, "SELECT pg_stat_clear_snapshot()")
@@ -81,7 +83,7 @@ func TestStatsResetDatabaseCacheLifetime(t *testing.T) {
 						t.Fatal("clear did not release capture")
 					}
 					sharedStatsCapture(t, x.e, observer, x.a.Object)
-					if mode != "none" && owned.FieldByName("cache").MapIndex(reflect.ValueOf(x.a)).FieldByName("Inserts").Int() != 0 {
+					if mode != "none" && owned.FieldByName("cache").MapIndex(reflect.ValueOf(x.a)).FieldByName("fact").FieldByName("Inserts").Int() != 0 {
 						t.Fatal("new capture stale")
 					}
 					statsFunctionExec(t, observer, "ROLLBACK", "BEGIN")

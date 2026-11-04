@@ -93,6 +93,11 @@ are retained state. Ordinary callable/provider/selector inventories are unchange
 Their volatile view targets survive projection pruning, independently of selected
 outer columns; catalog display and live ACL authority do not implement public calls.
 
+Cumulative function getters2978/2979/2980 share that descriptor-only scalar shape
+and implicit PUBLIC EXECUTE, but are STABLE rather than VOLATILE. Their retained
+view-expression demand is execution-owned; catalog metadata and current ACL
+reconstruction do not install public callable getters.
+
 
 Bgwriter view getters2772/2773/2859/3075 use the same engine-owned zero-provider,
 implicit PUBLIC EXECUTE authority. They are zero-input strict STABLE,

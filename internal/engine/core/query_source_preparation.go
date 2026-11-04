@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -29,6 +30,7 @@ type querySourcePreparation struct {
 type querySourceOccurrence struct {
 	program *exec.RLSProgram
 	view    *storedSourcePreparation
+	functionStats catalogrt.FunctionStatsDemand
 }
 type storedSourcePreparation struct {
 	root       plan.Node
@@ -82,6 +84,12 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		}
 		if p.occurrences[i].program.Denied() {
 			continue
+		}
+		if leaf.Relation.Address().ObjectID == pgcatalog.StatUserFunctionsOID {
+			demand, err := s.catalogKeep.FunctionStats(s.executionContext(), s.Input, s.Output, leaves, i, mark, s.QueryLockContext)
+			if err != nil { return nil, err }
+			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil { return nil, err }
+			p.occurrences[i].functionStats = demand
 		}
 		if leaf.Relation.Address().ObjectID == pgcatalog.StatXactUserFunctionsOID {
 			suppressed := s.catalogKeep.ScalarStatsReadSuppressed(leaves, i, mark)

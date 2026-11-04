@@ -59,7 +59,8 @@ type Host interface {
 	Maintenance(ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool)
 	TableStatistics(ids.ObjectAddress) pgcatalog.MaintenanceFact
 	XactRelationStatistics(ids.ObjectAddress) pgcatalog.XactRelationFact
-	XactFunctionStatistics(ids.ObjectAddress) (pgcatalog.XactFunctionFact, bool)
+	XactFunctionStatistics(ids.ObjectAddress) (pgcatalog.FunctionFact, bool)
+	FunctionStatistics(ids.ObjectAddress) (pgcatalog.FunctionFact, bool)
 	TableBlockStatistics(ids.ObjectAddress) pgcatalog.IndexBlockFact
 	SequenceIOStatistics(ids.ObjectAddress) int64
 	IndexStatistics(ids.ObjectAddress) pgcatalog.IndexStatisticsFact

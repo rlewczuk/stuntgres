@@ -154,3 +154,6 @@
 3046	pg_stat_get_xact_function_calls	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	20	26	\N	\N	\N	false	\N	pg_stat_get_xact_function_calls	\N	false	\N
 3047	pg_stat_get_xact_function_total_time	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_xact_function_total_time	\N	false	\N
 3048	pg_stat_get_xact_function_self_time	11	12	1	0	0	0	f	false	false	true	false	v	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_xact_function_self_time	\N	false	\N
+2978	pg_stat_get_function_calls	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	20	26	\N	\N	\N	false	\N	pg_stat_get_function_calls	\N	false	\N
+2979	pg_stat_get_function_total_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_total_time	\N	false	\N
+2980	pg_stat_get_function_self_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_self_time	\N	false	\N

@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqltype"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
@@ -17,7 +19,7 @@ import (
 // keep is the catalog producer row test (see catalogSourceKeep), or zero.
 // capture is false only for this SELECT's proven undemanded catalog input.
 // Scalar statistics suppression preserves separately admitted getter ACLs.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep, capture, suppressScalarStatsRead bool) (*exec.Source, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int, keep pgcatalog.Keep, capture, suppressScalarStatsRead bool, functionStats *catalogrt.FunctionStatsDemand) (*exec.Source, error) {
 	ctx := scope.Op.Context()
 	if err := ctx.Err(); err != nil {
 		e.Mu.Unlock()
@@ -43,9 +45,9 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		// Scalar statistics getter ACLs were already admitted during preparation.
 		if !capture {
 			e.Mu.Unlock()
-			return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(d.Columns)}, nil
+			return &exec.Source{Ref: ref, Materialized: true, FlatWidth: len(d.Columns), Anonymous: [][]sqltype.Value{}}, nil
 		}
-		return e.openCatalogSourceLocked(scope, ref, d, keep, outputUses, suppressScalarStatsRead)
+		return e.openCatalogSourceLocked(scope, ref, d, keep, outputUses, suppressScalarStatsRead, functionStats)
 	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
 		e.Mu.Unlock()

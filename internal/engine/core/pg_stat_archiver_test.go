@@ -140,7 +140,7 @@ func TestPGStatArchiverReaderOwnership(t *testing.T) {
 				}
 				if mode == "snapshot" {
 					cached := owned.FieldByName("cache").MapIndex(reflect.ValueOf(key))
-					if !cached.IsValid() || cached.FieldByName("Inserts").Int() != 9 || owned.FieldByName("shared").Index(int(statistics.Archiver)).FieldByName("Counters").Index(0).Int() != 3 || owned.FieldByName("stamp").IsZero() {
+					if !cached.IsValid() || !cached.FieldByName("exists").Bool() || cached.FieldByName("fact").FieldByName("Inserts").Int() != 9 || owned.FieldByName("shared").Index(int(statistics.Archiver)).FieldByName("Counters").Index(0).Int() != 3 || owned.FieldByName("stamp").IsZero() {
 						t.Fatal("coherent local all-family cut")
 					}
 				} else if mode == "cache" {
@@ -164,8 +164,9 @@ func TestPGStatArchiverReaderOwnership(t *testing.T) {
 					if mode == "snapshot" || first == "relation" {
 						n = 9
 					}
-					if got := owned.FieldByName("cache").MapIndex(reflect.ValueOf(key)).FieldByName("Inserts").Int(); got != n {
-						t.Fatal("relation half of coherent cut", got, n)
+					cached := owned.FieldByName("cache").MapIndex(reflect.ValueOf(key))
+					if !cached.IsValid() || !cached.FieldByName("exists").Bool() || cached.FieldByName("fact").FieldByName("Inserts").Int() != n {
+						t.Fatal("relation half of coherent cut", cached, n)
 					}
 				}
 				if peer.Statistics.ReadShared(statistics.Archiver).ResetAt != after.ResetAt {

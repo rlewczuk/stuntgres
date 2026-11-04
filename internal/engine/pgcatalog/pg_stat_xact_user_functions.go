@@ -10,13 +10,13 @@ import (
 
 const StatXactUserFunctionsOID ids.OID = 12284
 
-// XactFunctionFact is detached current-backend pending activity. Logical times
-// are completed invocation units, each representing one millisecond of own work.
-type XactFunctionFact struct {
+// FunctionFact is detached function activity. Logical times are completed
+// invocation units, each representing one millisecond of own work.
+type FunctionFact struct {
 	Calls, LogicalTotal, LogicalSelf int64
 }
 
-var xactFunctionStatisticsColumns = []ColumnSpec{
+var functionStatisticsColumns = []ColumnSpec{
 	{"funcid", sqltype.Oid, true, 0, 0, -1},
 	{"schemaname", sqltype.Name, true, 0, 0, -1},
 	{"funcname", sqltype.Name, true, 0, 0, -1},
@@ -26,11 +26,15 @@ var xactFunctionStatisticsColumns = []ColumnSpec{
 }
 
 func captureXactFunctionStatistics(in Input) ([][]sqltype.Value, error) {
-	if err := validateMaintenanceSource(in, xactFunctionStatisticsColumns); err != nil {
+	return captureFunctionStatisticsRows(in, StatXactUserFunctionsOID)
+}
+
+func captureFunctionStatisticsRows(in Input, sourceOID ids.OID) ([][]sqltype.Value, error) {
+	if err := validateMaintenanceSource(in, functionStatisticsColumns); err != nil {
 		return nil, err
 	}
-	if !RegisteredSource(in.Catalog, in.Source) || in.Source.Address().ObjectID != StatXactUserFunctionsOID || !in.Roles.BelongsTo(in.Owner.Principals) {
-		return nil, fmt.Errorf("stuntgres: invalid transaction function statistics authority")
+	if !RegisteredSource(in.Catalog, in.Source) || in.Source.Address().ObjectID != sourceOID || !in.Roles.BelongsTo(in.Owner.Principals) {
+		return nil, fmt.Errorf("stuntgres: invalid function statistics authority")
 	}
 	rows := make([][]sqltype.Value, 0)
 	for _, descriptor := range in.Catalog.Descriptors() {
@@ -43,7 +47,7 @@ func captureXactFunctionStatistics(in Input) ([][]sqltype.Value, error) {
 		}
 		ns, ok := in.Catalog.Namespace(d.Namespace())
 		if !ok {
-			return nil, fmt.Errorf("stuntgres: missing transaction function statistics namespace")
+			return nil, fmt.Errorf("stuntgres: missing function statistics namespace")
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))
 		if err != nil {
@@ -57,7 +61,13 @@ func captureXactFunctionStatistics(in Input) ([][]sqltype.Value, error) {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
-		fact, present := in.Runtime.XactFunctionStatistics(d.Address())
+		var fact FunctionFact
+		var present bool
+		if sourceOID == StatXactUserFunctionsOID {
+			fact, present = in.Runtime.XactFunctionStatistics(d.Address())
+		} else {
+			fact, present = in.Runtime.FunctionStatistics(d.Address())
+		}
 		if !present {
 			continue
 		}

@@ -228,11 +228,20 @@ Each normally completed tracked invocation costs one logical millisecond of own
 work. Inclusive logical cost includes completed tracked descendants, including
 across untracked intermediates; saved same-key totals remove recursive overlap.
 Failures add no own cost or call, without discarding successful descendants.
-Admission installs an observable zero pending entry. `PendingFunction` copies
-the qualified generation-valid owner entry and its presence bit without allocation,
-Reader access, publication or throttle movement; absence is not present-zero.
-Successful publication removes entries, but a throttled terminal batch can survive
+Admission installs an observable zero pending entry and prepares shared membership
+with a zero Fact only if absent, under the same generation/retirement lock.
+Preparing membership never overwrites published counters or drains pending work.
+`PendingFunction` copies the qualified generation-valid owner entry and its
+presence bit without allocation, Reader access, publication or throttle movement;
+absence is not present-zero.
+Successful publication removes pending entries, but a throttled terminal batch can survive
 COMMIT/ROLLBACK into the next transaction. No unconditional xact clearing occurs.
+`Provider.ReadEntry` and `Reader.ReadEntry` copy shared presence together with
+the corresponding published Fact. Reader cache entries retain negative membership
+as well as counters; a full snapshot fixes absence across the accessible domain.
+Clear discards that cut without publishing pending work. Cumulative function
+projections use these pairs, including admission's calls0 before the first report,
+never live membership mixed with older cached counters.
 Ordinary and WAL I/O keep operation counts when their independent timing switches
 are off. No clock is sampled by these category methods; callers supply actual
 measurements only when enabled.

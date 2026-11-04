@@ -10,7 +10,7 @@ import (
 type Reader struct {
 	mode       string
 	generation uint64
-	cache      map[Key]Fact
+	cache      map[Key]factRead
 	full       bool
 	stamp      time.Time
 	activity   map[ids.SessionToken]Activity
@@ -19,6 +19,10 @@ type Reader struct {
 	slru       [SLRUCount]SLRUFact
 	kinds      uint8
 	backends   map[ids.SessionToken]backendRead
+}
+type factRead struct {
+	fact   Fact
+	exists bool
 }
 type backendRead struct {
 	fact   BackendFact
@@ -60,30 +64,37 @@ func (r *Reader) missing(p *Provider, category Category) Fact {
 	return Fact{}
 }
 func (r *Reader) Read(p *Provider, k Key, now time.Time) Fact {
+	f, _ := r.ReadEntry(p, k, now)
+	return f
+}
+
+// ReadEntry retains negative entries as well as counters. Membership must never
+// come from a newer provider cut than the corresponding cached fact.
+func (r *Reader) ReadEntry(p *Provider, k Key, now time.Time) (Fact, bool) {
 	if r.mode == "none" {
-		return p.Read(k)
+		return p.ReadEntry(k)
 	}
 	if f, ok := r.cache[k]; ok {
-		return f
+		return f.fact, f.exists
 	}
 	if r.full {
-		return r.missing(p, k.Category)
+		return r.missing(p, k.Category), false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if r.mode == "snapshot" {
 		r.capture(p, now)
 		if f, ok := r.cache[k]; ok {
-			return f
+			return f.fact, f.exists
 		}
-		return r.missing(p, k.Category)
+		return r.missing(p, k.Category), false
 	}
 	if r.cache == nil {
-		r.cache = make(map[Key]Fact)
+		r.cache = make(map[Key]factRead)
 	}
-	f := p.read(k)
-	r.cache[k] = f
-	return f
+	f, exists := p.readEntry(k)
+	r.cache[k] = factRead{f, exists}
+	return f, exists
 }
 func (r *Reader) ReadShared(p *Provider, k SharedKind, now time.Time) SharedFact {
 	if k >= SharedKindCount {
@@ -168,12 +179,12 @@ type captureDefault struct {
 
 func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
 	if r.cache == nil {
-		r.cache = make(map[Key]Fact)
+		r.cache = make(map[Key]factRead)
 	}
 	r.defaults = append(r.defaults, captureDefault{provider: p, fact: Fact{ResetAt: p.reset, Generation: p.generation}, ioReset: p.shared[SharedIO].ResetAt, walReset: p.shared[SharedWAL].ResetAt})
 	if all {
 		for key := range p.facts {
-			r.cache[key] = p.read(key)
+			r.cache[key] = factRead{p.read(key), true}
 		}
 		r.shared, r.slru = p.shared, p.slru
 		r.kinds = (1 << SharedKindCount) - 1
@@ -182,7 +193,8 @@ func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
 			r.backends[token] = backendRead{f, true}
 		}
 	} else {
-		r.cache[database] = p.read(database)
+		f, exists := p.readEntry(database)
+		r.cache[database] = factRead{f, exists}
 	}
 }
 
@@ -197,7 +209,8 @@ func (r *Reader) Capture(sources []CaptureSource, now time.Time) {
 		p.mu.Lock()
 		r.captureLocked(p, source.All, source.Database)
 		if !source.All && source.Shared != (Key{}) {
-			r.cache[source.Shared] = p.read(source.Shared)
+			f, exists := p.readEntry(source.Shared)
+			r.cache[source.Shared] = factRead{f, exists}
 		}
 		p.mu.Unlock()
 	}

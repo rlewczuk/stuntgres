@@ -91,7 +91,7 @@ func TestReferencePGStatXactUserFunctionsTransactions(t *testing.T) {
 	fixture.StatisticsScenario(t,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn){
 		xactFunctionCreate(t,p,b,c,"xf_transaction","RETURN 7;")
 		for _,end:=range []string{"COMMIT","ROLLBACK"}{
-			w,retire:=fixture.StatisticsReportingConn(t,p,b);xactFunctionBegin(t,p,b,w)
+			w,retire:=userFunctionFreshReporter(t,p,b);xactFunctionBegin(t,p,b,w)
 			xactFunctionCall(t,p,b,w,"xf_transaction",7);fixture.StatisticsExec(t,p,b,w,"SAVEPOINT child",0);xactFunctionCall(t,p,b,w,"xf_transaction",7)
 			fixture.StatisticsExec(t,p,b,w,"ROLLBACK TO child",0);xactFunctionCounts(t,b,xactFunctionGet(t,p,w,"xf_transaction"),2,2,2)
 			fixture.StatisticsExec(t,p,b,w,"RELEASE child",0);xactFunctionCounts(t,b,xactFunctionGet(t,p,w,"xf_transaction"),2,2,2)

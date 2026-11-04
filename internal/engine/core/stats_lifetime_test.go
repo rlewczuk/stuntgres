@@ -32,6 +32,8 @@ func statsPrivateFunctionKey(t *testing.T, e *core.Engine, actor *session.Sessio
 	return statistics.Key{}
 }
 
+// Zero expectations here describe retired identities, not live shared admission
+// entries whose completed counters are still pending in a physical writer.
 func statsLifetimeFact(t *testing.T, e *core.Engine, key statistics.Key, calls, inserts int64) {
 	t.Helper()
 	got := e.Statistics.Read(key)
@@ -439,7 +441,23 @@ func statsLifetimeActualPendingWriter(t *testing.T) {
 			t.Fatal("second real call is not retained in the throttled session batch")
 		}
 		statsFunctionExec(t, actor, "SELECT stats_late_survivor()")
-		statsLifetimeFact(t, e, survivor, 0, 0)
+		// This unrelated routine is still live. Admission prepares shared
+		// membership, but its completed call remains in the throttled batch.
+		shared, exists := e.Statistics.ReadEntry(survivor)
+		unpublished := shared
+		unpublished.ResetAt, unpublished.Generation = time.Time{}, 0
+		if !exists || unpublished != (statistics.Fact{}) || e.CatalogRead().Get(survivor.Object.Address) == nil {
+			t.Fatal("live unpublished survivor lacks exact shared zero", shared, exists)
+		}
+		var zeroCut statistics.Reader
+		zeroCut.Configure("snapshot", 1)
+		if captured, present := zeroCut.ReadEntry(&e.Statistics, survivor, at); !present || captured != shared || !statsLifetimeSnapshotContains(&zeroCut, survivor) {
+			t.Fatal("live shared zero lost from full snapshot", captured, present)
+		}
+		survivorPending := reflect.ValueOf(core.PayloadOf(actor)).Elem().FieldByName("statsWriter").FieldByName("pending").MapIndex(reflect.ValueOf(survivor))
+		if !survivorPending.IsValid() || survivorPending.FieldByName("Calls").Int() != 1 {
+			t.Fatal("unrelated completed call is not retained in actual writer", survivorPending)
+		}
 		dropper := enginetest.StartSession(t, e, nil)
 		statsFunctionExec(t, dropper, "DROP FUNCTION stats_late_function()")
 		statsLifetimeFact(t, e, key, 0, 0)
@@ -452,6 +470,13 @@ func statsLifetimeActualPendingWriter(t *testing.T) {
 		statsLifetimeFact(t, e, key, 0, 0)
 		statsLifetimeFact(t, e, survivor, 1, 0)
 		statsLifetimeFact(t, e, tableKey, 0, 2)
+		if captured, present := zeroCut.ReadEntry(&e.Statistics, survivor, at); !present || captured != shared || !statsLifetimeSnapshotContains(&zeroCut, survivor) {
+			t.Fatal("publication mutated retained live-zero snapshot", captured, present)
+		}
+		zeroCut.Clear()
+		if captured, present := zeroCut.ReadEntry(&e.Statistics, survivor, at); !present || captured.Calls != 1 {
+			t.Fatal("fresh survivor snapshot lacks legitimately reported call", captured, present)
+		}
 		if retained.Read(&e.Statistics, key, at).Calls != 1 || !statsLifetimeSnapshotContains(&retained, key) {
 			t.Fatal("retirement mutated a preexisting full snapshot")
 		}
