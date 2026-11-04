@@ -3,7 +3,7 @@
 This bounded feature package owns public SQL scenarios for the seven-column
 cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
 nine-column `pg_stat_all_indexes`, 30-column `pg_stat_all_tables` and twelve-column
-`pg_stat_xact_all_tables` views. All Go tests are untagged external tests using public
+`pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables` views. All Go tests are untagged external tests using public
 stuntgres and `reference/fixture` APIs. The same scenario bodies serve native and
 the fixture's pinned PostgreSQL 18.6 oracle; native controls remain explicit
 native-only phases, not a simulated PostgreSQL Restore or Reset API.
@@ -245,8 +245,17 @@ throttle assumption or new explicit-transaction index capability is required.
 Native replacement tests use public controls and preserve attached TEMP
 membership without importing old pending work or serializing history.
 
-The reusable family selector is `make check RUN='^TestReferencePGStatXactAllTables'`
+SYS consumes the same owner-local pending authority, filtered before inquiries by
+the exact case-sensitive pg_catalog/information_schema/prefix pg_toast namespace
+names. Its own current SELECT ACL is independent of ALL and underlying objects,
+including held statements and empty reads. Simple SYS mutations rewrite to the
+grouped ALL diagnostic target. Positive SYS tuple/access witnesses use owned
+ordinary information_schema tables, with setup borrowers held while acquiring a
+fresh reporter and bounded cleanup registered before creation. They never reset
+information_schema or fabricate physical catalog scans.
+
+The reusable family selector is `make check RUN='^TestReferencePGStatXact(All|Sys)Tables'`
 and the same command with `REFERENCE=1`; both use the existing PostgreSQL18.6
 fixture policy. Internal provider/core supplements use
-`make check RUN='^TestPGStatXactAllTables'`, with `RACE=1` for synchronized
+`make check RUN='^TestPGStatXact(All|Sys)Tables'`, with `RACE=1` for synchronized
 ownership coverage.

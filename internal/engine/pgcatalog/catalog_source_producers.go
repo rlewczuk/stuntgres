@@ -107,6 +107,7 @@ var producers = [...]Registration{
 	{BackendMemoryContextsOID, capturePGBackendMemoryContexts},
 	{StatAllTablesOID, captureTableStatistics},
 	{StatXactAllTablesOID, captureXactTableStatistics},
+	{StatXactSysTablesOID, captureXactTableStatistics},
 	{StatioAllTablesOID, captureStatioTables},
 	{StatioSysTablesOID, captureStatioTables},
 	{StatioUserTablesOID, captureStatioTables},

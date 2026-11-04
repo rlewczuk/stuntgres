@@ -2,6 +2,7 @@ package pgcatalog
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -9,12 +10,13 @@ import (
 )
 
 const StatXactAllTablesOID ids.OID = 12151
+const StatXactSysTablesOID ids.OID = 12161
 
 // XactRelationFact is a detached owner-local value, not cumulative history.
 // Index searches/simple fetches use index identities; bitmap fetches use tables.
 type XactRelationFact struct {
 	SeqScans, SeqTuples, IndexScans, IndexFetches, TableIndexFetches int64
-	Inserts, Updates, Deletes                                     int64
+	Inserts, Updates, Deletes                                        int64
 }
 
 var xactTableStatisticsColumns = []ColumnSpec{
@@ -61,6 +63,9 @@ func captureXactTableStatistics(in Input) ([][]sqltype.Value, error) {
 		ns, ok := in.Catalog.Namespace(d.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing transaction statistics namespace")
+		}
+		if in.Source.Address().ObjectID == StatXactSysTablesOID && ns.Name() != "pg_catalog" && ns.Name() != "information_schema" && !strings.HasPrefix(ns.Name(), "pg_toast") {
+			continue
 		}
 		oid, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))
 		if err != nil {

@@ -62,6 +62,9 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 	if d.Address().ObjectID == StatioUserIndexesOID {
 		name = "pg_statio_all_indexes"
 	}
+	if d.Address().ObjectID == StatXactSysTablesOID {
+		name = "pg_stat_xact_all_tables"
+	}
 	message := fmt.Sprintf(`cannot update view "%s"`, name)
 	action := "updating the view"
 	switch operation {
@@ -79,7 +82,7 @@ func nonUpdatableViewError(d *catalog.Relation, operation string) error {
 		detail = "Views containing DISTINCT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignServerOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
 		detail = "Views that return set-returning functions are not automatically updatable."
-	} else if d.Address().ObjectID == StatAllTablesOID || d.Address().ObjectID == StatXactAllTablesOID {
+	} else if d.Address().ObjectID == StatAllTablesOID || d.Address().ObjectID == StatXactAllTablesOID || d.Address().ObjectID == StatXactSysTablesOID {
 		detail = "Views containing GROUP BY are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)

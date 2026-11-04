@@ -1454,7 +1454,9 @@ catalog writes or bypass a provider's independent backing-source checks.
   estimates, live/dead are logical version estimates, and FLOAT8 elapsed totals
   are milliseconds. No automatic worker is synthesized. The released grouped
   definition remains authoritative for display and GROUP BY read-only diagnostics.
-- `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152):
+- `pg_stat_xact_all_tables` (registry relation12151, rowtype12153, array12152)
+  and `pg_stat_xact_sys_tables` (relation12161, rowtype12163, array12162) share
+  the owner-local pending provider without acquiring a cumulative Reader:
   twelve nullable columns: OID relid, NAME schemaname/relname, then INT8
   seq_scan, seq_tup_read, idx_scan, idx_tup_fetch, n_tup_ins, n_tup_upd,
   n_tup_del, n_tup_hot_upd and n_tup_newpage_upd. Current r/t/m/p membership
@@ -1464,8 +1466,12 @@ catalog writes or bypass a provider's independent backing-source checks.
   attached indexes and zero for attached untouched indexes; fetches combine
   index simple fetches and table bitmap fetches. HOT/newpage are deterministic
   zero physical optimization estimates. Rows are detached values with no
-  portable order absent ORDER BY. The grouped released display owns read-only
-  GROUP BY diagnostics; only this named xact view is registered.
+  portable order absent ORDER BY. SYS admits only namespace names pg_catalog,
+  information_schema and the case-sensitive prefix pg_toast before runtime
+  inquiries. Its own current SELECT ACL does not require SELECT on ALL or on
+  underlying tables/schemas. Both consume the current qualified physical writer
+  plus live owner/stage counts, never peer or published history. SYS's simple
+  dependency-aware display rewrites mutation diagnostics to grouped ALL.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership
