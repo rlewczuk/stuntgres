@@ -22,7 +22,20 @@ type capturedExtendedInput struct {
 	dimensions  [8]sqltype.Value
 }
 
-func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relation *catalog.Relation, columns []storage.StatisticsColumn) ([]capturedExtendedInput, []sqlstate.Error, error) {
+// Fetch the command-local definition inventory before eligibility filtering.
+// Disabled or missing-key objects remain inventory, but never become build work.
+func analyzeExtendedDefinitions(read catalog.Read, relation *catalog.Relation) []*catalog.Statistics {
+	var definitions []*catalog.Statistics
+	for _, raw := range read.Descriptors() {
+		d, ok := raw.(*catalog.Statistics)
+		if ok && d.Relation.Address == relation.Address() && strings.ContainsAny(d.Selection.Kinds(), "defm") {
+			definitions = append(definitions, d)
+		}
+	}
+	return definitions
+}
+
+func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relation *catalog.Relation, columns []storage.StatisticsColumn, definitions []*catalog.Statistics) ([]capturedExtendedInput, []sqlstate.Error, error) {
 	// PostgreSQL does not enter extended collection without an admitted
 	// selected scalar, including for expression-only definitions.
 	if len(columns) == 0 {
@@ -46,11 +59,7 @@ func captureExtendedStatistics(s *core.StatementScope, read catalog.Read, relati
 	}
 	var inputs []capturedExtendedInput
 	var warnings []sqlstate.Error
-	for _, raw := range read.Descriptors() {
-		d, ok := raw.(*catalog.Statistics)
-		if !ok || d.Relation.Address != relation.Address() || !strings.ContainsAny(d.Selection.Kinds(), "defm") {
-			continue
-		}
+	for _, d := range definitions {
 		if err := (catalog.StatisticsProvider{}).Validate(read, d); err != nil {
 			return nil, nil, err
 		}

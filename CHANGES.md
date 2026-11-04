@@ -1,5 +1,15 @@
 # Changes
 
+- Collect supported direct foreign ANALYZE extended statistics from the same
+  genuine once-imported sample as scalar facts, including noninherited
+  ndistinct, dependencies, MCV and expression summaries. Apply current enabled
+  scalar/object eligibility and sample budgets, preserving zero-page acquisition,
+  empty retention, owner mappings, detached import/evaluation authority and
+  transactional typed publication. Separate actual scalar completion, fetched
+  definition inventory, per-definition build, authority-checked accepted deltas
+  and final canonical/Journal publication without adding progress counters or
+  changing inherited collection and completed-local publication semantics.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

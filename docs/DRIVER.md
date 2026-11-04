@@ -2777,12 +2777,19 @@ network/TLS/authentication mechanics remain the host's responsibility.
   plus finite nonnegative TotalRows, TotalDeadRows and TotalPages estimates.
   Returned pages are independent of negotiation weight. Close all external
   resources before returning, including on cancellation/error. No scan fallback,
-  repeated rows or padding supplies absent samples. Mixed inheritance uses one
-  bounded proportionate native/foreign sample for scalar and eligible extended
-  facts; full-native passes remain full captures. Disabled required scalar keys
-  skip extended rebuilding with WARNING42P17 and retain compatible old payload.
-  With no selected enabled scalar, all extended payload is retained, including
-  expression summaries; skipped objects do not increase the mixed sample budget.
+  repeated rows or padding supplies absent samples. Supported direct targets
+  import their genuine acquired rows once, finalize scalar facts, then build
+  eligible noninherited ndistinct/dependencies/MCV/expression definitions from
+  those same owned typed values. Each whole definition is accepted separately
+  before final authority-checked canonical/Journal publication; no second sample
+  or repeated expression evaluation supplies completion. Mixed inheritance uses
+  one bounded proportionate native/foreign sample for scalar and eligible
+  extended facts; full-native passes remain full captures. Both direct and mixed
+  budgets include only eligible enabled scalar/object targets and the fixed100
+  expression target. Disabled required scalar keys skip extended rebuilding with
+  WARNING42P17 and retain compatible old payload. With no selected enabled scalar,
+  all extended payload is retained, including expression summaries. Empty samples
+  and zero returned population likewise retain direct extended payload.
   Counts/fractions describe actual accepted records; separate fractional
   population estimates are not heap
   counters. A completed local pass's existing-object maintenance/count/time

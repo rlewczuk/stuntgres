@@ -467,10 +467,13 @@ metadata; neither negotiation nor unsupported capability resolves a mapping.
 Unsupported direct capability warns without sampling. Acquisition
 uses the table owner's exact-then-PUBLIC mapping, independently of the caller's
 MAINTAIN authority. Both callbacks and codec/grouping/ordering work run outside
-engine/replacement locks. The target is at least100, otherwise300 times the
-greatest enabled scalar statistics target. Actual bounded sample rows feed the
-shared collector; separate provider population/pages and literal sample size
-publish on the same canonical RelationMetadata, never a synthetic heap.
+engine/replacement locks. The direct target uses the same eligible scalar/object
+budgets as mixed inheritance: at least100, otherwise300 times the greatest
+enabled target, with expression summaries retaining their fixed100 target.
+Direct acquisition still runs at zero negotiated pages. Genuine bounded sample
+rows feed scalar and noninherited ndistinct/dependencies/MCV/expression facts;
+separate provider population/pages and literal sample size publish on the same
+canonical RelationMetadata, never a synthetic heap.
 Direct and inherited sample import use the pass's activated executor context and
 captured catalog/routine authority, including its domain CHECK evaluator.
 Domain/typmod failures propagate before publication; utility input must not
@@ -481,6 +484,24 @@ Empty samples retain compatible old distributions while updating genuine estimat
 An explicit zero n_distinct option retains the collector's normal sample
 estimator, just like RESET; only a nonzero user option replaces that estimate.
 Literal sample counts and MCV frequencies remain unchanged by every override.
+
+Direct work has separate, genuine completion boundaries. After the admitted
+scalar guard, `analyzeExtendedDefinitions` retains the fetched inventory in
+`analyzeRun.definitions`; `captureExtendedStatistics` separately selects eligible
+inputs and warnings. `analyzeRun.collectForeign` returns an `analyzeForeignPass`
+only after scalar finalization. When eligible extended work and positive acquired
+population exist, it retains the already imported immutable typed rows, not
+external provider cells; scalar-only passes allocate no retained row list.
+`analyzeForeignPass.buildExtended` then evaluates and builds one whole definition
+with the existing executor and collectors. Each expression runs once per accepted
+row for that definition and feeds every requested kind. `analyzeRun.acceptExtended`
+separately checks live authority/cancellation before accepting its complete typed
+delta. Neither boundary reacquires or reimports samples. Final `publishLocal`
+rechecks authority and publishes through the existing canonical/Journal path.
+An empty sample or zero returned population builds no definitions and retains
+compatible old payload. Failed direct scalar or extended work publishes no local
+success; a completed foreign-root local pass still precedes inherited work.
+These are collection/publication seams, not progress counters or an observer API.
 
 Structural traversal includes foreign descendants and partition intermediates,
 deduplicates diamonds and excludes peer TEMP branches. Unsupported foreign
@@ -529,12 +550,14 @@ canonical/Journal paths, independent of the selected column list. When scanning
 a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
 this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
-Requested ndistinct, dependencies, MCV and automatic expression definitions are captured with the
-same relation/selection authority. Scalar and extended collectors consume one
-traversal per population. Every simple key must occur in the admitted selected
-enabled scalar set; missing keys emit WARNING42P17 for each completed nonempty
-collection pass and retain compatible old payload without charging the mixed
-sample budget. With no admitted scalar, all
+Requested ndistinct, dependencies, MCV and automatic expression definitions are
+captured with the same relation/selection authority. Native/inherited collectors
+share one traversal per population; direct foreign collection imports once and
+then builds each definition from those owned typed rows after scalar completion.
+Every simple key must occur in the admitted selected enabled scalar set; missing
+keys emit WARNING42P17 for each completed nonempty collection pass and retain
+compatible old payload without charging either direct or mixed sample budgets.
+With no admitted scalar, all
 extended payload remains unchanged, including expression summaries. Expressions
 otherwise evaluate against full rows regardless of selected expression inputs,
 whose stable usages and recipe/provider authority remain captured independently.

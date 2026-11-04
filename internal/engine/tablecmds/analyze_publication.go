@@ -25,6 +25,7 @@ type analyzeRun struct {
 	relation         *catalog.Relation
 	closure          []*catalog.Relation
 	columns          []storage.StatisticsColumn
+	definitions      []*catalog.Statistics
 	extended         []capturedExtendedInput
 	extendedWarnings []sqlstate.Error
 	segments         []*analyzeSegment
@@ -91,9 +92,9 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if inherited {
 		r.hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
 	}
-	// Foreign local passes intentionally retain their scalar-only contract.
-	if relation.Foreign == nil || inherited {
-		r.extended, r.extendedWarnings, err = captureExtendedStatistics(s, auth.Catalog, relation, r.columns)
+	if len(r.columns) != 0 {
+		r.definitions = analyzeExtendedDefinitions(auth.Catalog, relation)
+		r.extended, r.extendedWarnings, err = captureExtendedStatistics(s, auth.Catalog, relation, r.columns, r.definitions)
 		if err != nil {
 			return err
 		}
@@ -103,7 +104,27 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		var rows uint64
 		var foreignFact *storage.ForeignAnalyzeStatistics
 		if foreign != nil {
-			local, foreignFact, err = collectAnalyzeForeign(e, s, r.columns, options, auth, foreign)
+			var pass *analyzeForeignPass
+			pass, err = r.collectForeign(foreign, options)
+			if err == nil {
+				// Scalar Finish has completed. Definition evaluation/build and
+				// accepted deltas are real, separate work before publication.
+				local, foreignFact = pass.statistics, pass.foreign
+				if foreignFact.SampleRows != 0 && foreignFact.TotalRows > 0 {
+					for _, warning := range r.extendedWarnings {
+						s.Op.EmitNotice(session.LevelWarning, warning)
+					}
+					for i := range r.extended {
+						fact, buildErr := pass.buildExtended(&r.extended[i])
+						if buildErr != nil {
+							return buildErr
+						}
+						if err := r.acceptExtended(r.extended[i].Key, fact); err != nil {
+							return err
+						}
+					}
+				}
+			}
 		} else {
 			err = r.captureNative([]*catalog.Relation{relation})
 			if err == nil {

@@ -181,18 +181,23 @@ func (sample *analyzeForeignSample) each(evaluation *exec.Context, yield func([]
 	return evaluation.Context.Err()
 }
 
-// Local foreign collection retains the existing scalar-only sample contract.
-// Its maintenance can complete before inherited acquisition; typed facts cannot.
-func collectAnalyzeForeign(e *core.Engine, s *core.StatementScope, inputs []storage.StatisticsColumn, options table.AnalyzeOptions, auth core.AuthorizationView, f *analyzeForeignSource) (*storage.RelationStatistics, *storage.ForeignAnalyzeStatistics, error) {
+// A direct pass owns its imported immutable values until every definition has
+// built. Scalar completion, definition construction and delta acceptance are
+// separate boundaries; none reacquires or reimports the provider's sample.
+type analyzeForeignPass struct {
+	evaluation exec.Context
+	rows       [][]sqltype.Value
+	statistics *storage.RelationStatistics
+	foreign    *storage.ForeignAnalyzeStatistics
+}
+
+func (r *analyzeRun) collectForeign(f *analyzeForeignSource, options table.AnalyzeOptions) (*analyzeForeignPass, error) {
+	e, s, auth := r.e, r.s, r.auth
 	relation := f.relation
-	columns := inputs
-	targetRows := 100
-	for _, column := range columns {
-		targetRows = max(targetRows, 300*column.Target)
-	}
-	sample, err := f.acquire(e, s, auth, targetRows, options.Verbose)
+	columns := r.columns
+	sample, err := f.acquire(e, s, auth, r.sampleTarget(), options.Verbose)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for i := range columns {
 		columns[i].SamplePopulation = &sample.TotalRows
@@ -200,13 +205,25 @@ func collectAnalyzeForeign(e *core.Engine, s *core.StatementScope, inputs []stor
 	if sample.TotalRows == 0 {
 		columns = nil
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.Op.Context()), Host: core.HostOf(s), Catalog: auth.Catalog, Input: s.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	pass := &analyzeForeignPass{evaluation: exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.Op.Context()), Host: core.HostOf(s), Catalog: auth.Catalog, Input: s.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &r.auth}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}}
 	// Domain input belongs to this detached pass's captured live authority,
 	// not the statement's uninitialized generic utility-domain evaluator.
-	evaluation.Input.DomainChecks = &evaluation
-	stats, count, err := storage.CollectStatistics(evaluation.Context, columns, func(yield func([]sqltype.Value) error) error { return sample.each(&evaluation, yield) })
+	pass.evaluation.Input.DomainChecks = &pass.evaluation
+	if len(r.extended) != 0 && sample.TotalRows > 0 && len(sample.Rows) != 0 {
+		pass.rows = make([][]sqltype.Value, 0, len(sample.Rows))
+	}
+	stats, count, err := storage.CollectStatistics(pass.evaluation.Context, columns, func(yield func([]sqltype.Value) error) error {
+		return sample.each(&pass.evaluation, func(values []sqltype.Value) error {
+			// ImportValues allocates each row and owns its immutable typed cells;
+			// retain that row, never the provider's borrowed external cells.
+			if pass.rows != nil {
+				pass.rows = append(pass.rows, values)
+			}
+			return yield(values)
+		})
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if stats != nil {
 		for key, fact := range stats.Columns {
@@ -219,5 +236,44 @@ func collectAnalyzeForeign(e *core.Engine, s *core.StatementScope, inputs []stor
 			}
 		}
 	}
-	return stats, &storage.ForeignAnalyzeStatistics{SampleRows: count, TotalRows: sample.TotalRows, TotalDeadRows: sample.TotalDeadRows, TotalPages: sample.TotalPages}, nil
+	pass.statistics = stats
+	pass.foreign = &storage.ForeignAnalyzeStatistics{SampleRows: count, TotalRows: sample.TotalRows, TotalDeadRows: sample.TotalDeadRows, TotalPages: sample.TotalPages}
+	return pass, nil
+}
+
+// Build one whole definition after scalar completion. Expressions are evaluated
+// once per accepted row and shared by all requested kinds through the collector.
+func (pass *analyzeForeignPass) buildExtended(input *capturedExtendedInput) (*storage.ExtendedStatistics, error) {
+	if err := pass.evaluation.Context.Err(); err != nil {
+		return nil, err
+	}
+	captured := input.ExtendedInput
+	captured.SamplePopulation = &pass.foreign.TotalRows
+	collector, err := storage.NewExtendedCollector(captured)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range pass.rows {
+		if err := pass.evaluation.Context.Err(); err != nil {
+			return nil, err
+		}
+		if err := input.add(&pass.evaluation, collector, row); err != nil {
+			return nil, err
+		}
+	}
+	return collector.Finish(pass.evaluation.Context)
+}
+
+// Acceptance owns a complete typed definition delta, not a published statistic.
+// The target's later publication gate still rechecks authority for all deltas.
+func (r *analyzeRun) acceptExtended(key storage.ExtendedStatisticsKey, fact *storage.ExtendedStatistics) error {
+	r.e.Mu.Lock()
+	defer r.e.Mu.Unlock()
+	if err := r.authorityLocked(); err != nil {
+		return err
+	}
+	if fact != nil {
+		r.extendedDelta[key] = fact
+	}
+	return nil
 }

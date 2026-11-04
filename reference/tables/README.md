@@ -178,6 +178,26 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   mapped source query or a physical-page claim. Mapping-dependent SQL and import
   happen only during acquisition. Zero negotiation weight is meaningful for
   inherited visits; unchanged direct foreign ANALYZE still acquires at zero.
+  Direct supported targets build noninherited joint and expression definitions
+  from the same once-imported real sample as their scalar statistics. The reusable
+  direct family selector is `RUN='^TestReferenceFDWAnalyzeDirect'`.
+  Its committed1000-row `a=b=i%3` source yields joint3, perfect dependencies and
+  typed MCV masses .334/.333/.333. Distinguishing source mutations exercise joint6,
+  scalar staleness/refresh, selected or disabled missing-key WARNING42P17,
+  object-target0 and all-disabled retention, and empty-input retention.
+  Expression inputs include unselected constrained-domain columns; genuine SQL
+  sequence effects distinguish input import from expression evaluation, including
+  NULLs. Domain import advances1000 in both backends, native expression work1000.
+  The deliberately effectful IMMUTABLE wrapper is instrumentation, not a portable
+  SQL side-effect promise: [released PostgreSQL's builder](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/statistics/extended_stats.c)
+  evaluates in both `make_build_data` and `compute_expr_stats`, advancing2000.
+  A searched CASE with distinct result branches demands the sequence before
+  projecting its argument, including NULL; assertions name both phase and sequence.
+  SQL-body sequence references are schema-qualified for the restricted search_path.
+  Domain and expression errors retain prior products, while
+  rollback/savepoint/commit separate transactional typed publication from completed
+  existing-object scan population. Registered provider cancellation/failure gates
+  are explicit native-only controls; the oracle uses stock loopback postgres_fdw.
   Ordinary and partitioned parents acquire actual supported foreign descendants;
   supported foreign roots retain their direct local pass and also acquire their
   inherited population. Child descriptors project into parent order, including
