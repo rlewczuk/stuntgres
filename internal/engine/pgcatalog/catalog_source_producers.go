@@ -93,6 +93,8 @@ var producers = [...]Registration{
 	{PoliciesOID, capturePGPolicies},
 	{RulesOID, capturePGRules},
 	{StatsOID, capturePGStats},
+	{StatsExtOID, capturePGStatsExtended},
+	{StatsExtExprsOID, capturePGStatsExtended},
 	{12077, capturePGCursors},
 	{12081, captureAvailableExtensions},
 	{12085, captureAvailableExtensions},

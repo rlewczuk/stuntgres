@@ -136,7 +136,7 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		// pg_stats exposes only these five released ANYARRAY result slots.
+		// Only the released statistics-view identities admit ANYARRAY results.
 		// This is catalog-result authority, never arbitrary pseudo columns.
 		statsArray := false
 		if r.Address().ObjectID == pgcatalog.StatsOID && r.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && r.Name() == "pg_stats" && r.VirtualView && c.Usage.Type.ID() == 2277 {
@@ -151,6 +151,16 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				statsArray = c.Name == "range_length_histogram"
 			case 17:
 				statsArray = c.Name == "range_bounds_histogram"
+			}
+		}
+		if r.Address().ObjectID == pgcatalog.StatsExtExprsOID && r.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && r.Name() == "pg_stats_ext_exprs" && r.VirtualView && c.Usage.Type.ID() == 2277 {
+			switch r.Attributes[i] {
+			case 11:
+				statsArray = c.Name == "most_common_vals"
+			case 13:
+				statsArray = c.Name == "histogram_bounds"
+			case 15:
+				statsArray = c.Name == "most_common_elems"
 			}
 		}
 		catalogNull := r.RelationKind == catalog.CatalogRelation && c.Usage.CatalogNullUsage() && (r.Address().ObjectID == pgcatalog.AttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" || r.Address().ObjectID == pgcatalog.StatisticExtDataOID && r.Attributes[i] == 6 && c.Name == "stxdexpr" || statsArray)

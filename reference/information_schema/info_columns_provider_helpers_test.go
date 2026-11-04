@@ -45,6 +45,8 @@ func icProviderInventory(c *icCase) {
 		"pg_statistic_ext":                  strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),
 		"pg_statistic_ext_data":             strings.Fields("stxoid stxdinherit stxdndistinct stxddependencies stxdmcv stxdexpr"),
 		"pg_stats":                          strings.Fields("schemaname tablename attname inherited null_frac avg_width n_distinct most_common_vals most_common_freqs histogram_bounds correlation most_common_elems most_common_elem_freqs elem_count_histogram range_length_histogram range_empty_frac range_bounds_histogram"),
+		"pg_stats_ext":                      strings.Fields("schemaname tablename statistics_schemaname statistics_name statistics_owner attnames exprs kinds inherited n_distinct dependencies most_common_vals most_common_val_nulls most_common_freqs most_common_base_freqs"),
+		"pg_stats_ext_exprs":                strings.Fields("schemaname tablename statistics_schemaname statistics_name statistics_owner expr inherited null_frac avg_width n_distinct most_common_vals most_common_freqs histogram_bounds correlation most_common_elems most_common_elem_freqs elem_count_histogram"),
 		"pg_stat_activity":                  strings.Fields("datid datname pid leader_pid usesysid usename application_name client_addr client_hostname client_port backend_start xact_start query_start state_change wait_event_type wait_event state backend_xid backend_xmin query_id query backend_type"),
 		"pg_stat_archiver":                  strings.Fields("archived_count last_archived_wal last_archived_time failed_count last_failed_wal last_failed_time stats_reset"),
 		"pg_stat_wal":                       strings.Fields("wal_records wal_fpi wal_bytes wal_buffers_full stats_reset"),
@@ -217,6 +219,7 @@ func icProviderInventory(c *icCase) {
 			views = append(views, "pg_stat_io")
 			views = append(views, "pg_stat_user_indexes")
 			views = append(views, "pg_stat_subscription_stats")
+			views = append(views, "pg_stats_ext", "pg_stats_ext_exprs")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

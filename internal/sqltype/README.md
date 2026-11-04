@@ -282,13 +282,17 @@ admission and removes it before nested binding.
   frequency items using native physical datums, never wire output. It also freezes
   their typed construction once for the read-only `StatisticsMCVView`; indexed
   access preserves actual typed NULLs without lending mutable dictionaries.
-  Construction retains no caller slices. Compatible outer retags share backing,
+  Construction retains no caller slices. Payload fields stay private.
+  Compatible outer retags share backing,
   not reminted embedded identities; destination replay rebuilds with destination
   usages. Representation equality compares kind/bytes/display, independently of
   auxiliary typed backing. Raw `StatisticsMCVValue` images retain output/send
   authority only and explicitly reject typed inspection; no binary decoder or
   SQL input is granted. Distinct/dependency output uses released map formatting;
   MCV output follows bytea hex/escape presentation.
+  Statistics base descriptors retain default collation100; checked column usages
+  may own a different registered collation, including catalog/view C950. This
+  does not change descriptor metadata, input rejection or pseudo-type admission.
   Dependency dimensions admit positive sparse attribute numbers and expression
   identities -1..-8 with the dependent last; zero, duplicates and invalid widths
   remain rejected. This producer authority does not admit SQL datum input.

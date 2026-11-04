@@ -254,6 +254,16 @@
   Keep absent HBA backing-routine ACLs distinct from the owner-only baseline
   and preserve them through Dump/Restore.
 
+- Expose released `pg_stats_ext` and `pg_stats_ext_exprs` over captured ANALYZE
+  facts and current statistics definitions, preserving unbuilt expression rows,
+  ordinal summaries, typed ANYARRAY values, genuine rank-two MCV arrays and
+  joint/base frequencies without rescanning data or decoding binary payloads.
+  Enforce current inherited table ownership and RLS separately from view SELECT;
+  retain stale, private transactional and native-restored facts through existing
+  resolvers. Correct the three statistics views' derived array metadata,
+  security-barrier options, owner/PUBLIC ACLs and statistics-column C collation,
+  independently of the statistics base types' unchanged default collation.
+
 - Add the nine-column typed, read-only `pg_catalog.pg_stat_all_indexes` view on
   the shared cumulative provider/Reader, exposing actual index/parent identities
   without parent privilege filtering or field redaction. Attribute searches,

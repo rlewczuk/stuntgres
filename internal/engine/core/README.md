@@ -369,8 +369,9 @@ its destination next epoch. Only internally acquired operations own the temporar
 staging flag and its cleanup; supplied operation provenance remains caller-owned.
 
 Statistics runtime (the `pg_restore_*_stats`/`pg_clear_*_stats` imports, the
-`pg_stats` and `pg_statistic_ext_data` visitors, statistics expression recipes
-and the statistics snapshot codec) is the leaf [`core/stats`](stats/README.md).
+`pg_stats`, `pg_stats_ext`, `pg_stats_ext_exprs` and `pg_statistic_ext_data`
+visitors, statistics expression recipes and the statistics snapshot codec) is
+the leaf [`core/stats`](stats/README.md).
 Core owns `stats.Host` on `statementHost` and the adapters of the `exec.Host`,
 `pgcatalog.Runtime` and `ddl.Host` methods (`statistics_hosts.go`), the
 `stats.Authority` that `AuthorizationView` implements, the imported-statistics

@@ -235,6 +235,7 @@ type Runtime interface {
 	IOStatisticsReset() time.Time
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
+	VisitExtendedStatisticsView(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
 	VisitClusterProgress(context.Context, func(ClusterProgressFact) error) error

@@ -1641,8 +1641,8 @@ catalog writes or bypass a provider's independent backing-source checks.
   Descriptor validation grants canonical catalog-result ANYARRAY authority only
   to its five released name/attribute pairs (8, 10, 12, 15 and 17), under the
   fixed pg_catalog view identity and current type generation. Other columns and
-  stored relations cannot inherit that allowance; pg_attribute and extended
-  statistics retain their existing independent bounded carrier rules.
+  stored relations cannot inherit that allowance; pg_attribute and the protected
+  extended DATA array retain their independent bounded carrier rules.
   Its source capture uses the same locked current catalog/role authorization
   path as pg_statistic_ext_data; the visitor receives that captured principal
   and transaction journal, not the definition-only default source adapter.
@@ -1650,6 +1650,22 @@ catalog writes or bypass a provider's independent backing-source checks.
   name/identifier fragment inventory, including current routine identities and
   quote-all formatting. Independent pinned-18.6 SQL fixtures exercise both forms
   under both quote settings in `TestReferenceAttributeStatisticsViewDefinition`.
+- `pg_stats_ext` (12058) and `pg_stats_ext_exprs` (12063): public read-only
+  15/17-column views, with ordinary nominal row/array links and derived
+  `attndims=0`, independent of actual value rank. Together with `pg_stats` they
+  expose the source-owned security-barrier option and explicit owner/PUBLIC ACL.
+  Definition traversal and current table-owner INHERIT/RLS filtering belong to
+  `core/stats`; DATA SELECT and function EXECUTE are not prerequisites. Unbuilt
+  definitions are absent from the joint view but retain one identity row per
+  expression with NULL inherited/statistics fields. Collected flavors preserve
+  ordinal expressions, actual kind flags and typed NULLs for missing kinds.
+  Joint MCV arrays retain item-by-dimension extents and real NULL cells, with
+  aligned joint/base frequencies from captured counts. The expression view
+  admits ANYARRAY only at its exact released name/attribute pairs (11, 13, 15).
+  Source/owner/generation, current view SELECT, width, and every result usage are
+  checked before publishing a complete detached vector. Direct and held
+  execution recapture current authority while prior Rows keep owned values.
+  Both released default/pretty definitions use the shared symbolic inventory.
 - `pg_stat_all_indexes` (registry relation12187, rowtype12189): exactly nine nullable
   OID/OID/NAME/NAME/NAME/INT8/TIMESTAMPTZ/INT8/INT8 columns. Enumerate actual
   SQLIndex descriptors joined to r/t/m parents, regardless of parent schema/table

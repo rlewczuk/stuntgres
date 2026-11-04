@@ -46,6 +46,9 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   Every pg_stat_io row uses this one cut, including its WAL capabilities;
   SharedWAL remains a distinct family. Neither capability leaks a live reader,
   provider, writer or authorization handle into the producer.
+  The statistics-view visitor is distinct from the protected DATA visitor:
+  core passes captured presentation and journal authority to `core/stats`,
+  without applying DATA SELECT or backing-function EXECUTE to public views.
 - A `Runtime` without a `Host` serves only the presentation methods: core's
   deparse functions and `BuiltinViewDefinition`.
 - Provenance is same-pointer authority (the engine's `catalog.Owner`), never

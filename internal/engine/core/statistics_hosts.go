@@ -30,15 +30,17 @@ func (h *statementHost) RelationStatistics(clear, variadic bool, values []sqltyp
 	return stats.ImportRelation[AuthorizationView](h, clear, variadic, values)
 }
 
-// VisitAttributeStatistics and VisitExtendedStatistics are catalogrt.Host
-// methods: they serve pg_stats and pg_statistic_ext_data from the engine's
-// statistics facts.
+// Statistics visitors share the catalog capture frontier and immutable facts.
 func (r *catalogRuntime) VisitAttributeStatistics(ctx context.Context, source *catalog.Relation, visit func([]sqltype.Value) error) error {
 	return stats.VisitAttributes(ctx, r.auth, &r.engine.Storage, source, visit)
 }
 
 func (r *catalogRuntime) VisitExtendedStatistics(ctx context.Context, visit func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error {
 	return stats.VisitExtended(ctx, r.auth, &r.engine.Storage, visit)
+}
+
+func (r *catalogRuntime) VisitExtendedStatisticsView(ctx context.Context, source *catalog.Relation, visit func([]sqltype.Value) error) error {
+	return stats.VisitExtendedView(ctx, r.auth, &r.engine.Storage, source, r.rt.Presentation, r.rt.Temporary, visit)
 }
 
 // BindStatisticsExpression binds with the index expression binder over parent.

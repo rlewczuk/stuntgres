@@ -174,6 +174,9 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 		}
 		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))
 	}
+	if relation.RelationKind == catalog.CatalogRelation && relation.VirtualView && relation.Namespace().ObjectID == ids.PGCatalogNamespaceOID && (relation.Address().ObjectID == StatsOID || relation.Address().ObjectID == StatsExtOID || relation.Address().ObjectID == StatsExtExprsOID) {
+		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{sqltype.String(options.Type().Element(), "security_barrier=true")}))
+	}
 	if len(relation.StorageOptions.Base) != 0 {
 		elements := make([]sqltype.Value, len(relation.StorageOptions.Base))
 		for i, option := range relation.StorageOptions.Base {

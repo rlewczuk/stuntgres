@@ -270,3 +270,14 @@ is asserted independently. Native pre-canceled direct/held ALTER witnesses
 retain identity, metadata, dependencies, facts and rows without delivering target
 warnings. Admitted tuple-update cancellation requires the physical operation/
 relation Context, varying only heap coordinates.
+
+Optimizer statistics views share `statistics_views_*_test.go` and the existing
+statistics collection/control fixture. They pin the released 17/15/17-column
+schemas, unbuilt expression NULL rows versus absent extended rows, measured
+scalar/expression distributions, multidimensional MCV values and NULL flags,
+definition identities, table-owner/RLS versus column-SELECT visibility, full
+diagnostics, selected refresh, transactions, hierarchy and public native replay.
+Direct, fresh-prepared, retained-prepared and genuinely retained Rows use the
+same independent outcomes. Select every family with
+`make check RUN='^TestReferenceStatisticsViews'` (add `REFERENCE=1` for the pinned
+oracle).

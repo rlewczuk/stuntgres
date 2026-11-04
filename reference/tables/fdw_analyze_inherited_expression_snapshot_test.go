@@ -42,7 +42,7 @@ func TestReferenceFDWAnalyzeInheritedExpressionSnapshot(t *testing.T) {
 				if b.PG {
 					// PostgreSQL's target100 exceeds this complete1000-row fixture:
 					// D991/N1000, MCV1 has10/1000, unlike the native controlled sample.
-					fdwAnalyzeSnapshotExpressionFacts(run, "0.991", "{0.01}")
+					fdwAnalyzeSnapshotExpressionFacts(run, prepared, "0.991", "{0.01}")
 					return
 				}
 				// Native-only sampling/roundtrip control. All thirty remote records
@@ -50,8 +50,8 @@ func TestReferenceFDWAnalyzeInheritedExpressionSnapshot(t *testing.T) {
 				// n40,d31,f1=30,N1000 =>round(40*31/(10+30*40/1000))=111.
 				// Signed distinct is-.111, not the raw measured31/40=-.775.
 				histogram := fdwAnalyzeSnapshotAcceptedHistogram(t, r)
-				fdwAnalyzeSnapshotExpressionFacts(run, "0.111", "{0.25}")
-				fdwAnalyzeSnapshotHistogram(run, histogram)
+				fdwAnalyzeSnapshotExpressionFacts(run, prepared, "0.111", "{0.25}")
+				fdwAnalyzeSnapshotHistogram(run, prepared, histogram)
 				const retainedQuery = "SELECT (stxdexpr[1]).stavalues2::text" + fdwAnalyzeSnapshotExpressionFrom
 				held, err := c.QueryContext(p.Ctx, retainedQuery)
 				if err != nil {
@@ -94,8 +94,8 @@ func TestReferenceFDWAnalyzeInheritedExpressionSnapshot(t *testing.T) {
 					t.Fatal(err)
 				}
 				check := func(step fixture.Step) { fixture.RunStep(t, p.Ctx, recorded, recorder, step) }
-				fdwAnalyzeSnapshotExpressionFacts(check, "0.111", "{0.25}")
-				fdwAnalyzeSnapshotHistogram(check, histogram)
+				fdwAnalyzeSnapshotExpressionFacts(check, prepared, "0.111", "{0.25}")
+				fdwAnalyzeSnapshotHistogram(check, prepared, histogram)
 				check(fixture.Select("SELECT (stxdexpr[1]).stadistinct,(stxdexpr[1]).stavalues1::text AS values,(stxdexpr[1]).stanumbers1::text AS frequencies FROM pg_statistic_ext_data d JOIN pg_statistic_ext s ON s.oid=d.stxoid WHERE s.stxname='fdw_analyze_snapshot_expression' AND NOT d.stxdinherit", []string{"stadistinct", "values", "frequencies"}, []string{"FLOAT4", "TEXT", "TEXT"}, [][]any{{float64(1), "{1}", "{1}"}}))
 				// Typed snapshot transport is not an ANALYZE completion: canonical
 				// inherited/local population, scan/count/time are not serialized.
@@ -128,8 +128,8 @@ func TestReferenceFDWAnalyzeInheritedExpressionSnapshot(t *testing.T) {
 				if r.snapshot() != before || destinationReader.snapshot().queries == 0 {
 					t.Fatal("restored query borrowed source provider authority")
 				}
-				fdwAnalyzeSnapshotExpressionFacts(check, "0.111", "{0.25}")
-				fdwAnalyzeSnapshotHistogram(check, histogram)
+				fdwAnalyzeSnapshotExpressionFacts(check, prepared, "0.111", "{0.25}")
+				fdwAnalyzeSnapshotHistogram(check, prepared, histogram)
 				if state := destinationReader.snapshot(); state.openRows != 0 || state.openPools != 0 {
 					t.Fatal("destination query retained source resources", state)
 				}
@@ -139,13 +139,21 @@ func TestReferenceFDWAnalyzeInheritedExpressionSnapshot(t *testing.T) {
 }
 
 const fdwAnalyzeSnapshotExpressionFrom = " FROM pg_statistic_ext_data d JOIN pg_statistic_ext s ON s.oid=d.stxoid WHERE s.stxname='fdw_analyze_snapshot_expression' AND d.stxdinherit"
+const fdwAnalyzeSnapshotExpressionViewFrom = " FROM pg_catalog.pg_stats_ext_exprs WHERE schemaname='public' AND tablename='fdw_analyze_parent' AND statistics_schemaname='public' AND statistics_name='fdw_analyze_snapshot_expression' AND inherited"
 
-func fdwAnalyzeSnapshotExpressionFacts(run func(fixture.Step), fraction, frequencies string) {
+func fdwAnalyzeSnapshotExpressionFacts(run func(fixture.Step), prepared bool, fraction, frequencies string) {
 	run(fixture.Select("SELECT (stxdexpr[1]).stanullfrac,abs((stxdexpr[1]).stadistinct+"+fraction+")<0.000001 AS distinct_fraction,(stxdexpr[1]).stakind1,(stxdexpr[1]).stavalues1::text AS values,(stxdexpr[1]).stanumbers1::text AS frequencies,(stxdexpr[1]).stakind2"+fdwAnalyzeSnapshotExpressionFrom, []string{"stanullfrac", "distinct_fraction", "stakind1", "values", "frequencies", "stakind2"}, []string{"FLOAT4", "BOOL", "INT2", "TEXT", "TEXT", "INT2"}, [][]any{{float64(0), true, int64(1), "{1}", frequencies, int64(2)}}))
+	view := fixture.Select("SELECT expr,inherited,null_frac,abs(n_distinct+"+fraction+")<0.000001 AS distinct_fraction,most_common_vals::text AS values,most_common_freqs::text AS frequencies,histogram_bounds IS NOT NULL AS has_histogram"+fdwAnalyzeSnapshotExpressionViewFrom,
+		[]string{"expr", "inherited", "null_frac", "distinct_fraction", "values", "frequencies", "has_histogram"}, []string{"TEXT", "BOOL", "FLOAT4", "BOOL", "TEXT", "TEXT", "BOOL"}, [][]any{{"(id + 0)", true, float64(0), true, "{1}", frequencies, true}})
+	view.Prepared = prepared
+	run(view)
 }
 
-func fdwAnalyzeSnapshotHistogram(run func(fixture.Step), histogram string) {
+func fdwAnalyzeSnapshotHistogram(run func(fixture.Step), prepared bool, histogram string) {
 	run(fixture.Select("SELECT (stxdexpr[1]).stavalues2::text AS histogram"+fdwAnalyzeSnapshotExpressionFrom, []string{"histogram"}, []string{"TEXT"}, [][]any{{histogram}}))
+	view := fixture.Select("SELECT histogram_bounds::text AS histogram"+fdwAnalyzeSnapshotExpressionViewFrom, []string{"histogram"}, []string{"TEXT"}, [][]any{{histogram}})
+	view.Prepared = prepared
+	run(view)
 }
 
 func fdwAnalyzeSnapshotAcceptedHistogram(t *testing.T, r *fdwSQLReader) string {

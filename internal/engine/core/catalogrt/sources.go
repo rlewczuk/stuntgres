@@ -52,7 +52,7 @@ func InitializeSources(store *catalog.Store, roles authorization.Read, bootstrap
 				d.Security.ColumnACL[attribute] = acl
 			}
 		}
-		if spec.OID == pgcatalog.SeclabelsOID || spec.OID == pgcatalog.ShseclabelOID || spec.OID == pgcatalog.SubscriptionRelOID || spec.OID == pgcatalog.PublicationOID || spec.OID == pgcatalog.PublicationNamespaceOID || spec.OID == pgcatalog.PublicationRelationOID || spec.OID == pgcatalog.PublicationTablesOID || spec.OID == pgcatalog.ReplicationSlotsOID {
+		if spec.OID == pgcatalog.SeclabelsOID || spec.OID == pgcatalog.ShseclabelOID || spec.OID == pgcatalog.SubscriptionRelOID || spec.OID == pgcatalog.PublicationOID || spec.OID == pgcatalog.PublicationNamespaceOID || spec.OID == pgcatalog.PublicationRelationOID || spec.OID == pgcatalog.PublicationTablesOID || spec.OID == pgcatalog.ReplicationSlotsOID || spec.OID == pgcatalog.StatsOID || spec.OID == pgcatalog.StatsExtOID || spec.OID == pgcatalog.StatsExtExprsOID {
 			d.Security.ACL = authorization.MaterializeRelationACL(authorization.ACLValue{}, d.Owner)
 			d.Security.ACL.Entries = append(d.Security.ACL.Entries, authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege})
 			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {

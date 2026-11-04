@@ -2,8 +2,9 @@
 
 The statistics runtime: the `pg_restore_relation_stats`,
 `pg_restore_attribute_stats`, `pg_clear_relation_stats` and
-`pg_clear_attribute_stats` imports, the `pg_stats` and `pg_statistic_ext_data`
-visitors, statistics expression recipes for CREATE STATISTICS, and the codec
+`pg_clear_attribute_stats` imports, the `pg_stats`, `pg_stats_ext`,
+`pg_stats_ext_exprs` and protected `pg_statistic_ext_data` visitors, statistics
+expression recipes for CREATE STATISTICS, and the codec
 that renders and rebuilds captured statistics values for Dump, Restore and
 catalog replacement. It is a leaf below core (ENGINE-SPLIT §3, L14.5); the
 statistics facts, collectors and snapshot records are
@@ -13,7 +14,7 @@ through [`engine/session`](../../session/README.md).
 ## Layering
 
 - Imports only packages below core: `access`, `analyze`, `authorization`,
-  `catalog`, `exec`, `expr`, `ids`, `lock`, `plan`, `regobj`, `session`,
+  `catalog`, `exec`, `expr`, `ids`, `lock`, `pgcatalog`, `plan`, `regobj`, `session`,
   `storage`, `stored`, `table`, `typedef`, `view`, `parser`, `sqlstate`,
   `sqltype`. It never imports core, another leaf, a family or the root.
 - Core reaches it through one-line adapters (`statistics_hosts.go`):
@@ -35,6 +36,9 @@ through [`engine/session`](../../session/README.md).
   journal. They return whether every argument was applied.
 - `VisitAttributes` and `VisitExtended` project the resolved statistics facts
   of every visible relation into `pg_stats` and `pg_statistic_ext_data` rows.
+- `VisitExtendedView` traverses current definitions for the two extended views.
+  It attaches compatible generation-qualified local/inherited facts through the
+  same resolver, retaining unbuilt expression identities with NULL summaries.
 - `BindExpression` binds one statistics expression with the index expression
   binder that core builds over the parent, preflights its coercions and
   returns the retained `catalog.StatisticsExpression`; `SameExpression`
@@ -85,6 +89,16 @@ The authenticated catalog runtime projects ndistinct, dependencies, joint MCV
 and expression summaries from one immutable extended fact. Missing payloads use
 the current descriptor's typed NULL. Catalog SELECT admission precedes capture;
 the runtime never collects populations or rebuilds retained statistics on read.
+The public extended views require inherited base-table ownership and inactive
+row security, independently of statistics ownership, column SELECT, DATA SELECT
+or backing-routine EXECUTE. View SELECT is checked separately on each capture.
+Current names and ordinal expression recipes are rendered under the captured
+presentation; no expression is evaluated by reading a view. Joint MCV projection
+uses owned rank-two text/NULL-flag arrays and aligned frequencies from retained
+integer joint/marginal counts, never binary decoding or live rescans. Scalar and
+expression summaries share one slot projector, preserving immutable imported
+slots and genuine ANYARRAY element usages. Captures own their row vectors and
+array construction buffers and publish no prefix on failure or cancellation.
 `SnapshotCodec` bridges semantic captured statistics to the existing
 control-literal renderer and checked typed replay traversal. Destination value
 construction uses the ordinary binder/executor under captured catalog authority.

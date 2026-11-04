@@ -70,6 +70,7 @@ type Host interface {
 	IOStatisticsReset() time.Time
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
+	VisitExtendedStatisticsView(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(pgcatalog.VacuumProgressFact) error) error
 	VisitClusterProgress(context.Context, func(pgcatalog.ClusterProgressFact) error) error
@@ -110,6 +111,9 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.PoliciesOID:                         "pg_policies",
 	ids.TriggerClassID:                            "pg_trigger",
 	pgcatalog.StatisticExtDataOID:                 "pg_statistic_ext_data",
+	pgcatalog.StatsOID:                            "pg_stats",
+	pgcatalog.StatsExtOID:                         "pg_stats_ext",
+	pgcatalog.StatsExtExprsOID:                    "pg_stats_ext_exprs",
 	pgcatalog.ReplicationOriginOID:                "pg_replication_origin",
 	pgcatalog.ReplicationOriginStatusOID:          "pg_replication_origin_status",
 	pgcatalog.SubscriptionOID:                     "pg_subscription",
@@ -186,7 +190,7 @@ func (r Runtime) ValidateCapture(view catalog.Read, roles authorization.Read, re
 	a := r.View
 	// These readers require a backing engine with the captured owner, including
 	// legitimate transaction-private catalog roots.
-	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.ReplicationOriginStatusOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engineOwner() == nil || a.Owner != r.engineOwner()) {
+	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.ReplicationOriginStatusOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.StatsOID || oid == pgcatalog.StatsExtOID || oid == pgcatalog.StatsExtExprsOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engineOwner() == nil || a.Owner != r.engineOwner()) {
 		return fmt.Errorf("stuntgres: invalid %s capture", sharedCaptureNames[oid])
 	}
 	if name, ok := sharedCaptureNames[oid]; ok {

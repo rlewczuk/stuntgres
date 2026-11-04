@@ -46,6 +46,45 @@ func TestStatisticsTypeDescriptors(t *testing.T) {
 	}
 }
 
+func TestStatisticsViewsColumnCollation(t *testing.T) {
+	types := testTypes()
+	c, err := RegisteredCollation(950, 950)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []ID{PgNDistinct, PgDependencies, PgMCVList} {
+		d := types[id]
+		usage := d.Usage()
+		metadata, ok := d.PGTypeMetadata()
+		if !ok || usage.Collation.ID != 100 || metadata.Collation != 100 || !usage.Valid() {
+			t.Fatal("statistics base default changed", id, usage.Collation, metadata.Collation)
+		}
+		usage.Collation = c
+		if !usage.Valid() || !Null(d).ValidResult(usage) {
+			t.Fatal("valid statistics-column collation rejected", id)
+		}
+		for _, invalid := range []CollationRef{{}, {ID: 999999}, {ID: 950, Derivation: Default + 1}} {
+			usage.Collation = invalid
+			if usage.Valid() {
+				t.Fatal("unchecked statistics collation admitted", id, invalid)
+			}
+		}
+		if d.Usage().Collation.ID != 100 {
+			t.Fatal("column usage mutated base descriptor", id)
+		}
+	}
+	integer := types[Int4].Usage()
+	integer.Collation = c
+	if integer.Valid() {
+		t.Fatal("noncollatable integer gained collation authority")
+	}
+	anyarray := types[2277].Usage()
+	anyarray.Collation = c
+	if anyarray.Valid() || anyarray.CatalogNullUsage() {
+		t.Fatal("pseudo-type gained ordinary or catalog NULL authority")
+	}
+}
+
 func TestStatisticsTypeOutput(t *testing.T) {
 	types, fresh := testTypes(), testTypes()
 	for _, tc := range []struct {
