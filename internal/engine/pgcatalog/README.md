@@ -497,7 +497,7 @@ diagnostics; retained rows own their original immutable typed backing.
   `(objoid,classoid,provider)`; no local `objsubid` exists. PostgreSQL native
   provider ABI/loading and SELinux/MAC integration are not available; bounded
   shared-target SECURITY LABEL commands fail before object lookup, never populate
-  rows. `pg_seclabel` and `pg_seclabels` are not implemented here.
+  rows. The local catalog and presentation view are separate sources below.
   Its explicit bootstrap ACL retains all eight owner table privileges plus
   PUBLIC SELECT, seeded through the common materialized-relation ACL path.
   Native unbounded TEXT length metadata is known `math.MaxInt64`; OID length and
@@ -542,6 +542,25 @@ diagnostics; retained rows own their original immutable typed backing.
   unreachable here, not delivered successful attachment behavior.
   Shared-object labels (`pg_shseclabel`) and the `pg_seclabels` presentation
   view remain separate and are not exposed by this source.
+- `pg_seclabels` is the genuine eight-column system view
+  `(objoid oid, classoid oid, objsubid int4, objtype text, objnamespace oid,
+  objname text, provider text, label text)`, with no synthetic oid. All view
+  attributes are nullable (known natively; lib/pq cannot report nullability).
+  `objtype` has default collation; `objname`, `provider` and `label` have C
+  collation. Native relation12099/rowtype12101/array12100 reuse the initialized
+  inventory, not portable PostgreSQL constants. The owned source validates
+  catalog/domain/epoch/type/shape and paired principal/database-owner authority,
+  returning allocation-free empty rows because no native provider/store exists.
+  The bootstrap ACL contains owner defaults and PUBLIC SELECT; current view/
+  column SELECT is checked even at EOF and on every held execution. Denial is
+  42501, not an empty successful result. Backing access is owner-authorized;
+  there is no invented target-object ACL or loaded-provider row filter.
+  Dependency-aware default/pretty definitions retain all thirteen released
+  local/shared UNION ALL branches and visibility-based name qualification.
+  Privileged INSERT/UPDATE/DELETE reject with 55000 and the UNION-specific
+  Detail/operation-specific Hint, including zero-input writes. Positive
+  provider-backed set/change/remove remains unreachable, not claimed delivered;
+  no registration API, label persistence or successful NULL removal is added.
 - `pg_partitioned_table` (3350) projects eight attributes from real immutable
   partition descriptors through `Runtime.PartitionMetadata`, without a row store
   or DDL population hooks. Stable key attnums, selected operator classes, effective

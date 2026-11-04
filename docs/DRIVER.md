@@ -757,8 +757,27 @@ provider validation or successful relabeling is implied. `classoid` is the targe
 catalog (role1260/database1262/tablespace1213/subscription6100); `(objoid,classoid,
 provider)` is the logical unique key (released primary index3593). The native
 catalog reports index presence without inventing physical index descriptors.
-Database-local `pg_seclabel` has an additional `objsubid`; it and `pg_seclabels`
-remain separate, unimplemented surfaces.
+Database-local `pg_seclabel` has the additional `objsubid` column and is likewise
+truthfully empty; it remains a separate five-column catalog.
+
+`pg_catalog.pg_seclabels` is the registered, read-only presentation **view** with
+eight columns: `(objoid oid, classoid oid, objsubid int4, objtype text,
+objnamespace oid, objname text, provider text, label text)`. All eight view
+attributes are nullable; native result descriptors know this, while lib/pq
+cannot report nullable metadata. `objtype` uses default collation and the final
+three text columns use C collation. Native initialized identities
+12099/12101/12100 (view/rowtype/array) are not portable PostgreSQL OIDs.
+Its full thirteen-branch local/shared UNION ALL definition follows PostgreSQL,
+including dependency-sensitive names and default/pretty display.
+PUBLIC SELECT and owner defaults are explicit; current relation/column SELECT
+ACLs govern every execution, including empty and held queries. Revocation
+returns 42501, never empty success. Backing catalogs are owner-authorized:
+neither represented-object privileges nor loaded-provider names filter rows.
+Privileged writes return 55000 with the UNION-specific Detail and the
+operation-specific INSTEAD OF trigger/rule Hint, even for zero-match writes.
+The view is currently genuinely empty because no native provider or label
+store exists. Successful set/change/remove and positive label projection are
+unavailable, not simulated by comments, synthetic providers or fake NULL removal.
 
 `pg_catalog.pg_shdepend` is the cluster-wide seven-column inventory
 `(dbid, classid, objid, objsubid, refclassid, refobjid, deptype)`.

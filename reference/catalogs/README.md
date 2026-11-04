@@ -202,6 +202,31 @@ replacement/deletion, provider veto or provider-backed target-ownership/storage 
 is claimed. Arbitrary, dummy and selinux names and NULL removal all reject;
 native controls never manufacture providers or label rows.
 
+Security-label **view** scenarios use the distinct plural family
+`make check RUN='^TestReferencePGSeclabels(Metadata|Shape|ProviderBoundary|Authorization|Diagnostics|Transactions|NativeControls|Definitions|FeatureSmoke)$'`
+and the same command with `REFERENCE=1` (pinned PostgreSQL18.6).
+The eight nullable descriptors and symbolic view/composite/array links are
+independent of native initialized OIDs. Direct/prepared/held empty reads,
+provider rebinding, retained descriptors, information_schema classification,
+owner/PUBLIC ACL semantics, column-only grants and held revocation are covered.
+No target-object/provider row filter is invented; backing SELECT denial is
+separate from owner-authorized view access. Provider-first full 22023 diagnostics
+leave both catalogs/view and real sentinel data/comments unchanged. View writes
+assert complete UNION-specific 55000 Detail/Hint even with empty input; savepoint
+and read-only tests check full 25P02/25006 recovery. Both modes retain the held
+view query through target rename, real column drop with the relation retained,
+and table replacement. After column drop, exact view descriptors/emptiness,
+view/backing counts, provider-first errors for the removed column and surviving
+sentinel values are asserted. Native-only phases retain actual descriptors and
+held queries through Dump/Reset/Restore and cancellation.
+Full default display is grounded in REL_18_6 `rules.out`'s released regression
+expectation; full pretty display is source-derived and checked against the same
+pinned oracle, including search_path shadows and quote_all_identifiers.
+The actual new-feature smoke is `RUN='^TestReferencePGSeclabelsFeatureSmoke$'`
+in both modes. No genuine native provider exists, so positive set/change/remove
+and populated label visibility are capability-inapplicable, not claimed passed.
+
+
 Encoding-name and parser-keyword scenarios use `RUN='^TestReferenceEncodingKeywords'`.
 Their independent release inventories cover all canonical encodings/aliases and
 the complete keyword bag. Shared direct/prepared bodies cover typed metadata,

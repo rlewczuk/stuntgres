@@ -1,5 +1,20 @@
 # Changes
 
+- Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
+  nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
+  allocation-free empty capture. Preserve the full dependency-aware thirteen-
+  branch local/shared UNION ALL definition and exact non-updatable diagnostics.
+  Current view/column SELECT applies even at EOF and on held execution; backing
+  access is owner-authorized without invented object/provider row filtering.
+  Add independent direct/prepared/held, shape, provider-first failure, complete
+  authorization/transaction diagnostics, definition, native-control and feature
+  smoke coverage. Assert view-specific permission denials and complete UNION
+  write diagnostics at actual prepare failure as well as direct execution.
+  Exercise real column drop with the sentinel relation retained: held view
+  metadata, empty catalogs, provider-first errors and surviving data stay exact.
+  No native label provider/store exists; successful assignments,
+  changes/removals and populated label projection are not fabricated or claimed.
+
 - Expose the read-only, fifteen-column `pg_catalog.pg_stat_wal_receiver` view
   with exact nullable metadata, ordinary PUBLIC SELECT, released view display
   and normal mutation diagnostics. With no actual physical receiver it is

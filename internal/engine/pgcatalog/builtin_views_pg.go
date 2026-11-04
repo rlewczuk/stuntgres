@@ -17,6 +17,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatCheckpointerOID, parts: checkpointerViewParts, prettyParts: checkpointerViewParts},
 	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},
 	{oid: PoliciesOID, parts: policiesViewParts(false), prettyParts: policiesViewParts(true)},
+	{oid: SeclabelsOID, parts: seclabelsViewParts(false), prettyParts: seclabelsViewParts(true)},
 	{oid: StatsOID, parts: statisticsViewParts(false), prettyParts: statisticsViewParts(true)},
 	{oid: ProgressCreateIndexOID, returnRule: ProgressCreateIndexRuleOID, parts: createIndexProgressViewParts(false), prettyParts: createIndexProgressViewParts(true)},
 	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts(false), prettyParts: clusterProgressViewParts(true)},

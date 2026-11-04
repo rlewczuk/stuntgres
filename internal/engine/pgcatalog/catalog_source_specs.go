@@ -907,6 +907,16 @@ var Specs = [...]Spec{
 		{"rulename", sqltype.Name, true, 0, 0, -1},
 		{"definition", sqltype.Text, true, 0, 0, -1},
 	}, true, CatalogHasIndexes(RulesOID), false, false, "stuntgres: missing catalog source type"},
+	{SeclabelsOID, ids.PGCatalogNamespaceOID, "pg_seclabels", []ColumnSpec{
+		{"objoid", sqltype.Oid, true, 0, 0, -1},
+		{"classoid", sqltype.Oid, true, 0, 0, -1},
+		{"objsubid", sqltype.Int4, true, 0, 0, -1},
+		{"objtype", sqltype.Text, true, 0, 0, -1},
+		{"objnamespace", sqltype.Oid, true, 0, 0, -1},
+		{"objname", sqltype.Text, true, 950, 0, -1},
+		{"provider", sqltype.Text, true, 950, 0, -1},
+		{"label", sqltype.Text, true, 950, 0, -1},
+	}, true, false, true, false, "stuntgres: missing security labels view type"},
 	{12000, ids.PGCatalogNamespaceOID, "pg_views", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"viewname", sqltype.Name, true, 0, 0, -1},

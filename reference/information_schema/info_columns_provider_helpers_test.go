@@ -103,6 +103,7 @@ func icProviderInventory(c *icCase) {
 		"pg_wait_events":                    strings.Fields("type name description"),
 		"pg_policies":                       strings.Fields("schemaname tablename policyname permissive roles cmd qual with_check"),
 		"pg_rules":                          strings.Fields("schemaname tablename rulename definition"),
+		"pg_seclabels":                      strings.Fields("objoid classoid objsubid objtype objnamespace objname provider label"),
 		"pg_tables":                         strings.Fields("schemaname tablename tableowner tablespace hasindexes hasrules hastriggers rowsecurity"),
 		"pg_matviews":                       strings.Fields("schemaname matviewname matviewowner tablespace hasindexes ispopulated definition"),
 		"pg_indexes":                        strings.Fields("schemaname tablename indexname tablespace indexdef"),
@@ -210,6 +211,7 @@ func icProviderInventory(c *icCase) {
 			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_xact_user_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions", "pg_stat_user_functions", "pg_replication_origin_status")
 			views = append(views, "pg_replication_slots")
 			views = append(views, "pg_stat_wal_receiver")
+			views = append(views, "pg_seclabels")
 			for _, view := range views {
 				if view == table {
 					kind = "v"
