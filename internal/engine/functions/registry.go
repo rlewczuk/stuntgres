@@ -64,6 +64,7 @@ var definitions = [...]Definition{
 	{Names: statsXactBlocksNames[:], ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindStatsXactBlocks},
 	{Names: sessionEndpointNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionEndpoint},
 	{Names: statisticsIONames, ExactSpelling: true, SharedGates: true, Bind: bindStatisticsIO},
+	{Names: []string{"pg_mcv_list_items"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindStatisticsMCVItems, NamedCall: namedStatisticsMCVItems},
 	{Names: []string{"ordered_set_transition_multi", "rank_final", "dense_rank_final", "percent_rank_final", "cume_dist_final"}, ExactSpelling: true, SharedGates: true, Bind: bindAggregateContextSupport},
 	{Names: []string{"int4larger"}, ExactSpelling: true, SharedGates: true, Bind: bindInt4Larger},
 	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained", "ts_match_vq", "ts_match_qv", "ts_match_tt", "ts_match_tq"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},

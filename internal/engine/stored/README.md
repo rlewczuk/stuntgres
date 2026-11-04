@@ -52,6 +52,17 @@ Statistics recipes use these same expression remap/retag and stable-attribute
 deparse owners. Replacement remaps relation/input/provider references and both
 definition and execution trees before validating destination usages; it never
 retains source OID authority or rebinds a rendered expression during ANALYZE.
+Stored query schemas can retain the protected data source's self-owned
+`CatalogNullUsage` carriers, including its unprojected `pg_statistic[]` field.
+These result-only usages still require the exact current catalog descriptor
+and collation authority; descriptor copies, lookalikes and foreign generations
+are invalid. This does not admit pseudo-type inputs or stored table columns,
+and ordinary `Usage.Valid` remains unchanged.
+MCV item providers authenticate their original formal/OUT shape and captured
+builtin declaration before any type or procedure remap, including an identity
+rewrite. The original must match the current declaration ABI and display
+contract; an equivalent immutable carrier need not be the same pointer.
+Current owner/ACL replacements do not become captured permission decisions.
 Ordinary descriptor owner/target/name changes share immutable recipe identity.
 `Deparser.StatisticsElement` presents definition trees with reduced internal
 parentheses and typed function-shape classification. It reuses `FunctionSyntax`

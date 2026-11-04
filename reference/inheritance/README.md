@@ -111,6 +111,17 @@ Authority, transaction visibility, real blocked cancellation, stale semantic
 Dump/Restore, destination reminting and genuine retained TEMP facts use public
 APIs. Select the family with `make check RUN='^TestReferenceStatisticsMCV'`
 (add `REFERENCE=1` for the pinned oracle).
+The `StatisticsMCVItems` subfamily inspects actual public function rows rather
+than deriving expected text from physical images. It independently asserts array
+elements/raw carriers, current type presentation, fixed empty/populated/RECORD
+metadata and full diagnostics, along with held-source permissions, cancellation
+and stale semantic native replay. Select it with
+`make check RUN='^TestReferenceStatisticsMCVItems'` in either mode.
+Native item round trips keep raw pools for Dump/Restore controls and use the
+matching recorded pool for destination SQL assertions. An independent Driver
+uses `fixture.RecordedNativePool` and its own recorder; same-engine replay uses
+the scenario's recorded native pool. Independent item expectations are retained,
+with destination raw-value consumption and cursor closure checked separately.
 
 Expression-statistics scenarios use the same public direct/prepared fixture and
 the genuine `pg_statistic_ext_data.stxdexpr` row array: subscript/field access,

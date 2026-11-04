@@ -373,11 +373,6 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 			q := "SELECT count(*) AS v FROM (SELECT DISTINCT " + expression + " FROM pg_attrdef a JOIN pg_class c ON c.oid=a.adrelid WHERE c.relname='og_boundary_tree') q"
 			if expression != "adbin" {
 				d := fixture.Diagnostic{Code: "42704", Message: "could not find array type for data type pg_node_tree", Position: fixture.Position(strings.Index(q, expression) + 1)}
-				if !b.PG {
-					// bindArray requires LookupArray's registered concrete type;
-					// pg_node_tree deliberately has no such SQL array descriptor.
-					d.Code, d.Message = "0A000", "unsupported array element type"
-				}
 				s := fixture.ImplicitError(q, d)
 				s.SelectRows, s.ErrorStage = true, "execute"
 				if prepared {
@@ -397,7 +392,7 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 			} else {
 				run(fixture.Select(q, []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}}))
 				q = "SELECT count(*) AS v FROM (SELECT DISTINCT ARRAY[adbin] FROM pg_attrdef a JOIN pg_class c ON c.oid=a.adrelid WHERE c.relname='og_boundary_tree') q"
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "unsupported array element type", Position: fixture.Position(strings.Index(q, "ARRAY[") + 1)})
+				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42704", Message: "could not find array type for data type pg_node_tree", Position: fixture.Position(strings.Index(q, "ARRAY[") + 1)})
 				s.SelectRows, s.ErrorStage = true, "execute"
 				if prepared {
 					s.ErrorStage = "prepare"

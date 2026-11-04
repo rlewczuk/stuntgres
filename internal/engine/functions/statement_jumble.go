@@ -467,6 +467,9 @@ func (SizeInquiry) JumbleFields(s expr.StatementFields) { s.JumbleText("function
 func (RelationStatistics) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.RelationStatistics")
 }
+func (StatisticsMCVItems) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.StatisticsMCVItems")
+}
 func (ReplicationMessages) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.ReplicationMessages")
 }

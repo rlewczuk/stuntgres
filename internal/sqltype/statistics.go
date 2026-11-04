@@ -20,6 +20,11 @@ func IsStatisticsType(id ID) bool {
 type statisticsPayload struct {
 	kind            ID
 	binary, display string
+	mcv             *statisticsMCVPayload
+}
+
+func sameStatistics(a, b *statisticsPayload) bool {
+	return a.kind == b.kind && a.binary == b.binary && a.display == b.display
 }
 
 // StatisticsItem is one checked construction input. Value is an ndistinct

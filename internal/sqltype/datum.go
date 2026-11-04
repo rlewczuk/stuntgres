@@ -33,7 +33,7 @@ func SameDatum(a, b Value) bool {
 		return err == nil && same
 	}
 	if IsStatisticsType(a.typ.BaseType().id) {
-		return a.validStatistics() && b.validStatistics() && *a.statistics == *b.statistics
+		return a.validStatistics() && b.validStatistics() && sameStatistics(a.statistics, b.statistics)
 	}
 	if a.typ.BaseType().IsSeg() {
 		return a.seg.valid() && b.seg.valid() && a.seg == b.seg

@@ -171,6 +171,31 @@ func StatisticsMCVBuild(ctx context.Context, descriptor *Descriptor, usages []Us
 	if err != nil {
 		return Value{}, err
 	}
+	backing := &statisticsMCVPayload{width: width, items: make([]StatisticsMCVItem, len(items))}
+	for d, usage := range usages {
+		if err := ctx.Err(); err != nil {
+			return Value{}, err
+		}
+		backing.usages[d] = usage
+		backing.dictionaries[d] = make([]Value, len(dictionaries[d]))
+		for i, value := range dictionaries[d] {
+			if i&255 == 0 {
+				if err := ctx.Err(); err != nil {
+					return Value{}, err
+				}
+			}
+			backing.dictionaries[d][i] = value
+		}
+	}
+	for i, item := range items {
+		if i&255 == 0 {
+			if err := ctx.Err(); err != nil {
+				return Value{}, err
+			}
+		}
+		backing.items[i] = item
+	}
+	result.statistics.mcv = backing
 	if err = ctx.Err(); err != nil {
 		return Value{}, err
 	}

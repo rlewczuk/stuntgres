@@ -80,6 +80,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{5019, ids.PGCatalogNamespaceOID, "pg_mcv_list_out", "5017"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{5020, ids.PGCatalogNamespaceOID, "pg_mcv_list_recv", "2281"}, catalog.FunctionRoutine, 5017, true, expr.Stable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{5021, ids.PGCatalogNamespaceOID, "pg_mcv_list_send", "5017"}, catalog.FunctionRoutine, 17, true, expr.Stable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
+	{catalog.RoutineIdentity{3427, ids.PGCatalogNamespaceOID, "pg_mcv_list_items", "5017"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.EmbeddedRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{23, 1009, 1000, 701, 701}, "mcv_list", "index", "values", "nulls", "frequency", "base_frequency")},
 	{catalog.RoutineIdentity{3231, ids.PGCatalogNamespaceOID, "pg_lsn_lt", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3232, ids.PGCatalogNamespaceOID, "pg_lsn_le", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3233, ids.PGCatalogNamespaceOID, "pg_lsn_eq", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},

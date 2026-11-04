@@ -279,10 +279,16 @@ admission and removes it before nested binding.
   remains valid for storage, parameters and results. Checked internal producer
   constructors `StatisticsValue`/`StatisticsMCVValue` freeze real payloads once;
   `StatisticsMCVBuild` encodes checked typed dictionaries and explicit NULL/index/
-  frequency items using native physical datums, never wire output. Construction
-  retains no caller slices. Payload fields stay private and compatible retags
-  share backing. Distinct/dependency output uses released map formatting; MCV
-  output follows bytea hex/escape presentation.
+  frequency items using native physical datums, never wire output. It also freezes
+  their typed construction once for the read-only `StatisticsMCVView`; indexed
+  access preserves actual typed NULLs without lending mutable dictionaries.
+  Construction retains no caller slices. Compatible outer retags share backing,
+  not reminted embedded identities; destination replay rebuilds with destination
+  usages. Representation equality compares kind/bytes/display, independently of
+  auxiliary typed backing. Raw `StatisticsMCVValue` images retain output/send
+  authority only and explicitly reject typed inspection; no binary decoder or
+  SQL input is granted. Distinct/dependency output uses released map formatting;
+  MCV output follows bytea hex/escape presentation.
   Dependency dimensions admit positive sparse attribute numbers and expression
   identities -1..-8 with the dependent last; zero, duplicates and invalid widths
   remain rejected. This producer authority does not admit SQL datum input.
@@ -1039,6 +1045,9 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 [docs/TESTING.md](../../docs/TESTING.md). Tests of types, operators, casts,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
+Immutable typed MCV construction, indexed view and representation equality use
+`RUN='^TestStatisticsMCVTypedBridge$'`; canonical physical encoding vectors remain
+in the `TestStatisticsMCVNative` family.
 XML datum ownership, mapping and codec units use `RUN='^TestXML(SQL|ProduceSQL)'`.
 XMLTABLE target-input adapter units use `RUN='^TestXMLTableTypeInput$'`.
 Row/scope mapper datum sharing and failure ownership use `RUN='^TestXMLMap(Rows|Scope)Ownership$'`.

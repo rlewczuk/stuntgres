@@ -126,7 +126,7 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 	projects := make(map[uint32]*plan.ProjectNode, len(definition.frames))
 	marked := make(map[uint32]bool)
 	checkUsage := func(usage sqltype.Usage) error {
-		if !usage.Valid() {
+		if !usage.Valid() && !usage.CatalogNullUsage() {
 			return fmt.Errorf("stuntgres: invalid view query usage")
 		}
 		if err := ValidateUsageCollation(catalog, usage); err != nil {

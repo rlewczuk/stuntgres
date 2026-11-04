@@ -71,6 +71,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3397: {"string", "pattern", "flags"},
 		3423: {"rootrelid", "relid", "parentrelid", "isleaf", "level"},
 		3425: {"partitionid", "relid"},
+		3427: {"mcv_list", "index", "values", "nulls", "frequency", "base_frequency"},
 		3441: {"pg_control_version", "catalog_version_no", "system_identifier", "pg_control_last_modified"},
 		3442: {"checkpoint_lsn", "redo_lsn", "redo_wal_file", "timeline_id", "prev_timeline_id", "full_page_writes", "next_xid", "next_oid", "next_multixact_id", "next_multi_offset", "oldest_xid", "oldest_xid_dbid", "oldest_active_xid", "oldest_multi_xid", "oldest_multi_dbid", "oldest_commit_ts_xid", "newest_commit_ts_xid", "checkpoint_time"},
 		3443: {"min_recovery_end_lsn", "min_recovery_end_timeline", "backup_start_lsn", "backup_end_lsn", "end_of_backup_record_required"},

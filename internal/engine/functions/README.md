@@ -587,6 +587,22 @@ Input/output retain immutable declaration volatility; send is STABLE and never
 planning-folded. Receive has released STABLE catalog metadata but no callable
 INTERNAL-argument provider.
 
+`StatisticsMCVItems` binds one named `pg_mcv_list` formal and an occurrence-owned
+five-OUT record through the ordinary declaration, coercion and EXECUTE owners.
+Its STABLE, strict, unfolded source evaluates the operand once per invocation,
+borrows the canonical typed view and streams retained positions and frequencies.
+Non-NULL dimensions use their actual type's current invocation output policy;
+SQL NULL becomes a real TEXT-array NULL and a non-NULL true BOOL flag. Empty input
+retains the fixed shape. EOF, close and failures release invocation backing;
+analyzed nodes retain no distribution, presentation image or permission decision.
+Catalog-text demand is necessary because the opaque formal may contain reg*
+dictionaries. DATA authorization remains with the argument's protected source.
+Generic record composition, rendering and destination replay need no builtin
+serializer or alternative statistics collector.
+Statement identity projects only the static `StatisticsMCVItems` discriminator;
+the analyzed visitor owns selected routine identity and lexical operand traversal,
+without opening the source or inspecting its distribution.
+
 `Deparse` retains a checked signature, immutable operands and selected routine
 provenance for the catalog definition inquiries, including the two one-OID
 partition inquiries and the one-OID statistics inquiry. Calls return known nullable
@@ -1836,6 +1852,9 @@ behavior is tested only in `reference/`
 Datetime sleep source admission and scalar-once lifetime use
 `RUN='^TestDatetimeSleepScalarSource$'`, also with `RACE=1`.
 Statistics I/O volatility and folding units use `RUN='^TestStatisticsObjectIO'`.
+Typed MCV binding, cursor, accepted-generation and stored-query usage ownership units use
+`RUN='^TestStatisticsMCVItems'`; shared public scenarios live in
+`reference/inheritance`.
 Settings/options declaration and expression protocols use
 `RUN='^TestSettingsOptionsBinding$'`; private cursor ownership, typed EOF,
 whole-input validation and cancellation use `RUN='^TestOptionsToTableCursor$'`.

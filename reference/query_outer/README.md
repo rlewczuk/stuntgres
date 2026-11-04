@@ -100,6 +100,11 @@ The two rewrite inquiries retain their fixed zero-input STABLE, strict,
 parallel-restricted scalar identities; only OID4566 declares a named OUT `oid`.
 Settings flags and option expansion retain released STABLE/strict declarations,
 unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
+MCV item inspection adds callable OID3427, its named pg_mcv_list input and
+five fixed OUT fields, strict STABLE/parallel-safe record-set metadata,
+row estimate 1000 and internal source `pg_stats_ext_mcvlist_items`.
+The complete membership bag and all direct/prepared property projections
+include this released declaration.
 The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
 signatures, their modern implementation symbols, strictness, volatility and
 parallel-safety declarations; snapshot member expansion has row estimate 50.

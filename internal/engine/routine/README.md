@@ -59,6 +59,12 @@ fields form strict VOLATILE/parallel-restricted SETOF record, cost 1 and rows 10
 The fresh descriptor receives owner/pg_read_all_stats EXECUTE; subsequent grants
 and revokes use normal runtime authority independently of the view's SELECT.
 
+The executable `pg_mcv_list_items` declaration reuses fixed identity 3427 and
+formal 5017, with one named input and five fixed OUT fields. The strict STABLE,
+parallel-safe set belongs to the embedded provider; its internal display source
+is `pg_stats_ext_mcvlist_items`. Identity lookup alone does not grant callable
+authority, an input decoder or access to protected statistics.
+
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
 row estimate describe the backing view routine, not a callable SRF. Its explicit

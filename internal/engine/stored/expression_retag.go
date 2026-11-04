@@ -77,6 +77,27 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		return node, false, nil
 	}
 	info := expr.InfoOf(node)
+	if call, ok := node.(functions.StatisticsMCVItems); ok {
+		if err := call.ValidateStoredProvider(); err != nil {
+			return nil, false, err
+		}
+		captured, err := exec.ExpressionRoutineDescriptor(call)
+		if err != nil {
+			return nil, false, err
+		}
+		if captured == nil || captured.Address().ObjectID != 3427 || captured.Builtin == nil || captured.Builtin.Identity.ID != 3427 || captured.Builtin.Identity.Namespace != ids.PGCatalogNamespaceOID || captured.Builtin.Providers&functions.EmbeddedRoutineProvider == 0 {
+			return nil, false, fmt.Errorf("stuntgres: invalid MCV item routine declaration")
+		}
+		if view.State() != nil {
+			// Authenticate the original even for an identity rewrite, before
+			// any mapper can replace its declaration or type generations.
+			descriptor, _ := catalog.DescriptorAt(view, reader, captured.Address())
+			current, _ := descriptor.(*catalog.Procedure)
+			if !exec.SameRoutineDeclaration(current, captured) {
+				return nil, false, fmt.Errorf("stuntgres: stale MCV item routine declaration")
+			}
+		}
+	}
 	if leaf != nil || directChild != nil {
 		info.Property = RewrittenIntrinsicProperties(node)
 	}

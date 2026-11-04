@@ -749,6 +749,9 @@ library, and never the root engine or `session`. The engine, the root driver
   Registered rank/headline selection reaches this same seam through
   `CallableArgument`, retaining a `LookupOnlyArgument` carrier rather than
   reanalyzing syntax or inventing executable query-array support.
+  An absent array association is a definition error (`42704`, naming its
+  element type), distinct from an existing but unsupported execution provider.
+  Neither path manufactures an array descriptor or enables element codecs.
 - **Catalog-aware coercion** (`cast.go`): `catalog.SelectCoercion` selects
   declared pairs before fallback and builds only the winning expression.
   `catalog.CanCoerce` is the effect-free feasibility predicate shared with

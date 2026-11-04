@@ -85,6 +85,8 @@ import (
 // parallel-safe declarations3327/3759 with immutable/stable volatility.
 // Pure LSN difference OID3165 retains two unnamed PG_LSN inputs, a NUMERIC
 // result, strict IMMUTABLE/parallel-safe defaults and its internal source.
+// MCV item inspection adds OID3427's strict STABLE/parallel-safe record set,
+// named input/five OUT fields, row estimate1000 and released internal symbol.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -270,8 +272,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Pure LSN difference adds released OID3165 with pg_proc.h defaults.
 	// Subscription cumulative statistics adds strict STABLE/restricted scalar
 	// RECORD declaration6231, one named IN OID, eleven OUT fields and rows0.
-	if len(facts) != 2283 {
-		t.Fatalf("released represented overloads: got %d, want 2283", len(facts))
+	// MCV item inspection adds the one-input/five-OUT record set OID3427.
+	if len(facts) != 2284 {
+		t.Fatalf("released represented overloads: got %d, want 2284", len(facts))
 	}
 	return facts
 }

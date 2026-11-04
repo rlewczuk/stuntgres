@@ -88,7 +88,10 @@ func (b *Binder) bindArray(raw parser.ArrayExpr, target sqltype.Usage, lookupUsa
 				}
 				ok = true
 			}
-			if !ok || !array.Concrete() && lookupUsage == nil {
+			if !ok {
+				return nil, expr.ErrorAt("42704", fmt.Sprintf("could not find array type for data type %s", b.DiagnosticTypeName(selected.Type)), raw.Pos)
+			}
+			if !array.Concrete() && lookupUsage == nil {
 				return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
 			}
 			target = selected
@@ -226,11 +229,13 @@ func (b *Binder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 	}
 	usage := base.ResultUsage().BaseUsage()
 	if usage.Type.IsCatalogVector() {
-		lowered:=b.Type(usage.Type.Element().AssociatedArray()).Usage()
-		conversion,err:=sqltype.PlanCoercion(usage,lowered,sqltype.Implicit)
-		if err!=nil{return nil,err}
-		base=plan.CoercionExpr{Info:b.Info(lowered,base.SourcePosition(),CoercionProperties(base,conversion)),Child:base,Plan:conversion,Mode:sqltype.Implicit}
-		usage=lowered
+		lowered := b.Type(usage.Type.Element().AssociatedArray()).Usage()
+		conversion, err := sqltype.PlanCoercion(usage, lowered, sqltype.Implicit)
+		if err != nil {
+			return nil, err
+		}
+		base = plan.CoercionExpr{Info: b.Info(lowered, base.SourcePosition(), CoercionProperties(base, conversion)), Child: base, Plan: conversion, Mode: sqltype.Implicit}
+		usage = lowered
 	}
 	if usage.Type.IsHstore() {
 		return b.bindHstoreSubscript(raw, base, usage.Type)

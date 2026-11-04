@@ -134,6 +134,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	5019: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_out"},
 	5020: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_recv"},
 	5021: {Language: catalog.InternalRoutineLanguage, Source: "pg_mcv_list_send"},
+	3427: {Language: catalog.InternalRoutineLanguage, Source: "pg_stats_ext_mcvlist_items"},
 	3231: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_lt"},
 	3232: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_le"},
 	3233: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_eq"},
