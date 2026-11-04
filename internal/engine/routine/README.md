@@ -85,6 +85,15 @@ EXECUTE. Default ACLs reconstruct on replacement; explicit user ACLs remain
 replay state. Zero provider flags and exclusion from the callable selector
 inventory keep direct and prepared SQL getter calls unsupported.
 
+Xact function getters3046/3047/3048 use that zero-provider authority registry:
+one OID input, strict VOLATILE/parallel-restricted scalar INT8/FLOAT8/FLOAT8,
+cost1, no OUT/default/variadic/set metadata, internal source matching SQL name.
+Implicit PUBLIC EXECUTE reconstructs without Dump replay; explicit user ACLs
+are retained state. Ordinary callable/provider/selector inventories are unchanged.
+Their volatile view targets survive projection pruning, independently of selected
+outer columns; catalog display and live ACL authority do not implement public calls.
+
+
 Bgwriter view getters2772/2773/2859/3075 use the same engine-owned zero-provider,
 implicit PUBLIC EXECUTE authority. They are zero-input strict STABLE,
 parallel-restricted scalar declarations (INT8 for counters, TIMESTAMPTZ for reset),

@@ -40,6 +40,7 @@ type Fact struct {
 	SequencePageAccesses                                                                           int64
 	BlocksFetched, BlocksHit                                                                       int64
 	TotalTime, SelfTime                                                                            time.Duration
+	FunctionLogicalTotal, FunctionLogicalSelf                                                       int64
 	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
 	ApplyErrorCount, SyncErrorCount                                                                int64
 	ConflInsertExists, ConflUpdateOriginDiffers, ConflUpdateExists, ConflUpdateMissing             int64
@@ -179,6 +180,8 @@ func merge(a, b Fact) Fact {
 	a.BlocksHit += b.BlocksHit
 	a.TotalTime += b.TotalTime
 	a.SelfTime += b.SelfTime
+	a.FunctionLogicalTotal += b.FunctionLogicalTotal
+	a.FunctionLogicalSelf += b.FunctionLogicalSelf
 	a.Database.Add(b.Database)
 	return a
 }
@@ -192,6 +195,7 @@ type Writer struct {
 	generation             uint64
 	initialized            bool
 	chargedSelf            time.Duration // Backend-wide completed function self time; owner-serialized.
+	logicalSelf            int64 // Completed invocation units, independent of elapsed timing.
 	sharedPending          [SharedKindCount]SharedFact
 	slruPending            [SLRUCount]SLRUFact
 	backendPending         map[ids.SessionToken]BackendFact
@@ -385,11 +389,15 @@ type FunctionUsage struct {
 	key                Key
 	generation         uint64
 	total, chargedSelf time.Duration
+	logicalTotal, logicalSelf int64
 }
 
 // BeginFunction captures recursion and backend self baselines under the same
 // generation authority as publication. Selection happens before this boundary.
 func (w *Writer) BeginFunction(p *Provider, k Key) (FunctionUsage, bool) {
+	if k.Category != Function {
+		return FunctionUsage{}, false
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if _, retired := p.retired[k]; retired {
@@ -399,7 +407,14 @@ func (w *Writer) BeginFunction(p *Provider, k Key) (FunctionUsage, bool) {
 		w.clearPending()
 		w.generation, w.initialized = p.generation, true
 	}
-	return FunctionUsage{key: k, generation: w.generation, total: w.pending[k].TotalTime, chargedSelf: w.chargedSelf}, true
+	if w.pending == nil {
+		w.pending = make(map[Key]Fact)
+	}
+	f, present := w.pending[k]
+	if !present {
+		w.pending[k] = Fact{} // Admission is visible before successful completion.
+	}
+	return FunctionUsage{key: k, generation: w.generation, total: f.TotalTime, chargedSelf: w.chargedSelf, logicalTotal: f.FunctionLogicalTotal, logicalSelf: w.logicalSelf}, true
 }
 
 // EndFunction records only a normally completed body. Replacing the pending
@@ -424,6 +439,9 @@ func (w *Writer) EndFunction(p *Provider, usage FunctionUsage, elapsed time.Dura
 	f.Calls++
 	f.TotalTime = usage.total + elapsed
 	f.SelfTime += self
+	f.FunctionLogicalTotal = usage.logicalTotal + (w.logicalSelf - usage.logicalSelf) + 1
+	f.FunctionLogicalSelf++
+	w.logicalSelf++
 	w.pending[usage.key] = f
 }
 func (w *Writer) Function(p *Provider, k Key, policy Policy, language string, inlined bool, total, self time.Duration) {
@@ -609,6 +627,21 @@ func (w *Writer) PendingRelation(p *Provider, k Key) Fact {
 		return Fact{}
 	}
 	return w.pending[k]
+}
+
+// PendingFunction distinguishes absent activity from an admitted zero entry.
+// Inquiry is owner-local and does not allocate, publish or move the throttle.
+func (w *Writer) PendingFunction(p *Provider, k Key) (Fact, bool) {
+	if k.Category != Function {
+		return Fact{}, false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+		return Fact{}, false
+	}
+	f, present := w.pending[k]
+	return f, present
 }
 
 // ReportAnalyze is the source-specific immediate shared reporting boundary.

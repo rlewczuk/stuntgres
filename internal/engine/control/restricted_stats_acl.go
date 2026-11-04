@@ -57,6 +57,12 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_stat_get_checkpointer_slru_written", 0
 		case 6314:
 			name, entries = "pg_stat_get_checkpointer_stat_reset_time", 0
+		case 3046:
+			name, entries = "pg_stat_get_xact_function_calls", 0
+		case 3047:
+			name, entries = "pg_stat_get_xact_function_total_time", 0
+		case 3048:
+			name, entries = "pg_stat_get_xact_function_self_time", 0
 		case 5052:
 			name = "pg_get_shmem_allocations"
 		case 4100:

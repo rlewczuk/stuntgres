@@ -9,6 +9,7 @@ func icMaintenanceInventory(inventory map[string][]string) {
 	}
 	inventory["pg_stat_xact_all_tables"] = strings.Fields("relid schemaname relname seq_scan seq_tup_read idx_scan idx_tup_fetch n_tup_ins n_tup_upd n_tup_del n_tup_hot_upd n_tup_newpage_upd")
 	inventory["pg_stat_xact_sys_tables"] = inventory["pg_stat_xact_all_tables"]
+	inventory["pg_stat_xact_user_functions"] = strings.Fields("funcid schemaname funcname calls total_time self_time")
 	inventory["pg_stat_all_indexes"] = strings.Fields("relid indexrelid schemaname relname indexrelname idx_scan last_idx_scan idx_tup_read idx_tup_fetch")
 	inventory["pg_stat_sys_indexes"] = inventory["pg_stat_all_indexes"]
 	inventory["pg_statio_all_indexes"] = strings.Fields("relid indexrelid schemaname relname indexrelname idx_blks_read idx_blks_hit")

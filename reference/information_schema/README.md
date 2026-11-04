@@ -124,6 +124,11 @@ columns and view classification. These are checked through direct and prepared
 information-schema consumers alongside the other progress and statistics sources.
 SYS also has a full 44-field columns projection: nullable OID/NAME/INT8 facts,
 NAME C collation, absent defaults/identity/generation and no updatable columns.
+The same full projection includes `pg_stat_xact_user_functions` as a six-column
+view: OID/NAME/NAME/INT8/FLOAT8/FLOAT8, nullable YES and updatable NO, NAME C
+collation, bigint precision64/radix2/scale0, float8 precision53/radix2 without
+fabricated scale, and absent defaults/identity/generated metadata. Direct,
+fresh-prepared and held consumers share the complete provider inventory.
 The cluster progress columns include the index OID and five bigint counters. Presence belongs
 to the complete native provider bag, not a filter or a fabricated runtime worker.
 The administrator provider inventory classifies `pg_config` as a view with its

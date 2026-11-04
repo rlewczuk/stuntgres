@@ -35,14 +35,15 @@ func (q *KeepQuery) Keep(ctx context.Context, input sqltype.InputEnvironment, ou
 	return pgcatalog.Keep{}
 }
 
-// ScalarStatsReadSuppressed preserves scalar getter ACL demand while proving
-// that no expression is evaluated. Other sources retain their capture policy.
+// ScalarStatsReadSuppressed proves literal non-evaluation for this occurrence.
+// STABLE consumers retain getter ACL demand; the xact-function consumer instead
+// eliminates uninitialized volatile-subtree demand. Other capture policy is unchanged.
 func (q *KeepQuery) ScalarStatsReadSuppressed(leaves []exec.Leaf, i int, mark plan.RowMark) bool {
 	if q == nil || mark.Mode != 0 || !sameLeafTables(q.Leaves, leaves) {
 		return false
 	}
 	oid := leaves[i].Relation.Address().ObjectID
-	if oid != pgcatalog.StatBGWriterOID && oid != pgcatalog.StatCheckpointerOID {
+	if oid != pgcatalog.StatBGWriterOID && oid != pgcatalog.StatCheckpointerOID && oid != pgcatalog.StatXactUserFunctionsOID {
 		return false
 	}
 	return exec.CatalogSourceFalse(q.Root, i, leaves[i].Ref)

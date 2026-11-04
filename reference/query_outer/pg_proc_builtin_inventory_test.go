@@ -252,8 +252,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Checkpointer adds eleven metadata-only strict STABLE/restricted zero-input
 	// scalar declarations: eight INT8 counters, two FLOAT8 times and TIMESTAMPTZ
 	// reset, with no OUT fields/defaults and default PUBLIC EXECUTE authority.
-	if len(facts) != 2271 {
-		t.Fatalf("released represented overloads: got %d, want 2271", len(facts))
+	// Xact function view authority adds three strict VOLATILE/restricted
+	// unnamed OID-input scalar declarations3046/3047/3048, with INT8/FLOAT8
+	// results, no OUT/default/set metadata and default PUBLIC EXECUTE.
+	if len(facts) != 2274 {
+		t.Fatalf("released represented overloads: got %d, want 2274", len(facts))
 	}
 	return facts
 }

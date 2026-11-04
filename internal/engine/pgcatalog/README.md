@@ -1526,6 +1526,27 @@ catalog writes or bypass a provider's independent backing-source checks.
   underlying tables/schemas. Both consume the current qualified physical writer
   plus live owner/stage counts, never peer or published history. SYS's simple
   dependency-aware display rewrites mutation diagnostics to grouped ALL.
+- `pg_stat_xact_user_functions` (relation12284, rowtype12286, array12285):
+  six nullable attributes in released order: OID funcid, NAME schemaname/funcname,
+  INT8 calls, FLOAT8 total_time/self_time. Current non-INTERNAL procedures with a
+  present pending function entry qualify, including admitted calls0/times0; absent
+  activity is absent rather than fabricated zero or masked NULL. Identity/name
+  Keep rejection precedes inquiry. The authenticated physical owner supplies copied
+  pending facts, never published/peer facts or a cumulative Reader. Tracking changes
+  affect new collection, not membership of already collected events. Completed
+  events survive rollback; legitimate publication removes pending entries, while
+  throttled batches can cross transaction ends. Names follow current catalog DDL.
+  Nonowner/schema/underlying-routine ACLs do not redact distribution, but current
+  view/column SELECT and invoker EXECUTE on all three retained VOLATILE backing
+  expressions remain mandatory, including identity/count/LIMIT0 reads. Literal
+  FALSE eliminates backing expression initialization, not own-view SELECT.
+  Only timings approximate physical behavior: one logical millisecond per completed
+  tracked invocation, total inclusive of tracked descendants and self own-only,
+  with same-key recursion overlap removed. Genuine provider elapsed time is retained.
+  Normal rows have no NULL cells; outer joins can naturally produce typed NULLs.
+  Detached results have no portable order without ORDER BY. The structured default/
+  pretty LEFT JOIN definition is display-only and yields ordinary join-view
+  read-only diagnostics, never public getter execution.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership

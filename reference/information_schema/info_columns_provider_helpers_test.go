@@ -203,7 +203,7 @@ func icProviderInventory(c *icCase) {
 			kind := "r"
 			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription", "pg_stat_checkpointer", "pg_stat_ssl")
-			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_replication", "pg_stat_sys_indexes")
+			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions")
 			for _, view := range views {
 				if view == table {
 					kind = "v"
@@ -242,7 +242,7 @@ func icProviderInventory(c *icCase) {
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)
 			}
-			if table == "pg_stat_xact_sys_tables" {
+			if table == "pg_stat_xact_sys_tables" || table == "pg_stat_xact_user_functions" {
 				var rows [][]any
 				for i, field := range inventory[table] {
 					dataType, udt := "bigint", "int8"
@@ -253,10 +253,13 @@ func icProviderInventory(c *icCase) {
 					} else if i < 3 {
 						dataType, udt = "name", "name"
 						facts = map[string]any{"is_updatable": "NO", "collation_catalog": c.database, "collation_schema": "pg_catalog", "collation_name": "C"}
+					} else if table == "pg_stat_xact_user_functions" && i >= 4 {
+						dataType, udt = "double precision", "float8"
+						facts = map[string]any{"is_updatable": "NO", "numeric_precision": int64(53), "numeric_precision_radix": int64(2)}
 					}
 					rows = append(rows, icRow(c.database, schema, table, field, i+1, dataType, "pg_catalog", udt, facts))
 				}
-				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='pg_stat_xact_sys_tables'", rows)
+				s := icProjection(c.b.PG, "table_schema='pg_catalog' AND table_name='"+table+"'", rows)
 				child.run(child.conn, s)
 				child.run(child.conn, fixture.Prepared(s))
 				child.run(child.hold(s.Query), s)

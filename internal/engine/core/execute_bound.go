@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -514,7 +515,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
-	if err := e.configureRowSecurityLocked(scope, b, stmt); err != nil {
+	// Whole-query metadata admission precedes source capture. Supply its
+	// already-preflighted occurrence proof here, not only at materialization.
+	previousKeep := scope.catalogKeep
+	scope.catalogKeep = &catalogrt.KeepQuery{Root: queryRoot, Leaves: b.QuerySources, Parameters: canonical}
+	err = e.configureRowSecurityLocked(scope, b, stmt)
+	scope.catalogKeep = previousKeep
+	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}

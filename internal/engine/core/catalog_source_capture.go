@@ -26,6 +26,9 @@ func admitScalarStatsGetters(auth AuthorizationView, oid ids.OID, uses []int) er
 		procedures = []ids.OID{2772, 2773, 2859, 3075}
 	case pgcatalog.StatCheckpointerOID:
 		procedures = []ids.OID{2769, 2770, 6377, 6327, 6328, 6329, 3160, 3161, 2771, 6366, 6314}
+	case pgcatalog.StatXactUserFunctionsOID:
+		// VOLATILE target expressions survive ordinary projection pruning.
+		procedures, uses = []ids.OID{3046, 3047, 3048}, nil
 	default:
 		return fmt.Errorf("stuntgres: invalid scalar statistics source")
 	}
@@ -237,11 +240,17 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatSysIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
 		fallthrough
-	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID:
+	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserFunctionsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
 			return nil, err
+		}
+		if oid == pgcatalog.StatXactUserFunctionsOID && !suppressScalarStatsRead {
+			if err := admitScalarStatsGetters(auth, oid, nil); err != nil {
+				e.Mu.Unlock()
+				return nil, err
+			}
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth

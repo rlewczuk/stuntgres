@@ -131,6 +131,11 @@ all 28 direct/prepared property projections include both executable declarations
 Current-backend block inquiries add released OIDs3044/3045, one unnamed OID
 input and strict VOLATILE/parallel-restricted scalar INT8 results. Both exact
 membership and all 28 direct/prepared property projections include them.
+The transaction-local function view adds released metadata-only getter identities
+3046/3047/3048: one unnamed OID input, strict VOLATILE/parallel-restricted scalar
+INT8/FLOAT8/FLOAT8 results, cost1 and no OUT/default/set metadata. The complete
+membership and all 28 direct/prepared projection fields cover these actual ACL
+descriptors without granting public getter execution.
 Shared, SLRU and backend statistics reset add OIDs3775/2307/6387 to the same
 28-field inventory. Shared/SLRU have named TEXT `target` and one NULL default;
 backend has an unnamed strict INT4 PID and no default. All three retain scalar
@@ -157,7 +162,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2268 rows, all backed
+supplements. The complete released inventory contains 2274 rows, all backed
 by actual descriptors, including GIN handler333, ten genuine internal
 extraction/consistency support declarations and callable strict volatile
 parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership

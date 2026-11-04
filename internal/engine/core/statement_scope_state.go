@@ -65,7 +65,7 @@ type StatementScope struct {
 	rlsPrograms               []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
 	rlsAdmissionDepth         int                       // Whole target/source admission, including recursive policies.
 	rlsCommand                *preparedCommandExecution // Active original logical command, lexical scratch.
-	catalogKeep               *catalogrt.KeepQuery      // Set only while a SELECT captures its own leaves.
+	catalogKeep               *catalogrt.KeepQuery      // Current occurrence-owned root during metadata admission or SELECT capture.
 	rlsImportWaits            uint64                    // Scope-monotonic actual policy-source waits, never row work.
 	rlsDataRefs               []ids.ObjectRef           // Complete prepared physical union before the first snapshot.
 	authority                 *exec.Authority

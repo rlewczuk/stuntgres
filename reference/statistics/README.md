@@ -297,3 +297,53 @@ and the same command with `REFERENCE=1`; both use the existing PostgreSQL18.6
 fixture policy. Internal provider/core supplements use
 `make check RUN='^TestPGStatXact(All|Sys)Tables'`, with `RACE=1` for synchronized
 ownership coverage.
+
+## Transaction-local user function statistics
+
+`TestReferencePGStatXactUserFunctions` covers the six-column view through public
+database/sql consumers: typed identities and driver representations, tracking and
+installed environments, trigger bodies, nested calls, present-zero/absent activity,
+continuous current-state reads, savepoint and terminal lifetime, nonowner
+distribution, retained VOLATILE backing EXECUTE, read-only full diagnostics,
+catalog lifetime, cancellation and native controls. Independent native timing
+expectations are one logical millisecond of own cost per completed tracked
+invocation; PostgreSQL timings are genuine elapsed milliseconds, checked for
+nonnegative/inclusive relationships rather than parity. Provider elapsed proofs
+are unchanged. Only the named timing estimates differ, never IDs/names/counts.
+
+Fresh physical reporting borrowers BEGIN before enabling tracking. Terminal
+absence uses a recorded PostgreSQL-only force-next-flush and native first eligible
+ordinary publication on the same backend; throttled cross-transaction retention
+has a separate internal proof. No public native flush API is added. Included
+admitted-zero entries are distinct from absent uninvoked/peer/untracked functions.
+Ordinary nonowners see collected values without routine EXECUTE/schema USAGE;
+the view and all retained volatile backing expressions retain current authority.
+Literal FALSE and LIMIT0 have separate independently specified admission outcomes.
+The direct bound-Boolean parameter case independently matches the pinned custom
+plan: FALSE/typed Boolean NULL return empty, TRUE requires all retained getters,
+and a held FALSE→NULL→TRUE→NULL→FALSE sequence rechecks current bindings within
+the first five custom-plan executions. Own-view SELECT remains mandatory even
+for eliminated FALSE/NULL input.
+Cancellation's pre-canceled and already-expired Query/Prepare probes are explicitly
+native-only inside the same dual-mode scenario. They require ordinary Canceled/
+DeadlineExceeded context errors without SQLSTATE, unchanged facts, no cumulative
+cut, and a subsequent healthy query after each pair of probes.
+As [the cancellation policy](../../docs/TESTING.md#the-dual-mode-fixture) explains,
+fast pre-canceled pq requests are not portable server admission witnesses and can
+complete or invalidate their network transport. PostgreSQL instead executes the
+scenario's normal state reads and unchanged-pending/no-cumulative-cut assertions;
+it never sends a canceled probe through the reporting borrower. Actual canceled
+body accounting remains strict in the independent native virtual-time proof.
+The pretty definition checks the pinned release's unparenthesized JOIN/oid cast,
+independently of the default renderer's parenthesized form.
+
+Run `make check RUN='^TestReferencePGStatXactUserFunctions'` and the same command
+with `REFERENCE=1`, including NativeControls. The permanent behavior smoke is
+`make check RUN='^TestReferencePGStatXactUserFunctionsFeatureSmoke$'`, also with
+`REFERENCE=1`. Internal supplements are selected with
+`make check RUN='^TestPGStatXactUserFunctions'` and `RACE=1`. These are proof
+selectors, not claims of exercised verification; whole Docker-free proof remains
+`make quickcheck`.
+The backing descriptors also extend the complete 2274-row routine inventory;
+run `make check RUN='^TestReferencePGProcBuiltinInventory$'` and its
+`REFERENCE=1` counterpart whenever these declarations or their facts change.

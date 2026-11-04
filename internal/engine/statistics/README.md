@@ -218,6 +218,17 @@ adds each call/self interval; distinct keys retain independent inclusive totals.
 Failed bodies do not complete usage; their completed descendants remain pending.
 Selection precedes clock/frame work and excludes inlining and stock internal
 routines. No active invocation may publish its pending batch.
+The same Fact and FunctionUsage also carry bounded logical invocation totals and
+self baselines, independent of the genuine elapsed TotalTime/SelfTime fields.
+Each normally completed tracked invocation costs one logical millisecond of own
+work. Inclusive logical cost includes completed tracked descendants, including
+across untracked intermediates; saved same-key totals remove recursive overlap.
+Failures add no own cost or call, without discarding successful descendants.
+Admission installs an observable zero pending entry. `PendingFunction` copies
+the qualified generation-valid owner entry and its presence bit without allocation,
+Reader access, publication or throttle movement; absence is not present-zero.
+Successful publication removes entries, but a throttled terminal batch can survive
+COMMIT/ROLLBACK into the next transaction. No unconditional xact clearing occurs.
 Ordinary and WAL I/O keep operation counts when their independent timing switches
 are off. No clock is sampled by these category methods; callers supply actual
 measurements only when enabled.

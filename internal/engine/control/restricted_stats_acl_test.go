@@ -75,7 +75,7 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			}
 			_, baseline, _ := access.DescriptorACL(descriptor)
 			oid := descriptor.Address().ObjectID
-			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075 || oid == 6118 || oid == 2769 || oid == 2770 || oid == 6377 || oid == 6327 || oid == 6328 || oid == 6329 || oid == 3160 || oid == 3161 || oid == 2771 || oid == 6366 || oid == 6314)
+			implicit := descriptor.Address().ClassID == ids.ProcedureClassID && (oid == 3195 || oid == 2306 || oid == 2772 || oid == 2773 || oid == 2859 || oid == 3075 || oid == 6118 || oid == 2769 || oid == 2770 || oid == 6377 || oid == 6327 || oid == 6328 || oid == 6329 || oid == 3160 || oid == 3161 || oid == 2771 || oid == 6366 || oid == 6314 || oid == 3046 || oid == 3047 || oid == 3048)
 			if implicit != !baseline.Explicit || implicit && len(baseline.Entries) != 0 {
 				t.Fatal("backing routine default ACL classification", descriptor)
 			}

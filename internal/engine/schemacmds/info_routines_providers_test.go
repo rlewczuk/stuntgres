@@ -41,6 +41,9 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		{2772, "pg_stat_get_bgwriter_buf_written_clean", 20, false, 0, ""},
 		{2773, "pg_stat_get_bgwriter_maxwritten_clean", 20, false, 0, ""},
 		{2859, "pg_stat_get_buf_alloc", 20, false, 0, ""},
+		{3046, "pg_stat_get_xact_function_calls", 20, false, 0, "26"},
+		{3047, "pg_stat_get_xact_function_total_time", 701, false, 0, "26"},
+		{3048, "pg_stat_get_xact_function_self_time", 701, false, 0, "26"},
 		{3075, "pg_stat_get_bgwriter_stat_reset_time", 1184, false, 0, ""},
 		{3160, "pg_stat_get_checkpointer_write_time", 701, false, 0, ""},
 		{3161, "pg_stat_get_checkpointer_sync_time", 701, false, 0, ""},
@@ -74,7 +77,11 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 			t.Fatal("metadata-only backing stats EXECUTE", p)
 		}
 		if want.result != 2249 {
-			if !p.Strict || p.Volatility != expr.Stable || p.Builtin.Parallel != 'r' || p.OutputDeclaration() != nil || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 || p.CostEstimate() != 1 || p.RowEstimate() != 0 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+			volatility := expr.Stable
+			if want.oid >= 3046 && want.oid <= 3048 {
+				volatility = expr.Volatile
+			}
+			if !p.Strict || p.Volatility != volatility || p.Builtin.Parallel != 'r' || p.OutputDeclaration() != nil || p.Builtin.Defaults != 0 || p.Builtin.Variadic != 0 || p.CostEstimate() != 1 || p.RowEstimate() != 0 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
 				t.Fatal("released zero-input scalar statistics declaration", p)
 			}
 		}

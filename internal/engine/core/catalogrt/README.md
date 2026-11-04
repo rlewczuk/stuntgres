@@ -16,7 +16,8 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   (`catalog_source_capture.go`) looks up `pgcatalog.ProducerFor`, chooses the
   per-OID catalog and role roots, the authority, presentation and unlock
   timing, and builds the runtime. Core also keeps the `Engine.catalogCaptures`
-  field, `captureSelectSourcesLocked` (which sets the scope's `KeepQuery`),
+  field and the scope's `KeepQuery`, installed around the early metadata prewalk
+  and again by `captureSelectSourcesLocked` for materialization, plus
   the shared-dependency root capture and the `Host` implementation
   (`catalog_runtime_host.go`).
 
@@ -71,9 +72,12 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   before the literal-only `exec.CatalogSourceFalse` proof. A proven direct false
   input can pass through ordinary aggregates with no ordered-set direct arguments:
   synthesized aggregate output does not demand input-source values. Identity reads,
-  subqueries and unsupported boundaries reject the proof. It suppresses only
-  cumulative bgwriter/checkpointer evaluation, never current getter ACLs, whose
-  recursive query-source admission finishes before any policy/source capture.
+  subqueries and unsupported boundaries reject the proof. Bgwriter/checkpointer
+  use it only to suppress cumulative evaluation, never current getter ACLs.
+  The xact function view also uses it to eliminate the uninitialized volatile
+  subtree's backing getter demand, while retaining own-view SELECT admission.
+  Both early metadata admission and capture receive the same occurrence-owned
+  preflighted root; query-source admission still precedes policy/source capture.
 - `KeepQuery.RejectsInput` reuses the executor's literal/imported-parameter WHERE
   proof only for this SELECT's exact single Source under Project→Filter. FALSE
   and Boolean NULL can elide eager catalog production after common SELECT
@@ -84,6 +88,11 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   parameter frames remain errors, not successful empty results. Bgwriter and
   checkpointer scalar getter ACLs remain admitted before this proof; their broader
   aggregate read-only suppression remains independent of direct-input source elision.
+  Xact-function metadata admission alone additionally consumes this direct-input
+  proof before admitting retained volatile getters, matching capture's undemanded
+  input elision and the pinned custom-plan parameter-FALSE behavior. Every held
+  execution supplies its current canonical binding; TRUE still requires all three
+  backing getters. The literal-only scalar-family proof is not broadened.
 - `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links. It copies relation
   templates built once per process and sets this engine's owner, ACL and

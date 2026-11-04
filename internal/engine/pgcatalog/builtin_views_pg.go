@@ -163,6 +163,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatSysIndexesOID, parts: sysIndexStatisticsViewParts(false), prettyParts: sysIndexStatisticsViewParts(true)},
 	{oid: StatXactAllTablesOID, parts: xactTableStatisticsViewParts()},
 	{oid: StatXactSysTablesOID, parts: xactSysTableStatisticsViewParts(false), prettyParts: xactSysTableStatisticsViewParts(true)},
+	{oid: StatXactUserFunctionsOID, parts: xactFunctionStatisticsViewParts(false), prettyParts: xactFunctionStatisticsViewParts(true)},
 	// pg_catalog.pg_stat_all_tables — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: StatAllTablesOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("c"), viewText("."), viewIdentifier("oid"), viewText(" AS "), viewIdentifier("relid"), viewText(",\n"),

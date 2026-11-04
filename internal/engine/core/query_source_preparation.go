@@ -83,6 +83,22 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		if p.occurrences[i].program.Denied() {
 			continue
 		}
+		if leaf.Relation.Address().ObjectID == pgcatalog.StatXactUserFunctionsOID {
+			suppressed := s.catalogKeep.ScalarStatsReadSuppressed(leaves, i, mark)
+			if !suppressed {
+				// The current bound parameter can eliminate this direct input,
+				// just as it does at capture. No permission decision is cached.
+				suppressed, err = s.catalogKeep.RejectsInput(s.executionContext(), s.Input, s.Output, leaves, i, mark, s.QueryLockContext)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if !suppressed {
+				if err := admitScalarStatsGetters(auth, pgcatalog.StatXactUserFunctionsOID, nil); err != nil {
+					return nil, err
+				}
+			}
+		}
 		if oid := leaf.Relation.Address().ObjectID; oid == pgcatalog.StatBGWriterOID || oid == pgcatalog.StatCheckpointerOID {
 			uses := leaf.Uses
 			if uses == nil {

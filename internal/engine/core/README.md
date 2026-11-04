@@ -660,6 +660,31 @@ three physical technical estimates are zero absent corresponding facilities/even
 never query-derived; ResetAt is genuine shared metadata. Neither view masks fields
 by monitoring-role membership, and the four bgwriter getters remain noncallable.
 
+`pg_stat_xact_user_functions` uses authenticated current Procedure identities and
+the same physical backend's pending Function facts, never the tuple ledger or a
+cumulative Reader. Ordinary/configured/trigger body entry retains its existing
+tracking selection inside the installed environment. The provider's elapsed
+measurements remain unchanged; this view alone projects deterministic completed
+invocation cost (one millisecond own work), including nested tracked descendants.
+Admission's zero entry remains visible on failure without counting a completion.
+Completed events survive savepoint rollback; ordinary publication/throttling and
+qualified retirement determine pending lifetime, not transaction-end clearing.
+Current relation/column SELECT precedes backing getter3046/3047/3048 EXECUTE under
+the invoker. Their VOLATILE outputs survive ordinary projection pruning, so even
+identity/count occurrences retain all three initialization checks, including
+LIMIT0. The existing occurrence-owned literal FALSE proof eliminates that subtree
+and its getters, but not own-view SELECT. A direct single-source Project→Filter
+also uses the existing QueryPredicateRejectsAll proof for this execution's imported
+Boolean parameter: FALSE/NULL elides that input, TRUE retains all getter checks.
+The bound proof is recomputed on every held execution, never cached permission.
+Whole-query admission and low-level capture recheck the same current authority.
+The existing KeepQuery temporarily carries the already-preflighted root, exact
+source occurrences and canonical parameters around the earlier row-security/source
+metadata prewalk, then restores the prior scope value on success or error.
+Admission order is unchanged; materialization still installs its own capture proof.
+None of these paths populates a Reader or masks fields by monitoring-role status.
+
+
 `stats_database.go` projects database facts through the same catalog runtime.
 Database-category keys use the immutable database/domain identity (epoch zero),
 not unsynchronized catalog roots. Every cumulative first-access authority invokes

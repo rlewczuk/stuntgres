@@ -31,12 +31,14 @@ func TestStatsProviderObjectLifetime(t *testing.T) {
 			late.Add(&p, key, statistics.Fact{Inserts: 17, Calls: 19})
 			late.Add(&p, other, statistics.Fact{Inserts: 1, Calls: 1})
 			usage, ok := late.BeginFunction(&p, key)
-			if !ok {
-				t.Fatal("live identity rejected")
+			if ok != (category == statistics.Function) {
+				t.Fatal("function usage category admission", category, ok)
 			}
 			// Shared retirement also works without a physical writer/session.
 			p.Retire(key)
-			late.EndFunction(&p, usage, 5*time.Millisecond)
+			if ok {
+				late.EndFunction(&p, usage, 5*time.Millisecond)
+			}
 			late.Add(&p, key, statistics.Fact{Inserts: 23, Calls: 29})
 			p.ReportAnalyze(key, statistics.Policy{Counts: true}, now, time.Millisecond, 31, 0, true)
 			late.Flush(&p, now, true)
@@ -82,16 +84,25 @@ func TestStatsProviderObjectLifetime(t *testing.T) {
 			successor := key
 			successor.Object.Epoch++
 			stale, ok := late.BeginFunction(&p, successor)
+			if ok != (category == statistics.Function) {
+				t.Fatal("successor function usage category admission", category, ok)
+			}
 			if !ok {
-				t.Fatal("successor usage rejected")
+				late.Add(&p, successor, statistics.Fact{Calls: 17})
 			}
 			p.Replace(now, nil)
-			late.EndFunction(&p, stale, time.Second)
-			u, ok := late.BeginFunction(&p, successor)
-			if !ok {
-				t.Fatal("new catalog incarnation inherited old tombstone")
+			if ok {
+				late.EndFunction(&p, stale, time.Second)
 			}
-			late.EndFunction(&p, u, time.Millisecond)
+			u, ok := late.BeginFunction(&p, successor)
+			if ok != (category == statistics.Function) {
+				t.Fatal("replacement function usage category admission", category, ok)
+			}
+			if ok {
+				late.EndFunction(&p, u, time.Millisecond)
+			} else {
+				late.Add(&p, successor, statistics.Fact{Calls: 1})
+			}
 			late.Flush(&p, now, true)
 			if p.Read(key).Calls != 0 || p.Read(successor).Calls != 1 {
 				t.Fatal("replacement lost generation-qualified lifetime")
