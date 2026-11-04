@@ -26,6 +26,9 @@ type Input struct {
 	RoleSettings  RoleSettingsProjection
 	IdentFile     *identfile.Source
 	BackendMemory BackendMemorySnapshot
+	// ReplicationOriginProgress is copied with the captured catalog under the
+	// cluster mutex. Presence, including zero, denotes an allocated state slot.
+	ReplicationOriginProgress map[ids.OID]uint64
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
 	SharedDependencies []SharedDependency

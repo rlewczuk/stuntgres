@@ -21,6 +21,19 @@ They retain all-formal order separately from input/default slots, including OUT,
 INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
 cannot replace these descriptor-owned facts.
 
+`pg_replication_origin_status` projects one detached cluster progress map paired
+with current catalog/role roots under `Engine.Mu`. Map presence (including zero),
+not registration enumeration, owns row existence; orphan names are typed NULL.
+Projection runs after unlocking and never borrows live maps or a statistics
+Reader. The native local WAL position is invalid/unset zero. Common current
+view/column SELECT and backing6014 EXECUTE are independently admitted.
+The four nullable catalog attributes use collation0 except TEXT `external_id`,
+which uses PostgreSQL's default collation100. Its explicit owner-only relation
+seed and independently mutable column grants participate in native ACL replay.
+`make check RUN='^TestPGReplicationOriginStatusProducer$'` exercises pure typed
+projection, authority rejection and cancellation; shared SQL scenarios live in
+`reference/catalogs`.
+
 ## Database cumulative monitoring
 
 `pg_catalog.pg_stat_database` is a typed, read-only catalog source. Its native

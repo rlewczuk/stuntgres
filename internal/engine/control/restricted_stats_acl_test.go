@@ -26,7 +26,11 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 		}
 	}
 	for i := range procedures {
-		descriptors = append(descriptors, &procedures[i])
+		// Origin backing ACLs belong to the restricted-origin reconstruction
+		// owner and its independent mutation matrix, not the stats seed owner.
+		if !routine.RestrictedReplicationOriginRoutine(procedures[i].Address().ObjectID) {
+			descriptors = append(descriptors, &procedures[i])
+		}
 	}
 	for i, name := range []string{"pg_shmem_allocations", "pg_shmem_allocations_numa", "pg_aios", "pg_backend_memory_contexts"} {
 		oid := ids.OID(12134)
@@ -64,6 +68,14 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 		ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12118},
 		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
 		ObjectName:      "pg_ident_file_mappings", Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true,
+		Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
+		}}},
+	})
+	descriptors = append(descriptors, &catalog.Relation{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12343},
+		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
+		ObjectName:      "pg_replication_origin_status", Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true,
 		Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
 		}}},

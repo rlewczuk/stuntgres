@@ -23,6 +23,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{Identity: catalog.RoutineIdentity{ID: 2859, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_buf_alloc"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 3075, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_bgwriter_stat_reset_time"}, Kind: catalog.FunctionRoutine, Result: 1184, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 6118, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_subscription", Signature: "26"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Stable, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 26, 23, 23, 3220, 1184, 1184, 3220, 1184, 25}, "subid", "subid", "relid", "pid", "leader_pid", "received_lsn", "last_msg_send_time", "last_msg_receipt_time", "latest_end_lsn", "latest_end_time", "worker_type")},
+	{Identity: catalog.RoutineIdentity{ID: 6014, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_show_replication_origin_status"}, Kind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Volatile, Parallel: 'r', ReturnsSet: true, Outputs: catalog.NewRoutineOutputs([]ids.OID{26, 25, 3220, 3220}, "local_id", "external_id", "remote_lsn", "local_lsn")},
 	{Identity: catalog.RoutineIdentity{ID: 2769, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_timed"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 2770, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_requested"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
 	{Identity: catalog.RoutineIdentity{ID: 6377, Namespace: ids.PGCatalogNamespaceOID, Name: "pg_stat_get_checkpointer_num_performed"}, Kind: catalog.FunctionRoutine, Result: 20, Strict: true, Volatility: expr.Stable, Parallel: 'r'},
@@ -44,7 +45,7 @@ var restrictedStatsDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 
 // RestrictedStatsProcedures creates engine-owned ACL descriptors, without adding
 // the declarations to a callable provider or scalar-selector inventory.
-// pg_config, pg_show_all_file_settings and pg_ident_file_mappings retain owner-only EXECUTE.
+// pg_config, pg_show_all_file_settings, pg_ident_file_mappings and origin status retain owner-only EXECUTE.
 // Archiver, SLRU, bgwriter, checkpointer and subscription retain PUBLIC EXECUTE.
 func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalog.Procedure {
 	procedures := make([]catalog.Procedure, len(restrictedStatsDeclarations))
@@ -53,7 +54,7 @@ func RestrictedStatsProcedures(owner, stats authorization.PrincipalRef) []catalo
 		var acl authorization.ACLValue
 		if id := declaration.Identity.ID; !publicStatsGetter(id) {
 			count := 2
-			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 {
+			if declaration.Identity.ID == 3400 || declaration.Identity.ID == 3329 || declaration.Identity.ID == 6250 || RestrictedReplicationOriginRoutine(declaration.Identity.ID) {
 				count = 1
 			}
 			entries := make([]authorization.ACLEntry, count)

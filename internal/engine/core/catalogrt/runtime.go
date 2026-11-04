@@ -109,6 +109,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	ids.TriggerClassID:                            "pg_trigger",
 	pgcatalog.StatisticExtDataOID:                 "pg_statistic_ext_data",
 	pgcatalog.ReplicationOriginOID:                "pg_replication_origin",
+	pgcatalog.ReplicationOriginStatusOID:          "pg_replication_origin_status",
 	pgcatalog.SubscriptionOID:                     "pg_subscription",
 	pgcatalog.SubscriptionRelOID:                  "pg_subscription_rel",
 	pgcatalog.PublicationOID:                      "pg_publication",
@@ -183,7 +184,7 @@ func (r Runtime) ValidateCapture(view catalog.Read, roles authorization.Read, re
 	a := r.View
 	// These readers require a backing engine with the captured owner, including
 	// legitimate transaction-private catalog roots.
-	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engineOwner() == nil || a.Owner != r.engineOwner()) {
+	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.ReplicationOriginStatusOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engineOwner() == nil || a.Owner != r.engineOwner()) {
 		return fmt.Errorf("stuntgres: invalid %s capture", sharedCaptureNames[oid])
 	}
 	if name, ok := sharedCaptureNames[oid]; ok {

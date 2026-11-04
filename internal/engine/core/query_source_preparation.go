@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core/catalogrt"
@@ -28,8 +29,8 @@ type querySourcePreparation struct {
 	consumed    bool
 }
 type querySourceOccurrence struct {
-	program *exec.RLSProgram
-	view    *storedSourcePreparation
+	program       *exec.RLSProgram
+	view          *storedSourcePreparation
 	functionStats catalogrt.FunctionStatsDemand
 }
 type storedSourcePreparation struct {
@@ -87,8 +88,12 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		}
 		if leaf.Relation.Address().ObjectID == pgcatalog.StatUserFunctionsOID {
 			demand, err := s.catalogKeep.FunctionStats(s.executionContext(), s.Input, s.Output, leaves, i, mark, s.QueryLockContext)
-			if err != nil { return nil, err }
-			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
+			if err := admitFunctionStatsGetters(auth, demand.Getters); err != nil {
+				return nil, err
+			}
 			p.occurrences[i].functionStats = demand
 		}
 		if leaf.Relation.Address().ObjectID == pgcatalog.StatXactUserFunctionsOID {
@@ -103,6 +108,20 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 			}
 			if !suppressed {
 				if err := admitScalarStatsGetters(auth, pgcatalog.StatXactUserFunctionsOID, nil); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if leaf.Relation.Address().ObjectID == pgcatalog.ReplicationOriginStatusOID {
+			// Function-scan initialization requires current EXECUTE even when
+			// LIMIT 0 never requests a row. A proven false WHERE can instead
+			// eliminate the input itself, before function initialization.
+			rejected, err := s.catalogKeep.RejectsInput(s.executionContext(), s.Input, s.Output, leaves, i, mark, s.QueryLockContext)
+			if err != nil {
+				return nil, err
+			}
+			if !rejected {
+				if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6014}), Privileges: authorization.ExecutePrivilege}); err != nil {
 					return nil, err
 				}
 			}

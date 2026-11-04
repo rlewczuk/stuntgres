@@ -168,6 +168,12 @@ var Specs = [...]Spec{
 		{"roident", sqltype.Oid, false, 0, 0, -1},
 		{"roname", sqltype.Text, false, 950, 0, -1},
 	}, false, CatalogHasIndexes(ReplicationOriginOID), true, false, "stuntgres: missing replication origin source type"},
+	{ReplicationOriginStatusOID, ids.PGCatalogNamespaceOID, "pg_replication_origin_status", []ColumnSpec{
+		{"local_id", sqltype.Oid, true, 0, 0, -1},
+		{"external_id", sqltype.Text, true, 100, 0, -1},
+		{"remote_lsn", sqltype.PgLSN, true, 0, 0, -1},
+		{"local_lsn", sqltype.PgLSN, true, 0, 0, -1},
+	}, true, false, true, true, "stuntgres: missing replication origin status source type"},
 	{SubscriptionOID, ids.PGCatalogNamespaceOID, "pg_subscription", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"subdbid", sqltype.Oid, false, 0, 0, -1},

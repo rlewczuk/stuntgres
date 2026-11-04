@@ -393,6 +393,9 @@ these bounded shapes through ordinary typed execution and consumes exactly one
 nonnull scalar result, rejecting absent or ambiguous subscription resolution.
 Replacement privately remints identities/rekeys progress before final publication;
 failed readers, SQL, cancellation or predecessor fences mutate neither target.
+The status view consumes those same slot facts and follows reminted registration
+identity. Its backing6014 owner-only seed uses restricted-origin ACL reconstruction;
+view/column grants and changed or explicit-empty routine ACLs replay independently.
 Successful controls replace standalone and selected-database registration/progress
 while retaining exact peer subscriptions and current published or transaction-private
 peer slots, including zero. Final preparation validates the complete retained/imported
@@ -727,10 +730,11 @@ No physical WAL position or flush guarantee is serialized.
   bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
   This includes `pg_backend_memory_contexts` and its canonical callable routine;
   session layouts and installed prepared definitions themselves are never dumped.
-  The `pg_config`, `pg_file_settings` and `pg_ident_file_mappings` views and their
-  noncallable backing routines use the same exact comparison with their owner-only
-  table/EXECUTE baseline, not a statistics-role grant. Relation, column and routine deviations
-  retain symbolic ACL repairs.
+  The `pg_config`, `pg_file_settings`, `pg_ident_file_mappings` and
+  `pg_replication_origin_status` views and their noncallable backing routines use
+  the same exact comparison with their explicit owner-only table/EXECUTE baseline,
+  not a statistics-role grant. Relation, column and routine deviations retain
+  symbolic ACL repairs, including raw absence and explicit-empty authority.
   Changed raw authority uses the existing repairs; reordering, duplicates and
   explicit absence/emptiness are not effective-rights normalization. Defaults
   therefore add no dump noise, while custom SELECT/EXECUTE grants survive replay.

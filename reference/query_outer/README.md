@@ -120,6 +120,11 @@ cost 1 and row estimate 100 without acquiring a callable provider.
 The build-configuration view's metadata-only backing declaration retains
 OID3400, strict STABLE/parallel-restricted RECORD set metadata, two OUT TEXT
 fields, cost 1 and row estimate 23, likewise without a callable provider.
+The replication-origin status backing declaration6014 contributes non-strict
+VOLATILE/parallel-restricted SETOF RECORD metadata, no inputs, four ordered OUT
+fields, cost 1 and rows 100. Complete membership, all 28 property projections and
+the shared nonaggregate routine-deparse inventory include it without granting
+callable provider capability.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 The two session-signaling declarations add released OIDs2096/2171 with strict,
 VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`

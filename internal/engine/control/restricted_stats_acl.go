@@ -105,6 +105,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_file_settings", 1
 		case pgcatalog.IdentFileMappingsOID:
 			name, entries = "pg_ident_file_mappings", 1
+		case pgcatalog.ReplicationOriginStatusOID:
+			name, entries = "pg_replication_origin_status", 1
 		default:
 			return false
 		}

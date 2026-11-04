@@ -8,7 +8,7 @@ import (
 
 func RestrictedReplicationOriginRoutine(oid ids.OID) bool {
 	switch oid {
-	case 6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013:
+	case 6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 6014:
 		return true
 	}
 	return false

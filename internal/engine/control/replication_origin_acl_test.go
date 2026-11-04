@@ -8,9 +8,14 @@ import (
 	"testing"
 )
 
-func TestReplicationOriginSessionACLReconstruction(t *testing.T) {
+func TestPGReplicationOriginStatusACLReconstruction(t *testing.T) {
 	owner := authorization.PrincipalRef{}
 	procedures := routine.BuiltinProcedures(owner)
+	for _, p := range routine.RestrictedStatsProcedures(owner, owner) {
+		if routine.RestrictedReplicationOriginRoutine(p.Address().ObjectID) {
+			procedures = append(procedures, p)
+		}
+	}
 	routine.SeedReplicationOriginACLs(procedures, owner)
 	var seen []ids.OID
 	for _, p := range procedures {
@@ -64,7 +69,7 @@ func TestReplicationOriginSessionACLReconstruction(t *testing.T) {
 		}
 	}
 	slices.Sort(seen)
-	if !slices.Equal(seen, []ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013}) {
+	if !slices.Equal(seen, []ids.OID{6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010, 6011, 6012, 6013, 6014}) {
 		t.Fatal("restricted origin roster", seen)
 	}
 }

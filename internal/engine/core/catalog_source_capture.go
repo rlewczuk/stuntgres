@@ -136,6 +136,21 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
+	case pgcatalog.ReplicationOriginStatusOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		// The common manifest admits view/column SELECT independently.
+		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6014}), Privileges: authorization.ExecutePrivilege}); err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		in.ReplicationOriginProgress = e.CopyReplicationOriginProgressLocked()
+		e.Mu.Unlock()
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.StatSubscriptionOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

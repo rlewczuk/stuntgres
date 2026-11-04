@@ -207,6 +207,11 @@ ignores the native comment rather than importing its historical catalog state.
   excluded from remint and their existing zero/nonzero slots count against the
   final capacity union. Unowned orphans keep ordinary replacement behavior.
   Failed controls change neither physical ownership nor slots.
+  `pg_replication_origin_status` observes those real slots: create-only origins
+  stay absent, allocated zero stays a row, and reminted IDs resolve current names.
+  Its eager rows and captured descriptors remain usable across replacement.
+  View/column SELECT and backing EXECUTE replay independently; neither physical
+  local WAL positions nor timestamps are synthesized by the status projection.
 - Logical publication definitions replay after referenced schemas, columns,
   final indexes and replica identities. Dump preserves options, owners, explicit
   ONLY memberships, schema edges, stable column lists and retained normal

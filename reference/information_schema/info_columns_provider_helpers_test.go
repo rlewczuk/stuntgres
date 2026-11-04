@@ -60,6 +60,7 @@ func icProviderInventory(c *icCase) {
 		"pg_publication_rel":                strings.Fields("oid prpubid prrelid prqual prattrs"),
 		"pg_publication_tables":             strings.Fields("pubname schemaname tablename attnames rowfilter"),
 		"pg_replication_origin":             strings.Fields("roident roname"),
+		"pg_replication_origin_status":      strings.Fields("local_id external_id remote_lsn local_lsn"),
 		"pg_subscription":                   strings.Fields("oid subdbid subskiplsn subname subowner subenabled subbinary substream subtwophasestate subdisableonerr subpasswordrequired subrunasowner subfailover subconninfo subslotname subsynccommit subpublications suborigin"),
 		"pg_subscription_rel":               strings.Fields("srsubid srrelid srsubstate srsublsn"),
 		"pg_proc":                           strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
@@ -203,7 +204,7 @@ func icProviderInventory(c *icCase) {
 			kind := "r"
 			views := strings.Fields("pg_stats pg_stat_activity pg_stat_archiver pg_stat_recovery_prefetch pg_stat_all_indexes pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_cluster pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_statio_all_sequences pg_statio_sys_sequences pg_statio_user_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_aios pg_backend_memory_contexts pg_config pg_file_settings pg_ident_file_mappings pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings pg_publication_tables")
 			views = append(views, "pg_statio_all_indexes", "pg_statio_user_indexes", "pg_statio_all_tables", "pg_statio_sys_tables", "pg_statio_user_tables", "pg_stat_replication_slots", "pg_stat_slru", "pg_stat_bgwriter", "pg_stat_subscription", "pg_stat_checkpointer", "pg_stat_ssl")
-			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_xact_user_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions", "pg_stat_user_functions")
+			views = append(views, "pg_stat_database", "pg_stat_gssapi", "pg_stat_xact_all_tables", "pg_stat_xact_sys_tables", "pg_stat_xact_user_tables", "pg_stat_replication", "pg_stat_sys_indexes", "pg_stat_xact_user_functions", "pg_stat_user_functions", "pg_replication_origin_status")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

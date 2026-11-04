@@ -77,6 +77,7 @@
 6011	pg_replication_origin_xact_reset	11	12	1	0	0	0	f	false	false	true	false	v	r	0	0	2278		\N	\N	\N	false	\N	pg_replication_origin_xact_reset	\N	false	\N
 6012	pg_replication_origin_advance	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2278	25 3220	\N	\N	\N	false	\N	pg_replication_origin_advance	\N	false	\N
 6013	pg_replication_origin_progress	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	3220	25 16	\N	\N	\N	false	\N	pg_replication_origin_progress	\N	false	\N
+6014	pg_show_replication_origin_status	11	12	1	100	0	0	f	false	false	false	true	v	r	0	0	2249		{26,25,3220,3220}	{o,o,o,o}	{local_id,external_id,remote_lsn,local_lsn}	false	\N	pg_show_replication_origin_status	\N	false	\N
 3330	pg_current_wal_flush_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_flush_lsn	\N	false	\N
 2852	pg_current_wal_insert_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_insert_lsn	\N	false	\N
 2849	pg_current_wal_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_lsn	\N	false	\N

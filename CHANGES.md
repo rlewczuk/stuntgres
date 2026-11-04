@@ -1,5 +1,13 @@
 # Changes
 
+- Expose `pg_catalog.pg_replication_origin_status` from actual captured origin
+  progress slots, including allocated zero and orphan names. Preserve exact
+  unsigned remote LSNs and honestly unset local WAL positions, with independent
+  current view SELECT/backing EXECUTE (including LIMIT0 initialization),
+  canonical metadata, retained rows and native-control table/column/routine ACL
+  and progress replay. Extend the strict complete provider and routine inventories
+  with the view and its backing declaration.
+
 - Close dedicated `pg_catalog.pg_publication_tables` acceptance coverage on the
   existing membership producer: exact raw shape and column/filter projection,
   per-publication overlap deduplication, live held/transaction membership,

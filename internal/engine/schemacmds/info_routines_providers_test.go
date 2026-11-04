@@ -55,6 +55,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		{3400, "pg_config", 2249, true, 1, ""},
 		{4100, "pg_get_shmem_allocations_numa", 2249, true, 2, ""},
 		{5052, "pg_get_shmem_allocations", 2249, true, 2, ""},
+		{6014, "pg_show_replication_origin_status", 2249, true, 1, ""},
 		{6118, "pg_stat_get_subscription", 2249, true, 0, "26"},
 		{6250, "pg_ident_file_mappings", 2249, true, 1, ""},
 		{6314, "pg_stat_get_checkpointer_stat_reset_time", 1184, false, 0, ""},
@@ -134,6 +135,23 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 				}
 			}
 		}
+		if want.oid == 6014 {
+			if p.Strict || p.Volatility != expr.Volatile || p.Builtin.Parallel != 'r' || p.RowEstimate() != 100 || p.CostEstimate() != 1 || p.Display != (catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: want.name}) {
+				t.Fatal("released origin status backing declaration", p)
+			}
+			outputs := p.OutputDeclaration()
+			if outputs == nil || outputs.Inputs() != 0 || outputs.Len() != 4 || p.InputNames != nil {
+				t.Fatal("released origin status OUT-only signature", outputs)
+			}
+			for i, field := range [...]struct {
+				name string
+				typ  ids.OID
+			}{{"local_id", 26}, {"external_id", 25}, {"remote_lsn", 3220}, {"local_lsn", 3220}} {
+				if outputs.Name(i) != field.name || outputs.Type(i) != field.typ {
+					t.Fatal("released origin status OUT field", i, outputs.Name(i), outputs.Type(i), field)
+				}
+			}
+		}
 		seen[want.oid] = true
 	}
 	memory := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2282})
@@ -166,6 +184,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
 		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
 		6118: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_subscription"},
+		6014: {Language: catalog.InternalRoutineLanguage, Source: "pg_show_replication_origin_status"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},

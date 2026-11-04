@@ -1574,6 +1574,17 @@ not pending configuration, and `flush=true` has the same explicit durable-WAL
 boundary. Native replacement clears replaced selections without disturbing
 retained peer subscription owners.
 
+`pg_catalog.pg_replication_origin_status` captures actual allocated progress slots,
+not merely registered names. Create-only registrations are absent; allocated
+zero progress is a non-NULL `0/0`, and an orphan slot has NULL `external_id`.
+The four typed fields are `local_id` (oid), `external_id` (text), `remote_lsn`
+and `local_lsn` (pg_lsn). Remote positions retain all unsigned 64 bits. Local WAL
+position stays exactly invalid/unset `0/0`; no position or timestamp is inferred
+from logical progress. Current view/column SELECT and backing
+`pg_show_replication_origin_status()` EXECUTE are independent owner-only defaults,
+rechecked on held execution. Captured rows own detached progress and catalog
+facts; later origin changes or native replacement do not rewrite retained rows.
+
 
 ## COPY
 

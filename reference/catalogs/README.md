@@ -34,6 +34,19 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Replication-origin status scenarios use
+`make check RUN='^TestReferencePGReplicationOriginStatus(ShapeIdentity|RowsProgress|Transactions|SessionProgress|Privileges|Diagnostics|Controls|FeatureSmoke)$'`
+(also with `REFERENCE=1`). The shared bodies assert allocated-slot presence,
+exact unsigned remote progress, orphan-name NULL, native unset local WAL position,
+and actual PostgreSQL assigned-write local positions. Raw metadata, canonical
+view/routine identity, current independent SELECT/EXECUTE authority, held
+revocation and complete diagnostics precede native replay/retention witnesses.
+Cluster origins and physical owners are cleaned independently of public schema,
+including bounded numeric orphan-slot reclamation after registration rollback.
+Retained pq rows use a dedicated connection until fully consumed; native eager
+retention is not permission to issue SQL over an unread streaming connection.
+LIMIT0 requires backing EXECUTE independently of whether it emits rows.
+
 Publication-table membership scenarios use
 `make check RUN='^TestReferencePGPublicationTables(ShapeProjection|MembershipLifecycle|VisibilityDiagnostics|NativeControls|FeatureSmoke)$'`
 (also with `REFERENCE=1`). The five dedicated families assert raw five-column

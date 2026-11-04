@@ -3512,7 +3512,13 @@ not restoration of a sparse pre-Execute Input.
 Replication-origin allocation, stage/journal/exception ownership, immutable
 capture and replacement units use `make check RUN='^(TestReplicationOrigin|TestPGReplicationOrigin)'`;
 add `RACE=1` for the same ownership witnesses. Public scenarios remain in
-`reference/catalogs`, selected by `^TestReferenceReplicationOrigin`.
+`reference/catalogs`, selected by `^TestReferenceReplicationOrigin` and
+`^TestReferencePGReplicationOriginStatus`. Status capture pairs the current
+authorized roots and detached progress map in one cluster-mutex window, then
+projects outside the lock without a statistics Reader. Backing6014 EXECUTE is
+rechecked independently of the common view/column SELECT manifest. The current
+whole-query admission frontier also checks6014 before function-scan initialization,
+including LIMIT0; proven false-WHERE input elimination is a separate decision.
 
 Shared parameter authority backing, admission, publication and replacement
 units use `make check RUN='^TestParameterACLShared'`; add `RACE=1` for the same

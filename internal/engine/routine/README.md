@@ -112,6 +112,12 @@ lookup, current default-PUBLIC EXECUTE, GRANT/REVOKE and native ACL replay.
 Its shared immutable declaration and per-engine descriptor do not grant callable
 provider capability or imply an apply-worker publisher.
 
+`pg_show_replication_origin_status` (6014) uses that same zero-provider backing
+inventory: non-strict VOLATILE, parallel-restricted SETOF RECORD, no inputs, four
+named OUT fields and cost1/rows100. Its owner-only ACL and immutable initial
+privileges share the restricted-origin predicate and symbolic ACL replay.
+Neither monitoring membership nor declaration metadata grants execution.
+
 The eleven checkpointer view getters use that same scalar-only metadata contract:
 eight INT8 counters, two FLOAT8 times and a TIMESTAMPTZ reset, in view order
 2769/2770/6377/6327/6328/6329/3160/3161/2771/6366/6314.
@@ -292,7 +298,7 @@ bypass ACLs. Known strict object/backend NULL retains ordinary call avoidance.
 Native replay preserves raw NULL, explicit-empty and modified grants separately
 from the exact bootstrap owner-only seed.
 
-`SeedReplicationOriginACLs` installs all eleven released owner-only EXECUTE seeds
+`SeedReplicationOriginACLs` installs the eleven released scalar/session owner-only EXECUTE seeds
 before initial-privilege capture. Their unnamed strict scalar declarations retain
 exact fixed OIDs, formals and results; only named lookup is STABLE/parallel-safe.
 Ordinary GRANT/REVOKE and the same exact restricted-seed reconstruction rules

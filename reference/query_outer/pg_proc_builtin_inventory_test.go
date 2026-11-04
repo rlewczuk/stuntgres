@@ -257,8 +257,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// results, no OUT/default/set metadata and default PUBLIC EXECUTE.
 	// Cumulative function getters2978/2979/2980 have the same scalar shape
 	// with STABLE rather than VOLATILE initialization semantics.
-	if len(facts) != 2277 {
-		t.Fatalf("released represented overloads: got %d, want 2277", len(facts))
+	// Origin status adds metadata-only non-strict VOLATILE/restricted SETOF
+	// RECORD declaration6014, no inputs, four ordered OUT fields and rows100.
+	if len(facts) != 2278 {
+		t.Fatalf("released represented overloads: got %d, want 2278", len(facts))
 	}
 	return facts
 }
