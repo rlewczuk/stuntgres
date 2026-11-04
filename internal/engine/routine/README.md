@@ -77,6 +77,13 @@ EXECUTE; current GRANT/REVOKE uses the same descriptor independently of view
 SELECT. The immutable declaration is shared, while each engine owns its mutable
 descriptor. Neither the identity ledger nor this metadata grants a callable getter.
 
+`pg_stat_get_wal` (1136) follows that same zero-provider seam with exactly five
+OUT fields (INT8, INT8, NUMERIC, INT8, TIMESTAMPTZ), no inputs/defaults,
+non-strict STABLE/parallel-restricted scalar RECORD, cost1 and rows0. Current
+PUBLIC EXECUTE and explicit ACL replay remain independent of view SELECT.
+The declaration and symbolic view dependency supply no callable getter.
+
+
 `pg_stat_get_slru` (2306) follows that same ACL-only admission seam, with
 non-strict STABLE/parallel-restricted SETOF RECORD metadata, nine named OUT
 fields, cost 1 and rows 100. Its engine-owned descriptor admits live EXECUTE

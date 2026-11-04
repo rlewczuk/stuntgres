@@ -11,6 +11,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatSLRUOID, parts: slruViewParts, prettyParts: slruViewParts},
 	{oid: StatReplicationSlotsOID, parts: replicationSlotsViewParts, prettyParts: replicationSlotsViewParts},
 	{oid: StatArchiverOID, parts: archiverViewParts, prettyParts: archiverViewParts},
+	{oid: StatWALOID, returnRule: StatWALRuleOID, parts: walViewParts, prettyParts: walViewParts},
 	{oid: StatBGWriterOID, parts: bgwriterViewParts, prettyParts: bgwriterViewParts},
 	{oid: StatCheckpointerOID, parts: checkpointerViewParts, prettyParts: checkpointerViewParts},
 	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},

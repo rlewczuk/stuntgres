@@ -52,6 +52,7 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		ProgressClusterOID:     ProgressClusterRuleOID,
 		StatDatabaseOID:        StatDatabaseRuleOID,
 		StatSubscriptionOID:    StatSubscriptionRuleOID,
+		StatWALOID:             StatWALRuleOID,
 	}
 	var previous string
 	for _, record := range builtinViews {

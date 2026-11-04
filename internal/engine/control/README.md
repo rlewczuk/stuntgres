@@ -233,7 +233,7 @@ comparison too; changed, raw-NULL and explicit-empty ACLs always require repair.
 The replication statistics reset roster uses the same exact raw-seed comparison.
 Default PUBLIC EXECUTE from raw NULL must never be mistaken for owner-only
 bootstrap; modified grants and grant options retain ordered principal remapping.
-The metadata-only Archiver3195, SLRU2306, four bgwriter getters, eleven
+The metadata-only Archiver3195, WAL1136, SLRU2306, four bgwriter getters, eleven
 checkpointer getters, Subscription6118 and slot-inventory3781 backing
 descriptors start with implicit
 PUBLIC EXECUTE ACLs. Only canonical declaration identity and exact input signature

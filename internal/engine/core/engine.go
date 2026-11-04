@@ -105,6 +105,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	cluster.ArchiverResetAt = time.UnixMicro(cluster.StartedAt + activityEpochUnixMicros).UTC()
 	cluster.BGWriterResetAt = cluster.ArchiverResetAt
 	cluster.CheckpointerResetAt = cluster.ArchiverResetAt
+	cluster.WALResetAt = cluster.ArchiverResetAt
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.Analysis = BindingHost{Engine: e}
 	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
@@ -446,6 +447,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.Statistics.ResetShared(statistics.Archiver, cluster.ArchiverResetAt)
 	e.Statistics.ResetShared(statistics.BGWriter, cluster.BGWriterResetAt)
 	e.Statistics.ResetShared(statistics.Checkpointer, cluster.CheckpointerResetAt)
+	e.Statistics.ResetShared(statistics.SharedWAL, cluster.WALResetAt)
 	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil
 }

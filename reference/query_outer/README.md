@@ -69,6 +69,9 @@ The twelve scalar comparison estimators likewise expose genuine strict STABLE,
 parallel-safe INTERNAL metadata without scalar execution providers.
 Release-owned TSV facts preserve exact membership and all 28 projected fields,
 including tmpdir's explicit cost 10 and row estimate 20.
+The WAL view's metadata-only backing declaration1136 contributes its five ordered
+OUT fields, including NUMERIC bytes, non-strict STABLE/parallel-restricted scalar
+RECORD metadata, zero inputs and rows0 to that same strict full inventory.
 The metadata-only file-settings backing routine (OID 3329) contributes its seven
 released OUT fields, strict VOLATILE/parallel-safe declaration, row estimate 1000 and exact
 internal source `show_all_file_settings`, without acquiring a callable provider.

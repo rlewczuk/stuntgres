@@ -10,6 +10,15 @@
   routine/cancellation presentation and real PostgreSQL physical/logical slot
   lifecycle witnesses are covered.
 
+- Add the five-column, cluster-wide `pg_catalog.pg_stat_wal` read-only view.
+  Keep absent physical WAL counters as exact typed zero estimates (including
+  NUMERIC bytes), with genuine startup/shared-reset authority preserved across
+  database publication and native Reset/Restore. Reuse cumulative Reader cuts,
+  current independent view/getter ACLs, released metadata and diagnostics;
+  no physical WAL events or callable getter are fabricated.
+  Install its native `_RETURN` declaration through the existing builtin registry,
+  retaining ordinary rewrite ownership and a disjoint owned rule identity.
+
 - Expose `pg_catalog.pg_replication_origin_status` from actual captured origin
   progress slots, including allocated zero and orphan names. Preserve exact
   unsigned remote LSNs and honestly unset local WAL positions, with independent

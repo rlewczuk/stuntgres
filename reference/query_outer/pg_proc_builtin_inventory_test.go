@@ -261,8 +261,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// RECORD declaration6014, no inputs, four ordered OUT fields and rows100.
 	// Slot inventory adds metadata-only non-strict STABLE/safe SETOF RECORD
 	// declaration3781, no inputs, twenty ordered OUT fields and rows10.
-	if len(facts) != 2279 {
-		t.Fatalf("released represented overloads: got %d, want 2279", len(facts))
+	// WAL adds metadata-only non-strict STABLE/restricted scalar RECORD1136:
+	// no inputs, five OUT fields including exact NUMERIC bytes, and rows0.
+	if len(facts) != 2280 {
+		t.Fatalf("released represented overloads: got %d, want 2280", len(facts))
 	}
 	return facts
 }

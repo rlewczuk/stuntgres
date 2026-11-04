@@ -39,6 +39,8 @@ type Input struct {
 	RecoveryPrefetch statistics.SharedFact
 	// Archiver is detached from the admitted session's cumulative Reader.
 	Archiver statistics.SharedFact
+	// WAL carries only genuine reset metadata; physical estimates remain zero.
+	WAL statistics.SharedFact
 	// SLRU is one detached family captured by the session cumulative reader.
 	SLRU [statistics.SLRUCount]statistics.SLRUFact
 	// BGWriter is detached after demand-scoped backing EXECUTE admission.

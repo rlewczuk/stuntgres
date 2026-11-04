@@ -80,9 +80,9 @@ fence. New actual target publication inherits only positive backend reporting
 registrations under cluster serialization, using separate provider lock
 acquisitions, never activity, commands, metrics or reset history. Session
 monitoring uses the single default-target activity map described below, not
-mirrored per-target membership. Archiver, bgwriter and checkpointer reset metadata
+mirrored per-target membership. Archiver, bgwriter, checkpointer and WAL reset metadata
 have explicit cluster authority: core initializes `DatabaseCluster.ArchiverResetAt`,
-`BGWriterResetAt` and `CheckpointerResetAt` from
+`BGWriterResetAt`, `CheckpointerResetAt` and `WALResetAt` from
 genuine startup and mirrors each through `ResetShared` at target publication
 and after accepted local replacement. The selected family or all-family shared
 reset updates its authority and every current mirror at one instant. This bounded
@@ -92,8 +92,8 @@ Other fixed families retain their existing local replacement/publication rules.
 No monitoring history is serialized or activity manufactured.
 The provider remains zero-value-ready: reads never initialize reset metadata.
 The completed engine owner records recovery-prefetch and SLRU initialization
-once through targeted ResetShared and mirrors genuine archiver, bgwriter and
-checkpointer initialization, without changing unrelated families or generation.
+once through targeted ResetShared and mirrors genuine archiver, bgwriter,
+checkpointer and WAL initialization, without changing unrelated families or generation.
 Archiver counter slots 0/1 are successful WAL files/failed attempts; slots 2–7
 are unused by its view. Both technical estimates are zero without a physical
 producer, never query-derived activity. Exact last-success/failure names and
@@ -118,6 +118,15 @@ Selected/all reset clears the complete vector atomically; pending work and old
 Reader cuts remain owned by their existing publication/snapshot generations.
 Catalog replacement clears local history but core restores genuine cluster reset
 metadata. No monitoring history enters Dump.
+
+WAL's fixed SharedFact supplies genuine ResetAt only. Writer.Shared deliberately
+rejects SharedWAL: keyed Fact operations/durations remain their own authority,
+not physical WAL records, full-page images, bytes or full-buffer events. The WAL
+view's four deterministic technical estimates are typed zero while those physical
+facilities are absent, regardless of SQL activity or tracking settings. Selected
+WAL reset still clears existing keyed WAL operations under ordinary published-only
+semantics, without changing generation/pending work or retained Reader cuts.
+
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.

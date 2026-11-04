@@ -55,6 +55,36 @@ Reset does not invalidate a retained cut or detached Rows. Mutations reject
 through ordinary non-updatable-view diagnostics, including WHERE FALSE, and no
 portable row order exists without ORDER BY.
 
+## WAL monitoring
+
+`pg_catalog.pg_stat_wal` exposes exactly one cluster-wide read-only row:
+`wal_records` (bigint), `wal_fpi` (bigint), `wal_bytes` (numeric),
+`wal_buffers_full` (bigint), `stats_reset` (timestamptz), in that order.
+All five catalog attributes are nullable. The four technical estimates use
+the deterministic formula **zero when the corresponding physical WAL facility
+is absent**; they are not physical measurements or estimates derived from DML,
+IO timing or keyed WAL operations. NUMERIC bytes remain exact, exported as
+native decimal string `"0"` without floating-point conversion. No files,
+workers or last-event names/times are fabricated. A genuinely absent reset
+stamp remains NULL.
+
+Initialized clusters record their genuine startup instant. Authorized
+`pg_stat_reset_shared('wal')` and NULL/omitted all-family resets publish one
+genuine cluster instant, including across rollback; unrelated resets preserve it.
+Late databases inherit current authority and local native Reset/Restore preserve
+the destination's authority and peers. Dump contains no monitoring history.
+The existing none/cache/snapshot Reader modes retain ordinary lifetime:
+clear or transaction completion refreshes a cut, not the statistics themselves;
+peer reset does not mutate retained Rows.
+
+PUBLIC SELECT and backing `pg_stat_get_wal()` EXECUTE are separate current
+permissions, rechecked for held statements and column-only reads. Ordinary,
+monitor and read-all-stats roles see the same fields; reset requires its own
+grantable EXECUTE privilege. The backing declaration supplies metadata and ACL
+authority, not a callable getter. Ordinary non-updatable-view diagnostics reject
+mutations even with WHERE FALSE. No portable row order exists without ORDER BY.
+
+
 ## Subscription monitoring
 
 `pg_catalog.pg_stat_subscription` is the eleven-column, read-only PostgreSQL 18

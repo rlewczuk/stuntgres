@@ -172,6 +172,10 @@ and held projections independently check eight BIGINT precision/scale facts,
 two DOUBLE PRECISION fields with precision53/radix2 and absent scale, and the
 TIMESTAMPTZ reset with datetime precision6. All fields have absent defaults and
 are non-updatable; the oracle projection does not filter column names.
+`pg_stat_wal` adds exactly five nullable fields and view classification:
+three BIGINT counters, unconstrained NUMERIC bytes (radix10, unknown precision/
+scale) and TIMESTAMPTZ reset (precision6). Direct/prepared/held full projections
+preserve absent defaults and non-updatability without oracle column filtering.
 
 `pg_stat_ssl` contributes all eight release-ordered transport columns and view
 classification to that same complete inventory, without removing existing

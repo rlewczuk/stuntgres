@@ -110,7 +110,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		return catalogrt.CaptureRows(in, produce)
-	case pgcatalog.StatArchiverOID, pgcatalog.StatSLRUOID:
+	case pgcatalog.StatArchiverOID, pgcatalog.StatSLRUOID, pgcatalog.StatWALOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -121,6 +121,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		procedure := ids.OID(3195)
 		if oid == pgcatalog.StatSLRUOID {
 			procedure = 2306
+		} else if oid == pgcatalog.StatWALOID {
+			procedure = 1136
 		}
 		if err := auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedure}), Privileges: authorization.ExecutePrivilege}); err != nil {
 			e.Mu.Unlock()
@@ -131,6 +133,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		captureDatabaseStats(e, reader)
 		if oid == pgcatalog.StatSLRUOID {
 			in.SLRU = reader.ReadSLRUs(&e.Statistics, time.Time{})
+		} else if oid == pgcatalog.StatWALOID {
+			in.WAL = reader.ReadShared(&e.Statistics, statistics.SharedWAL, time.Time{})
 		} else {
 			in.Archiver = reader.ReadShared(&e.Statistics, statistics.Archiver, time.Time{})
 		}

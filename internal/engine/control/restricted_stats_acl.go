@@ -22,6 +22,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			return false
 		}
 		switch object.Address().ObjectID {
+		case 1136:
+			name, entries = "pg_stat_get_wal", 0
 		case 3195:
 			name, entries = "pg_stat_get_archiver", 0
 		case 2306:

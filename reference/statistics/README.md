@@ -1,7 +1,7 @@
 # Statistics reference scenarios
 
 This bounded feature package owns public SQL scenarios for the seven-column
-cluster archiver, four-column cluster bgwriter, eleven-column cluster checkpointer,
+cluster archiver, five-column cluster WAL, four-column cluster bgwriter, eleven-column cluster checkpointer,
 nine-column `pg_stat_all_indexes`/`pg_stat_sys_indexes`, 30-column
 `pg_stat_all_tables`/`pg_stat_sys_tables`/`pg_stat_user_tables` and twelve-column
 `pg_stat_xact_all_tables`/`pg_stat_xact_sys_tables`/`pg_stat_xact_user_tables` views.
@@ -105,6 +105,19 @@ ACLs round-trip implicit/explicit distinctions through real controls; no callabl
 getter or serialized monitoring history is introduced. Owning internal tests
 seed all eight counters and both sub-millisecond times independently.
 
+WAL scenarios independently check the exact five-column singleton and linked
+catalog/routine metadata, exact native NUMERIC string zero and full diagnostics.
+All four native technical estimates are zero for absent physical facilities;
+real PostgreSQL instead requires nonnegative integral physical counters, never
+equality across commands. Genuine reset instants distinguish none/cache/snapshot
+cuts, peer resets, late database publication and retained Rows. Current view/
+column SELECT and getter1136 EXECUTE are independent, PUBLIC and unmasked;
+monitoring roles do not grant reset EXECUTE. Native controls preserve genuine
+destination/peer reset authority, replay explicit getter ACLs and actual user
+SQL, and never serialize monitoring history. No filenames, workers or last-event
+values are fabricated, and no row order is portable without ORDER BY.
+
+
 Cumulative function scenarios use the same physical reporter/publication and
 reader helpers. Exact current identities/names/completed calls, disabled and
 inlined exclusion, present-zero failure, nested timing, xact-boundary regression,
@@ -124,7 +137,7 @@ covered independently rather than cleared at transaction end.
 
 ## Testing
 
-The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|BGWriter|Checkpointer)'`
+The fixed-family view scenarios use `make check RUN='^TestReferencePGStat(Archiver|WAL|BGWriter|Checkpointer)'`
 and the same selector with `REFERENCE=1`; the fixture pin remains PostgreSQL18.6.
 The cumulative function family uses `make check RUN='^TestReferencePGStatUserFunctions'`
 and the same selector with `REFERENCE=1`; selected definitions are required in both modes.

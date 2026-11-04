@@ -62,7 +62,7 @@ func TestPGStatSLRUInitialization(t *testing.T) {
 		}
 	}
 	for k := statistics.SharedKind(0); k < statistics.SharedKindCount; k++ {
-		if k == statistics.Archiver || k == statistics.BGWriter || k == statistics.Checkpointer {
+		if k == statistics.Archiver || k == statistics.BGWriter || k == statistics.Checkpointer || k == statistics.SharedWAL {
 			started := time.UnixMicro(e.Cluster.StartedAt + 946684800000000).UTC()
 			if got := e.Statistics.ReadShared(k); got != (statistics.SharedFact{ResetAt: started}) {
 				t.Fatal("cluster family startup must contain only genuine reset metadata", k, got, started)

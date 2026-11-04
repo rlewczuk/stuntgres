@@ -626,8 +626,8 @@ immediate and nontransactional; reset never clears the physical reader or moves
 its snapshot construction timestamp. Fixed-family events are logical provider
 state, not evidence of physical workers, storage IO or WAL generation. The
 per-target traversal preserves existing shared-family behavior. Archiver,
-bgwriter and checkpointer retain explicit `DatabaseCluster.ArchiverResetAt`,
-`BGWriterResetAt` and `CheckpointerResetAt` authorities under the shared mutex,
+bgwriter, checkpointer and WAL retain explicit `DatabaseCluster.ArchiverResetAt`,
+`BGWriterResetAt`, `CheckpointerResetAt` and `WALResetAt` authorities under the shared mutex,
 initialized from the PostgreSQL-epoch StartedAt
 instant. Target publication mirrors current authority only after fallible template
 work/admission; accepted local catalog replacement restores it after Provider.Replace.
@@ -645,6 +645,12 @@ Backing routine3195 is a zero-provider catalog descriptor with ordinary default
 PUBLIC EXECUTE and live GRANT/REVOKE, not a getter implementation. Current native
 admission remains independent of retained statistics backing; portable peer-ACL
 reference witnesses cross the reader transaction boundary for catalog visibility.
+The five-column WAL view follows the same singleton capture path with backing
+routine1136, detached SharedWAL ResetAt and typed zero physical estimates.
+Keyed WAL operation/timing facts never become physical record/byte counters;
+Writer.Shared continues to exclude SharedWAL. Describe and denied EXECUTE cannot
+initialize or clear a cumulative cut. Its cluster reset stamp is mirrored only
+at genuine startup/reset, accepted database publication and local replacement.
 Bgwriter checks current SELECT and each demanded scalar getter's EXECUTE across
 the recursive selected source closure during query-source preparation, before any
 source or policy materialization can configure the Reader. Preparation and direct

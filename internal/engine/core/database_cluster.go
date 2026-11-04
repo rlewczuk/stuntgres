@@ -28,6 +28,7 @@ type DatabaseCluster struct {
 	ArchiverResetAt     time.Time
 	BGWriterResetAt     time.Time
 	CheckpointerResetAt time.Time
+	WALResetAt          time.Time
 	Mu                  sync.Mutex
 	Roles               access.RoleStore
 	Locks               *lock.Manager

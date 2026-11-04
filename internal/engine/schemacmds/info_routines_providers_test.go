@@ -34,6 +34,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		aclEntries int
 		signature  catalog.ProcedureSignature
 	}{
+		{1136, "pg_stat_get_wal", 2249, false, 0, ""},
 		{2306, "pg_stat_get_slru", 2249, true, 0, ""},
 		{2769, "pg_stat_get_checkpointer_num_timed", 20, false, 0, ""},
 		{2770, "pg_stat_get_checkpointer_num_requested", 20, false, 0, ""},
@@ -203,6 +204,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
+		1136: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_wal"},
 		2282: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_backend_memory_contexts"},
 		2306: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_slru"},
 		3195: {Language: catalog.InternalRoutineLanguage, Source: "pg_stat_get_archiver"},

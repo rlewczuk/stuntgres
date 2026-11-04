@@ -159,6 +159,7 @@ type Input struct {
     ActivityObserver authorization.PrincipalRef
     RecoveryPrefetch statistics.SharedFact // detached current provider cut
     Archiver statistics.SharedFact // detached admitted cumulative Reader cut
+    WAL statistics.SharedFact // detached genuine cluster reset metadata
     SLRU [statistics.SLRUCount]statistics.SLRUFact // detached cumulative family
     BGWriter statistics.SharedFact // detached demand-admitted cumulative Reader cut
     Checkpointer statistics.SharedFact // detached demand-admitted cumulative Reader cut
@@ -181,6 +182,24 @@ SELECT does not imply session-style redaction. The released function-source
 definition supplies normal read-only diagnostics. Its zero-provider routine
 descriptor owns exact OUT metadata and default PUBLIC EXECUTE/GRANT/REVOKE,
 without providing a callable getter.
+
+The WAL singleton (relation12305, rowtype12307, array12306) has exactly five
+nullable attributes: INT8 records, INT8 full-page images, NUMERIC bytes, INT8
+full-buffer events and TIMESTAMPTZ reset. Its four technical estimates are
+constant zero because the physical facilities are absent, independent of every
+SharedFact counter/timing/name field and keyed WAL operation. Exact numeric zero
+uses the source-owned descriptor and `NumericUint64Value`, not float conversion.
+Only detached WAL.ResetAt is projected, as typed NULL if genuinely missing.
+Current view/column SELECT and independent getter1136 EXECUTE precede Reader
+capture; projection runs unlocked. Symbolic getter identity/deparse/dependencies,
+PUBLIC visibility and ordinary read-only rejection follow the archiver path;
+there is no callable WAL getter or read-time initialization.
+
+Its native `_RETURN` identity12308 is installed by the ordinary builtin view
+declaration registry, not an executable stored rule. Rewrite metadata and the
+internal view-ownership dependency share that descriptor-owned identity;
+full installed-catalog validation keeps it disjoint from every descriptor and
+other owned definition.
 
 `pg_stat_slru` (relation12236, rowtype12238, array12237) projects exactly eight
 fixed SLRU names and nine nullable attributes: TEXT name (default collation100),
@@ -2035,7 +2054,7 @@ OID12208/rule OID12209 and REL_18_6 default/pretty projection, including command
 phase CASEs, OID cast and parameter aliases. Its real FULL visitor uses the
 current private catalog runtime and authenticated viewer; this metadata grants
 no simulated CLUSTER execution provider. COPY, CLUSTER/FULL, CREATE INDEX,
-database statistics and subscription statistics declare native `_RETURN`
+database statistics, subscription statistics and WAL statistics declare native `_RETURN`
 identities, stamped into immutable relation descriptors during bootstrap.
 The rewrite declaration regression checks this complete view/rule inventory
 explicitly, rejecting missing, unexpected or mismatched identities while
