@@ -307,6 +307,10 @@ func (r installedExtensionRoutine) PgvisibilityDeclaration() (functions.Pgvisibi
 	}
 	return member.Kind, members
 }
+func (r installedExtensionRoutine) PgBuffercacheDeclaration() (functions.PgBuffercacheKind, bool) {
+	kind, err := extension.PgBuffercacheKindOf(r.catalog, r.procedure)
+	return kind, err == nil
+}
 func (r installedExtensionRoutine) PgBuffercacheEvictionDeclaration() (functions.PgBuffercacheEvictionKind, []sqltype.CompositeMember) {
 	slot := r.procedure.Origin.Declaration
 	if slot == 0 || int(slot) > len(extension.PgBuffercacheEvictionMembers) {

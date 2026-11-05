@@ -43,7 +43,7 @@ func TestPgBuffercacheEvictionProviderIdentity(t *testing.T) {
 	e := engine.New()
 	ext := buffercacheInstalled(t, e)
 	view := e.CatalogRead()
-	if len(ext.Members) != 9 || len(ext.Installation.Members) != 6 { t.Fatal("recipe/ordinary cohort", ext) }
+	if len(ext.Members) != 13 || len(ext.Installation.Members) != 7 { t.Fatal("recipe/ordinary cohort", ext) }
 	for _, address := range ext.Installation.Members {
 		p := view.MustProcedure(address)
 		if p.Origin.Declaration == 0 || p.Origin.Declaration >= extension.PgBuffercacheAggregateStart { continue }

@@ -934,6 +934,9 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if err := extension.ValidatePgBuffercacheIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err
 			}
+			if err := extension.ValidatePgBuffercacheCall(b.BindingCatalog(), n.Procedure, n.PgBuffercache); err != nil {
+				return err
+			}
 			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
 				return err
 			}

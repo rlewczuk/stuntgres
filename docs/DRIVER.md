@@ -724,16 +724,18 @@ view/owner/membership codecs. Planning counts are actual accepted native builds,
 not PostgreSQL generic-plan cache invocation counts. This logical module does not
 load PostgreSQL C libraries, preload shared memory or persist shutdown files.
 
-`CREATE EXTENSION pg_buffercache VERSION '1.6'` installs an ordinary nine-column
-view, the zero-argument anonymous-record `pg_buffercache_pages()` function and
-declared-OUT `pg_buffercache_summary()` / `pg_buffercache_usage_counts()`.
-The view and each inquiry have independent SELECT/EXECUTE ACLs granting
+`CREATE EXTENSION pg_buffercache VERSION '1.6'` installs ordinary nine-column
+`pg_buffercache` and three-column `pg_buffercache_numa` views, backed by the
+zero-argument anonymous-record `pg_buffercache_pages()` and
+`pg_buffercache_numa_pages()` functions, plus declared-OUT
+`pg_buffercache_summary()` / `pg_buffercache_usage_counts()`.
+The views and each inquiry have independent SELECT/EXECUTE ACLs granting
 pg_monitor and revoking PUBLIC; ordinary explicit grants admit other roles
 without a superuser body gate or heap/pages/view access. Summary is one scalar
 record (also one FROM row); usage counts is SETOF record with six buckets, 0–5,
 including empty buckets. Bucket buffers sum to used plus unused capacity.
 Only an empty summary's average is NULL. Pinned counts buffers with any active
-owners, not the number of owning sessions. Caller-defined pages columns,
+owners, not the number of owning sessions. Caller-defined function columns,
 declared OUT types, current privileges and installed identities use the same
 exact SQL/prepared/control lifecycles as other stored objects.
 
@@ -744,9 +746,14 @@ Summary and usage buckets aggregate that same shared owner without heating it.
 Identity and SQL effects are exact; physical occupancy, block, dirtiness, usage
 and pin metrics alone are technical approximations, not PostgreSQL shared memory,
 writeback, C ABI or backend resources. The logical read cache has no dirty entries.
-Unused slots have only bufferid populated. Dump retains installed SQL/data/ACLs,
-not live cache state; successful target Reset/Restore starts its cache cold while
-preserving other databases and already detached results.
+Unused ordinary cache slots have only bufferid populated. NUMA inspection instead
+enumerates every genuine capacity ID `i` as `(i, i-1, 0)`: a supported virtual
+single-node topology with one virtual OS page per logical buffer, without host
+NUMA inspection. The three declared fields remain nullable. Preparing, inspecting
+or canceling NUMA observations does not heat buffers or acquire pins.
+Dump retains installed SQL/data/ACLs, not live cache or cursor state; successful
+target Reset/Restore starts its cache cold while preserving other databases and
+already detached results. Cold NUMA observations still enumerate full capacity.
 
 Installed pg_surgery 1.0 provides genuine freeze and kill routines with independent
 EXECUTE grants and current schema/owner checks. Kill acts on exact heap versions
@@ -1116,9 +1123,10 @@ Dictionary initialization is real cold physical-session work; a warm dictionary
 survives subject/relabel-only changes, while definition replacement becomes cold.
 Value-per-call sources enter around actual consumed work and restore before a
 row is yielded, not around an unused source or after eager materialization.
-This includes `pg_buffercache_pages`, visibility-map row sources and the
-visibility check functions: the first consumed call captures their logical
-snapshot and produces its first row, while later calls produce a row or finish.
+This includes `pg_buffercache_pages`, `pg_buffercache_numa_pages`, visibility-map
+row sources and the visibility check functions: the first consumed call captures
+their logical snapshot or scalar capacity and produces its first row, while later
+calls produce a row or finish.
 Visibility truncation and heap-surgery routines instead enter once around
 their actual scalar operation, retaining their existing effects and diagnostics.
 Earth, pageinspect and freespace SQL adapters run their genuine selected nested

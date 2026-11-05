@@ -45,7 +45,7 @@ func ValidatePgBuffercacheIdentity(v catalog.Read, p *catalog.Procedure, ref ids
 	return StockPgBuffercache.ValidateProcedure(v, p)
 }
 func (p *PgBuffercacheProvider) validateRecipe(v catalog.Read, e *catalog.Extension) error {
-	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 6 {
+	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 7 {
 		return fmt.Errorf("stuntgres: invalid pg_buffercache manifest")
 	}
 	for _, address := range e.Members {
@@ -92,7 +92,10 @@ func (provider *PgBuffercacheProvider) Stage(stage Stage, ext *catalog.Extension
 	if err := provider.stageEvictions(stage, ext, owner); err != nil {
 		return err
 	}
-	return provider.stageAggregates(stage, ext, owner)
+	if err := provider.stageAggregates(stage, ext, owner); err != nil {
+		return err
+	}
+	return provider.stageNUMA(stage, ext, owner)
 }
 func (*PgBuffercacheProvider) ConsumerViews(version string) ([]ConsumerView, error) {
 	if version != "1.6" {
@@ -108,5 +111,8 @@ func (*PgBuffercacheProvider) ConsumerViews(version string) ([]ConsumerView, err
 	from := &parser.AliasReference{Input: &parser.FunctionTable{Calls: []parser.FunctionExpr{call}}, Name: parser.Identifier{Text: "p"}, ColumnDefinitions: definitions}
 	view := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_buffercache"}}}, Query: &parser.Select{Targets: []parser.Expr{parser.StarExpr{}}, From: from}}
 	all := authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.TruncatePrivilege | authorization.ReferencesPrivilege | authorization.TriggerPrivilege | authorization.MaintainPrivilege
-	return []ConsumerView{{Statement: view, InstallContext: pgBuffercacheViewContext, ACL: []ConsumerViewACL{{Public: true, Privileges: all, Revoke: true}, {Role: 3373, Privileges: authorization.SelectPrivilege}}}}, nil
+	return []ConsumerView{
+		{Statement: view, InstallContext: pgBuffercacheViewContext, ACL: []ConsumerViewACL{{Public: true, Privileges: all, Revoke: true}, {Role: 3373, Privileges: authorization.SelectPrivilege}}},
+		pgBuffercacheNUMAView(all),
+	}, nil
 }

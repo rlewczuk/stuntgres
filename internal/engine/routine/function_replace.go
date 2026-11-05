@@ -21,21 +21,18 @@ func checkFunctionReplacement(h DDLHost, auth ddl.Authority, old *catalog.Proced
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: message, Hint: "Use DROP FUNCTION " + signature + " first."}
 	}
-	if old.Result != result {
-		return failure("cannot change return type of existing function")
-	}
-	if old.RoutineDefinition() == nil {
+	// Preserve the existing unsupported-body priority only when result identity
+	// already matches. A changed result must still report 42P13 first.
+	if old.Result == result && old.RoutineDefinition() == nil {
 		return sqlError("0A000", "replacement of built-in or externally implemented functions is unsupported")
 	}
-	if old.RoutineDefinition().ReturnsSet != layout.ReturnsSet {
-		return failure("cannot change return type of existing function")
-	}
-	if old.RoutineDefinition().DerivedResult() && !layout.MatchesOutputTuple(old.RoutineDefinition().Result.Type) {
-		err := failure("cannot change return type of existing function")
-		if diagnostic, ok := err.(*sqlstate.Error); ok {
-			diagnostic.Detail = "Row type defined by OUT parameters is different."
+	if diagnostic := catalog.CheckRoutineReplacementResult(old, result, layout.ReturnsSet, layout); diagnostic != nil {
+		signature, err := h.RoutineSignatureSpelling(auth, old.Address().ObjectID)
+		if err != nil {
+			return err
 		}
-		return err
+		diagnostic.Hint = "Use DROP FUNCTION " + signature + " first."
+		return diagnostic
 	}
 	if len(old.RoutineDefinition().InputFormals) != len(layout.InputFormals) {
 		return fmt.Errorf("stuntgres: replacement input identity disagrees with its declaration")

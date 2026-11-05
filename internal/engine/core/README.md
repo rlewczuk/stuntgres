@@ -2298,9 +2298,15 @@ and retires replaced storage/database identities. Successful Reset/Restore drops
 only target live cache state; failed replacement preserves incumbents. Late old
 leases cannot alter replacement entries. Dump serializes ordinary installed SQL,
 membership, owners, current/initial ACLs and user data, never cache state or tokens.
-Provider cursors contain detached scalar snapshots and lazily synthesize unused
-slots with all eight unavailable fields NULL; no source/session/catalog root
-escapes in a row.
+Pages cursors contain detached scalar occupancy snapshots and lazily synthesize
+unused slots with eight unavailable fields NULL. NUMA cursors retain only scalar
+capacity/position and their resident result descriptor, not a sparse map, engine,
+catalog or source lease. Under the registered cluster-owner check they capture
+capacity without reconciling occupancy, then yield `(i, i-1, 0)` unlocked for every
+buffer ID: a supported virtual single-node topology with one virtual OS page per
+logical buffer and no host inspection. Every advancement checks cancellation;
+inspection, preparation, early close and cancellation never heat or pin storage.
+Cold restore still exposes all capacity IDs; no observation state is serialized.
 
 ### Table block projection
 

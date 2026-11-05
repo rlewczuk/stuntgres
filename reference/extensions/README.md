@@ -268,6 +268,14 @@ native-only phases specify actual-read usage and capture-owned session pins.
 Unused-slot NULLs require a real witness. Native controls retain SQL state while
 discarding target live occupancy; source-owner units supplement public lifetime
 scenarios without adding an inspection API.
+The NUMA scenarios use the same family fixture and independently specify all
+capacity IDs `(i, i-1, 0)` for native supported virtual single-node inspection,
+with no host probing or cache heat/pins. Physical PostgreSQL page inquiry is a
+separate boundary: the pinned fixture reports the exact initialization-unavailable
+diagnostic, while supported-domain assertions retain nonnegative-or-NULL nodes.
+Direct/fresh/held metadata, separate observer ACLs, actual membership initial
+history and native SQL/control ownership remain shared public scenarios.
+
 
 The same selector covers scalar summary and six usage buckets, including
 FLOAT8/empty-NULL metadata, independent perfunction grants, genuine source-pin

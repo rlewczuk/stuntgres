@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+var pgBuffercachePageTypes = [...]sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Int8, sqltype.Bool, sqltype.Int2, sqltype.Int4}
+var pgBuffercacheNUMATypes = [...]sqltype.ID{sqltype.Int4, sqltype.Int8, sqltype.Int4}
 
 func (c *Context) OpenPgBuffercache(n plan.InstalledPgBuffercacheExpr) (expr.SourceCursor, error) {
 	if err := EvaluationContext(c); err != nil {
@@ -23,6 +27,11 @@ func (c *Context) OpenPgBuffercache(n plan.InstalledPgBuffercacheExpr) (expr.Sou
 		return expr.SourceCursor{}, err
 	}
 	if err := extension.ValidatePgBuffercacheIdentity(view, current, n.Ref); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	call := n.PgBuffercache
+	call.RoutineReference = current
+	if err := extension.ValidatePgBuffercacheCall(view, current, call); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	// The released source is value-per-call: first setup and the first tuple
@@ -79,16 +88,24 @@ func (c *Context) pgBuffercacheRows(n plan.InstalledPgBuffercacheExpr) (expr.Sou
 	if err := extension.ValidatePgBuffercacheIdentity(auth.Catalog, current, n.Ref); err != nil {
 		return expr.SourceCursor{}, err
 	}
+	call := n.PgBuffercache
+	call.RoutineReference = current
+	if err := extension.ValidatePgBuffercacheCall(auth.Catalog, current, call); err != nil {
+		return expr.SourceCursor{}, err
+	}
 	// Invoker authorization deliberately precedes the released execution-time
 	// anonymous record/count/type checks, including permission on bad shapes.
 	shape := n.Usage.Type
 	if shape == nil || !shape.IsComposite() {
 		return expr.SourceCursor{}, sqlError("XX000", "return type must be a row type")
 	}
-	if shape.CompositeLen() != 8 && shape.CompositeLen() != 9 {
+	types := pgBuffercachePageTypes[:]
+	if n.Kind == functions.PgBuffercacheNUMA {
+		types = pgBuffercacheNUMATypes[:]
+	}
+	if shape.CompositeLen() != len(types) && !(n.Kind == functions.PgBuffercachePages && shape.CompositeLen() == 8) {
 		return expr.SourceCursor{}, sqlError("XX000", "incorrect number of output arguments")
 	}
-	types := [...]sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Int8, sqltype.Bool, sqltype.Int2, sqltype.Int4}
 	for i := range shape.CompositeLen() {
 		actual, ok := auth.Catalog.LookupType(types[i])
 		if !ok {
@@ -102,6 +119,9 @@ func (c *Context) pgBuffercacheRows(n plan.InstalledPgBuffercacheExpr) (expr.Sou
 	host := c.LiveHost()
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: pg_buffercache lacks statement scope")
+	}
+	if n.Kind == functions.PgBuffercacheNUMA {
+		return host.Contrib().PgBuffercacheNUMA(shape)
 	}
 	return host.Contrib().PgBuffercache(shape)
 }

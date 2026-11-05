@@ -52,9 +52,9 @@ func TestReferencePgBuffercacheIdentity(t *testing.T) {
 			t.Helper()
 			count(c, 0)
 			for _, q := range []string{
-				"SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all','pg_buffercache_summary','pg_buffercache_usage_counts')",
-				"SELECT count(*) AS n FROM pg_class WHERE relnamespace='bc_part'::regnamespace AND relname='pg_buffercache'",
-				"SELECT count(*) AS n FROM pg_type WHERE typnamespace='bc_part'::regnamespace AND typname IN ('pg_buffercache','_pg_buffercache')",
+				"SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all','pg_buffercache_summary','pg_buffercache_usage_counts','pg_buffercache_numa_pages')",
+				"SELECT count(*) AS n FROM pg_class WHERE relnamespace='bc_part'::regnamespace AND relname IN ('pg_buffercache','pg_buffercache_numa')",
+				"SELECT count(*) AS n FROM pg_type WHERE typnamespace='bc_part'::regnamespace AND typname IN ('pg_buffercache','_pg_buffercache','pg_buffercache_numa','_pg_buffercache_numa')",
 			} {
 				bcBoth(t, p, b, c, fixture.Select(q, []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 			}

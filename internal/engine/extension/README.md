@@ -593,30 +593,38 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Installation collisions use the failed member's recipe-specific statement and
   location in the released 1.1 base script, including its legacy SQL wrapper;
   this diagnostic source is distinct from the final 1.3 BEGIN ATOMIC body.
-- **pg_buffercache** (`pgbuffercache_provider.go`) seals the 1.6 zero-argument
-  VOLATILE, non-STRICT, parallel-safe invoker `pg_buffercache_pages()->SETOF record`
-  without OUT parameters. Its ordinary view supplies nine typed definitions.
-  Function EXECUTE and view SELECT have separate pg_monitor grants and PUBLIC
-  revocations. Mutable names, owners, schemas and membership never select callable
-  provenance. Stored caller definitions survive ordinary expression remapping;
-  execution validates current authority before anonymous-record/count/type errors.
-  The core-owned logical read cache is not PostgreSQL shared memory or a C ABI.
+- **pg_buffercache** (`pgbuffercache_provider.go`, `pgbuffercache_numa.go`) seals
+  the 1.6 zero-argument VOLATILE, non-STRICT, parallel-safe invoker pages and NUMA
+  SETOF-record declarations without OUT parameters. Ordinary views supply nine
+  and three typed definitions. Each function EXECUTE and view SELECT has separate
+  pg_monitor grants and PUBLIC revocations, preserving named creation defaults.
+  Mutable names, owners, schemas and membership never select callable provenance.
+  Stored caller definitions retain their sealed operation through reconstruction
+  and remapping; execution admits current authority before row/count/type errors.
+  The core-owned logical cache and supported virtual single-node NUMA topology
+  inspect no PostgreSQL shared memory, host NUMA or C ABI.
   Recipe slots one through three seal the integer, regclass and zero-input
   eviction declarations with exact scalar-record OUT fields; pages retains slot
-  zero. Evictions use ordinary creation/default routine ACLs, not pages' script
-  revocations or monitor grants. Runtime effective-superuser admission is separate
-  from those SQL ACLs. Summary and usage occupy appended slots four and five,
-  with five/four declared OUT fields and scalar/SETOF cardinality respectively.
+  zero. Evictions use ordinary creation/default routine ACLs, not observer script
+  revocations or monitor grants. Their runtime effective-superuser admission is
+  separate from SQL ACLs. Summary and usage retain slots four and five, with
+  five/four declared OUT fields and scalar/SETOF cardinality respectively.
   Each uses pages' creation ACL, PUBLIC revoke, monitor grant and initial-ACL
-  history independently; neither has eviction's superuser body gate. Ordinary
-  view/type/array members remain outside the six provider declaration slots,
-  and canonical replay preserves their whole cohort.
+  history independently; neither has eviction's superuser body gate. NUMA appends
+  slot six. The two ordinary view/type/array closures remain outside the seven
+  provider declaration slots; canonical replay preserves all thirteen members.
+  Membership DROP removes initial privileges; ADD records the then-current ACL,
+  independently of subsequent owner/grant changes and native replay.
   Installation conflicts preserve the released statement and script location in
   diagnostic Context: the integer declaration first occurs in 1.4--1.5, before
   its 1.6 OUT-record replacement; relation/all conflicts come from 1.5--1.6,
   and aggregate conflicts retain their original 1.3--1.4 statements/locations.
   This diagnostic provenance does not install the historical boolean-returning
   declaration.
+  NUMA's CREATE OR REPLACE uses the ordinary pure catalog compatibility leaves:
+  kind precedes result/set and declaration-owned OUT tuple checks, all before
+  membership protection. Exact Detail/Hint survive the added 1.5--1.6 script
+  Context; the incumbent's identity, body and ACL are never replaced.
 - **pg_visibility** (`pgvisibility_provider.go`) seals eight declarations: the
   five map/page/summary read recipes, two scalar TID set checks, and a scalar VOID
   map truncator with no OUT declaration. Incumbent slots remain stable. Immutable

@@ -1521,6 +1521,14 @@ retain nominal usage, dependencies and current names through replay/remap/retag.
 Definition/Dump inspection does not execute volatile children. Views and
 independent destinations retain symbolic identity, never execution grants.
 
+`InstalledPgBuffercacheExpr` preserves the sealed pages/NUMA operation and
+occurrence-owned anonymous fields through reconstruction, rendering and existing
+remap/retag traversal. Validation cross-checks kind against the genuine installed
+slot and resident field generations, not mutable SQL spelling. NUMA wrappers are
+capacity observations, not dynamic relation captures; only eviction slots one
+through three acquire that dynamic dependency classification. Replay retains SQL,
+owners and actual current/initial ACL history, never cursor or topology state.
+
 `InstalledPgBuffercacheEvictionExpr` and `InstalledPgBuffercacheAggregateExpr`
 participate in the same closed scalar, literal/reference/dependency, rendering
 and remap/retag lanes. Validation checks sealed operation and resident declared

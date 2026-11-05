@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -30,19 +31,24 @@ func buffercacheInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION pg_buffercache")
 	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pg_buffercache"}))
 }
-func buffercacheExpression(t *testing.T, e *core.Engine, defined bool) plan.InstalledPgBuffercacheExpr {
+func buffercacheExpression(t *testing.T, e *core.Engine, defined bool, kind functions.PgBuffercacheKind) plan.InstalledPgBuffercacheExpr {
 	t.Helper()
 	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.Clause.AggregateClause = "FROM"
 	binder.Query.Namespace = &analyze.QueryNamespace{}
-	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_buffercache_pages"}}}}
+	name := "pg_buffercache_pages"
+	types := []string{"integer", "oid", "oid", "oid", "smallint", "bigint", "boolean", "smallint", "integer"}
+	if kind == functions.PgBuffercacheNUMA {
+		name, types = "pg_buffercache_numa_pages", []string{"integer", "bigint", "integer"}
+	}
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	node, err := binder.BindFunctionSource(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if defined {
-		definitions := make([]parser.FunctionColumnDefinition, 9)
-		for i, typ := range []string{"integer", "oid", "oid", "oid", "smallint", "bigint", "boolean", "smallint", "integer"} {
+		definitions := make([]parser.FunctionColumnDefinition, len(types))
+		for i, typ := range types {
 			definitions[i] = parser.FunctionColumnDefinition{Name: parser.Identifier{Text: string(rune('a' + i))}, Type: parser.TypeName{Name: typ}}
 		}
 		node, err = binder.CompleteFunctionDefinitions(raw, node, definitions)
@@ -58,7 +64,7 @@ func TestPgBuffercacheProviderIdentity(t *testing.T) {
 	ext := buffercacheInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgBuffercache.Control()
-	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 9 || len(ext.Installation.Members) != 6 {
+	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 13 || len(ext.Installation.Members) != 7 {
 		t.Fatal("provider and ordinary consumer authority mixed", control, ext)
 	}
 	if err := extension.StockPgBuffercache.ValidateExtension(view, ext); err != nil {
@@ -142,12 +148,21 @@ func TestPgBuffercacheProviderIdentity(t *testing.T) {
 }
 
 func TestPgBuffercacheExpressionIdentity(t *testing.T) {
+	buffercacheExpressionIdentity(t, functions.PgBuffercachePages)
+}
+
+func TestPgBuffercacheNUMAIdentity(t *testing.T) {
+	buffercacheExpressionIdentity(t, functions.PgBuffercacheNUMA)
+}
+
+func buffercacheExpressionIdentity(t *testing.T, kind functions.PgBuffercacheKind) {
+	t.Helper()
 	e := engine.New()
 	ext := buffercacheInstalled(t, e)
 	foreign := engine.New()
 	buffercacheInstalled(t, foreign)
 	for _, defined := range []bool{false, true} {
-		n := buffercacheExpression(t, e, defined)
+		n := buffercacheExpression(t, e, defined, kind)
 		view := e.CatalogRead()
 		if stored.ValidateInstalledPgBuffercache(n, view) != nil || stored.ValidateInstalledPgBuffercache(n, foreign.CatalogRead()) == nil {
 			t.Fatal("foreign domain accepted or resident carrier rejected")
@@ -155,16 +170,42 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 		if n.Usage.Type.IsComposite() != defined || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 			t.Fatal("record completion/fold identity", n)
 		}
+		if kind == functions.PgBuffercacheNUMA && extension.ValidatePgBuffercacheEvictionCall(view, n.Procedure, functions.PgBuffercacheEviction{Info: n.Info, Kind: functions.EvictAll}) == nil {
+			t.Fatal("NUMA slot adopted eviction authority")
+		}
 		for _, rebuild := range []func(expr.Info, []expr.Expr) (expr.Expr, error){n.Rebuild, n.Substitute} {
 			copy, err := rebuild(n.Info, n.Children())
 			if err != nil || !reflect.DeepEqual(copy, n) || !n.SameSourceOccurrence(copy) {
 				t.Fatal("reconstruction lost immutable declaration", copy, err)
 			}
 		}
+		otherOperation := n
+		otherOperation.Kind = functions.PgBuffercacheKind(1 - kind)
+		if n.Kind != kind || n.SameSourceOccurrence(otherOperation) || n.SameGroup(otherOperation, nil, false) || stored.ValidateInstalledPgBuffercache(otherOperation, view) == nil {
+			t.Fatal("pages and NUMA operation identities merged")
+		}
 		for _, mutate := range []func(*plan.InstalledPgBuffercacheExpr){
 			func(n *plan.InstalledPgBuffercacheExpr) { n.Ref.Epoch++ },
 			func(n *plan.InstalledPgBuffercacheExpr) { n.Ref.Epoch = 0 },
 			func(n *plan.InstalledPgBuffercacheExpr) { n.RoutineReference = nil },
+			func(n *plan.InstalledPgBuffercacheExpr) { n.Kind = functions.PgBuffercacheKind(255) },
+			func(n *plan.InstalledPgBuffercacheExpr) {
+				p := *n.Procedure
+				p.Display.Source = "forged"
+				n.Procedure, n.RoutineReference = &p, &p
+			},
+			func(n *plan.InstalledPgBuffercacheExpr) {
+				p := *n.Procedure
+				p.Implementation, p.Origin = nil, nil
+				n.Procedure, n.RoutineReference = &p, &p
+			},
+			func(n *plan.InstalledPgBuffercacheExpr) {
+				p := *n.Procedure
+				origin := *p.Origin
+				origin.Declaration = 1
+				p.Origin = &origin
+				n.Procedure, n.RoutineReference = &p, &p
+			},
 			func(n *plan.InstalledPgBuffercacheExpr) {
 				p := *n.Procedure
 				p.Implementation = new(extension.PgBuffercacheProvider)
@@ -182,10 +223,12 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 			for i := range members {
 				members[i] = n.Usage.Type.CompositeMember(i)
 			}
-			forged := *members[5].Usage.Type
+			ordinal := 5
+			if kind == functions.PgBuffercacheNUMA { ordinal = 1 }
+			forged := *members[ordinal].Usage.Type
 			// INT8 occurs once: the anonymous shape remains internally coherent,
 			// but its field is not the catalog's resident type generation.
-			members[5].Usage.Type = &forged
+			members[ordinal].Usage.Type = &forged
 			shape, err := sqltype.RecordShape(members)
 			if err != nil {
 				t.Fatal(err)
@@ -197,7 +240,7 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 			}
 		}
 		text, err := (stored.Deparser{View: view}).SQL(context.Background(), n, stored.DeparseParent{})
-		if err != nil || !strings.Contains(text, "pg_buffercache_pages") {
+		if err != nil || !strings.Contains(text, n.Procedure.Name()) {
 			t.Fatal("stored rendering", text, err)
 		}
 		mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 920000}, n.Ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 920001}}
@@ -236,14 +279,16 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := mapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgBuffercacheExpr)
-		if next.Ref != remap(n.Ref) || next.Procedure.Address() != mapping[n.Ref.Address] || next.RoutineReference != next.Procedure || n.Procedure != view.Get(n.Ref.Address) || stored.ValidateInstalledPgBuffercache(next, e.Catalog.Read(state)) != nil {
+		if next.Kind != kind || next.Ref != remap(n.Ref) || next.Procedure.Address() != mapping[n.Ref.Address] || next.RoutineReference != next.Procedure || n.Procedure != view.Get(n.Ref.Address) || stored.ValidateInstalledPgBuffercache(next, e.Catalog.Read(state)) != nil {
 			t.Fatal("destination remap lost provenance")
 		}
 	}
 	// Accepted immutable backing accompanies the distinguishing public held
 	// statement scenarios; the volatile provider itself is never a fold entry.
 	s := enginetest.StartSession(t, e, nil)
-	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT bufferid,COALESCE(-(7::integer),0) AS marker FROM pg_buffercache LIMIT 1")
+	viewName := "pg_buffercache"
+	if kind == functions.PgBuffercacheNUMA { viewName = "pg_buffercache_numa" }
+	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT bufferid,COALESCE(-(7::integer),0) AS marker FROM "+viewName+" LIMIT 1")
 	enginetest.PreparedFoldExecute(t, e, s, ast, &description)
 	owner := description.Folds
 	accepted := owner.Current()
@@ -259,5 +304,9 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 		if !enginetest.SamePublishedFold(owner.Current().Entries[i], snapshot[i]) {
 			t.Fatal("immutable accepted entry mutated")
 		}
+	}
+	buffercacheRejectPublication(t, e, s, ast, description, accepted)
+	if kind == functions.PgBuffercacheNUMA {
+		buffercacheNUMADynamicDependency(t, e)
 	}
 }

@@ -14,6 +14,11 @@ func (r installedExtensionRoutine) attachPgBuffercache(call functions.PgBufferca
 	if err := extension.ValidatePgBuffercacheIdentity(r.catalog, r.procedure, ref); err != nil {
 		return nil, err
 	}
+	boundary := call
+	boundary.RoutineReference = r.procedure
+	if err := extension.ValidatePgBuffercacheCall(r.catalog, r.procedure, boundary); err != nil {
+		return nil, err
+	}
 	if b.Params.ExecuteParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
 	}

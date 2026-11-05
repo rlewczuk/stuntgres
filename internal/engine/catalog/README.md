@@ -123,6 +123,12 @@ neither owns catalog authority.
   Both legacy and modern snapshot member sources retain the released fifty-row
   estimate by their distinct declaration identities.
   Scalar estimates remain zero independently of mutable estimate fields.
+  `CheckRoutineReplacementKind` and `CheckRoutineReplacementResult` are pure
+  declaration-compatibility leaves shared by ordinary DDL and native script
+  staging. They compare intrinsic kind/result/set facts and real declaration-owned
+  OUT tuples, including member generations; a native anonymous RECORD has no OUT
+  layout. They retain no authority and perform no publication. Callers own
+  eligibility/ownership, lazy Hint formatting and script Context.
   `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
   trailing-default counts by value. Its comparable `Outputs` pointer and the
   builtin declaration's `Outputs` own fixed native OUT type IDs and complete

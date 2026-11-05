@@ -925,16 +925,17 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   VOID only after successful publication. Prepared recipes retain no permission
   result or heap handle; the host readmits target authority at publication.
 - **Buffer cache** (`pgbuffercache.go`): an installed anonymous-record carrier
-  retains genuine routine provenance and caller field usages, never OUT aliases.
-  Ordinary current EXECUTE/recipe admission precedes execution-time row/count/type
-  validation. Namespace access follows ordinary prepared invalidation/reanalysis.
-  Metadata Open does not capture buffers. First borrowed Advance authenticates the
-  retained declaration against the current descriptor before strict provider
-  identity validation, then obtains the sparse snapshot and first row together.
+  retains genuine routine provenance, sealed pages/NUMA operation and caller field
+  usages, never OUT aliases. Current EXECUTE/recipe admission precedes row/count/
+  type validation. Namespace access follows prepared invalidation/reanalysis.
+  Metadata Open captures neither buffers nor topology. First borrowed Advance
+  authenticates the current declaration and matching operation, then obtains
+  either a sparse pages snapshot or scalar NUMA capacity with its first row.
   Supported rename/owner/ACL presentation changes never replace original receipt
   coordinates or weaken forged-provider rejection. Subsequent VPC calls borrow
-  the same initializer; cancellation and close release the payload without
-  retaining session pins or an engine.
+  the same initializer; cancellation and close release payloads without retaining
+  session pins or an engine. NUMA enumerates all capacity IDs without copying
+  occupancy or activating relation reads.
   Declared-OUT eviction records use a separate scalar kernel shared by Eval and
   first demanded source Advance. Open owns evaluated arguments, never a live
   owner. Current ordinary EXECUTE admission also applies to strict NULL; non-NULL

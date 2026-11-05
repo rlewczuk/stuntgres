@@ -182,14 +182,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		if err := ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, address), OwnerOnly: true}); err != nil {
 			return err
 		}
-		if previous.RoutineKind != d.RoutineKind {
-			noun := "function"
-			if previous.RoutineKind == catalog.ProcedureRoutine {
-				noun = "procedure"
-			} else if previous.RoutineKind == catalog.AggregateRoutine {
-				noun = "aggregate function"
-			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot change routine kind", Detail: fmt.Sprintf("%q is a %s.", previous.Name(), noun)}
+		if err := catalog.CheckRoutineReplacementKind(previous, d.RoutineKind); err != nil {
+			return err
 		}
 		if err := checkFunctionReplacement(h, auth, previous, d.Result, layout); err != nil {
 			return err

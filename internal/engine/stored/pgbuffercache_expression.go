@@ -23,12 +23,14 @@ func ValidateInstalledPgBuffercache(n plan.InstalledPgBuffercacheExpr, v catalog
 			}
 		}
 	}
-	current, symbol, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	current, _, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
 	if err != nil {
 		return err
 	}
-	if symbol != "pg_buffercache_pages" {
-		return fmt.Errorf("stuntgres: invalid pg_buffercache symbol")
+	if err := extension.ValidatePgBuffercacheIdentity(v, current, n.Ref); err != nil {
+		return err
 	}
-	return extension.ValidatePgBuffercacheIdentity(v, current, n.Ref)
+	call := n.PgBuffercache
+	call.RoutineReference = current
+	return extension.ValidatePgBuffercacheCall(v, current, call)
 }

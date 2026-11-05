@@ -432,6 +432,10 @@ and extension membership. Owner/kind/result checks, existing named inputs and
 trailing default compatibility precede tentative replacement; body-validation
 failure leaves the checked predecessor intact. SQL/PL language changes use the
 same conditional body policy and unconditional declaration checks.
+Kind and result/set/OUT-tuple compatibility use the pure catalog leaves also
+consumed by native script staging. Ownership remains here, before kind admission;
+the existing builtin/external replacement restriction keeps its result-identity
+precedence. DROP hints are formatted only for actual compatibility failures.
 After exact OUT tuple compatibility succeeds, same-identity replacement retains
 the predecessor's declaration-owned result Usage and member generations. Stored
 field consumers therefore keep their exact type/collation authority while their

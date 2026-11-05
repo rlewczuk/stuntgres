@@ -40,6 +40,7 @@ type ContribRuntime interface {
 	XML2XPathTable(args [5]string, result *sqltype.Descriptor, procedure *catalog.Procedure) ([]sqltype.Value, error)
 	ValidateXML2XPathTable(plan.InstalledXML2XPathTableExpr) error
 	PgBuffercache(result *sqltype.Descriptor) (expr.SourceCursor, error)
+	PgBuffercacheNUMA(result *sqltype.Descriptor) (expr.SourceCursor, error)
 	PgBuffercacheEviction(n plan.InstalledPgBuffercacheEvictionExpr, input int64) ([3]int64, error)
 	PgBuffercacheAggregate(n plan.InstalledPgBuffercacheAggregateExpr) (functions.PgBuffercacheCounts, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)

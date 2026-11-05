@@ -54,11 +54,12 @@ func (n InstalledPgBuffercacheExpr) AdvanceSource(ctx context.Context, evaluatio
 }
 func (n InstalledPgBuffercacheExpr) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(InstalledPgBuffercacheExpr)
-	return ok && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.Usage, o.Usage)
+	return ok && n.Kind == o.Kind && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.Usage, o.Usage)
 }
 func (n InstalledPgBuffercacheExpr) SameGroup(other expr.Expr, _ func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	return n.SameSourceOccurrence(other)
 }
-func (InstalledPgBuffercacheExpr) JumbleFields(s expr.StatementFields) {
+func (n InstalledPgBuffercacheExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgBuffercacheExpr")
+	s.JumbleUint64(uint64(n.Kind))
 }

@@ -553,16 +553,18 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			}
 		}
 	case StockPgBuffercache:
-		count = 6
+		count = 7
 		if ext.Provider != "pg_buffercache" || ext.Version != "1.6" || slot >= count {
 			return invalid()
 		}
 		declaration := pgBuffercacheDeclaration
 		name, signature, result, volatility, strict = "pg_buffercache_pages", "", 2249, expr.Volatile, false
-		if slot >= 1 && slot <= 3 {
+		if slot == 6 {
+			name = "pg_buffercache_numa_pages"
+		} else if slot >= 1 && slot <= 3 {
 			member := PgBuffercacheEvictionMembers[slot-1]
 			name, signature, strict, declaration = member.Name, member.Signature, member.Strict, member.Declaration
-		} else if slot >= PgBuffercacheAggregateStart {
+		} else if slot >= PgBuffercacheAggregateStart && int(slot) < PgBuffercacheAggregateStart+len(PgBuffercacheAggregateMembers) {
 			member := PgBuffercacheAggregateMembers[slot-PgBuffercacheAggregateStart]
 			name, declaration = member.Name, member.Declaration
 		}

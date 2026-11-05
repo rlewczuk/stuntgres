@@ -184,7 +184,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary", "pg_check_visible", "pg_check_frozen", "pg_truncate_visibility_map"}, Installed: PgvisibilityExtension, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
 	{Names: []string{"heap_force_freeze", "heap_force_kill"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
-	{Names: []string{"pg_buffercache_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
+	{Names: []string{"pg_buffercache_pages", "pg_buffercache_numa_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
 	{Names: []string{"pg_buffercache_evict", "pg_buffercache_evict_relation", "pg_buffercache_evict_all"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercacheEviction},
 	{Names: []string{"pg_buffercache_summary", "pg_buffercache_usage_counts"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercacheAggregate},
 	{Names: pageinspectNames[:], Installed: PageinspectExtension, Bind: bindPageinspect, NamedCall: namedPageinspect},

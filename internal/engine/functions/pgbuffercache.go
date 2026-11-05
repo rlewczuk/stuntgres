@@ -7,9 +7,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// PgBuffercache carries only the occurrence's caller-completed anonymous record.
-// Authority and the detached sparse snapshot belong to the executing statement.
-type PgBuffercache struct{ expr.Info }
+// PgBuffercacheKind is the sealed anonymous-record operation, not SQL spelling.
+type PgBuffercacheKind uint8
+
+const (
+	PgBuffercachePages PgBuffercacheKind = iota
+	PgBuffercacheNUMA
+)
+
+// PgBuffercache carries the operation and occurrence-owned anonymous record.
+// Authority and detached observation state belong to the executing statement.
+type PgBuffercache struct {
+	expr.Info
+	Kind PgBuffercacheKind
+}
 
 func bindPgBuffercache(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	operands := make([]Argument, len(raw.Args))
@@ -33,17 +44,27 @@ func bindPgBuffercache(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := routine.Validate(); err != nil {
 		return nil, err
 	}
+	declaration, ok := routine.(interface {
+		PgBuffercacheDeclaration() (PgBuffercacheKind, bool)
+	})
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: missing pg_buffercache declaration")
+	}
+	kind, ok := declaration.PgBuffercacheDeclaration()
+	if !ok {
+		return nil, b.SignatureError(raw.Name, raw.Pos, installedArgumentNames(b, raw, operands))
+	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	return routine.Attach(PgBuffercache{Info: b.Info(b.Type(2249).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile, StageDependent: true})})
+	return routine.Attach(PgBuffercache{Kind: kind, Info: b.Info(b.Type(2249).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile, StageDependent: true})})
 }
 func (PgBuffercache) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: pg_buffercache requires a source invocation")
 }
 func (PgBuffercache) Children() []expr.Expr { return nil }
 func (n PgBuffercache) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if len(children) != 0 {
+	if n.Kind > PgBuffercacheNUMA || len(children) != 0 {
 		return nil, fmt.Errorf("stuntgres: invalid pg_buffercache arguments")
 	}
 	n.Info = info
