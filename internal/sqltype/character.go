@@ -1,6 +1,7 @@
 package sqltype
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -72,26 +73,49 @@ func ValidateTextInput(text string) error {
 		}
 		_, width := utf8.DecodeRuneInString(text[i:])
 		if width == 1 && text[i] >= utf8.RuneSelf {
-			n := 1
-			switch {
-			case text[i] >= 0xc0 && text[i] < 0xe0:
-				n = 2
-			case text[i] >= 0xe0 && text[i] < 0xf0:
-				n = 3
-			case text[i] >= 0xf0 && text[i] < 0xf8:
-				n = 4
-			}
-			if n > len(text)-i {
-				n = len(text) - i
-			}
-			var b strings.Builder
-			b.WriteString(`invalid byte sequence for encoding "UTF8":`)
-			for j := range n {
-				fmt.Fprintf(&b, " 0x%02x", text[i+j])
-			}
-			return failure("22021", b.String())
+			return invalidTextSequence([]byte(text[i:min(i+4, len(text))]))
 		}
 		i += width
 	}
 	return nil
+}
+
+// validateTextBytes shares the public encoding diagnostic without converting
+// invocation-owned decrypted bytes into an immutable string before validation.
+func validateTextBytes(ctx context.Context, data []byte) error {
+	for i := 0; i < len(data); {
+		if i&4095 < 4 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		if data[i] == 0 {
+			return failure("22021", `invalid byte sequence for encoding "UTF8": 0x00`)
+		}
+		_, width := utf8.DecodeRune(data[i:])
+		if width == 1 && data[i] >= utf8.RuneSelf {
+			return invalidTextSequence(data[i:])
+		}
+		i += width
+	}
+	return ctx.Err()
+}
+
+func invalidTextSequence(data []byte) error {
+	n := 1
+	switch {
+	case data[0] >= 0xc0 && data[0] < 0xe0:
+		n = 2
+	case data[0] >= 0xe0 && data[0] < 0xf0:
+		n = 3
+	case data[0] >= 0xf0 && data[0] < 0xf8:
+		n = 4
+	}
+	n = min(n, len(data))
+	var b strings.Builder
+	b.WriteString(`invalid byte sequence for encoding "UTF8":`)
+	for j := range n {
+		fmt.Fprintf(&b, " 0x%02x", data[j])
+	}
+	return failure("22021", b.String())
 }

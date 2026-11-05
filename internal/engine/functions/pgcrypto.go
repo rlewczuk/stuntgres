@@ -80,7 +80,7 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 	}
 	switch e.Plan.Name() {
-	case "pgp_sym_encrypt":
+	case "pgp_sym_encrypt", "pgp_sym_encrypt_bytea":
 		call, null, err := e.Plan.PreparePGP(ctx, values[:len(e.Args)]...)
 		if err != nil {
 			return sqltype.Value{}, err

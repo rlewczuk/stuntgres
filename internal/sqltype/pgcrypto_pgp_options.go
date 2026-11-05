@@ -13,8 +13,7 @@ type pgpCompression uint8
 const pgpAES128 pgpCipher = 7
 const pgpSHA1 pgpDigest = 2
 
-// Parsed options are invocation-local. Recognized algorithms are distinct from
-// executable algorithms; later symmetric implementations extend this dispatch.
+// Parsed options and selected algorithms are invocation-local.
 type pgpOptions struct {
 	cipher, s2kCipher                                                 pgpCipher
 	digest                                                            pgpDigest
@@ -243,17 +242,23 @@ func pgpParseOptions(ctx context.Context, raw string) (pgpOptions, error) {
 }
 
 func (o pgpOptions) encryptionProfile() error {
-	if o.cipher != pgpAES128 || (o.s2kCipher != 0 && o.s2kCipher != pgpAES128) {
+	if key, _ := pgpCipherSize(o.cipher); key == 0 {
 		return pgpError("Unsupported cipher algorithm")
 	}
-	if o.digest != pgpSHA1 {
+	if o.s2kCipher != 0 {
+		if key, _ := pgpCipherSize(o.s2kCipher); key == 0 {
+			return pgpError("Unsupported cipher algorithm")
+		}
+	}
+	switch o.digest {
+	case 1, 2, 8:
+	case 3, 9, 10:
+		return pgpCapability()
+	default:
 		return pgpError("Unsupported digest algorithm")
 	}
-	if o.compression != 0 {
+	if o.compression == 3 && o.level != 0 {
 		return pgpError("Unsupported compression algorithm")
-	}
-	if o.mode != 3 || o.disableMDC || o.sessionKey || o.unicode || o.convertCRLF {
-		return pgpCapability()
 	}
 	return nil
 }

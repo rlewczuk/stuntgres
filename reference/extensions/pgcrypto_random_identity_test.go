@@ -31,8 +31,10 @@ func pgcryptoRandomInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, pg bool
 		"pgcrypto_part.dearmor(text)": {17, "i", true}, "pgcrypto_part.pgp_armor_headers(text)": {2249, "i", true},
 		"pgcrypto_part.pgp_sym_encrypt(text,text)": {17, "v", true}, "pgcrypto_part.pgp_sym_encrypt(text,text,text)": {17, "v", true},
 		"pgcrypto_part.pgp_sym_decrypt(bytea,text)": {25, "i", true}, "pgcrypto_part.pgp_sym_decrypt(bytea,text,text)": {25, "i", true},
+		"pgcrypto_part.pgp_sym_encrypt_bytea(bytea,text)": {17, "v", true}, "pgcrypto_part.pgp_sym_encrypt_bytea(bytea,text,text)": {17, "v", true},
+		"pgcrypto_part.pgp_sym_decrypt_bytea(bytea,text)": {17, "i", true}, "pgcrypto_part.pgp_sym_decrypt_bytea(bytea,text,text)": {17, "i", true},
 	}
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='pgcrypto_part' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='pgcrypto_part' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt','pgp_sym_encrypt_bytea','pgp_sym_decrypt_bytea')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,8 +58,8 @@ func pgcryptoRandomInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, pg bool
 		t.Fatal(err)
 	}
 	rows.Close()
-	if len(ids) != 22 {
-		t.Fatal("twenty-two selected members", ids)
+	if len(ids) != 26 {
+		t.Fatal("twenty-six selected members", ids)
 	}
 	var ext int64
 	var version, namespace string

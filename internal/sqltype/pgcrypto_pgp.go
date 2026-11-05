@@ -2,8 +2,6 @@ package sqltype
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/sha1"
 	"crypto/subtle"
 	"encoding/binary"
@@ -16,11 +14,14 @@ import (
 type PgcryptoPGPInvocation struct {
 	input, password string
 	options         pgpOptions
+	binary          bool
 }
 
 func (p PgcryptoPlan) PreparePGP(ctx context.Context, values ...Value) (PgcryptoPGPInvocation, bool, error) {
 	var call PgcryptoPGPInvocation
-	if p.name != "pgp_sym_encrypt" && p.name != "pgp_sym_decrypt" {
+	switch p.name {
+	case "pgp_sym_encrypt", "pgp_sym_decrypt", "pgp_sym_encrypt_bytea", "pgp_sym_decrypt_bytea":
+	default:
 		return call, false, fmt.Errorf("invalid PGP plan")
 	}
 	if err := ctx.Err(); err != nil {
@@ -48,23 +49,35 @@ func (p PgcryptoPlan) PreparePGP(ctx context.Context, values ...Value) (Pgcrypto
 	if len(call.password) == 0 {
 		return call, false, pgpArgument()
 	}
+	call.binary = p.name == "pgp_sym_encrypt_bytea" || p.name == "pgp_sym_decrypt_bytea"
 	if p.name == "pgp_sym_encrypt" {
 		call.input, err = values[0].Text()
-		if err == nil {
-			err = call.options.encryptionProfile()
-		}
 	} else {
 		call.input, err = values[0].Binary()
-		if err == nil && call.options.convertCRLF {
-			err = pgpCapability()
-		}
+	}
+	if err == nil && (p.name == "pgp_sym_encrypt" || p.name == "pgp_sym_encrypt_bytea") {
+		err = call.options.encryptionProfile()
 	}
 	return call, false, err
 }
 
-// PgcryptoPGPEncrypt obtains execution entropy only for a prepared non-NULL
-// invocation. Key, prefix, digest and plaintext are owned scratch, cleared on
-// every exit. AES state is invocation-local and never serialized or retained.
+func pgpFrame(ctx context.Context, tag pgpTag, data []byte) ([]byte, error) {
+	size := pgpPacketSize(len(data))
+	if size < 0 {
+		return nil, pgcryptoError("54000", "OpenPGP packet is too large")
+	}
+	out := make([]byte, size)
+	pos := 0
+	err := pgpWritePacket(ctx, out, tag, len(data), func(dst []byte) error { pos += copy(dst, data[pos:]); return nil })
+	if err != nil {
+		clear(out)
+		return nil, err
+	}
+	return out, nil
+}
+
+// PgcryptoPGPEncrypt uses only invocation-owned mutable secrets and obtains
+// execution entropy after strict NULL, option and password validation.
 func PgcryptoPGPEncrypt(ctx context.Context, call PgcryptoPGPInvocation, entropy func([]byte) error) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -75,26 +88,36 @@ func PgcryptoPGPEncrypt(ctx context.Context, call PgcryptoPGPInvocation, entropy
 	if call.password == "" {
 		return "", pgpArgument()
 	}
-	maxInt := int(^uint(0) >> 1)
-	if len(call.input) > maxInt-6 {
-		return "", pgcryptoError("54000", "OpenPGP packet is too large")
-	}
-	literalSize := pgpPacketSize(6 + len(call.input))
-	if literalSize < 0 || literalSize > maxInt-41 {
-		return "", pgcryptoError("54000", "OpenPGP packet is too large")
-	}
-	plainSize := 18 + literalSize + 2 + sha1.Size
-	dataSize := 1 + plainSize
-	encodedSize := pgpPacketSize(dataSize)
-	if encodedSize < 0 || encodedSize > maxInt-15 {
-		return "", pgcryptoError("54000", "OpenPGP packet is too large")
-	}
 	if entropy == nil {
 		return "", fmt.Errorf("missing pgcrypto entropy context")
 	}
-	var random [25]byte // salt8, encoded-count random byte, random AES prefix16.
+	o := call.options
+	wrap := o.s2kCipher
+	if wrap == 0 {
+		wrap = o.cipher
+	}
+	keySize, _ := pgpCipherSize(wrap)
+	dataCipher := o.cipher
+	dataSize, blockSize := pgpCipherSize(dataCipher)
+	// OpenSSL's generic AES engine chooses strength by the derived key length.
+	if !o.sessionKey && dataCipher >= 7 && dataCipher <= 9 {
+		dataSize = keySize
+		switch keySize {
+		case 16:
+			dataCipher = 7
+		case 24:
+			dataCipher = 8
+		case 32:
+			dataCipher = 9
+		}
+	}
+	var random [57]byte
 	defer clear(random[:])
-	if err := entropy(random[:]); err != nil {
+	randomSize := 9 + blockSize
+	if o.sessionKey {
+		randomSize += dataSize
+	}
+	if err := entropy(random[:randomSize]); err != nil {
 		if canceled := ctx.Err(); canceled != nil {
 			return "", canceled
 		}
@@ -103,78 +126,127 @@ func PgcryptoPGPEncrypt(ctx context.Context, call PgcryptoPGPInvocation, entropy
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	encoded := pgpS2KEncode(call.options.count, random[8])
-	key, err := pgpS2KKey(ctx, call.password, random[:8], encoded)
-	if err != nil {
-		return "", err
-	}
+	encoded := pgpS2KEncode(o.count, random[8])
+	var key [32]byte
 	defer clear(key[:])
-	block, err := aes.NewCipher(key[:])
+	if err := pgpS2KKey(ctx, key[:keySize], call.password, random[:8], o.mode, o.digest, encoded); err != nil {
+		return "", err
+	}
+	var skesk [46]byte
+	defer clear(skesk[:])
+	skesk[0], skesk[1], skesk[2], skesk[3] = 4, byte(wrap), byte(o.mode), byte(o.digest)
+	skeskSize := 4
+	if o.mode != 0 {
+		copy(skesk[4:12], random[:8])
+		skeskSize = 12
+	}
+	if o.mode == 3 {
+		skesk[12] = encoded
+		skeskSize = 13
+	}
+	dataKey := key[:keySize]
+	if o.sessionKey {
+		dataKey = random[9+blockSize : randomSize]
+		wrapped := skesk[skeskSize : skeskSize+1+dataSize]
+		wrapped[0] = byte(dataCipher)
+		copy(wrapped[1:], dataKey)
+		block, err := pgpNewBlock(wrap, key[:keySize])
+		if err != nil {
+			return "", err
+		}
+		err = pgpCFB(ctx, block.Block, wrapped, false, false)
+		block.clear()
+		if err != nil {
+			return "", err
+		}
+		skeskSize += 1 + dataSize
+	}
+	literal, err := pgpMakeLiteral(ctx, call)
 	if err != nil {
 		return "", err
 	}
-	plain := make([]byte, plainSize)
+	defer clear(literal)
+	inner := literal
+	var compressed pgpScratch
+	defer compressed.clear()
+	var compressedPacket []byte
+	if o.compression != 0 && o.level != 0 {
+		if err = compressed.append([]byte{byte(o.compression)}); err != nil {
+			return "", err
+		}
+		if err = pgpCompress(ctx, &compressed, literal, o.compression, o.level); err != nil {
+			return "", err
+		}
+		compressedPacket, err = pgpFrame(ctx, pgpCompressed, compressed.data)
+		if err != nil {
+			return "", err
+		}
+		defer clear(compressedPacket)
+		inner = compressedPacket
+	}
+	extra := blockSize + 2
+	if !o.disableMDC {
+		extra += 2 + sha1.Size
+	}
+	if len(inner) > int(^uint(0)>>1)-extra {
+		return "", pgcryptoError("54000", "OpenPGP packet is too large")
+	}
+	plain := make([]byte, extra+len(inner))
 	defer clear(plain)
-	copy(plain[:16], random[9:])
-	plain[16], plain[17] = plain[14], plain[15]
-	var header [6]byte
-	header[0] = 't'
-	binary.BigEndian.PutUint32(header[2:], uint32(time.Now().Unix()))
-	written := 0
-	err = pgpWritePacket(ctx, plain[18:18+literalSize], pgpLiteral, 6+len(call.input), func(dst []byte) error {
-		if written < len(header) {
-			n := copy(dst, header[written:])
-			dst = dst[n:]
-			written += n
+	copy(plain, random[9:9+blockSize])
+	plain[blockSize], plain[blockSize+1] = plain[blockSize-2], plain[blockSize-1]
+	copy(plain[blockSize+2:], inner)
+	if !o.disableMDC {
+		end := len(plain) - sha1.Size
+		plain[end-2], plain[end-1] = 211, 20
+		sum, e := pgpSHA1Sum(ctx, plain[:end])
+		if e != nil {
+			return "", e
 		}
-		if len(dst) > 0 {
-			n := copy(dst, call.input[written-6:])
-			written += n
-		}
-		return nil
-	})
+		copy(plain[end:], sum[:])
+		clear(sum[:])
+	}
+	block, err := pgpNewBlock(dataCipher, dataKey)
 	if err != nil {
 		return "", err
 	}
-	end := len(plain) - sha1.Size
-	plain[end-2], plain[end-1] = 211, 20
-	sum, err := pgpSHA1Sum(ctx, plain[:end])
+	err = pgpCFB(ctx, block.Block, plain, false, o.disableMDC)
+	block.clear()
 	if err != nil {
 		return "", err
 	}
-	copy(plain[end:], sum[:])
-	clear(sum[:])
-	out := make([]byte, 15+encodedSize)
-	out[0], out[1] = 195, 13
-	copy(out[2:6], []byte{4, 7, 3, 2})
-	copy(out[6:14], random[:8])
-	out[14] = encoded
-	stream := cipher.NewCFBEncrypter(block, make([]byte, aes.BlockSize))
-	position := 0
-	first := true
-	err = pgpWritePacket(ctx, out[15:], pgpSEIPD, dataSize, func(dst []byte) error {
-		if first {
+	tag := pgpSEIPD
+	version := 1
+	if o.disableMDC {
+		tag = pgpEncrypted
+		version = 0
+	}
+	dataPacketSize := pgpPacketSize(len(plain) + version)
+	keyPacketSize := pgpPacketSize(skeskSize)
+	if dataPacketSize < 0 || keyPacketSize > int(^uint(0)>>1)-dataPacketSize {
+		return "", pgcryptoError("54000", "OpenPGP packet is too large")
+	}
+	out := make([]byte, keyPacketSize+dataPacketSize)
+	defer clear(out)
+	pos := 0
+	err = pgpWritePacket(ctx, out[:keyPacketSize], pgpSKESK, skeskSize, func(dst []byte) error { pos += copy(dst, skesk[pos:skeskSize]); return nil })
+	if err != nil {
+		return "", err
+	}
+	pos = 0
+	err = pgpWritePacket(ctx, out[keyPacketSize:], tag, len(plain)+version, func(dst []byte) error {
+		if version != 0 {
 			dst[0] = 1
 			dst = dst[1:]
-			first = false
+			version = 0
 		}
-		for len(dst) > 0 {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			n := min(4096, len(dst))
-			stream.XORKeyStream(dst[:n], plain[position:position+n])
-			position += n
-			dst = dst[n:]
-		}
+		pos += copy(dst, plain[pos:])
 		return nil
 	})
 	if err != nil {
-		clear(out)
 		return "", err
 	}
-	if err := ctx.Err(); err != nil {
-		clear(out)
+	if err = ctx.Err(); err != nil {
 		return "", err
 	}
 	return string(out), nil
@@ -185,166 +257,190 @@ func pgpDecrypt(ctx context.Context, call PgcryptoPGPInvocation) (string, error)
 	if err != nil {
 		return "", err
 	}
-	if keyPacket.tag != pgpSKESK || keyPacket.size < 4 {
+	if keyPacket.tag != pgpSKESK || keyPacket.size < 4 || keyPacket.size > 46 {
 		return "", pgpCorrupt()
 	}
-	// S2K mode is an externally visible pre-authentication framing diagnostic.
-	var keyBody [13]byte
-	if keyPacket.size > len(keyBody) {
-		if keyPacket.size == 30 {
-			return "", pgpCapability()
-		} // separate AES128 session key
-		return "", pgpCorrupt()
-	}
-	if err := keyPacket.copyTo(ctx, keyBody[:keyPacket.size]); err != nil {
+	var header [46]byte
+	defer clear(header[:])
+	if err = keyPacket.copyTo(ctx, header[:keyPacket.size]); err != nil {
 		return "", err
 	}
-	if keyBody[0] != 4 {
+	if header[0] != 4 {
 		return "", pgpCorrupt()
 	}
-	if keyBody[1] != byte(pgpAES128) {
+	wrap := pgpCipher(header[1])
+	keySize, _ := pgpCipherSize(wrap)
+	if keySize == 0 {
 		return "", pgpError("Unsupported cipher algorithm")
 	}
-	if keyBody[2] != 0 && keyBody[2] != 1 && keyBody[2] != 3 {
+	mode := int(header[2])
+	offset := 4
+	if mode != 0 && mode != 1 && mode != 3 {
 		return "", pgpError("Bad S2K mode")
 	}
-	if keyBody[2] != 3 {
-		return "", pgpCapability()
+	if mode != 0 {
+		offset = 12
 	}
-	if keyBody[3] != byte(pgpSHA1) {
-		switch pgpDigest(keyBody[3]) {
-		case 1, 3, 8, 9, 10:
-			return "", pgpError("Unsupported digest algorithm")
-		default:
-			return "", pgpCorrupt()
-		}
+	if mode == 3 {
+		offset = 13
 	}
-	if keyPacket.size != 13 {
+	if keyPacket.size < offset {
 		return "", pgpCorrupt()
 	}
-	data, tail, err := pgpReadPacket(ctx, rest, pgpOuter)
-	if err != nil {
-		return "", err
-	}
-	if data.tag == pgpEncrypted {
-		return "", pgpCapability()
-	}
-	if data.tag != pgpSEIPD || tail.len() != 0 || data.size < 1+18+2+sha1.Size {
-		return "", pgpCorrupt()
-	}
-	plain := make([]byte, data.size)
-	defer clear(plain)
-	if err := data.copyTo(ctx, plain); err != nil {
-		return "", err
-	}
-	if plain[0] != 1 {
-		return "", pgpCorrupt()
-	}
-	plain = plain[1:]
-	key, err := pgpS2KKey(ctx, call.password, keyBody[4:12], keyBody[12])
-	if err != nil {
-		return "", err
-	}
+	var key [32]byte
 	defer clear(key[:])
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
+	encoded := byte(0)
+	if mode == 3 {
+		encoded = header[12]
+	}
+	if err = pgpS2KKey(ctx, key[:keySize], call.password, header[4:12], mode, pgpDigest(header[3]), encoded); err != nil {
 		return "", err
 	}
-	stream := cipher.NewCFBDecrypter(block, make([]byte, aes.BlockSize))
-	for pos := 0; pos < len(plain); {
-		if err := ctx.Err(); err != nil {
-			return "", err
+	dataCipher := wrap
+	dataKey := key[:keySize]
+	if keyPacket.size > offset {
+		wrapped := header[offset:keyPacket.size]
+		block, e := pgpNewBlock(wrap, dataKey)
+		if e != nil {
+			return "", e
 		}
-		n := min(4096, len(plain)-pos)
-		stream.XORKeyStream(plain[pos:pos+n], plain[pos:pos+n])
-		pos += n
-	}
-	end := len(plain) - sha1.Size
-	sum, err := pgpSHA1Sum(ctx, plain[:end])
-	if err != nil {
-		return "", err
-	}
-	prefixOK := subtle.ConstantTimeCompare(plain[14:16], plain[16:18])
-	mdcOK := subtle.ConstantTimeCompare(sum[:], plain[end:])
-	markerOK := subtle.ConstantTimeByteEq(plain[end-2], 211) & subtle.ConstantTimeByteEq(plain[end-1], 20)
-	clear(sum[:])
-	if prefixOK&mdcOK&markerOK != 1 {
-		return "", pgpCorrupt()
-	}
-	// Only authenticated bytes may influence literal/compression diagnostics.
-	return pgpReadText(ctx, plain[18:end-2])
-}
-
-func pgpReadText(ctx context.Context, authenticated []byte) (string, error) {
-	remaining := authenticated
-	written := 0
-	gotLiteral, nonText := false, false
-	for len(remaining) > 0 {
-		packet, tail, err := pgpReadPacket(ctx, pgpInput{data: remaining}, pgpAuthenticatedInner)
+		err = pgpCFB(ctx, block.Block, wrapped, true, false)
+		block.clear()
 		if err != nil {
 			return "", err
 		}
-		if packet.tag == pgpCompressed {
-			if gotLiteral || tail.len() != 0 {
-				return "", pgpCorrupt()
-			}
-			return "", pgpCompressionError(packet)
-		}
-		if packet.tag != pgpLiteral || packet.size < 6 {
+		dataCipher = pgpCipher(wrapped[0])
+		size, _ := pgpCipherSize(dataCipher)
+		if size == 0 || len(wrapped) != size+1 {
 			return "", pgpCorrupt()
 		}
-		body := packet.body.data
-		if packet.partial {
-			// Compact only this already-parsed packet. Neither its body nor
-			// the accumulated payload can reach the following unread packet.
-			body = remaining[:packet.size]
-			if err := packet.copyTo(ctx, body); err != nil {
-				return "", err
-			}
-		}
-		start := 2 + int(body[1]) + 4
-		if start > len(body) {
-			return "", pgpCorrupt()
-		}
-		gotLiteral = true
-		nonText = nonText || (body[0] != 't' && body[0] != 'u')
-		for pos := start; pos < len(body); {
-			if err := ctx.Err(); err != nil {
-				return "", err
-			}
-			n := min(4096, len(body)-pos)
-			copy(authenticated[written:written+n], body[pos:pos+n])
-			written += n
-			pos += n
-		}
-		remaining = tail.data
+		dataKey = wrapped[1:]
 	}
-	if !gotLiteral {
+	data, tail, err := pgpReadPacket(ctx, rest, pgpNoMDCOuter)
+	if err != nil {
+		return "", err
+	}
+	noMDC := data.tag == pgpEncrypted
+	if (!noMDC && data.tag != pgpSEIPD) || tail.len() != 0 {
 		return "", pgpCorrupt()
 	}
-	if err := ctx.Err(); err != nil {
+	_, blockSize := pgpCipherSize(dataCipher)
+	minimum := blockSize + 2
+	if !noMDC {
+		minimum += 1 + 2 + sha1.Size
+	}
+	if data.size < minimum {
+		return "", pgpCorrupt()
+	}
+	storage := make([]byte, data.size)
+	defer clear(storage)
+	if err = data.copyTo(ctx, storage); err != nil {
 		return "", err
 	}
-	// A later structural failure defeats any earlier nontext flag. MDC
-	// authentication already preceded this entire interpretation/compaction.
-	if nonText {
-		return "", pgpError("Not text data")
+	plain := storage
+	if !noMDC {
+		if plain[0] != 1 {
+			return "", pgpCorrupt()
+		}
+		plain = plain[1:]
 	}
-	text := string(authenticated[:written])
-	if err := binaryTextValid(ctx, text); err != nil {
+	block, err := pgpNewBlock(dataCipher, dataKey)
+	if err != nil {
 		return "", err
 	}
-	if err := ctx.Err(); err != nil {
+	err = pgpCFB(ctx, block.Block, plain, true, noMDC)
+	block.clear()
+	if err != nil {
 		return "", err
 	}
-	return text, nil
+	prefixOK := subtle.ConstantTimeCompare(plain[blockSize-2:blockSize], plain[blockSize:blockSize+2])
+	end := len(plain)
+	if !noMDC {
+		end -= sha1.Size
+		sum, e := pgpSHA1Sum(ctx, plain[:end])
+		if e != nil {
+			return "", e
+		}
+		valid := subtle.ConstantTimeCompare(sum[:], plain[end:]) & subtle.ConstantTimeByteEq(plain[end-2], 211) & subtle.ConstantTimeByteEq(plain[end-1], 20)
+		clear(sum[:])
+		if valid&prefixOK != 1 {
+			return "", pgpCorrupt()
+		}
+		end -= 2
+	} else if prefixOK != 1 {
+		return "", pgpCorrupt()
+	}
+	// Authentication precedes every sensitive literal/compression diagnostic.
+	return pgpReadInner(ctx, plain[blockSize+2:end], call.binary, call.options.convertCRLF, noMDC)
 }
 
-func pgpCompressionError(packet pgpPacket) error {
-	if packet.size < 1 {
-		return pgpCorrupt()
+func pgpMakeLiteral(ctx context.Context, call PgcryptoPGPInvocation) ([]byte, error) {
+	count := len(call.input)
+	if call.options.convertCRLF && !call.binary {
+		for i := range len(call.input) {
+			if i&4095 == 0 {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+			}
+			if call.input[i] == '\n' {
+				if count == int(^uint(0)>>1) {
+					return nil, pgcryptoError("54000", "OpenPGP packet is too large")
+				}
+				count++
+			}
+		}
 	}
-	// Compression is interpreted only after full MDC authentication. The
-	// checked packet boundary is the shared hook for later ZIP/ZLIB leaves.
-	return pgpError("Unsupported compression algorithm")
+	if count > int(^uint(0)>>1)-6 {
+		return nil, pgcryptoError("54000", "OpenPGP packet is too large")
+	}
+	size := pgpPacketSize(count + 6)
+	if size < 0 {
+		return nil, pgcryptoError("54000", "OpenPGP packet is too large")
+	}
+	out := make([]byte, size)
+	var header [6]byte
+	header[0] = 't'
+	if call.binary {
+		header[0] = 'b'
+	} else if call.options.unicode {
+		header[0] = 'u'
+	}
+	binary.BigEndian.PutUint32(header[2:], uint32(time.Now().Unix()))
+	pos, input := 0, 0
+	pendingLF := false
+	err := pgpWritePacket(ctx, out, pgpLiteral, count+6, func(dst []byte) error {
+		for i := range dst {
+			if i&4095 == 0 {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+			}
+			if pos < 6 {
+				dst[i] = header[pos]
+				pos++
+				continue
+			}
+			if pendingLF {
+				dst[i] = '\n'
+				pendingLF = false
+				input++
+				continue
+			}
+			c := call.input[input]
+			if c == '\n' && call.options.convertCRLF && !call.binary {
+				dst[i] = '\r'
+				pendingLF = true
+			} else {
+				dst[i] = c
+				input++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		clear(out)
+		return nil, err
+	}
+	return out, nil
 }

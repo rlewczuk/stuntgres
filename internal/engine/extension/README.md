@@ -171,11 +171,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Actual script ACL events record historical initial privileges. The same
   declaration list identifies fresh replay products; current source view state
   remains the ordinary view codec's concern.
-  Pgcrypto preserves its eighteen incumbent slots and appends the four strict,
-  parallel-safe text PGP declarations: volatile encryption and immutable
-  decryption, each with two and three arguments. Armor slots14–17 retain their
-  original identities. Both armor overloads have C symbol `pg_armor`, dearmor
-  has `pg_dearmor`; PGP uses `pgp_sym_encrypt_text` / `pgp_sym_decrypt_text`.
+  Pgcrypto preserves slots0–21 and appends four strict, parallel-safe BYTEA PGP
+  declarations at22–25: volatile encryption and immutable decryption, each with
+  two and three arguments. Existing text PGP slots18–21 and armor slots14–17
+  retain their identities. Armor uses `pg_armor` / `pg_dearmor`; text PGP uses
+  `pgp_sym_encrypt_text` / `pgp_sym_decrypt_text`, and BYTEA PGP uses its SQL names.
   Binding and replay use independently authenticated SQL declaration names.
   `pgp_armor_headers` owns the sole pgcrypto OUT capability: one unnamed TEXT
   input, `key`/`value` TEXT outputs, RECORD result, STRICT/IMMUTABLE/PARALLEL SAFE,
@@ -197,7 +197,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Initial CREATE copies the control comment into the immutable extension header;
   skipped CREATE and UPDATE never reapply that default. Header copies preserve
   current comment text across placement, membership and ownership changes.
-  Stock pgcrypto preserves its twenty-two installed declarations and provider
+  Stock pgcrypto preserves its twenty-six installed declarations and provider
   identities. Its first actual C-member validation initializes only the
   installer's physical setting attachment; Prepare, catalog presence, early
   errors and skipped CREATE do not. Initialization survives later SQL rollback

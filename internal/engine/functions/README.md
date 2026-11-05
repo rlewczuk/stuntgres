@@ -1767,11 +1767,13 @@ publication and lock-manager tickets stay in the engine.
   before salt/name/count validation or effects. Both salt overloads and all six
   password algorithms share that gate; digest/HMAC/ciphers/random/UUID/mode
   inquiries do not.
-  Text PGP encryption validates invocation-local password/options after all
-  demanded children and strictness, then borrows `FunctionPgcryptoEntropy`.
-  Decryption requires no entropy and authenticates completely before publishing
-  text or deferred literal/compression errors. Neither path retains secrets or
-  execution capabilities in its signature-only plan.
+  Both text and BYTEA PGP encryption validate invocation-local password/options
+  after demanded children and strictness, then borrow `FunctionPgcryptoEntropy`.
+  Decryption requires no entropy; enabled MDC authenticates completely before
+  publishing plaintext or deferred literal/compression/text errors. Explicit
+  noMDC has no authenticity guarantee. Binary results use the shared BYTEA datum,
+  not a TEXT conversion. Neither path retains secrets or execution capabilities
+  in its signature-only plan.
   The physical enum defaults to on; off denies password bodies, and fips denies
   exactly when Go `crypto/fips140.Enabled()` is true. Existing `fips_mode()`
   reports that actual mode, not policy text or validation/certification of the

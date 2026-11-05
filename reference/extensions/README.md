@@ -506,17 +506,19 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Snowball providers, including Swedish), then 19 with unaccent installed.
 - Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
 - pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`, `RUN='^TestReferencePgcryptoPolicy'`, `RUN='^TestReferencePgcryptoPGP'`
-  PGP scenarios anchor an independent RFC/stdlib decoder with upstream ciphertext,
-  then authenticate actual SQL output without comparing random packet bytes.
-  Authenticated framing cases distinguish outer rejection from inner context
-  lengths and verify atomic multi-literal concatenation. Chunk cases supply
-  complete bodies at and above the release's per-chunk 16 MiB bound, including
-  continuations and valid larger partial aggregates. The independent authenticity
-  decoder deliberately retains RFC-valid overlimit chunks, so a release-framing
-  rejection cannot be confused with damaged crypto. Literal-format cases check
-  every non-`t`/`u` classification and structural/MDC diagnostic precedence.
-  Large direct/prepared witnesses each own a fresh scenario and compare complete
-  TEXT quietly; failures retain complete diagnostics and forbid any returned row.
+  PGP scenarios anchor independent RFC codecs with fixed upstream ciphertext
+  and primitive vectors, then inspect actual randomized emissions rather than
+  comparing ciphertexts. Test-only x/crypto CAST5/Blowfish remain independent of
+  module-local production primitives. Symmetric cases cover text/BYTEA, cipher/
+  S2K/session profiles, ZIP/ZLIB, conversion, exact errors and retained controls.
+  Authenticated framing distinguishes outer rejection, inner context lengths and
+  atomic literal concatenation. Chunk cases supply actual complete16 MiB boundary
+  bodies and valid larger aggregates; the strict RFC oracle accepts RFC-valid
+  overlimit chunks so release rejection is not confused with damaged crypto.
+  NoMDC fixtures distinguish intentionally undetected modification and scoped
+  body EOF from missing metadata/continuation lengths. Direct/prepared failures
+  assert complete logical diagnostics and forbid returned rows; successful
+  BYTEA cases preserve arbitrary octets and text cases validate encoding.
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`

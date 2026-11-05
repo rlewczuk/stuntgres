@@ -19,16 +19,6 @@ restored for every test.
 - **Optional server.** The `cmd/stuntgres` executable serves the same engine over
   the PostgreSQL wire protocol for `psql` and other clients.
 
-`CREATE EXTENSION pgcrypto` installs the two- and three-argument text
-`pgp_sym_encrypt` / `pgp_sym_decrypt` calls. The symmetric packet path uses
-AES128, uncompressed UTF8 text, iterated salted SHA1 key derivation and a full
-OpenPGP integrity check. Default options and explicit supported options work
-through direct and prepared calls; encryption returns opaque BYTEA.
-Decryption authenticates the complete packet before returning any text.
-Native Dump/Restore preserves installed identities, stored packet bytes and
-ordinary SQL consumers; live cryptographic scratch and entropy sources are not
-serialized. See [OpenPGP ownership boundaries](docs/DIALECT.md#pgcrypto-openpgp).
-
 `pg_catalog.pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
 expose the 30 PostgreSQL 18 typed fields through the shared cumulative statistics
 provider. SYS selects pg_catalog/information_schema and the case-sensitive

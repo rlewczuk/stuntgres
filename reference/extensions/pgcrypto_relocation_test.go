@@ -84,6 +84,8 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	pgcryptoArmorBoth(t, p, c, r, fixture.PgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, fixture.PgcryptoArmorZooka))
 	pgpBoth(t, p, c, r, pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text)", "Secret message.", pgpVector(t), "foobar"))
 	pgpBoth(t, p, c, r, pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text,$3::text)", "Secret message.", pgpVector(t), "foobar", ""))
+	pgpBoth(t, p, c, r, symByteStep("SELECT pgcrypto_part.pgp_sym_decrypt_bytea($1::bytea,$2::text)", []byte("Secret message"), symBase64(t, symZIP64), "key"))
+	pgpBoth(t, p, c, r, symByteStep("SELECT pgcrypto_part.pgp_sym_decrypt_bytea($1::bytea,$2::text,$3::text)", []byte{0, 128, 255}, symBuild("foobar", pgpRFCLiteral(string([]byte{0, 128, 255}), "", 'b'), symProfile{cipher: 9, wrap: 9, digest: 8, mode: 3, noMDC: true}, ""), "foobar", ""))
 	for _, prepared := range []bool{false, true} {
 		for _, withOptions := range []bool{false, true} {
 			q := "SELECT pgcrypto_part.pgp_sym_encrypt($1::text,$2::text)"
@@ -98,11 +100,26 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 			pgpCipherRows(t, rows, "replayed packet", "foobar", count)
 		}
 	}
+	for _, prepared := range []bool{false, true} {
+		for _, withOptions := range []bool{false, true} {
+			q := "SELECT pgcrypto_part.pgp_sym_encrypt_bytea($1::bytea,$2::text)"
+			args := []any{[]byte{0, 128, 255}, "foobar"}
+			profile, count := symDefault(), 0
+			if withOptions {
+				q = "SELECT pgcrypto_part.pgp_sym_encrypt_bytea($1::bytea,$2::text,$3::text)"
+				profile = symProfile{cipher: 9, wrap: 7, digest: 8, mode: 3, session: true, compression: 2}
+				args = append(args, symOptions(profile))
+				count = 1024
+			}
+			rows := pgpQuery(t, p, c, prepared, q, args...)
+			symCipherRows(t, rows, "pgp_sym_encrypt_bytea", "foobar", profile, 'b', []byte{0, 128, 255}, count)
+		}
+	}
 }
 
 func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string]int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers','pgp_sym_encrypt','pgp_sym_decrypt','pgp_sym_encrypt_bytea','pgp_sym_decrypt_bytea')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +139,7 @@ func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 22 {
+	if len(ids) != 26 {
 		t.Fatal("procedure inventory", ids)
 	}
 	return ids
@@ -217,7 +234,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 	}
 	// Every sequence consumes a real catalog OID. Stop at the observed upper
-	// bound, and require actual collisions for all twenty-two procedures below.
+	// bound, and require actual collisions for all twenty-six procedures below.
 	collisions := make(map[int64]string)
 	sequenceNamespaces := make(map[int64]int64)
 	for i := range 128 {

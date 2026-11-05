@@ -273,7 +273,7 @@ func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	if err := json.Unmarshal(payload, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 22 {
+	if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 26 {
 		t.Fatal("unexpected pgcrypto manifest", record)
 	}
 	switch kind {

@@ -9,7 +9,7 @@ import (
 func TestReferencePgcryptoBFFeatureSmoke(t *testing.T) {
 	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		steps := bfConsumerSetup(t, p, c, r)
-		// The same public procedures and twenty-two genuine members, with actual
+		// The same public procedures and twenty-six genuine members, with actual
 		// Blowfish bytes, not an AES/startup-only substitute for feature smoke.
 		pgcryptoResult(t, p, c, r, "encrypt", "SELECT pgcrypto_part.encrypt('\\x0000000000000000'::bytea,'\\x0000000000000000'::bytea,'bf-ecb/pad:none')", "4ef997456198dd78")
 		pgcryptoResult(t, p, c, r, "decrypt", "SELECT pgcrypto_part.decrypt('\\x4ef997456198dd78'::bytea,'\\x0000000000000000'::bytea,'bf-ecb/pad:none')", "0000000000000000")

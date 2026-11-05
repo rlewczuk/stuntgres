@@ -73,7 +73,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.4" || len(ext.Members) != 22 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.4" || len(ext.Members) != 26 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ids.ObjectAddress]bool{}
@@ -94,6 +94,8 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		{"dearmor", "25", 17, expr.Immutable, true}, {"pgp_armor_headers", "25", 2249, expr.Immutable, true},
 		{"pgp_sym_encrypt", "25,25", 17, expr.Volatile, true}, {"pgp_sym_encrypt", "25,25,25", 17, expr.Volatile, true},
 		{"pgp_sym_decrypt", "17,25", 25, expr.Immutable, true}, {"pgp_sym_decrypt", "17,25,25", 25, expr.Immutable, true},
+		{"pgp_sym_encrypt_bytea", "17,25", 17, expr.Volatile, true}, {"pgp_sym_encrypt_bytea", "17,25,25", 17, expr.Volatile, true},
+		{"pgp_sym_decrypt_bytea", "17,25", 17, expr.Immutable, true}, {"pgp_sym_decrypt_bytea", "17,25,25", 17, expr.Immutable, true},
 	}
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
@@ -119,7 +121,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 22 {
+	if count != 26 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*catalog.Procedure){

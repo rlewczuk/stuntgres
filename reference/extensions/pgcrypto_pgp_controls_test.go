@@ -14,10 +14,10 @@ import (
 
 func pgpInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) map[string]int64 {
 	t.Helper()
-	// The shared inventory asserts all twenty-two members; independently
-	// recheck the four PGP source declarations against incumbent identities.
+	// The shared inventory asserts all twenty-six members; independently
+	// recheck all eight PGP source declarations against incumbent identities.
 	installed := pgcryptoRandomInventory(t, p, c, pg, "pgcrypto_owner")
-	ids := make(map[string]int64, 22)
+	ids := make(map[string]int64, 26)
 	for signature, id := range installed {
 		if !strings.HasPrefix(signature, "pgcrypto_part.pgp_sym_") {
 			ids[signature] = id
@@ -29,12 +29,16 @@ func pgpInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorde
 		vol, source string
 	}
 	want := map[string]declaration{
-		"pgcrypto_part.pgp_sym_encrypt(text,text)":       {17, "v", "pgp_sym_encrypt_text"},
-		"pgcrypto_part.pgp_sym_encrypt(text,text,text)":  {17, "v", "pgp_sym_encrypt_text"},
-		"pgcrypto_part.pgp_sym_decrypt(bytea,text)":      {25, "i", "pgp_sym_decrypt_text"},
-		"pgcrypto_part.pgp_sym_decrypt(bytea,text,text)": {25, "i", "pgp_sym_decrypt_text"},
+		"pgcrypto_part.pgp_sym_encrypt(text,text)":             {17, "v", "pgp_sym_encrypt_text"},
+		"pgcrypto_part.pgp_sym_encrypt(text,text,text)":        {17, "v", "pgp_sym_encrypt_text"},
+		"pgcrypto_part.pgp_sym_decrypt(bytea,text)":            {25, "i", "pgp_sym_decrypt_text"},
+		"pgcrypto_part.pgp_sym_decrypt(bytea,text,text)":       {25, "i", "pgp_sym_decrypt_text"},
+		"pgcrypto_part.pgp_sym_encrypt_bytea(bytea,text)":      {17, "v", "pgp_sym_encrypt_bytea"},
+		"pgcrypto_part.pgp_sym_encrypt_bytea(bytea,text,text)": {17, "v", "pgp_sym_encrypt_bytea"},
+		"pgcrypto_part.pgp_sym_decrypt_bytea(bytea,text)":      {17, "i", "pgp_sym_decrypt_bytea"},
+		"pgcrypto_part.pgp_sym_decrypt_bytea(bytea,text,text)": {17, "i", "pgp_sym_decrypt_bytea"},
 	}
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,prosrc,probin,proretset,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='pgcrypto_part' AND proname IN ('pgp_sym_encrypt','pgp_sym_decrypt')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,prosrc,probin,proretset,r.rolname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='pgcrypto_part' AND proname IN ('pgp_sym_encrypt','pgp_sym_decrypt','pgp_sym_encrypt_bytea','pgp_sym_decrypt_bytea')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +64,8 @@ func pgpInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorde
 		t.Fatal(err)
 	}
 	rows.Close()
-	if len(ids) != 22 {
-		t.Fatal("expected eighteen incumbents plus four text PGP members", len(ids))
+	if len(ids) != 26 {
+		t.Fatal("expected eighteen incumbents plus eight text/BYTEA PGP members", len(ids))
 	}
 	for signature, id := range ids {
 		var count int

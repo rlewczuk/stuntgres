@@ -10,7 +10,7 @@ import (
 )
 
 // REL_18_6 pgcrypto--1.3.sql and pgcrypto--1.3--1.4.sql, in member order.
-var pgcryptoSources = [...]string{"pg_digest", "pg_digest", "pg_hmac", "pg_hmac", "pg_crypt", "pg_gen_salt", "pg_gen_salt_rounds", "pg_encrypt", "pg_decrypt", "pg_encrypt_iv", "pg_decrypt_iv", "pg_random_bytes", "pg_random_uuid", "pg_check_fipsmode", "pg_armor", "pg_armor", "pg_dearmor", "pgp_armor_headers", "pgp_sym_encrypt_text", "pgp_sym_encrypt_text", "pgp_sym_decrypt_text", "pgp_sym_decrypt_text"}
+var pgcryptoSources = [...]string{"pg_digest", "pg_digest", "pg_hmac", "pg_hmac", "pg_crypt", "pg_gen_salt", "pg_gen_salt_rounds", "pg_encrypt", "pg_decrypt", "pg_encrypt_iv", "pg_decrypt_iv", "pg_random_bytes", "pg_random_uuid", "pg_check_fipsmode", "pg_armor", "pg_armor", "pg_dearmor", "pgp_armor_headers", "pgp_sym_encrypt_text", "pgp_sym_encrypt_text", "pgp_sym_decrypt_text", "pgp_sym_decrypt_text", "pgp_sym_encrypt_bytea", "pgp_sym_encrypt_bytea", "pgp_sym_decrypt_bytea", "pgp_sym_decrypt_bytea"}
 
 var pgcryptoArmorOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25}, "", "key", "value")
 

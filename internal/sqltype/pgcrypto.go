@@ -69,14 +69,17 @@ func SelectPgcryptoSignature(name string, count int, binary bool) (PgcryptoSigna
 		}
 	case "dearmor":
 		s.Inputs, s.Count, s.SQL = [4]ID{Text}, 1, "25"
-	case "pgp_sym_encrypt", "pgp_sym_decrypt":
+	case "pgp_sym_encrypt", "pgp_sym_decrypt", "pgp_sym_encrypt_bytea", "pgp_sym_decrypt_bytea":
 		s.Inputs, s.Count, s.SQL = [4]ID{Text, Text}, 2, "25,25"
+		if name != "pgp_sym_encrypt" {
+			s.Inputs[0], s.SQL = Bytea, "17,25"
+		}
 		if name == "pgp_sym_decrypt" {
-			s.Inputs[0], s.Result, s.SQL = Bytea, Text, "17,25"
+			s.Result = Text
 		}
 		if count == 3 {
 			s.Inputs[2], s.Count = Text, 3
-			if name == "pgp_sym_decrypt" {
+			if name != "pgp_sym_encrypt" {
 				s.SQL = "17,25,25"
 			} else {
 				s.SQL = "25,25,25"
@@ -182,7 +185,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 		}
 		return Binary(p.result.Type, data)
 	}
-	if p.name == "pgp_sym_decrypt" {
+	if p.name == "pgp_sym_decrypt" || p.name == "pgp_sym_decrypt_bytea" {
 		call, _, err := p.PreparePGP(ctx, values...)
 		if err != nil {
 			return Value{}, err
@@ -190,6 +193,9 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 		text, err := pgpDecrypt(ctx, call)
 		if err != nil {
 			return Value{}, err
+		}
+		if p.name == "pgp_sym_decrypt_bytea" {
+			return Binary(p.result.Type, text)
 		}
 		return String(p.result.Type, text), nil
 	}
@@ -215,7 +221,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 		return String(p.result.Type, hash), nil
 	}
 	switch p.name {
-	case "gen_salt", "gen_random_bytes", "gen_random_uuid", "fips_mode", "pgp_sym_encrypt":
+	case "gen_salt", "gen_random_bytes", "gen_random_uuid", "fips_mode", "pgp_sym_encrypt", "pgp_sym_encrypt_bytea":
 		return Value{}, fmt.Errorf("%s requires an execution provider", p.name)
 	}
 	algorithm, err := values[count-1].Text()

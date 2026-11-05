@@ -26,6 +26,7 @@ func pgpUnitError(t *testing.T, err error, message string) {
 }
 
 func TestPgcryptoPGPPacketCodec(t *testing.T) {
+	t.Run("scoped_no_mdc_body_eof", pgpUnitNoMDCBodyEOF)
 	ctx := context.Background()
 	if pgpPacketSize(-1) != -1 || pgpPacketSize(int(^uint(0)>>1)) != -1 {
 		t.Fatal("packet output size overflow accepted")
@@ -81,7 +82,7 @@ func TestPgcryptoPGPPacketCodec(t *testing.T) {
 		if n == 191 && out[1] != 191 || n == 192 && (out[1] != 192 || out[2] != 0) || n == 8383 && (out[1] != 223 || out[2] != 255) || n == 8384 && (out[1] != 255 || out[3] != 0 || out[4] != 32 || out[5] != 192) {
 			t.Fatal("new length encoding", n)
 		}
-		p, rest, err := pgpReadPacket(ctx, pgpInput{data: out}, pgpAuthenticatedInner)
+		p, rest, err := pgpReadPacket(ctx, pgpInput{data: out}, pgpDecryptedInner)
 		if err != nil || p.size != n || rest.len() != 0 {
 			t.Fatal("writer consumption", n, err)
 		}
@@ -89,6 +90,7 @@ func TestPgcryptoPGPPacketCodec(t *testing.T) {
 }
 
 func TestPgcryptoPGPS2K(t *testing.T) {
+	t.Run("mode_hash_multidigest", pgpUnitS2KProfiles)
 	for _, tc := range []struct {
 		count   int
 		encoded byte
@@ -111,7 +113,8 @@ func TestPgcryptoPGPS2K(t *testing.T) {
 		unit := append(append([]byte(nil), salt...), []byte(password)...)
 		input := bytes.Repeat(unit, (max(1024, len(unit))+len(unit)-1)/len(unit))[:max(1024, len(unit))]
 		want := sha1.Sum(input)
-		got, err := pgpS2KKey(context.Background(), password, salt, 0)
+		var got [16]byte
+		err := pgpS2KKey(context.Background(), got[:], password, salt, 3, pgpSHA1, 0)
 		if err != nil || !bytes.Equal(got[:], want[:16]) {
 			t.Fatal("iterated salted key", err)
 		}
@@ -122,6 +125,7 @@ func TestPgcryptoPGPS2K(t *testing.T) {
 }
 
 func TestPgcryptoPGPCFB(t *testing.T) {
+	t.Run("independent_block_resync", pgpUnitCFBProfiles)
 	packet, err := base64.StdEncoding.DecodeString(pgpUnitVector)
 	if err != nil {
 		t.Fatal(err)
@@ -152,8 +156,8 @@ func TestPgcryptoPGPOptions(t *testing.T) {
 	}
 	for _, raw := range []string{"s2k-cipher-algo=aes256", "cipher-algo=aes192", "compress-algo=1", "s2k-mode=0", "disable-mdc=1", "convert-crlf=1", "unicode-mode=1", "sess-key=1", "s2k-digest-algo=sha256"} {
 		o, err := pgpParseOptions(ctx, raw)
-		if err != nil || o.encryptionProfile() == nil {
-			t.Fatal("unavailable effective profile silently accepted", raw, err)
+		if err != nil || o.encryptionProfile() != nil {
+			t.Fatal("documented profile rejected", raw, err)
 		}
 	}
 	for raw, want := range map[string]int{"2147483647": 2147483647, "-2147483648": -2147483648, "nonnumeric": 0} {
@@ -212,6 +216,9 @@ func TestPgcryptoPGPSecurity(t *testing.T) {
 		{[]byte{203, 6, 'x', 255, 0, 0, 0, 0}, "Wrong key or corrupt data"},
 		{[]byte{203, 3, 'x', 0, 0}, "Wrong key or corrupt data"},
 		{[]byte{200, 2, 3, 0}, "Unsupported compression algorithm"},
+		{[]byte{200, 2, 3, 0, 203, 3, 't', 0, 0}, "Wrong key or corrupt data"},
+		{[]byte{200, 2, 3, 0, 203, 7, 'b', 0, 0, 0, 0, 0, 'x'}, "Unsupported compression algorithm"},
+		{[]byte{200, 1, 0}, "Wrong key or corrupt data"},
 		{[]byte{203, 6, 't', 255, 0, 0, 0, 0}, "Wrong key or corrupt data"},
 	} {
 		for _, bad := range []bool{false, true} {
@@ -280,7 +287,8 @@ func TestPgcryptoPGPEntropy(t *testing.T) {
 	}
 	for _, at := range []int{1, 2, 3, 10} {
 		ctx := &pgpCancelContext{Context: context.Background(), at: at}
-		key, err := pgpS2KKey(ctx, "foobar", make([]byte, 8), 255)
+		var key [16]byte
+		err := pgpS2KKey(ctx, key[:], "foobar", make([]byte, 8), 3, pgpSHA1, 255)
 		if !errors.Is(err, context.Canceled) || key != ([16]byte{}) {
 			t.Fatal("S2K cancellation published key", err)
 		}

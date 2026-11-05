@@ -171,6 +171,8 @@ type pgcryptoHeldCall struct {
 	step       fixture.Step
 	rawUUID    bool
 	pgpEncrypt bool
+	pgpBinary  bool
+	pgpProfile symProfile
 }
 
 func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoHeldCall {
@@ -191,6 +193,8 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 		fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(false)}}),
 		pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text)", "Secret message.", pgpVector(t), "foobar"),
 		pgpTextStep("SELECT pgcrypto_part.pgp_sym_decrypt($1::bytea,$2::text,$3::text)", "Secret message.", pgpVector(t), "foobar", ""),
+		symByteStep("SELECT pgcrypto_part.pgp_sym_decrypt_bytea($1::bytea,$2::text)", []byte("Secret message"), symBase64(t, symZIP64), "key"),
+		symByteStep("SELECT pgcrypto_part.pgp_sym_decrypt_bytea($1::bytea,$2::text,$3::text)", []byte{0, 128, 255}, symBuild("foobar", pgpRFCLiteral(string([]byte{0, 128, 255}), "", 'b'), symProfile{cipher: 9, wrap: 9, digest: 8, mode: 3, noMDC: true}, ""), "foobar", ""),
 	}
 	var held []pgcryptoHeldCall
 	for _, step := range calls {
@@ -222,6 +226,22 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 		t.Cleanup(func() { stmt.Close() })
 		held = append(held, pgcryptoHeldCall{statement: stmt, step: fixture.Step{Query: q, Args: args}, pgpEncrypt: true})
 	}
+	for _, withOptions := range []bool{false, true} {
+		q := "SELECT pgcrypto_part.pgp_sym_encrypt_bytea($1::bytea,$2::text)"
+		args := []any{[]byte{0, 128, 255}, "foobar"}
+		profile := symDefault()
+		if withOptions {
+			q = "SELECT pgcrypto_part.pgp_sym_encrypt_bytea($1::bytea,$2::text,$3::text)"
+			profile = symProfile{cipher: 9, wrap: 7, digest: 8, mode: 3, session: true, compression: 2}
+			args = append(args, symOptions(profile))
+		}
+		stmt, err := c.PrepareContext(p.Ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stmt.Close() })
+		held = append(held, pgcryptoHeldCall{statement: stmt, step: fixture.Step{Query: q, Args: args}, pgpEncrypt: true, pgpBinary: true, pgpProfile: profile})
+	}
 	return held
 }
 
@@ -237,6 +257,10 @@ func pgcryptoRunHeldCall(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.
 		count := 0
 		if len(call.step.Args) == 3 {
 			count = 1024
+		}
+		if call.pgpBinary {
+			symCipherRows(t, rows, "pgp_sym_encrypt_bytea", "foobar", call.pgpProfile, 'b', []byte{0, 128, 255}, count)
+			return
 		}
 		pgpCipherRows(t, rows, "held packet", "foobar", count)
 		return

@@ -18,8 +18,11 @@ type pgpFraming uint8
 
 const (
 	pgpOuter pgpFraming = iota
-	// The caller has authenticated the complete region and excluded its MDC.
-	pgpAuthenticatedInner
+	// The caller has decrypted the complete region and excluded any MDC.
+	pgpDecryptedInner
+	// EOF tolerance belongs only to recognized tag9 bodies/literal payloads.
+	pgpNoMDCOuter
+	pgpNoMDCInner
 )
 
 // A borrowed byte view permits framing over immutable BYTEA input and owned
@@ -63,6 +66,7 @@ type pgpPacket struct {
 	wire    pgpInput
 	size    int
 	partial bool
+	bodyEOF bool
 }
 
 func pgpReadLength(s pgpInput) (size int, partial bool, width int, err error) {
@@ -84,7 +88,7 @@ func pgpReadLength(s pgpInput) (size int, partial bool, width int, err error) {
 		}
 		n := uint64(s.at(1))<<24 | uint64(s.at(2))<<16 | uint64(s.at(3))<<8 | uint64(s.at(4))
 		// The release bound applies to each chunk, never its packet aggregate.
-		if n > pgpMaxChunk || n > uint64(s.len()-5) {
+		if n > pgpMaxChunk {
 			return 0, false, 0, pgpCorrupt()
 		}
 		return int(n), false, 5, nil
@@ -110,7 +114,7 @@ func pgpReadPacket(ctx context.Context, s pgpInput, framing pgpFraming) (pgpPack
 		p.tag = pgpTag((h >> 2) & 15)
 		kind := h & 3
 		if kind == 3 {
-			if framing != pgpAuthenticatedInner {
+			if framing != pgpDecryptedInner && framing != pgpNoMDCInner {
 				return p, pgpInput{}, pgpCorrupt()
 			}
 			p.size = s.len() - 1
@@ -126,10 +130,16 @@ func pgpReadPacket(ctx context.Context, s pgpInput, framing pgpFraming) (pgpPack
 			size = size<<8 | uint64(s.at(1+i))
 		}
 		start := 1 + width
-		if size > pgpMaxChunk || size > uint64(s.len()-start) {
+		if size > pgpMaxChunk {
 			return p, pgpInput{}, pgpCorrupt()
 		}
 		p.size = int(size)
+		if p.size > s.len()-start {
+			if !pgpAllowsBodyEOF(framing, p.tag) {
+				return p, pgpInput{}, pgpCorrupt()
+			}
+			p.size, p.bodyEOF = s.len()-start, true
+		}
 		p.body = s.sub(start, start+p.size)
 		return p, s.sub(start+p.size, s.len()), nil
 	}
@@ -145,7 +155,10 @@ func pgpReadPacket(ctx context.Context, s pgpInput, framing pgpFraming) (pgpPack
 		}
 		pos += width
 		if n > s.len()-pos {
-			return p, pgpInput{}, pgpCorrupt()
+			if !pgpAllowsBodyEOF(framing, p.tag) {
+				return p, pgpInput{}, pgpCorrupt()
+			}
+			n, p.bodyEOF = s.len()-pos, true
 		}
 		// The sum cannot exceed the supplied input, so cannot overflow int.
 		p.size += n
@@ -156,13 +169,18 @@ func pgpReadPacket(ctx context.Context, s pgpInput, framing pgpFraming) (pgpPack
 			p.body = s.sub(pos, pos+n)
 		}
 		pos += n
-		if !partial {
+		if !partial || p.bodyEOF {
 			if p.partial {
 				p.wire = s.sub(1, pos)
 			}
 			return p, s.sub(pos, s.len()), nil
 		}
 	}
+}
+
+func pgpAllowsBodyEOF(framing pgpFraming, tag pgpTag) bool {
+	return framing == pgpNoMDCOuter && tag == pgpEncrypted ||
+		framing == pgpNoMDCInner && tag == pgpLiteral
 }
 
 func (p pgpPacket) copyTo(ctx context.Context, dst []byte) error {
@@ -187,7 +205,16 @@ func (p pgpPacket) copyTo(ctx context.Context, dst []byte) error {
 			return err
 		}
 		n, partial, width, err := pgpReadLength(s)
-		if err != nil || n > s.len()-width || n > len(dst)-written {
+		if err != nil {
+			return err
+		}
+		if n > s.len()-width {
+			if !p.bodyEOF {
+				return pgpCorrupt()
+			}
+			n = s.len() - width
+		}
+		if n > len(dst)-written {
 			return pgpCorrupt()
 		}
 		for offset := 0; offset < n; {

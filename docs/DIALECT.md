@@ -299,33 +299,38 @@ replaces only activation. See the [Driver contract](DRIVER.md#password-strength-
 
 ## pgcrypto OpenPGP
 
-The installed text symmetric wrappers implement AES128 for the effective data
-and S2K ciphers, uncompressed data, iterated salted SHA1, direct derived keys and
-integrity-protected CFB packets. Explicit S2K counts round upward to the RFC byte
-count; default salt, count and prefix material comes from execution entropy.
-An explicit S2K cipher affects the packet header and key derivation even without
-a separately encrypted session key. Options never silently substitute an
-unavailable effective encryption profile. Decryption follows packet algorithms,
-not otherwise valid encryption preferences supplied as options.
+The installed symmetric text and BYTEA wrappers share typed invocation and packet
+handling. They support AES128/192/256, Blowfish, CAST5 and 3DES; MD5, SHA1 and SHA256
+simple, salted and iterated S2K; direct derived or separately wrapped session keys;
+ZIP/ZLIB compression; and text Unicode/CRLF options. Legacy ciphers exist for
+compatibility, not as a recommendation. Explicit S2K counts round upward to the
+RFC byte count. Entropy, keys and cipher state belong to one execution, never a
+retained expression. Decryption follows packet algorithms rather than otherwise
+valid encryption preferences supplied as options.
 
-The checked packet reader accepts definite old headers and new definite/partial
-framing, with a 16 MiB bound on each declared chunk rather than its aggregate.
-After authenticating the complete prefix and MDC, inner framing also accepts
-old context lengths and concatenates validated literal payloads. Any non-`t`/`u`
-literal format reports `Not text data` only after complete structural validation;
-malformed structure or bad MDC reports generic corruption without publishing
-text. Compression diagnostics likewise follow authentication. Invocation-owned key,
-derivation and plaintext scratch is cleared on exit. Immutable caller-owned
-password strings cannot promise secure erasure. Ordinary user-authored SQL
-literals/defaults remain ordinary SQL in native logical snapshots.
+The checked reader bounds every declared old/new definite or partial chunk at
+16 MiB, not aggregate or decompressed plaintext. Outer old indeterminate lengths
+are rejected; inner context lengths and successive literals are supported. With
+MDC enabled, the complete prefix and SHA1 trailer authenticate before inner
+compression, literal or text diagnostics and before any plaintext publication.
+Disabling MDC selects resynchronized CFB without authenticity: modification and
+payload shortening may go undetected. Release-compatible tag9 payload EOF requires
+complete literal metadata and length syntax; an exhausted partial chunk still
+requires its next length. This does not relax tag18 authentication or chunk bounds.
 
-OpenSSL provider ABI/loading and recovery of historical provider-failure
-ciphertext, native keyrings, shell programs, networking and physical durability
-are external mechanisms, not successful embedded substitutes. The bounded
-symmetric path uses standard-library crypto and no shell crypto. Native controls
-preserve extension relationships, stored ciphertext and SQL consumers, never
-live cipher/provider/session handles. UTF8 text transport rejects embedded NUL
-before option parsing; BYTEA packet bytes remain opaque.
+BYTEA accepts arbitrary decoded octets and ignores text conversion flags. Text
+requires `t`/`u` literal formats and valid UTF8 without NUL, reporting the released
+`Not text data` or encoding diagnostic only after the relevant structural and
+integrity checks. Invocation-owned key, derivation and plaintext scratch is cleared
+on exit. Immutable caller strings and opaque standard-library cipher/compressor
+internals cannot promise secure erasure. User-authored SQL defaults remain ordinary
+SQL in logical snapshots.
+
+The implementation uses standard-library and module-local crypto, not shell
+programs or OpenSSL loading. Provider ABI/failure recovery, native keyrings,
+networking and physical durability remain external mechanisms, never successful
+embedded substitutes. Native controls preserve identities, stored ciphertext and
+SQL consumers, never live cipher/provider/session handles.
 
 ## Tablespaces
 

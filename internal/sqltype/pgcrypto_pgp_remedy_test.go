@@ -14,7 +14,7 @@ func TestPgcryptoPGPInnerGrammar(t *testing.T) {
 		for _, wire := range [][]byte{{175}, {175, 't'}} {
 			_, _, err := pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpOuter)
 			pgpUnitError(t, err, "Wrong key or corrupt data")
-			packet, tail, err := pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpAuthenticatedInner)
+			packet, tail, err := pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpDecryptedInner)
 			if err != nil || packet.tag != pgpLiteral || packet.size != len(wire)-1 || tail.len() != 0 {
 				t.Fatal("one-octet context header", err)
 			}
@@ -48,23 +48,25 @@ func TestPgcryptoPGPInnerGrammar(t *testing.T) {
 	t.Run("cancel_after_first_literal", func(t *testing.T) {
 		for _, format := range []byte{'t', 'x'} {
 			scratch := []byte{203, 7, format, 0, 0, 0, 0, 0, 'a', 203, 7, 't', 0, 0, 0, 0, 0, 'b'}
-			ctx := &pgpLiteralCancelContext{Context: context.Background(), scratch: scratch}
-			text, err := pgpReadText(ctx, scratch)
-			if !errors.Is(err, context.Canceled) || text != "" || scratch[0] != 'a' {
-				t.Fatal("literal walker cancellation published text or missed compaction", err)
+			collector := &pgpLiteralCollector{}
+			defer collector.output.clear()
+			ctx := &pgpLiteralCancelContext{Context: context.Background(), collector: collector}
+			err := collector.read(ctx, scratch, false, false)
+			if !errors.Is(err, context.Canceled) || string(collector.output.data) != "a" {
+				t.Fatal("literal walker cancellation missed owned first payload", err)
 			}
 		}
 	})
 	t.Run("publication_cancel_points", func(t *testing.T) {
 		wire := []byte{203, 7, 't', 0, 0, 0, 0, 0, 'a', 203, 7, 't', 0, 0, 0, 0, 0, 'b'}
 		healthy := &pgpCancelContext{Context: context.Background(), at: int(^uint(0) >> 1)}
-		text, err := pgpReadText(healthy, append([]byte(nil), wire...))
+		text, err := pgpReadInner(healthy, append([]byte(nil), wire...), false, false, false)
 		if err != nil || text != "ab" {
 			t.Fatal("healthy literal sequence", err)
 		}
 		for at := 1; at <= healthy.polls; at++ {
 			ctx := &pgpCancelContext{Context: context.Background(), at: at}
-			text, err := pgpReadText(ctx, append([]byte(nil), wire...))
+			text, err := pgpReadInner(ctx, append([]byte(nil), wire...), false, false, false)
 			if !errors.Is(err, context.Canceled) || text != "" {
 				t.Fatal("canceled literal sequence published text", at, err)
 			}
@@ -72,15 +74,15 @@ func TestPgcryptoPGPInnerGrammar(t *testing.T) {
 	})
 }
 
-// Cancel deterministically only after the first literal's payload has actually
-// compacted into the owned buffer, rather than racing a timer or a poll count.
+// Cancel deterministically only after the first literal's actual owned payload,
+// rather than racing a timer or relying on a synthetic replacement buffer.
 type pgpLiteralCancelContext struct {
 	context.Context
-	scratch []byte
+	collector *pgpLiteralCollector
 }
 
 func (c *pgpLiteralCancelContext) Err() error {
-	if c.scratch[0] == 'a' {
+	if string(c.collector.output.data) == "a" {
 		return context.Canceled
 	}
 	return nil
@@ -103,7 +105,7 @@ func TestPgcryptoPGPPacketChunkLimits(t *testing.T) {
 			wire = append(wire, octet)
 			_, _, _, err = pgpReadLength(pgpInput{data: wire[1026:]})
 			pgpUnitError(t, err, "Wrong key or corrupt data")
-			_, _, err = pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpAuthenticatedInner)
+			_, _, err = pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpDecryptedInner)
 			pgpUnitError(t, err, "Wrong key or corrupt data")
 		})
 	}
@@ -161,7 +163,7 @@ func TestPgcryptoPGPPacketChunkLimits(t *testing.T) {
 				}
 				appendDefinite(remaining)
 			}
-			packet, rest, err := pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpAuthenticatedInner)
+			packet, rest, err := pgpReadPacket(context.Background(), pgpInput{data: wire}, pgpDecryptedInner)
 			if tc.reject {
 				pgpUnitError(t, err, "Wrong key or corrupt data")
 				return

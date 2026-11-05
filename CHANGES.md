@@ -542,16 +542,17 @@
   sealed origin and effective captures survive authorized presentation changes
   and native logical replay into destination-owned generations.
 
-- Add installed text `pgp_sym_encrypt`/`pgp_sym_decrypt` overloads with checked
-  OpenPGP framing, AES128 CFB, iterated salted SHA1 and complete MDC
-  authentication before plaintext or inner diagnostics. Preserve provider slots,
-  stored packet data and SQL consumers through native logical controls; keep
-  entropy and cleared cryptographic scratch invocation-local. Independently
-  decode emitted packets in the shared PostgreSQL 18.6 reference scenarios.
-  Accept authenticated old-context and successive literal packets, enforce the
-  release's 16 MiB limit per declared chunk without capping valid aggregates,
-  and defer every nontext literal-format diagnostic until the full authenticated
-  structure validates, preserving generic corruption and no partial text on failure.
+- Complete installed symmetric text/BYTEA pgcrypto overloads through the shared
+  provider and invocation seams: AES128/192/256, BF, CAST5 and 3DES; MD5/SHA1/
+  SHA256 S2K modes; session-key wrapping; ZIP/ZLIB; and Unicode/CRLF options.
+  Preserve full enabled-MDC authentication before sensitive diagnostics or
+  plaintext, arbitrary BYTEA, exact UTF8 errors and release-compatible noMDC
+  resynchronization/EOF behavior without an authenticity promise. Preserve the
+  original22 declaration identities and append four BYTEA members, with complete
+  inventory, retained-consumer and native replay coverage. Keep each declared
+  packet chunk bounded at16 MiB without an aggregate cap, and keep mutable
+  cryptographic scratch invocation-local and cleared on exit. Independently
+  decode actual emissions and retain fixed PostgreSQL18.6 interoperability vectors.
 
 - Implement sealed SYSTEM_TIME sampling with float8 millisecond arguments,
   monotonic elapsed scan budgets, nested/RLS cooperative expiry, physical-source
