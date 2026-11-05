@@ -1,0 +1,22 @@
+# Unihan_IRGSources.txt
+# Date: 2024-07-31 00:00:00 GMT [KL]
+# Unicode Version 16.0.0
+#
+# Unicode Character Database
+# © 2024 Unicode®, Inc.
+# Unicode and the Unicode Logo are registered trademarks of Unicode, Inc. in the U.S. and other countries.
+# For terms of use and license, see https://www.unicode.org/terms_of_use.html
+#
+# For documentation, see https://www.unicode.org/reports/tr38/
+#
+# Minimal extract, not the complete original member.
+# Source: https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip
+# Member: Unihan_IRGSources.txt
+# Original relevant header above; three original tab-separated records below.
+# Extracted member lines: 38437, 44636, 47223, in original order.
+# License: Unicode License V3, https://www.unicode.org/license.txt
+# The complete accompanying grant is retained in LICENSE-Unicode.
+# These CNS1 facts supplement the separately licensed PostgreSQL release map.
+U+4EA0	kIRG_TSource	T1-2728
+U+51AB	kIRG_TSource	T1-272F
+U+52F9	kIRG_TSource	T1-2734

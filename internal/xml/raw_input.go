@@ -99,9 +99,9 @@ func (p *parser) selectRawEncoding(label string) bool {
 		// physical input, retaining only real grammar events from the prefix.
 		if id!=rawASCII {
 			p.rawConversionEvent(original[at:])
-			// A real reader-fill retry retains both JP2 sets. Sizing/emission
-			// are private passes, not additional conversion attempts.
-			if p.retryRawBuffer(original[at:],id,status.state,status.jp2) {
+			// A genuine reader-fill retry retains the complete family state.
+			// Sizing/emission are private passes, not conversion attempts.
+			if p.retryRawBuffer(original[at:],id,status) {
 				p.rawConversionEvent(original[at:])
 				p.rawEvent(Diagnostic{Condition:"XML_IO_ENCODER",Domain:IODomain,Severity:Error,Message:"encoder error"})
 			}
@@ -120,10 +120,17 @@ func labelRejectedRaw(label string) bool {
 	return false
 }
 
-func (p *parser) retryRawBuffer(input string,id int,state byte,jp2 jp2State) bool {
+func (p *parser) retryRawBuffer(input string,id int,status rawDecodeStatus) bool {
 	if p.err=p.ctx.Err();p.err!=nil{return false}
-	if id==rawISO2022JP {_,_,_,_,invalid:=iso2022JPStep(input,state);return invalid}
-	if id==rawISO2022JP2 {return iso2022JP2Step(input,jp2).invalid}
+	if id==rawISO2022JP {_,_,_,_,invalid:=iso2022JPStep(input,status.state);return invalid}
+	if id==rawISO2022JP2 {return iso2022JP2Step(input,status.jp2).invalid}
+	if id==rawISO2022KR {return iso2022KRStep(input,status.kr).invalid}
+	if id==rawISO2022CN {return iso2022CNStep(input,status.cn).invalid}
+	if id==rawUTF7 {
+		retried,err:=utf7PassFrom(p.ctx,input,len(input),nil,status.utf7)
+		if err!=nil{p.err=err;return false}
+		return retried.fault>=0
+	}
 	if id==40 {
 		n:=rawJOHABWidth(input);if n<0{return true}
 		first,_:=pgencoding18.LookupUTF8(id,pgencoding18.Pack(input,n),n)

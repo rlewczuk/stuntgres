@@ -87,7 +87,7 @@ func TestXMLRawJP2ReplayPass(t *testing.T) {
 			if tc.fault>=0 {
 				if status.cause==nil || status.cause.Error()!=fmt.Sprintf("invalid byte sequence for ISO-2022-JP-2 at byte %d",tc.fault) { t.Fatal("fault cause",status.cause) }
 				p:=parser{ctx:context.Background()}
-				if !p.retryRawBuffer(tc.input[tc.fault:],rawISO2022JP2,0,status.jp2) { t.Fatalf("retry lost G0/G2 %+v",status.jp2) }
+				if !p.retryRawBuffer(tc.input[tc.fault:],rawISO2022JP2,status) { t.Fatalf("retry lost G0/G2 %+v",status.jp2) }
 			} else if status.cause!=nil { t.Fatal("successful/buffered input has a cause",status.cause) }
 			var out strings.Builder
 			replayed,e:=iso2022JP2Pass(context.Background(),tc.input,tc.consumed,&out)

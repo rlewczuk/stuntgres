@@ -127,6 +127,27 @@ checking availability, whereas KSC checks availability first. Complete unknown
 escapes still emit literal ESC for grammar validation. Every emission replay
 keeps full original lookahead, and a real failed-buffer retry retains both sets.
 
+ISO-2022-KR selects ASCII or KSC5601 with SI/SO; its designation is
+nonselecting and SO works without a prior announcement. ISO-2022-CN keeps the
+active set separate from the latest GB2312/CNS1 SO announcement; designating a
+new set changes the next SO, not the current set. Unannounced SO selects GB.
+SS2 reads one CNS2 pair without changing either state, and the H designation
+changes neither. Neither family resets at LF. Framing and physical-EOF
+availability ordering belong to these raw handlers, not PostgreSQL verifiers.
+Their immutable GB/KSC/CNS mappings are exhaustively qualified; CNS1 adds only
+three independently licensed source facts documented in `data/README.md`.
+
+UTF-7 owns direct characters, shifted Base64 and big-endian UTF16, including
+supplementary pairs. Invalid units are never replaced. Ordinary malformed-bit
+or high-surrogate errors retain the current sextet boundary; chained lone-low
+rejection instead restores the last emitted internal-character cursor and full
+pending state. That checkpoint can precede a previous zero-output terminator:
+`+AOk-+3AA-` faults at byte4, not at the second plus. Real failed-buffer retry
+retains this state. Physical EOF does not terminate or flush a shift: a lone
+plus is one buffered byte, whereas `+A`, `+AA` and `+2AA` consume all bytes
+without emitting a character. Actual following markup remains real lookahead.
+
+
 Executable RawMemory labels use ASCII case-insensitivity, without trimming,
 punctuation removal, PostgreSQL aliases or ICU fuzzy matching:
 
@@ -136,6 +157,9 @@ punctuation removal, PostgreSQL aliases or ICU fuzzy matching:
 | ASCII, US-ASCII | ASCII |
 | ISO-2022-JP-2, ISO2022JP2, CSISO2022JP2 | ISO-2022-JP-2 |
 | ISO-2022-JP, ISO2022JP, CSISO2022JP, ISO_2022_JP | ISO-2022-JP |
+| ISO-2022-KR | ISO-2022-KR |
+| ISO-2022-CN | ISO-2022-CN |
+| UTF-7 | UTF-7 |
 | EUC_JP, EUC-JP; EUC_CN; EUC_KR; EUC_TW | corresponding PostgreSQL direct codec |
 | EUC-JISX0213; SHIFT_JISX0213 | EUC_JIS_2004; SHIFT_JIS_2004 |
 | LATIN1–LATIN10 | corresponding PostgreSQL direct codec |
@@ -164,6 +188,9 @@ and invalid/truncated frames fail without repair. PostgreSQL `Verify`, `Length`,
 Binary input and all old callers retain their own contracts.
 Recognition alone never authorizes decoding: unknown/rejected labels fail,
 recognized labels outside this admitted set report unavailable capability.
+Canonical KR/CN/UTF-7 labels and their ASCII case variants are executable.
+Other same-family aliases require whole-handler qualification before admission;
+CN-EXT and IMAP UTF-7 are distinct handlers, not fallback spellings.
 RawMemory introduces no SQL function, XPath policy, stylesheet transformation,
 transport or output-encoding change; existing Text/Binary consumers are unchanged.
 
@@ -689,6 +716,10 @@ Complex-comment cancellation uses the same admitted production polling checks as
 other grammar; uncommitted segment scans and subsequent recovery remain cancellable.
 The generator family validates immutable input and whole generated output;
 recognition tests separately assert literal labels and all finite observations.
+Complete KR/CN mapping/state and UTF-7 direct/UTF16, replay, diagnostics and
+immutable lifecycle contracts use the reusable
+`RUN='^TestXMLRaw(KRCN|UTF7)'` family. Its expected mappings come from original
+licensed release inputs plus the three modern CNS facts, not candidate tables.
 Raw-memory decoding, complete JIS0208 membership/values and holes, finite aliases,
 ordered conversion/declaration errors, EOF provenance, DTD/no-I/O and real-phase
 cancellation/ownership use the reusable `RUN='^TestXMLRaw'` family. Generator units

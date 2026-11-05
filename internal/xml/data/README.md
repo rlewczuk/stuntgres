@@ -150,6 +150,64 @@ the existing map policy rather than adding a host-specific won-sign conversion.
 Framed-but-unassigned cells and illegal/truncated frames remain failures; no
 second JOHAB map or external runtime decoder is introduced.
 
+## Raw-memory KR/CN independent source corpus
+
+The test-only radix interpreter reads the original PostgreSQL release
+`euc_kr_to_utf8.map`, `euc_cn_to_utf8.map` and `euc_tw_to_utf8.map` in
+`../../sqltype/pgencoding18/data/src/backend/utils/mb/Unicode/`, not generated
+Go tables or candidate lookup results. The original PostgreSQL notices and grant
+remain in that provider's `LICENSE` and `data/COPYRIGHT`. Raw framing is specified
+separately: CNS1 uses the two-byte EUC_TW key, CNS2 the four-byte `8E A2` key.
+
+`Unihan-16.0.0-CNS1-extract.txt` is a minimal extract from
+[Unicode16.0.0 Unihan.zip](https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip),
+member `Unihan_IRGSources.txt`: relevant original version/date/attribution/terms
+header followed by original tab-separated records at lines38437,44636,47223.
+It is not the complete member. It retains copyright2024 Unicode, Inc.;
+the accompanying complete [Unicode License V3](https://www.unicode.org/license.txt)
+is in `LICENSE-Unicode`. These three independently sourced CNS1 facts are
+`2728→U+4EA0`, `272F→U+51AB`, `2734→U+52F9`. The independent corpus first asserts
+their absence from the PostgreSQL map, then applies them locally. No original
+map, PostgreSQL verifier or global conversion table is changed.
+
+The offline `go run ./internal/xml/generate` command validates the exact three
+records, field syntax, sorted unique cells, scalar values and their continued
+absence from the existing PG map before emitting `../cns1_generated.go`.
+The output is a three-case immutable scalar lookup, not a duplicate CNS table.
+`TestCNS1SupplementGeneration` compares the entire deterministic output;
+`TestCNS1SupplementCorruption` corrupts actual extract records. Parser mapping
+tests independently interpret the licensed extract and all original map cells.
+No runtime parsing, host converter, mutable mapping/cache or external I/O is used.
+
+Exhaustive exact-length pinned `xmlReadMemory` qualification over all94×94 cells
+of each raw repertoire found KSC8227assignments/609holes, GB7445/1391,
+CNS1 5867/2969 and CNS2 7650/1186, with exactly these three additions over the
+release inputs and no unexplained mapping or hole-diagnostic differences.
+The corpus owns both assigned scalars and explicit holes. The UTF7 corpus uses
+test-only standard-library Base64 over explicitly constructed big-endian UTF16
+units and independent scalar/XML arithmetic, including isolated surrogates;
+it never encodes invalid units through a replacing Unicode encoder.
+
+Framing/state citations are [RFC1557](https://www.rfc-editor.org/rfc/rfc1557),
+[RFC1922 §§1.1–1.3](https://www.rfc-editor.org/rfc/rfc1922), and
+[RFC2152 rules1–3](https://www.rfc-editor.org/rfc/rfc2152), supplemented by the
+matching glibc2.36 input loops
+([KR110–188](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconvdata/iso-2022-kr.c),
+[CN111–235](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconvdata/iso-2022-cn.c),
+[UTF7 246–405](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconvdata/utf-7.c)).
+The source corpus separates active CN selection from the latest SO announcement,
+physical unconsumed bytes from pending UTF7 bits, and converter acceptance from
+XML scalar grammar. UTF7 lone-low checkpoints follow the chained
+[converter rewind](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconv/skeleton.c)
+and [UTF8 surrogate rejection](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconv/gconv_simple.c),
+not a replacing encoder or an RFC-only rejection policy. Libxml's
+[input conversion](https://sources.debian.org/data/main/libx/libxml2/2.9.14%2Bdfsg-1.3~deb12u6/encoding.c)
+preserves real converter state and does not flush pending input at physical EOF.
+
+No old restricted Unihan3.2 material or LGPL converter table is redistributed.
+Any further correction needs independently licensed source facts and explicit
+whole-reader qualification, not candidate-derived goldens.
+
 ## Character serialization oracle
 
 `serialize-oracle.json` contains 322 independently captured PostgreSQL records

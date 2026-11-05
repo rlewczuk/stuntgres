@@ -6,10 +6,13 @@ This package owns public SQL and native-control scenarios for the installed
 XPath root-element context, scalar conversions, FLOAT4 narrowing, strict NULLs,
 validation modes, document/compile/evaluation precedence and namespace handling.
 Raw-encoding scenarios distinguish decoded-Text validation from genuine
-declaration-aware document decoding, including genuine ASCII, ISO-2022-JP and
-ISO-2022-JP-2 G0/G2 transitions, conversion failures before XPath compilation,
-full compile diagnostics and retained direct/prepared/held values. Source and
-stylesheet-shaped documents are inspected through scalar XPath; these scenarios
+declaration-aware document decoding, including genuine ASCII, ISO-2022-JP,
+ISO-2022-JP-2 G0/G2 transitions, ISO-2022-KR/CN designation/SI/SO/SS2 and UTF-7
+UTF16/shift state. Canonical KR/CN/UTF-7 labels and ASCII case variants use
+independent source/style inputs, including CNS1 additions and CNS2 single shifts.
+Conversion failures precede XPath compilation; scenarios assert full compile
+diagnostics, strict typed NULLs and retained direct/prepared/held values.
+Source and stylesheet-shaped documents are inspected through scalar XPath; these scenarios
 do not claim native stylesheet compilation or transformation.
 Catalog assertions select these five declarations rather than claiming parity
 with the entire upstream extension inventory.

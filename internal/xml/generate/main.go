@@ -1,4 +1,4 @@
-// Command generate emits pinned recognition switches and licensed JIS forward tables.
+// Command generate emits pinned recognition switches and licensed raw forward mappings.
 package main
 
 import (
@@ -111,4 +111,7 @@ func main() {
  data,err=os.ReadFile("internal/xml/data/JIS0212.TXT");if err!=nil{panic(err)}
  table,err=parseJIS0212(data);if err!=nil{panic(err)}
  if err=os.WriteFile("internal/xml/jis0212_generated.go",generateJIS0212(table),0644);err!=nil{panic(err)}
+ data,err=os.ReadFile("internal/xml/data/Unihan-16.0.0-CNS1-extract.txt");if err!=nil{panic(err)}
+ supplement,err:=parseCNS1Supplement(data);if err!=nil{panic(err)}
+ if err=os.WriteFile("internal/xml/cns1_generated.go",generateCNS1Supplement(supplement),0644);err!=nil{panic(err)}
 }

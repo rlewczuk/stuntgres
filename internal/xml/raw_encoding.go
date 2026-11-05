@@ -11,6 +11,9 @@ const (
 	rawISO2022JP = -2
 	rawASCII = -3
 	rawISO2022JP2 = -4
+	rawISO2022KR = -5
+	rawISO2022CN = -6
+	rawUTF7 = -7
 )
 
 // rawEncoding admits literal qualified spellings, not PG name cleaning or ICU
@@ -28,6 +31,9 @@ func rawEncoding(label string) int {
 	case "ASCII", "US-ASCII": return rawASCII
 	case "ISO-2022-JP-2", "ISO2022JP2", "CSISO2022JP2": return rawISO2022JP2
 	case "ISO-2022-JP", "ISO2022JP", "CSISO2022JP", "ISO_2022_JP": return rawISO2022JP
+	case "ISO-2022-KR": return rawISO2022KR
+	case "ISO-2022-CN": return rawISO2022CN
+	case "UTF-7": return rawUTF7
 	case "EUC_JP", "EUC-JP": return 1
 	case "EUC_CN": return 2
 	case "EUC_KR": return 3
@@ -75,13 +81,16 @@ func rawCodecName(id int) string {
 	if id == rawISO2022JP { return "ISO-2022-JP" }
 	if id == rawASCII { return "ASCII" }
 	if id == rawISO2022JP2 { return "ISO-2022-JP-2" }
+	if id == rawISO2022KR { return "ISO-2022-KR" }
+	if id == rawISO2022CN { return "ISO-2022-CN" }
+	if id == rawUTF7 { return "UTF-7" }
 	return pgencoding18.Name(id)
 }
 
 // rawDecodeStatus describes real input consumption, including buffering which
-// produced no character. fault==-1 means no conversion error. state and jp2
-// retain the applicable invocation designation at a real fault for retry.
-type rawDecodeStatus struct { size, consumed, incomplete, fault int; state byte; jp2 jp2State; cause error }
+// produced no character. fault==-1 means no conversion error. Family state is
+// an invocation-private value at the actual fault, retained for reader retry.
+type rawDecodeStatus struct { size, consumed, incomplete, fault int; state byte; jp2 jp2State; kr bool; cn cnState; utf7 utf7State; cause error }
 
 // rawVerify bounds all lookahead kernels to a completely verified prefix.
 func rawVerify(ctx context.Context, input string, id int) (int, error) {
@@ -176,11 +185,14 @@ func rawDecode(ctx context.Context, input string, prefix, id int) (string, rawDe
 	}
 	verified := len(suffix)
 	var err error
-	if id != rawISO2022JP && id != rawISO2022JP2 { verified, err = rawVerify(ctx, suffix, id); if err != nil { return "", rawDecodeStatus{}, err } }
+	if id >= 0 { verified, err = rawVerify(ctx, suffix, id); if err != nil { return "", rawDecodeStatus{}, err } }
 	var status rawDecodeStatus
 	switch id {
 	case rawISO2022JP: status,err=iso2022JPPass(ctx,suffix,len(suffix),nil)
 	case rawISO2022JP2: status,err=iso2022JP2Pass(ctx,suffix,len(suffix),nil)
+	case rawISO2022KR: status,err=iso2022KRPass(ctx,suffix,len(suffix),nil)
+	case rawISO2022CN: status,err=iso2022CNPass(ctx,suffix,len(suffix),nil)
+	case rawUTF7: status,err=utf7Pass(ctx,suffix,len(suffix),nil)
 	default: status,err=rawDirectPass(ctx,suffix,id,verified,nil)
 	}
 	if err != nil { return "", status, err }
@@ -191,6 +203,7 @@ func rawDecode(ctx context.Context, input string, prefix, id int) (string, rawDe
 
 func rawEmit(ctx context.Context,input string,prefix,id int,status rawDecodeStatus)(string,error){
 	if err:=ctx.Err();err!=nil{return "",err}
+	if !appendSize(prefix,status.size){return "",conversionSizeError(len(input))}
 	var b strings.Builder
 	b.Grow(prefix+status.size)
 	for at:=0;at<prefix;{
@@ -206,6 +219,12 @@ func rawEmit(ctx context.Context,input string,prefix,id int,status rawDecodeStat
 		_,err=iso2022JPPass(ctx,suffix,status.consumed,&b)
 	case rawISO2022JP2:
 		_,err=iso2022JP2Pass(ctx,suffix,status.consumed,&b)
+	case rawISO2022KR:
+		_,err=iso2022KRPass(ctx,suffix,status.consumed,&b)
+	case rawISO2022CN:
+		_,err=iso2022CNPass(ctx,suffix,status.consumed,&b)
+	case rawUTF7:
+		_,err=utf7Pass(ctx,suffix,status.consumed,&b)
 	default:
 		suffix=suffix[:status.consumed]
 		_,err=rawDirectPass(ctx,suffix,id,len(suffix),&b)

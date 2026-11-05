@@ -43,8 +43,8 @@ func jis0212Rune(lead, trail byte) rune {
 }
 
 // Resolve only the independently qualified immutable mappings, not the foreign
-// framing rules of PostgreSQL Verify/Length/Step. These three maps are scalar.
-func jp2MappedRune(id int, packed uint32, width int) rune {
+// framing rules of PostgreSQL Verify/Length/Step. Qualified maps are scalar.
+func rawMappedRune(id int, packed uint32, width int) rune {
 	word,_:=pgencoding18.LookupUTF8(id,packed,width)
 	switch {
 	case word<=0x7f: return rune(word)
@@ -83,7 +83,7 @@ func iso2022JP2Step(input string, state jp2State) jp2StepResult {
 			case jp2Latin: s.r=rune(payload|0x80)
 			case jp2Greek:
 				if payload<0x20 || payload>=0x80 { s.invalid=true;return s }
-				s.r=jp2MappedRune(27,uint32(payload|0x80),1)
+				s.r=rawMappedRune(27,uint32(payload|0x80),1)
 				if s.r==0 { s.invalid=true;return s }
 			default: s.invalid=true;return s
 			}
@@ -114,8 +114,8 @@ func iso2022JP2Step(input string, state jp2State) jp2StepResult {
 	switch state.g0 {
 	case jp2JIS0208: s.r=jis0208Rune(c,trail)
 	case jp2JIS0212: s.r=jis0212Rune(c,trail)
-	case jp2GB2312: s.r=jp2MappedRune(2,uint32(c|0x80)<<8|uint32(trail|0x80),2)
-	case jp2KSC5601: s.r=jp2MappedRune(3,uint32(c|0x80)<<8|uint32(trail|0x80),2)
+	case jp2GB2312: s.r=rawMappedRune(2,uint32(c|0x80)<<8|uint32(trail|0x80),2)
+	case jp2KSC5601: s.r=rawMappedRune(3,uint32(c|0x80)<<8|uint32(trail|0x80),2)
 	}
 	if s.r==0 { s.invalid=true;return s }
 	s.n=2;s.emits=true;return s
