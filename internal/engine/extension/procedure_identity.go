@@ -47,7 +47,8 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	if p.GinSupport != 0 {
 		return invalid()
 	}
-	if (p.SecurityDefiner || p.Configuration != nil) && !StockInsertUsername.SupportsDMLTrigger(p) && !StockDblink.SupportsConnectionRoutine(p) {
+	if p.SecurityDefiner && !StockInsertUsername.SupportsDMLTrigger(p) && !StockDblink.SupportsConnectionRoutine(p) ||
+		p.Configuration != nil && !StockInsertUsername.SupportsDMLTrigger(p) && !StockDblink.SupportsConnectionRoutine(p) && !StockXML2.SupportsRoutineConfiguration(p) {
 		return invalid()
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
@@ -170,7 +171,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 		m := functions.XML2Members[slot]
 		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), ids.OID(m.Result), m.Volatility
-		if p.Installed != xml2Declaration(slot) || p.Display != xml2Display(slot) {
+		if p.Installed != xml2Declaration(slot) || p.Display != xml2Display(slot) || p.DeclarationBody != xml2Bodies[slot] {
 			return invalid()
 		}
 	case StockSSLInfo:

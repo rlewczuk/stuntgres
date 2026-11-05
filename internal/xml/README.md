@@ -45,6 +45,16 @@ the callback row is borrowed until return. Trees, path frames and mutable event
 buffers never escape or cross concurrent invocations. Destination type input and
 statement publication belong to the engine, not this parser.
 
+`XPathSet` shares that invocation-private raw-document/compiler/evaluator pipeline.
+Its explicit operation distinguishes raw node dumping from string-value lists,
+including empty separators. Raw dumps reuse serializer primitives without subtree
+namespace reconciliation; attributes keep names/quotes, CDATA keeps markup, and
+documents keep their UTF-8 declaration and top-level/trailing newlines. Literal
+root/item tags are output work, not XML-name input. String XPath results bypass
+wrappers; Boolean/number results return their real unsupported classification for
+the SQL notice owner. Checked accumulation and cancellation publish no partial
+text, and no legacy tree or declaration metadata survives a call.
+
 XPath compilation retains immutable syntax only. Invocation-private frames
 project seven node kinds with stable owner/namespace identity, document order,
 all axes and axis-ordered predicates. Namespace axes retain explicit empty default

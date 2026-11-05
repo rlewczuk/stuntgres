@@ -1151,6 +1151,34 @@ conversion changes. Constants remain eligible under generic mode; parameterized
 generic and row-dependent calls remain symbolic. Custom parameter results live as
 private graph literals, not persistent accepted entries. No execution route
 mutates stored analysis or accepted constant recipes.
+Installed XML2 set kernels and RETURN bodies use the same captured available-frame
+preflight boundary, preserving first-error target order. Immutable custom
+computation enters the selected C kernel or real SQL body; generic eligible
+wrapper parameters initialize and invoke the actual expanded kernel. Current
+proconfig blocks inlining. Generic parameter NULL still demands the outer initialization ACL and,
+for expanded bodies, the inner initialization ACL; a noninlined allowed strict
+outer may suppress only its body. Literal NULL remains constant pruning. Actual
+native-body lineage/occurrences own nested calls, while statement errors/notices
+use the current outer name only for the entered SQL route. No automatic plan-cost
+transition, invocation counter or rename-specific rule selects execution.
+Configured wrappers enter the existing core SAVE journal after caller arguments,
+strict suppression and outer admission, before actual body initialization.
+The configuration-only host bridge does not enter a second native subject;
+the shared Info entry protocol owns that body's sole transition. The invocation-private
+context borrows entered Input/Output and the error-aware leave restores caller
+settings/presentation/authority without replacing the primary error.
+An actual XML2 aggregate callback consumes its immediate selected source on the
+original evaluator before any recipe/configuration copy. Ordinary and support
+dependency purposes never substitute for each other. The shared checked
+prepare/enter phases retain the actual initialized body context for its kernel,
+without a second prewalk or a reusable receipt. Copied evaluators, foreign roots
+and unrelated declarations cannot adopt this continuation. Genuine XML2 wrapper
+support/final/inverse/combine bodies keep the live serial path before fanout;
+the existing direct worker allowlist and unrelated arithmetic fanout are unchanged.
+The prepare phase owns any isolated evaluator copy only after the inactive
+builtin bypass (or inside an actual control-isolation branch). Callers never
+reserve an escaping full Context merely to enter a builtin comparison; real
+recipe/configuration copies still follow original aggregate-source consumption.
 Network and `pg_lsn` arithmetic explicitly opt into immutable available-frame
 planning through `OperatorExecutionConstant`. This may expose an immutable child
 error before its volatile parent's runtime EXECUTE admission. Missing parameters,

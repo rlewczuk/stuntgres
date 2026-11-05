@@ -15,7 +15,7 @@ import (
 
 func xml2IDs(t *testing.T, p *fixture.Pair, c *sql.Conn) []int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::bigint FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='xml2' AND p.proname IN ("+xml2Names+") ORDER BY p.proname")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::bigint FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='xml2' AND p.proname IN ("+xml2Names+") ORDER BY p.proname,p.pronargs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func xml2IDs(t *testing.T, p *fixture.Pair, c *sql.Conn) []int64 {
 		seen[id] = true
 		ids = append(ids, id)
 	}
-	if rows.Err() != nil || len(ids) != 5 {
+	if rows.Err() != nil || len(ids) != 10 {
 		t.Fatal("selected identities", ids, rows.Err())
 	}
 	return ids

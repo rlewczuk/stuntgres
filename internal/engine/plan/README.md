@@ -272,14 +272,18 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   declaration without turning their nominal TID into RECORD. A range alias does
   not replace that OUT label; VOID has no OUT name and retains ordinary scalar
   alias naming.
-  `InstalledXML2Expr` preserves exact procedure/reference identity and ordered
-  TEXT children through rebuild, retag, substitution, grouping and stored
-  rendering. Its shared scalar protocols retain current validation mode for the
-  STABLE operation and authentic callable dependencies for immutable folds.
   `InstalledXML2XPathTableExpr` separately owns five TEXT operands and a
   destination record occurrence. Reconstruction, source/group matching and its
   distinct statement tag preserve exact selected procedure/reference, child
   occurrences and record usage without retaining SQL, rows or execution grants.
+  `InstalledXML2Expr` preserves exact signature/operation, outer procedure/reference
+  identity, the wrapper's actual bind-time Kernel descriptor and ordered TEXT
+  operands through reconstruction, stored rendering and destination remapping.
+  Current kernel lookup never substitutes for that original revision/lifetime.
+  The carrier owns the genuine RETURN body runtime handoff; preflight's inline
+  flag is an invocation-private value-copy, never accepted source authority.
+  Both new set kernels and wrappers use available-frame preflight in source
+  order; predecessor scalar protocols retain their existing STABLE/fold policies.
   `InstalledPgsurgeryExpr` retains its genuine freeze procedure/reference and
   lexical formal slots through rebuild, substitution and occurrence matching.
   VOID results never fold into a cached repair or grant; stored transport remaps

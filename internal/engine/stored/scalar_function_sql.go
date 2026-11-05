@@ -300,6 +300,11 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", err
 		}
 		procedure, _ := view.Procedure(n.Ref.Address)
+		if procedure.DeclarationBody != nil {
+			if err := r.recordStoredRoutineDescriptor(view, n.Kernel); err != nil {
+				return "", err
+			}
+		}
 		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored xml2 namespace")

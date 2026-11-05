@@ -15,7 +15,12 @@ func checkRoutineProviderAttributes(d *catalog.Procedure, attributes []parser.Ro
 	}
 	for _, attribute := range attributes {
 		switch attribute.Kind {
-		case "security", "set", "resetall":
+		case "set", "resetall":
+			if extension.StockInsertUsername.SupportsDMLTrigger(d) || extension.StockDblink.SupportsConnectionRoutine(d) || extension.StockXML2.SupportsRoutineConfiguration(d) {
+				continue
+			}
+			return sqlError("0A000", "execution attributes are unsupported for native routine providers")
+		case "security":
 			if extension.StockInsertUsername.SupportsDMLTrigger(d) || extension.StockDblink.SupportsConnectionRoutine(d) {
 				continue
 			}

@@ -823,6 +823,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 		changed = changed || n.Procedure != proc
 		n.Procedure, n.Info = proc, info
+		if n.Kernel != nil {
+			kernel, ok := originalProcedure(n.Kernel)
+			if !ok || extension.XML2ProviderOf(kernel) != extension.StockXML2 {
+				return nil, false, fmt.Errorf("stuntgres: missing remapped xml2 kernel")
+			}
+			changed = changed || n.Kernel != kernel
+			n.Kernel = kernel
+		}
 		err = ValidateInstalledXML2(n, view)
 		rebound = n
 	case plan.InstalledSSLInfoExpr:

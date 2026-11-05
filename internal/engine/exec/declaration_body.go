@@ -62,7 +62,7 @@ func DeclarationBodyRoutine(view catalog.Read, outer *catalog.Procedure, part pr
 }
 
 // NativeDeclarationCall exposes the same immutable preorder ordinal to the real
-// source-specific nested body owner (Earth/pageinspect/freespace), not an event
+// source-specific nested body owner (Earth/pageinspect/freespace/xml2), not an event
 // substitute for that owner's argument, strictness and actual invocation work.
 func NativeDeclarationCall(c *Context, outer *catalog.Procedure, source expr.Info, ordinal int) (*catalog.Procedure, expr.Info, error) {
 	if c == nil || c.RoutineBodyContext.Outer != outer {

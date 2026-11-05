@@ -1,10 +1,12 @@
-# XML2 scalar and table reference scenarios
+# XML2 reference scenarios
 
-This package owns public SQL and native-control scenarios for the installed
-`xml_valid(text)`, `xpath_string(text,text)`, `xpath_number(text,text)`,
-`xpath_bool(text,text)` and five-TEXT `xpath_table` declarations. Independently specified results distinguish
-XPath root-element context, scalar conversions, FLOAT4 narrowing, strict NULLs,
-validation modes, document/compile/evaluation precedence and namespace handling.
+This package owns public SQL and native-control scenarios for the selected
+`xml_valid`, `xpath_string`, `xpath_number`, `xpath_bool`, `xpath_table`,
+`xpath_nodeset` and `xpath_list` declarations (ten signatures). Independently
+specified results distinguish XPath root-element context, scalar conversions,
+FLOAT4 narrowing, typed table expansion, raw node serialization, literal
+wrappers/separators, strict NULLs, validation modes,
+document/compile/evaluation precedence and namespace handling.
 Raw-encoding scenarios distinguish decoded-Text validation from genuine
 declaration-aware document decoding, including genuine ASCII, ISO-2022-JP,
 ISO-2022-JP-2 G0/G2 transitions, ISO-2022-KR/CN designation/SI/SO/SS2 and UTF-7
@@ -14,7 +16,7 @@ Conversion failures precede XPath compilation; scenarios assert full compile
 diagnostics, strict typed NULLs and retained direct/prepared/held values.
 Source and stylesheet-shaped documents are inspected through scalar XPath; these scenarios
 do not claim native stylesheet compilation or transformation.
-Catalog assertions select these five declarations rather than claiming parity
+Catalog assertions select these ten declarations rather than claiming parity
 with the entire upstream extension inventory.
 
 Scenarios share `reference/fixture` setup, recording, metadata and diagnostic
@@ -27,8 +29,8 @@ probes demand fresh direct/prepared/held writes, genuine NULL acceptance,
 full constraint/compile diagnostics and later-row statement atomicity before
 and after current-name, detached-provider and native replacement transitions.
 Public and quoted custom-schema headers keep genuine
-nonrelocatable target coordinates; renamed/detached scalar consumers also replay
-after the original header is removed. No private engine APIs or fixture
+nonrelocatable target coordinates; renamed/detached scalar and set consumers
+also replay after the original header is removed. No private engine APIs or fixture
 implementations live here.
 
 Installation scenarios assert exact early/late signature-collision diagnostics
@@ -55,12 +57,38 @@ fence: replacement rejects the old domain result, while fresh domain queries
 succeed. Same-lifetime domain rename, retained raw-domain Rows and rejected
 replacement checks independently preserve current/accepted ownership.
 
+Set scenarios exercise the installed SQL-standard wrappers, their structural
+body metadata and normal dependencies, current inner identities and independent
+outer/inner EXECUTE checks. Notice-enabled sessions retain complete unsupported
+result diagnostics and distinguish preparation, folding and actual demand.
+Stored consumers use all five set signatures, including genuine row-dependent
+CHECK writes and detached wrapper-to-kernel replay.
+Controls also exercise populated mixed-wrapper index keys, predicates and both
+nested operand directions before ordinary wrapper configuration. Each wrapper's
+SET/RESET preserves exact TEXT/NULL results and its sibling's configuration,
+with fresh INSERT/UPDATE/DELETE writes after every transition.
+Long-lived set scenarios select custom planning explicitly; a separate bounded
+matrix exercises forced custom/generic plans and the actual wrapper proconfig.
+Complete attribution and NULL/ACL demand assertions do not depend on an
+automatic cost transition or an execution count.
+Configured wrappers observably suppress unsupported-result notices inside the
+callee while restoring the caller's SHOW value after success and compile error;
+RESET restores notice delivery on the same held statement. Controls and smoke
+retain actual proconfig and its effect through same-/independent-driver replay.
+Absent-header dumps must reconstruct and retire the genuine scratch cohort in
+order, never reattach detached survivors or leave a final extension header.
+Actual TEXT-state aggregates select the genuine wrapper support and combine
+signatures. Their callback authority remains distinct from ordinary EXECUTE:
+aggregate-owner support admission does not grant the caller inner-kernel access.
+The same held aggregate exercises complete compile/ACL diagnostics, strict NULL
+suppression, notice configuration and caller-setting restoration.
+
 ## Testing
 
 Use the reusable family selector `^TestReferenceXML2` with `make check` under the
 shared [testing policy](../../docs/TESTING.md). `TestMain` delegates oracle and
 scenario lifecycle ownership to `fixture.Main`.
 
-Client-byte witnesses distinguish typed-nil TEXT bytes (SQL NULL on both
-backends) from nonnil empty input. Full compile diagnostics and healthy held
-reuse remain independently asserted on both routes.
+Client-byte witnesses distinguish genuine SQL NULLs and typed-nil TEXT bytes
+(SQL NULL on both backends) from nonnil empty bytes (empty TEXT). Full compile
+diagnostics and healthy held reuse remain independently asserted.

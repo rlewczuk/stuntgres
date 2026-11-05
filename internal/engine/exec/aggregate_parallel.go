@@ -113,6 +113,9 @@ func ParallelAggregatePlan(root plan.Node, source *Source) (*plan.AggregateNode,
 	if !ok || a.PresenceOnly || a.GroupingActive || len(a.Calls) == 0 {
 		return nil, false
 	}
+	if xml2BodyInvocationRequired(root) {
+		return nil, false
+	}
 	if a.Sets != nil {
 		if len(a.Sets) != 1 || len(a.Sets[0]) != len(a.Keys) {
 			return nil, false

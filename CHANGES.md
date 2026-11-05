@@ -153,6 +153,33 @@
   ownership proofs. Preserve custom providers, native replacement controls and
   physical/wire replication boundaries.
 
+- Add xml2's five `xpath_nodeset` / `xpath_list` overloads with exact raw node
+  serialization, literal wrappers/separators, legacy failure precedence and
+  unsupported-result notices. Preserve genuine installed SQL wrapper bodies,
+  normal inner dependencies, forced-plan ACL/NULL demand, current identities and
+  provider-before-consumer native replay through defaults, views and row CHECKs.
+  Retain original inner captures for stored lifetime checks, preserve first-kernel
+  planning errors, and execute SQL-wrapper proconfig through the shared SAVE
+  environment with balanced restoration and genuine native replay. Admit their
+  normalized configuration through the common procedure validator without
+  relaxing sealed body, current membership or definer-security checks. Publish
+  configuration-only changes with their stored consumers through the existing
+  checked routine transition, retaining original inner captures and physical
+  index roots. Distinguish cooked index execution from strict stored definitions
+  during that transition, leaving live preparation to the actual tuple owner;
+  account for the authentic aggregate combine body and its original support
+  captures as well as transition/inverse/final bodies. Discover frozen consumers
+  from their real scalar/aggregate occurrences as well as dependency hints, so a
+  missing sole shared support capture cannot bypass original-source validation.
+  Authenticate every original mixed/nested XML2 index execution occurrence,
+  then publish conservative execution from the updated strict definition while
+  retaining unrelated wrapper identities, original kernels and physical roots.
+  Pair execution with its own original Definition occurrence and original
+  outer/kernel revisions, including repeated calls and folded selected calls;
+  current revision-insensitive declaration lookup is not original-capture proof.
+  Allocate isolated native evaluators only when recipe/configuration entry needs
+  them, preserving the allocation-free inactive builtin entry used by row scans.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

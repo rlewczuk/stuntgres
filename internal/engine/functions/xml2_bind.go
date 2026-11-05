@@ -27,16 +27,13 @@ func bindXML2(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	names := installedArgumentNames(b, raw, operands)
-	m, selected := XML2Lookup(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	m, selected := XML2Lookup(raw.Name.Parts[len(raw.Name.Parts)-1].Text, len(operands))
 	routine, err := b.InstalledRoutine(raw.Name, XML2Extension, m.Signature)
 	if err != nil {
 		return nil, err
 	}
-	count := 2
-	if m.Name == "xml_valid" {
-		count = 1
-	}
-	if !selected || routine == nil || len(operands) != count || len(raw.ArgNames) != 0 || raw.Variadic || raw.Star {
+	count := m.Arity
+	if !selected || routine == nil || len(raw.ArgNames) != 0 || raw.Variadic || raw.Star {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	target := b.Type(sqltype.Text).Usage()
@@ -60,7 +57,7 @@ func bindXML2(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	call := XML2{Info: b.Info(b.Type(m.Result).Usage(), raw.Pos, properties), Name: m.Name, Args: args}
+	call := XML2{Info: b.Info(b.Type(m.Result).Usage(), raw.Pos, properties), Name: m.Name, Operation: m.Operation, Args: args}
 	if err := call.Validate(); err != nil {
 		return nil, err
 	}

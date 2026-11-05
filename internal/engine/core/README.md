@@ -1343,6 +1343,16 @@ and operation policy refresh after effective changes and restoration; demanded
 catalog/visibility snapshots and output spellings remain query-owned.
 Entry recaptures presentation after the complete configuration list, independently
 of whether a routine command is already active.
+The genuine XML2 RETURN wrappers share this same worker through a configuration-
+only host entry. It authenticates the current declaration and installs SAVE
+without an extra Sepgsql transition; actual native body entry owns that transition.
+Entered Input/Output are borrowed only by the invocation-private evaluator.
+Original Kernel captures remain lifetime evidence, never cached invocation rights.
+Actual aggregate support uses the same checked native prepare/entry phases:
+consume the exact original evaluator's support continuation before any local
+configuration copy, preserve its aggregate-purpose source, and retain the body
+that actually initialized the inner expressions. No second prewalk, alternate
+dependency-purpose grant or mutable worker settings environment is introduced.
 Reached SQL body statements classify genuine operation user cancellation through
 `Operation.CommandError` before adding their own statement frame, preserving the
 complete nested diagnostic without mutating the shared cancel cause. Aggregate
@@ -4053,6 +4063,33 @@ XML2 prepared ownership uses the reusable `RUN='^TestXML2'` family, also with
 fold inputs, accepted datum backing and private portal graphs through rejected
 publication, definition retirement and producer cleanup. Public scalar outcomes
 and live authority remain in `reference/extension_xml2`.
+Configuration ownership establishes its caller SAVE baseline through an actual
+configured SQL invocation: BEGIN alone leaves nesting lazy. Publication ownership
+binds after genuine kernel OWNER DDL, then keeps that noncanonical descriptor
+through configuration changes. Populated index roots and original kernel
+revisions have separate diagnostic guards; neither proof permits an empty or
+canonical stand-in.
+The same publication fixture distinguishes strict stored index definitions from
+their genuine cooked execution recipes, preserves the populated physical root,
+and performs real writes after SET/RESET through normal index preparation.
+Injected inline DEFAULT/CHECK/index definitions and configured inline execution
+remain invalid. A genuine three-argument SFUNC selects a distinct two-argument
+COMBINE, exercising both original aggregate-support capture lanes rather than
+letting same-address transition/combine calls mask missing accounting.
+Deleting the sole deduplicated shared SFUNC/COMBINE capture also rejects before
+publication; genuine frozen occurrences, not the damaged manifest alone, select
+their source validation. Missing scalar-view outer captures exercise that same
+discovery boundary while original manifests and query roots remain unchanged.
+The same top-level proof's `MixedIndexes` helper (`xml2_index_publication_test.go`)
+owns populated concatenated keys, predicates and both nested wrapper directions.
+Both wrappers undergo SET/RESET with fresh writes; every original occurrence,
+noncanonical kernel, manifest and physical root stays owned by its original
+pair. Unrelated missing/stale/foreign/body/capture and configured-inline
+forgeries reject without changing source graphs or backing.
+Repeated same-address and folded-selected keys retain exact per-occurrence
+pairing. Post-bind kernel OWNER changes prove that original captured revisions,
+not canonical/current kernels, survive. Stale outer/kernel, changed source or
+occurrence, and duplicate execution-occurrence injections reject unchanged.
 
 SSLInfo definition/accepted-graph ownership uses `RUN='^TestSSLInfoExpressionProtocol$'`.
 It retains actual protocol definitions, installed dependencies and volatile

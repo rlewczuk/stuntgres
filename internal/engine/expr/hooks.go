@@ -194,6 +194,9 @@ const (
 	PreflightNullBare
 	// PreflightXPath derives SQL-wrapper inlining from current-frame demand.
 	PreflightXPath
+	// PreflightXML2 selects the genuine installed SQL body's computation or
+	// expanded generic route without changing its immutable analyzed carrier.
+	PreflightXML2
 )
 
 // Preflighting selects a node's Preflight; nodes without it use

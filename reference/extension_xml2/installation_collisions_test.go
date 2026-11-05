@@ -31,6 +31,36 @@ func xml2InstallationCollisions(t *testing.T) {
 			call:  "SELECT xpath_table('id','doc','xt_src','/doc/a','true') AS original", source: "SELECT false", value: false,
 			context: "SQL statement \"CREATE FUNCTION xpath_table(text,text,text,text,text)\nRETURNS setof record\nAS '$libdir/pgxml'\nLANGUAGE C STRICT STABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 57",
 		},
+		{
+			name: "xpath_nodeset", args: "25 25 25 25",
+			setup: "CREATE FUNCTION xpath_nodeset(text,text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
+			call: "SELECT xpath_nodeset('<r/>','.','','') AS original", source: "SELECT true", value: true,
+			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text,text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 21",
+		},
+		{
+			name: "xpath_nodeset", args: "25 25 25",
+			setup: "CREATE FUNCTION xpath_nodeset(text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
+			call: "SELECT xpath_nodeset('<r/>','.','i') AS original", source: "SELECT false", value: false,
+			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text,text)\nRETURNS text\nAS 'SELECT xpath_nodeset($1,$2,'''',$3)'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 50",
+		},
+		{
+			name: "xpath_nodeset", args: "25 25",
+			setup: "CREATE FUNCTION xpath_nodeset(text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
+			call: "SELECT xpath_nodeset('<r/>','.') AS original", source: "SELECT true", value: true,
+			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text)\nRETURNS text\nAS 'SELECT xpath_nodeset($1,$2,'''','''')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 45",
+		},
+		{
+			name: "xpath_list", args: "25 25 25",
+			setup: "CREATE FUNCTION xpath_list(text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
+			call: "SELECT xpath_list('<r/>','.','|') AS original", source: "SELECT false", value: false,
+			context: "SQL statement \"CREATE FUNCTION xpath_list(text,text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 35",
+		},
+		{
+			name: "xpath_list", args: "25 25",
+			setup: "CREATE FUNCTION xpath_list(text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
+			call: "SELECT xpath_list('<r/>','.') AS original", source: "SELECT true", value: true,
+			context: "SQL statement \"CREATE FUNCTION xpath_list(text,text) RETURNS text\nAS 'SELECT xpath_list($1,$2,'','')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 39",
+		},
 	} {
 		t.Run("collision_"+tc.name, func(t *testing.T) {
 			xml2Case(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -40,7 +70,7 @@ func xml2InstallationCollisions(t *testing.T) {
 				if err := c.QueryRowContext(p.Ctx, q, tc.name, tc.args).Scan(&oid, &owner); err != nil || oid <= 0 || owner <= 0 {
 					t.Fatal("original loose routine identity", oid, owner, err)
 				}
-				inventory := "SELECT p.oid::bigint AS oid,p.proname,p.proargtypes::text AS args,p.prorettype::bigint AS result_oid,p.proisstrict,p.provolatile::text AS volatility,p.proparallel::text AS parallel,l.lanname,p.prosrc,p.probin,p.proowner::bigint AS owner_oid FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang WHERE n.nspname='public' AND p.proname IN (" + xml2Names + ") ORDER BY p.proname"
+				inventory := "SELECT p.oid::bigint AS oid,p.proname,p.proargtypes::text AS args,p.prorettype::bigint AS result_oid,p.proisstrict,p.provolatile::text AS volatility,p.proparallel::text AS parallel,l.lanname,p.prosrc,p.probin,p.proowner::bigint AS owner_oid FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang WHERE n.nspname='public' AND p.proname IN (" + xml2Names + ") ORDER BY p.proname,p.pronargs"
 				unchanged := fixture.Select(inventory,
 					[]string{"oid", "proname", "args", "result_oid", "proisstrict", "volatility", "parallel", "lanname", "prosrc", "probin", "owner_oid"},
 					[]string{"INT8", "NAME", "TEXT", "INT8", "BOOL", "TEXT", "TEXT", "NAME", "TEXT", "TEXT", "INT8"},

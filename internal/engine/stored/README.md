@@ -80,11 +80,15 @@ unchanged callable declarations retain their original identity rather than an
 operation-local clone. The complete expression mapper still checks hidden
 type/collation fields, so genuine provider changes replace recipe backing.
 
-`ValidateInstalledXML2` authenticates one current sealed declaration and every
-operand/result type generation. Scalar remap carries all children and the
-destination domain/epoch reference; retag rebinds its procedure and routine
-carrier together. Both renderers use the current qualified SQL name, including
-renamed or detached functions, never a released label as implementation authority.
+`ValidateInstalledXML2` authenticates the exact signature/operation, current sealed
+declaration, normal wrapper-to-kernel identity and every operand/result generation.
+Scalar remap carries all children and destination domain/epoch; retag rebinds
+both the outer procedure and original bind-time Kernel carrier. Complete CHECK
+rendering validates that captured inner descriptor against the existing manifest,
+including original revision, definition purpose and owning epoch. A current lookup
+or canonical installation declaration cannot replace the capture. Execution-only
+inline routes are not stored recipes. Both renderers use authentic current
+qualified names, including renamed/detached wrappers and kernels.
 
 `ValidateInstalledXML2XPathTable` authenticates the separate five-TEXT source,
 its original sealed routine capture and all anonymous-record leaf generations.
@@ -232,9 +236,12 @@ The shared original-occurrence memo maps output shape, formals and child
 generations once; same-OID foreign/unshaped descriptors remain invalid.
 SQL/PL declarations, the authentic installed insert_username trigger body and
 the authentic installed dblink connection-family bodies may carry definer
-security and routine-local configuration. The common procedure
-validator rejects these states for native bodies that do not enter the shared
-environment, before delegation or intrinsic early returns. Installed symbol
+security and routine-local configuration. The three authentic installed XML2
+SQL wrappers additionally admit configuration-only SAVE, never definer security.
+The common procedure validator applies that sealed capability to normalized
+candidates, then still delegates every current membership, origin, namespace and
+provider check. Other native bodies without shared environment entry remain
+rejected before delegation or intrinsic early returns. Installed symbol
 validation enforces the same boundary for capture/remap consumers. Scalar
 insert_username recipes retain the selected provider and object reference,
 never an enclosing trigger activation. Builtin/installed strictness and
@@ -804,11 +811,53 @@ host methods.
   Both declarations and the original owning descriptors must validate; affected
   occurrences retain their selected identity, argument/result usages and collation.
   The existing scalar mapper rebuilds only authorized calls and enclosing
-  properties; CHECK dependency stamps move with their executable carriers.
+  properties, merging every mapped child's demand into the original intrinsic
+  base. Configuration publication follows the same rule before validating
+  DEFAULT, row CHECK and index definition/execution carriers; original branch
+  and domain barriers remain intrinsic facts. CHECK dependency stamps move
+  with their executable carriers.
   Unaffected backing is shared. The complete private descriptor set validates
   before return and joins the caller's catalog stage, without evaluating bodies,
   rewriting rows/index entries or mutating either supplied read. This capability
   is not available through ordinary remap or stale-carrier validation.
+  The three genuine XML2 SQL wrappers additionally use this same publication for
+  configuration-only ALTER. The checked predecessor/successor differ only in
+  normalized configuration and revision; their sealed body/cohort and other
+  attributes stay exact. Actual outer carriers and CHECK stamps advance together,
+  while original inner descriptors and capture lanes remain untouched. Frozen
+  views use their existing query mapper after authenticating original source
+  declarations and manifests, including actual aggregate support occurrences;
+  their original definition/support lanes are preserved, never interchanged.
+  View selection inspects the actual frozen scalar and owned aggregate/combine
+  occurrences as well as dependency hints. Removing the sole shared support
+  stamp cannot hide a consumer: full original capture validation still rejects
+  it before any successor is mapped or published.
+  Capture accounting visits the actual selected combine support and body as well
+  as transition/inverse/final support. Its validated `CombinePlan` retains the
+  same aggregate/state identity and exact original aggregate-support captures,
+  including a distinct combine wrapper's original inner kernel.
+  Index execution recipes are not stored definitions: each original cooked
+  XML2 occurrence may be inline only when its genuine source wrapper has no
+  proconfig. Only that actual definition/execution pair admits local noninline
+  validation views, authenticating every selected, unrelated and nested carrier
+  with its original kernel and manifest.
+  Pairing uses the actual original Definition's reference, source and occurrence,
+  with exact original outer/kernel revisions and declaration shape. Current
+  revision-insensitive declaration validation cannot supply that proof. Written
+  same-address calls keep distinct occurrences; execution cannot reuse an
+  original occurrence beyond its actual multiplicity. Folded-away calls need
+  no execution occurrence, but an affected Definition still authenticates every
+  surviving sibling. The temporary lookup is not retained or built for unaffected
+  owners. Historical original kernels are never replaced by current descriptors.
+  After authenticating the whole original execution, publication uses the updated
+  strict Definition as conservative Execution; no sibling's cooked route survives
+  by accident. DEFAULT/CHECK/view/index definitions never gain that exception.
+  Callable index insertion starts
+  from the authenticated definition and runs `PrepareIndexRecipe` at real tuple
+  demand, recomputing current admission and inline eligibility after SET/RESET.
+  Catalog publication never runs that live SQL initialization or rebuilds data.
+  Changed TEMP reference entries are copied with the selected outer carrier.
+  Ordinary historical retag/render and `SameRoutineDeclaration` remain strict.
   The returned opaque `ScalarRoutinePublication` retains immutable original and
   completed reads and exact mapper outputs. Its `IndexSource` proof is consumed
   by the index owner to authenticate physical-root preservation; same-address

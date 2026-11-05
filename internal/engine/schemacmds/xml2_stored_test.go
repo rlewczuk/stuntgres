@@ -21,11 +21,27 @@ import (
 )
 
 func TestXML2StoredIdentity(t *testing.T) {
+	for _, test := range []struct {
+		slot int
+		sql string
+	}{
+		{3, "SELECT xpath_bool('<r>12</r>','.')"},
+		{5, "SELECT xpath_nodeset('<r><a>A</a></r>','/r/a','o','i')"},
+		{6, "SELECT xpath_nodeset('<r><a>A</a></r>','/r/a','i')"},
+		{7, "SELECT xpath_nodeset('<r><a>A</a></r>','/r/a')"},
+		{8, "SELECT xpath_list('<r><a>A</a></r>','/r/a','|')"},
+		{9, "SELECT xpath_list('<r><a>A</a></r>','/r/a')"},
+	} {
+		t.Run(test.sql, func(t *testing.T) { xml2StoredIdentity(t, test.sql, test.slot) })
+	}
+}
+
+func xml2StoredIdentity(t *testing.T, sql string, slot int) {
 	ctx := context.Background()
 	source, ext := xml2UnitInstalled(t)
 	view := source.CatalogRead()
 	b := enginetest.ExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	node, err := b.BindFunctionProvider(enginetest.Statement(t, "SELECT xpath_bool('<r>12</r>','.')").(*parser.Select).Targets[0].(parser.FunctionExpr))
+	node, err := b.BindFunctionProvider(enginetest.Statement(t, sql).(*parser.Select).Targets[0].(parser.FunctionExpr))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,15 +68,25 @@ func TestXML2StoredIdentity(t *testing.T) {
 		},
 	} {
 		text, err := render(view, n)
-		if err != nil || !strings.Contains(text, "public") || !strings.Contains(text, "xpath_bool") {
+		if err != nil || !strings.Contains(text, "public") || !strings.Contains(text, n.Name) {
 			t.Fatal("qualified installed renderer", text, err)
 		}
 	}
 	foreign := engine.New()
-	foreignBool, _ := foreign.CatalogRead().LookupType(sqltype.Bool)
+	foreignResult, _ := foreign.CatalogRead().LookupType(n.Usage.Type.ID())
 	foreignText, _ := foreign.CatalogRead().LookupType(sqltype.Text)
 	for _, mutate := range []func(*plan.InstalledXML2Expr){
 		func(n *plan.InstalledXML2Expr) { n.Name = "xml_valid" },
+		func(n *plan.InstalledXML2Expr) { n.Operation = 255 },
+		func(n *plan.InstalledXML2Expr) { n.Inline = true },
+		func(n *plan.InstalledXML2Expr) {
+			copy := *n.Procedure
+			copy.DeclarationBody = view.MustProcedure(ext.Members[6]).DeclarationBody
+			if copy.DeclarationBody == n.Procedure.DeclarationBody {
+				copy.DeclarationBody = nil
+			}
+			n.Procedure, n.RoutineReference = &copy, &copy
+		},
 		func(n *plan.InstalledXML2Expr) { n.Ref.Epoch = 0 },
 		func(n *plan.InstalledXML2Expr) { n.Ref = new(ids.Domain).Ref(n.Ref.Epoch, n.Ref.Address) },
 		func(n *plan.InstalledXML2Expr) { n.RoutineReference = nil },
@@ -92,7 +118,7 @@ func TestXML2StoredIdentity(t *testing.T) {
 			n.Procedure = &copy
 			n.RoutineReference = &copy
 		},
-		func(n *plan.InstalledXML2Expr) { n.Usage = foreignBool.Usage() },
+		func(n *plan.InstalledXML2Expr) { n.Usage = foreignResult.Usage() },
 		func(n *plan.InstalledXML2Expr) {
 			n.Args = slices.Clone(n.Args)
 			literal := n.Args[0].(plan.LiteralExpr)
@@ -117,7 +143,7 @@ func TestXML2StoredIdentity(t *testing.T) {
 	changed.ObjectName = "renamed_xml2"
 	changed.Extension = ids.ObjectAddress{}
 	parent := *ext
-	parent.Members = slices.Delete(slices.Clone(ext.Members), 3, 4)
+	parent.Members = slices.Delete(slices.Clone(ext.Members), slot, slot+1)
 	state.SetDescriptor(parent.Address(), &parent)
 	changed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	state.UnbindName(catalog.DescriptorNameKey(n.Procedure))
@@ -130,18 +156,13 @@ func TestXML2StoredIdentity(t *testing.T) {
 		t.Fatal("renamed symbol", err)
 	}
 	text, err := (stored.ScalarRenderer{}).SQL(ctx, current, renamed)
-	if err != nil || !strings.Contains(text, "pg_catalog") || !strings.Contains(text, "renamed_xml2") || strings.Contains(text, "xpath_bool") {
+	if err != nil || !strings.Contains(text, "pg_catalog") || !strings.Contains(text, "renamed_xml2") || strings.Contains(text, n.Name) {
 		t.Fatal("renderer used released spelling instead of current identity", text, err)
 	}
 	// Retained TEMP identities occupy the destination allocator range, forcing
 	// genuine import remapping rather than an equal-numeric-ID coincidence.
 	target := engine.New()
-	owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
-	t.Cleanup(closeOwner)
-	namespace := intarrayUnitTemporaryNamespace(t, target, owner)
-	installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
-	extensionUnitPublish(t, target, installer, citextUnitStage(t, target, installer, "unaccent", namespace.Name()))
-	closeInstaller()
+	xml2UnitRetainTemporaryCollisions(t, target, ext.Members)
 	if _, err := target.ReplaceCatalog(ctx, source, view); err != nil {
 		t.Fatal("destination replacement", err)
 	}
@@ -150,15 +171,15 @@ func TestXML2StoredIdentity(t *testing.T) {
 	// Replacement may retain the immutable source BOOL codec when no TEMP
 	// consumer demands the destination's old generation. Destination catalog
 	// authority, not inequality with the source pointer, selects the exact type.
-	destinationResult, ok := destination.LookupType(sqltype.Bool)
+	destinationResult, ok := destination.LookupType(n.Usage.Type.ID())
 	if !ok {
-		t.Fatal("destination BOOL generation missing")
+		t.Fatal("destination result generation missing")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): imported.Address()}
 	for slot, address := range ext.Members {
 		mapping[address] = imported.Members[slot]
 	}
-	if imported.Members[3] == n.Ref.Address {
+	if imported.Members[slot] == n.Ref.Address {
 		t.Fatal("fixture did not force procedure remapping")
 	}
 	mapper := stored.ViewQueryRemapper{
@@ -184,11 +205,14 @@ func TestXML2StoredIdentity(t *testing.T) {
 		t.Fatal("authentic destination remap", err)
 	}
 	mapped := query.(*plan.ValuesNode).Rows[0][0].(plan.InstalledXML2Expr)
-	if mapped.Ref.Address != imported.Members[3] || mapped.Ref.Domain() != destination.Domain() || mapped.Ref.Epoch != destination.Epoch() || mapped.Name != n.Name || mapped.Usage != destinationResult.Usage() || mapped.Procedure == n.Procedure || mapped.RoutineReference != mapped.Procedure || !exec.SameRoutineDeclaration(destination.MustProcedure(imported.Members[3]), mapped.Procedure) || !analyze.ValidInstalledXML2Shape(mapped) {
+	if mapped.Ref.Address != imported.Members[slot] || mapped.Ref.Domain() != destination.Domain() || mapped.Ref.Epoch != destination.Epoch() || mapped.Name != n.Name || mapped.Operation != n.Operation || len(mapped.Args) != len(n.Args) || mapped.Usage != destinationResult.Usage() || mapped.Procedure == n.Procedure || mapped.RoutineReference != mapped.Procedure || !exec.SameRoutineDeclaration(destination.MustProcedure(imported.Members[slot]), mapped.Procedure) || !analyze.ValidInstalledXML2Shape(mapped) {
 		t.Fatal("remap lost exact provider/ref/type generation", mapped)
 	}
 	if err := stored.ValidateInstalledXML2(mapped, destination); err != nil {
 		t.Fatal(err)
+	}
+	if n.Kernel != nil && (mapped.Kernel == nil || mapped.Kernel == n.Kernel || mapped.Kernel.Address() != mapping[n.Kernel.Address()] || !exec.SameRoutineDeclaration(destination.MustProcedure(mapped.Kernel.Address()), mapped.Kernel)) {
+		t.Fatal("remap lost original inner declaration carrier", mapped.Kernel)
 	}
 	if err := stored.ValidateInstalledXML2(n, destination); err == nil {
 		t.Fatal("source identity leaked into destination")

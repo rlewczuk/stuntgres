@@ -239,14 +239,22 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the `namespace`, `name` input labels of v3/v5. These labels belong to the
   sealed declaration, survive remapping and current membership changes, and
   resolve named calls through the ordinary formal-argument binder.
-  XML2 1.2 seals `xml_valid(text)`, the two-TEXT `xpath_string`,
-  `xpath_number`, `xpath_bool` scalars and five-TEXT `xpath_table` source, in
-  that slot order. Its superuser-only untrusted installation is nonrelocatable.
-  Strict parallel-safe declarations retain INTERNAL `xml_is_well_formed` /
-  STABLE, C scalar `$libdir/pgxml` / IMMUTABLE and table C / STABLE / SETOF RECORD
-  (Rows1000) provenance. These are native implementations, not a library loader.
-  Signature collisions use released `xml2--1.1.sql` statement contexts through
-  ordinary atomic staging; diagnostic provenance does not add an update graph.
+  XML2 1.2 seals ten signatures: the four scalar declarations, the five-TEXT
+  `xpath_table` source in its original slot 4, then five nodeset/list overloads.
+  Its superuser-only untrusted installation remains nonrelocatable. Strict
+  parallel-safe declarations retain INTERNAL `xml_is_well_formed` / STABLE,
+  C scalar `$libdir/pgxml` / IMMUTABLE and table C / STABLE / SETOF RECORD
+  (Rows1000) provenance. Three real SQL-standard RETURN recipes refer to their
+  installation's authenticated full-arity member slots. Normal dependency edges
+  survive membership detach, current-name changes and remapping. Wrapper proconfig
+  is ordinary current routine metadata and blocks inlining without changing body
+  identity. Actual native body initialization selects these slots through the
+  shared closed declaration-member resolver. It requires the exact canonical body
+  part and authenticates both the current wrapper and selected kernel; the
+  provider's metadata helper alone is not an executable source authority.
+  Signature collisions retain released `xml2--1.1.sql` statement
+  provenance through atomic staging; final 1.2 bodies do not invent an update
+  graph or imply a shared-library loader.
   SSLInfo 1.2 seals exactly seven zero-input scalar inquiries: ssl_is_used,
   ssl_version, ssl_cipher, ssl_client_cert_present, ssl_client_serial,
   ssl_client_dn and ssl_issuer_dn. Its untrusted superuser-only relocatable

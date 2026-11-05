@@ -164,7 +164,10 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   `WaitTermination` waits unlocked for Completed (all resources and registry
   reservation released), not merely Ending or successful request delivery.
   `XMLInput` copies literal/parameter provenance into mapped XML errors and
-  warnings for the active operation. `OutputNotices` retains only a handler and
+  warnings for the active operation. `XMLDiagnosticLevel` preserves codec WARNING
+  rank and genuine xml2 NOTICE rank in operation, cursor and parallel callbacks;
+  specialization changes neither provenance nor filtering policy.
+  `OutputNotices` retains only a handler and
   captured filtering threshold; a fresh `OutputNoticeCollector` records actual
   typed output before unlocked delivery, including warnings before later errors.
   Retained rows keep sink-free output presentation, never a completed operation.

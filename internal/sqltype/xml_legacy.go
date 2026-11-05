@@ -58,3 +58,29 @@ func XML2Valid(ctx context.Context, result *Descriptor, input string, env InputE
 	}
 	return Boolean(result, valid), nil
 }
+
+// XML2Set maps the distinct set conversion and its one actual result notice.
+func XML2Set(ctx context.Context, result *Descriptor, input, path, root, item, separator string, list bool, env InputEnvironment) (Value, error) {
+	if result == nil || result.ID() != Text {
+		return Value{}, fmt.Errorf("invalid xml2 set result descriptor")
+	}
+	kind := xml.LegacyNodeset
+	if list {
+		kind = xml.LegacyList
+	}
+	v, err := xml.XPathSet(ctx, input, path, root, item, separator, kind)
+	if err != nil {
+		var legacy *xml.LegacyXPathError
+		if errors.As(err, &legacy) {
+			return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "10608", Message: legacy.Error(), Detail: legacy.Detail}
+		}
+		return Value{}, xmlError(err)
+	}
+	if v.Null {
+		return Null(result), nil
+	}
+	if v.Unsupported != 0 && env.XMLInput != nil {
+		env.XMLInput.XMLInputWarning(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("unsupported XQuery result: %d", v.Unsupported)})
+	}
+	return String(result, v.Text), nil
+}

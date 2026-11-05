@@ -45,6 +45,30 @@ func TestXMLInputDiagnosticOwnership(t *testing.T) {
 	if len(op.DetachNotices()) != 0 {
 		t.Fatal("warning threshold ignored")
 	}
+	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "unsupported XQuery result: 3"}
+	for _, threshold := range []NoticeLevel{LevelNotice, LevelWarning, LevelError, LevelNotice} {
+		op.NoticeThreshold = threshold
+		literal.XMLInputWarning(notice)
+		got := op.DetachNotices()
+		if threshold == LevelNotice {
+			want := notice
+			want.Position = "31"
+			if len(got) != 1 || got[0] != want {
+				t.Fatal("NOTICE rank/provenance", threshold, got, want)
+			}
+		} else if len(got) != 0 {
+			t.Fatal("NOTICE used WARNING threshold", threshold, got)
+		}
+		if notice.Position != "" || notice.Context != "" {
+			t.Fatal("delivery mutated the provider record", notice)
+		}
+	}
+	var callback []sqlstate.Error
+	borrowed := (XMLInput{}).WithNotice(func(d sqlstate.Error) { callback = append(callback, d) })
+	borrowed.XMLInputWarning(notice)
+	if len(callback) != 1 || callback[0] != notice || XMLDiagnosticLevel(callback[0]) != LevelNotice || XMLDiagnosticLevel(original) != LevelWarning {
+		t.Fatal("detached callback lost record or rank", callback)
+	}
 }
 
 func TestXMLInputNamedPortal(t *testing.T) {

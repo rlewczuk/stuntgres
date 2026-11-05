@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 )
 
@@ -18,8 +19,9 @@ func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (func(err
 	return s.enterRoutineEnvironmentMode(d, true)
 }
 
-// Native scalar entry already owns its subject token. It still needs the same
-// effective-user and SAVE-setting environment, without a second transition.
+// Native scalar entry already owns its subject token. XML2 configuration-only
+// entry precedes its sole native subject transition. Both share this SAVE and
+// effective-user worker without entering a second Sepgsql transition.
 func (s *StatementScope) enterRoutineEnvironmentMode(d *catalog.Procedure, enterSubject bool) (leave func(error) error, err error) {
 	var leaveSubject func()
 	if enterSubject {
@@ -151,4 +153,23 @@ func (s *StatementScope) enterRoutineEnvironmentMode(d *catalog.Procedure, enter
 		}
 	}
 	return leave, nil
+}
+
+func (h *statementHost) EnterNativeRoutineConfiguration(d *catalog.Procedure) (func(error) error, error) {
+	s := h.scope()
+	if err := s.Active(); err != nil {
+		return nil, err
+	}
+	auth, err := h.RoutineInvocationAuthority()
+	if err != nil {
+		return nil, err
+	}
+	current, err := exec.ValidateStoredRoutineDescriptor(auth.Catalog, d)
+	if err != nil {
+		return nil, err
+	}
+	if !extension.StockXML2.SupportsRoutineConfiguration(current) {
+		return nil, fmt.Errorf("stuntgres: native routine has no configuration capability")
+	}
+	return s.enterRoutineEnvironmentMode(current, false)
 }

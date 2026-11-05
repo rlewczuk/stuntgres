@@ -47,37 +47,33 @@ func legacyDocumentFailure(err error) bool {
 	return false
 }
 
-// XPathScalar parses raw TEXT bytes once, builds an invocation-private tree and
-// starts at its real document element. No parse tree or decoder escapes the call.
-func XPathScalar(ctx context.Context, input, path string, kind LegacyScalarKind) (LegacyScalar, error) {
-	failure := LegacyScalar{Null: kind != LegacyBoolean}
+// legacyXPath owns one legacy raw-document parse, tree and evaluation. A false
+// success is only the released structured parse/evaluation NULL projection.
+func legacyXPath(ctx context.Context, input, path string, wrapString bool, declaration *Declaration) (*xpathFrame, xpathValue, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return LegacyScalar{}, err
+		return nil, xpathValue{}, false, err
 	}
-	if kind > LegacyBoolean {
-		return LegacyScalar{}, fmt.Errorf("invalid legacy XPath scalar kind")
-	}
-	_, document, events, err := parseConfigured(ctx, input, Options{Mode: Document, InputKind: RawMemory}, parsePolicy{collect: true, strictNamespaces: true, strictValidity: true, omitDefaultAttributes: true, documentContext: true, legacyDiagnostics: true})
+	parsed, document, events, err := parseConfigured(ctx, input, Options{Mode: Document, InputKind: RawMemory}, parsePolicy{collect: true, strictNamespaces: true, strictValidity: true, omitDefaultAttributes: true, documentContext: true, legacyDiagnostics: true})
 	if err != nil {
 		if legacyDocumentFailure(err) {
-			if err := ctx.Err(); err != nil {
-				return LegacyScalar{}, err
-			}
-			return failure, nil
+			return nil, xpathValue{}, false, ctx.Err()
 		}
-		return LegacyScalar{}, err
+		return nil, xpathValue{}, false, err
 	}
 	if document == nil {
-		return LegacyScalar{}, fmt.Errorf("missing legacy XPath document")
+		return nil, xpathValue{}, false, fmt.Errorf("missing legacy XPath document")
 	}
 	frame, err := newXPathTree(ctx, document)
 	if err != nil {
-		return LegacyScalar{}, err
+		return nil, xpathValue{}, false, err
+	}
+	if declaration != nil {
+		*declaration = parsed.declaration
 	}
 	frame.node = nil
 	for _, child := range frame.tree.root.children {
 		if !frame.poll() {
-			return LegacyScalar{}, frame.p.err
+			return nil, xpathValue{}, false, frame.p.err
 		}
 		if child.kind == xpathElement {
 			frame.node = child
@@ -85,49 +81,64 @@ func XPathScalar(ctx context.Context, input, path string, kind LegacyScalarKind)
 		}
 	}
 	if frame.node == nil {
-		return LegacyScalar{}, fmt.Errorf("missing legacy XPath document element")
+		return nil, xpathValue{}, false, fmt.Errorf("missing legacy XPath document element")
 	}
-	if kind == LegacyString {
+	if wrapString {
 		p := parser{ctx: ctx}
 		path = p.joinMessage("string(", path, ")")
 		if p.err != nil {
-			return LegacyScalar{}, p.err
+			return nil, xpathValue{}, false, p.err
 		}
 	}
 	compiled, err := compileXPath(ctx, path)
 	if err != nil {
 		var xp *XPathError
 		if !errors.As(err, &xp) || xp.Stage != "compile" {
-			return LegacyScalar{}, err
+			return nil, xpathValue{}, false, err
 		}
 		p := parser{ctx: ctx}
 		if !appendSize(len(events), len(events)) || !appendSize(len(events)*2, 1) {
-			return LegacyScalar{}, appendSizeError(len(events), len(events))
+			return nil, xpathValue{}, false, appendSizeError(len(events), len(events))
 		}
 		parts := make([]string, 0, len(events)*2+1)
 		for _, event := range events {
 			if err := ctx.Err(); err != nil {
-				return LegacyScalar{}, err
+				return nil, xpathValue{}, false, err
 			}
 			parts = append(parts, event.String(), "\n")
 		}
 		parts = append(parts, xp.Detail)
 		detail := p.joinMessage(parts...)
 		if p.err != nil {
-			return LegacyScalar{}, p.err
+			return nil, xpathValue{}, false, p.err
 		}
-		return LegacyScalar{}, &LegacyXPathError{Detail: detail}
+		return nil, xpathValue{}, false, &LegacyXPathError{Detail: detail}
 	}
 	value := frame.eval(compiled)
 	if frame.p.err != nil {
 		var xp *XPathError
 		if errors.As(frame.p.err, &xp) && xp.Stage == "evaluate" {
-			if err := ctx.Err(); err != nil {
-				return LegacyScalar{}, err
-			}
-			return failure, nil
+			return nil, xpathValue{}, false, ctx.Err()
 		}
-		return LegacyScalar{}, frame.p.err
+		return nil, xpathValue{}, false, frame.p.err
+	}
+	return frame, value, true, nil
+}
+
+// XPathScalar keeps its scalar conversion policy over the shared legacy frame.
+func XPathScalar(ctx context.Context, input, path string, kind LegacyScalarKind) (LegacyScalar, error) {
+	if kind > LegacyBoolean {
+		if err := ctx.Err(); err != nil {
+			return LegacyScalar{}, err
+		}
+		return LegacyScalar{}, fmt.Errorf("invalid legacy XPath scalar kind")
+	}
+	frame, value, success, err := legacyXPath(ctx, input, path, kind == LegacyString, nil)
+	if err != nil {
+		return LegacyScalar{}, err
+	}
+	if !success {
+		return LegacyScalar{Null: kind != LegacyBoolean}, nil
 	}
 	var result LegacyScalar
 	switch kind {

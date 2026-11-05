@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -14,6 +15,16 @@ import (
 // actual non-NULL outer entry. They cannot be initialized by closed workers or
 // eagerly authorized merely because a nullable input could reach them.
 func nativeBodyInitializationRequired(root plan.Node) bool {
+	return nativeBodyRequired(root, false)
+}
+
+// XML2's structural wrappers require a live invocation even without simulation;
+// their genuine aggregate support calls cannot borrow closed worker settings.
+func xml2BodyInvocationRequired(root plan.Node) bool {
+	return nativeBodyRequired(root, true)
+}
+
+func nativeBodyRequired(root plan.Node, xml2Only bool) bool {
 	required := false
 	var walk func(plan.Node)
 	walk = func(node plan.Node) {
@@ -23,7 +34,7 @@ func nativeBodyInitializationRequired(root plan.Node) bool {
 		plan.QueryExpressions(node, func(expression expr.Expr) {
 			plan.WalkExpression(expression, func(selected expr.Expr) {
 				declaration, err := ExpressionRoutineDescriptor(selected)
-				if err != nil || declaration != nil && (len(declaration.Body) != 0 || declaration.DeclarationBody != nil) {
+				if err != nil || declaration != nil && (xml2Only && extension.StockXML2.SupportsRoutineConfiguration(declaration) || !xml2Only && (len(declaration.Body) != 0 || declaration.DeclarationBody != nil)) {
 					required = true
 				}
 			})
@@ -39,7 +50,7 @@ func nativeBodyInitializationRequired(root plan.Node) bool {
 					supports[3] = selected.CombinePlan.Support
 				}
 				for _, support := range supports {
-					if support != nil && (support.RoutineDefinition() != nil || len(support.Body) != 0 || support.DeclarationBody != nil) {
+					if support != nil && (xml2Only && extension.StockXML2.SupportsRoutineConfiguration(support) || !xml2Only && (support.RoutineDefinition() != nil || len(support.Body) != 0 || support.DeclarationBody != nil)) {
 						required = true
 						return
 					}

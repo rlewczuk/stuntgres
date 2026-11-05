@@ -608,7 +608,17 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
-		return plan.InstalledXML2Expr{XML2: c, Procedure: p, Ref: ref}, nil
+		var kernel *catalog.Procedure
+		if p.DeclarationBody != nil {
+			inner, err := extension.XML2Kernel(r.catalog, p)
+			if err != nil {
+				return nil, err
+			}
+			innerRef := r.catalog.Domain().Ref(r.catalog.Epoch(), inner.Address())
+			b.dependency(innerRef, inner.Revision())
+			kernel = inner
+		}
+		return plan.InstalledXML2Expr{XML2: c, Procedure: p, Kernel: kernel, Ref: ref}, nil
 	case functions.SSLInfo:
 		if extension.SSLInfoProviderOf(p) != extension.StockSSLInfo {
 			break

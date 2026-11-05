@@ -123,6 +123,9 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 					replay.securityDefiner, replay.configuration = procedure.SecurityDefiner, procedure.Configuration
 					replay.securityChanged = procedure.SecurityDefiner != d.(*catalog.Procedure).SecurityDefiner
 				}
+				if extension.StockXML2.SupportsRoutineConfiguration(procedure) {
+					replay.configuration = procedure.Configuration
+				}
 			}
 			groups[kind] = append(groups[kind], replay)
 			continue

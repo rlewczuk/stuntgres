@@ -448,17 +448,20 @@ non-strict, evaluate their optional child once and validate exact format names
 before returning collector absence. Ordinary live routine EXECUTE admission owns
 authorization, including NULL operands and inherited `pg_monitor` grants.
 
-`XML2` binds the four installed TEXT-formal scalar declarations through ordinary
-catalog-aware implicit coercion, including declared non-STRICT casts. Children
-evaluate once in written order before the routine's strict-NULL rule.
-`xml_valid` is STABLE and reads current `FunctionInput` mode/warning delivery;
-the XPath calls are IMMUTABLE and opt execution preflight into shared conditional
-simplification and constant publication. The validator preflights children only.
-Neither operation evaluates at Parse/Describe. Conditional pruning precedes
-dead-arm folding, while an independent constant target can fail before an empty
-WHERE result.
-Recipes retain only selector, typed children and ordinary routine provenance.
-Installed dependencies and current EXECUTE admission survive scalar folding.
+`XML2` binds nine installed TEXT-formal signatures through ordinary catalog-aware
+implicit coercion, including non-STRICT casts. Exact name/arity and operation
+select the declaration; result type alone cannot distinguish the TEXT operations.
+Children evaluate once in written order before STRICT. `xml_valid` is STABLE and
+reads current `FunctionInput` validation mode; the XPath operations are IMMUTABLE.
+`XML2Invoke` owns the genuine postargument kernel entry and SQL result/notice
+adapter. The installed carrier's structural SQL wrappers are executed by exec,
+with their original arguments and authentic inner routine, not default arguments
+or kernel aliases. Their invocation-private preflight route uses captured command
+demand and current proconfig. Parse/Describe never compute these operations.
+Conditional pruning precedes dead-arm folding; independent constant targets may
+fail or emit notices before an empty WHERE result. Only immutable selectors,
+typed operands and routine provenance survive; no XML tree or permission grant
+is retained by a folded or prepared value.
 
 `XML2XPathTable` is the separate five-TEXT, STRICT/STABLE source declaration.
 Operands retain key, document, relation, XPath-list and criteria order and use

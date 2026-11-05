@@ -46,6 +46,8 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 	}
 	next := mapped.(expr.Composite)
 	switch kind {
+	case expr.PreflightXML2:
+		return preflightXML2(c, node, next.(plan.InstalledXML2Expr), changed, decisiveDefaults)
 	case expr.PreflightXPath:
 		call := next.(functions.XMLXPath)
 		// Planning dependence belongs to the analyzed call, before child

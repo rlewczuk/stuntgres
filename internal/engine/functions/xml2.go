@@ -7,24 +7,45 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// XML2Member is one released declaration in xml2--1.1.sql order.
+type XML2Operation uint8
+
+const (
+	XML2Valid XML2Operation = iota
+	XML2String
+	XML2Number
+	XML2Boolean
+	XML2Nodeset
+	XML2List
+	XML2Table
+)
+
+// XML2Member names an exact released signature. Kernel is the authentic full
+// arity installation slot for a structural SQL wrapper, or -1 for a kernel.
 type XML2Member struct {
 	Name, Signature string
 	Result          sqltype.ID
 	Volatility      expr.Volatility
+	Arity           int
+	Operation       XML2Operation
+	Kernel          int
 }
 
 var XML2Members = [...]XML2Member{
-	{"xml_valid", "25", sqltype.Bool, expr.Stable},
-	{"xpath_string", "25,25", sqltype.Text, expr.Immutable},
-	{"xpath_number", "25,25", sqltype.Float4, expr.Immutable},
-	{"xpath_bool", "25,25", sqltype.Bool, expr.Immutable},
-	{"xpath_table", "25,25,25,25,25", 2249, expr.Stable},
+	{"xml_valid", "25", sqltype.Bool, expr.Stable, 1, XML2Valid, -1},
+	{"xpath_string", "25,25", sqltype.Text, expr.Immutable, 2, XML2String, -1},
+	{"xpath_number", "25,25", sqltype.Float4, expr.Immutable, 2, XML2Number, -1},
+	{"xpath_bool", "25,25", sqltype.Bool, expr.Immutable, 2, XML2Boolean, -1},
+	{"xpath_table", "25,25,25,25,25", 2249, expr.Stable, 5, XML2Table, -1},
+	{"xpath_nodeset", "25,25,25,25", sqltype.Text, expr.Immutable, 4, XML2Nodeset, -1},
+	{"xpath_nodeset", "25,25,25", sqltype.Text, expr.Immutable, 3, XML2Nodeset, 5},
+	{"xpath_nodeset", "25,25", sqltype.Text, expr.Immutable, 2, XML2Nodeset, 5},
+	{"xpath_list", "25,25,25", sqltype.Text, expr.Immutable, 3, XML2List, -1},
+	{"xpath_list", "25,25", sqltype.Text, expr.Immutable, 2, XML2List, 8},
 }
 
-func XML2Lookup(name string) (XML2Member, bool) {
+func XML2Lookup(name string, arity int) (XML2Member, bool) {
 	for _, m := range XML2Members {
-		if m.Name == name {
+		if m.Name == name && m.Arity == arity {
 			return m, true
 		}
 	}
@@ -36,15 +57,12 @@ type XML2 struct {
 	expr.Info
 	Name string
 	Args []expr.Expr
+	Operation XML2Operation
 }
 
 func (n XML2) Validate() error {
-	m, ok := XML2Lookup(n.Name)
-	count := 2
-	if n.Name == "xml_valid" {
-		count = 1
-	}
-	if !ok || n.Name == "xpath_table" || !n.Usage.Valid() || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != m.Result || len(n.Args) != count {
+	m, ok := XML2Lookup(n.Name, len(n.Args))
+	if !ok || n.Operation != m.Operation || n.Operation == XML2Table || !n.Usage.Valid() || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != m.Result {
 		return fmt.Errorf("invalid xml2 signature")
 	}
 	for _, a := range n.Args {
@@ -55,14 +73,18 @@ func (n XML2) Validate() error {
 	return nil
 }
 func (n XML2) Eval(c expr.Context) (sqltype.Value, error) {
-	ctx, err := evaluationContext(c)
+	_, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if err := n.Validate(); err != nil {
 		return sqltype.Value{}, err
 	}
-	var values [2]sqltype.Value
+	member, _ := XML2Lookup(n.Name, len(n.Args))
+	if member.Kernel >= 0 {
+		return sqltype.Value{}, fmt.Errorf("missing installed xml2 wrapper runtime")
+	}
+	var values [4]sqltype.Value
 	null := false
 	for i, arg := range n.Args {
 		values[i], err = arg.Eval(c)
@@ -74,23 +96,41 @@ func (n XML2) Eval(c expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	body, err := n.EnterRoutine(c, values[:len(n.Args)])
+	return XML2Invoke(c, n.Info, n.Operation, values[:len(n.Args)])
+}
+
+// XML2Invoke is the genuine kernel boundary after its caller's STRICT decision.
+// A wrapper's exec-owned native body supplies the selected inner Info and expanded
+// values; this entry still enters that actual routine, never a name alias.
+func XML2Invoke(c expr.Context, info expr.Info, operation XML2Operation, values []sqltype.Value) (sqltype.Value, error) {
+	ctx, err := evaluationContext(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	body, err := info.EnterRoutine(c, values)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	defer body.Leave()
-	input, err := values[0].Text()
-	if err != nil {
-		return sqltype.Value{}, err
+	var text [4]string
+	for i, v := range values {
+		text[i], err = v.Text()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
 	}
-	if n.Name == "xml_valid" {
-		return sqltype.XML2Valid(ctx, n.Usage.Type, input, c.FunctionInput())
+	switch operation {
+	case XML2Valid:
+		return sqltype.XML2Valid(ctx, info.Usage.Type, text[0], c.FunctionInput())
+	case XML2String, XML2Number, XML2Boolean:
+		return sqltype.XML2Scalar(ctx, info.Usage.Type, text[0], text[1])
+	case XML2Nodeset:
+		return sqltype.XML2Set(ctx, info.Usage.Type, text[0], text[1], text[2], text[3], "", false, c.FunctionInput())
+	case XML2List:
+		return sqltype.XML2Set(ctx, info.Usage.Type, text[0], text[1], "", "", text[2], true, c.FunctionInput())
+	default:
+		return sqltype.Value{}, fmt.Errorf("invalid xml2 operation")
 	}
-	path, err := values[1].Text()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.XML2Scalar(ctx, n.Usage.Type, input, path)
 }
 func (n XML2) Children() []expr.Expr { return n.Args }
 func (n XML2) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
@@ -135,7 +175,7 @@ func (n XML2) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error)
 }
 func (n XML2) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(XML2)
-	return ok && n.Name == o.Name && n.Usage == o.Usage && sameChildren(n.Args, o.Args, same)
+	return ok && n.Name == o.Name && n.Operation == o.Operation && n.Usage == o.Usage && sameChildren(n.Args, o.Args, same)
 }
 func (n XML2) Render() (expr.Rendering, error) {
 	args := make([]expr.RenderArg, len(n.Args))

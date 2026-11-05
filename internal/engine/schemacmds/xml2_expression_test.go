@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -15,21 +17,57 @@ import (
 
 func TestXML2ExpressionIdentity(t *testing.T) {
 	e, ext := xml2UnitInstalled(t)
-	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	for slot, query := range []string{"SELECT xml_valid('<r/>')", "SELECT xpath_string('<r>12</r>','.')", "SELECT xpath_number('<r>12</r>','.')", "SELECT xpath_bool('<r>12</r>','.')"} {
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: auth.Catalog}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true}}
+	for slot, query := range []string{
+		"SELECT xml_valid('<r/>')", "SELECT xpath_string('<r>12</r>','.')", "SELECT xpath_number('<r>12</r>','.')", "SELECT xpath_bool('<r>12</r>','.')",
+		"SELECT xpath_nodeset('<r><a>A</a></r>','/r/a','o','i')", "SELECT xpath_nodeset('<r><a>A</a></r>','/r/a','i')", "SELECT xpath_nodeset('<r><a>A</a></r>','/r/a')",
+		"SELECT xpath_list('<r><a>A</a></r>','/r/a','|')", "SELECT xpath_list('<r><a>A</a></r>','/r/a')",
+	} {
+		member := slot
+		if member >= 4 {
+			member++
+		}
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := enginetest.Statement(t, query).(*parser.Select).Targets[0]
 		node, err := b.BindFunctionProvider(raw.(parser.FunctionExpr))
 		if err != nil {
 			t.Fatal(err)
 		}
 		n := node.(plan.InstalledXML2Expr)
-		if !analyze.ValidInstalledXML2Shape(n) || n.Procedure != e.CatalogRead().MustProcedure(ext.Members[slot]) || n.RoutineReference != n.Procedure || n.Ref.Address != ext.Members[slot] || n.Procedure.Origin.Installation != ext.Installation {
+		if !analyze.ValidInstalledXML2Shape(n) || n.Procedure != e.CatalogRead().MustProcedure(ext.Members[member]) || n.RoutineReference != n.Procedure || n.Ref.Address != ext.Members[member] || n.Procedure.Origin.Installation != ext.Installation {
 			t.Fatal("authenticated recipe", n)
+		}
+		ctx.RoutineChecks = b.Dependencies
+		if n.Operation != functions.XML2Members[member].Operation || len(n.Args) != functions.XML2Members[member].Arity {
+			t.Fatal("selected operation/arity erased", n)
+		}
+		if kernel := functions.XML2Members[member].Kernel; kernel >= 0 {
+			inner := e.CatalogRead().MustProcedure(ext.Members[kernel])
+			if n.Kernel != inner {
+				t.Fatal("wrapper lost actual bind-time inner descriptor")
+			}
+			found := false
+			for _, dependency := range b.Dependencies {
+				found = found || dependency.Ref.Address == inner.Address() && dependency.Revision == inner.Revision() && dependency.Purpose == catalog.DefinitionDependency
+			}
+			if !found {
+				t.Fatal("wrapper binding omitted real kernel lifetime")
+			}
 		}
 		preflightKind := expr.PreflightSimplify
 		if slot == 0 {
 			preflightKind = expr.PreflightChildren
+		}
+		if n.Operation == functions.XML2Nodeset || n.Operation == functions.XML2List {
+			preflightKind = expr.PreflightXML2
 		}
 		if plan.GenerationImmutable(n) != (slot != 0) || exec.ConditionalConstantInputs(n) != (slot != 0) || n.PreflightFold() != preflightKind {
 			t.Fatal("volatility/fold protocol", n)
@@ -55,7 +93,7 @@ func TestXML2ExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, ok := next.(plan.InstalledXML2Expr)
-			if !ok || got.Procedure != n.Procedure || got.Ref != n.Ref || got.RoutineReference != n.Procedure || got.Info != info || !analyze.SameGroupExpression(n, got) {
+			if !ok || got.Procedure != n.Procedure || got.Kernel != n.Kernel || got.Ref != n.Ref || got.RoutineReference != n.Procedure || got.Info != info || !analyze.SameGroupExpression(n, got) {
 				t.Fatal("identity-erasing reconstruction", next)
 			}
 		}
@@ -76,9 +114,9 @@ func TestXML2ExpressionIdentity(t *testing.T) {
 			t.Fatal("group ignored generation")
 		}
 		bad = n
-		bad.Name = "xpath_nodeset"
+		bad.Operation = functions.XML2Operation(255)
 		if bad.Validate() == nil {
-			t.Fatal("adjacent selector accepted")
+			t.Fatal("wrong operation accepted")
 		}
 		grouped, err := b.RewriteGroup(n, nil)
 		if err != nil {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -21,6 +22,7 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 		return err
 	}
 	next := *d
+	var replacementSource catalog.Read
 	view := h.AccessView(auth)
 	if s.Action == "owner" {
 		owner, err := access.SchemaOwner(view, s.Target.Text, s.OwnerIdentity)
@@ -72,6 +74,9 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 		if err = normalizeRoutineAttributes(h, auth, &next, s.Attributes, d.ReturnsSet()); err != nil {
 			return err
 		}
+		if d.Configuration != next.Configuration && extension.StockXML2.SupportsRoutineConfiguration(d) {
+			replacementSource = h.StageRead()
+		}
 	}
 	if s.Action == "rename" || s.Action == "schema" {
 		if address := h.Stage().LookupName(catalog.DescriptorNameKey(&next)); address != (ids.ObjectAddress{}) {
@@ -90,6 +95,11 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 	}
 	if err = h.Stage().Replace(&next); err != nil {
 		return err
+	}
+	if replacementSource.State() != nil {
+		if err := h.RefreshStoredRoutineConsumers(replacementSource, d, &next); err != nil {
+			return err
+		}
 	}
 	ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
 	return h.RecordDependencyPath(auth)

@@ -155,8 +155,29 @@ func (f *xpathFrame) stringValue(n *xpathNode) string {
 		}
 	}
 	var b strings.Builder
-	f.sourceText(&b, n.source)
+	f.appendStringValue(&b, n)
 	return b.String()
+}
+
+// appendStringValue shares XPath casting with streaming consumers, avoiding an
+// intermediate mixed-content string that would immediately be copied again.
+func (f *xpathFrame) appendStringValue(b *strings.Builder, n *xpathNode) {
+	switch n.kind {
+	case xpathRoot:
+		for _, child := range n.children {
+			if !f.poll() {
+				return
+			}
+			if child.kind == xpathElement {
+				f.appendStringValue(b, child)
+				return
+			}
+		}
+	case xpathElement:
+		f.sourceText(b, n.source)
+	default:
+		f.p.appendValue(b, n.value)
+	}
 }
 func (f *xpathFrame) sourceText(b *strings.Builder, n *node) {
 	if !f.poll() {

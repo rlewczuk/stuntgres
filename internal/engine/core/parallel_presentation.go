@@ -47,7 +47,7 @@ func (h *statementHost) CaptureParallelEvaluation() func() *exec.EvaluationCaptu
 		}
 		regobj.CaptureEvaluationInput(&in, emit)
 		if xml, ok := in.XMLInput.(session.XMLInput); ok {
-			in.XMLInput = xml.WithNotice(func(d sqlstate.Error) { emit(session.LevelWarning, d) })
+			in.XMLInput = xml.WithNotice(func(d sqlstate.Error) { emit(session.XMLDiagnosticLevel(d), d) })
 		}
 		if fts, ok := in.FTS.(session.FTSInput); ok {
 			in.FTS = fts.WithNotice(func(d sqlstate.Error) { emit(session.LevelNotice, d) })

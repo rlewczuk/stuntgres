@@ -38,6 +38,7 @@ func DeclarationMember(view catalog.Read, target *catalog.Procedure, p proc.Decl
 	}
 	pageinspect := owner.Provider == "pageinspect" && owner.Version == "1.13"
 	freespace := owner.Provider == "pg_freespacemap" && owner.Version == "1.3"
+	xml2 := owner.Provider == "xml2" && owner.Version == "1.2"
 	if pageinspect {
 		slot := target.Origin.Declaration
 		allowed := slot == 19 && (p.Slot == 15 || p.Slot == 18) || slot == 20 && p.Slot == 19
@@ -52,6 +53,21 @@ func DeclarationMember(view catalog.Read, target *catalog.Procedure, p proc.Decl
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err := StockPgFreespace.ValidateProcedure(view, target); err != nil {
+			return nil, err
+		}
+	} else if xml2 {
+		if !StockXML2.SupportsRoutineConfiguration(target) {
+			return nil, ids.ErrCatalogReplaced
+		}
+		recipe, ok := proc.RoutineDeclarationRecipe(target.DeclarationBody)
+		if !ok || recipe.CallCount() != 1 {
+			return nil, ids.ErrCatalogReplaced
+		}
+		_, expected := recipe.CallPart(0)
+		if p != expected {
+			return nil, ids.ErrCatalogReplaced
+		}
+		if err := StockXML2.ValidateProcedure(view, target); err != nil {
 			return nil, err
 		}
 	} else if owner.Provider != "earthdistance" || owner.Version != "1.2" {
@@ -105,6 +121,11 @@ func DeclarationMember(view catalog.Read, target *catalog.Procedure, p proc.Decl
 		if pageinspect {
 			if err := ValidatePageinspectIdentity(view, current, view.Owner().Domain.Ref(view.Epoch(), current.Address())); err != nil {
 				return nil, ids.ErrCatalogReplaced
+			}
+		}
+		if xml2 {
+			if err := StockXML2.ValidateProcedure(view, current); err != nil {
+				return nil, err
 			}
 		}
 		count := 0

@@ -47,8 +47,17 @@ func (r XMLInput) XMLInputWarning(d sqlstate.Error) {
 		return
 	}
 	if r.Op != nil {
-		r.Op.EmitNotice(LevelWarning, r.XMLInputDiagnostic(d))
+		r.Op.EmitNotice(XMLDiagnosticLevel(d), r.XMLInputDiagnostic(d))
 	}
+}
+
+// XMLDiagnosticLevel preserves codec WARNING delivery and the real NOTICE rank
+// of unsupported xml2 results across operation, cursor and parallel sinks.
+func XMLDiagnosticLevel(d sqlstate.Error) NoticeLevel {
+	if d.Severity == "NOTICE" {
+		return LevelNotice
+	}
+	return LevelWarning
 }
 func (r XMLInput) XMLLiteral(position int) sqltype.XMLInputDiagnostics {
 	r.position, r.portal, r.textSuffix = position, "", ""

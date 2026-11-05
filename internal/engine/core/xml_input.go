@@ -16,6 +16,6 @@ func (r cursorXMLInput) XMLInputWarning(d sqlstate.Error) {
 		return
 	}
 	if s := ScopeOf(r.authority.Host); s != nil {
-		s.Op.EmitNotice(session.LevelWarning, d)
+		s.Op.EmitNotice(session.XMLDiagnosticLevel(d), d)
 	}
 }

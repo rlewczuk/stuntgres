@@ -67,90 +67,150 @@ func (c *Context) consumeNativeAggregateSource(reference expr.RoutineReference, 
 	return source, nil
 }
 
+// nativeRoutineEntry is an immediate, single-use checked continuation. It never
+// leaves the owning call; configuration may change only its evaluator's I/O.
+type nativeRoutineEntry struct {
+	context        *Context
+	read           catalog.Read
+	initialization RoutineInitialization
+	declaration    *catalog.Procedure
+	recipe         expr.RoutineRecipeReference
+	inputs         expr.RoutineBodyInputs
+	parent         nativeAggregateSource
+	aggregate      *catalog.Procedure
+	active         bool
+	bypass         bool
+	control        bool
+}
+
 // FunctionEnterRoutine consumes the original selected declaration and recipe at
 // the owning kernel's postargument body boundary. It never resolves names,
 // evaluates children, or retains borrowed argument storage.
-func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe expr.RoutineRecipeReference, inputs expr.RoutineBodyInputs) (result sqltype.RoutineBodyToken, err error) {
-	var parent nativeAggregateSource
-	var aggregateParent *nativeAggregateSource
+func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe expr.RoutineRecipeReference, inputs expr.RoutineBodyInputs) (sqltype.RoutineBodyToken, error) {
+	var entry nativeRoutineEntry
+	selected, err := c.prepareNativeRoutineEntry(&entry, false, reference, recipe, inputs)
+	if err != nil {
+		return sqltype.RoutineBodyToken{}, err
+	}
+	return selected.enterNativeRoutine(&entry, nil)
+}
+
+// Consume an actual aggregate source on its exact evaluator before any recipe
+// or configuration copy. Ordinary and aggregate lifetime purposes stay disjoint.
+func (c *Context) prepareNativeRoutineEntry(entry *nativeRoutineEntry, isolate bool, reference expr.RoutineReference, recipe expr.RoutineRecipeReference, inputs expr.RoutineBodyInputs) (*Context, error) {
 	if c != nil && c.nativeAggregate.self != nil {
-		parent, err = c.consumeNativeAggregateSource(reference, recipe, &inputs)
+		parent, err := c.consumeNativeAggregateSource(reference, recipe, &inputs)
 		if err != nil {
-			return sqltype.RoutineBodyToken{}, err
+			return nil, err
 		}
-		aggregateParent = &parent
+		entry.parent = parent
 	}
 	if reference == nil {
-		return sqltype.RoutineBodyToken{}, nil
+		return c, nil
 	}
 	declaration, ok := reference.(*catalog.Procedure)
 	if !ok || declaration == nil {
-		return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: invalid native routine reference")
+		return nil, fmt.Errorf("stuntgres: invalid native routine reference")
 	}
 	if c == nil {
-		return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: missing native routine invocation authority")
+		return nil, fmt.Errorf("stuntgres: missing native routine invocation authority")
 	}
+	entry.context, entry.read, entry.initialization = c, c.Catalog, c.RoutineInitialization
+	entry.declaration, entry.recipe, entry.inputs = declaration, recipe, inputs
 	if c.ControlLiteralAuthority.present() {
-		return c.enterControlLiteral(declaration, recipe)
+		entry.control = true
+		if isolate {
+			local := *c
+			entry.context = &local
+			return &local, nil
+		}
+		return c, nil
 	}
-	owner := c.Catalog.Owner()
-	active, failure := routineSimulationActive(c)
-	if failure != nil {
-		return sqltype.RoutineBodyToken{}, failure
+	active, err := routineSimulationActive(c)
+	if err != nil {
+		return nil, err
 	}
-	if !active && (aggregateParent == nil && declaration.DeclarationBody == nil || declaration.Strict && inputs.HasNull) {
-		return sqltype.RoutineBodyToken{}, nil
+	entry.active = active
+	if !active && (entry.parent.aggregate == nil && declaration.DeclarationBody == nil || declaration.Strict && inputs.HasNull) {
+		entry.bypass = true
+		return c, nil
 	}
 	selected := c
-	var local Context
-	if recipe != nil {
-		local = *c
+	if isolate || recipe != nil {
+		// Keep the inactive builtin path above free of an escaping evaluator.
+		local := *c
 		selected = &local
-		if err = SelectExpressionRecipe(selected, recipe); err != nil {
-			return sqltype.RoutineBodyToken{}, err
+		if recipe != nil {
+			if err = SelectExpressionRecipe(selected, recipe); err != nil {
+				return nil, err
+			}
 		}
 	}
-	if !active && aggregateParent == nil {
-		if err = initializeNativeBody(selected, declaration, inputs, nil); err != nil {
-			return sqltype.RoutineBodyToken{}, bodyInitializationError(selected, declaration, err)
-		}
-		return sqltype.RoutineBodyToken{}, nil
+	entry.context, entry.read, entry.initialization = selected, selected.Catalog, selected.RoutineInitialization
+	if !active && entry.parent.aggregate == nil {
+		return selected, nil
 	}
-	var aggregate *catalog.Procedure
-	var auth RoutineAccess
-	var dependencies []catalog.ExpressionDependency
 	if inputs.AggregateOwner == nil {
 		info := expr.Info{Occurrence: inputs.Occurrence, Source: inputs.Source}
 		if err = validateRoutineExpressionInitialization(selected, declaration, info); err != nil {
-			return sqltype.RoutineBodyToken{}, err
+			return nil, err
 		}
 	} else {
-		aggregate, ok = inputs.AggregateOwner.(*catalog.Procedure)
+		aggregate, ok := inputs.AggregateOwner.(*catalog.Procedure)
 		if !ok || aggregate == nil {
-			return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: invalid aggregate support owner reference")
+			return nil, fmt.Errorf("stuntgres: invalid aggregate support owner reference")
 		}
-		auth, dependencies, err = RoutineAdmissionAuthority(selected)
+		auth, dependencies, err := RoutineAdmissionAuthority(selected)
 		if err != nil {
-			return sqltype.RoutineBodyToken{}, err
+			return nil, err
 		}
 		if !auth.Live() {
-			return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: missing aggregate support source authority")
+			return nil, fmt.Errorf("stuntgres: missing aggregate support source authority")
 		}
 		if _, _, err = ValidateAggregateSupportMembership(auth.Catalog, auth.Roles, aggregate, declaration); err != nil {
-			return sqltype.RoutineBodyToken{}, err
+			return nil, err
 		}
 		if _, _, err = recipeRoutineLifetime(selected, auth, dependencies, declaration, catalog.AggregateSupportDependency); err != nil {
-			return sqltype.RoutineBodyToken{}, err
+			return nil, err
 		}
+		entry.aggregate = aggregate
 	}
-	// Execute initialization and original lifetime were proved above, even for
-	// original fmgrtab fast paths. STRICT suppresses only the actual body.
-	if declaration.Strict && inputs.HasNull {
+	return selected, nil
+}
+
+// Enter only the exact prepared evaluator and consume the continuation even on
+// failure. The optional result is the very body whose children initialize here.
+func (c *Context) enterNativeRoutine(entry *nativeRoutineEntry, retained *Context) (result sqltype.RoutineBodyToken, err error) {
+	if entry.declaration == nil {
 		return sqltype.RoutineBodyToken{}, nil
 	}
-	if !active {
-		if err = initializeNativeBody(selected, declaration, inputs, aggregateParent); err != nil {
-			return sqltype.RoutineBodyToken{}, bodyInitializationError(selected, declaration, err)
+	owner := entry.context
+	entry.context = nil
+	if c == nil || owner != c || entry.read.Owner() != c.Catalog.Owner() || entry.read.Domain() != c.Catalog.Domain() || entry.read.Epoch() != c.Catalog.Epoch() || entry.read.State() != c.Catalog.State() || entry.initialization != c.RoutineInitialization {
+		return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: foreign native routine entry continuation")
+	}
+	declaration, inputs := entry.declaration, entry.inputs
+	if entry.control {
+		token, failure := c.enterControlLiteral(declaration, entry.recipe)
+		if failure != nil || retained == nil {
+			return token, failure
+		}
+		*retained, err = BeginNativeBody(c, declaration, expr.Info{Occurrence: inputs.Occurrence, Source: inputs.Source})
+		if err != nil {
+			token.Leave()
+		}
+		return token, err
+	}
+	if entry.bypass || declaration.Strict && inputs.HasNull {
+		return sqltype.RoutineBodyToken{}, nil
+	}
+	var parent *nativeAggregateSource
+	if entry.parent.aggregate != nil {
+		parent = &entry.parent
+	}
+	if !entry.active {
+		if err = initializeNativeBody(c, declaration, inputs, parent, retained); err != nil {
+			return sqltype.RoutineBodyToken{}, bodyInitializationError(c, declaration, err)
 		}
 		return sqltype.RoutineBodyToken{}, nil
 	}
@@ -158,7 +218,7 @@ func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe e
 		return sqltype.RoutineBodyToken{}, nil
 	}
 	if c.ClosedEvaluation != nil {
-		if owner.Sepgsql.AnyTrustedTransitions() || len(declaration.Body) != 0 {
+		if c.Catalog.Owner().Sepgsql.AnyTrustedTransitions() || len(declaration.Body) != 0 {
 			return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: native body requires serial invocation authority")
 		}
 		return sqltype.RoutineBodyToken{}, nil
@@ -167,7 +227,7 @@ func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe e
 	if host == nil {
 		return sqltype.RoutineBodyToken{}, fmt.Errorf("stuntgres: missing native body invocation authority")
 	}
-	auth, dependencies, err = RoutineInvocationAuthority(selected)
+	auth, _, err := RoutineInvocationAuthority(c)
 	if err != nil {
 		return sqltype.RoutineBodyToken{}, err
 	}
@@ -180,8 +240,8 @@ func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe e
 		}()
 	}
 	var token sqltype.RoutineBodyToken
-	if aggregate != nil {
-		token, err = host.EnterNativeAggregateSupport(aggregate, declaration)
+	if entry.aggregate != nil {
+		token, err = host.EnterNativeAggregateSupport(entry.aggregate, declaration)
 	} else {
 		token, err = host.EnterNativeRoutine(declaration)
 	}
@@ -189,9 +249,9 @@ func (c *Context) FunctionEnterRoutine(reference expr.RoutineReference, recipe e
 		return sqltype.RoutineBodyToken{}, err
 	}
 	if !inquiryRoutine(declaration) {
-		if err = initializeNativeBody(selected, declaration, inputs, aggregateParent); err != nil {
+		if err = initializeNativeBody(c, declaration, inputs, parent, retained); err != nil {
 			token.Leave()
-			return sqltype.RoutineBodyToken{}, bodyInitializationError(selected, declaration, err)
+			return sqltype.RoutineBodyToken{}, bodyInitializationError(c, declaration, err)
 		}
 	}
 	return token, nil
@@ -216,7 +276,7 @@ func bodyInitializationError(c *Context, outer *catalog.Procedure, failure error
 // the already-entered wrapper before its fused native kernels/conversions, not
 // under the argument caller. This models the retained body, not PG custom-plan
 // fold counts or universal custom/generic-plan diagnostic ordering.
-func initializeNativeBody(c *Context, outer *catalog.Procedure, inputs expr.RoutineBodyInputs, aggregateParent *nativeAggregateSource) error {
+func initializeNativeBody(c *Context, outer *catalog.Procedure, inputs expr.RoutineBodyInputs, aggregateParent *nativeAggregateSource, retained *Context) error {
 	if len(outer.Body) == 0 && outer.DeclarationBody == nil {
 		return nil
 	}
@@ -232,33 +292,39 @@ func initializeNativeBody(c *Context, outer *catalog.Procedure, inputs expr.Rout
 		return err
 	}
 	if len(outer.Body) == 0 {
-		return initializeNativeDeclarationBody(&body, outer, expr.Info{Occurrence: inputs.Occurrence, Source: inputs.Source}, c.declarationDemand)
-	}
-	for ordinal, edge := range outer.Body {
-		if edge.Demand == catalog.BodyLeftDuration && inputs.LiteralNullDurationPairs&1 != 0 ||
-			edge.Demand == catalog.BodyRightDuration && inputs.LiteralNullDurationPairs&2 != 0 {
-			continue
+		if err := initializeNativeDeclarationBody(&body, outer, expr.Info{Occurrence: inputs.Occurrence, Source: inputs.Source}, c.declarationDemand); err != nil {
+			return err
 		}
-		if edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText {
-			input := inputs.First
-			if outer.Address().ObjectID == 2003 {
-				input = inputs.Second
-			}
-			if input == nil {
-				return fmt.Errorf("stuntgres: missing SQL body polymorphic input")
-			}
-			id := input.BaseType().ID()
-			if edge.Demand == catalog.BodyBooleanText && id != sqltype.Bool || edge.Demand == catalog.BodyNetworkText && id != sqltype.Inet && id != sqltype.Cidr {
+	} else {
+		for ordinal, edge := range outer.Body {
+			if edge.Demand == catalog.BodyLeftDuration && inputs.LiteralNullDurationPairs&1 != 0 ||
+				edge.Demand == catalog.BodyRightDuration && inputs.LiteralNullDurationPairs&2 != 0 {
 				continue
 			}
+			if edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText {
+				input := inputs.First
+				if outer.Address().ObjectID == 2003 {
+					input = inputs.Second
+				}
+				if input == nil {
+					return fmt.Errorf("stuntgres: missing SQL body polymorphic input")
+				}
+				id := input.BaseType().ID()
+				if edge.Demand == catalog.BodyBooleanText && id != sqltype.Bool || edge.Demand == catalog.BodyNetworkText && id != sqltype.Inet && id != sqltype.Cidr {
+					continue
+				}
+			}
+			inner, err := BodyRoutineDescriptor(&body, auth, dependencies, edge)
+			if err != nil {
+				return err
+			}
+			if err = AdmitInitializedBodyRoutine(&body, auth, dependencies, inner, uint32(ordinal+1)); err != nil {
+				return err
+			}
 		}
-		inner, err := BodyRoutineDescriptor(&body, auth, dependencies, edge)
-		if err != nil {
-			return err
-		}
-		if err = AdmitInitializedBodyRoutine(&body, auth, dependencies, inner, uint32(ordinal+1)); err != nil {
-			return err
-		}
+	}
+	if retained != nil {
+		*retained = body
 	}
 	return nil
 }

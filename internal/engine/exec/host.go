@@ -62,6 +62,9 @@ type Host interface {
 	RoutineAdmission() (RoutineAccess, []catalog.ExpressionDependency, error)
 	RoutineInvocationAuthority() (access.View, error)
 	EnterNativeRoutine(*catalog.Procedure) (sqltype.RoutineBodyToken, error)
+	// EnterNativeRoutineConfiguration borrows the actual SAVE journal without
+	// entering the native subject; the caller already admitted the routine.
+	EnterNativeRoutineConfiguration(*catalog.Procedure) (func(error) error, error)
 	EnterNativeAggregateSupport(*catalog.Procedure, *catalog.Procedure) (sqltype.RoutineBodyToken, error)
 	EnterTypeIOCallback(catalog.TypeIOCallback) (sqltype.RoutineBodyToken, error)
 	EnterEncodingConversionCallback(catalog.EncodingConversionCallback) (sqltype.RoutineBodyToken, error)

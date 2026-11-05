@@ -487,8 +487,14 @@ their ordinary, trigger and event-trigger entries. The authentic installed
 insert_username body and authentic installed dblink connection-family bodies
 also support SECURITY DEFINER/INVOKER and SET/RESET configuration through the
 same execution environment. Their strictness and volatility remain sealed.
-Other native providers reject execution clauses,
-even semantic no-ops, with
+The three genuine installed XML2 RETURN bodies support only SET/RESET
+configuration through their provider-owned body capability and the same SAVE
+environment. They do not gain SECURITY, STRICT or volatility actions; XML2
+C/scalar kernels retain the native-provider boundary. Configuration-only ALTER
+of these three wrappers publishes their stored consumers through the existing
+checked predecessor/successor operation, without relaxing ordinary stale-carrier
+comparison or substituting current inner declarations. Other unsupported native
+execution clauses, even semantic no-ops, fail with
 `0A000: execution attributes are unsupported for native routine providers`.
 The action gate follows real lookup/kind/ownership checks and precedes setting
 normalization, revision allocation and replacement. Parallel/cost/rows remain

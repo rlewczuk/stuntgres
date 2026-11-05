@@ -3,6 +3,7 @@ package stored
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -60,14 +61,34 @@ func validateRoutineCapture(action RuleAction, dependencies []catalog.Expression
 				failure = err
 				return
 			}
+			if call, ok := node.(plan.InstalledXML2Expr); ok {
+				if !analyze.ValidInstalledXML2Shape(call) {
+					failure = fmt.Errorf("stuntgres: invalid original XML2 capture")
+					return
+				}
+				if read.State() != nil && (read.Owner() == nil || call.Ref.Domain() != read.Domain() || call.Ref.Epoch != read.Epoch()) {
+					failure = fmt.Errorf("stuntgres: foreign original XML2 capture")
+					return
+				}
+			}
 			if d != nil {
 				ref := ids.ObjectRef{}
 				if call, ok := node.(plan.SQLRoutineExpr); ok {
+					ref = call.Ref
+				} else if call, ok := node.(plan.InstalledXML2Expr); ok {
 					ref = call.Ref
 				}
 				require(d, ref, purpose)
 				if failure == nil {
 					failure = exec.WalkRoutineBody(d, node, func(body *catalog.Procedure) error { require(body, ids.ObjectRef{}, purpose); return failure })
+				}
+				if call, ok := node.(plan.InstalledXML2Expr); ok && d.DeclarationBody != nil {
+					var inner ids.ObjectRef
+					if call.Kernel != nil {
+						inner = call.Ref
+						inner.Address = call.Kernel.Address()
+					}
+					require(call.Kernel, inner, purpose)
 				}
 			}
 			if conditional, ok := node.(plan.CaseExpr); ok {
@@ -91,6 +112,18 @@ func validateRoutineCapture(action RuleAction, dependencies []catalog.Expression
 		for _, call := range [3]expr.Expr{provider.Call, provider.InverseCall, provider.FinalCall} {
 			if call != nil {
 				scalar(call, catalog.AggregateSupportDependency)
+			}
+		}
+		if combine := provider.CombinePlan; combine != nil {
+			// Validate the actual selected combine frame, including its shared
+			// aggregate/state identity, before accounting for its own captures.
+			if err := provider.ValidateSelection(); err != nil {
+				failure = err
+				return
+			}
+			require(combine.Support, ids.ObjectRef{}, catalog.AggregateSupportDependency)
+			if combine.Call != nil {
+				scalar(combine.Call, catalog.AggregateSupportDependency)
 			}
 		}
 	}

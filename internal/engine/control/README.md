@@ -349,6 +349,11 @@ saved stamp strings are data, never recomputed under the restoring role.
 Authentic dblink connection-family replay also captures current security and
 routine configuration. An explicit SECURITY INVOKER survives replay even for
 connect_u declarations whose released installation default is SECURITY DEFINER.
+The same installation placement/configuration renderer retains the three genuine
+XML2 SQL wrappers' normalized proconfig through current rename/detach and absent-
+header scratch reconstruction. Restore applies ordinary ALTER configuration
+before dependent consumers; it does not enable native kernel configuration or
+SECURITY DEFINER. Missing headers remain absent after authentic recipe retirement.
 
 
 Replica identity replays in a deterministic owner-qualified post-event section,
