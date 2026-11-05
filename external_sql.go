@@ -17,11 +17,12 @@ type ExternalSQLCell = catalog.ExternalSQLCell
 type ExternalSQLResult = catalog.ExternalSQLResult
 type ExternalSQLNotification = catalog.ExternalSQLNotification
 type ExternalSQLUnavailableError = catalog.ExternalSQLUnavailableError
+type ExternalSQLConnectError = catalog.ExternalSQLConnectError
 
 // RegisterExternalSQLProvider installs a host-owned transport capability, never
 // opens it, and freezes at the first successful connector construction. Bind a
 // registered foreign handler through its definition's ExternalProvider name.
-// The engine does not parse Driver DSNs, libpq conninfo, credentials or TLS.
+// Driver DSNs remain opaque; transport/authentication/TLS belong to the host.
 func (d *Driver) RegisterExternalSQLProvider(def ExternalSQLProviderDefinition) error {
 	if err := remote.ValidateDefinition(def); err != nil {
 		return err
@@ -38,4 +39,24 @@ func (d *Driver) RegisterExternalSQLProvider(def ExternalSQLProviderDefinition) 
 	}
 	d.externalProviders = append(d.externalProviders, def)
 	return nil
+}
+
+// BindDblinkExternalSQLProvider selects the registered host transport for direct
+// dblink conninfo. SQL names and opaque Driver DSNs cannot select a provider.
+func (d *Driver) BindDblinkExternalSQLProvider(name string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.settingsFrozen {
+		return core.RegistrationError("external SQL registry is frozen")
+	}
+	if d.dblinkProvider != "" {
+		return core.RegistrationError("dblink external SQL provider is already bound")
+	}
+	for _, provider := range d.externalProviders {
+		if name != "" && provider.Name == name {
+			d.dblinkProvider = name
+			return nil
+		}
+	}
+	return core.RegistrationError("unregistered dblink external SQL provider")
 }

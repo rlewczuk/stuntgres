@@ -146,7 +146,7 @@ func newInheritedForeignFixture(t *testing.T, nativeRows int, partition bool) in
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil,
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil,
 		func(ctx context.Context, value driver.Value, usage sqltype.Usage, environment sqltype.InputEnvironment) (sqltype.Value, error) {
 			if wrapper.importHook != nil {
 				if err := wrapper.importHook(ctx); err != nil {

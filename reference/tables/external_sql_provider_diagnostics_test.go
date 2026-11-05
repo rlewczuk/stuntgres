@@ -23,7 +23,7 @@ func TestReferenceExternalSQLProviderDiagnosticsAndNotifications(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN})
+	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN})
 	cases := []struct {
 		query      string
 		diagnostic fixture.Diagnostic

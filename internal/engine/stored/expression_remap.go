@@ -557,6 +557,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.InstalledDblinkConnectionExpr:
+		for i, arg := range n.Children() {
+			n.Args[i] = child(arg)
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		for i, arg := range n.Args {
 			n.Args[i] = child(arg)

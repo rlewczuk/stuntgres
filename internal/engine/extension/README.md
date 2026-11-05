@@ -40,7 +40,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   backing relation, declared nullable INT4/TEXT fields and reciprocal array.
   Sealed roles authenticate independently of current names, owner and membership,
   including the same-signature INSERT/UPDATE pair; symbolic replay retains the
-  primary/array roles and function return link. Connection routines have no stubs.
+  primary/array roles and function return link. Slots6–12 append connect/connect_u
+  overloads, disconnect overloads and get_connections without renumbering those
+  six origins. Both connect_u declarations share C symbol `dblink_connect` but
+  retain distinct immutable SQL/binding names and initial SECURITY DEFINER,
+  non-PUBLIC ACLs. Current owner/security/configuration remain routine-environment
+  facts, not spelling-based authority. The selected native manifest is thirteen;
+  shared PG tests filter these declarations and prior relationships rather than
+  constrain the real extension's full query/cursor membership.
   Bloom installs its released six-member handler/method/family/class graph.
   Its C declaration describes a registered Go implementation, not a loaded
   shared library. The global AM is ownerless; its handler and int4/text classes

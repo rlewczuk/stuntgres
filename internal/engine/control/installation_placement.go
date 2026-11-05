@@ -115,8 +115,9 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 				} else {
 					replay.parallel, replay.cost, replay.rows = procedure.Parallel, procedure.Cost, procedure.Rows
 				}
-				if extension.StockInsertUsername.SupportsDMLTrigger(procedure) {
+				if extension.StockInsertUsername.SupportsDMLTrigger(procedure) || extension.StockDblink.SupportsConnectionRoutine(procedure) {
 					replay.securityDefiner, replay.configuration = procedure.SecurityDefiner, procedure.Configuration
+					replay.securityChanged = procedure.SecurityDefiner != d.(*catalog.Procedure).SecurityDefiner
 				}
 			}
 			groups[kind] = append(groups[kind], replay)

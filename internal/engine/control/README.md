@@ -332,6 +332,9 @@ Installed insert_username identity replay retains owner, SECURITY DEFINER and
 immutable routine configuration before post-data triggers are recreated. Literal
 target arguments and actual renamed/relocated provider addresses survive replay;
 saved stamp strings are data, never recomputed under the restoring role.
+Authentic dblink connection-family replay also captures current security and
+routine configuration. An explicit SECURITY INVOKER survives replay even for
+connect_u declarations whose released installation default is SECURITY DEFINER.
 
 
 Replica identity replays in a deterministic owner-qualified post-event section,

@@ -103,11 +103,11 @@ func TestReferenceExternalSQLProviderFeatureSmoke(t *testing.T) {
 				run(s)
 			}
 			var dump bytes.Buffer
-			before := len(sourceProvider.snapshot())
+			before := len(sourceProvider.Snapshot())
 			if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 				t.Fatal(err)
 			}
-			if len(sourceProvider.snapshot()) != before {
+			if len(sourceProvider.Snapshot()) != before {
 				t.Fatal("smoke dump invoked transport")
 			}
 			old, err := c.QueryContext(p.Ctx, "SELECT id,label,flag,bytes FROM external_sql_data ORDER BY id")
@@ -123,9 +123,9 @@ func TestReferenceExternalSQLProviderFeatureSmoke(t *testing.T) {
 			}
 			externalSQLOldRows(t, old)
 			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("UPDATE external_sql_source.data SET remote_label='smoke-later' WHERE remote_id=1", 1))
-			destinationProvider := &externalSQLProvider{}
+			destinationProvider := &fixture.ExternalSQLProvider{}
 			d := stuntgres.NewDriver()
-			if err := externalSQLConfigure(d, destinationProvider, &externalSQLHandler{}, externalSQLFixtureVersion); err != nil {
+			if err := externalSQLConfigure(d, destinationProvider, &externalSQLHandler{}, fixture.ExternalSQLFixtureVersion); err != nil {
 				t.Fatal(err)
 			}
 			connector, err := d.OpenConnector("external-sql-smoke-destination")
@@ -139,7 +139,7 @@ func TestReferenceExternalSQLProviderFeatureSmoke(t *testing.T) {
 			if err := stuntgres.Restore(p.Ctx, native, strings.NewReader(dump.String())); err != nil {
 				t.Fatal(err)
 			}
-			if len(destinationProvider.snapshot()) != 0 {
+			if len(destinationProvider.Snapshot()) != 0 {
 				t.Fatal("smoke restore opened physical connection")
 			}
 			for _, s := range []fixture.Step{
@@ -151,11 +151,11 @@ func TestReferenceExternalSQLProviderFeatureSmoke(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, db, recorder, s)
 				fixture.RunStep(t, p.Ctx, db, recorder, fixture.Prepared(s))
 			}
-			for _, wire := range destinationProvider.snapshot() {
-				if wire.info.BackendPID == probe.Info().BackendPID || wire.info.BackendPID == listener.Info().BackendPID {
+			for _, wire := range destinationProvider.Snapshot() {
+				if wire.Info().BackendPID == probe.Info().BackendPID || wire.Info().BackendPID == listener.Info().BackendPID {
 					t.Fatal("destination reused source physical handle")
 				}
-				externalSQLBackendGone(t, p.Ctx, wire.info.BackendPID)
+				externalSQLBackendGone(t, p.Ctx, wire.Info().BackendPID)
 			}
 			for _, owned := range []stuntgres.ExternalSQLConnection{probe, listener} {
 				pid := owned.Info().BackendPID

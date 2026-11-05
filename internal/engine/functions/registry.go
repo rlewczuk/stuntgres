@@ -175,6 +175,7 @@ var definitions = [...]Definition{
 	{Names: []string{DblinkDeleteName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLDelete},
 	{Names: []string{DblinkInsertName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLInsert},
 	{Names: []string{DblinkUpdateName}, Installed: DblinkExtension, Bind: bindDblinkBuildSQLUpdate},
+	{Names: []string{"dblink_connect", "dblink_connect_u", "dblink_disconnect", "dblink_get_connections"}, Installed: DblinkExtension, Bind: bindDblinkConnection},
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary", "pg_check_visible", "pg_check_frozen", "pg_truncate_visibility_map"}, Installed: PgvisibilityExtension, Bind: bindPgvisibility, NamedCall: namedPgvisibility},
 	{Names: []string{"heap_force_freeze", "heap_force_kill"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},

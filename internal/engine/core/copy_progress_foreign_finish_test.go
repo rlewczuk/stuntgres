@@ -31,7 +31,7 @@ func TestCopyProgressForeignFinishPanicCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil,
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil,
 		func(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
 			n, ok := value.(int64)
 			if !ok {

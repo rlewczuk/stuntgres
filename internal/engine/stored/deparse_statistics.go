@@ -59,6 +59,7 @@ func statisticsFunctionShape(node expr.Expr) (bool, error) {
 		plan.InstalledUUIDOsspExpr, plan.InstalledSSLInfoExpr,
 		plan.InstalledPgFreespaceExpr, plan.InstalledPgvisibilityExpr, plan.InstalledPgstattupleExpr,
 		plan.InstalledPgsurgeryExpr,
+		plan.InstalledDblinkConnectionExpr,
 		plan.InstalledDblinkBuildSQLDeleteExpr,
 		plan.InstalledDblinkBuildSQLInsertExpr,
 		plan.InstalledDblinkBuildSQLUpdateExpr,

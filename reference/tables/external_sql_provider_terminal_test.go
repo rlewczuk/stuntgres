@@ -11,19 +11,19 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func externalSQLTerminalErrorOwnership(t *testing.T, p *fixture.Pair, provider *externalSQLProvider, handler *externalSQLHandler) {
+func externalSQLTerminalErrorOwnership(t *testing.T, p *fixture.Pair, provider *fixture.ExternalSQLProvider, handler *externalSQLHandler) {
 	t.Helper()
 	cleanupFailure := errors.New("actual remote terminal close failed after closing transport")
 	var extra stuntgres.ExternalSQLConnection
 	handler.action = func(ctx context.Context, r stuntgres.ForeignRequest, _ stuntgres.ExternalSQLConnection) error {
-		provider.mu.Lock()
-		provider.closeError = cleanupFailure
-		provider.mu.Unlock()
+		provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+			f.CloseError = cleanupFailure
+		})
 		var err error
 		extra, err = r.ExternalSQL.Open(ctx, stuntgres.ExternalSQLConnectRequest{})
-		provider.mu.Lock()
-		provider.closeError = nil
-		provider.mu.Unlock()
+		provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+			f.CloseError = nil
+		})
 		return err
 	}
 	defer func() { handler.action = nil }()

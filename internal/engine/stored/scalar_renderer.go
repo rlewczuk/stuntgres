@@ -191,6 +191,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgsurgeryExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledDblinkConnectionExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledDblinkBuildSQLInsertExpr:

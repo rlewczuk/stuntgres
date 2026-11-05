@@ -20,12 +20,14 @@ type ExternalSQLSession interface {
 	Open(context.Context, ExternalSQLConnectRequest) (ExternalSQLConnection, error)
 }
 
-// Conninfo and structured options are mutually exclusive. Caller identities are
-// filled by the engine from the captured foreign request, not trusted from host
-// callback input. MappingPresent distinguishes absence from an empty mapping.
+// ConninfoPresent selects original text, including explicit empty; otherwise
+// structured options apply. The forms are mutually exclusive. Caller identities
+// come from admitted foreign requests or installed routine environments, never
+// callback-supplied identity. MappingPresent distinguishes an empty mapping.
 // This record contains credentials and must not be logged or formatted.
 type ExternalSQLConnectRequest struct {
 	Conninfo                       string
+	ConninfoPresent                bool
 	ServerOptions, MappingOptions  []ForeignOption
 	MappingPresent                 bool
 	Role                           string
@@ -87,6 +89,20 @@ type ExternalSQLUnavailableError struct{ Capability string }
 func (e *ExternalSQLUnavailableError) Error() string {
 	return "stuntgres: external SQL capability unavailable: " + e.Capability
 }
+
+// ExternalSQLConnectError attests a genuine host transport establishment
+// failure. It is not a PostgreSQL response and deliberately has no SQLState.
+// Only the dblink Open boundary projects it to dblink's connection diagnostic;
+// ordinary FDW callers retain the cause through errors.Is/As.
+type ExternalSQLConnectError struct{ Err error }
+
+func (e *ExternalSQLConnectError) Error() string {
+	if e.Err == nil {
+		return "stuntgres: external SQL connection failure missing cause"
+	}
+	return e.Err.Error()
+}
+func (e *ExternalSQLConnectError) Unwrap() error { return e.Err }
 
 // Formatting a connection request must not disclose conninfo/mapping secrets.
 func (ExternalSQLConnectRequest) String() string {

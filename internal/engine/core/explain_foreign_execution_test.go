@@ -465,7 +465,7 @@ func explainExecutionFixture(t *testing.T) (*core.Engine, *session.Session, *exp
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, func(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil, func(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
 		if value == nil {
 			return sqltype.Null(usage.Type), nil
 		}

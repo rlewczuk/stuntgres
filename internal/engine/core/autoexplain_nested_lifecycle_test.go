@@ -41,7 +41,7 @@ func autoExplainNestedLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{wrapper}, nil,
+			if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{wrapper}, nil,
 				func(_ context.Context, value driver.Value, usage sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
 					if value == nil {
 						return sqltype.Null(usage.Type), nil

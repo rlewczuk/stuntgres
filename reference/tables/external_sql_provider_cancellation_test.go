@@ -56,7 +56,7 @@ func TestReferenceExternalSQLProviderCancellation(t *testing.T) {
 	const key int64 = 718031
 	externalSQLLock(t, p, key)
 	query := fmt.Sprintf("SELECT pg_advisory_xact_lock(%d)", key)
-	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN})
+	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN})
 	for _, transaction := range []bool{false, true} {
 		if transaction {
 			externalSQLCommand(t, p.Ctx, raw, "BEGIN")
@@ -125,14 +125,14 @@ func TestReferenceExternalSQLProviderCancellation(t *testing.T) {
 				const q = "SELECT id,label,flag,bytes FROM external_sql_data ORDER BY id"
 				var stmt *sql.Stmt
 				if prepared {
-					before := len(provider.snapshot())
+					before := len(provider.Snapshot())
 					var err error
 					stmt, err = c.PrepareContext(p.Ctx, q)
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer stmt.Close()
-					if len(provider.snapshot()) != before {
+					if len(provider.Snapshot()) != before {
 						t.Fatal("Describe opened an external connection")
 					}
 				}

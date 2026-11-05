@@ -267,7 +267,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 		t.Fatal(err)
 	}
 	unexpected := errors.New("codec must not run before terminal input acceptance")
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil,
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{def}, nil,
 		func(context.Context, driver.Value, sqltype.Usage, sqltype.InputEnvironment) (sqltype.Value, error) {
 			return sqltype.Value{}, unexpected
 		},

@@ -40,7 +40,7 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*core.Engine, *session.Session
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
+		if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

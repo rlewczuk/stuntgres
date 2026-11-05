@@ -55,6 +55,12 @@ assumptions into remote validation scans.
   prerequisites and rejects missing or same-name unbound destination capability.
   Physical handle ownership belongs to `remote`, below existing SQL transaction
   and cursor settlement, not this registry or catalog descriptors.
+  The existing registry also retains the explicit direct-dblink binding selected
+  by the Driver; definitions thread it through Reset and RestoreStage without
+  Open or a second registry. Replay distinguishes handler and dblink prerequisite
+  kinds. Each persistent dblink origin requires one canonical marker, either a
+  matching destination Name/Version binding or explicit empty source identity.
+  Missing/partial/unknown/duplicate prerequisites cannot silently drop authority.
 - **Options** (`options.go`): `TransformOptions` applies ordered ADD/SET/DROP
   operations to a private copy, then validates surviving names.
 - **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of

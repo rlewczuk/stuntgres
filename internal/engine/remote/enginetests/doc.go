@@ -1,2 +1,2 @@
-// Package remote_test exercises external SQL registration and owned-result validation.
-package remote_test
+// Package remote hosts external tests for SQL registration and owned results.
+package remote

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -59,8 +60,25 @@ func ValidateStoredRoutineDescriptor(view catalog.Read, captured *catalog.Proced
 
 func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
 	current, ok := view.Procedure(captured.Address())
-	if !ok || !SameRoutineDeclaration(current, captured) {
+	if !ok {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
+	}
+	if !SameRoutineDeclaration(current, captured) {
+		// These authentic native bodies follow current routine environments,
+		// not captured execution attributes. Keep every sealed recipe field
+		// exact and validate the current installation before that exception.
+		if !extension.StockDblink.SupportsConnectionRoutine(current) || !extension.StockDblink.SupportsConnectionRoutine(captured) {
+			return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
+		}
+		if err := extension.StockDblink.ValidateProcedure(view, current); err != nil {
+			return nil, err
+		}
+		compatible := *captured
+		compatible.SecurityDefiner, compatible.Configuration = current.SecurityDefiner, current.Configuration
+		compatible.Parallel, compatible.Cost, compatible.Rows = current.Parallel, current.Cost, current.Rows
+		if !SameRoutineDeclaration(current, &compatible) {
+			return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
+		}
 	}
 	if err := catalog.ValidateRoutineTransforms(view, current); err != nil {
 		return nil, err

@@ -24,10 +24,10 @@ func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
-	// Executable SQL/PL, supplied host declarations and native installed trigger
-	// bodies enter the shared routine environment. Full installed provenance
-	// is still checked by the delegation below, before execution.
-	if ok && d.RoutineDefinition() == nil && !extension.StockInsertUsername.SupportsDMLTrigger(d) && (d.SecurityDefiner || d.Configuration != nil) {
+	// Executable SQL/PL, supplied host declarations and authentic installed
+	// trigger/connection bodies enter the shared routine environment. Full
+	// installed provenance is still checked by delegation before execution.
+	if ok && d.RoutineDefinition() == nil && !extension.StockInsertUsername.SupportsDMLTrigger(d) && !extension.StockDblink.SupportsConnectionRoutine(d) && (d.SecurityDefiner || d.Configuration != nil) {
 		return extension.InvalidProviderDescriptor()
 	}
 	if ok {

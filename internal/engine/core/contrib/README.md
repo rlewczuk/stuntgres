@@ -25,6 +25,10 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
   authority before argument evaluation.
+  `ValidateDblinkConnection` shares the exact dblink current-declaration,
+  schema/EXECUTE and epoch gateway with constructors, including post-Open
+  re-admission. Its physical-session body remains in core, which owns session
+  attachment, effective routine environment and replacement publication.
   `ValidatePgpArmorHeaders` admits the retained pgcrypto source against current
   owner, epoch, sealed declaration, OUT generation and EXECUTE authority before
   evaluating its child, including NULL input. Pure header parsing and private

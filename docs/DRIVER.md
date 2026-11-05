@@ -2681,9 +2681,11 @@ Another physical session's callback context or a retained completed opener fails
 before transport I/O. Trusted host code can explicitly delegate an original live
 bearer context; this API is not a sandbox. Caller role/server/mapping identities
 come from captured SQL authority, never callback-supplied identity fields.
-Use either opaque remote `Conninfo` or the captured ordered server/mapping options.
-The host transport interprets them and authenticates; the engine never parses
-root Driver DSNs as conninfo or concatenates credentials. Requests are sensitive.
+Set `ConninfoPresent=true` for original remote `Conninfo`, including explicitly
+empty text. Otherwise the request uses captured ordered server/mapping options.
+Present conninfo and options are mutually exclusive; nonempty text without
+presence is rejected. The host interprets transport parameters and authenticates;
+opaque root Driver DSNs never become conninfo. Requests are sensitive.
 
 `ExternalSQLConnection.Execute` materializes actual command/tuple results, owned
 column names/OIDs/typmods/text formats and flat row-major `ExternalSQLCell` values.
@@ -2710,9 +2712,89 @@ transaction/savepoint participants coordinate their actual remote transaction;
 raw external BEGIN/COMMIT/ROLLBACK are not silently enlisted. No transport,
 socket, result, listener or live PID is serialized by native controls.
 
-The genuine pgconn-backed host fixture in `reference/tables/external_sql_provider_*`
-is test-only. Production remains standard-library/module-only; libpq-compatible
+The genuine pgconn-backed host fixture in `reference/fixture/external_sql_provider.go`
+is shared by `reference/tables` and `reference/dblink`. It is test-only.
+Production remains standard-library/module-only; libpq-compatible
 network/TLS/authentication mechanics remain the host's responsibility.
+
+#### Dblink connections
+
+The installed dblink 1.2 recipe preserves its original six member identities and
+appends the seven released declarations for `dblink_connect`, `dblink_connect_u`,
+`dblink_disconnect` and `dblink_get_connections`. SQL query/async/cursor families
+are not supplied by this connection-lifecycle API.
+
+Before constructing any connector, register a genuine `ExternalSQLProvider` and
+call `Driver.BindDblinkExternalSQLProvider(name)` to select it for direct conninfo.
+Binding rejects empty/unregistered names, a second binding and frozen registries;
+registration/binding performs no Open. SQL options, foreign-server names and
+opaque Driver DSNs cannot select or borrow an unbound provider. Foreign-server
+aliases instead require their own authentic registered handler binding and use
+the effective role's mapping before PUBLIC, with mapping lookup before USAGE.
+
+The engine's bounded parser checks keyword quoting/backslash escapes, repeated
+last-key-wins values and PostgreSQL URI percent encoding (literal `+` is not
+form-space), without ambient resolution or network I/O. Original direct text,
+including explicit empty text, reaches the selected host unchanged. Host support
+for individual libpq options, service files, multi-host transport, sockets and TLS
+is independent; unsupported transport is never replaced with embedded success.
+
+Connections belong to the physical session: named names are case-sensitive,
+empty names are valid, names clip at 63 UTF8-safe bytes, and the default connection
+is excluded from the unordered named list (NULL when no names exist). Duplicate
+names do not open again; failed default replacement preserves the old transport;
+disconnect/replacement/physical teardown join actual close. Local transaction
+rollback does not undo remote handle acquisition or enlist raw remote transactions.
+
+Normal restricted-role connect requires a nonempty password parsed from original
+conninfo before Open, then actual `password`, `md5` or `scram-sha-256` evidence
+afterward. Ambient/service/passfile secrets cannot satisfy the precheck; supplied
+password over `none` or `unknown` authentication fails the postcheck and closes
+the new backend without replacing the old default. Ordinary password SCRAM is
+not delegated GSS or SCRAM pass-through; those capabilities are not supplied.
+For restricted roles the credential precheck precedes duplicate admission;
+for effective superusers a duplicate name precedes malformed conninfo diagnostics.
+The password precheck is syntax-only: an explicit password with a nonnumeric
+port still reaches duplicate admission. Numeric option validation follows that
+admission for both role branches, without reparsing or retaining credentials.
+
+Both `connect_u` overloads initially revoke PUBLIC EXECUTE; granting one does not
+grant the other. SECURITY DEFINER uses the actual current owner and routine
+configuration, not a bypass by spelling. Strict constant-NULL elimination can
+avoid invocation/EXECUTE entirely; surviving runtime NULL/nonNULL calls still
+require caller admission before strictness and owner entry. Held original SQL
+can re-resolve a shadow after DDL invalidation; stored dependencies retain the
+authentic installed identity. Prefer `options=-csearch_path=` for untrusted remote
+databases.
+
+Grant `connect_u` only to trusted roles: owner-authorized ambient host credentials
+can expose the server account's remote identity.
+
+Native controls preserve installed identities, owners/ACLs, symbolic stored
+recipes and local committed data, not live names, PIDs, transactions or runtime
+conninfo. Dump performs no transport operations and leaves source handles alive.
+Every persistent dblink installation emits a canonical replay prerequisite:
+bound sources require independently registered and explicitly bound matching
+Name/Version on the destination; an explicit both-empty identity records an
+unbound source without requiring a capability. Missing, malformed, duplicate or
+incompatible prerequisites fail before publication. Editable replay SQL is not
+an authenticated transport manifest.
+
+Successful Reset/Restore detaches names/default/pending Opens in the affected
+database's same physical Owner generation. After Engine/Session/Owner and
+Replacement locks release, it cancels children, joins late-return cleanup and
+closes detached handles before returning. FDW resources and existing TEMP/settings
+contracts remain separate. Failed/canceled prepublication replacement preserves
+live and pending resources. A postpublication cleanup error reports the published
+outcome rather than rollback or retry.
+
+`ExternalSQLConnectError{Err: cause}` is an explicit host attestation of genuine
+transport establishment failure, with Error/Unwrap and no SQLSTATE. Only dblink
+Open projects that marker or a genuine SQL response to `08001` / `could not
+establish connection` with real Detail. Unmarked Go/context/I/O/callback errors
+remain ordinary; Execute/Close are not connection-failure projection sites.
+Externally variable address/port/FATAL-envelope Detail is a comparison boundary;
+deterministic parser Detail and remaining logical diagnostic fields are exact.
 
 ### Registered foreign callbacks
 

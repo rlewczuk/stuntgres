@@ -417,6 +417,19 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		if extension.ValidatePgsurgeryCall(view, current, call) != nil {
 			return false
 		}
+	case plan.InstalledDblinkConnectionExpr:
+		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidateDblinkIdentity(view, current, n.Ref) != nil {
+			return false
+		}
+		call := n.DblinkConnection
+		call.RoutineReference = current
+		if extension.ValidateDblinkConnectionCall(view, current, call) != nil {
+			return false
+		}
 	case plan.InstalledDblinkBuildSQLDeleteExpr:
 		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

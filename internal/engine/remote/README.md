@@ -13,7 +13,7 @@ operation, canceled Open or missing capability cannot publish a connection.
 Nonnil provider returns transfer cleanup even with an error. Publication validates
 under Session.Mu; no provider callback runs under it.
 
-Owner.mu protects membership only; the session lock precedes it at publication.
+Owner.mu protects membership, dblink indices and generation only; the session lock precedes it at publication.
 Connection.command serializes commands, notifications and physical close.
 Connection.mu protects active cancellation and closing state, never application
 I/O. Cancel runs independently of command exclusion. Close first cancels the
@@ -29,6 +29,35 @@ result or notification queue is catalog/dump state. `ValidateResult` checks owne
 text descriptors and flat cell width without interpreting PostgreSQL codecs;
 ordinary FDW import supplies the existing type conversions. Reserved database/sql
 retry sentinels use exec's common sanitization; all other error identity survives.
+
+Dblink uses this same Owner, with a default pointer, case-sensitive clipped named
+index and pending child contexts/completion channels. Installed admission in core
+registers a pending Open under Engine.Mu before transport; `Publish` then fences
+the exact operation and Owner generation under Session.Mu -> Owner.mu. Failed
+publication closes nonnil returns before signaling completion. Successful default
+replacement preserves the old connection until admission succeeds, then joins its
+close. No dblink connection enlists in the FDW transaction coordinator.
+
+`ParseConninfo` performs syntax-only keyword/URI and original-secret admission
+without network, environment, service-file or passfile access. Its small owned
+value keeps only password presence and port; numeric `Validate` runs after named
+duplicate admission for both effective-role branches, without reparsing. Each
+explicit nonempty port component must parse as a signed 32-bit integer and lie
+within 1 through 65535. Integer syntax/overflow and numeric range have distinct
+released diagnostics; the original component is retained in the error. These
+deterministic engine checks precede provider Open and do not convert arbitrary
+host parser errors into SQL errors.
+`ConninfoPresent` distinguishes explicit empty from structured requests. Effective
+restricted roles require explicit original password plus actual host-reported
+password/md5/SCRAM exchange; unknown/none never proves password use.
+
+`DetachDblink` is lock-only and advances the same Owner's generation, without
+ending it or detaching FDW resources. The replacement caller cancels every
+detached child and joins completion/physical close after all Engine, Session,
+Owner and Replacement locks release. Even cancellation-ignoring late returns
+close before completion. Failed prepublication controls never detach.
+The genuine shared test transport/auth observer lives in `reference/fixture`;
+network/TLS/authentication stays outside this standard-library-only runtime.
 
 ## Testing
 

@@ -12,15 +12,15 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func externalSQLPhysicalScenario(t *testing.T) (*fixture.Pair, *externalSQLProvider, *externalSQLHandler) {
+func externalSQLPhysicalScenario(t *testing.T) (*fixture.Pair, *fixture.ExternalSQLProvider, *externalSQLHandler) {
 	t.Helper()
 	if !*fixture.Mode {
 		t.Skip("physical external SQL provider comparison requires REFERENCE=1")
 	}
 	fixture.SchemaReferenceCleanup(t, "external_sql_source", "provider_remote")
-	provider, handler := &externalSQLProvider{}, &externalSQLHandler{}
+	provider, handler := &fixture.ExternalSQLProvider{}, &externalSQLHandler{}
 	p := fixture.NewScenarioWithDriverConfig(t, func(d *stuntgres.Driver) error {
-		return externalSQLConfigure(d, provider, handler, externalSQLFixtureVersion)
+		return externalSQLConfigure(d, provider, handler, fixture.ExternalSQLFixtureVersion)
 	})
 	for _, s := range []fixture.Step{
 		fixture.Exec("CREATE SCHEMA external_sql_source", 0),
@@ -40,7 +40,7 @@ func externalSQLCheckRemote(ctx context.Context, connection stuntgres.ExternalSQ
 	if err := fixture.Admin.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&observer); err != nil {
 		return fmt.Errorf("remote observer identity: %w", err)
 	}
-	if info.BackendPID <= 0 || info.BackendPID == observer || info.User != "stuntgres" || info.Database != "stuntgres_reference" || info.ProviderVersion != externalSQLFixtureVersion || info.CredentialMechanism != "unknown" {
+	if info.BackendPID <= 0 || info.BackendPID == observer || info.User != "stuntgres" || info.Database != "stuntgres_reference" || info.ProviderVersion != fixture.ExternalSQLFixtureVersion || info.CredentialMechanism != "scram-sha-256" {
 		return fmt.Errorf("remote connection identity: got %#v, observer PID %d", info, observer)
 	}
 	var count int64
@@ -103,7 +103,7 @@ func externalSQLBackendGone(t *testing.T, ctx context.Context, pid int32) {
 	}
 }
 
-func externalSQLRawConnection(t *testing.T, p *fixture.Pair, provider *externalSQLProvider, request stuntgres.ExternalSQLConnectRequest) stuntgres.ExternalSQLConnection {
+func externalSQLRawConnection(t *testing.T, p *fixture.Pair, provider *fixture.ExternalSQLProvider, request stuntgres.ExternalSQLConnectRequest) stuntgres.ExternalSQLConnection {
 	t.Helper()
 	c, err := provider.Open(p.Ctx, request)
 	if err != nil {

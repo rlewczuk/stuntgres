@@ -782,6 +782,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(plan.InstalledDblinkConnectionExpr); ok {
+			if err := extension.ValidateDblinkIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, n.Children())
+		}
 		if n, ok := bound.(plan.InstalledDblinkBuildSQLDeleteExpr); ok {
 			if err := extension.ValidateDblinkIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err

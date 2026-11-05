@@ -38,7 +38,7 @@ func sepgsqlForeignFactoryEngine(t *testing.T) (*core.Engine, *sepgsqlForeignMet
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, fdwIntegerImport, fdwIntegerExport); err != nil {
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil, fdwIntegerImport, fdwIntegerExport); err != nil {
 		t.Fatal(err)
 	}
 	runtime, err := sepgsql.Compile(sepgsql.SimulationConfig{InstallSQL: true, AuditAllowed: true, Audit: func(event sepgsql.AuditEvent) {

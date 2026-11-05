@@ -12,8 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// DblinkProvider installs local SQL constructors and primary-key metadata.
-// It does not install connection routines.
+// DblinkProvider installs local constructors, primary-key metadata and the
+// connection lifecycle declarations. Physical transport is a host capability.
 type DblinkProvider struct{ control catalog.ExtensionControl }
 
 var StockDblink = &DblinkProvider{control: catalog.ExtensionControl{Version: "1.2", Superuser: true, Relocatable: true, Comment: new("connect to other PostgreSQL databases from within a database")}}
@@ -33,7 +33,10 @@ func (p *DblinkProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) 
 	if p != StockDblink || !currentManifest(v, ext) || ext.Name() != "dblink" || ext.Version != "1.2" || len(ext.Members) != dblinkMemberCount {
 		return fmt.Errorf("stuntgres: invalid dblink manifest")
 	}
-	for _, slot := range [...]int{0, 1, 2, dblinkPkeyProcedureSlot} {
+	for slot := range ext.Members {
+		if slot == dblinkPkeyTypeSlot || slot == dblinkPkeyArraySlot {
+			continue
+		}
 		member, ok := v.Procedure(ext.Members[slot])
 		if !ok || member.Origin == nil || member.Origin.Declaration != slot {
 			return fmt.Errorf("stuntgres: missing dblink member")
@@ -91,11 +94,24 @@ func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 			Installed: declaration,
 			Display:   catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dblink", HasBinary: true}, Implementation: p,
 		}
+		if slot >= dblinkConnectionFirstSlot {
+			member := dblinkConnections[slot-dblinkConnectionFirstSlot]
+			proc.Strict, proc.SecurityDefiner, proc.Display.Source = member.strict, member.definer, member.symbol
+			if member.definer {
+				proc.ACL, err = stage.RoutineCreationACLWithoutPublic(owner, ext.TargetNamespace)
+				if err != nil {
+					return err
+				}
+			}
+		}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
+		}
+		if proc.SecurityDefiner {
+			stage.RecordInitialPrivilege(proc.Address(), 'e', proc.ACL)
 		}
 		ext.Members[slot] = address
 		return nil
@@ -118,6 +134,11 @@ func (p *DblinkProvider) Stage(stage Stage, ext *catalog.Extension, owner author
 	ext.Members[dblinkPkeyTypeSlot], ext.Members[dblinkPkeyArraySlot] = typ.Address(), array.Address()
 	if err := createProcedure(dblinkPkeyProcedureSlot, functions.DblinkGetPkeyName, "25", typ.Address().ObjectID, dblinkPkeyDeclaration()); err != nil {
 		return err
+	}
+	for i, member := range dblinkConnections {
+		if err := createProcedure(dblinkConnectionFirstSlot+i, member.name, member.signature, ids.OID(member.result), catalog.InstalledRoutineDeclaration{Parallel: 'r'}); err != nil {
+			return err
+		}
 	}
 	destination.Members = ext.Members
 	return nil

@@ -1195,6 +1195,13 @@ reviewed decision:
   current callable admission precedes argument demand and NULL-to-empty handling.
   Only the installed plan/statement-host path opens it; no catalog resolver or
   relation-name cache belongs to the kernel.
+  `DblinkConnection` binds the four connection operations with zero, one or two
+  unnamed TEXT operands and TEXT/TEXT[] result usage through the same installed
+  gateway. Its fixed operand storage and operation/signature are owned recipes,
+  never a provider, conninfo value or connection. Non-NULL calls are VOLATILE and
+  never planning-evaluated. Strict constant-NULL elimination is ordinary scalar
+  planning; surviving runtime calls admit the caller before strictness and
+  effective-owner entry. No Open occurs during prepare, describe or replay.
   `AppendSQLLiteral` shares the formatter's PostgreSQL literal escaping directly
   into an invocation-owned builder without an intermediate rendered string.
   `PgFreespace` retains sealed scalar/set operation, written-order operands,

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqlstate"
 )
@@ -32,6 +33,18 @@ func dblinkRoutineAuthority[A Authority](auth A, procedure *catalog.Procedure, r
 	// The retained expression initializer owns execute MAC. These current
 	// declaration/ACL fences also run inside the entered body and after waits.
 	return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege, RoutineACLOnly: true})
+}
+
+// ValidateDblinkConnection keeps connection calls on the same current installed
+// declaration/caller gateway as the constructors, including post-Open admission.
+func ValidateDblinkConnection[A Authority](auth A, n plan.InstalledDblinkConnectionExpr) error {
+	if err := dblinkRoutineAuthority(auth, n.Procedure, n.Ref); err != nil {
+		return err
+	}
+	current, _ := auth.Access().Catalog.Procedure(n.Ref.Address)
+	call := n.DblinkConnection
+	call.RoutineReference = current
+	return extension.ValidateDblinkConnectionCall(auth.Access().Catalog, current, call)
 }
 
 func dblinkRelation[A Authority](h Host[A], procedure *catalog.Procedure, routine ids.ObjectRef, text string) (*catalog.Relation, string, bool, func(), error) {

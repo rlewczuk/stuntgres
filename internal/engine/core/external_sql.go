@@ -29,14 +29,31 @@ func (s *StatementScope) externalSQLCapability(handler *catalog.ForeignProcedure
 	if err := session.ValidateOperation(s.Op.Session.Token().Domain(), s.Op); err != nil {
 		return err
 	}
-	payload := PayloadOf(s.Op.Session)
-	if payload.externalSQL == nil {
-		owner := remote.NewOwner(s.Op.Session)
-		if _, err := s.Op.Attach(session.ExternalSQL, owner); err != nil {
-			return err
-		}
-		payload.externalSQL = owner
+	owner, err := s.externalSQLOwner()
+	if err != nil {
+		return err
 	}
-	request.ExternalSQL = payload.externalSQL.Capability(s.Op, handler.ExternalProvider, *request)
+	request.ExternalSQL = owner.Capability(s.Op, handler.ExternalProvider, *request)
 	return nil
+}
+
+// One lazily attached physical owner serves both authentic gateways. Session.Mu
+// protects the payload pointer against native replacement's detached capture.
+func (s *StatementScope) externalSQLOwner() (*remote.Owner, error) {
+	physical := s.Op.Session
+	payload := PayloadOf(physical)
+	physical.Mu.Lock()
+	owner := payload.externalSQL
+	physical.Mu.Unlock()
+	if owner != nil {
+		return owner, nil
+	}
+	owner = remote.NewOwner(physical)
+	if _, err := s.Op.Attach(session.ExternalSQL, owner); err != nil {
+		return nil, err
+	}
+	physical.Mu.Lock()
+	payload.externalSQL = owner
+	physical.Mu.Unlock()
+	return owner, nil
 }

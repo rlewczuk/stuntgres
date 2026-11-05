@@ -13,7 +13,7 @@ const (
 	dblinkPkeyTypeSlot      = 3
 	dblinkPkeyArraySlot     = 4
 	dblinkPkeyProcedureSlot = 5
-	dblinkMemberCount       = 6
+	dblinkMemberCount       = 13
 	dblinkPkeyTypeRole      = "dblink_pkey_results"
 )
 

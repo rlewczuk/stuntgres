@@ -9,6 +9,21 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Installed dblink connection calls reuse the existing caller-admission and routine
+environment gateways and the physical session's external-SQL Owner. The bounded
+core body captures effective-owner alias/mapping authority, original-secret
+prechecks and immutable provider authority before registering a pending Open.
+Transport runs unlocked; post-Open admission and the same Owner generation fence
+publication. No synthetic foreign callback or FDW transaction participant is used.
+After native expression initialization owns its subject token, the body installs
+the shared effective-user/SAVE-setting environment without another subject
+transition. Caller admission stays separate from actual definer-owner mapping and
+credential policy; the same environment unwinds on success, failure and cancellation.
+Native replacement detaches affected names/default/pending work only after
+successful catalog publication, then cancels and joins it after all replacement,
+Engine, Session and Owner locks release. Failed prepublication controls preserve
+resources; cleanup errors after publication report that outcome without rollback.
+
 Backend-memory capture borrows only the admitted operation's physical session,
 after view SELECT/backing EXECUTE or ordinary callable routine admission.
 Session validation and registry traversal run without `Engine.Mu`; physical

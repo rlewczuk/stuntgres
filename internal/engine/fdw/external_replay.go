@@ -15,21 +15,36 @@ import (
 const ExternalReplayPrefix = "stuntgres-external-sql-v1 "
 
 type ExternalRequirement struct {
+	Kind              string
 	Handler           catalog.ForeignFunctionName
 	Provider, Version string
 }
 
-func ExternalRequirements(view catalog.Read) []ExternalRequirement {
+func ExternalRequirements(view catalog.Read, dblink *catalog.ExternalSQLProviderDefinition) []ExternalRequirement {
 	var required []ExternalRequirement
+	dblinkRequired := false
 	for _, descriptor := range view.Descriptors() {
+		if installation, ok := catalog.OriginInstallation(descriptor); ok && installation.Provider == "dblink" {
+			dblinkRequired = true
+		}
 		p, ok := descriptor.(*catalog.Procedure)
 		if !ok || p.Foreign == nil || p.Foreign.ExternalProvider == nil {
 			continue
 		}
 		def := p.Foreign.ExternalProvider
-		required = append(required, ExternalRequirement{p.Foreign.Name, def.Name, def.Version})
+		required = append(required, ExternalRequirement{Kind: "handler", Handler: p.Foreign.Name, Provider: def.Name, Version: def.Version})
+	}
+	if dblinkRequired {
+		requirement := ExternalRequirement{Kind: "dblink"}
+		if dblink != nil {
+			requirement.Provider, requirement.Version = dblink.Name, dblink.Version
+		}
+		required = append(required, requirement)
 	}
 	slices.SortFunc(required, func(a, b ExternalRequirement) int {
+		if n := strings.Compare(a.Kind, b.Kind); n != 0 {
+			return n
+		}
 		if n := strings.Compare(a.Handler.Schema, b.Handler.Schema); n != 0 {
 			return n
 		}
@@ -63,7 +78,10 @@ func DecodeExternalRequirement(comment string) (ExternalRequirement, bool, error
 		return r, true, invalid
 	}
 	var extra any
-	if decoder.Decode(&extra) != io.EOF || r.Handler.Schema == "" || r.Handler.Name == "" || r.Provider == "" || r.Version == "" {
+	identity := r.Provider != "" && r.Version != ""
+	unbound := r.Provider == "" && r.Version == ""
+	validKind := r.Kind == "handler" && r.Handler.Schema != "" && r.Handler.Name != "" && identity || r.Kind == "dblink" && r.Handler == (catalog.ForeignFunctionName{}) && (identity || unbound)
+	if decoder.Decode(&extra) != io.EOF || !validKind {
 		return r, true, invalid
 	}
 	canonical, _ := json.Marshal(r)
@@ -74,6 +92,15 @@ func DecodeExternalRequirement(comment string) (ExternalRequirement, bool, error
 }
 
 func (r *Registry) ValidateExternalRequirement(required ExternalRequirement) error {
+	if required.Kind == "dblink" {
+		if required.Provider == "" && required.Version == "" {
+			return nil
+		}
+		if r.dblink != nil && r.dblink.Name == required.Provider && r.dblink.Version == required.Version {
+			return nil
+		}
+		return errors.New("stuntgres: missing or incompatible registered dblink external SQL provider binding")
+	}
 	for token := range r.ProcedureTokens() {
 		if token.Name == required.Handler && token.ExternalProvider != nil && token.ExternalProvider.Name == required.Provider && token.ExternalProvider.Version == required.Version {
 			return nil

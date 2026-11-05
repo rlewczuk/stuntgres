@@ -150,6 +150,68 @@ There is no golden recorder and no PostgreSQL-only mode: `p.Step` validates
 expectations, it never learns them. Inspect unknown results through failure
 diagnostics or temporary logging, encode them, then remove the scaffolding.
 
+### Dblink connection verification
+
+Shared connection scenarios use the explicit Driver binding and presence-aware
+request API with the one genuine host adapter. Physical quick-mode skips are
+explicit, never embedded/fake transport proof. Declaration, NULL, canonical
+binding-prerequisite and persistent-object phases remain Docker-free.
+Selected checks must include both native and real PostgreSQL leaves after every
+new, changed or migrated definition; whole-project quickcheck is not oracle proof.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceDblinkConnection(Signatures|Nulls|Names|Lifecycle|Conninfo|PortBounds|Security|Controls|Cleanup|FeatureSmoke)$'
+make check RUN='^TestReferenceDblinkConnection(Signatures|Nulls|Names|Lifecycle|Conninfo|PortBounds|Security|Controls|Cleanup|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceDblinkConnectionFeatureSmoke$'
+make check RUN='^TestExternalSQLProviderAuthObservation$'
+make check REFERENCE=1 RUN='^TestExternalSQLProviderAuthObservation$'
+make check RUN='^TestDblinkConnection.*$'
+make check REFERENCE=1 RUN='^TestDblinkConnection.*$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceDblinkConnection(Lifecycle|Security|Controls|Cleanup)$'
+```
+
+No discovery filter belongs in `connectionCase`. Full logical diagnostics and
+metadata use independent expectations, including superuser duplicate-before-parse
+versus restricted original-secret-before-duplicate admission. New URI/resolver,
+alias, notice and schema-position cases still need actual pinned-oracle evidence,
+never native-generated goldens.
+PG checks filter the seven scoped functions and six prior relationships; the
+native manifest alone is exactly13 members. Do not constrain PG's full extension
+to thirteen or claim its genuine query/cursor functions are absent.
+
+Connection security distinguishes constant-NULL STRICT elimination from a
+surviving call: literal NULL can return typed NULL without EXECUTE admission;
+independent nonNULL and NULL-column calls must still reject untrusted callers
+with exact `42501` diagnostics. Do not move all runtime NULL handling before
+ACL checks. Held SQL can be reanalyzed after rename/move and resolve an ordinary
+shadow; stored view dependencies and held current-name calls separately check
+authentic identity and current admission. URI query values use percent-encoded
+spaces (`%20`), not form `+`, which libpq preserves literally. The fixture emits
+full logical diagnostics for unexpected SQL errors without adding success logs
+or weakening fixed diagnostic comparisons.
+
+Physical assertions use real PIDs/user/database, isolated remote state,
+retained public provider Execute failures and independent backend disappearance.
+PG-only query-family helpers observe the oracle's remote state; they do not add
+native query-family implementations. The shared adapter passively inspects only
+backend Authentication codes and keeps a mechanism enum, never protocol trace
+or password/SASL payloads. A role-scoped actual HBA trust fixture plus observed
+successful handshake distinguishes trust from real SCRAM; configured passwords
+and HBA text alone are not proof. Fragmentation units supplement, not replace,
+real authentication. Only externally variable connection-failure Detail is
+bounded as a comparison limit; parser Detail/full remaining diagnostics are exact.
+Native controls cover matching, missing, unbound and version-mismatched binding;
+canonical bound/unbound prerequisite omission, malformed and duplicate markers;
+persistent identities/data; actual close and cancellation-ignoring pending returns
+for physical Close, Reset and Restore. Failed/canceled controls preserve current
+handles and pending work. Successful publication cleans only affected-database
+dblink generations and leaves the same Owner usable, with other-database/Driver
+and existing TEMP/settings contracts separately witnessed. Postpublication close
+errors report published state. Raw host establishment markers retain ordinary
+errors.Is/As and no SQLState; only dblink Open projects explicitly attested genuine
+connection failures to08001. Context/callback/Execute/Close errors stay ordinary.
+
+
 ### Command details
 
 - `check` requires `RUN` selecting individual tests or a small set; `RACE=1` adds

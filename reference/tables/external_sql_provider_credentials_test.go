@@ -49,7 +49,7 @@ func TestReferenceExternalSQLProviderCredentials(t *testing.T) {
 	quote := func(s string) string { return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(s) + "'" }
 	keyword := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable", quote(config.Host), config.Port, quote(config.Database), quote(role), quote(password))
 	for _, conninfo := range []string{keyword, uri} {
-		c := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{Conninfo: conninfo})
+		c := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: conninfo})
 		if c.Info().User != role || c.Info().Database != config.Database || c.Info().BackendPID <= 0 {
 			t.Fatal("real reserved credential identity", c.Info())
 		}
@@ -58,7 +58,7 @@ func TestReferenceExternalSQLProviderCredentials(t *testing.T) {
 		}
 		externalSQLBackendGone(t, p.Ctx, c.Info().BackendPID)
 	}
-	before := len(provider.snapshot())
+	before := len(provider.Snapshot())
 	wrong := stuntgres.ExternalSQLConnectRequest{ServerOptions: []stuntgres.ForeignOption{{Name: "host", Value: config.Host}, {Name: "port", Value: strconv.Itoa(int(config.Port))}, {Name: "dbname", Value: config.Database}}, MappingOptions: []stuntgres.ForeignOption{{Name: "user", Value: role}, {Name: "password", Value: "wrong"}}, MappingPresent: true}
 	failed, err := provider.Open(p.Ctx, wrong)
 	if failed != nil {
@@ -67,12 +67,12 @@ func TestReferenceExternalSQLProviderCredentials(t *testing.T) {
 	}
 	fatal := fixture.Diagnostic{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "28P01", Message: fmt.Sprintf("password authentication failed for user %q", role)}
 	fixture.AssertDiagnostic(t, err, &fatal)
-	if len(provider.snapshot()) != before {
+	if len(provider.Snapshot()) != before {
 		t.Fatal("failed authentication registered a successful backend")
 	}
 	wrong.MappingOptions[1].Value = password
 	valid := externalSQLRawConnection(t, p, provider, wrong)
-	if valid.Info().User != role {
+	if valid.Info().User != role || valid.Info().CredentialMechanism != "scram-sha-256" {
 		t.Fatal("credential retry did not authenticate requested user", valid.Info())
 	}
 	badEndpoint := stuntgres.ExternalSQLConnectRequest{ServerOptions: []stuntgres.ForeignOption{{Name: "host", Value: "/external_sql_fixture_missing_socket"}, {Name: "port", Value: "5432"}}}

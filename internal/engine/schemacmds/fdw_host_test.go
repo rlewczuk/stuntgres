@@ -37,7 +37,7 @@ func TestFDWStageTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.InstallForeignDefinitions(nil, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions(nil, nil, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	s := enginetest.StartSession(t, e, nil)

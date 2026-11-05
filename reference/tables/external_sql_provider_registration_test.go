@@ -13,15 +13,22 @@ import (
 
 func TestExternalSQLProviderRegistration(t *testing.T) {
 	for _, request := range []stuntgres.ExternalSQLConnectRequest{
-		{Conninfo: "password=external-secret-conninfo"},
+		{ConninfoPresent: true, Conninfo: "password=external-secret-conninfo"},
 		{MappingOptions: []stuntgres.ForeignOption{{Name: "password", Value: "external-secret-mapping"}}},
 	} {
 		if rendered := fmt.Sprintf("%v %+v %#v", request, request, request); strings.Contains(rendered, "external-secret") {
 			t.Fatal("connection request formatting exposed credentials")
 		}
 	}
-	provider := &externalSQLProvider{}
-	var typedNil *externalSQLProvider
+	provider := &fixture.ExternalSQLProvider{}
+	for _, name := range []string{"", "unregistered"} {
+		if err := stuntgres.NewDriver().BindDblinkExternalSQLProvider(name); err == nil {
+			t.Fatal("unregistered direct dblink capability accepted")
+		} else if _, sql := err.(interface{ SQLState() string }); sql {
+			t.Fatal("binding error invented SQLSTATE", err)
+		}
+	}
+	var typedNil *fixture.ExternalSQLProvider
 	for _, def := range []stuntgres.ExternalSQLProviderDefinition{
 		{Name: "", Version: "1", Provider: provider},
 		{Name: strings.Repeat("x", 64), Version: "1", Provider: provider},
@@ -51,12 +58,18 @@ func TestExternalSQLProviderRegistration(t *testing.T) {
 			t.Fatal("fabricated PostgreSQL SQLSTATE", err)
 		}
 	}
-	def := stuntgres.ExternalSQLProviderDefinition{Name: "external_sql_fixture", Version: externalSQLFixtureVersion, Provider: provider}
+	def := stuntgres.ExternalSQLProviderDefinition{Name: "external_sql_fixture", Version: fixture.ExternalSQLFixtureVersion, Provider: provider}
 	if err := d.RegisterExternalSQLProvider(def); err != nil {
 		t.Fatal("failed initialization froze registration", err)
 	}
 	if err := d.RegisterExternalSQLProvider(def); err == nil {
 		t.Fatal("duplicate registration accepted")
+	}
+	if err := d.BindDblinkExternalSQLProvider(def.Name); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.BindDblinkExternalSQLProvider(def.Name); err == nil {
+		t.Fatal("second dblink binding accepted")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixture.ScenarioBudget)
 	defer cancel()
@@ -84,6 +97,9 @@ func TestExternalSQLProviderRegistration(t *testing.T) {
 	if err := d.RegisterExternalSQLProvider(stuntgres.ExternalSQLProviderDefinition{Name: "late", Version: "1", Provider: provider}); err == nil {
 		t.Fatal("registry not frozen")
 	}
+	if err := d.BindDblinkExternalSQLProvider(def.Name); err == nil {
+		t.Fatal("dblink binding registry not frozen")
+	}
 	independent := stuntgres.NewDriver()
 	if err := independent.RegisterExternalSQLProvider(def); err != nil {
 		t.Fatal("independent Driver inherited registration/freeze", err)
@@ -94,7 +110,7 @@ func TestExternalSQLProviderRegistration(t *testing.T) {
 	}
 	other, otherRecorder := fixture.RecordedNativePool(t, isolated)
 	fixture.RunStep(t, ctx, other, otherRecorder, fixture.Select("SELECT count(*) AS n FROM pg_class WHERE relname='external_sql_isolation'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-	if len(provider.snapshot()) != 0 {
+	if len(provider.Snapshot()) != 0 {
 		t.Fatal("registration/connector opened a physical remote session")
 	}
 }

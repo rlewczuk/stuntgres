@@ -60,7 +60,7 @@ func preparedQueryFixture(t *testing.T) (*core.Engine, *session.Session, *prepar
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, fdwIntegerImport, fdwIntegerExport); err != nil {
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil, fdwIntegerImport, fdwIntegerExport); err != nil {
 		t.Fatal(err)
 	}
 	s := enginetest.StartSession(t, e, nil)

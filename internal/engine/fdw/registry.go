@@ -67,12 +67,14 @@ type Registry struct {
 	namespaces  map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	importValue exec.ForeignValueImporter
 	exportValue exec.ForeignValueExporter
+	dblink      *catalog.ExternalSQLProviderDefinition
 }
 
 // Install records private copies of the definitions and the value codecs.
-func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) {
+func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter, dblink *catalog.ExternalSQLProviderDefinition) {
 	r.importValue = importer
 	r.exportValue = exporter
+	r.dblink = dblink
 	r.wrappers = append([]WrapperDefinition(nil), wrappers...)
 	r.validators = append([]ValidatorDefinition(nil), validators...)
 	r.procedures = make([]*catalog.ForeignProcedure, 0, len(wrappers)+len(validators))
@@ -86,9 +88,12 @@ func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorD
 
 // Definitions returns the installed definitions in InstallForeignDefinitions'
 // argument order, for re-installing them into a fresh Engine.
-func (r *Registry) Definitions() ([]WrapperDefinition, []ValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
-	return r.wrappers, r.validators, r.importValue, r.exportValue
+func (r *Registry) Definitions() (*catalog.ExternalSQLProviderDefinition, []WrapperDefinition, []ValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
+	return r.dblink, r.wrappers, r.validators, r.importValue, r.exportValue
 }
+
+// DblinkProvider returns the immutable explicit host binding, never a SQL lookup.
+func (r *Registry) DblinkProvider() *catalog.ExternalSQLProviderDefinition { return r.dblink }
 
 // ProcedureTokens yields the destination installation's immutable capabilities.
 // Catalog DROP retires a SQL declaration, not these driver registrations.
@@ -133,7 +138,20 @@ func (r *Registry) Codecs() (exec.ForeignValueImporter, exec.ForeignValueExporte
 
 // BindExternalProviders resolves definitions before engine publication. The
 // copied immutable token is retained by reset/restore staging definitions.
-func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.ExternalSQLProviderDefinition) ([]WrapperDefinition, error) {
+func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.ExternalSQLProviderDefinition, dblinkName string) ([]WrapperDefinition, *catalog.ExternalSQLProviderDefinition, error) {
+	var dblink *catalog.ExternalSQLProviderDefinition
+	if dblinkName != "" {
+		for _, provider := range providers {
+			if provider.Name == dblinkName {
+				copy := provider
+				dblink = &copy
+				break
+			}
+		}
+		if dblink == nil {
+			return nil, nil, &catalog.ExternalSQLUnavailableError{Capability: dblinkName}
+		}
+	}
 	var bound []WrapperDefinition
 	for i, wrapper := range wrappers {
 		if wrapper.ExternalProvider == "" {
@@ -151,12 +169,12 @@ func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.Ext
 			}
 		}
 		if token == nil {
-			return nil, &catalog.ExternalSQLUnavailableError{Capability: wrapper.ExternalProvider}
+			return nil, nil, &catalog.ExternalSQLUnavailableError{Capability: wrapper.ExternalProvider}
 		}
 		bound[i].external = token
 	}
 	if bound == nil {
-		return wrappers, nil
+		return wrappers, dblink, nil
 	}
-	return bound, nil
+	return bound, dblink, nil
 }

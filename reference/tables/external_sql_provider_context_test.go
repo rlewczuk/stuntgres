@@ -12,7 +12,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func externalSQLContextOwnership(t *testing.T, p *fixture.Pair, provider *externalSQLProvider, handler *externalSQLHandler, first *sql.Conn) {
+func externalSQLContextOwnership(t *testing.T, p *fixture.Pair, provider *fixture.ExternalSQLProvider, handler *externalSQLHandler, first *sql.Conn) {
 	t.Helper()
 	type authority struct {
 		ctx        context.Context
@@ -35,15 +35,15 @@ func externalSQLContextOwnership(t *testing.T, p *fixture.Pair, provider *extern
 				return ctx.Err()
 			}
 		}
-		before := len(provider.snapshot())
-		foreign, err := a.opener.Open(ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN})
+		before := len(provider.Snapshot())
+		foreign, err := a.opener.Open(ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN})
 		if err == nil || foreign != nil {
 			if foreign != nil {
 				foreign.Close(ctx)
 			}
 			return errors.New("live opener accepted sibling callback context")
 		}
-		if len(provider.snapshot()) != before {
+		if len(provider.Snapshot()) != before {
 			return errors.New("foreign callback context reached transport")
 		}
 		if _, err := a.connection.Execute(ctx, "SELECT 1"); err == nil {
@@ -51,7 +51,7 @@ func externalSQLContextOwnership(t *testing.T, p *fixture.Pair, provider *extern
 		}
 		// Trusted host delegation retaining A's exact live bearer context is
 		// explicit. It must not be confused with B's execution authority.
-		delegated, err := a.opener.Open(a.ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN})
+		delegated, err := a.opener.Open(a.ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN})
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func externalSQLContextOwnership(t *testing.T, p *fixture.Pair, provider *extern
 		t.Fatal("correct first callback context failed", failure)
 	}
 	externalSQLOldRows(t, rows)
-	if stale, err := a.opener.Open(a.ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN}); err == nil || stale != nil {
+	if stale, err := a.opener.Open(a.ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN}); err == nil || stale != nil {
 		if stale != nil {
 			stale.Close(p.Ctx)
 		}

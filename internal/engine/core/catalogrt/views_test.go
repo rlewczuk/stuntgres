@@ -51,7 +51,7 @@ func TestViewCapabilitiesForeignEvents(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, nil, nil); err != nil {
+			if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil, nil, nil); err != nil {
 				t.Fatal(err)
 			}
 			state := catalog.CloneState(e.CatalogRead().State())

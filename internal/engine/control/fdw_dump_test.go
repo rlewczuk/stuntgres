@@ -130,7 +130,7 @@ func fdwUnitValidator(source *Source, w *catalog.ForeignObject) *catalog.Procedu
 		source.State.SetDescriptor(d.Address(), d)
 		source.State.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	source.Foreign.Install(nil, []fdw.ValidatorDefinition{{Name: name, Validate: validate}}, nil, nil)
+	source.Foreign.Install(nil, []fdw.ValidatorDefinition{{Name: name, Validate: validate}}, nil, nil, nil)
 	source.Foreign.AddNamespace(ns.Address(), ns.Name())
 	w.Validator = proc.Address()
 	return proc

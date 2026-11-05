@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/remote"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -1144,11 +1146,20 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	return e.replaceCatalogContents(ctx, source, replacement, restoreOp, false, nil)
 }
 
-func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool, controlAuthority *ControlSepgsqlAuthority) (ChangeSet, error) {
+func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool, controlAuthority *ControlSepgsqlAuthority) (change ChangeSet, resultErr error) {
 	var installed ids.CatalogEpoch
+	var dblinkCleanup []remote.DblinkCleanup
 	defer func() {
 		if installed != 0 {
 			e.Locks.Fence(e.Catalog.Domain, installed)
+		}
+		for _, detached := range dblinkCleanup {
+			detached.Cancel()
+		}
+		for _, detached := range dblinkCleanup {
+			if err := detached.Close(); err != nil {
+				resultErr = errors.Join(resultErr, err)
+			}
 		}
 	}()
 	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != &source.Catalog.Owner {
@@ -1340,6 +1351,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 			}
 		}
 		e.installReplacementLocked(next, relations, sequences, metadata, roots, nextRow, nextVersion, nextRevision, oids.Next, progress)
+		dblinkCleanup = e.detachDblinkLocked()
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1418,6 +1430,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		return ChangeSet{}, err
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
+	dblinkCleanup = e.detachDblinkLocked()
 	installed = next.Epoch()
 	return ChangeSet{Replacement: true}, nil
 }

@@ -32,11 +32,11 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 	primary := errors.New("real provider publication failure")
 	cleanup := errors.New("real provider close failure")
 	for _, fault := range []error{primary, driver.ErrBadConn, driver.ErrSkip} {
-		provider.mu.Lock()
-		provider.afterOpen = func(context.Context, *externalSQLWire) error { return fault }
-		provider.closeError = cleanup
-		provider.mu.Unlock()
-		before := len(provider.snapshot())
+		provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+			f.AfterOpen = func(context.Context, *fixture.ExternalSQLWire) error { return fault }
+			f.CloseError = cleanup
+		})
+		before := len(provider.Snapshot())
 		err := failedQuery()
 		if fault == primary && !errors.Is(err, primary) {
 			t.Fatal("cleanup replaced primary error", err)
@@ -47,36 +47,36 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 		if _, ok := err.(interface{ SQLState() string }); ok {
 			t.Fatal("ordinary failure fabricated SQLSTATE", err)
 		}
-		wires := provider.snapshot()
+		wires := provider.Snapshot()
 		if len(wires) != before+1 {
 			t.Fatal("failed Open was replayed or not physically attempted")
 		}
-		externalSQLBackendGone(t, p.Ctx, wires[len(wires)-1].info.BackendPID)
+		externalSQLBackendGone(t, p.Ctx, wires[len(wires)-1].Info().BackendPID)
 	}
-	provider.mu.Lock()
-	provider.afterOpen, provider.closeError, provider.nilSuccess = nil, nil, true
-	provider.mu.Unlock()
+	provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+		f.AfterOpen, f.CloseError, f.NilSuccess = nil, nil, true
+	})
 	if err := failedQuery(); !strings.Contains(err.Error(), "returned nil connection") {
 		t.Fatal("nil success contract", err)
 	}
-	provider.mu.Lock()
-	provider.nilSuccess = false
-	provider.mutateResult = func(results []stuntgres.ExternalSQLResult) {
-		for i := range results {
-			if results[i].Tuple && results[i].RowCount > 0 {
-				results[i].Cells = append(results[i].Cells, stuntgres.ExternalSQLCell{Text: "malformed actual-result width"})
+	provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+		f.NilSuccess = false
+		f.MutateResult = func(results []stuntgres.ExternalSQLResult) {
+			for i := range results {
+				if results[i].Tuple && results[i].RowCount > 0 {
+					results[i].Cells = append(results[i].Cells, stuntgres.ExternalSQLCell{Text: "malformed actual-result width"})
+				}
 			}
 		}
-	}
-	provider.mu.Unlock()
+	})
 	if err := failedQuery(); !strings.Contains(err.Error(), "row width") {
 		t.Fatal("malformed actual remote descriptor accepted", err)
 	}
-	provider.mu.Lock()
-	provider.mutateResult = nil
-	provider.mu.Unlock()
-	for _, wire := range provider.snapshot() {
-		externalSQLBackendGone(t, p.Ctx, wire.info.BackendPID)
+	provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+		f.MutateResult = nil
+	})
+	for _, wire := range provider.Snapshot() {
+		externalSQLBackendGone(t, p.Ctx, wire.Info().BackendPID)
 	}
 
 	var retained stuntgres.ExternalSQLSession
@@ -94,7 +94,7 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 		}
 		retained = r.ExternalSQL
 		var err error
-		extra, err = r.ExternalSQL.Open(ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN, Role: "spoof", RoleOID: 999, ServerOID: 999, MappingOID: 999})
+		extra, err = r.ExternalSQL.Open(ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN, Role: "spoof", RoleOID: 999, ServerOID: 999, MappingOID: 999})
 		if err != nil {
 			return err
 		}
@@ -102,13 +102,19 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, mixed := r.ExternalSQL.Open(ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN, ServerOptions: []stuntgres.ForeignOption{{Name: "host", Value: "not-used"}}})
+		_, mixed := r.ExternalSQL.Open(ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN, ServerOptions: []stuntgres.ForeignOption{{Name: "host", Value: "not-used"}}})
 		if mixed == nil {
 			return errors.New("mixed conninfo/options accepted")
 		}
-		provider.mu.Lock()
-		request := provider.requests[len(provider.requests)-1]
-		provider.mu.Unlock()
+		for _, invalid := range []stuntgres.ExternalSQLConnectRequest{
+			{Conninfo: fixture.DSN}, // Nonempty text never implies presence.
+			{ConninfoPresent: true, ServerOptions: []stuntgres.ForeignOption{}}, // Even explicit empty text is a distinct input form.
+		} {
+			if connection, err := r.ExternalSQL.Open(ctx, invalid); err == nil || connection != nil {
+				return errors.New("invalid conninfo presence contract accepted")
+			}
+		}
+		request := provider.LastRequestIdentity()
 		if request.Role != r.Role || request.RoleOID != r.RoleOID || request.ServerOID != r.ServerOID || request.MappingOID != r.MappingOID || !request.MappingPresent {
 			return errors.New("callback spoofed captured caller/mapping authority")
 		}
@@ -116,14 +122,14 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, externalSQLProviderRows(false, query, externalSQLProviderExpectedRows()))
 	handler.action = nil
-	before := len(provider.snapshot())
-	if leaked, err := retained.Open(p.Ctx, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN}); err == nil || leaked != nil {
+	before := len(provider.Snapshot())
+	if leaked, err := retained.Open(p.Ctx, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN}); err == nil || leaked != nil {
 		if leaked != nil {
 			leaked.Close(p.Ctx)
 		}
 		t.Fatal("retained operation capability opened after completion", err)
 	}
-	if len(provider.snapshot()) != before {
+	if len(provider.Snapshot()) != before {
 		t.Fatal("stale capability reached transport")
 	}
 	want := []stuntgres.ExternalSQLCell{{Text: "7"}, {Null: true}, {Text: ""}}
@@ -158,18 +164,18 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 	opened, canceled, release := make(chan int32, 1), make(chan struct{}), make(chan struct{})
 	var releaseOnce sync.Once
 	unblock := func() { releaseOnce.Do(func() { close(release) }) }
-	provider.mu.Lock()
-	provider.afterOpen = func(ctx context.Context, wire *externalSQLWire) error {
-		opened <- wire.info.BackendPID
-		select {
-		case <-ctx.Done():
-			close(canceled)
-			<-release
-		case <-release:
+	provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+		f.AfterOpen = func(ctx context.Context, wire *fixture.ExternalSQLWire) error {
+			opened <- wire.Info().BackendPID
+			select {
+			case <-ctx.Done():
+				close(canceled)
+				<-release
+			case <-release:
+			}
+			return nil
 		}
-		return nil
-	}
-	provider.mu.Unlock()
+	})
 	queryDone, closeDone := make(chan struct{}), make(chan struct{})
 	var queryRows driver.Rows
 	var queryError, closeError error
@@ -223,8 +229,8 @@ func TestExternalSQLProviderOwnership(t *testing.T) {
 		t.Fatal("publication/session-end result", queryRows, queryError, closeError)
 	}
 	externalSQLBackendGone(t, p.Ctx, unpublishedPID)
-	provider.mu.Lock()
-	provider.afterOpen = nil
-	provider.mu.Unlock()
+	provider.ConfigureFaults(func(f *fixture.ExternalSQLFaults) {
+		f.AfterOpen = nil
+	})
 	externalSQLProviderValues(t, p, b, c, "external_sql_data")
 }

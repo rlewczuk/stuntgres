@@ -36,7 +36,7 @@ func TestDblinkGetPkeyIdentity(t *testing.T) {
 	e := engine.New()
 	ext := dblinkUnitInstall(t, e)
 	view := e.CatalogRead()
-	if len(ext.Members) != 6 {
+	if len(ext.Members) != 13 {
 		t.Fatal("missing appended recipe", ext.Members)
 	}
 	for i, name := range []string{functions.DblinkDeleteName, functions.DblinkInsertName, functions.DblinkUpdateName} {

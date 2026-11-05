@@ -1233,6 +1233,13 @@ INSERT and UPDATE share one real nested source SELECT executor and fully drainin
 consumer, with each builder's genuine caller identity and volatile command policy.
 None retains returned SQL, selected rows, locks or a prepared text cache, or executes remotely.
 
+Connection-family carriers follow current security/configuration and supported
+planner estimates only after full authentic current installation validation.
+Their original sealed signature, result, strictness, volatility, origin and body
+recipe must still compare exactly; generic `SameRoutineDeclaration` is unchanged.
+Native expression initialization owns the subject token, while the core host
+separately installs and unwinds the shared effective-user/settings environment.
+
 ## Invariants
 
 - **No mutexes.** The package adds no lock. Lock order, modes and waits belong to

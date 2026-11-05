@@ -44,7 +44,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	if p.GinSupport != 0 {
 		return invalid()
 	}
-	if (p.SecurityDefiner || p.Configuration != nil) && !StockInsertUsername.SupportsDMLTrigger(p) {
+	if (p.SecurityDefiner || p.Configuration != nil) && !StockInsertUsername.SupportsDMLTrigger(p) && !StockDblink.SupportsConnectionRoutine(p) {
 		return invalid()
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
@@ -114,6 +114,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 				return invalid()
 			}
 			declaration = dblinkPkeyDeclaration()
+		} else if slot >= dblinkConnectionFirstSlot && slot < dblinkMemberCount {
+			member := dblinkConnections[slot-dblinkConnectionFirstSlot]
+			name, sqlName, signature, result, strict = member.symbol, member.name, member.signature, ids.OID(member.result), member.strict
 		} else {
 			return invalid()
 		}

@@ -51,6 +51,25 @@
   Preserve backup-control named destinations in frozen-query deparse and replay,
   keeping reordered lexical operands separate from the full formal routine identity.
 
+- Implement genuine host-bound dblink connection lifecycle: seven authentic
+  declarations appended to the existing six identities, explicit Driver binding,
+  presence-aware original conninfo, safe credential prechecks and observed-auth
+  postchecks, current-owner connect_u security, named/default session ownership
+  and joined physical close. Reuse the existing provider registry, installed-call
+  carriers and physical external-SQL Owner without FDW transaction enlistment.
+  Preserve symbolic native replay with strict destination binding prerequisites;
+  successful Reset/Restore cancels and joins detached published/pending resources
+  outside all runtime/replacement locks. Keep ordinary host errors distinct from
+  explicitly attested connection-establishment failures.
+  Validate explicit numeric ports within 1 through 65535 after named duplicate
+  admission and before provider Open, preserving distinct integer/range diagnostics,
+  restricted original-secret precedence and existing named/default connections.
+  Share one genuine pgconn reference adapter and actual-auth observer; exercise
+  direct/prepared SQL, persistent identities, binding failures, real remote state,
+  retained Execute-after-disconnect failures, independent PID exit and pending
+  cancellation. Constant-NULL elimination, runtime ACLs, prepared re-resolution,
+  stored identities and exact diagnostics use independently expected fixtures.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

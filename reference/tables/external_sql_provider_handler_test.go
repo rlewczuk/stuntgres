@@ -12,6 +12,7 @@ import (
 	"github.com/lib/pq"
 
 	"stuntgres"
+	"stuntgres/reference/fixture"
 )
 
 type externalSQLHandler struct {
@@ -21,7 +22,7 @@ type externalSQLHandler struct {
 	action      func(context.Context, stuntgres.ForeignRequest, stuntgres.ExternalSQLConnection) error
 }
 
-func externalSQLConfigure(d *stuntgres.Driver, provider *externalSQLProvider, handler *externalSQLHandler, version string) error {
+func externalSQLConfigure(d *stuntgres.Driver, provider *fixture.ExternalSQLProvider, handler *externalSQLHandler, version string) error {
 	if err := d.RegisterExternalSQLProvider(stuntgres.ExternalSQLProviderDefinition{Name: "external_sql_fixture", Version: version, Provider: provider}); err != nil {
 		return err
 	}

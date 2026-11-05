@@ -12,13 +12,17 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// Owner is attached before remote Open. Its mutex protects only membership;
-// physical callbacks run unlocked. Session teardown joins every connection.
+// Owner is attached before remote Open. Its mutex protects membership, dblink
+// indices and generations; physical callbacks and joined cleanup run unlocked.
 type Owner struct {
-	mu          sync.Mutex
-	session     *session.Session
-	connections map[*connection]struct{}
-	closed      bool
+	mu               sync.Mutex
+	session          *session.Session
+	connections      map[*connection]struct{}
+	closed           bool
+	dblinkDefault    *connection
+	dblinkNamed      map[string]*connection
+	dblinkPending    map[*DblinkOpen]struct{}
+	dblinkGeneration uint64
 }
 
 func NewOwner(s *session.Session) *Owner { return &Owner{session: s} }
@@ -51,13 +55,16 @@ func (c *capability) Open(ctx context.Context, request catalog.ExternalSQLConnec
 	if !catalog.ExternalSQLContextMatches(ctx, c) {
 		return nil, errors.New("stuntgres: foreign external SQL callback context")
 	}
-	if request.Conninfo != "" && (request.ServerOptions != nil || request.MappingOptions != nil) {
+	if request.ConninfoPresent && (request.ServerOptions != nil || request.MappingOptions != nil) {
 		return nil, errors.New("stuntgres: external SQL conninfo and options are mutually exclusive")
+	}
+	if !request.ConninfoPresent && request.Conninfo != "" {
+		return nil, errors.New("stuntgres: external SQL conninfo requires presence")
 	}
 	request.Role, request.RoleOID = c.request.Role, c.request.RoleOID
 	request.ServerOID, request.MappingOID = c.request.ServerOID, c.request.MappingOID
 	request.MappingPresent = c.request.MappingPresent
-	if request.Conninfo == "" {
+	if !request.ConninfoPresent {
 		request.ServerOptions = slices.Clone(c.request.ServerOptions)
 		request.MappingOptions = slices.Clone(c.request.MappingOptions)
 	}
@@ -140,6 +147,11 @@ func (o *Owner) EndSession(token ids.SessionToken, _ session.EndReason) error {
 	}
 	o.mu.Unlock()
 	var failures []error
+	detached := o.DetachDblink()
+	detached.Cancel()
+	for _, pending := range detached.pending {
+		<-pending.done
+	}
 	for _, c := range connections {
 		if err := c.Close(context.Background()); err != nil {
 			failures = append(failures, err)

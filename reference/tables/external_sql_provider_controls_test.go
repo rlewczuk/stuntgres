@@ -52,19 +52,19 @@ func TestReferenceExternalSQLProviderControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer old.Close()
-			before := len(provider.snapshot())
+			before := len(provider.Snapshot())
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 				t.Fatal(err)
 			}
-			if len(provider.snapshot()) != before {
+			if len(provider.Snapshot()) != before {
 				t.Fatal("Dump executed remote SQL")
 			}
 			run(fixture.Exec("BEGIN", 0))
 			run(fixture.Exec("DECLARE external_sql_obsolete NO SCROLL CURSOR FOR SELECT id,label,flag,bytes FROM external_sql_data ORDER BY id", 0))
 			run(externalSQLProviderRows(false, "FETCH 1 FROM external_sql_obsolete", [][]any{{int64(1), "x", true, "\x00\xff"}}))
-			wires := provider.snapshot()
-			obsoletePID := wires[len(wires)-1].info.BackendPID
+			wires := provider.Snapshot()
+			obsoletePID := wires[len(wires)-1].Info().BackendPID
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
@@ -76,11 +76,11 @@ func TestReferenceExternalSQLProviderControls(t *testing.T) {
 			fixture.TransactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
 			run(fixture.Exec("ROLLBACK", 0))
 			externalSQLBackendGone(t, p.Ctx, obsoletePID)
-			before = len(provider.snapshot())
+			before = len(provider.Snapshot())
 			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String())); err != nil {
 				t.Fatal(err)
 			}
-			if len(provider.snapshot()) != before {
+			if len(provider.Snapshot()) != before {
 				t.Fatal("Restore opened remote resources")
 			}
 			externalSQLOldRows(t, old)
@@ -91,14 +91,14 @@ func TestReferenceExternalSQLProviderControls(t *testing.T) {
 
 			for _, binding := range []string{"absent", "unbound", "wrong-version", "matching"} {
 				t.Run(binding, func(t *testing.T) {
-					destinationProvider := &externalSQLProvider{}
+					destinationProvider := &fixture.ExternalSQLProvider{}
 					d := stuntgres.NewDriver()
 					if binding == "unbound" {
 						if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{HandlerName: stuntgres.ForeignFunctionName{Name: "external_sql_fixture_handler"}, Wrapper: &externalSQLHandler{}}); err != nil {
 							t.Fatal(err)
 						}
 					} else if binding != "absent" {
-						version := externalSQLFixtureVersion
+						version := fixture.ExternalSQLFixtureVersion
 						if binding == "wrong-version" {
 							version = "incompatible-version"
 						}
@@ -121,7 +121,7 @@ func TestReferenceExternalSQLProviderControls(t *testing.T) {
 							t.Fatal("incompatible destination registration accepted")
 						}
 						fixture.RunStep(t, p.Ctx, db, recorder, fixture.Select("SELECT v FROM external_sql_destination_keep", []string{"v"}, []string{"INT4"}, [][]any{{int64(82)}}))
-						if len(destinationProvider.snapshot()) != 0 {
+						if len(destinationProvider.Snapshot()) != 0 {
 							t.Fatal("failed Restore opened remote connection")
 						}
 						return
@@ -129,15 +129,15 @@ func TestReferenceExternalSQLProviderControls(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if len(destinationProvider.snapshot()) != 0 {
+					if len(destinationProvider.Snapshot()) != 0 {
 						t.Fatal("successful Restore serialized/opened physical resources")
 					}
 					check(db, recorder, "after-dump")
-					if len(destinationProvider.snapshot()) == 0 {
+					if len(destinationProvider.Snapshot()) == 0 {
 						t.Fatal("destination used source callback instead of its own actual provider")
 					}
-					for _, wire := range destinationProvider.snapshot() {
-						externalSQLBackendGone(t, p.Ctx, wire.info.BackendPID)
+					for _, wire := range destinationProvider.Snapshot() {
+						externalSQLBackendGone(t, p.Ctx, wire.Info().BackendPID)
 					}
 					header := ""
 					for _, line := range strings.Split(dump.String(), "\n") {

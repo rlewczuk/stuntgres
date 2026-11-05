@@ -449,6 +449,10 @@ func State(t *testing.T, err error, want string) string {
 	t.Helper()
 	if want == "" {
 		if err != nil {
+			var state interface{ SQLState() string }
+			if errors.As(err, &state) {
+				t.Fatalf("unexpected SQL error: %v; diagnostic: %#v", err, ExtractDiagnostic(t, err))
+			}
 			t.Fatalf("unexpected SQL error: %v", err)
 		}
 		return ""

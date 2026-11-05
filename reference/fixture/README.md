@@ -7,6 +7,43 @@ common policy and basic helpers are in [docs/TESTING.md](../../docs/TESTING.md);
 this file covers the rest. The fixture is exempt from the 750-line file limit,
 not from the package byte cap.
 
+## Shared genuine external SQL adapter
+
+`ExternalSQLProvider` / `ExternalSQLWire` in `external_sql_provider.go` are the
+single real pgconn adapter for table-provider and dblink scenarios. Snapshots
+retain actual Open return objects; `Info`, `Execute`, `Close`, cancellation,
+notifications and controlled faults preserve real physical ownership. Empty
+tuple descriptors and cells are copied before borrowed pgconn buffers advance.
+`LastRequestIdentity` exposes captured caller/mapping authority without retaining
+conninfo or credential options. `Activity` is a supplementary real-wire I/O
+observation, not a substitute for Execute-after-close errors and PID disappearance.
+`OpenCalls` separately observes callback entry, including rejection by genuine
+host parsing before dialing. Numeric-admission tests use it to distinguish
+engine-side validation from a provider Open that merely returns no wire.
+
+`external_sql_auth.go` wraps the existing connection after TLS with a passive,
+bounded backend-frame observer. It retains header/auth-code state only and stops
+at success/failure; pgconn owns protocol and authentication. Successful observed
+cleartext, MD5 and SASL/SCRAM exchanges report `password`, `md5` and
+`scram-sha-256`; AuthenticationOk without a challenge reports `none` (no observed
+password exchange), not inferred password use. Incomplete/unsupported exchanges
+remain `unknown`. No password, challenge, SASL payload or trace is copied/logged.
+`TestExternalSQLProviderAuthObservation` exercises fragmented frames and failure
+states; actual SCRAM/trust tests remain necessary.
+
+`ExternalSQLTrustAuthentication` reuses the auth-file fixture to install a real
+role-scoped trust rule in the disposable oracle, restores the original file and
+reloads it during cleanup. Callers wait for an actual successful no-password
+handshake, not HBA text alone. Explicit application names are preserved.
+`ConninfoPresent` selects the input form: explicit text, including empty, reaches
+pgconn unchanged; absent conninfo uses explicit structured fixture defaults plus
+ordered options. Mixed forms and nonempty text without presence are rejected.
+Actual non-context `ConnectConfig` establishment failures without a SQL response
+carry `ExternalSQLConnectError` (Error/Unwrap, no SQLState). Genuine remote SQL
+responses retain their full fields; callbacks, context and Execute/Close errors
+are not marked. Only the native dblink Open boundary applies its SQL projection.
+
+
 ## PostgreSQL oracle policy and provenance
 
 The oracle is PostgreSQL 18.6, pinned by OCI index digest in

@@ -44,6 +44,7 @@ type providerReplay struct {
 	volatility        byte // Explicit genuine HostConversion promise; zero keeps bootstrap VOLATILE.
 	cost, rows        float32
 	securityDefiner   bool
+	securityChanged   bool // Includes explicit INVOKER when the installation starts DEFINER.
 	configuration     *catalog.RoutineConfiguration
 	readyAfter        ids.OID // Zero for seeded/installed providers; otherwise the creating type event.
 	hostConversion    bool    // Created by genuine type installation, before aliases.
@@ -159,7 +160,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 // collects every builtin provider, and usually none changed.
 func unchangedProviders(providers []providerReplay) bool {
 	for _, p := range providers {
-		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.volatility != 0 || p.cost != 0 || p.rows > 0 || p.securityDefiner || p.configuration != nil {
+		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.volatility != 0 || p.cost != 0 || p.rows > 0 || p.securityDefiner || p.securityChanged || p.configuration != nil {
 			return false
 		}
 	}
@@ -321,8 +322,12 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			}
 			statements = append(statements, alter(p, p.current)+" "+promise+";\n")
 		}
-		if p.securityDefiner {
-			statements = append(statements, alter(p, p.current)+" SECURITY DEFINER;\n")
+		if p.securityDefiner || p.securityChanged {
+			security := "INVOKER"
+			if p.securityDefiner {
+				security = "DEFINER"
+			}
+			statements = append(statements, alter(p, p.current)+" SECURITY "+security+";\n")
 		}
 		for i := range p.configuration.Len() {
 			clause, err := providerConfigurationSQL(p.configuration.At(i))

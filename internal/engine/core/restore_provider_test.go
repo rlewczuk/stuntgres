@@ -17,7 +17,7 @@ func replacementForeignFixture(t *testing.T, callback func(context.Context, cata
 	t.Helper()
 	e := engine.New()
 	name := catalog.ForeignFunctionName{Schema: "public", Name: "replacement_validator"}
-	if err := e.InstallForeignDefinitions(nil, []fdw.ValidatorDefinition{{Name: name, Validate: callback}}, nil, nil); err != nil {
+	if err := e.InstallForeignDefinitions(nil, nil, []fdw.ValidatorDefinition{{Name: name, Validate: callback}}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, descriptor := range e.CatalogRead().Descriptors() {

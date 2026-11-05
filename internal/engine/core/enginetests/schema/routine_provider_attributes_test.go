@@ -30,7 +30,7 @@ func TestRoutineProviderAttributeEligibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{definition}, nil, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{definition}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")

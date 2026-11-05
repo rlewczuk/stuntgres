@@ -13,7 +13,7 @@ func TestReferenceExternalSQLProviderTransactions(t *testing.T) {
 	observer := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s) }
 	observer(fixture.Exec("CREATE TABLE external_sql_source.marks(id integer)", 0))
 	observer(fixture.Exec("CREATE VIEW external_sql_source.settings AS SELECT current_setting('transaction_isolation') AS isolation,current_setting('transaction_read_only') AS readonly", 0))
-	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{Conninfo: fixture.DSN})
+	raw := externalSQLRawConnection(t, p, provider, stuntgres.ExternalSQLConnectRequest{ConninfoPresent: true, Conninfo: fixture.DSN})
 	count := func(id, n int64) {
 		observer(fixture.Select("SELECT count(*) AS n FROM external_sql_source.marks WHERE id=$1", []string{"n"}, []string{"INT8"}, [][]any{{n}}, id))
 	}
@@ -58,8 +58,8 @@ func TestReferenceExternalSQLProviderTransactions(t *testing.T) {
 			run(fixture.Exec("ROLLBACK TO effect", 0))
 			run(fixture.Exec("COMMIT", 0))
 			count(9, 1)
-			for _, wire := range provider.snapshot()[1:] {
-				externalSQLBackendGone(t, p.Ctx, wire.info.BackendPID)
+			for _, wire := range provider.Snapshot()[1:] {
+				externalSQLBackendGone(t, p.Ctx, wire.Info().BackendPID)
 			}
 
 			// A separate pool shares the real connector but retains no idle
@@ -85,8 +85,8 @@ func TestReferenceExternalSQLProviderTransactions(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, dedicated, recorder, fixture.Exec("DECLARE external_sql_close NO SCROLL CURSOR FOR SELECT id,label,flag,bytes FROM external_sql_data", 0))
 			fetch := externalSQLProviderRows(false, "FETCH 1 FROM external_sql_close", [][]any{{int64(1), "x", true, "\x00\xff"}})
 			fixture.RunStep(t, p.Ctx, dedicated, recorder, fetch)
-			wires := provider.snapshot()
-			pid := wires[len(wires)-1].info.BackendPID
+			wires := provider.Snapshot()
+			pid := wires[len(wires)-1].Info().BackendPID
 			count(9, 1)
 			if err := dedicated.Close(); err != nil {
 				t.Fatal("physical close did not join cleanup", err)

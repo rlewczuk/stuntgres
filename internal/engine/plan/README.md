@@ -219,6 +219,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   operand is not a captured relation identity. Runtime supplies metadata and
   returned text per invocation;
   the carrier retains neither a resolver nor a live host or lock.
+  `InstalledDblinkConnectionExpr` retains the authentic procedure/reference,
+  operation/signature and at most two TEXT children with TEXT/TEXT[] result.
+  Its scalar source, rebuild and substitution paths retain no physical resource;
+  current admission and routine-environment entry precede execution-only Open.
   `InstalledDblinkGetPkeyExpr` retains the genuine procedure/reference, one TEXT
   child and nominal result usage across source grouping and structural rewrites.
   It opts into `expr.SourceResultDeclaration` for backing-declaration column

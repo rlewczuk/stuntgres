@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core/contrib"
 	"stuntgres/internal/engine/exec"
@@ -305,6 +306,10 @@ func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, inp
 
 func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
 	return contrib.Pgstattuple[AuthorizationView](h.host(), n, input)
+}
+
+func (h *contribHost) DblinkConnection(n plan.InstalledDblinkConnectionExpr, values [2]sqltype.Value, caller authorization.PrincipalRef) (sqltype.Value, error) {
+	return h.host().scope().dblinkConnection(n, values, caller)
 }
 
 func (h *contribHost) DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteExpr, values [4]sqltype.Value) (string, error) {

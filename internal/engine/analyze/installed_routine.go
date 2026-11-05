@@ -334,6 +334,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
+	case functions.DblinkConnection:
+		if err := extension.ValidateDblinkIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidateDblinkConnectionCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledDblinkConnectionExpr{DblinkConnection: c, Procedure: p, Ref: ref}, nil
 	case functions.DblinkBuildSQLDelete:
 		if err := extension.ValidateDblinkIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

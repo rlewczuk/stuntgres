@@ -47,6 +47,7 @@ type Capture struct {
 	ConstraintReplay             *partition.ConstraintReplay
 	ACLOutput                    regobj.ACLItemOutput
 	InitialPrivileges            *InitialPrivilegesMetadata
+	ExternalRequirements         []fdw.ExternalRequirement
 
 	// Preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.
@@ -130,7 +131,7 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 			return err
 		}
 	}
-	for _, required := range fdw.ExternalRequirements(capture.CatalogView) {
+	for _, required := range capture.ExternalRequirements {
 		if err := w.emit(required.Comment()); err != nil {
 			return err
 		}

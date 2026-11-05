@@ -69,6 +69,14 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   actual PID admission/exit, owned text descriptors/results/errors, cancellation,
   remote notifications and native destination prerequisites have independent
   assertions. Close joins workers before fixture/schema/role cleanup.
+  The one genuine adapter now lives in `reference/fixture`, shared with dblink;
+  table scenarios retain their prior ownership/results/fault assertions through
+  its public snapshots and controlled-fault API. Credential mechanism reports
+  actual successful observed authentication, not the former constant `unknown`.
+  The observer retains no credential payload or trace. All callers distinguish
+  `ConninfoPresent=true` (even empty) from structured options; no explicit empty
+  request falls back to the fixture DSN. Host establishment markers preserve
+  ordinary errors.Is/As and do not acquire SQLState at the raw provider boundary.
   The pgconn adapter copies each live result descriptor before row iteration or
   reader close, and copies each text/NULL cell before advancing; `ReadAll` in
   the pinned pgconn version omits descriptors for empty tuples. Physical/smoke

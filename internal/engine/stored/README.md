@@ -217,8 +217,9 @@ Procedure result policy remains declaration-owned through validation and remap:
 every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
 The shared original-occurrence memo maps output shape, formals and child
 generations once; same-OID foreign/unshaped descriptors remain invalid.
-SQL/PL declarations and the authentic installed insert_username trigger body may
-carry definer security and routine-local configuration. The common procedure
+SQL/PL declarations, the authentic installed insert_username trigger body and
+the authentic installed dblink connection-family bodies may carry definer
+security and routine-local configuration. The common procedure
 validator rejects these states for native bodies that do not enter the shared
 environment, before delegation or intrinsic early returns. Installed symbol
 validation enforces the same boundary for capture/remap consumers. Scalar
@@ -1444,6 +1445,13 @@ existing symbolic installation graph, not source OID authority or live handles.
 Standalone carrier validation requires the current reference epoch before
 resolving the installed declaration; absent, stale or future epochs cannot
 borrow an otherwise genuine routine's authority.
+
+`InstalledDblinkConnectionExpr` uses those same authentic routine/reference and
+symbolic current-name paths for zero/one/two TEXT children and TEXT/TEXT[] usage.
+Its operation/signature are validated against immutable SQL declaration identity,
+not the shared connect_u C symbol. Remap and retag preserve only destination-owned
+recipes; runtime names, conninfo, remote transactions and physical handles never
+enter stored expressions or replay.
 
 `InstalledDblinkGetPkeyExpr` uses the same routine provenance with one runtime
 TEXT name and the genuine nominal result generation. Reference walking,

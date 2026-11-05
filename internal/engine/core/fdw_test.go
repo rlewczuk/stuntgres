@@ -184,7 +184,7 @@ func TestFDWRegistry(t *testing.T) {
 		t.Fatal(def, err)
 	}
 	e := engine.New()
-	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
@@ -201,7 +201,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	e := engine.New()
 	w := &fdwUnitWrapper{}
 	def, _ := fdw.ValidateWrapper(fdw.WrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
-	if err := e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
+	if err := e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
@@ -243,7 +243,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{handler}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
+	if err = e.InstallForeignDefinitions(nil, []fdw.WrapperDefinition{handler}, []fdw.ValidatorDefinition{validator}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")

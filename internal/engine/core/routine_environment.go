@@ -14,10 +14,19 @@ func unchangedRoutineEnvironment(err error) error { return err }
 // enterRoutineEnvironment runs after reached caller admission and strictness,
 // before SQL, PL or installed native trigger dispatch. It borrows the operation,
 // and setting journal: no transaction completion, safe path or detached store.
-func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (leave func(error) error, err error) {
-	leaveSubject, err := s.enterSepgsqlRoutine(d)
-	if err != nil {
-		return nil, err
+func (s *StatementScope) enterRoutineEnvironment(d *catalog.Procedure) (func(error) error, error) {
+	return s.enterRoutineEnvironmentMode(d, true)
+}
+
+// Native scalar entry already owns its subject token. It still needs the same
+// effective-user and SAVE-setting environment, without a second transition.
+func (s *StatementScope) enterRoutineEnvironmentMode(d *catalog.Procedure, enterSubject bool) (leave func(error) error, err error) {
+	var leaveSubject func()
+	if enterSubject {
+		leaveSubject, err = s.enterSepgsqlRoutine(d)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if leaveSubject != nil {
 		defer func() {

@@ -24,8 +24,8 @@ func TestReferenceExternalSQLProviderPhysical(t *testing.T) {
 			externalSQLProviderInstallPhysical(t, b, run)
 			externalSQLProviderValues(t, p, b, c, "external_sql_data")
 			if !b.PG {
-				for _, wire := range provider.snapshot() {
-					externalSQLBackendGone(t, p.Ctx, wire.info.BackendPID)
+				for _, wire := range provider.Snapshot() {
+					externalSQLBackendGone(t, p.Ctx, wire.Info().BackendPID)
 				}
 			}
 		})
@@ -48,7 +48,7 @@ func externalSQLProviderInstallPhysical(t *testing.T, b fixture.Backend, run fun
 		if err != nil {
 			t.Fatal(err)
 		}
-		run(fixture.Exec(fmt.Sprintf("CREATE SERVER external_sql_live FOREIGN DATA WRAPPER external_sql_native OPTIONS(host %s,port '%d',dbname %s)", pq.QuoteLiteral(config.Host), config.Port, pq.QuoteLiteral(config.Database)), 0))
+		run(fixture.Exec(fmt.Sprintf("CREATE SERVER external_sql_live FOREIGN DATA WRAPPER external_sql_native OPTIONS(host %s,port '%d',dbname %s,application_name 'external_sql_fixture_scan')", pq.QuoteLiteral(config.Host), config.Port, pq.QuoteLiteral(config.Database)), 0))
 		run(fixture.Exec(fmt.Sprintf("CREATE USER MAPPING FOR CURRENT_USER SERVER external_sql_live OPTIONS(user %s,password %s)", pq.QuoteLiteral(config.User), pq.QuoteLiteral(config.Password)), 0))
 	}
 	run(fixture.Exec("CREATE FOREIGN TABLE external_sql_data(id integer OPTIONS(column_name 'remote_id') NOT NULL,label text OPTIONS(column_name 'remote_label'),flag boolean OPTIONS(column_name 'remote_flag'),bytes bytea OPTIONS(column_name 'remote_bytes')) SERVER external_sql_live OPTIONS(schema_name 'external_sql_source',table_name 'data')", 0))

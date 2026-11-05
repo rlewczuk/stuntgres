@@ -34,7 +34,7 @@ type restoreRun struct {
 	source               string
 	statements           []parser.Statement
 	hostRequirements     map[string]bool
-	externalRequirements map[catalog.ForeignFunctionName]bool
+	externalRequirements map[externalRequirementKey]bool
 	hostContext          context.Context
 	hostAbsences         *hostAbsenceState
 

@@ -18,8 +18,8 @@ func RegistrationError(message string) error { return errors.New("stuntgres: " +
 // InstallForeignDefinitions runs only before an Engine becomes reachable from
 // its Driver. It never invokes application code. Later catalog publication uses
 // immutable procedure tokens, not a mutable name-to-callback fallback.
-func (e *Engine) InstallForeignDefinitions(wrappers []fdw.WrapperDefinition, validators []fdw.ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
-	e.Foreign.Install(wrappers, validators, importer, exporter)
+func (e *Engine) InstallForeignDefinitions(dblink *catalog.ExternalSQLProviderDefinition, wrappers []fdw.WrapperDefinition, validators []fdw.ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
+	e.Foreign.Install(wrappers, validators, importer, exporter, dblink)
 	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	procedures := catalog.ProcedureIndexEdit{Index: e.Catalog.State.ProcedureNames()}
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
