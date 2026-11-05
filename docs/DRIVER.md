@@ -2407,10 +2407,11 @@ attribute, not inherited role membership. Physical creation rejects unavailable
 WAL reservation with 0A000, so no physical slot exists.
 
 Logical slots require `wal_level=logical` (`DriverConfig.LogicalWAL`); otherwise
-create, copy and get/peek fail with 55000. Output plugins are embedded providers
-of the engine composition; no shared library is loaded, and a name allowed by the
-exact `output_plugin_libraries` list without a provider fails as a missing library
-(58P01). Creation checks, in order, the name, temporary/failover, duplicates
+create, copy and get/peek fail with 55000. Stock `test_decoding` is available
+without CREATE EXTENSION. Output plugins are embedded composition providers, not
+shared libraries; an allowed name without a provider still fails with 58P01.
+The exact `output_plugin_libraries` allow-list remains authoritative. Creation
+checks, in order, the name, temporary/failover, duplicates
 (42710), `max_replication_slots` (53400), a transaction holding an XID (25001), the
 allow-list (42501) and the plugin, then waits, cancellably and under
 `lock_timeout`, for every transaction of the cluster holding an XID, prepared ones
@@ -2424,32 +2425,41 @@ MERGE, conflict handling, triggers, rules, cascades, partition moves as DELETE
 plus INSERT, CREATE TABLE AS rows), and TRUNCATE once with its logged relations
 and CASCADE/RESTART IDENTITY. Temporary, unlogged, catalog and foreign relations
 are not decoded; a transaction with only catalog writes decodes as an empty
-transaction. Rolled-back statements, savepoints and exception blocks leave no
-changes. Old values follow the replica identity at the change; relation, column
-and type names are those of the change's time. Positions are `pg_lsn` values of
-one cluster-wide stream in commit order, not physical WAL (`pg_current_wal_lsn`
-stays 0A000).
+transaction. Ordinary decoding excludes rolled-back statements, savepoints and
+exception blocks. Streaming retains their genuine staging and child-abort
+evidence, without exposing private tuples to ordinary readers. Old values follow
+capture-time replica identity; relation, column and type names are historic.
+`include-rewrites` selects actual transformed destination rows from destructive
+SQL rewrites, not metadata-only ALTERs or a get-time table scan. Positions are
+`pg_lsn` values on one cluster-wide event stream, not physical WAL
+(`pg_current_wal_lsn` stays 0A000).
 
-Get and peek follow PostgreSQL: limits are checked after each record, so a
-transaction is never split; NULL limits and a zero `upto_nchanges` are unlimited;
-rows are materialized, so LIMIT or an early close still consumes. Get confirms
-the reached position, never backward; peek leaves it. A decoder holds its slot:
+Get and peek check limits after complete records: ordinary transactions remain
+whole, but a streaming call can stop after a complete block. NULL/zero limits
+are unlimited. Successful eager materialization consumes even on early Rows
+close; startup, callback, formatting and cancellation failures never confirm.
+Get advances to the reached position, never backward; peek leaves it. A decoder holds its slot:
 other get, peek, advance and drop calls fail with 55006 (`replication slot "%s"
 is active for PID %d`); copy reads the source without acquiring it and creates a
 non-two-phase, non-failover slot at the source's positions. A slot of another
 database fails get/peek with 55000 but may be dropped. Advance clamps to the
 stream end and rejects positions before the confirmed one (55000). Two-phase
 slots decode prepared transactions at PREPARE and report COMMIT/ROLLBACK
-PREPARED separately; other slots decode them at COMMIT PREPARED. A plugin asking
-for table rewrite changes, or for streaming when a transaction would be streamed
-(`logical_decoding_work_mem`, `debug_logical_replication_streaming=immediate`),
-fails with 0A000.
+PREPARED separately; other slots decode them at COMMIT PREPARED. Plugins with
+stream callbacks can decode in-progress transactions according to the decoding
+session's `logical_decoding_work_mem` and `debug_logical_replication_streaming`.
+Every call has fresh reorder state reconstructed from restart; confirmed flush
+gates new stream triggers, not historical queued rows. Stable peeks repeat,
+while later commit-only or new-DML calls may replay the retained prefix
+differently. Stock options control XIDs, timestamps, empty transactions, local
+origins, rewrites, streaming and binary output, with exact startup diagnostics.
 
 Temporary slots belong to their session: active for it and busy for others,
 dropped when it ends and at any top-level error (an error caught inside the
 session's own PL/pgSQL exception block is not one). Persistent slots outlive
 connection pools within the Driver cluster; nothing survives process exit. A
-database keeps only the history some slot of its cluster has yet to confirm.
+database retains prefixes needed by lagging slots and open/prepared transactions,
+including anchors preceding already-confirmed in-progress output.
 
 Dump never serializes slots or positions. Reset and Restore replace a database's
 contents, so they drop that database's slots and history atomically; an active

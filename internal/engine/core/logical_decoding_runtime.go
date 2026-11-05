@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 // LogicalDecoding is pg_logical_slot_{get,peek}[_binary]_changes: acquire the
@@ -68,7 +69,7 @@ func (h *statementHost) LogicalDecoding(req functions.LogicalDecodingRequest) ([
 	if !req.Binary && opts.Binary {
 		return nil, SQLError("0A000", fmt.Sprintf(`logical decoding output plugin "%s" produces binary output, but function "%s" expects textual data`, slot.plugin, req.Function))
 	}
-	decode.Plugin, decode.PluginName, decode.Options = plugin, slot.plugin, opts
+	decode.Plugin, decode.Options = plugin, opts
 	decode.StreamLimit, decode.StreamImmediate = h.streamingBoundary()
 	e.Mu.Lock()
 	decode.Records, decode.Restart, decode.Confirmed, decode.TwoPhase, decode.TwoPhaseAt = e.logicalHistory.Snapshot(), slot.restart, slot.confirmed, slot.twoPhase, slot.twoPhaseAt
@@ -78,10 +79,22 @@ func (h *statementHost) LogicalDecoding(req functions.LogicalDecodingRequest) ([
 	if err != nil {
 		return nil, err
 	}
+	// Detached work ends before the final publication/cancellation fence.
+	if err = util.ExecutionCheckpoint(s.ActivateRuntime(s.Op.Context()), "logical.decode.before-confirm"); err != nil {
+		return nil, err
+	}
 	if !req.Peek {
 		e.Mu.Lock()
-		e.confirmSlotLocked(slot, result.End)
+		s.Op.Session.Mu.Lock()
+		err = PublicationOperationLocked(e, s.Op)
+		if err == nil {
+			e.confirmSlotLocked(slot, result.End)
+		}
+		s.Op.Session.Mu.Unlock()
 		e.Mu.Unlock()
+	}
+	if err != nil {
+		return nil, err
 	}
 	rows := make([]functions.LogicalDecodingRow, len(result.Rows))
 	for i, row := range result.Rows {

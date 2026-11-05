@@ -1070,6 +1070,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.RoleStore.InstallRevisionFrontierLocked(roleRevision + 1)
 			}
 			if commitRef != (ids.TxRef{}) {
+				e.appendLogicalEventLocked(commitRef, logical.CatalogEvent, nil)
 				var actor *session.Session
 				if op != nil {
 					actor = op.Session

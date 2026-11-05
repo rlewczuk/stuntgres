@@ -80,6 +80,10 @@ Frontend stream capability admission stays in core, before target execution.
   mutexes. Replacement/deletion grant inspection and changed repair-key
   readmission run outside both mutexes; the final exact-key check and accepted
   action publication share the same Engine window.
+  `StageInsertAttempt` records immutable pre-index insertion evidence without
+  publishing a table effect. Non-speculative INSERT candidates carry that exact
+  event through batch/revalidation/RETURNING transfer; failed uniqueness keeps
+  the real attempted event, never a marker inferred from its diagnostic.
 - `RowLocks`: `AcquireRow`, `AcquireUpdateRow` and `AcquirePartitionLock` wait
   with the caller holding nothing; `LatestRow` captures its canonical current
   version, readmits a genuine successor unlocked, then rechecks the publication.
@@ -433,6 +437,9 @@ Package-internal helpers keep lower-case names.
 
 Physical target-header demand and nested RETURNING capture use
 `RUN='^TestReturningSystemAttribute'`.
+
+Real pre-index attempt, rollback/exception and historic-schema ownership use
+`make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 
 Canonical latest-row identity, validated ordinals, genuine successor positions,
 immutable captures and allocation-free known lookups use

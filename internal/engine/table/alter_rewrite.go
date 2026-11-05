@@ -13,9 +13,16 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// RewriteCapture receives each validated destination row at its actual staging
+// point, including a prefix later discarded by failure. It owns no execution
+// registry; the statement's real catalog stage supplies the capture owner.
+type RewriteCapture interface {
+	CaptureRewriteRow(*catalog.Relation, storage.RowVersion) error
+}
+
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, transforms []index.ColumnTransformation, additions []AddedColumn, generations []int32, validator AlterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
+func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, transforms []index.ColumnTransformation, additions []AddedColumn, generations []int32, validator AlterRowValidator, capture RewriteCapture) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -168,6 +175,11 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 			row.PrivateHistory = nil // A genuine rewrite starts a new physical heap.
 			if !committed {
 				row.Base = 0
+			}
+			if capture != nil {
+				if err := capture.CaptureRewriteRow(next, row); err != nil {
+					return nil, err
+				}
 			}
 			result = append(result, row)
 		}

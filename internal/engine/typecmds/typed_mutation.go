@@ -235,7 +235,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	sourceWrites, projectedDeletes := scope.ColumnProjectionRoots(old.Address())
 	projectedWrites := sourceWrites
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.Transforms, mutation.Additions, nil, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.Transforms, mutation.Additions, nil, validator, scope.LogicalRewriteCapture(stage))
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {

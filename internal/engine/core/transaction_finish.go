@@ -200,6 +200,9 @@ func (s *StatementScope) Finish(err error) (result error) {
 			err = s.mergeSegmentLocked(catalog)
 		}
 		if err == nil {
+			e.Mu.Lock()
+			s.finishLogicalStatementLocked(true)
+			e.Mu.Unlock()
 			t.Command++
 		}
 	}
@@ -230,6 +233,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 	if err != nil {
 		if !published {
 			e.Mu.Lock()
+			s.finishLogicalStatementLocked(false)
 			t.Catalog = e.discardWritesLocked(s.TxRef, s.PendingCatalog(), s.Stage.Rows, t.Writes, t.Catalog, s.Stage.DiscardedHeaps)
 			e.Mu.Unlock()
 		}
@@ -356,6 +360,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	t.Session.Settings.FinishTransaction(false)
 	e.Mu.Lock()
 	e.advanceOriginSessionLocked(t.Ref, t.Session)
+	e.abortLogicalTransactionLocked(t.Ref)
 	e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, nil, nil, nil)
 	e.abortSnapshotsLocked(t.Ref)
 	e.Visibility.EndTransactionLocked(t.Ref, false)

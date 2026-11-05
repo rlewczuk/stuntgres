@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -18,6 +19,7 @@ type WriteCandidate struct {
 	Indexes                       map[ids.ObjectAddress]storage.IndexOutput
 	Precheck                      map[ids.ObjectAddress]storage.IndexOutput
 	Exclusion                     *storage.RowVersion
+	Logical                       *logical.Change // Actual pre-index insertion staging, when captured.
 	SharedIndexes, SharedPrecheck bool
 }
 
@@ -64,6 +66,7 @@ type WriteBatch struct {
 type WriteState struct {
 	Indexes, Precheck map[ids.ObjectAddress]storage.IndexOutput
 	Exclusion         *storage.RowVersion
+	Logical           *logical.Change
 }
 
 func (b *WriteBatch) Append(row WriteCandidate) {
@@ -74,11 +77,11 @@ func (b *WriteBatch) Append(row WriteCandidate) {
 	if b.Accepted != nil {
 		b.Accepted = append(b.Accepted, storage.RowVersion{})
 	}
-	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil) && b.States == nil {
+	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil || row.Logical != nil) && b.States == nil {
 		b.States = make([]WriteState, len(b.Values)-1, cap(b.Values))
 	}
 	if b.States != nil {
-		b.States = append(b.States, WriteState{Indexes: row.Indexes, Precheck: row.Precheck, Exclusion: row.Exclusion})
+		b.States = append(b.States, WriteState{Indexes: row.Indexes, Precheck: row.Precheck, Exclusion: row.Exclusion, Logical: row.Logical})
 	}
 }
 
@@ -87,6 +90,7 @@ func (b WriteBatch) Candidate(i int) WriteCandidate {
 	if b.States != nil {
 		state := b.States[i]
 		row.Indexes, row.Precheck, row.Exclusion = state.Indexes, state.Precheck, state.Exclusion
+		row.Logical = state.Logical
 		row.SharedIndexes, row.SharedPrecheck = true, true
 	}
 	return row
@@ -111,11 +115,11 @@ func (b *WriteBatch) Set(i int, row WriteCandidate) {
 	if b.Accepted != nil {
 		b.Accepted[i] = storage.RowVersion{}
 	}
-	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil) && b.States == nil {
+	if (row.Indexes != nil || row.Precheck != nil || row.Exclusion != nil || row.Logical != nil) && b.States == nil {
 		b.States = make([]WriteState, len(b.Values))
 	}
 	if b.States != nil {
-		b.States[i] = WriteState{Indexes: row.Indexes, Precheck: row.Precheck, Exclusion: row.Exclusion}
+		b.States[i] = WriteState{Indexes: row.Indexes, Precheck: row.Precheck, Exclusion: row.Exclusion, Logical: row.Logical}
 	}
 }
 

@@ -283,6 +283,9 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 	}
 	if !rollback && cleanup == nil {
 		t.Stats.Release(n)
+		s.Engine().Mu.Lock()
+		s.Engine().releaseLogicalChildrenLocked(t, n)
+		s.Engine().Mu.Unlock()
 	}
 	t.TruncateSavepoints(n)
 	s.Engine().Mu.Lock()

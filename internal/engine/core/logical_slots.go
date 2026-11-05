@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/logical"
+	"stuntgres/internal/engine/logical/testdecoding"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqlstate"
 )
@@ -39,8 +40,11 @@ func (c *logicalCluster) configure(startup Startup) error {
 			return fmt.Errorf("stuntgres: invalid logical output plugin %q", name)
 		}
 	}
-	if len(startup.OutputPlugins) != 0 {
-		c.plugins = maps.Clone(startup.OutputPlugins)
+	// Explicit startup providers take precedence, including an intentional
+	// replacement of a stock name. Restore retains this exact composition.
+	if c.wal || len(startup.OutputPlugins) != 0 {
+		c.plugins = map[string]logical.Factory{"test_decoding": testdecoding.New}
+		maps.Copy(c.plugins, startup.OutputPlugins)
 	}
 	return nil
 }
@@ -142,17 +146,18 @@ func (e *Engine) dropSlotLocked(slot *logicalSlot) {
 }
 
 // trimLogicalHistoryLocked keeps, in every database, the records some slot of
-// the cluster may still need: those from the lowest confirmed position on.
+// the cluster may still need, including open and prepared transaction anchors.
 func (e *Engine) trimLogicalHistoryLocked() {
 	keep := ^uint64(0)
 	for _, slot := range e.Cluster.logical.slots {
-		keep = min(keep, slot.confirmed)
+		slot.restart = logical.RestartLSN(slot.target.logicalHistory.Snapshot(), slot.confirmed)
+		keep = min(keep, slot.restart)
 	}
 	for _, target := range e.Cluster.Targets {
 		if len(e.Cluster.logical.slots) == 0 {
 			target.logicalHistory.Reset()
 		} else {
-			target.logicalHistory.Trim(keep)
+			target.logicalHistory.Trim(logical.RestartLSN(target.logicalHistory.Snapshot(), keep))
 		}
 	}
 }

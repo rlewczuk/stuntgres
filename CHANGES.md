@@ -70,6 +70,23 @@
   cancellation. Constant-NULL elimination, runtime ACLs, prepared re-resolution,
   stored identities and exact diagnostics use independently expected fixtures.
 
+- Add stock test_decoding to the existing SQL logical-slot provider composition,
+  with historic typed formatting, exact options/startup diagnostics, binary,
+  origin, timestamp and two-phase output. Record genuine in-progress staging,
+  failed insertion attempts, canonical child/subtransaction lifetimes and actual
+  rewrite destinations. Fresh per-call reorder state honors stream budgets,
+  limits, abort status and confirmed-trigger gates; only genuine queued row/
+  truncate/rewrite evidence makes a top transaction streamable, not catalog
+  work alone. Logical JSONB budgets count canonical tree payload once rather
+  than its redundant text cache. Slot restart retains open/prepared prefixes,
+  including genuine rollback-only histories with no surviving effects; PREPARE
+  preserves their immutable descriptor and either prepared finish retires the
+  anchor for eventual prefix release. Cancellation cannot confirm failed output.
+  Distinguish real admitted PostgreSQL decoder cancellation and recovery from
+  native pre-admission errors and deterministic partial-output/final-fence
+  ownership proofs. Preserve custom providers, native replacement controls and
+  physical/wire replication boundaries.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

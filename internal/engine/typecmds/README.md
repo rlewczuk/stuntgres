@@ -43,6 +43,10 @@ only when codec reowning copies the unchanged observed heap; the copied root and
 VM observation are sampled in the same `Engine.Mu` window. A projected/rewrite
 candidate starts its own modeled VM and cannot regain committed-predecessor
 continuity merely because a later enum generation transports its datums.
+Destructive typed row conversion passes the real statement/catalog-stage logical
+capture owner into the shared rewrite producer; preserving codec copies do not.
+Destination schema/value evidence survives a later failure independently of the
+successful-effect projection, which installs only with its original stage.
 
 The enum/range command's locked stage-to-journal transfer records the existing
 candidate default-ACL, initial-privilege and security-label bookkeeping before
@@ -89,6 +93,8 @@ domain replay units that stage through the schema statements live in
 [`schemacmds`](../schemacmds/README.md#testing). Public SQL lives in
 [reference/domain_types](../../../reference/domain_types/README.md#testing)
 and [reference/types](../../../reference/types/README.md#testing).
+Logical rewrite destination/schema ownership uses
+`make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 
 `TestPgvisibilityCheckTypedMutationProducer` consumes genuinely deferred metadata
 before actual typed row production. Its old-codec heap must remain unchanged until

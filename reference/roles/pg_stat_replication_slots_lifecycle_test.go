@@ -50,10 +50,6 @@ func TestReferencePGStatReplicationSlotsLifecycle(t *testing.T) {
 		upper := clock()
 		clear()
 		empty(physical)
-		if !s.Backend.PG {
-			empty(logical)
-			return
-		}
 		read := func(executor fixture.Executor) sql.NullTime {
 			s.T.Helper()
 			rows, err := executor.QueryContext(s.P.Ctx, query, logical)
@@ -109,7 +105,11 @@ func TestReferencePGStatReplicationSlotsLifecycle(t *testing.T) {
 		clear()
 		empty(logical)
 		empty(physical)
-		slotDrop(s, physical)
+		if s.Backend.PG {
+			slotDrop(s, physical)
+		} else {
+			slotFailure(s, "SELECT pg_drop_replication_slot('"+physical+"')", logicalDecodingMissing(physical))
+		}
 		clear()
 		empty(logical)
 		empty(physical)

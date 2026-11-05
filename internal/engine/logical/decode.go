@@ -3,54 +3,51 @@ package logical
 import (
 	"context"
 	"fmt"
-
-	"stuntgres/internal/sqlstate"
 )
 
-// Request is one get/peek decoding pass over an immutable history snapshot.
-// Frontier is the end of the stream when the call started. UptoLSN zero and
-// UptoChanges zero mean no limit, as NULL arguments do.
+// Request is one fresh reorder pass over a coherent immutable history/status
+// frontier. Zero limits mean unlimited, as do NULL SQL operands.
 type Request struct {
-	Records     []Record
-	Restart     uint64
-	Confirmed   uint64
-	Frontier    uint64
-	UptoLSN     uint64
-	UptoChanges int32
-	TwoPhase    bool
-	TwoPhaseAt  uint64 // Where the slot's two-phase decoding starts.
-	Plugin      Plugin
-	PluginName  string
-	Options     Options
-	// Streaming boundary: logical_decoding_work_mem in bytes, and
-	// debug_logical_replication_streaming=immediate.
-	StreamLimit     int64
-	StreamImmediate bool
+	Records                      []Record
+	Restart, Confirmed, Frontier uint64
+	UptoLSN                      uint64
+	UptoChanges                  int32
+	TwoPhase                     bool
+	TwoPhaseAt                   uint64
+	Plugin                       Plugin
+	Options                      Options
+	StreamLimit                  int64
+	StreamImmediate              bool
 }
 
-// Result holds the produced rows and End, the reader position after the last
-// processed record: get confirms it.
 type Result struct {
 	Rows []Row
 	End  uint64
 }
 
-// Decode mirrors pg_logical_slot_get_changes_guts: records are read from the
-// restart position up to the frontier and the limits are checked after each
-// record, so a transaction's rows are never split. A negative change limit
-// stops after the first record.
+// Decode checks limits after complete input records. Ordinary commit replay is
+// atomic; a streaming record can end the pass after one complete stream block.
 func Decode(ctx context.Context, req Request) (Result, error) {
-	if req.Options.ReceiveRewrites {
-		return Result{}, sqlError("0A000", "logical decoding output plugin \"%s\" requested table rewrite changes, which are not supported", req.PluginName)
-	}
-	d := decoder{req: req, out: &Output{}}
+	d := decoder{req: req, out: &Output{ctx: ctx}}
 	_, d.twoPhase = req.Plugin.(TwoPhasePlugin)
 	d.twoPhase = d.twoPhase && req.TwoPhase
+	d.stream, _ = req.Plugin.(StreamingPlugin)
+	if !req.Options.Streaming {
+		d.stream = nil
+	}
+	if d.stream != nil {
+		if err := d.initialize(); err != nil {
+			return Result{}, err
+		}
+	}
 	start := req.Restart
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	if start >= req.Frontier {
 		return Result{End: req.Frontier}, nil
 	}
-	var stop uint64 // A record end that ends reading whatever was produced.
+	var stop uint64
 	if req.UptoLSN != 0 {
 		stop = start + Span
 		if req.UptoLSN > stop {
@@ -70,7 +67,6 @@ func Decode(ctx context.Context, req Request) (Result, error) {
 		if err := d.record(r); err != nil {
 			return Result{}, err
 		}
-		// CHECK_FOR_INTERRUPTS follows every record.
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
@@ -89,16 +85,50 @@ type decoder struct {
 	req      Request
 	out      *Output
 	twoPhase bool
+	stream   StreamingPlugin
+	pending  map[uint32]*buffer
+	aborted  map[uint32]bool
+	parents  map[uint32]uint32
+	warmed   map[uint32]bool
+	memory   int64
+}
+
+type buffer struct {
+	txn           *Transaction
+	records       []Record
+	bytes         int64
+	hasStreamable bool
+	streamed      bool
+	children      map[uint32]bool
+	origin        uint32
+}
+
+func (d *decoder) descriptor(r Record) *Txn {
+	return &Txn{XID: r.Txn.XID, TopXID: r.Txn.XID, FirstLSN: r.Txn.FirstLSN, FinalLSN: r.LSN, EndLSN: r.End(), Time: r.Time, Origin: r.Origin, GID: r.Txn.GID, PrepareTime: r.Txn.PrepareTime, Transaction: r.Txn}
 }
 
 func (d *decoder) record(r Record) error {
-	if r.LSN < d.req.Confirmed || r.Txn == nil {
+	if r.Txn == nil {
 		return nil
 	}
 	if filter, ok := d.req.Plugin.(OriginFilter); ok && r.Origin != 0 && filter.FilterByOrigin(r.Origin) {
 		return nil
 	}
-	txn := &Txn{XID: r.Txn.XID, FirstLSN: r.Txn.FirstLSN, FinalLSN: r.LSN, EndLSN: r.End(), Time: r.Time, Origin: r.Origin, GID: r.Txn.GID, PrepareTime: r.Txn.PrepareTime, Transaction: r.Txn}
+	if d.stream != nil {
+		handled, err := d.event(r)
+		if handled || err != nil {
+			return err
+		}
+	}
+	// Metadata and staged events have no ordinary output descriptor to build.
+	switch r.Kind {
+	case RowEvent, CatalogEvent, Abort, SubAbort, SubCommit, StatementEnd, StatementAbort:
+		return nil
+	}
+	if r.LSN < d.req.Confirmed {
+		return nil
+	}
+	txn := d.descriptor(r)
 	switch r.Kind {
 	case Commit:
 		return d.replay(txn, false)
@@ -110,8 +140,6 @@ func (d *decoder) record(r Record) error {
 		if !d.twoPhase {
 			return d.replay(txn, false)
 		}
-		// ReorderBufferFinishPrepared: a PREPARE before two_phase_at was never
-		// sent, so the transaction is replayed with its prepare first.
 		if r.Txn.PrepareLSN < d.req.TwoPhaseAt {
 			prepared := *txn
 			prepared.FinalLSN, prepared.EndLSN, prepared.Time = r.Txn.PrepareLSN, r.Txn.PrepareLSN+Span, r.Txn.PrepareTime
@@ -132,12 +160,11 @@ func (d *decoder) record(r Record) error {
 
 func (d *decoder) at(lsn uint64, txn *Txn) { d.out.lsn, d.out.xid = lsn, txn.XID }
 
-// replay sends one whole transaction: begin, its changes in order, then the
-// commit (or, for two-phase decoding, the prepare).
+func (d *decoder) visible(c *Change) bool {
+	return c != nil && (!c.Rewrite || d.req.Options.ReceiveRewrites)
+}
+
 func (d *decoder) replay(txn *Txn, prepare bool) error {
-	if err := d.streamBoundary(txn.Transaction); err != nil {
-		return err
-	}
 	p := d.req.Plugin
 	d.at(txn.FirstLSN, txn)
 	var err error
@@ -150,7 +177,13 @@ func (d *decoder) replay(txn *Txn, prepare bool) error {
 		return err
 	}
 	for i := range txn.Transaction.Changes {
+		if err := d.out.Context().Err(); err != nil {
+			return err
+		}
 		change := &txn.Transaction.Changes[i]
+		if !d.visible(change) {
+			continue
+		}
 		d.at(change.LSN, txn)
 		if change.Kind == Truncate {
 			if t, ok := p.(TruncatePlugin); ok {
@@ -170,30 +203,4 @@ func (d *decoder) replay(txn *Txn, prepare bool) error {
 	return p.Commit(d.out, txn)
 }
 
-// streamBoundary rejects a pass where PostgreSQL would stream an in-progress
-// transaction: streaming is not implemented, and buffering such a transaction
-// instead would silently change the plugin's output.
-func (d *decoder) streamBoundary(t *Transaction) error {
-	if !d.req.Options.Streaming || len(t.Changes) == 0 {
-		return nil
-	}
-	exceeds := d.req.StreamImmediate
-	if !exceeds && d.req.StreamLimit > 0 {
-		var size int64
-		for i := range t.Changes {
-			size += t.Changes[i].approximateSize()
-		}
-		exceeds = size > d.req.StreamLimit
-	}
-	if exceeds {
-		return sqlError("0A000", "logical decoding output plugin \"%s\" requires streaming of in-progress transactions, which is not supported", d.req.PluginName)
-	}
-	return nil
-}
-
-func sqlError(code, format string, args ...any) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(format, args...)}
-}
-
-// FormatLSN renders a position as pg_lsn text.
 func FormatLSN(lsn uint64) string { return fmt.Sprintf("%X/%X", lsn>>32, uint32(lsn)) }

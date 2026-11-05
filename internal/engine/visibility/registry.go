@@ -38,6 +38,7 @@ type Registry struct {
 	assignedXID          uint64
 	latestCompletedXID   uint64
 	History              map[uint64]IdentityRecord
+	children             map[uint64][]uint64
 	transactionHorizon   uint64
 	LowIDs               map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
 	trackCommitTimestamp bool

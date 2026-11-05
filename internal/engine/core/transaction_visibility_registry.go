@@ -65,12 +65,36 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 // savepoint/exception ancestors. Top-XID inquiry deliberately uses the separate
 // top-only entrypoint and never assigns a read-only child.
 func (e *Engine) AssignTransactionXIDLocked(ref ids.TxRef) error {
+	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
+		return ids.ErrCatalogReplaced
+	}
+	owner := session.TxOwnerOf(ref)
+	count := 0
+	if e.Visibility.FullXIDLocked(ref) == 0 {
+		count++
+	}
+	if owner != nil && owner.Ref == ref {
+		for i := range owner.Savepoints {
+			if owner.Savepoints[i].FullXID == 0 {
+				count++
+			}
+		}
+	}
+	if err := e.Visibility.PreflightXIDsLocked(count); err != nil {
+		return err
+	}
 	if err := e.AssignTopTransactionXIDLocked(ref); err != nil {
 		return err
 	}
-	if owner := session.TxOwnerOf(ref); owner != nil && owner.Ref == ref {
+	parent := e.Visibility.FullXIDLocked(ref)
+	if owner != nil && owner.Ref == ref {
 		for i := range owner.Savepoints {
-			owner.Savepoints[i].Assigned = true
+			mark := &owner.Savepoints[i]
+			if mark.FullXID == 0 {
+				mark.FullXID = e.Visibility.AssignChildXIDLocked(parent)
+			}
+			mark.Assigned = true
+			parent = mark.FullXID
 		}
 	}
 	return nil

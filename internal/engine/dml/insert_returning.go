@@ -167,9 +167,9 @@ func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandi
 		return false, false, storage.RowVersion{}, err
 	}
 	values := [1][]sqltype.Value{row}
-	states := [1]index.WriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion}}
+	states := [1]index.WriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion, Logical: candidate.Logical}}
 	batch := index.WriteBatch{Values: values[:]}
-	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil {
+	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil || candidate.Logical != nil {
 		batch.States = states[:]
 	}
 	if err := ValidateIndexCandidates(h, ref, &batch); err != nil {

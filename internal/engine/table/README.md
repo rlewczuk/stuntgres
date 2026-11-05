@@ -97,6 +97,10 @@ call live here.
   accumulates default/generated and checked TYPE causes without collapsing
   combinations or confusing native row copies with semantic events. The command
   owner adds actual persistence/method changes only for stored relation kinds.
+  `RewriteTypeRows` hands each validated transformed destination to the actual
+  statement/catalog-stage `RewriteCapture` before appending it to the new heap.
+  A later row/index failure retains genuine event evidence, never a get-time
+  scan. Metadata-only and preserving-copy passes do not enter this producer.
   Materialized-view storage ALTER uses these same column statistics, column
   storage, relation-option, cluster and access-method providers. Candidates keep
   the stored recipe, population, row type and row backing; only Finish publishes
@@ -593,6 +597,8 @@ inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in
 [reference/partitions](../../../reference/partitions/README.md#testing) and ALTER
 TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 `REFERENCE=1` for the oracle.
+Actual rewrite destination/event ownership and rejected-stage publication use
+`make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 SQL-free trigger-owned constraint name/rename/drop units use
 `RUN='^TestTriggerDeferredConstraint'`.
 SQL-free statistics captured-authority and expression-presentation units use

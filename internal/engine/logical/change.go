@@ -1,6 +1,6 @@
-// Package logical owns the native logical change stream: captured row changes,
-// committed history records, positions and the output-plugin seam. It holds no
-// lock; the engine runtime owns publication, slots and synchronization.
+// Package logical owns immutable staged changes, transaction lifecycle history,
+// positions and the output-plugin seam. It holds no lock; the runtime owns
+// actual staging, publication, slots and synchronization.
 package logical
 
 import "stuntgres/internal/sqltype"
@@ -57,21 +57,26 @@ type Change struct {
 	New      []sqltype.Value
 	Old      []sqltype.Value
 	OldTuple OldTuple
+	Rewrite  bool
+	// Immutable staging provenance, independent of the surviving projection.
+	TopXID, SubXID, Command, Origin uint32
+	// Logical decoded budget, not physical WAL or Go heap bytes.
+	DecodedBytes int64
 	// Truncate payload: the logged relations and TRUNCATE options.
 	Truncated                []*Relation
 	Cascade, RestartIdentity bool
 }
 
-// approximateSize is the change's in-memory decoding footprint, used only for
-// the logical_decoding_work_mem streaming boundary.
-func (c *Change) approximateSize() int64 {
+// DecodingSize accounts for the fixed event header, typed value slots and
+// canonical payload bytes. Capture measures this once, sharing immutable data.
+func (c *Change) DecodingSize() int64 {
+	if c.DecodedBytes != 0 {
+		return c.DecodedBytes
+	}
 	size := int64(80)
 	for _, values := range [2][]sqltype.Value{c.New, c.Old} {
 		for _, v := range values {
-			size += 16
-			if text, err := v.Text(); err == nil {
-				size += int64(len(text))
-			}
+			size += v.LogicalSize()
 		}
 	}
 	return size

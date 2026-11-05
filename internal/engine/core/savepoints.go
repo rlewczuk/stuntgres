@@ -47,6 +47,7 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 // -> Settings.Mu -> Session.Mu are held, with t.Mu.
 func (e *Engine) restoreSavepointLocked(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
 	e.abortOriginSubtransactionLocked(t, mark.Serial)
+	e.abortLogicalChildrenLocked(t, mark.Serial)
 	mark.Catalog = e.discardWritesLocked(t.Ref, t.Catalog, t.Writes, mark.Writes, mark.Catalog, nil)
 	abortStatsFrames(e, t.Session, t.Stats, mark.StatsLevel)
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog, mark.Catalog, mark.StatementCatalog)
@@ -186,6 +187,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.TruncateSavepoints(position + 1)
 			t.State = session.TxActive
 		case parser.ReleaseSavepoint:
+			e.releaseLogicalChildrenLocked(t, position)
 			t.Stats.Release(position)
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.

@@ -154,7 +154,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	}}
 	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "c"}, Value: integer(5)}}
 	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""), nil)
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -209,7 +209,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	}
 	defer cleanup()
 	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""), nil)
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}

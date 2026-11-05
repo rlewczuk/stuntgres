@@ -77,12 +77,8 @@ func replicationSlotsMutationDiagnostic(operation string) fixture.Diagnostic {
 	return fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: message, Detail: "Views that do not select from a single table or view are not automatically updatable.", Hint: "To enable " + action + " the view, provide an INSTEAD OF " + operation + " trigger or an unconditional ON " + operation + " DO INSTEAD rule."}
 }
 
-// replicationSlotsBoundary is the native outcome of creating a slot: physical
-// slots are unsupported, and no native output plugin provides test_decoding.
-func replicationSlotsBoundary(logical bool) fixture.Diagnostic {
-	if logical {
-		return activityDiagnostic("58P01", `could not access file "test_decoding": No such file or directory`, 0)
-	}
+// Physical slot creation remains outside the embedded logical provider.
+func replicationSlotsBoundary() fixture.Diagnostic {
 	return activityDiagnostic("0A000", "pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode", 0)
 }
 
@@ -90,20 +86,17 @@ func replicationSlotsBoundary(logical bool) fixture.Diagnostic {
 // drops complete, and fallback teardown uses the backend's independent pool.
 func replicationSlotsCleanup(t *testing.T, p *fixture.Pair, b fixture.Backend, names ...string) {
 	t.Helper()
-	if !b.PG {
-		return
-	}
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		for _, name := range names {
 			var exists bool
-			if err := p.Postgres.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_replication_slots WHERE slot_name=$1)", name).Scan(&exists); err != nil {
+			if err := b.DB.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_replication_slots WHERE slot_name=$1)", name).Scan(&exists); err != nil {
 				t.Error(err)
 				continue
 			}
 			if exists {
-				if _, err := p.Postgres.ExecContext(ctx, "SELECT pg_drop_replication_slot($1)", name); err != nil {
+				if _, err := b.DB.ExecContext(ctx, "SELECT pg_drop_replication_slot($1)", name); err != nil {
 					t.Error(err)
 				}
 			}

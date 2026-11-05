@@ -30,6 +30,9 @@ func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {
 // endSerializableLocked ends ref in the registry and drops its index build
 // waits. Caller holds Engine.mu.
 func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
+	if !committed {
+		e.abortLogicalTransactionLocked(ref)
+	}
 	e.expireSnapshotsLocked(ref)
 	e.Visibility.EndTransactionLocked(ref, committed)
 	e.IndexWaits.EndOwnerLocked(ref)

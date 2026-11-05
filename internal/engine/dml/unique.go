@@ -155,6 +155,11 @@ func (c *UniqueConflict) Diagnostic(h Host, ref ids.ObjectRef) error {
 // predecessors candidate replaces; prefix is the batch staged before it.
 // It may wait; the caller holds nothing.
 func CheckUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
+	if excluded == nil && h.Command().InsertConflict == nil {
+		if err := h.StageInsertAttempt(ref, candidate); err != nil {
+			return err
+		}
+	}
 	conflict, err := ProbeUniqueRow(ctx, h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -83,7 +84,6 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		for a, store := range stage.initialTables {
 			scope.Stage.Rows[a] = store.Versions
 		}
-		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)
 	}
 	if err = e.prepareCatalogOverlayIndexes(scope, stage, changes); err != nil {
 		return err
@@ -112,6 +112,8 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
 	if err == nil {
+		scope.appendLogicalEventLocked(logical.CatalogEvent, nil)
+		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)
 		for _, batch := range scope.Stage.DiscardedHeaps {
 			changes.DiscardedHeaps = appendHeapDiscard(changes.DiscardedHeaps, batch)
 		}

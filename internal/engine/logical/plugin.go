@@ -1,5 +1,10 @@
 package logical
 
+import (
+	"context"
+	"stuntgres/internal/sqltype"
+)
+
 // Option is one name/value pair of the decoding call's options array.
 type Option struct{ Name, Value string }
 
@@ -8,6 +13,7 @@ type Option struct{ Name, Value string }
 type Startup struct {
 	Slot     string
 	Options  []Option
+	Output   sqltype.OutputEnvironment // Ephemeral decoding-session datum output.
 	Init     bool
 	TwoPhase bool
 }
@@ -32,6 +38,8 @@ type Txn struct {
 	Origin      uint32
 	GID         string
 	PrepareTime int64
+	// TopXID identifies the parent of a subtransaction callback.
+	TopXID      uint32
 	Transaction *Transaction
 }
 
@@ -48,11 +56,20 @@ type Output struct {
 	rows []Row
 	lsn  uint64
 	xid  uint32
+	ctx  context.Context
 }
 
 // Write emits one row with a private copy of data.
 func (o *Output) Write(data []byte) {
 	o.rows = append(o.rows, Row{LSN: o.lsn, XID: o.xid, Data: append([]byte(nil), data...)})
+}
+
+// Context is the operation's cancellation context, including value formatting.
+func (o *Output) Context() context.Context {
+	if o.ctx == nil {
+		return context.Background()
+	}
+	return o.ctx
 }
 
 // Plugin is one decoding context's output plugin instance. Callbacks run
@@ -81,6 +98,18 @@ type TwoPhasePlugin interface {
 	RollbackPrepared(*Output, *Txn) error
 }
 
+// StreamingPlugin receives complete blocks of genuine staged events. The
+// decoder, not the plugin or slot, owns buffering for this one decoding pass.
+type StreamingPlugin interface {
+	StreamStart(*Output, *Txn) error
+	StreamChange(*Output, *Txn, *Change) error
+	StreamTruncate(*Output, *Txn, *Change) error
+	StreamStop(*Output, *Txn) error
+	StreamAbort(*Output, *Txn) error
+	StreamCommit(*Output, *Txn) error
+	StreamPrepare(*Output, *Txn) error
+}
+
 // OriginFilter skips whole transactions by replication origin.
 type OriginFilter interface {
 	FilterByOrigin(origin uint32) bool
@@ -88,3 +117,8 @@ type OriginFilter interface {
 
 // Factory creates a fresh plugin instance for one decoding context.
 type Factory func() Plugin
+
+// WriteString emits immutable formatter text without an intermediate byte copy.
+func (o *Output) WriteString(data string) {
+	o.rows = append(o.rows, Row{LSN: o.lsn, XID: o.xid, Data: []byte(data)})
+}

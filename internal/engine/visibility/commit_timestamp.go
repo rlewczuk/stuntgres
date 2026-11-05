@@ -27,11 +27,7 @@ func (reg *Registry) AssignTransactionXIDLocked(ref ids.TxRef) error {
 	}
 	xid := uint32(full)
 	if prior, ok := reg.LowIDs[xid]; ok {
-		record := reg.History[prior]
-		live := record.Ticket == nil && record.State == ids.TxInProgress
-		if record.Ticket != nil {
-			live = !record.Ticket.OwnershipEnded() && record.Ticket.AssignedFullXID() == prior
-		}
+		live := reg.identityInProgress(prior)
 		if live {
 			return errors.New("stuntgres: live transaction identity collision")
 		}
@@ -81,6 +77,7 @@ func (reg *Registry) RecordCommitTimestampLocked(ref ids.TxRef, stamp int64, ori
 		entry := CommitTimestamp{Stamp: stamp, Origin: origin, Present: true}
 		reg.CommitTimestamps[v.FullXID] = entry
 		reg.lastCommittedXID, reg.lastCommitTimestamp = v.AssignedXID, entry
+		reg.recordChildTimestamps(v.FullXID, entry)
 	}
 	v.AssignedXID = 0
 	v.FullXID = 0
@@ -96,6 +93,7 @@ func (reg *Registry) RetireCommitTimestampsLocked() {
 	reg.lastCommittedXID, reg.lastCommitTimestamp = 0, CommitTimestamp{}
 	clear(reg.History)
 	clear(reg.LowIDs)
+	clear(reg.children)
 	reg.transactionHorizon, _ = NextFullXID(reg.assignedXID)
 }
 

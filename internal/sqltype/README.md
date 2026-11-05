@@ -162,6 +162,11 @@ admission and removes it before nested binding.
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
   independently of SQL equality. NULL belongs to the caller's framing, not to
   empty text, empty bytes or the zero `Value`.
+  `Value.LogicalSize` reads only canonical scalar bytes/structural payloads for
+  the logical decoder's deterministic budget. JSONB charges decoded tree nodes,
+  keys, strings and numeric coefficients once, excluding its redundant rendered
+  text cache. This is logical-data accounting, not retained heap bytes. It
+  performs no output, callbacks, descriptor lookup or heap-size measurement.
 - XML values retain one immutable, genuinely parsed or generated `xml.Result`
   payload, shared by copies, domain wrapping and compatible retags. Zero provider
   results are not empty CONTENT. `SameDatum` preserves acceptance backing identity;
@@ -1070,6 +1075,8 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 [docs/TESTING.md](../../docs/TESTING.md). Tests of types, operators, casts,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
+Logical decoded-data accounting and unchanged typed backing use
+`make check RUN='^TestLogicalDatumSize[A-Za-z]*$'`.
 Immutable typed MCV construction, indexed view and representation equality use
 `RUN='^TestStatisticsMCVTypedBridge$'`; canonical physical encoding vectors remain
 in the `TestStatisticsMCVNative` family.

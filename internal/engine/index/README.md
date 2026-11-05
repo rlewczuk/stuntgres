@@ -475,6 +475,10 @@ builds a binder.
   lock manager), `ValidateUniques`, `ValidateExclusions`, the exclusion
   projection/event records, and `UniqueKeyDetailAllowed` (key disclosure over
   `access.View`; a nil environment means trusted publication).
+  A candidate's optional `Logical` reference is immutable capture-owned
+  insertion evidence, not index authority or an accepted table row. WriteState
+  preserves it through Append/Set/Prefix/Slice and RETURNING transfer; only the
+  real accepted stage joins it to the successful-effect projection.
 - **DDL records and presentation** (`control.go`, `metadata.go`,
   `maintenance_*.go`, `set_constraints.go`, `using_index*.go`): `DefinitionSQL`
   (`pg_get_indexdef` and Dump), `Metadata`/`IndexesMetadata`, the
@@ -797,6 +801,8 @@ Private deletion/capture ownership and sibling repair-admission stamps use
 
 Caller-owned accepted-version and exact predecessor-position windows use
 `RUN='^TestWriteBatch(AcceptedVersions|PredecessorHint)$'`.
+Real capture-owned insertion references and failed uniqueness publication use
+`make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 
 Compact statistics layout arithmetic and cancellation units use
 `RUN='^TestPgstat(index|hashindex)Approximation$'` from `enginetests/`.

@@ -201,10 +201,13 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   completes a mark the root seeded with its lock checkpoint, cursor ordinal and
   exclusion slot; `FindSavepoint` skips internal marks; `RollbackToLocked`
   restores owner state and settings (`SettingsStore.RestoreSavepointLocked`).
-  Actual SQL/exception marks also carry the current child's assignment flag,
-  maintained by core under Engine.Mu and the admitted owner. Top-ID inquiry does
-  not mark a child; current writes assign its active ancestors. Core consumes
-  that evidence before rollback/restart, without consuming the outer identity.
+  Actual SQL/exception marks carry the current child's assignment flag and lazy
+  canonical full XID, maintained by core under Engine.Mu and owner admission.
+  Top-only inquiry assigns no child. Current writes preflight/assign active
+  ancestors; rollback aborts the real subtree and clears discarded generations,
+  while RELEASE retains canonical parent ancestry through top completion.
+  The successful LogicalChanges projection clips at these same marks; immutable
+  staged/abort evidence remains in core's History, not on the mutable owner.
   Physical origin selection/configuration is not savepoint or journal backing.
   The root runs its cursor, portal, extension, exclusion and SSI work around
   them, payload first. Checked
@@ -806,6 +809,10 @@ sibling through `RUN='^TestPrivateDeletionProjectionCollisions$'`.
 Automatic-explanation physical overlay, original assignment/context replay and
 retained-image retirement use `RUN='^TestAutoExplainModuleSettings$'`, also with
 `RACE=1`; public settings/privilege behavior belongs to `reference/query_order`.
+
+Canonical savepoint/exception event lifetimes and prepared/cancellation ownership
+use `make check RUN='^TestLogicalStream'` in `core/enginetests/logical`; add
+`RACE=1` for concurrent decoder/session/control lifetimes.
 
 Physical pgcrypto activation, combined ISN/pgcrypto/pg_trgm projection and precise
 typed resets, journals, ancestry and detached/retained ownership use

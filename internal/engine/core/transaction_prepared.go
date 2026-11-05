@@ -26,6 +26,7 @@ func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.Prepa
 
 // Called at the canonical publisher's callback-free final boundary.
 func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
+	e.releaseLogicalChildrenLocked(p.Origin, 0)
 	prepare := logicalCommitIdentity{xid: e.Visibility.AssignedXIDLocked(p.Entry.Ref), stamp: time.Now().UnixMicro() - postgresEpochUnixMicros}
 	if c := e.advanceOriginSessionLocked(p.Entry.Ref, p.Origin.Session); c != nil {
 		prepare.origin = uint32(c.id)

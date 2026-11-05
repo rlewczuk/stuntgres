@@ -117,3 +117,9 @@ func timestamptzOutput(n int64, env OutputEnvironment) string {
 	east, zone := env.Zone.OffsetAt(second)
 	return timestampStyledOutput(n+int64(east)*1000000, env.DateStyle, zone, east, true)
 }
+
+// TransactionTimestampOutput is the ISO timestamptz spelling used by logical
+// transaction callbacks, independent of DateStyle, including BC and infinities.
+func TransactionTimestampOutput(n int64, zone *Zone) string {
+	return timestamptzOutput(n, OutputEnvironment{Zone: zone})
+}

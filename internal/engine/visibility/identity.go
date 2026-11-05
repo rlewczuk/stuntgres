@@ -11,8 +11,10 @@ import (
 // IdentityRecord is the completion state of one assigned full XID. Ticket,
 // when set, is the owner whose atomics answer "in progress".
 type IdentityRecord struct {
-	State  ids.TxCompletion
-	Ticket *lock.Ticket
+	State        ids.TxCompletion
+	Ticket       *lock.Ticket
+	Parent       uint64 // Canonical immediate parent; child identities own no lock ticket.
+	Subcommitted bool   // Released to Parent, not finally committed.
 }
 
 // NextFullXID is the canonical full XID after last. Low 32-bit values below 3
@@ -102,7 +104,7 @@ func (reg *Registry) TransactionStatusLocked(xid uint64) (string, bool, error) {
 	if !ok {
 		return "", false, nil
 	}
-	if r.Ticket != nil && !r.Ticket.OwnershipEnded() && r.Ticket.AssignedFullXID() == xid {
+	if reg.identityInProgress(xid) {
 		return "in progress", true, nil
 	}
 	if r.State == ids.TxCommitted {
@@ -130,6 +132,7 @@ func (reg *Registry) EndTransactionIdentityLocked(ref ids.TxRef, committed bool)
 		r.Ticket.MirrorCompletion(r.State)
 	}
 	reg.History[v.FullXID] = r
+	reg.finishChildren(v.FullXID, r.State)
 	if v.FullXID > reg.latestCompletedXID {
 		reg.latestCompletedXID = v.FullXID
 	}

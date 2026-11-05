@@ -161,7 +161,7 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 			return core.Result{}, err
 		}
 		writes, deletes := scope.ColumnProjectionRoots(storageOwner.Address())
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator, scope.LogicalRewriteCapture(stage))
 		if err != nil {
 			return core.Result{}, err
 		}

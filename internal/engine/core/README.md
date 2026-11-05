@@ -2483,16 +2483,28 @@ the shared visibility-sensitive dependency labels, never a bare-name fallback.
 `DatabaseCluster.logical` holds the startup logical-WAL capability, the immutable
 output plugins, the cluster-wide position allocator and the slot registry; each
 `Engine` holds its database's `logical.History`. All are guarded by
-`Engine.Mu`. While the cluster has a slot, the four staging windows and
-TRUNCATE (`logical_capture.go`) append changes to `StatementScope.logicalChanges`,
-which follows `notificationEvents` through merge, savepoint and exception
-checkpoints, prepared entries and discard. The publishers append history
-(`logical_history.go`) beside `recordOriginCommitLocked`, which consumes the XID.
-Slot runtimes (`replication_slot_runtime.go`, `logical_decoding_runtime.go`)
-acquire a slot under `Engine.Mu`, run the plugin and the creation wait without
-it, and confirm and release under it on every exit. Session end and a top-level
-statement error (`Finish` of a `StartStatement` scope) drop the session's
-temporary slots; catalog replacement drops the database's slots.
+`Engine.Mu`. Real pre-index insertion attempts, accepted write windows, truncate,
+catalog/invalidation stages and rewrite destination construction publish owned
+immutable event evidence (`logical_capture.go`, `logical_events.go`,
+`logical_rewrite.go`). Successful effects also merge through
+`StatementScope.logicalChanges` into the existing rollback-clipped owner and
+prepared projection; rollback never erases the journal. Canonical lazy child
+XIDs live on actual savepoint/exception generations and use visibility's single
+allocator, ancestry and completion authority, with whole-stack preflight.
+Publishers append commit/abort/prepare/finish evidence at callback-free stages.
+PREPARE admission includes an existing genuine journal anchor even if child
+rollback removed every successful effect. Its new immutable descriptor preserves
+the original FirstLSN and prepare metadata; both prepared finish routes reuse it
+to append a terminal record and retire the active anchor. Restart releases that
+prefix only after all consuming slots pass the terminal, independently of output
+filtering; held event and prepared descriptors remain immutable.
+Slot runtimes acquire and snapshot under Engine.Mu, decode/format without it,
+then confirm through the operation's final Session.Mu publication fence.
+Restart retains open/prepared prefixes even past confirmed flush; fresh decoders
+own all reorder buffers, not slots or retained bindings. Stock test_decoding is
+composed at startup; explicit factories intentionally override matching names.
+Session end/top-level errors drop temporary slots; catalog replacement retires
+old slots/history without changing startup provider composition.
 
 ## Lock order
 
@@ -3786,8 +3798,11 @@ in test-only `core/enginetests/<area>` packages (`functions`, `types`,
 across packages, so the selectors below cover them too.
 
 The logical change stream and slots use `RUN='^TestLogicalStream[A-Za-z]*$'` in
-`enginetests/logical`: SQL scenarios through `StartStatement`/`Finish` with a
-private recording output plugin registered at composition.
+`enginetests/logical`: real staged event/schema ownership, child abort history,
+fresh-context retention, rollback-only prepared anchor retirement, actual prepared
+definitions/fold backing and deterministic partial-output/final-confirm
+cancellation. Injected providers
+exercise the same composition and callbacks; add `RACE=1` for owner lifetimes.
 
 Snowball provider authority, prepared ownership and publication units in
 `enginetests/functions` use the shared `enginetest` prepared-fold and catalog-stage

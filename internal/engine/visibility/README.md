@@ -101,6 +101,12 @@ standard library. It never imports the root engine. Layering is in
   following a later index phase with the same low bits. Sparse retained
   status and optional timestamp reservations index the full identity. With
   tracking off, no timestamp map is allocated.
+  Actual savepoint/exception generations draw child IDs from the same allocator.
+  `PreflightXIDsLocked` checks an entire lazy ancestor stack before assignment.
+  Child History entries retain canonical parent links, not extra lock/MVCC/SSI
+  owners. Status and low-alias liveness follow parent completion authority;
+  subtree abort includes released descendants, and committed children inherit
+  the top transaction's timestamp/origin reservation.
 - **Completion input.** `RecordCommitTimestampLocked` takes an explicit PostgreSQL
   timestamp-microsecond value (including infinities) and numeric origin. Core owns
   local stop-time selection and physical origin context/fallback persistence;
@@ -240,6 +246,9 @@ registry through sessions, publication and SQL functions; the
 transaction-identity units seed wrap, horizon and collision state.
 Exact sibling deletion/base lookup, clone ownership and repair-admission
 stamps use `RUN='^TestPrivateDeletes'`.
+Canonical child assignment, subtree status, timestamps, exhaustion and live-alias
+preflight use `make check RUN='^TestLogicalChild'`; composed savepoint/exception
+and session-ending proofs use `make check RUN='^TestLogicalStream'`.
 
 ```sh
 make check RACE=1 RUN='^Test(LiveVersionOverlayAndEnds|NextFullXID|Registry(CommitSeq|XIDAssignment)|SafeSnapshot(Abandon|FenceWakes|Wait)|SerializableGraph|SerializablePrecommit|View(ForgedCopy|RetainRelease)|WriteSetMerges)'

@@ -117,7 +117,7 @@ func TestLogicalStreamPositions(t *testing.T) {
 	}
 	f.expect(f.data(s, "pg_logical_slot_get_changes('pos', '0/0', NULL)"), tx(row("3"))...)
 
-	// Change limits apply after whole transactions; negative stops after the
+	// Ordinary callback limits apply after whole transactions; negative stops after the
 	// first record, zero and NULL are unlimited.
 	for _, id := range []string{"4", "5", "6"} {
 		f.must(s, "INSERT INTO t VALUES ("+id+")")
@@ -164,13 +164,13 @@ func TestLogicalStreamDecodingDiagnostics(t *testing.T) {
 	f.must(s, "SELECT * FROM pg_logical_slot_peek_binary_changes('diag', NULL, NULL, 'binary', '1')")
 	f.fails(s, "SELECT * FROM pg_logical_slot_peek_changes('diag', NULL, NULL, 'nope', 'x')", "22023", `option "nope" = "x" is unknown`)
 	f.fails(s, "SELECT * FROM pg_logical_slot_peek_changes('diag', NULL, NULL, 'fail', 'startup')", "XX000", "recorder: startup failure")
-	f.fails(s, "SELECT * FROM pg_logical_slot_peek_changes('diag', NULL, NULL, 'rewrites', '1')", "0A000", `logical decoding output plugin "recorder" requested table rewrite changes, which are not supported`)
+	f.must(s, "SELECT * FROM pg_logical_slot_peek_changes('diag', NULL, NULL, 'rewrites', '1')")
 	f.must(s, "CREATE TABLE t (id int)")
 	f.must(s, "INSERT INTO t VALUES (1)")
-	// Streaming is honoured only where PostgreSQL would stream nothing.
+	// A provider without StreamingPlugin retains its ordinary callback path.
 	f.expect(f.peek(s, "diag", "stream", "1"), concat(tx(), tx(row("1")))...)
 	f.must(s, "SET debug_logical_replication_streaming = immediate")
-	f.fails(s, "SELECT * FROM pg_logical_slot_peek_changes('diag', NULL, NULL, 'stream', '1')", "0A000", `logical decoding output plugin "recorder" requires streaming of in-progress transactions, which is not supported`)
+	f.expect(f.peek(s, "diag", "stream", "1"), concat(tx(), tx(row("1")))...)
 	f.must(s, "RESET debug_logical_replication_streaming")
 	f.expect(f.data(s, "pg_logical_slot_peek_changes('diag', NULL, NULL, VARIADIC ARRAY['local', '1'])"), concat(tx(), tx(row("1")))...)
 	binary := f.must(s, "SELECT data FROM pg_logical_slot_get_binary_changes('diag', NULL, NULL)")

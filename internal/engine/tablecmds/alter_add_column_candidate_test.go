@@ -139,7 +139,7 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value}},
 				{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{value}},
 			}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{3: {Version: 3, End: 2}}}}
-			rewritten, own, deleted, err := table.RewriteTypeRows(evaluation, old, &next, store, 2, nil, nil, nil, additions, nil, table.NewAlterRowValidator(&next, "public"))
+			rewritten, own, deleted, err := table.RewriteTypeRows(evaluation, old, &next, store, 2, nil, nil, nil, additions, nil, table.NewAlterRowValidator(&next, "public"), nil)
 			wantCalls := 1
 			if innerDomain {
 				wantCalls += 2
@@ -227,7 +227,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	}}
 	transforms := []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
 	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
-	replacement, own, deleted, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, &next, store, 2, ownWrites, ownDeletes, transforms, additions, nil, table.NewAlterRowValidator(&next, ""))
+	replacement, own, deleted, err := table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, &next, store, 2, ownWrites, ownDeletes, transforms, additions, nil, table.NewAlterRowValidator(&next, ""), nil)
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)
 	}

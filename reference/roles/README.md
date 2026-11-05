@@ -74,6 +74,21 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
 `fixture.WithLogicalWAL()`, starting both backends with `wal_level=logical`. The logical-decoding
 family uses `make check RUN='^TestReferenceLogicalDecoding'` for signatures,
 typed metadata, options, diagnostics, live authority and unchanged-state witnesses.
+Stock output scenarios use `RUN='^TestReferenceTestDecoding'` in native and
+`REFERENCE=1` selected checks. `tdCases` shares direct/prepared bodies and
+bounded slot/session cleanup; exact transcripts retain callback order and
+independently observed XIDs, LSNs and timestamp bounds. Live streaming uses a
+separate synchronous DML flush barrier, never sleeps or logical messages.
+Threshold tests assert whole nonempty blocks and change counts, not physical
+WAL-byte or segment-count equality. Native controls are an explicit phase.
+Rollback-only prepared scenarios retain genuine child staging with no surviving
+row effects through both finish kinds, ordinary/two-phase slots and buffered/
+actual-immediate streaming. Public cancellation has distinct witnesses: native
+pre-admission context errors and PostgreSQL server cancellation after exact
+decoder PID/query, active slot and cold `pg_attribute` descriptor-lock admission.
+The latter checks the full 57014 diagnostic, inactive slot, unchanged confirmation
+and recovery on the same direct/held decoder. Native partial-output/final-confirm
+ownership barriers belong to the composed owner tests, not the PostgreSQL claim.
 The replication-slot lifecycle family uses
 `make check RUN='^TestReferenceReplicationSlot'` for nine catalog declarations,
 strict scalar/record metadata, diagnostics, live effective-actor and EXECUTE
@@ -82,14 +97,14 @@ effects use independently asserted PostgreSQL branches with bounded cleanup,
 source/create and copy catalog positions, option resets, and dynamic flush/insert
 bounds for beyond-current physical advancement. Raw plugin lists preserve literal
 embedded quotes in unquoted elements while rejecting malformed quoted suffixes.
-Native logical creation naming a stock plugin fails as a missing library (no
-native output plugin provides it) and publishes no slot; plugin and transaction
-admission (`RUN='^TestReferenceReplicationSlotPluginAdmission$'`) agree in both
-modes. Positive native slot behavior is covered by `TestLogicalStream` engine tests.
+Stock test_decoding logical creation and lifetime are shared positive scenarios;
+physical and absent pgoutput provider boundaries remain independently asserted.
+Plugin and transaction admission (`RUN='^TestReferenceReplicationSlotPluginAdmission$'`)
+agree in both modes.
 Logical-slot monitoring lifecycle uses `RUN='^TestReferencePGStatReplicationSlots'`
 in both modes: genuine logical inclusion, physical exclusion, unredacted reader
-fields and held prepared disappearance after drop; native failed creation leaves
-the inventory empty.
+fields and held prepared disappearance after drop; rejected physical creation
+does not publish a logical slot.
 Slot inventory lifecycle and feature composition use
 `RUN='^TestReferencePGReplicationSlots'` in both modes. Full metadata is public,
 without creator/database/statistics-role redaction; temporary active PID denotes

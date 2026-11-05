@@ -22,6 +22,7 @@ type SavepointMark struct {
 	Serial       uint64 // the owner's savepointSerial at capture; names foreign savepoints
 	Assigned     bool   // A current-child assignment since this actual subtransaction began.
 	LargeObjects uint64 // Opening ordinal; cursor motion and explicit closes never roll back.
+	FullXID      uint64 // Lazy canonical identity of this child generation.
 	Writes       map[ids.ObjectAddress][]storage.RowVersion
 	Deletes      map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Stats        statistics.Ledger

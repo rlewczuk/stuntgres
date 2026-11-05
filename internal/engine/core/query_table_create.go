@@ -157,7 +157,7 @@ func (e *Engine) StageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 		versions[i].InsertFullXID = e.Visibility.FullXIDLocked(ref)
 	}
 	stage.initialTables = map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: versions}}
-	stage.logicalChanges = e.captureLogicalInitialRowsLocked(stage.StageRead(), d, versions)
+	stage.logicalChanges = e.captureLogicalInitialRowsLocked(stage.StageRead(), d, versions, ref)
 	stage.InitialTx = ref
 	return nil
 }

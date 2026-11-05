@@ -186,6 +186,9 @@ func (e *Engine) recordOriginCommitLocked(ref ids.TxRef, actor *session.Session)
 	if xid == 0 {
 		return logicalCommitIdentity{}, false
 	}
+	if owner := session.TxOwnerOf(ref); owner != nil && owner.Ref == ref && len(owner.Savepoints) != 0 {
+		e.releaseLogicalChildrenLocked(owner, 0)
+	}
 	origin := uint32(0)
 	var stamp int64
 	if c := e.advanceOriginSessionLocked(ref, actor); c != nil {

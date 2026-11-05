@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -281,8 +282,14 @@ func (h *statementHost) startPlugin(slot *logicalSlot, options []logical.Option,
 		return nil, logical.Options{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "58P01", Message: fmt.Sprintf(`could not access file "%s": No such file or directory`, slot.plugin)}
 	}
 	plugin := factory()
-	opts, err := plugin.Startup(logical.Startup{Slot: slot.name, Options: options, Init: init, TwoPhase: slot.twoPhase})
+	opts, err := plugin.Startup(logical.Startup{Slot: slot.name, Options: options, Init: init, TwoPhase: slot.twoPhase, Output: s.Output})
 	if err != nil {
+		var diagnostic *sqlstate.Error
+		if errors.As(err, &diagnostic) {
+			copy := *diagnostic
+			copy.Context = fmt.Sprintf("slot %q, output plugin %q, in the startup callback", slot.name, slot.plugin)
+			err = sqlstate.WithDiagnostic(err, &copy)
+		}
 		plugin.Shutdown()
 		return nil, logical.Options{}, err
 	}

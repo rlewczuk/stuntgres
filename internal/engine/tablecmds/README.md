@@ -125,6 +125,10 @@ A later phase cannot upgrade an already fixed pair with current roots.
   metadata is installed privately before any rewrite callback or heap work.
   Physical work retains its original source layout and storage fences, and
   merges only into the latest private journal.
+  Destructive row conversion supplies the actual stage's logical capture owner
+  to `RewriteTypeRows`; each destination enters immutable event history while
+  it is built. Only successful stage publication merges its projection. Failed
+  conversions/index builds cannot erase attempted rows or publish table effects.
   A codec-only `ReownRelation` copy of that unchanged source records actual
   VM-preserving provenance and its copied root under `Engine.Mu`. Physical
   projection/rewrite candidates instead start a fresh model; equal generations
@@ -619,6 +623,8 @@ Units exercising admitted session settings use `Session.AcquireCommand`;
 `enginetest.SessionSQL` deliberately uses plain `Acquire` for engine setup.
 Heap population assertions read physical `Maintenance`, while metadata-only
 relations use the canonical relation-metadata cardinality.
+Logical rewrite destinations, historic schema backing and failed-stage evidence
+use `make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 
 ```sh
 make check RUN='^TestAlter'                                # ALTER TABLE passes, defaults, types, schema

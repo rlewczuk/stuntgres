@@ -2,6 +2,7 @@ package core
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/logical"
 	"stuntgres/internal/engine/session"
@@ -54,20 +55,21 @@ func (e *Engine) recordLogicalCommitLocked(commit logicalCommitIdentity, phase *
 	e.appendLogicalCommitLocked(commit, changes, journalChangesCatalog(c))
 }
 
-// appendLogicalCommitLocked records a committed transaction that has captured
-// changes or catalog writes.
+// appendLogicalCommitLocked records a committed transaction with captured
+// changes, catalog writes or an existing journal anchor.
 func (e *Engine) appendLogicalCommitLocked(commit logicalCommitIdentity, changes []logical.Change, catalogWrites bool) {
-	if !e.logicalCaptureLocked() || commit.xid == 0 || len(changes) == 0 && !catalogWrites {
+	if !e.logicalCaptureLocked() || commit.xid == 0 || len(changes) == 0 && !catalogWrites && e.logicalHistory.Active(commit.xid) == nil {
 		return
 	}
 	txn := e.logicalTransactionLocked(commit.xid, changes)
 	e.logicalHistory.Append(logical.Record{Kind: logical.Commit, LSN: e.Cluster.logical.lsn.Allocate(), Time: commit.stamp, Origin: commit.origin, Txn: txn})
 }
 
-// appendLogicalPrepareLocked records PREPARE TRANSACTION and keeps the content
-// on the entry for its later COMMIT or ROLLBACK PREPARED.
+// appendLogicalPrepareLocked records PREPARE TRANSACTION and keeps the immutable
+// descriptor on the entry for its later COMMIT or ROLLBACK PREPARED. A genuine
+// journal anchor still needs both boundaries when rollback removed every effect.
 func (e *Engine) appendLogicalPrepareLocked(entry *session.PreparedTransaction, prepare logicalCommitIdentity) {
-	if !e.logicalCaptureLocked() || prepare.xid == 0 || len(entry.LogicalChanges) == 0 && !journalChangesCatalog(entry.Catalog) {
+	if !e.logicalCaptureLocked() || prepare.xid == 0 || len(entry.LogicalChanges) == 0 && !journalChangesCatalog(entry.Catalog) && e.logicalHistory.Active(prepare.xid) == nil {
 		return
 	}
 	txn := e.logicalTransactionLocked(prepare.xid, entry.LogicalChanges)
@@ -91,19 +93,23 @@ func (e *Engine) appendLogicalFinishLocked(entry *session.PreparedTransaction, c
 }
 
 func (e *Engine) logicalTransactionLocked(xid uint32, changes []logical.Change) *logical.Transaction {
-	txn := &logical.Transaction{XID: xid, Changes: changes}
-	if len(changes) != 0 {
-		txn.FirstLSN = changes[0].LSN
-	} else {
-		// The first record of a catalog-only transaction.
-		txn.FirstLSN = e.Cluster.logical.lsn.Allocate()
+	first := uint64(0)
+	if anchor := e.logicalHistory.Active(xid); anchor != nil {
+		first = anchor.FirstLSN
 	}
+	if first == 0 && len(changes) != 0 {
+		first = changes[0].LSN
+	}
+	if first == 0 {
+		first = e.Cluster.logical.lsn.Allocate()
+	}
+	txn := &logical.Transaction{XID: xid, FirstLSN: first, Changes: changes[:len(changes):len(changes)]}
 	return txn
 }
 
 // captureLogicalInitialRowsLocked records CREATE TABLE AS rows as inserts into
 // the new table. view includes the staged relation.
-func (e *Engine) captureLogicalInitialRowsLocked(view catalog.Read, d *catalog.Relation, versions []storage.RowVersion) []logical.Change {
+func (e *Engine) captureLogicalInitialRowsLocked(view catalog.Read, d *catalog.Relation, versions []storage.RowVersion, ref ids.TxRef) []logical.Change {
 	if !e.logicalCaptureLocked() {
 		return nil
 	}
@@ -113,7 +119,8 @@ func (e *Engine) captureLogicalInitialRowsLocked(view catalog.Read, d *catalog.R
 	}
 	changes := make([]logical.Change, len(versions))
 	for i, version := range versions {
-		changes[i] = logical.Change{LSN: e.Cluster.logical.lsn.Allocate(), Kind: logical.Insert, Relation: relation, New: version.Values}
+		changes[i] = *ownLogicalChange(logical.Change{LSN: e.Cluster.logical.lsn.Allocate(), Kind: logical.Insert, Relation: relation, New: version.Values})
+		e.appendLogicalEventLocked(ref, logical.RowEvent, &changes[i])
 	}
 	return changes
 }

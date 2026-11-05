@@ -44,7 +44,7 @@ func TestReferencePGStatReplicationSlotsNoPublication(t *testing.T) {
 			{"SELECT * FROM pg_create_physical_replication_slot('stat_slots_publication_physical')", "stat_slots_publication_physical", false},
 		} {
 			for _, prepared := range []bool{false, true} {
-				if b.PG {
+				if b.PG || tc.logical {
 					executor := fixture.Executor(c)
 					if prepared {
 						held := prefetchHeld(t, p, c, tc.query)
@@ -69,7 +69,7 @@ func TestReferencePGStatReplicationSlotsNoPublication(t *testing.T) {
 					rows.Close()
 					resetReplicationVoid(t, p, b, c, "SELECT pg_drop_replication_slot($1::name)", "pg_drop_replication_slot", tc.name)
 				} else {
-					step := fixture.ErrorDiagnostic(tc.query, replicationSlotsBoundary(tc.logical))
+					step := fixture.ErrorDiagnostic(tc.query, replicationSlotsBoundary())
 					step.Prepared, step.SelectRows, step.ErrorStage = prepared, true, "execute"
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
 				}

@@ -14,13 +14,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Change capture follows the statement's own write order at the staging
-// windows that every INSERT, UPDATE, DELETE, COPY, MERGE, conflict, trigger,
-// rule and cascade route uses. It runs only while the database has a logical
-// slot (slots exist only with wal_level=logical). Captured changes travel with
-// the statement and transaction exactly like NOTIFY events: merged on success,
-// clipped by savepoints and exception blocks, dropped on failure, and
-// published with the commit.
+// Capture owns immutable event evidence at real write staging. Successful
+// effects also follow the existing statement/savepoint publication projection;
+// rollback clips that projection, never the event journal.
 
 // firstNormalObjectID bounds system catalogs, which are never decoded.
 const firstNormalObjectID ids.OID = 16384
@@ -54,7 +50,9 @@ func (s *StatementScope) captureLogicalRow(ref ids.ObjectRef, old, next storage.
 		change.Kind, change.New = logical.Update, next.Values
 		change.OldTuple, change.Old = logicalOldTuple(relation, old.Values, next.Values)
 	}
-	s.logicalChanges = append(s.logicalChanges, change)
+	owned := ownLogicalChange(change)
+	s.appendLogicalEventLocked(logical.RowEvent, owned)
+	s.logicalChanges = append(s.logicalChanges, *owned)
 }
 
 // captureLogicalTruncate records one TRUNCATE of the statement's logged
@@ -77,7 +75,9 @@ func (s *StatementScope) captureLogicalTruncate() {
 		return
 	}
 	change.LSN = e.Cluster.logical.lsn.Allocate()
-	s.logicalChanges = append(s.logicalChanges, change)
+	owned := ownLogicalChange(change)
+	s.appendLogicalEventLocked(logical.RowEvent, owned)
+	s.logicalChanges = append(s.logicalChanges, *owned)
 }
 
 // logicalRelationLocked returns the capture-time snapshot of a logically

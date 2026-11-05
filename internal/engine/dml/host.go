@@ -39,6 +39,9 @@ type Host interface {
 	CaptureForeignPartition(ids.ObjectRef) (*exec.ForeignQuerySource, error)
 	Statement
 	Stage
+	// StageInsertAttempt records the actual immutable insertion before index
+	// rejection. It publishes no table effect; the accepted stage owns that.
+	StageInsertAttempt(ids.ObjectRef, *index.WriteCandidate) error
 	RowLocks
 	Presentation
 	// BeforeRow captures live trigger provenance under synchronization, then
