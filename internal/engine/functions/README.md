@@ -454,6 +454,14 @@ WHERE result.
 Recipes retain only selector, typed children and ordinary routine provenance.
 Installed dependencies and current EXECUTE admission survive scalar folding.
 
+`XML2XPathTable` is the separate five-TEXT, STRICT/STABLE source declaration.
+Operands retain key, document, relation, XPath-list and criteria order and use
+the same canonical argument/coercion hooks. The node owns only typed children
+and its anonymous-record occurrence; it never folds, caches source SQL or borrows
+execution rows. Current installed authority precedes surviving runtime calls;
+NULL operands yield an empty source. Declared FROM definitions supply destination
+types, while nonNULL unresolved target-list calls fail at source opening.
+
 `SSLInfo` is a zero-child installed selector with BOOL, TEXT or NUMERIC result
 usage. It retains neither transport state nor certificates: embedded non-TLS
 sessions yield two false booleans and five typed NULLs. All seven inquiries stay

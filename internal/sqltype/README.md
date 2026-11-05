@@ -185,6 +185,12 @@ admission and removes it before nested binding.
   another rounding policy. `XML2Valid` forwards actual parser warnings through
   `InputEnvironment.XMLInput` and reads that invocation's XML mode; ordinary
   context errors remain ordinary and the core mapper remains independent.
+  `XML2Table` consumes owned, fully materialized source pairs through their
+  genuine OUTPUT hooks and maps private LEGACY nullable strings through every
+  declared destination INPUT/typmod/domain hook, including NULL domain checks.
+  It transfers owned record fields only after successful complete expansion;
+  ordinary cancellation and codec errors remain ordinary. Notice delivery is
+  supplied by the statement adapter and is distinct from XML-input warnings.
   `XMLXPath` checks namespace-array shape before provider work, converts numeric
   scalars through current FLOAT8 output, and accepts each generated element as
   CONTENT independently of session XML input mode. It publishes one owned

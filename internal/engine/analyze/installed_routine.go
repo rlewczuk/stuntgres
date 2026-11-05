@@ -690,6 +690,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return plan.InstalledConnectbyExpr{Connectby: c, Procedure: p, Ref: ref}, nil
 	case functions.TablefuncCrosstab:
 		return r.attachTablefuncCrosstab(c, ref)
+	case functions.XML2XPathTable:
+		return r.attachXML2XPathTable(c, ref)
 	case functions.PgBuffercache:
 		return r.attachPgBuffercache(c, ref)
 	case functions.VerifyHeapam:

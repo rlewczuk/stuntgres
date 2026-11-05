@@ -270,6 +270,13 @@ overwritten strings and later extras are not input-converted. Empty source
 results bypass conditional category/source/result-width checks. Both consumers
 close their cursor on every exit and publish no partial map or tuple collection.
 
+XPath table source opening authenticates its current installed carrier before
+argument evaluation and delegates five TEXT fragments plus the completed record
+usage to the statement contrib runtime. The runtime fully materializes nested
+SQL before calling the sqltype-owned legacy XML/text-I/O bridge, then returns
+only immutable owned tuples. Exec imports no private XML parser and retains no
+SPI authority, XML tree or conversion callback on the prepared node or cursor.
+
 
 
 ## What it owns

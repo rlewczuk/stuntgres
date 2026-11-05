@@ -52,7 +52,10 @@ func TestXML2PreparedOwnership(t *testing.T) {
 		t.Fatal("prepare owner/generation or premature folding")
 	}
 	var procedures [4]*catalog.Procedure
-	for slot, a := range ext.Members {
+	// This prepared query selects the original four scalar declarations.
+	// xpath_table has its own real-definition/publication ownership proof.
+	for slot := range procedures {
+		a := ext.Members[slot]
 		p := view.MustProcedure(a)
 		procedures[slot] = p
 		found := false

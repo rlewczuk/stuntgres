@@ -8,6 +8,19 @@
   dual-mode metadata/diagnostic/lifecycle coverage, complete 28-field builtin
   inventory expectations and durable feature smoke.
 
+- Implement the installed five-TEXT XML2 xpath_table source with genuine
+  STRICT/STABLE SETOF RECORD identity, canonical read/write SPI and eager
+  statement-atomic materialization. Preserve literal path splitting, positional
+  nodeset expansion, RawMemory legacy diagnostics/notices and actual destination
+  text-input/domain behavior. Carry authenticated routine and record identities
+  through prepared ownership, current-name views and detached native replay.
+  Classify unterminated quoted XPath literals in the common scanner without
+  overriding cancellation. Preserve current nested-setting capture and the
+  held catalog-result lifetime fence independently of builtin-codec continuity.
+  Retain tolerated XPath evaluation messages with parser events in invocation
+  order for later compile diagnostics, preserving repeats, nonfatal NULLs,
+  independent-call isolation and ordinary cancellation priority.
+
 - Implement the five installed intarray sort, sort_asc, sort_desc and uniq
   overloads through selected immutable expressions and shared typed arrays.
   Preserve duplicate multiplicity, flat numeric ordering, shape/lower bounds,

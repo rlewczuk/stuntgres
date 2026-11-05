@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 )
 
 type XML2Provider struct{ control catalog.ExtensionControl }
@@ -36,6 +37,21 @@ func (p *XML2Provider) validateRecipe(v catalog.Read, e *catalog.Extension) erro
 		if _, err := ProcedureSymbol(v, proc); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func ValidateXML2XPathTableIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
+	actual, ok := v.Procedure(ref.Address)
+	if v.Owner() == nil || !ok || proc == nil || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || XML2ProviderOf(proc) != StockXML2 {
+		return fmt.Errorf("invalid installed xpath_table identity")
+	}
+	symbol, err := ProcedureSymbol(v, proc)
+	if err != nil {
+		return err
+	}
+	if symbol != "xpath_table" {
+		return fmt.Errorf("invalid installed xpath_table selector")
 	}
 	return nil
 }

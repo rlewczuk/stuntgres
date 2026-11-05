@@ -35,6 +35,7 @@ type Host[A Authority] interface {
 	// ActivateContribRoutineCommand installs an authenticated routine's lexical
 	// command policy. The caller restores it after all nested cursors close.
 	ActivateContribRoutineCommand(*catalog.Procedure) func()
+	ActivateXML2XPathTableCommand(*catalog.Procedure) (func(), error)
 	// Active fails once the statement is finished or its operation is no
 	// longer valid.
 	Active() error

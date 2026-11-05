@@ -86,6 +86,13 @@ destination domain/epoch reference; retag rebinds its procedure and routine
 carrier together. Both renderers use the current qualified SQL name, including
 renamed or detached functions, never a released label as implementation authority.
 
+`ValidateInstalledXML2XPathTable` authenticates the separate five-TEXT source,
+its original sealed routine capture and all anonymous-record leaf generations.
+Reference/remap/retag, stored-provider capture and both SQL renderers preserve
+owned operands, declared FROM definitions and current qualified routine/type
+names through detached/headerless replay. Dynamic source fragments remain TEXT,
+not static relation dependencies; neither renderer executes them.
+
 XML recipes retain modes, whitespace/indent options and document negation through
 rendering and frozen query presentation. Special XMLEXISTS lowers to the ordinary
 qualified routine recipe, with normal function capture and replay; ignored passing

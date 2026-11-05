@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -23,6 +24,36 @@ func (h *statementHost) LeaveNestedSQL()       { h.scope().leaveSQLRoutine() }
 
 func (h *statementHost) ActivateContribRoutineCommand(procedure *catalog.Procedure) func() {
 	return h.scope().activateRoutineCommandPolicy(procedure, false)
+}
+
+// Only the genuine installed xpath_table body uses read/write SPI despite its
+// STABLE declaration. Ordinary routine activations keep volatility-derived policy.
+func (h *statementHost) ActivateXML2XPathTableCommand(procedure *catalog.Procedure) (func(), error) {
+	if err := h.Active(); err != nil {
+		return nil, err
+	}
+	h.ReacquireEngine()
+	auth, err := h.RoutineAuthorizationLocked()
+	if err == nil {
+		var current *catalog.Procedure
+		if procedure != nil {
+			current, _ = auth.Access().Catalog.Procedure(procedure.Address())
+		}
+		if current == nil || extension.XML2ProviderOf(current) != extension.StockXML2 || !exec.SameRoutineDeclaration(current, procedure) {
+			err = fmt.Errorf("invalid xpath_table SPI activation")
+		} else {
+			var symbol string
+			symbol, err = extension.ProcedureSymbol(auth.Access().Catalog, current)
+			if err == nil && symbol != "xpath_table" {
+				err = fmt.Errorf("invalid xpath_table SPI selector")
+			}
+		}
+	}
+	h.ReleaseEngineLocked()
+	if err != nil {
+		return nil, err
+	}
+	return h.scope().activateCommandPolicy(false, false), nil
 }
 
 func (h *statementHost) ParseNestedSQL(ctx context.Context, text string) (catalog.Read, []parser.Statement, error) {

@@ -17,12 +17,13 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	routine, isRoutine := call.(plan.SQLRoutineExpr)
 	connectby, isConnectby := call.(plan.InstalledConnectbyExpr)
 	crosstab, isCrosstab := call.(plan.InstalledTablefuncCrosstabExpr)
+	xpathTable, isXPathTable := call.(plan.InstalledXML2XPathTableExpr)
 	buffercache, isBuffercache := call.(plan.InstalledPgBuffercacheExpr)
 	// Formal-derived tuples already own their shape, despite prorettype RECORD.
 	isRoutine = isRoutine && routine.Procedure.Result == 2249 && !routine.Procedure.RoutineDefinition().DerivedResult()
-	anonymous := (isRecord || isJSONB || isRoutine || isConnectby || isCrosstab || isBuffercache) && call.ResultUsage().Type.ID() == 2249
+	anonymous := (isRecord || isJSONB || isRoutine || isConnectby || isCrosstab || isXPathTable || isBuffercache) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined || (isCrosstab || isBuffercache) && anonymous {
+		if isRecord && anonymous || JSONBRecordUnresolved(call) || isRoutine || isConnectby && !connectby.Defined || (isCrosstab || isXPathTable || isBuffercache) && anonymous {
 			return nil, expr.ErrorAt("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
@@ -53,7 +54,7 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 			return nil, err
 		}
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
-		if isCrosstab || isBuffercache {
+		if isCrosstab || isXPathTable || isBuffercache {
 			// Installed anonymous providers own definition-only type/collation inputs.
 			// Completing another provider's stored occurrence must not add
 			// authority to its already captured routine manifest.
@@ -74,6 +75,12 @@ func (b *Binder) CompleteFunctionDefinitions(raw parser.FunctionExpr, call expr.
 	if isCrosstab {
 		crosstab.Usage = shape.Usage()
 		return crosstab, nil
+	}
+	if isXPathTable {
+		xpathTable.Usage = shape.Usage()
+		xpathTable.Property.DomainDependent = xpathTable.Property.DomainDependent || sqltype.ContainsDomainConstraints(shape)
+		xpathTable.Property.RuntimeDomainConversion = xpathTable.Property.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(shape)
+		return xpathTable, nil
 	}
 	if isBuffercache {
 		buffercache.Usage = shape.Usage()

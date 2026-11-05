@@ -16,6 +16,14 @@ func xml2Display(slot int) catalog.RoutineDisplay {
 	return catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: functions.XML2Members[slot].Name, Binary: "$libdir/pgxml", HasBinary: true}
 }
 
+func xml2Declaration(slot int) catalog.InstalledRoutineDeclaration {
+	d := catalog.InstalledRoutineDeclaration{Parallel: 's'}
+	if functions.XML2Members[slot].Name == "xpath_table" {
+		d.ReturnsSet, d.Rows = true, 1000
+	}
+	return d
+}
+
 // Context is released script provenance, independent of the current base version.
 func xml2CollisionContext(slot int) string {
 	switch slot {
@@ -25,6 +33,8 @@ func xml2CollisionContext(slot int) string {
 		return "SQL statement \"CREATE FUNCTION xpath_string(text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 19"
 	case 2:
 		return "SQL statement \"CREATE FUNCTION xpath_number(text,text) RETURNS real\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 24"
+	case 4:
+		return "SQL statement \"CREATE FUNCTION xpath_table(text,text,text,text,text)\nRETURNS setof record\nAS '$libdir/pgxml'\nLANGUAGE C STRICT STABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 57"
 	default:
 		return "SQL statement \"CREATE FUNCTION xpath_bool(text,text) RETURNS boolean\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 29"
 	}
@@ -41,7 +51,7 @@ func (p *XML2Provider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: m.Name, Signature: catalog.ProcedureSignature(m.Signature), Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: ids.OID(m.Result), Volatility: m.Volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 's'}, Display: xml2Display(slot), Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: m.Name, Signature: catalog.ProcedureSignature(m.Signature), Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: ids.OID(m.Result), Volatility: m.Volatility, Strict: true, Installed: xml2Declaration(slot), Display: xml2Display(slot), Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name()), Context: xml2CollisionContext(slot)}
 		}

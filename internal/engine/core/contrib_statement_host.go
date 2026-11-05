@@ -288,6 +288,14 @@ func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrossta
 	return contrib.ValidateTablefuncCrosstab[AuthorizationView](h.host(), n)
 }
 
+func (h *contribHost) XML2XPathTable(args [5]string, result *sqltype.Descriptor, procedure *catalog.Procedure) ([]sqltype.Value, error) {
+	return contrib.XML2XPathTable[AuthorizationView](h.host(), args, result, procedure)
+}
+
+func (h *contribHost) ValidateXML2XPathTable(n plan.InstalledXML2XPathTableExpr) error {
+	return contrib.ValidateXML2XPathTable[AuthorizationView](h.host(), n)
+}
+
 func (h *contribHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	return contrib.VerifyHeapam[AuthorizationView](h.host(), args, result)
 }

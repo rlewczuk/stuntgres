@@ -1253,6 +1253,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing pg_buffercache eviction namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
+	case plan.InstalledXML2XPathTableExpr:
+		if err := ValidateInstalledXML2XPathTable(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Procedure.Address())
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("missing xpath_table namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledPgBuffercacheExpr:
 		if err := ValidateInstalledPgBuffercache(n, r.View); err != nil {
 			return "", err

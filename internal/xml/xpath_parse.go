@@ -94,7 +94,7 @@ func (p *xpathParser) next() {
 			p.i++
 		}
 		if p.i == len(p.s) {
-			p.fail()
+			p.err = &XPathError{Stage: "compile", Detail: "Unfinished literal"}
 			return
 		}
 		p.token = xpathToken{"literal", p.s[start:p.i]}

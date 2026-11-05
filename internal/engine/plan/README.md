@@ -271,6 +271,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   TEXT children through rebuild, retag, substitution, grouping and stored
   rendering. Its shared scalar protocols retain current validation mode for the
   STABLE operation and authentic callable dependencies for immutable folds.
+  `InstalledXML2XPathTableExpr` separately owns five TEXT operands and a
+  destination record occurrence. Reconstruction, source/group matching and its
+  distinct statement tag preserve exact selected procedure/reference, child
+  occurrences and record usage without retaining SQL, rows or execution grants.
   `InstalledPgsurgeryExpr` retains its genuine freeze procedure/reference and
   lexical formal slots through rebuild, substitution and occurrence matching.
   VOID results never fold into a cached repair or grant; stored transport remaps

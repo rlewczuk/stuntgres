@@ -19,6 +19,7 @@ var XML2Members = [...]XML2Member{
 	{"xpath_string", "25,25", sqltype.Text, expr.Immutable},
 	{"xpath_number", "25,25", sqltype.Float4, expr.Immutable},
 	{"xpath_bool", "25,25", sqltype.Bool, expr.Immutable},
+	{"xpath_table", "25,25,25,25,25", 2249, expr.Stable},
 }
 
 func XML2Lookup(name string) (XML2Member, bool) {
@@ -43,7 +44,7 @@ func (n XML2) Validate() error {
 	if n.Name == "xml_valid" {
 		count = 1
 	}
-	if !ok || !n.Usage.Valid() || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != m.Result || len(n.Args) != count {
+	if !ok || n.Name == "xpath_table" || !n.Usage.Valid() || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != m.Result || len(n.Args) != count {
 		return fmt.Errorf("invalid xml2 signature")
 	}
 	for _, a := range n.Args {

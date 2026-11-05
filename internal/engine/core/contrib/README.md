@@ -21,7 +21,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 
 - `Amcheck`, `VerifyHeapam`, `Pageinspect`, `PageinspectHeap`, `Pgrowlocks`,
   `PgstattupleStats` (pgstatindex, pgstathashindex, pgstatginindex), `Pgstattuple`, `Pgvisibility`,
-  `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert`, `DblinkBuildSQLUpdate`, `DblinkGetPkey`, `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
+  `DblinkBuildSQLDelete`, `DblinkBuildSQLInsert`, `DblinkBuildSQLUpdate`, `DblinkGetPkey`, `TablefuncCrosstab`, `XML2XPathTable`, `Connectby`, `GenericFileList`, `GenericFileRead` and
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
   authority before argument evaluation.
@@ -138,6 +138,20 @@ relation name. Formatting includes all live columns and first-occurrence target
 replacements with ordinary typed output quoting. UPDATE uses target keys for both
 SET replacements and WHERE predicates, preserving every vector occurrence in WHERE;
 source keys are used only to select the local row.
+
+### XPath table SPI
+
+`XML2XPathTable` constructs the released SELECT verbatim and uses canonical
+parse/prepare/execute with a fresh command view. Its bounded authenticated host
+activation admits read/write SPI while leaving genuine STABLE metadata and
+ordinary routine policy unchanged. Each command drains/closes before the next;
+the final command must be SELECT with exactly two columns, including empty
+results. Owned source cells are completely materialized before OUTPUT/XML/INPUT,
+so late source failures take precedence. XML/type/shape errors do not acquire a
+fabricated SQL context. Notices use NOTICE delivery, not XML-input warnings.
+All effects remain in the outer statement journal until successful publication;
+every exit restores the previous lexical command policy and borrowed environment.
+
 
 
 ### pgstattuple

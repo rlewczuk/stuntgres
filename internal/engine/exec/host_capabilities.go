@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/functions"
@@ -36,6 +37,8 @@ type ContribRuntime interface {
 	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
 	TablefuncCrosstab(text, categories string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
+	XML2XPathTable(args [5]string, result *sqltype.Descriptor, procedure *catalog.Procedure) ([]sqltype.Value, error)
+	ValidateXML2XPathTable(plan.InstalledXML2XPathTableExpr) error
 	PgBuffercache(result *sqltype.Descriptor) (expr.SourceCursor, error)
 	PgBuffercacheEviction(n plan.InstalledPgBuffercacheEvictionExpr, input int64) ([3]int64, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)

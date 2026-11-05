@@ -1010,6 +1010,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledTablefuncCrosstab(n, view)
 		rebound = n
+	case plan.InstalledXML2XPathTableExpr:
+		n.Args = append([]expr.Expr(nil), n.Args...)
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("missing remapped xpath_table function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledXML2XPathTable(n, view)
+		rebound = n
 	case plan.InstalledPgBuffercacheExpr:
 		proc, ok := originalProcedure(n.Procedure)
 		if !ok {

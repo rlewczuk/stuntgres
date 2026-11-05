@@ -39,7 +39,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 	e, ext := xml2UnitInstalled(t)
 	v := e.CatalogRead()
 	control := extension.StockXML2.Control()
-	if control.Version != "1.2" || control.Trusted || !control.Superuser || control.Relocatable || control.Comment == nil || *control.Comment != "XPath querying and XSLT" || len(ext.Members) != 4 {
+	if control.Version != "1.2" || control.Trusted || !control.Superuser || control.Relocatable || control.Comment == nil || *control.Comment != "XPath querying and XSLT" || len(ext.Members) != 5 {
 		t.Fatal("release control", control, ext)
 	}
 	versions := extension.StockXML2.Versions()
@@ -50,18 +50,23 @@ func TestXML2ProviderIdentity(t *testing.T) {
 	if extension.StockXML2.Versions().Bases[0] != "1.2" {
 		t.Fatal("borrowed version backing")
 	}
-	names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool"}
-	results := []ids.OID{16, 25, 700, 16}
+	names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool", "xpath_table"}
+	results := []ids.OID{16, 25, 700, 16, 2249}
 	for slot, address := range ext.Members {
 		p := v.MustProcedure(address)
 		signature, volatility := "25,25", expr.Immutable
 		display := catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: names[slot], Binary: "$libdir/pgxml", HasBinary: true}
+		declaration := catalog.InstalledRoutineDeclaration{Parallel: 's'}
+		if slot == 4 {
+			signature, volatility = "25,25,25,25,25", expr.Stable
+			declaration.ReturnsSet, declaration.Rows = true, 1000
+		}
 		if slot == 0 {
 			signature = "25"
 			volatility = expr.Stable
 			display = catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "xml_is_well_formed"}
 		}
-		if p.Name() != names[slot] || p.Signature != catalog.ProcedureSignature(signature) || p.Result != results[slot] || p.Volatility != volatility || !p.Strict || p.RoutineKind != catalog.FunctionRoutine || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || p.Display != display || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace || p.Origin.Declaration != slot || p.Origin.Installation != ext.Installation {
+		if p.Name() != names[slot] || p.Signature != catalog.ProcedureSignature(signature) || p.Result != results[slot] || p.Volatility != volatility || !p.Strict || p.RoutineKind != catalog.FunctionRoutine || p.Installed != declaration || p.Display != display || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace || p.Origin.Declaration != slot || p.Origin.Installation != ext.Installation {
 			t.Fatal("released declaration", slot, p)
 		}
 		if symbol, err := extension.ProcedureSymbol(v, p); err != nil || symbol != names[slot] {
@@ -74,7 +79,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 	if err := extension.StockXML2.ValidateExtension(v, ext); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"xpath_nodeset", "xpath_list", "xpath_table", "xslt_process", "xml_encode_special_chars"} {
+	for _, name := range []string{"xpath_nodeset", "xpath_list", "xslt_process", "xml_encode_special_chars"} {
 		for p := range catalog.DefinitionProceduresNamedAt(v, nil, ext.TargetNamespace, name) {
 			t.Fatal("adjacent function", p)
 		}
@@ -103,8 +108,29 @@ func TestXML2ProviderIdentity(t *testing.T) {
 			t.Fatal("forged provider accepted", bad)
 		}
 	}
-	// Real Stage rollback: a late collision occurs after three private creates.
-	for _, slot := range []int{0, 3} {
+	table := v.MustProcedure(ext.Members[4])
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.Installed.ReturnsSet = false },
+		func(p *catalog.Procedure) { p.Installed.Rows = 0 },
+		func(p *catalog.Procedure) { p.Installed.Rows = 1001 },
+		func(p *catalog.Procedure) { p.Installed.Defaults = 1 },
+		func(p *catalog.Procedure) { p.Installed.ArgumentNames[0] = "key" },
+		func(p *catalog.Procedure) { p.Volatility = expr.Volatile },
+		func(p *catalog.Procedure) { p.Signature = "25,25,25,25" },
+		func(p *catalog.Procedure) { p.Result = 25 },
+		func(p *catalog.Procedure) { p.Strict = false },
+		func(p *catalog.Procedure) { p.Installed.Parallel = 'r' },
+	} {
+		bad := *table
+		mutate(&bad)
+		state := catalog.CloneState(v.State())
+		state.SetDescriptor(bad.Address(), &bad)
+		if err := extension.StockXML2.ValidateProcedure(v.WithState(state), &bad); err == nil {
+			t.Fatal("forged table declaration accepted", bad)
+		}
+	}
+	// Real Stage rollback includes the fifth member after four private creates.
+	for _, slot := range []int{0, 3, 4} {
 		base := catalog.CloneState(v.State())
 		for i, a := range ext.Members {
 			if i != slot {
@@ -121,7 +147,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "function \""+names[slot]+"\" already exists with same argument types" || !strings.HasSuffix(diagnostic.Context, map[int]string{0: "extension script file \"xml2--1.1.sql\", near line 9", 3: "extension script file \"xml2--1.1.sql\", near line 29"}[slot]) {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "function \""+names[slot]+"\" already exists with same argument types" || !strings.HasSuffix(diagnostic.Context, map[int]string{0: "extension script file \"xml2--1.1.sql\", near line 9", 3: "extension script file \"xml2--1.1.sql\", near line 29", 4: "extension script file \"xml2--1.1.sql\", near line 57"}[slot]) {
 			t.Fatal("released collision", slot, err)
 		}
 		if e.Catalog.State != before || before.Get(original.Address()) != original || before.Get(ext.Address()) != ext {

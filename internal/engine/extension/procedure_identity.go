@@ -170,7 +170,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 		m := functions.XML2Members[slot]
 		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), ids.OID(m.Result), m.Volatility
-		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || p.Display != xml2Display(slot) {
+		if p.Installed != xml2Declaration(slot) || p.Display != xml2Display(slot) {
 			return invalid()
 		}
 	case StockSSLInfo:

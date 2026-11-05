@@ -47,20 +47,25 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 				source.State.BindName(catalog.DescriptorNameKey(ns), namespace)
 			}
 			ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 50000}, ObjectRevision: 1, ObjectName: "xml2", Version: "1.2", Owner: source.Bootstrap, TargetNamespace: namespace}
-			names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool"}
-			results := []ids.OID{16, 25, 700, 16}
+			names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool", "xpath_table"}
+			results := []ids.OID{16, 25, 700, 16, 2249}
 			var members []ids.ObjectAddress
 			var declarations []catalog.Descriptor
 			for slot, name := range names {
 				a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 50001 + ids.OID(slot)}
 				signature, volatility := "25,25", expr.Immutable
 				display := catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pgxml", HasBinary: true}
+				installed := catalog.InstalledRoutineDeclaration{Parallel: 's'}
+				if slot == 4 {
+					signature, volatility = "25,25,25,25,25", expr.Stable
+					installed.ReturnsSet, installed.Rows = true, 1000
+				}
 				if slot == 0 {
 					signature = "25"
 					volatility = expr.Stable
 					display = catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "xml_is_well_formed"}
 				}
-				declarations = append(declarations, &catalog.Procedure{ObjectAddress: a, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name, Extension: ext.Address(), Owner: source.Bootstrap, Signature: catalog.ProcedureSignature(signature), Result: results[slot], RoutineKind: catalog.FunctionRoutine, Volatility: volatility, Strict: true, Installed: catalog.InstalledRoutineDeclaration{Parallel: 's'}, Display: display, Implementation: extension.StockXML2})
+				declarations = append(declarations, &catalog.Procedure{ObjectAddress: a, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name, Extension: ext.Address(), Owner: source.Bootstrap, Signature: catalog.ProcedureSignature(signature), Result: results[slot], RoutineKind: catalog.FunctionRoutine, Volatility: volatility, Strict: true, Installed: installed, Display: display, Implementation: extension.StockXML2})
 				members = append(members, a)
 			}
 			recipe := catalog.NewInstallation(ext.Address(), "xml2", "1.2", extension.StockXML2, members)

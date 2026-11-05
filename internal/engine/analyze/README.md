@@ -230,6 +230,12 @@ captured routine manifest during stored-occurrence completion. Fixed wrappers
 retain their actual named composite and reject redundant definitions; set
 placement remains the common source/target-list admission.
 
+Installed XPath table binding follows the same authenticated source admission
+and shared record completion. It requires FROM definitions even for literal
+NULL calls and captures every declared member type/collation and input
+dependency. Its five TEXT operands retain written order; dynamic relation/key/
+document/criteria SQL is deliberately not bound or authorized ahead of execution.
+
 Installed hstore array and JSON conversions use ordinary selected unary formals
 and coercion. Binding retains genuine routine dependency/revision, result
 generation and frozen provider syntax; relabelled calls dispatch by checked

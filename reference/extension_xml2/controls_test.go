@@ -30,7 +30,7 @@ func xml2IDs(t *testing.T, p *fixture.Pair, c *sql.Conn) []int64 {
 		seen[id] = true
 		ids = append(ids, id)
 	}
-	if rows.Err() != nil || len(ids) != 4 {
+	if rows.Err() != nil || len(ids) != 5 {
 		t.Fatal("selected identities", ids, rows.Err())
 	}
 	return ids

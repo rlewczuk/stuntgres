@@ -43,6 +43,15 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 					return true, nil
 				}
 			}
+			if ok && extension.XML2ProviderOf(procedure) == extension.StockXML2 {
+				symbol, err := extension.ProcedureSymbol(read, procedure)
+				if err != nil {
+					return false, err
+				}
+				if symbol == "xpath_table" {
+					return true, nil
+				}
+			}
 			if ok && extension.PgsurgeryProviderOf(procedure) == extension.StockPgsurgery {
 				return true, nil
 			}

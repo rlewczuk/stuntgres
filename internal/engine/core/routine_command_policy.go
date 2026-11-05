@@ -23,9 +23,13 @@ type routineCommandPolicy struct {
 }
 
 func (s *StatementScope) activateRoutineCommandPolicy(d *catalog.Procedure, constantPlanning bool) func() {
+	return s.activateCommandPolicy(d.Volatility != expr.Volatile, constantPlanning)
+}
+
+func (s *StatementScope) activateCommandPolicy(readOnly, constantPlanning bool) func() {
 	previous := s.sqlRoutine.policy
 	ref := s.TxRef
-	policy := routineCommandPolicy{active: true, readOnly: d.Volatility != expr.Volatile, writes: s.OwnWrites, deletes: s.OwnDeletes}
+	policy := routineCommandPolicy{active: true, readOnly: readOnly, writes: s.OwnWrites, deletes: s.OwnDeletes}
 	if s.View != nil {
 		policy.base = s.View.Load()
 	} else if constantPlanning && policy.readOnly && previous.active {

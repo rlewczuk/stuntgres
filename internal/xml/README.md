@@ -30,6 +30,21 @@ maps NaN to NULL. Ordinary cancellation, size and invariant errors propagate.
 `ValidateText` instead returns ordinary Text/current-mode validation with its
 genuine warnings. Neither bridge changes core validation or retains a tree.
 
+`LegacyXPathTable` uses the same private RawMemory DOCUMENT policy but owns one
+ordered diagnostic-text accumulator for all source documents. Parser events and
+nonempty tolerated evaluation diagnostics retain actual order and repetitions,
+including terminal evaluation; a later compile error joins that prior text.
+Empty evaluation markers add no message or separator. Evaluation remains
+nonfatal and notice-free; cancellation takes priority before retention/clearing.
+Literal pipe splitting consumes only the declared path width. Documents parse
+before compilation; nodesets zip by row index. Strings repeat without driving
+rows; number/boolean
+results emit ordered notices even on the exhausted iteration. NULL/unusable
+documents emit one all-NULL marker. Only nullable owned strings cross the bridge;
+the callback row is borrowed until return. Trees, path frames and mutable event
+buffers never escape or cross concurrent invocations. Destination type input and
+statement publication belong to the engine, not this parser.
+
 XPath compilation retains immutable syntax only. Invocation-private frames
 project seven node kinds with stable owner/namespace identity, document order,
 all axes and axis-ordered predicates. Namespace axes retain explicit empty default
@@ -45,6 +60,9 @@ cancellation and checked buffer growth and retains
 no tree, context or scratch in `Result` or compiled expressions. `XPathError`
 distinguishes empty, compilation and evaluation failures; `XPathContextError`
 retains the strict XML parser diagnostic separately from XML input failures.
+The common scanner distinguishes EOF inside either quoted literal as
+`Unfinished literal`, rather than a generic grammar failure; ordinary context
+cancellation during scanning keeps priority over compile diagnostics.
 
 `XPath` uses that same complete evaluator for scalar `xpath`/`xpath_exists`
 invocations. Namespace pairs register only after strict document projection;
@@ -646,9 +664,9 @@ source-derived, not fresh observations. Typed declaration eligibility, output
 warnings and DOCUMENT/CONTENT BOM boundaries have independent actual
 typed-text/binary-send observations, distinct from raw character casts.
 
-Legacy scalar policy, stage projection and invocation isolation use the reusable
-`RUN='^TestXML2'` family, including real parser/decoder/compiler/evaluator
-cancellation and strict-core contrasts.
+Legacy scalar/table policy, stage projection and invocation isolation use the
+reusable `RUN='^(TestXML2|TestLegacyXPathTable)'` family, including real
+parser/decoder/compiler/evaluator cancellation and strict-core contrasts.
 
 XMLTABLE invocation, namespace, node-output and cancellation units use
 `RUN='^TestXMLTableProvider$'`.

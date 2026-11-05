@@ -25,6 +25,12 @@ func xml2InstallationCollisions(t *testing.T) {
 			call:  "SELECT xpath_bool('<r/>','/missing') AS original", source: "SELECT true", value: true,
 			context: "SQL statement \"CREATE FUNCTION xpath_bool(text,text) RETURNS boolean\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 29",
 		},
+		{
+			name: "xpath_table", args: "25 25 25 25 25",
+			setup: "CREATE FUNCTION xpath_table(text,text,text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
+			call:  "SELECT xpath_table('id','doc','xt_src','/doc/a','true') AS original", source: "SELECT false", value: false,
+			context: "SQL statement \"CREATE FUNCTION xpath_table(text,text,text,text,text)\nRETURNS setof record\nAS '$libdir/pgxml'\nLANGUAGE C STRICT STABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 57",
+		},
 	} {
 		t.Run("collision_"+tc.name, func(t *testing.T) {
 			xml2Case(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
