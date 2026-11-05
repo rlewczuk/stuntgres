@@ -9,8 +9,8 @@ import (
 )
 
 // SepgsqlAttributePostAlter consumes the actual stable attribute number emitted
-// by a supported semantic owner. A dropped attribute remains a genuine pg_attribute
-// tombstone for the released index-storage propagation call; it is not labelable.
+// by a supported semantic owner. Dropped attributes retain genuine catalog
+// identity and share the catalog's tombstone naming authority.
 func (v View) SepgsqlAttributePostAlter(relation *catalog.Relation, address ids.ObjectAddress) error {
 	return v.sepgsqlAttributeDemand(relation, address, sepgsql.Setattr)
 }
@@ -39,10 +39,7 @@ func (v View) sepgsqlAttributeDemand(relation *catalog.Relation, address ids.Obj
 	}
 	name := catalog.SepgsqlAttributeName(relation, address.SubID)
 	if name == "" {
-		if _, exists := relation.ColumnMeta.Dropped[address.SubID]; !exists {
-			return sqlError("XX000", fmt.Sprintf("cache lookup failed for attribute %d of relation %d", address.SubID, uint32(parent.ObjectID)))
-		}
-		name = fmt.Sprintf("........pg.dropped.%d........", address.SubID)
+		return sqlError("XX000", fmt.Sprintf("cache lookup failed for attribute %d of relation %d", address.SubID, uint32(parent.ObjectID)))
 	}
 	identity := catalog.SepgsqlObjectKey(v.Catalog, relation, 0) + "." + catalog.DependencyIdentifier(name)
 	if _, err = v.SepgsqlDecision(v.SepgsqlContext(address), "db_column", identity, mask, true); err != nil {

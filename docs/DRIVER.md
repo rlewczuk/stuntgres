@@ -965,11 +965,21 @@ classes and backslash escapes; `*` spans name separators. Within brackets an
 escaped hyphen is literal: `[a\-z]` matches `a`, `-`, or `z`, not `b`, whereas
 `[a-z]` remains a range. Negated classes retain the corresponding complement.
 
-Public `sepgsql_restorecon` first checks the current SQL superuser, then the
-registered profile. It restores all actual shared database labels using each
-database's own name, plus local objects in the current database, through one
-atomic publication. Peer databases' local objects are not traversed; private
-startup labeling and native-control consent retain their selected-database scope.
+Public `sepgsql_restorecon(text)` is nonstrict: NULL selects the default profile;
+every non-NULL string (including empty) names an exact registered profile, never
+a host filename. It first checks the current SQL superuser, then the profile.
+One atomic publication follows five phases: all shared databases (each using
+its own quoted name), current-database namespaces, supported relations, table
+attributes, then routines. Attributes include the six system columns and genuine
+dropped-column tombstones at their original positive attribute numbers; dropped
+names remain unavailable to ordinary SQL column resolution. Routine matching
+keys omit argument signatures without collapsing their distinct identities.
+Matched objects require old-label `setattr|relabelfrom` and new-label `relabelto`;
+SQL superuser does not bypass policy. Unmatched objects warn and retain their
+exact association, including absence. Warnings survive catalog rollback, while
+labels obey transactions/savepoints and failed invocations publish no partial
+changes. Peer databases' local objects are not traversed; private startup labeling
+retains its selected-database scope.
 
 Enforcing simulation rejects `LOAD`. Permissive simulation still requires
 ordinary SQL library authorization: the registered `$libdir/sepgsql` selection
@@ -981,12 +991,18 @@ Labels are transaction/savepoint-aware catalog state, not COMMENT data or a
 mutable side map. NULL removes an association; missing labels use the configured
 UnlabeledContext. Dump carries the selected database's real label SQL and a policy
 ID/version requirement; it does not export peer databases' shared labels or local
-objects. Restore requires a compatible destination registration and preserves
-explicit imported labels for the selected database. Reset reconstructs configured
-bootstrap labels without reviving dropped SQL declarations. Both controls retain
-the destination's existing peer database labels, including absent associations,
-and peer-local data. Native controls retain the admitted target physical session's
-simulated subject without holding a borrowed connection across I/O.
+objects. Genuine dropped-column labels use narrow typed requirement records
+(schema, relation, positive attribute number, label), not impossible dropped-name
+SQL. Restore resolves those records only after genuine attribute-history replay,
+rejecting malformed, duplicate, live, missing or incompatible targets/contexts.
+Ordinary SQL comments cannot import labels. Destination transfer consent checks
+both sides of every participating tombstone, including an absent association's
+effective UnlabeledContext. Restore requires a compatible registration and
+preserves explicit imported labels for the selected database. Reset reconstructs
+configured bootstrap labels without reviving dropped SQL declarations. Both
+controls retain destination peer database labels (including absence) and
+peer-local data, and retain the admitted target physical session's simulated
+subject without holding a borrowed connection across I/O.
 
 With simulation installed, isolated Restore initialization records ordinary SQL
 admission against its real private stage and one bound replay session, not a live

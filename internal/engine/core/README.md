@@ -1084,14 +1084,18 @@ in `schemacmds`, including cross-database tablespace grant/wait projection.
 Public simulated `sepgsql_restorecon` checks the current SQL actor's superuser
 authority before looking up the immutable virtual profile. It selects every
 actual shared database descriptor and only the current root's local objects.
-Two filtered passes over that same selection visit databases first, using each
-database's own quoted key, then local objects; all permissions and predecessors
-belong to one stage and one atomic publication. Denial, cancellation or stale
+Restore-only target collection orders five global phases: databases, namespaces,
+supported whole relations, table attributes, then procedures. Table attributes
+include genuine positive dropped metadata and the six negative system attributes,
+without manufacturing live columns or broadening private seed initialization.
+Each database uses its own quoted key; all permissions and predecessors belong
+to one stage and one atomic publication. Denial, cancellation or stale
 role/root/label authority publishes none of the requested associations.
-Private startup seed labels and both sides of native replacement consent retain
-their current-database-only scope and the existing sorted-union ordering.
-`TestSepgsqlSimulationRestoreconScopeAndOrder`, `SeedAndControlScope` and
-`PublicationFences` cover these actual owners; the dedicated reference
+Native replacement retains its selected-database sorted-union ordering, adding
+only tombstones participating in an actual old/new association and each genuine
+opposite-side identity, including effective-unlabeled consent.
+`TestSepgsqlSimulationRestoreconScopeAndOrder`, `SeedAndControlScope`,
+`DroppedColumns` and `PublicationFences` cover these actual owners; the dedicated reference
 restorecon scenarios cover direct/prepared two-root visibility, peer-local
 privacy and privilege/profile diagnostics without claiming active SELinux parity.
 

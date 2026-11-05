@@ -60,6 +60,17 @@ determinism, full authority validation and cancellation. The reference
 post-peer image through Reset/Restore against unchanged, changed and absent
 destination peer associations, observing both roots directly and prepared.
 
+Genuine dropped-column associations travel in the existing typed simulation
+requirement, as schema/relation/positive-attnum/context records. They never emit
+unresolvable `SECURITY LABEL ON COLUMN` SQL or source OIDs. The strict decoder
+rejects unknown/duplicate/null fields, invalid identities and duplicate targets;
+policy validation rejects undeclared contexts. Finish resolves only actual
+destination tombstones after attribute-history reconstruction and publishes
+through the existing private CatalogStage. Public SQL comments grant no import
+authority; final destination old/new transfer consent remains independent,
+including effective-unlabeled opposite-side tombstones. Ordinary images without
+these optional records remain valid.
+
 Partition constraint replay keeps one declaration/membership/name/data graph.
 Foreign tables contribute declaration and hierarchy-completion events, never
 physical row events. Foreign partition membership uses the same compact
@@ -1177,6 +1188,9 @@ units use `RUN='^TestTriggerDeferred'`.
 Installation scheduling and ordinary scripted-consumer retirement units use
 `RUN='^Test(InstallationReplay|PgStatStatementsInstallationReplay)'`; public
 replacement behavior remains in the shared reference scenarios.
+Typed simulation requirement and private retired-column finish ownership use
+`RUN='^Test(SepgsqlRetiredColumnMetadata|RestoreSepgsqlRetiredColumns)$'`, also
+with `RACE=1`; public SQL/control outcomes stay in the shared reference family.
 
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public

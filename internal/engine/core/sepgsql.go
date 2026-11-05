@@ -61,7 +61,7 @@ func (e *Engine) InitializeSepgsqlSeedLabels() {
 	}
 	read := e.Catalog.Current()
 	var next *catalog.State
-	for _, target := range sepgsqlTargets(read, false) {
+	for _, target := range sepgsqlTargets(read, false, false) {
 		object := target
 		object.SubID = 0
 		d := read.Get(object)
@@ -78,7 +78,7 @@ func (e *Engine) InitializeSepgsqlSeedLabels() {
 		e.Catalog.State = next
 	}
 }
-func sepgsqlTargets(view catalog.Read, includePeerDatabases bool) []ids.ObjectAddress {
+func sepgsqlTargets(view catalog.Read, includePeerDatabases, restore bool) []ids.ObjectAddress {
 	var targets []ids.ObjectAddress
 	for address, d := range view.Descriptors() {
 		if catalog.SepgsqlClass(d, 0) == "" {
@@ -94,14 +94,44 @@ func sepgsqlTargets(view catalog.Read, includePeerDatabases bool) []ids.ObjectAd
 				column.SubID = sub
 				targets = append(targets, column)
 			}
+			if restore {
+				for sub := range relation.ColumnMeta.Dropped {
+					if sub > 0 && relation.IndexForAttribute(sub) < 0 && catalog.SepgsqlAttributeName(relation, sub) != "" {
+						column := address
+						column.SubID = sub
+						targets = append(targets, column)
+					}
+				}
+			}
 		}
 	}
 	slices.SortFunc(targets, func(a, b ids.ObjectAddress) int {
-		if a.ClassID < b.ClassID {
-			return -1
-		}
-		if a.ClassID > b.ClassID {
-			return 1
+		if restore {
+			phase := func(address ids.ObjectAddress) int {
+				switch address.ClassID {
+				case ids.DatabaseClassID:
+					return 0
+				case ids.NamespaceClassID:
+					return 1
+				case ids.RelationClassID:
+					if address.SubID == 0 {
+						return 2
+					}
+					return 3
+				default:
+					return 4
+				}
+			}
+			if rankA, rankB := phase(a), phase(b); rankA != rankB {
+				return rankA - rankB
+			}
+		} else {
+			if a.ClassID < b.ClassID {
+				return -1
+			}
+			if a.ClassID > b.ClassID {
+				return 1
+			}
 		}
 		if a.ObjectID < b.ObjectID {
 			return -1
@@ -230,32 +260,22 @@ func (s *StatementScope) invokeSepgsql(d *catalog.Procedure, frame *proc.Frame, 
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
 			stage.AuthorizeLocked(auth, op.Session)
-			targets := sepgsqlTargets(auth.Catalog, true)
-			// Released restorecon visits shared databases before local catalogs.
-			// Both passes retain the same actual targets and one atomic stage.
-			for _, databases := range [...]bool{true, false} {
-				for _, target := range targets {
-					if (target.ClassID == ids.DatabaseClassID) != databases {
-						continue
-					}
-					if err = op.Context().Err(); err != nil {
-						break
-					}
-					object := target
-					object.SubID = 0
-					descriptor := auth.Catalog.Get(object)
-					class := catalog.SepgsqlClass(descriptor, target.SubID)
-					key := catalog.SepgsqlObjectKey(auth.Catalog, descriptor, target.SubID)
-					label, matched := policy.InitialLabel(profile, class, key)
-					if !matched {
-						op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf("SELinux: no initial label assigned for %s (type=%d), skipping", key, sepgsql.ClassNumber(class))})
-						continue
-					}
-					if err = StageSepgsqlRelabel(auth, stage, target, label, false); err != nil {
-						break
-					}
+			// One atomic stage, ordered by the five released catalog phases.
+			for _, target := range sepgsqlTargets(auth.Catalog, true, true) {
+				if err = op.Context().Err(); err != nil {
+					break
 				}
-				if err != nil {
+				object := target
+				object.SubID = 0
+				descriptor := auth.Catalog.Get(object)
+				class := catalog.SepgsqlClass(descriptor, target.SubID)
+				key := catalog.SepgsqlObjectKey(auth.Catalog, descriptor, target.SubID)
+				label, matched := policy.InitialLabel(profile, class, key)
+				if !matched {
+					op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf("SELinux: no initial label assigned for %s (type=%d), skipping", key, sepgsql.ClassNumber(class))})
+					continue
+				}
+				if err = StageSepgsqlRelabel(auth, stage, target, label, false); err != nil {
 					break
 				}
 			}

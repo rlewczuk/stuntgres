@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -117,7 +118,7 @@ func (e *Engine) checkControlSepgsqlLocked(ctx context.Context, next *catalog.St
 		return nil
 	}
 	oldView, newView := e.Catalog.Current(), e.Catalog.Read(next)
-	oldTargets, newTargets := sepgsqlTargets(oldView, false), sepgsqlTargets(newView, false)
+	oldTargets, newTargets := sepgsqlTargets(oldView, false, false), sepgsqlTargets(newView, false, false)
 	compare := func(a, b ids.ObjectAddress) int {
 		if a.ClassID < b.ClassID {
 			return -1
@@ -138,6 +139,46 @@ func (e *Engine) checkControlSepgsqlLocked(ctx context.Context, next *catalog.St
 			return 1
 		}
 		return 0
+	}
+	// A newly labelable tombstone participates only when an actual association
+	// on either side requires transfer. Include its genuine opposite identity
+	// even without a label, so effective UnlabeledContext still needs consent.
+	var retired map[ids.ObjectAddress]struct{}
+	for _, view := range [...]catalog.Read{oldView, newView} {
+		for key := range view.State().SecurityLabels() {
+			if key.Provider != "selinux" || key.Object.SubID <= 0 {
+				continue
+			}
+			object := key.Object
+			object.SubID = 0
+			relation, ok := view.Relation(object)
+			if !ok || relation.IndexForAttribute(key.Object.SubID) >= 0 || catalog.SepgsqlClass(relation, key.Object.SubID) != "db_column" {
+				continue
+			}
+			if retired == nil {
+				retired = make(map[ids.ObjectAddress]struct{})
+			}
+			retired[key.Object] = struct{}{}
+		}
+	}
+	for address := range retired {
+		object := address
+		object.SubID = 0
+		for i, view := range [...]catalog.Read{oldView, newView} {
+			relation, ok := view.Relation(object)
+			if !ok || relation.IndexForAttribute(address.SubID) >= 0 || catalog.SepgsqlClass(relation, address.SubID) != "db_column" {
+				continue
+			}
+			if i == 0 {
+				oldTargets = append(oldTargets, address)
+			} else {
+				newTargets = append(newTargets, address)
+			}
+		}
+	}
+	if len(retired) != 0 {
+		slices.SortFunc(oldTargets, compare)
+		slices.SortFunc(newTargets, compare)
 	}
 	// Walk the canonical actual target union, not just stored label rows:
 	// absent associations still carry UnlabeledContext and require consent.

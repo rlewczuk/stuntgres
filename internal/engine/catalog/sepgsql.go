@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"iter"
 )
 
@@ -50,6 +51,11 @@ func SepgsqlAttributeName(r *Relation, sub int32) string {
 	}
 	if i := r.IndexForAttribute(sub); i >= 0 {
 		return r.Columns[i].Name
+	}
+	if sub > 0 {
+		if retired, ok := r.ColumnMeta.Dropped[sub]; ok && retired.Dropped && retired.Number == sub {
+			return fmt.Sprintf("........pg.dropped.%d........", sub)
+		}
 	}
 	return ""
 }

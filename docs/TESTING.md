@@ -318,7 +318,9 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   Callbacks, Support, NativeBodies, Handlers, ForeignFactory, AccessMethodFactories,
   OriginalAccessMethodFactories, SurgeryIncoming, IncomingVPC, Audit, Controls,
   ControlConsent, LoadDispatch, RestoreconSharedDatabases, RestoreconAuthorization,
-  RestoreconEscapedBrackets,
+  RestoreconEscapedBrackets, RestoreconDroppedColumns, RestoreconPhases,
+  RestoreconUnmatched, RestoreconRelabelTo, RestoreconTransactions,
+  RestoreconIdentity, RestoreconFeatureSmoke,
   GenericLabelResolution, GenericLabelRoleOwnership, GenericLabelDomainKind,
   GenericLabelColumnIntegrity and FeatureSmoke in native and `REFERENCE=1` modes.
   `LoadDispatch` checks ordinary authority and genuine module activation on the
@@ -337,6 +339,45 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   with `RACE=1` for literal hyphen/metacharacter, negation, ordinary range and
   default/named first-match registration assertions. Active results remain
   native simulation evidence, not active PostgreSQL SELinux parity.
+  The dedicated restorecon family checks released five-phase boundaries rather
+  than within-phase heap order, genuine dropped attnum2 versus retained tail3,
+  and direct/prepared dropped-name rejection. Inactive SECURITY LABEL resolves
+  the provider first (`22023`, provider not loaded); the active simulation reaches
+  missing-column resolution (`42703`). Ordinary SELECT rejects the dropped name
+  in either phase. Materialized-view setup asserts its populated row count.
+  Wrong-arity, incompatible INTEGER and dropped-column boundaries compare
+  complete diagnostics, including English primary, explicit-casts hint where
+  applicable, position and every otherwise-empty exposed field. Authorization
+  exercises VARCHAR and CHARACTER(6) arguments through the actual TEXT
+  declaration, requiring BOOL true and an S→P association change for each direct
+  and prepared call. Rejections preserve the complete local/shared association
+  before-state; dropped-name probes also retain exact rows. Ordinary PostgreSQL
+  witnesses use genuine builtin character/text coercions and unresolved calls,
+  never substitute provider functions.
+  It also checks exact unmatched WARNING fields and association absence, independent destination
+  `relabelto` denial, transaction/savepoint recovery and renamed/replaced/dropped
+  declaration capabilities. Dropped-column controls use real typed metadata and
+  test malformed/duplicate/missing/live/undeclared-context rejection, direct SQL
+  non-admission, fresh destination resolution and old/new transfer denial with
+  effective-unlabeled counterparts. Select all changed definitions in both modes:
+
+  ```sh
+  make check RUN='^TestReferenceSepgsqlSimulationRestorecon(SharedDatabases|Authorization|EscapedBrackets|DroppedColumns|Phases|Unmatched|RelabelTo|Transactions|Identity)$'
+  make check REFERENCE=1 RUN='^TestReferenceSepgsqlSimulationRestorecon(SharedDatabases|Authorization|EscapedBrackets|DroppedColumns|Phases|Unmatched|RelabelTo|Transactions|Identity)$'
+  make check RACE=1 RUN='^TestReferenceSepgsqlSimulationRestorecon(SharedDatabases|Authorization|EscapedBrackets|DroppedColumns|Phases|Unmatched|RelabelTo|Transactions|Identity)$'
+  make check RUN='^TestReferenceSepgsqlSimulationRestoreconFeatureSmoke$'
+  make check REFERENCE=1 RUN='^TestReferenceSepgsqlSimulationRestoreconFeatureSmoke$'
+  make check RACE=1 RUN='^TestReferenceSepgsqlSimulationRestoreconFeatureSmoke$'
+  make check RUN='^Test(SepgsqlRetiredColumnMetadata|RestoreSepgsqlRetiredColumns|SepgsqlSimulationRestorecon(ScopeAndOrder|SeedAndControlScope|PublicationFences|DroppedColumns)|SepgsqlDumpSelectedDatabaseLabels|SepgsqlRoutinePayloadRemap)$'
+  make check RACE=1 RUN='^Test(SepgsqlRetiredColumnMetadata|RestoreSepgsqlRetiredColumns|SepgsqlSimulationRestorecon(ScopeAndOrder|SeedAndControlScope|PublicationFences|DroppedColumns)|SepgsqlDumpSelectedDatabaseLabels|SepgsqlRoutinePayloadRemap)$'
+  ```
+
+  `RestoreconFeatureSmoke` performs changed-feature traversal, raw tombstone
+  labels, rollback, denied relabel and actual renamed-capability native replay.
+  `SepgsqlRetiredColumnMetadata` covers the strict typed codec;
+  `RestoreSepgsqlRetiredColumns` checks actual private finish publication,
+  retained immutable descriptors and failed/canceled atomic rejection. These
+  internal owner units supplement, not replace, dual-mode external definitions.
   `GenericLabelResolution` checks real missing/foreign/owned objects before
   unsupported-provider rejection, including type/domain and existing tablespaces,
   without adding label support or physical tablespace creation. The focused

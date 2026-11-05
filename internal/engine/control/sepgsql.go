@@ -1,6 +1,7 @@
 package control
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -12,14 +13,25 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sepgsql"
+	"unicode/utf8"
 )
 
 const SepgsqlRequirementMarker = "stuntgres-sepgsql-simulation-v1"
 
 type SepgsqlRequirement struct {
-	ID       string `json:"id"`
-	Version  string `json:"version"`
-	Database string `json:"database"`
+	ID             string                      `json:"id"`
+	Version        string                      `json:"version"`
+	Database       string                      `json:"database"`
+	RetiredColumns []SepgsqlRetiredColumnLabel `json:"retired_columns,omitempty"`
+}
+
+// SepgsqlRetiredColumnLabel names a genuine destination tombstone, never a
+// source OID or an SQL-addressable column.
+type SepgsqlRetiredColumnLabel struct {
+	Schema    string `json:"schema"`
+	Relation  string `json:"relation"`
+	Attribute int32  `json:"attribute"`
+	Label     string `json:"label"`
 }
 
 func (r SepgsqlRequirement) Comment() (string, error) {
@@ -45,12 +57,38 @@ func DecodeSepgsqlRequirement(comment string) (*SepgsqlRequirement, bool, error)
 	if err != nil {
 		return invalid()
 	}
-	if _, err = initialPrivilegeFields(data, "id", "version", "database"); err != nil {
+	fields, err := initialPrivilegeFields(data, "id", "version", "database")
+	if err != nil {
+		fields, err = initialPrivilegeFields(data, "id", "version", "database", "retired_columns")
+	}
+	if err != nil || !utf8.Valid(data) {
 		return invalid()
 	}
 	var requirement SepgsqlRequirement
 	if json.Unmarshal(data, &requirement) != nil || requirement.ID == "" || requirement.Version == "" || requirement.Database == "" || strings.ContainsRune(requirement.ID+requirement.Version+requirement.Database, 0) {
 		return invalid()
+	}
+	if raw := fields["retired_columns"]; raw != nil {
+		var records []json.RawMessage
+		if json.Unmarshal(raw, &records) != nil || records == nil {
+			return invalid()
+		}
+		seen := make(map[SepgsqlRetiredColumnLabel]bool, len(records))
+		for i, data := range records {
+			if _, err := initialPrivilegeFields(data, "schema", "relation", "attribute", "label"); err != nil {
+				return invalid()
+			}
+			record := requirement.RetiredColumns[i]
+			if record.Schema == "" || record.Relation == "" || record.Attribute <= 0 || record.Label == "" ||
+				strings.ContainsRune(record.Schema+record.Relation+record.Label, 0) {
+				return invalid()
+			}
+			record.Label = ""
+			if seen[record] {
+				return invalid()
+			}
+			seen[record] = true
+		}
 	}
 	return &requirement, true, nil
 }
@@ -58,7 +96,46 @@ func ValidateSepgsqlRequirement(requirement *SepgsqlRequirement, policy *sepgsql
 	if requirement == nil || policy == nil || requirement.ID != policy.ID() || requirement.Version != policy.Version() {
 		return fmt.Errorf("stuntgres: incompatible sepgsql simulation registration")
 	}
+	for _, record := range requirement.RetiredColumns {
+		if !policy.Valid(record.Label) {
+			return fmt.Errorf("stuntgres: invalid retired-column security context")
+		}
+	}
 	return nil
+}
+
+func CaptureSepgsqlRequirement(ctx context.Context, view catalog.Read) (SepgsqlRequirement, error) {
+	policy := view.Owner().Sepgsql
+	out := SepgsqlRequirement{ID: policy.ID(), Version: policy.Version(), Database: view.MustDatabase(view.Owner().DatabaseAddress()).Name()}
+	if err := catalog.ValidateSecurityLabels(view); err != nil {
+		return out, err
+	}
+	for key, record := range view.State().SecurityLabels() {
+		if err := ctx.Err(); err != nil {
+			return out, err
+		}
+		address := key.Object
+		address.SubID = 0
+		relation, ok := view.Relation(address)
+		if !ok || key.Object.SubID <= 0 || temporaryDumpObject(view.State(), relation) {
+			continue
+		}
+		if _, dropped := relation.ColumnMeta.Dropped[key.Object.SubID]; dropped {
+			out.RetiredColumns = append(out.RetiredColumns, SepgsqlRetiredColumnLabel{
+				Schema: view.MustNamespace(relation.Namespace()).Name(), Relation: relation.Name(), Attribute: key.Object.SubID, Label: record.Label,
+			})
+		}
+	}
+	slices.SortFunc(out.RetiredColumns, func(a, b SepgsqlRetiredColumnLabel) int {
+		if c := strings.Compare(a.Schema, b.Schema); c != 0 {
+			return c
+		}
+		if c := strings.Compare(a.Relation, b.Relation); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Attribute, b.Attribute)
+	})
+	return out, ctx.Err()
 }
 func emitDumpSepgsql(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 	view := s.OriginalCatalog
@@ -88,6 +165,11 @@ func emitDumpSepgsql(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 		d := view.Get(address)
 		if temporaryDumpObject(view.State(), d) {
 			continue
+		}
+		if relation, ok := d.(*catalog.Relation); ok && key.Object.SubID > 0 {
+			if _, dropped := relation.ColumnMeta.Dropped[key.Object.SubID]; dropped {
+				continue // Imported by the typed requirement after history reconstruction.
+			}
 		}
 		kind := catalog.SepgsqlClass(d, key.Object.SubID)
 		target := catalog.QuoteIdentifier(d.Name())

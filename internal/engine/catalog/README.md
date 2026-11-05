@@ -300,6 +300,11 @@ neither owns catalog authority.
   publication, shared projection, removal and control remapping own those
   records together with their genuine descriptors. The policy compiler is
   independent of SQL actors; no mutable global label side map is authoritative.
+  `SepgsqlAttributeName` also recognizes a genuine positive dropped entry only
+  from immutable `ColumnMeta.Dropped` with its matching retired attribute number.
+  Its quoted tombstone presentation does not create a live column or SQL name.
+  `SepgsqlAttributes` retains live/system iteration; restore-only collection
+  explicitly adds genuine dropped entries without using HighWater as existence.
   `IncomingForeignActionOwners` visits only enforced mutating FK owners for
   one target. Its nested persistent index is derived incrementally from old/new
   relation descriptors through the same write/candidate/clone/reset/bulk hooks.

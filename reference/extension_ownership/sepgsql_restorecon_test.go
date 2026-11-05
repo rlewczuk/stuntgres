@@ -286,6 +286,30 @@ func TestReferenceSepgsqlSimulationRestoreconSharedDatabases(t *testing.T) {
 	}
 }
 
+// These resolver diagnostics do not require an active provider. The same
+// ordinary PostgreSQL calls remain genuinely unresolved, without substitute
+// oracle declarations; the active phase additionally proves body non-entry.
+func restoreconResolutionBoundary(run sepgsqlRun, unchanged func()) {
+	for _, prepared := range []bool{false, true} {
+		for _, tc := range []struct {
+			query, signature string
+			args             []any
+		}{
+			{query: "SELECT sepgsql_restorecon()", signature: "sepgsql_restorecon()"},
+			{query: "SELECT sepgsql_restorecon(NULL,NULL)", signature: "sepgsql_restorecon(unknown, unknown)"},
+			{query: "SELECT sepgsql_restorecon(CAST($1 AS integer)) AS restored", signature: "sepgsql_restorecon(integer)", args: []any{int64(1)}},
+		} {
+			step := fixture.ImplicitError(tc.query, fixture.Diagnostic{
+				Code: "42883", Message: "function " + tc.signature + " does not exist",
+				Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8",
+			}, tc.args...)
+			step.Prepared = prepared
+			run(step)
+			unchanged()
+		}
+	}
+}
+
 func TestReferenceSepgsqlSimulationRestoreconAuthorization(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"restorecon_reader"})
 	setup := func(run sepgsqlRun) {
@@ -297,6 +321,19 @@ func TestReferenceSepgsqlSimulationRestoreconAuthorization(t *testing.T) {
 	}
 	sepgsqlCase(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, c *sql.Conn, run sepgsqlRun) {
 		setup(run)
+		ordinaryLabels := sepgsqlRestoreconLabels(t, p, c)
+		restoreconResolutionBoundary(run, func() { restoreconUnchanged(t, p, c, ordinaryLabels) })
+		for _, prepared := range []bool{false, true} {
+			// Exercise genuine character-family conversions and the ordinary
+			// text-taking length declaration on both real backends.
+			step := fixture.Select("SELECT pg_catalog.length(CAST($1 AS varchar)) AS n", []string{"n"}, []string{"INT4"}, [][]any{{int64(6)}}, "public")
+			step.Prepared = prepared
+			run(step)
+			step = sepgsqlText("SELECT CAST(CAST($1 AS character(6)) AS text) AS profile", "profile", "public")
+			step.Args, step.Prepared = []any{"public"}, prepared
+			run(step)
+			restoreconUnchanged(t, p, c, ordinaryLabels)
+		}
 		run(fixture.Exec("SET ROLE restorecon_reader", 0))
 		for _, prepared := range []bool{false, true} {
 			step := fixture.ImplicitError("SECURITY LABEL FOR selinux ON TABLE restorecon_authorization IS '"+sepgsqlS+"'", fixture.Diagnostic{Code: "22023", Message: "security label provider \"selinux\" is not loaded"})
@@ -309,12 +346,16 @@ func TestReferenceSepgsqlSimulationRestoreconAuthorization(t *testing.T) {
 		run(sepgsqlCount("SELECT count(*) FROM pg_seclabel WHERE objoid='restorecon_authorization'::regclass AND provider='selinux'", 0))
 	}, nil, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, c *sql.Conn, run sepgsqlRun) {
 		setup(run)
+		run(fixture.Select("SELECT pronargs::integer AS nargs,pronargdefaults::integer AS defaults,proisstrict,provolatile::text,proparallel::text,prorettype='boolean'::regtype AS boolean_result FROM pg_proc WHERE oid='sepgsql_restorecon(text)'::regprocedure",
+			[]string{"nargs", "defaults", "proisstrict", "provolatile", "proparallel", "boolean_result"}, []string{"INT4", "INT4", "BOOL", "TEXT", "TEXT", "BOOL"}, [][]any{{int64(1), int64(0), false, "v", "u", true}}))
+		run(sepgsqlCount("SELECT count(*) FROM pg_proc WHERE proname='sepgsql_restorecon'", 1))
 		// SQL EXECUTE and the A subject's explicit wildcard MAC grant both
 		// admit initialization/body entry. Only ordinary superuser status fails.
 		run(fixture.Exec("REVOKE ALL ON FUNCTION sepgsql_restorecon(text) FROM PUBLIC", 0))
 		run(fixture.Exec("GRANT EXECUTE ON FUNCTION sepgsql_restorecon(text) TO restorecon_reader", 0))
 		run(fixture.Exec("SECURITY LABEL ON TABLE restorecon_authorization IS '"+sepgsqlS+"'", 0))
 		initialLabels := sepgsqlRestoreconLabels(t, p, c)
+		restoreconResolutionBoundary(run, func() { restoreconUnchanged(t, p, c, initialLabels) })
 		held, err := c.PrepareContext(p.Ctx, "SELECT sepgsql_restorecon($1) AS restored")
 		if err != nil {
 			t.Fatal(err)
@@ -359,6 +400,10 @@ func TestReferenceSepgsqlSimulationRestoreconAuthorization(t *testing.T) {
 			step.Prepared = prepared
 			run(step)
 			assertUnchanged()
+			step = fixture.ErrorDiagnostic("SELECT sepgsql_restorecon($1)", missing, "")
+			step.Prepared = prepared
+			run(step)
+			assertUnchanged()
 			for _, profile := range []any{nil, "public"} {
 				run(fixture.Exec("SECURITY LABEL ON TABLE restorecon_authorization IS '"+startingLabels[nextLabel]+"'", 0))
 				nextLabel++
@@ -366,6 +411,22 @@ func TestReferenceSepgsqlSimulationRestoreconAuthorization(t *testing.T) {
 				step.Args, step.Prepared = []any{profile}, prepared
 				run(step)
 				run(sepgsqlText("SELECT label FROM pg_seclabel WHERE objoid='restorecon_authorization'::regclass AND objsubid=0 AND provider='selinux'", "label", sepgsqlP))
+			}
+		}
+		for _, prepared := range []bool{false, true} {
+			for _, query := range []string{
+				"SELECT sepgsql_restorecon(CAST($1 AS varchar)) AS restored",
+				"SELECT sepgsql_restorecon(CAST($1 AS character(6))) AS restored",
+			} {
+				expectedLabels := sepgsqlRestoreconLabels(t, p, c)
+				run(fixture.Exec("SECURITY LABEL ON TABLE restorecon_authorization IS '"+sepgsqlS+"'", 0))
+				run(sepgsqlText("SELECT label FROM pg_seclabel WHERE objoid='restorecon_authorization'::regclass AND objsubid=0 AND provider='selinux'", "label", sepgsqlS))
+				step := sepgsqlBool(query, "restored", true)
+				step.Args, step.Prepared = []any{"public"}, prepared
+				run(step)
+				run(sepgsqlText("SELECT label FROM pg_seclabel WHERE objoid='restorecon_authorization'::regclass AND objsubid=0 AND provider='selinux'", "label", sepgsqlP))
+				run(sepgsqlText("SELECT v FROM restorecon_authorization", "v", "unchanged"))
+				restoreconUnchanged(t, p, c, expectedLabels)
 			}
 		}
 		// The very same handle prepared as admin and rejected after downgrade
@@ -482,7 +543,7 @@ func TestReferenceSepgsqlSimulationRestoreconEscapedBrackets(t *testing.T) {
 
 // Capture the real label catalogs, not profile-derived expected rows. Failure
 // checks compare every association in both shared and current-local roots.
-func sepgsqlRestoreconLabels(t *testing.T, p *fixture.Pair, c *sql.Conn) [][]string {
+func sepgsqlRestoreconLabels(t *testing.T, p *fixture.Pair, c fixture.Executor) [][]string {
 	t.Helper()
 	var labels [][]string
 	for _, query := range []string{

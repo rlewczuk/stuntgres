@@ -119,7 +119,10 @@ func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
 		w.seal, w.sealBuffer = sha256.New(), make([]byte, 4096)
 	}
 	if policy := capture.CatalogView.Owner().Sepgsql; policy != nil {
-		requirement := SepgsqlRequirement{ID: policy.ID(), Version: policy.Version(), Database: capture.OriginalCatalog.MustDatabase(capture.OriginalCatalog.Owner().DatabaseAddress()).Name()}
+		requirement, err := CaptureSepgsqlRequirement(ctx, capture.OriginalCatalog)
+		if err != nil {
+			return err
+		}
 		comment, err := requirement.Comment()
 		if err != nil {
 			return err

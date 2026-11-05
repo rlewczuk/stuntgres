@@ -60,6 +60,13 @@ helpers shared with `reference/extension_ownership_ltree` live in
   actual `pg_seclabel` associations and unchanged unrelated labels/data; select
   `make check RUN='^TestReferenceSepgsqlSimulationRestoreconEscapedBrackets$'`
   natively, with `REFERENCE=1`, and with `RACE=1`.
+  The dedicated Restorecon family also owns genuine dropped-column catalog
+  identity/typed-control preservation, five released traversal phases, unmatched
+  warnings with full diagnostics, old/new relabel consent, rollback/savepoints,
+  declaration rename/replacement/retirement and actual-feature smoke. Its
+  family selector is `RUN='^TestReferenceSepgsqlSimulationRestorecon'`, natively,
+  with `REFERENCE=1`, and with `RACE=1`. The source-grounded active phase never
+  substitutes fake oracle functions or promises within-phase physical ordering.
   `GenericLabelResolution` retains actual object lookup, lock and ownership
   precedence before unsupported label-class rejection, including type/domain and
   existing shared tablespaces. `GenericLabelRoleOwnership` checks current actor

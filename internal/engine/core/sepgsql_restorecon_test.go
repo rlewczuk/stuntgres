@@ -62,7 +62,12 @@ func TestSepgsqlSimulationRestoreconScopeAndOrder(t *testing.T) {
 		events = append(events, event)
 	}, false))
 	enginetest.Run(t, e, "CREATE DATABASE restorecon_peer")
-	enginetest.Run(t, e, "CREATE TABLE restorecon_order(v integer)")
+	enginetest.Run(t, e, "CREATE SCHEMA restorecon_phases")
+	enginetest.Run(t, e, "CREATE TABLE restorecon_order(v integer, gone text)")
+	enginetest.Run(t, e, "ALTER TABLE restorecon_order DROP COLUMN gone")
+	enginetest.Run(t, e, "CREATE SEQUENCE restorecon_sequence")
+	enginetest.Run(t, e, "CREATE VIEW restorecon_view AS SELECT v FROM restorecon_order")
+	enginetest.Run(t, e, "CREATE FUNCTION restorecon_function() RETURNS integer LANGUAGE SQL AS 'SELECT 1'")
 	enginetest.Run(t, e, "SECURITY LABEL ON DATABASE restorecon_owner IS 'S'")
 	enginetest.Run(t, e, "SECURITY LABEL ON DATABASE restorecon_peer IS 'U'")
 	enginetest.Run(t, e, "SECURITY LABEL ON TABLE restorecon_order IS 'S'")
@@ -97,23 +102,33 @@ func TestSepgsqlSimulationRestoreconScopeAndOrder(t *testing.T) {
 		t.Fatal("restorecon audit was not dispatched by operation release")
 	}
 	var visited []string
-	localReached := false
+	lastPhase := -1
+	seen := make(map[string]bool)
+	droppedSeen, systemSeen := false, false
 	for _, event := range events {
-		if !slices.Contains(event.Required, "relabelfrom") {
+		if !slices.Contains(event.Required, "relabelfrom") && !slices.Contains(event.Required, "relabelto") {
 			continue
 		}
-		if event.Class == "db_database" {
-			if localReached {
-				t.Fatal("shared database visited after local relabel", events)
-			}
+		rank, ok := map[string]int{"db_database": 0, "db_schema": 1, "db_table": 2, "db_sequence": 2, "db_view": 2, "db_column": 3, "db_procedure": 4}[event.Class]
+		if !ok || rank < lastPhase {
+			t.Fatal("nonmonotone released restore phases", event, lastPhase)
+		}
+		lastPhase = rank
+		seen[event.Class] = true
+		droppedSeen = droppedSeen || strings.HasSuffix(event.Name, `restorecon_order."........pg.dropped.2........"`)
+		systemSeen = systemSeen || strings.HasSuffix(event.Name, "restorecon_order.ctid")
+		if event.Class == "db_database" && slices.Contains(event.Required, "relabelfrom") {
 			visited = append(visited, event.Name)
-		} else {
-			localReached = true
 		}
 	}
 	slices.Sort(visited)
-	if !reflect.DeepEqual(visited, []string{"restorecon_owner", "restorecon_peer"}) || !localReached {
-		t.Fatal("actual all-database-first permission traversal", visited, localReached)
+	if !reflect.DeepEqual(visited, []string{"restorecon_owner", "restorecon_peer"}) || !droppedSeen || !systemSeen {
+		t.Fatal("genuine database/dropped/system traversal", visited, droppedSeen, systemSeen)
+	}
+	for _, class := range []string{"db_database", "db_schema", "db_table", "db_sequence", "db_view", "db_column", "db_procedure"} {
+		if !seen[class] {
+			t.Fatal("missing released restore class", class)
+		}
 	}
 	for _, address := range databases {
 		key := catalog.SecurityLabelKey{Object: address, Provider: "selinux"}
@@ -131,6 +146,39 @@ func TestSepgsqlSimulationRestoreconScopeAndOrder(t *testing.T) {
 	}
 	if before.State().SecurityLabelRoot() != beforeLabels || peerBefore.State().SecurityLabelRoot() != peerBeforeLabels {
 		t.Fatal("restorecon mutated retained local/shared label roots")
+	}
+}
+
+func TestSepgsqlSimulationRestoreconDroppedColumns(t *testing.T) {
+	e := engine.NewWithSettings(nil, "restorecon_dropped", false)
+	sepgsqlRestoreconInstall(t, e, sepgsqlRestoreconPolicy(t, nil, false))
+	enginetest.Run(t, e, "CREATE TABLE restorecon_retired(keep integer, gone text, tail integer)")
+	enginetest.Run(t, e, "ALTER TABLE restorecon_retired DROP COLUMN gone")
+	before := e.CatalogRead()
+	address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "restorecon_retired"})
+	relation := before.MustRelation(address)
+	retired := address
+	retired.SubID = 2
+	key := catalog.SecurityLabelKey{Object: retired, Provider: "selinux"}
+	if catalog.SepgsqlClass(relation, 2) != "db_column" || catalog.SepgsqlAttributeName(relation, 2) != "........pg.dropped.2........" ||
+		relation.IndexForAttribute(2) >= 0 || relation.IndexForAttribute(3) < 0 || before.State().SecurityLabel(key) != nil {
+		t.Fatal("missing genuine, unlabeled tombstone", relation.ColumnMeta)
+	}
+	enginetest.Run(t, e, "SELECT sepgsql_restorecon(NULL)")
+	after := e.CatalogRead()
+	label := after.State().SecurityLabel(key)
+	if label == nil || label.Label != "P" || after.Get(address) != relation || before.State().SecurityLabel(key) != nil {
+		t.Fatal("dropped association or immutable predecessor", label)
+	}
+	for _, sub := range []int32{-6, -5, -4, -3, -2, -1, 1, 2, 3} {
+		column := address
+		column.SubID = sub
+		if record := after.State().SecurityLabel(catalog.SecurityLabelKey{Object: column, Provider: "selinux"}); record == nil || record.Label != "P" {
+			t.Fatal("missing genuine column label", sub, record)
+		}
+	}
+	if catalog.SepgsqlClass(relation, 4) != "" || catalog.SepgsqlAttributeName(relation, 4) != "" {
+		t.Fatal("high-water or absent slot manufactured a labelable column")
 	}
 }
 
