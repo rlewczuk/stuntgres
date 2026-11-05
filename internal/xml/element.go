@@ -15,6 +15,7 @@ func (p *parser) element() {
 		p.stopped = true
 		return
 	}
+	startOffset := p.i
 	p.advance(1)
 	line := p.line
 	name, local := p.qname()
@@ -241,6 +242,8 @@ func (p *parser) element() {
 	parent := p.parent
 	current := p.collectElement(name, local, attributes, collectedNamespaces)
 	if current != nil {
+		current.line = line
+		current.offset = startOffset
 		p.appendNode(current)
 		p.parent = current
 		defer func() { p.parent = parent }()

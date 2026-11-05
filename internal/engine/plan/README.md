@@ -284,6 +284,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   flag is an invocation-private value-copy, never accepted source authority.
   Both new set kernels and wrappers use available-frame preflight in source
   order; predecessor scalar protocols retain their existing STABLE/fold policies.
+  Two-argument XSLT retains immutable folding and callable dependencies; its
+  three-argument declaration remains VOLATILE with children-only preflight,
+  including empty parameter text.
   `InstalledPgsurgeryExpr` retains its genuine freeze procedure/reference and
   lexical formal slots through rebuild, substitution and occurrence matching.
   VOID results never fold into a cached repair or grant; stored transport remaps

@@ -1,5 +1,11 @@
 # Changes
 
+- Implement both installed XML2 `xslt_process` overloads through native XSLT 1.0
+  compilation, transformation and XML/HTML/text serialization with scoped
+  parameters, genuine no-I/O resource handling and stage-specific diagnostics.
+  Preserve complete serialized TEXT datums, declaration-aware source/style
+  decoding, overload authority and immutable prepared/native-control lifetimes.
+
 - Correct `pg_user_mappings` result metadata to mark all six view columns nullable,
   including empty and prepared results. Add independent reference coverage for
   mapping identities, current-role option redaction, lifecycle diagnostics and

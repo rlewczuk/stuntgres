@@ -48,8 +48,12 @@ func xml2CollisionContext(slot int) string {
 		return "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text)\nRETURNS text\nAS 'SELECT xpath_nodeset($1,$2,'''','''')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 45"
 	case 8:
 		return "SQL statement \"CREATE FUNCTION xpath_list(text,text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 35"
-	default:
+	case 9:
 		return "SQL statement \"CREATE FUNCTION xpath_list(text,text) RETURNS text\nAS 'SELECT xpath_list($1,$2,'','')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 39"
+	case 10:
+		return "SQL statement \"CREATE FUNCTION xslt_process(text,text,text)\nRETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT VOLATILE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 64"
+	default:
+		return "SQL statement \"CREATE FUNCTION xslt_process(text,text)\nRETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 70"
 	}
 }
 func (p *XML2Provider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {

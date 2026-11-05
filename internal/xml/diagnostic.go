@@ -136,6 +136,9 @@ func (p *parser) eventLevel(code Condition, message string, level Severity) {
 	context, caret := "", "^"
 	if !p.haltedInput {
 		context, caret = fileContext(p.s, p.base, p.i)
+		if p.policy.xsltReader && p.rawInfo.UTF8BOM && len(p.s) == 0 {
+			context, caret = "\ufeff", "^"
+		}
 	}
 	// Bound the eventual rendered Detail as well as event-slice storage before
 	// addition. Fixed context/line overhead cannot overflow intermediate sums.

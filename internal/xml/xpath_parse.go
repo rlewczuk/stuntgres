@@ -22,11 +22,12 @@ type xpathStep struct {
 }
 type xpathToken struct{ kind, text string }
 type xpathParser struct {
-	ctx      context.Context
-	s        string
-	i, depth int
-	token    xpathToken
-	err      error
+	ctx             context.Context
+	s               string
+	i, depth        int
+	token           xpathToken
+	err             error
+	forbidVariables bool
 }
 type XPathError struct{ Stage, Detail string }
 
@@ -45,7 +46,10 @@ func (e *XPathError) Error() string {
 	}
 }
 func compileXPath(ctx context.Context, s string) (*xpathExpr, error) {
-	p := xpathParser{ctx: ctx, s: s}
+	return compileXPathConfigured(ctx, s, false)
+}
+func compileXPathConfigured(ctx context.Context, s string, forbidVariables bool) (*xpathExpr, error) {
+	p := xpathParser{ctx: ctx, s: s, forbidVariables: forbidVariables}
 	p.next()
 	e := p.expression(1)
 	if p.err == nil && p.token.kind != "eof" {
@@ -318,6 +322,10 @@ func (p *xpathParser) path() *xpathExpr {
 			return nil
 		}
 		e = &xpathExpr{op: "variable", name: p.token.text}
+		if p.forbidVariables {
+			p.err = &XPathError{Stage: "compile", Detail: "Forbidden variable"}
+			return nil
+		}
 		p.next()
 	case "(":
 		p.next()

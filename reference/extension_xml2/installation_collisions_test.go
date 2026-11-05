@@ -34,32 +34,44 @@ func xml2InstallationCollisions(t *testing.T) {
 		{
 			name: "xpath_nodeset", args: "25 25 25 25",
 			setup: "CREATE FUNCTION xpath_nodeset(text,text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
-			call: "SELECT xpath_nodeset('<r/>','.','','') AS original", source: "SELECT true", value: true,
+			call:  "SELECT xpath_nodeset('<r/>','.','','') AS original", source: "SELECT true", value: true,
 			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text,text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 21",
 		},
 		{
 			name: "xpath_nodeset", args: "25 25 25",
 			setup: "CREATE FUNCTION xpath_nodeset(text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
-			call: "SELECT xpath_nodeset('<r/>','.','i') AS original", source: "SELECT false", value: false,
+			call:  "SELECT xpath_nodeset('<r/>','.','i') AS original", source: "SELECT false", value: false,
 			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text,text)\nRETURNS text\nAS 'SELECT xpath_nodeset($1,$2,'''',$3)'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 50",
 		},
 		{
 			name: "xpath_nodeset", args: "25 25",
 			setup: "CREATE FUNCTION xpath_nodeset(text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
-			call: "SELECT xpath_nodeset('<r/>','.') AS original", source: "SELECT true", value: true,
+			call:  "SELECT xpath_nodeset('<r/>','.') AS original", source: "SELECT true", value: true,
 			context: "SQL statement \"CREATE FUNCTION xpath_nodeset(text,text)\nRETURNS text\nAS 'SELECT xpath_nodeset($1,$2,'''','''')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 45",
 		},
 		{
 			name: "xpath_list", args: "25 25 25",
 			setup: "CREATE FUNCTION xpath_list(text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
-			call: "SELECT xpath_list('<r/>','.','|') AS original", source: "SELECT false", value: false,
+			call:  "SELECT xpath_list('<r/>','.','|') AS original", source: "SELECT false", value: false,
 			context: "SQL statement \"CREATE FUNCTION xpath_list(text,text,text) RETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 35",
 		},
 		{
 			name: "xpath_list", args: "25 25",
 			setup: "CREATE FUNCTION xpath_list(text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
-			call: "SELECT xpath_list('<r/>','.') AS original", source: "SELECT true", value: true,
+			call:  "SELECT xpath_list('<r/>','.') AS original", source: "SELECT true", value: true,
 			context: "SQL statement \"CREATE FUNCTION xpath_list(text,text) RETURNS text\nAS 'SELECT xpath_list($1,$2,'','')'\nLANGUAGE SQL STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 39",
+		},
+		{
+			name: "xslt_process", args: "25 25 25",
+			setup: "CREATE FUNCTION xslt_process(text,text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT true'",
+			call:  "SELECT xslt_process('<r/>','<bad/>','p=1') AS original", source: "SELECT true", value: true,
+			context: "SQL statement \"CREATE FUNCTION xslt_process(text,text,text)\nRETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT VOLATILE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 64",
+		},
+		{
+			name: "xslt_process", args: "25 25",
+			setup: "CREATE FUNCTION xslt_process(text,text) RETURNS boolean LANGUAGE SQL IMMUTABLE CALLED ON NULL INPUT AS 'SELECT false'",
+			call:  "SELECT xslt_process('<r/>','<bad/>') AS original", source: "SELECT false", value: false,
+			context: "SQL statement \"CREATE FUNCTION xslt_process(text,text)\nRETURNS text\nAS '$libdir/pgxml'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"xml2--1.1.sql\", near line 70",
 		},
 	} {
 		t.Run("collision_"+tc.name, func(t *testing.T) {

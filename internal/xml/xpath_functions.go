@@ -45,6 +45,9 @@ func (f *xpathFrame) call(e *xpathExpr) xpathValue {
 			return xpathValue{}
 		}
 	}
+	if f.environment != nil {
+		if value, handled := f.environment.call(f, e.name, args); handled { return value }
+	}
 	minimum, maximum := 1, 1
 	switch e.name {
 	case "last", "position", "true", "false":
@@ -138,7 +141,9 @@ func (f *xpathFrame) call(e *xpathExpr) xpathValue {
 				for i < len(s) && !space(s[i]) && f.poll() {
 					i++
 				}
-				if n := f.tree.ids[s[start:i]]; n != nil {
+				tree:=f.tree
+				if f.environment!=nil { tree=f.node.owner }
+				if n := tree.ids[s[start:i]]; n != nil {
 					out = checkedAppend(&f.p, out, n)
 				}
 			}

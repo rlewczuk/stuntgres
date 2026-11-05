@@ -239,13 +239,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the `namespace`, `name` input labels of v3/v5. These labels belong to the
   sealed declaration, survive remapping and current membership changes, and
   resolve named calls through the ordinary formal-argument binder.
-  XML2 1.2 seals ten signatures: the four scalar declarations, the five-TEXT
-  `xpath_table` source in its original slot 4, then five nodeset/list overloads.
+  XML2 1.2 seals twelve signatures: the four scalar declarations, the five-TEXT
+  `xpath_table` source in its original slot 4, five nodeset/list overloads in slots
+  5–9, then three-TEXT and two-TEXT `xslt_process` in slots 10 and 11.
   Its superuser-only untrusted installation remains nonrelocatable. Strict
   parallel-safe declarations retain INTERNAL `xml_is_well_formed` / STABLE,
-  C scalar `$libdir/pgxml` / IMMUTABLE and table C / STABLE / SETOF RECORD
-  (Rows1000) provenance. Three real SQL-standard RETURN recipes refer to their
-  installation's authenticated full-arity member slots. Normal dependency edges
+  C XPath scalar `$libdir/pgxml` / IMMUTABLE and table C / STABLE / SETOF RECORD
+  (Rows1000) provenance. XSLT's three-argument declaration is VOLATILE; its
+  two-argument declaration is IMMUTABLE. Both retain C `xslt_process` /
+  `$libdir/pgxml` display metadata, with no argument defaults or labels.
+  Three real SQL-standard RETURN recipes refer to their installation's
+  authenticated full-arity member slots. Normal dependency edges
   survive membership detach, current-name changes and remapping. Wrapper proconfig
   is ordinary current routine metadata and blocks inlining without changing body
   identity. Actual native body initialization selects these slots through the

@@ -79,6 +79,7 @@ type parsePolicy struct {
 	strictValidity                                            bool
 	documentContext                                           bool // xmlCtxtReadMemory entry, distinct from type input
 	legacyDiagnostics                                         bool // collect namespace/validity events without rejecting their returned tree
+	xsltReader                                                bool // xmlReadMemory returned-tree outcome; never affects default acceptance
 }
 
 func parse(ctx context.Context, input string, opts Options, collect bool) (Result, *document, error) {
@@ -160,7 +161,13 @@ func parseConfigured(ctx context.Context, input string, opts Options, policy par
 	if err := ctx.Err(); err != nil {
 		return Result{}, nil, p.events, err
 	}
-	if p.rawFailure != nil {
+	// The memory-reader's pointer outcome differs from strict byte acceptance.
+	// Only a genuinely completed grammar/tree may survive a converter failure;
+	// all callbacks remain in p.events and the default policy still rejects it.
+	xsltTree := policy.xsltReader && p.rawFailure != nil &&
+		p.rawFailure.Kind == RawInvalidSequence && !p.failed() &&
+		p.rootSeen && p.parent == nil && p.i == len(p.s) && !p.stopped
+	if p.rawFailure != nil && !xsltTree {
 		p.rawFailure.Declaration = p.declaration
 		p.rawFailure.Diagnostics = append([]Diagnostic(nil), p.events...)
 		return Result{}, nil, p.events, p.rawFailure
@@ -176,6 +183,9 @@ func parseConfigured(ctx context.Context, input string, opts Options, policy par
 		if err := ctx.Err(); err != nil {
 			return Result{}, nil, p.events, err
 		}
+	}
+	if xsltTree {
+		return Result{}, p.tree, p.events, nil
 	}
 	if opts.InputKind == RawMemory {
 		input = p.s

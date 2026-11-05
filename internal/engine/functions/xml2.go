@@ -17,6 +17,7 @@ const (
 	XML2Nodeset
 	XML2List
 	XML2Table
+	XML2XSLT
 )
 
 // XML2Member names an exact released signature. Kernel is the authentic full
@@ -41,6 +42,8 @@ var XML2Members = [...]XML2Member{
 	{"xpath_nodeset", "25,25", sqltype.Text, expr.Immutable, 2, XML2Nodeset, 5},
 	{"xpath_list", "25,25,25", sqltype.Text, expr.Immutable, 3, XML2List, -1},
 	{"xpath_list", "25,25", sqltype.Text, expr.Immutable, 2, XML2List, 8},
+	{"xslt_process", "25,25,25", sqltype.Text, expr.Volatile, 3, XML2XSLT, -1},
+	{"xslt_process", "25,25", sqltype.Text, expr.Immutable, 2, XML2XSLT, -1},
 }
 
 func XML2Lookup(name string, arity int) (XML2Member, bool) {
@@ -55,8 +58,8 @@ func XML2Lookup(name string, arity int) (XML2Member, bool) {
 // XML2 retains only a released selector and immutable typed operands.
 type XML2 struct {
 	expr.Info
-	Name string
-	Args []expr.Expr
+	Name      string
+	Args      []expr.Expr
 	Operation XML2Operation
 }
 
@@ -128,6 +131,8 @@ func XML2Invoke(c expr.Context, info expr.Info, operation XML2Operation, values 
 		return sqltype.XML2Set(ctx, info.Usage.Type, text[0], text[1], text[2], text[3], "", false, c.FunctionInput())
 	case XML2List:
 		return sqltype.XML2Set(ctx, info.Usage.Type, text[0], text[1], "", "", text[2], true, c.FunctionInput())
+	case XML2XSLT:
+		return sqltype.XML2XSLT(ctx, info.Usage.Type, text[0], text[1], text[2])
 	default:
 		return sqltype.Value{}, fmt.Errorf("invalid xml2 operation")
 	}
@@ -148,19 +153,20 @@ func (n XML2) Retag(info expr.Info, children []expr.Expr, changed bool, _ expr.R
 	return next, changed, err
 }
 func (n XML2) IntrinsicVolatility() expr.Volatility {
-	if n.Name == "xml_valid" {
-		return expr.Stable
+	m, ok := XML2Lookup(n.Name, len(n.Args))
+	if !ok {
+		return expr.Volatile
 	}
-	return expr.Immutable
+	return m.Volatility
 }
 func (n XML2) PlanningFold() expr.Fold {
-	if n.Name == "xml_valid" {
+	if n.IntrinsicVolatility() != expr.Immutable {
 		return expr.FoldNever
 	}
 	return expr.FoldConstant
 }
 func (n XML2) PreflightFold() expr.Preflight {
-	if n.Name == "xml_valid" {
+	if n.IntrinsicVolatility() != expr.Immutable {
 		return expr.PreflightChildren
 	}
 	return expr.PreflightSimplify

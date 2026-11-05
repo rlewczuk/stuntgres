@@ -24,12 +24,14 @@ type xpathNode struct {
 	children, attributes, namespaces []*xpathNode
 	source                           *node
 	name, local, uri, value          string
+	owner *xpathTree
 }
 type xpathTree struct {
 	root     *xpathNode
 	ordered  []*xpathNode
 	ids      map[string]*xpathNode
 	document *document
+	ordinal int
 }
 type xpathFrame struct {
 	p                     parser
@@ -37,6 +39,7 @@ type xpathFrame struct {
 	node                  *xpathNode
 	position, size, depth int
 	bindings              map[string]string
+	environment *xsltEnvironment
 }
 
 func (f *xpathFrame) poll() bool {
@@ -47,6 +50,7 @@ func (f *xpathFrame) poll() bool {
 }
 func (f *xpathFrame) add(n *xpathNode) *xpathNode {
 	n.order = len(f.tree.ordered)
+	n.owner = f.tree
 	f.tree.ordered = checkedAppend(&f.p, f.tree.ordered, n)
 	return n
 }
@@ -137,6 +141,17 @@ func (f *xpathFrame) stringValue(n *xpathNode) string {
 	if n.kind != xpathRoot && n.kind != xpathElement {
 		return n.value
 	}
+	if f.environment != nil {
+		var b strings.Builder
+		stack := []*xpathNode{n}
+		for len(stack)>0 && f.poll() {
+			last:=len(stack)-1
+			c:=stack[last]; stack=stack[:last]
+			if c.kind==xpathText { f.p.appendValue(&b,c.value) }
+			for i:=len(c.children)-1;i>=0;i-- { stack=checkedAppend(&f.p,stack,c.children[i]) }
+		}
+		return b.String()
+	}
 	if n.kind == xpathRoot {
 		for _, child := range n.children {
 			if !f.poll() {
@@ -204,10 +219,10 @@ func (f *xpathFrame) normalize(nodes []*xpathNode) []*xpathNode {
 	sift := func(root, end int) {
 		for root < end/2 && f.poll() {
 			child := root*2 + 1
-			if child+1 < end && nodes[child].order < nodes[child+1].order {
+			if child+1 < end && xpathNodeBefore(nodes[child],nodes[child+1]) {
 				child++
 			}
-			if nodes[root].order >= nodes[child].order {
+			if !xpathNodeBefore(nodes[root],nodes[child]) {
 				return
 			}
 			nodes[root], nodes[child] = nodes[child], nodes[root]
@@ -309,7 +324,7 @@ func (f *xpathFrame) axis(n *xpathNode, axis string) []*xpathNode {
 			}
 		}
 	case "following":
-		for _, c := range f.tree.ordered[n.order+1:] {
+		for _, c := range n.owner.ordered[n.order+1:] {
 			if !f.poll() {
 				break
 			}
@@ -319,7 +334,7 @@ func (f *xpathFrame) axis(n *xpathNode, axis string) []*xpathNode {
 		}
 	case "preceding":
 		for i := n.order - 1; i >= 0 && f.poll(); i-- {
-			c := f.tree.ordered[i]
+			c := n.owner.ordered[i]
 			if c.kind != xpathAttribute && c.kind != xpathNamespace && !xpathAncestor(c, n) {
 				add(c)
 			}
@@ -370,4 +385,9 @@ func (f *xpathFrame) namespaceURI(prefix string) (string, bool) {
 	}
 	uri, ok := f.bindings[prefix]
 	return uri, ok
+}
+
+func xpathNodeBefore(a,b *xpathNode) bool {
+	if a.owner!=b.owner { return a.owner.ordinal<b.owner.ordinal }
+	return a.order<b.order
 }

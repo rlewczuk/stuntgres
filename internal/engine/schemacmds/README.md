@@ -392,8 +392,14 @@ retains that descriptor and callback, then distinguish imported execution and
 rendering from the retained collision.
 
 XML2 provider, expression and stored-identity units use `RUN='^TestXML2'`.
-They inspect real staged collision rollback, sealed declarations, typed children,
-group/capture reconstruction and forced destination identity remapping.
+They inspect real staged collision rollback, twelve sealed declarations, typed
+children, group/capture reconstruction and forced destination identity remapping.
+The two XSLT signatures retain independent origin, volatility and folding policy
+through reconstruction and stored controls; TEXT adapter ownership is tested
+without borrowing runtime trees or reducing the full serialized datum.
+Closed statement-state DEFAULT children keep their original replay flags and
+immutable operand backing; volatile, parameter-dependent and owner-row cases
+remain distinct from that bounded replay permission.
 CHECK ownership coverage extracts an actual row-bound installed expression and
 its routine/type/attribute manifest, preserves CHECK versus DEFAULT closure,
 rejects invalid recipes/captures and renders genuine renamed/detached and remapped

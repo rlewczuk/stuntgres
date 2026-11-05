@@ -89,6 +89,12 @@ including original revision, definition purpose and owning epoch. A current look
 or canonical installation declaration cannot replace the capture. Execution-only
 inline routes are not stored recipes. Both renderers use authentic current
 qualified names, including renamed/detached wrappers and kernels.
+Both XSLT overloads use this same recipe and retain their distinct arity,
+volatility and callable dependencies; no released label becomes authority.
+Closed statement-state arguments retain their source replay contract while the
+renderer locally admits their stable-or-less, closed DEFAULT form. The shared
+closure still rejects parameters, row references and unrelated volatile calls;
+routine authentication, dependency capture and provider validation remain mandatory.
 
 `ValidateInstalledXML2XPathTable` authenticates the separate five-TEXT source,
 its original sealed routine capture and all anonymous-record leaf generations.

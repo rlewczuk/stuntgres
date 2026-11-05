@@ -1,11 +1,11 @@
-# XML2 reference scenarios
+# XML2 scalar, table and transformation reference scenarios
 
 This package owns public SQL and native-control scenarios for the selected
 `xml_valid`, `xpath_string`, `xpath_number`, `xpath_bool`, `xpath_table`,
-`xpath_nodeset` and `xpath_list` declarations (ten signatures). Independently
-specified results distinguish XPath root-element context, scalar conversions,
-FLOAT4 narrowing, typed table expansion, raw node serialization, literal
-wrappers/separators, strict NULLs, validation modes,
+`xpath_nodeset`, `xpath_list` and both `xslt_process` declarations (twelve
+signatures). Independently specified results distinguish XPath root-element
+context, scalar conversions, FLOAT4 narrowing, typed table expansion, raw node
+serialization, literal wrappers/separators, strict NULLs, validation modes,
 document/compile/evaluation precedence and namespace handling.
 Raw-encoding scenarios distinguish decoded-Text validation from genuine
 declaration-aware document decoding, including genuine ASCII, ISO-2022-JP,
@@ -14,9 +14,9 @@ UTF16/shift state. Canonical KR/CN/UTF-7 labels and ASCII case variants use
 independent source/style inputs, including CNS1 additions and CNS2 single shifts.
 Conversion failures precede XPath compilation; scenarios assert full compile
 diagnostics, strict typed NULLs and retained direct/prepared/held values.
-Source and stylesheet-shaped documents are inspected through scalar XPath; these scenarios
-do not claim native stylesheet compilation or transformation.
-Catalog assertions select these ten declarations rather than claiming parity
+The raw-only scalar scenarios inspect source and stylesheet-shaped documents
+through XPath, separately from genuine XSLT compilation and transformation.
+Catalog assertions select these twelve declarations rather than claiming parity
 with the entire upstream extension inventory.
 
 Scenarios share `reference/fixture` setup, recording, metadata and diagnostic
@@ -82,6 +82,38 @@ signatures. Their callback authority remains distinct from ordinary EXECUTE:
 aggregate-owner support admission does not grant the caller inner-kernel access.
 The same held aggregate exercises complete compile/ACL diagnostics, strict NULL
 suppression, notice configuration and caller-setting restoration.
+
+XSLT scenarios use genuine source and stylesheet readers, a namespace-aware
+XSLT 1.0 language environment, parameter expressions and intrinsic XML/HTML/text
+serialization. Independently specified templates, patterns, modes, bindings,
+sorts, numbering, keys, compiled stylesheet documents and result-tree fragments
+distinguish language semantics from a fixture-specific evaluator. Locale and
+numeric recovery, ordered parameter-value visibility, variable override
+suppression, static/dynamic construction failures and continued error
+accumulation are exercised through both direct and prepared calls. Source and
+stylesheet RawMemory codecs and operation-local reader outcomes remain independent of the
+strict scalar/table readers. Staged diagnostics retain the complete ordered
+LEGACY accumulator, including callbacks from an earlier usable source tree.
+Only independently proven allocator bytes beyond the actual short-EOF input and
+its terminating NUL are excluded from comparison; deterministic bytes and every
+other diagnostic field remain exact.
+
+Output scenarios use one materialized transform through direct and prepared
+public queries: native rows expose the exact complete TEXT bytes and Go hex,
+including UTF16 NUL bytes and unflushed stateful encoder output; PostgreSQL
+ordinary text-wire rows expose the independently measured field bytes. Both
+retain the full SQL `octet_length`. An explicit PostgreSQL datum-boundary phase
+uses the same inputs and materialization with `encode(textsend(r),'hex')` to
+assert full datum bytes and length beyond the ordinary wire boundary. XML
+namespace bytes and HTML/CDATA/disable-escaping precedence remain exact.
+Entity loading, stylesheet include/import failure and transform-time
+document and secondary-output access have separate no-I/O witnesses; the real
+compiled in-memory stylesheet remains available. Both overloads retain
+their distinct volatility, exact selected identity and EXECUTE authority through
+current-name/schema changes, detach, stored consumers and same/independent-Driver
+replacement. Fresh default/CHECK/view work, later-row rollback, immutable old
+Rows, stale statements, rejected replacement and joined active cancellation
+exercise lifetime and whole-result publication through public APIs.
 
 ## Testing
 

@@ -679,6 +679,12 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if err != nil {
 			return "", err
 		}
+		// Closed DEFAULT arguments may read statement state without a row
+		// owner. Reuse the admission closure; never promote a volatile or
+		// unclosed producer, or mutate its original rendering contract.
+		if spec.Replay.RelationOnly && r.Owner == nil && node.Properties().Volatility <= expr.Stable && analyze.ClosedPgcryptoDefault(node) {
+			spec.Replay.RelationOnly = false
+		}
 		return r.rendering(ctx, view, spec)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")

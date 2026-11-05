@@ -607,8 +607,7 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 			break
 		}
 		c.RoutineReference = p
-		b.dependency(ref, p.Revision())
-		var kernel *catalog.Procedure
+		node := plan.InstalledXML2Expr{XML2: c, Procedure: p, Ref: ref}
 		if p.DeclarationBody != nil {
 			inner, err := extension.XML2Kernel(r.catalog, p)
 			if err != nil {
@@ -616,9 +615,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 			}
 			innerRef := r.catalog.Domain().Ref(r.catalog.Epoch(), inner.Address())
 			b.dependency(innerRef, inner.Revision())
-			kernel = inner
+			node.Kernel = inner
 		}
-		return plan.InstalledXML2Expr{XML2: c, Procedure: p, Kernel: kernel, Ref: ref}, nil
+		if !ValidInstalledXML2Shape(node) {
+			return nil, fmt.Errorf("stuntgres: invalid installed xml2 binding")
+		}
+		b.dependency(ref, p.Revision())
+		return node, nil
 	case functions.SSLInfo:
 		if extension.SSLInfoProviderOf(p) != extension.StockSSLInfo {
 			break

@@ -448,11 +448,14 @@ non-strict, evaluate their optional child once and validate exact format names
 before returning collector absence. Ordinary live routine EXECUTE admission owns
 authorization, including NULL operands and inherited `pg_monitor` grants.
 
-`XML2` binds nine installed TEXT-formal signatures through ordinary catalog-aware
+`XML2` binds eleven installed TEXT-formal scalar signatures through ordinary catalog-aware
 implicit coercion, including non-STRICT casts. Exact name/arity and operation
 select the declaration; result type alone cannot distinguish the TEXT operations.
 Children evaluate once in written order before STRICT. `xml_valid` is STABLE and
 reads current `FunctionInput` validation mode; the XPath operations are IMMUTABLE.
+The two-argument `xslt_process` is IMMUTABLE; its three-argument declaration is
+VOLATILE even for empty parameter text and preflights children only. Exact member
+signature authentication belongs to the installed carrier, not a second selector.
 `XML2Invoke` owns the genuine postargument kernel entry and SQL result/notice
 adapter. The installed carrier's structural SQL wrappers are executed by exec,
 with their original arguments and authentic inner routine, not default arguments
@@ -462,6 +465,8 @@ Conditional pruning precedes dead-arm folding; independent constant targets may
 fail or emit notices before an empty WHERE result. Only immutable selectors,
 typed operands and routine provenance survive; no XML tree or permission grant
 is retained by a folded or prepared value.
+XSLT source, stylesheet and optional parameter text pass to the operation-selected
+SQL type adapter; complete serialized TEXT bytes are not parsed again or clipped.
 
 `XML2XPathTable` is the separate five-TEXT, STRICT/STABLE source declaration.
 Operands retain key, document, relation, XPath-list and criteria order and use
@@ -1935,6 +1940,8 @@ use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpress
 XML mapping routine provenance, named replay and strict authority demand use
 `RUN='^TestXMLMap(Rows|Scope)Provider$'`.
 XPath frozen-provider and accepted-fold ownership use `RUN='^TestXMLXPath'`.
+XML2 selected-signature, scalar/source protocol and composed ownership units use
+`RUN='^TestXML2'`; public SQL remains in `reference/extension_xml2`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

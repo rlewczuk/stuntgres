@@ -13,8 +13,8 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -44,7 +44,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 		t.Fatal("installed procedure class provider missing")
 	}
 	control := extension.StockXML2.Control()
-	if control.Version != "1.2" || control.Trusted || !control.Superuser || control.Relocatable || control.Comment == nil || *control.Comment != "XPath querying and XSLT" || len(ext.Members) != 10 {
+	if control.Version != "1.2" || control.Trusted || !control.Superuser || control.Relocatable || control.Comment == nil || *control.Comment != "XPath querying and XSLT" || len(ext.Members) != 12 {
 		t.Fatal("release control", control, ext)
 	}
 	versions := extension.StockXML2.Versions()
@@ -55,9 +55,9 @@ func TestXML2ProviderIdentity(t *testing.T) {
 	if extension.StockXML2.Versions().Bases[0] != "1.2" {
 		t.Fatal("borrowed version backing")
 	}
-	names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool", "xpath_table", "xpath_nodeset", "xpath_nodeset", "xpath_nodeset", "xpath_list", "xpath_list"}
-	results := []ids.OID{16, 25, 700, 16, 2249, 25, 25, 25, 25, 25}
-	signatures := []string{"25", "25,25", "25,25", "25,25", "25,25,25,25,25", "25,25,25,25", "25,25,25", "25,25", "25,25,25", "25,25"}
+	names := []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool", "xpath_table", "xpath_nodeset", "xpath_nodeset", "xpath_nodeset", "xpath_list", "xpath_list", "xslt_process", "xslt_process"}
+	results := []ids.OID{16, 25, 700, 16, 2249, 25, 25, 25, 25, 25, 25, 25}
+	signatures := []string{"25", "25,25", "25,25", "25,25", "25,25,25,25,25", "25,25,25,25", "25,25,25", "25,25", "25,25,25", "25,25", "25,25,25", "25,25"}
 	for slot, address := range ext.Members {
 		p := v.MustProcedure(address)
 		signature, volatility := signatures[slot], expr.Immutable
@@ -66,6 +66,9 @@ func TestXML2ProviderIdentity(t *testing.T) {
 		if slot == 4 {
 			signature, volatility = "25,25,25,25,25", expr.Stable
 			declaration.ReturnsSet, declaration.Rows = true, 1000
+		}
+		if slot == 10 {
+			signature, volatility = "25,25,25", expr.Volatile
 		}
 		if slot == 0 {
 			signature = "25"
@@ -173,7 +176,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 	if err := extension.StockXML2.ValidateExtension(v, ext); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"xslt_process", "xml_encode_special_chars"} {
+	for _, name := range []string{"xml_encode_special_chars"} {
 		for p := range catalog.DefinitionProceduresNamedAt(v, nil, ext.TargetNamespace, name) {
 			t.Fatal("adjacent function", p)
 		}
@@ -273,8 +276,8 @@ func TestXML2ProviderIdentity(t *testing.T) {
 			t.Fatal("configuration capability bypassed current class validation")
 		}
 	}
-	// Real Stage rollback includes the published table and final set overload.
-	for _, slot := range []int{0, 3, 4, 9} {
+	// Real Stage rollback includes the table, final set wrapper and both XSLT overloads.
+	for _, slot := range []int{0, 3, 4, 9, 10, 11} {
 		base := catalog.CloneState(v.State())
 		for i, a := range ext.Members {
 			if i != slot {
@@ -291,7 +294,7 @@ func TestXML2ProviderIdentity(t *testing.T) {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "function \""+names[slot]+"\" already exists with same argument types" || !strings.HasSuffix(diagnostic.Context, map[int]string{0: "extension script file \"xml2--1.1.sql\", near line 9", 3: "extension script file \"xml2--1.1.sql\", near line 29", 4: "extension script file \"xml2--1.1.sql\", near line 57", 9: "extension script file \"xml2--1.1.sql\", near line 39"}[slot]) {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "function \""+names[slot]+"\" already exists with same argument types" || !strings.HasSuffix(diagnostic.Context, map[int]string{0: "extension script file \"xml2--1.1.sql\", near line 9", 3: "extension script file \"xml2--1.1.sql\", near line 29", 4: "extension script file \"xml2--1.1.sql\", near line 57", 9: "extension script file \"xml2--1.1.sql\", near line 39", 10: "extension script file \"xml2--1.1.sql\", near line 64", 11: "extension script file \"xml2--1.1.sql\", near line 70"}[slot]) {
 			t.Fatal("released collision", slot, err)
 		}
 		if e.Catalog.State != before || before.Get(original.Address()) != original || before.Get(ext.Address()) != ext {

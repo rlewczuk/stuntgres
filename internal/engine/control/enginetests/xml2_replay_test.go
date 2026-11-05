@@ -22,12 +22,15 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 		name, schema      string
 		present, detached bool
 		catalog           bool
+		xsltArity         int
 	}{
-		{"public", "public", true, false, false},
-		{"quoted", "XML2 control 雪", true, false, false},
-		{"renamed_detached", "XML2 control 雪", true, true, false},
-		{"absent_header", "XML2 control 雪", false, true, false},
-		{"relocated_catalog", "moved_catalog", true, false, true},
+		{"public", "public", true, false, false, 0},
+		{"quoted", "XML2 control 雪", true, false, false, 0},
+		{"renamed_detached", "XML2 control 雪", true, true, false, 0},
+		{"absent_header", "XML2 control 雪", false, true, false, 0},
+		{"relocated_catalog", "moved_catalog", true, false, true, 0},
+		{"xslt_three_absent_header", "XML2 control 雪", false, true, false, 3},
+		{"xslt_two_absent_header", "XML2 control 雪", false, true, false, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := engine.New()
@@ -44,13 +47,20 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 				enginetest.RoleExecute(t, source, op, "ALTER SCHEMA pg_catalog RENAME TO moved_catalog")
 			}
 			qualified := catalog.QuoteIdentifier(tc.schema) + "."
+			memberName, formals, signature, survivorSlot := "xpath_string", "text,text", "25,25", 1
+			if tc.xsltArity != 0 {
+				memberName, survivorSlot = "xslt_process", 11
+				if tc.xsltArity == 3 {
+					formals, signature, survivorSlot = "text,text,text", "25,25,25", 10
+				}
+			}
 			if tc.detached {
-				enginetest.RoleExecute(t, source, op, "ALTER EXTENSION xml2 DROP FUNCTION "+qualified+"xpath_string(text,text)")
+				enginetest.RoleExecute(t, source, op, "ALTER EXTENSION xml2 DROP FUNCTION "+qualified+memberName+"("+formals+")")
 				if !tc.present {
 					enginetest.RoleExecute(t, source, op, "DROP EXTENSION xml2")
 				}
-				enginetest.RoleExecute(t, source, op, "ALTER FUNCTION "+qualified+"xpath_string(text,text) RENAME TO retained_xml2_text")
-				enginetest.RoleExecute(t, source, op, "ALTER FUNCTION "+qualified+"retained_xml2_text(text,text) OWNER TO replay_placement_owner")
+				enginetest.RoleExecute(t, source, op, "ALTER FUNCTION "+qualified+memberName+"("+formals+") RENAME TO retained_xml2_text")
+				enginetest.RoleExecute(t, source, op, "ALTER FUNCTION "+qualified+"retained_xml2_text("+formals+") OWNER TO replay_placement_owner")
 			}
 			done()
 
@@ -59,18 +69,18 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 			if namespace == (ids.ObjectAddress{}) || tc.catalog && namespace.ObjectID != ids.PGCatalogNamespaceOID {
 				t.Fatal("actual installation namespace identity lost", namespace)
 			}
-			survivorName := "xpath_string"
+			survivorName := memberName
 			if tc.detached {
 				survivorName = "retained_xml2_text"
 			}
-			address := view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: survivorName, Signature: "25,25"})
+			address := view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: survivorName, Signature: signature})
 			survivor, ok := view.Procedure(address)
 			if !ok || extension.StockXML2.ValidateProcedure(view, survivor) != nil || !survivor.Origin.Valid(address) {
 				t.Fatal("source lacks genuine installed survivor", survivor)
 			}
 			recipe := survivor.Origin.Installation
-			if len(recipe.Members) != 10 || len(recipe.Declarations) != 10 || recipe.Declarations[1].Name() != "xpath_string" || recipe.Declarations[4].Name() != "xpath_table" {
-				t.Fatal("source lost complete canonical ten-member cohort", recipe)
+			if len(recipe.Members) != 12 || len(recipe.Declarations) != 12 || recipe.Declarations[1].Name() != "xpath_string" || recipe.Declarations[4].Name() != "xpath_table" || recipe.Declarations[survivorSlot].Name() != memberName || recipe.Declarations[10].(*catalog.Procedure).Signature != "25,25,25" || recipe.Declarations[11].(*catalog.Procedure).Signature != "25,25" {
+				t.Fatal("source lost complete canonical twelve-member cohort", recipe)
 			}
 			members := slices.Clone(recipe.Members)
 			declarations := slices.Clone(recipe.Declarations)
@@ -86,7 +96,7 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 				}
 				before[p.Address()], originals[p.Address()] = *p, p
 			}
-			wantCount := 10
+			wantCount := 12
 			if !tc.present {
 				wantCount = 1
 			}
@@ -137,7 +147,7 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 				}
 			}
 			if tc.detached {
-				detach := strings.Index(text, "ALTER EXTENSION \"xml2\" DROP FUNCTION "+creation+".\"xpath_string\"")
+				detach := strings.Index(text, "ALTER EXTENSION \"xml2\" DROP FUNCTION "+creation+"."+catalog.QuoteIdentifier(memberName))
 				rename := strings.Index(text, " RENAME TO \"retained_xml2_text\";\n")
 				owner := strings.Index(text, "ALTER FUNCTION "+qualified+"\"retained_xml2_text\"")
 				if detach < 0 || rename <= detach || owner <= rename || !strings.Contains(text[owner:], " OWNER TO \"replay_placement_owner\";\n") {
@@ -176,9 +186,9 @@ func TestInstallationReplayNonrelocatablePlacement(t *testing.T) {
 			if restoredNS == (ids.ObjectAddress{}) || tc.catalog && restoredNS.ObjectID != ids.PGCatalogNamespaceOID {
 				t.Fatal("restore changed retained namespace identity", restoredNS)
 			}
-			restoredAddress := restored.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: restoredNS, Name: survivorName, Signature: "25,25"})
+			restoredAddress := restored.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: restoredNS, Name: survivorName, Signature: signature})
 			p, ok := restored.Procedure(restoredAddress)
-			if !ok || extension.StockXML2.ValidateProcedure(restored, p) != nil || p.Origin.Installation == recipe || len(p.Origin.Installation.Declarations) != 10 || len(p.Origin.Installation.Members) != 10 {
+			if !ok || extension.StockXML2.ValidateProcedure(restored, p) != nil || p.Origin.Installation == recipe || len(p.Origin.Installation.Declarations) != 12 || len(p.Origin.Installation.Members) != 12 || p.Origin.Declaration != survivorSlot || p.Signature != catalog.ProcedureSignature(signature) || p.Volatility != survivor.Volatility {
 				t.Fatal("restore lost genuine remapped complete cohort", p)
 			}
 			header := restored.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "xml2"})

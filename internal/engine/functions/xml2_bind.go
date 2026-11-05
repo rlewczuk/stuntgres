@@ -32,7 +32,6 @@ func bindXML2(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	count := m.Arity
 	if !selected || routine == nil || len(raw.ArgNames) != 0 || raw.Variadic || raw.Star {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
@@ -42,7 +41,7 @@ func bindXML2(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 			return nil, b.SignatureError(raw.Name, raw.Pos, names)
 		}
 	}
-	args := make([]expr.Expr, count)
+	args := make([]expr.Expr, len(operands))
 	properties := expr.Properties{Volatility: m.Volatility}
 	for i, o := range operands {
 		args[i], err = b.CoerceArgument(o, CoercionRequest{Intent: DirectFormalArgument, Target: target, AtRaw: true})

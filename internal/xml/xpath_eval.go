@@ -12,6 +12,7 @@ const (
 	xpathNumber
 	xpathString
 	xpathBoolean
+	xpathFragment // XSLT result tree fragment, deliberately not a node-set
 )
 
 type xpathValue struct {
@@ -20,6 +21,7 @@ type xpathValue struct {
 	number  float64
 	text    string
 	boolean bool
+	fragment *xsltResultTree
 }
 
 func xpathNum(n float64) xpathValue { return xpathValue{kind: xpathNumber, number: n} }
@@ -32,6 +34,8 @@ func (f *xpathFrame) runtimeError(detail string) {
 }
 func (f *xpathFrame) boolean(v xpathValue) bool {
 	switch v.kind {
+	case xpathFragment:
+		return true
 	case xpathBoolean:
 		return v.boolean
 	case xpathNodes:
@@ -46,6 +50,8 @@ func (f *xpathFrame) string(v xpathValue) string {
 	switch v.kind {
 	case xpathString:
 		return v.text
+	case xpathFragment:
+		return xsltTreeString(&f.p, v.fragment)
 	case xpathBoolean:
 		if v.boolean {
 			return "true"
@@ -144,7 +150,9 @@ func (f *xpathFrame) compare(a, b xpathValue, op string) bool {
 		if len(a.nodes) == 0 {
 			return false
 		}
-		lexical := equality && b.kind == xpathString
+		lexical := equality && (b.kind == xpathString || b.kind == xpathFragment)
+		textB := b.text
+		if b.kind == xpathFragment { textB = f.string(b) }
 		numericB := 0.0
 		if !lexical {
 			numericB = f.number(b)
@@ -155,7 +163,7 @@ func (f *xpathFrame) compare(a, b xpathValue, op string) bool {
 			}
 			s := f.stringValue(x)
 			if lexical {
-				equal := f.p.namespaceEqual(s, b.text)
+				equal := f.p.namespaceEqual(s, textB)
 				if !f.poll() {
 					return false
 				}
@@ -202,6 +210,9 @@ func (f *xpathFrame) eval(e *xpathExpr) xpathValue {
 	case "number":
 		return xpathNum(e.number)
 	case "variable":
+		if f.environment != nil {
+			return f.environment.variable(f, e.name)
+		}
 		prefix, _, qualified := strings.Cut(e.name, ":")
 		_, resolved := f.namespaceURI(prefix)
 		if qualified && !resolved {
@@ -224,7 +235,7 @@ func (f *xpathFrame) eval(e *xpathExpr) xpathValue {
 	case "path":
 		nodes := []*xpathNode{f.node}
 		if e.absolute {
-			nodes[0] = f.tree.root
+			if f.environment != nil { nodes[0] = f.node.owner.root } else { nodes[0] = f.tree.root }
 		} else if len(e.args) != 0 {
 			v := f.eval(e.args[0])
 			if v.kind != xpathNodes {

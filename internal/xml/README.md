@@ -1,4 +1,4 @@
-# XML character parser and XPath evaluator
+# XML parser, XPath evaluator and XSLT runtime
 
 `Parse(context.Context, string, Options)` is the concrete, handwritten XML
 DOCUMENT/CONTENT validator. `Content` permits empty values, text and multiple
@@ -54,6 +54,72 @@ root/item tags are output work, not XML-name input. String XPath results bypass
 wrappers; Boolean/number results return their real unsupported classification for
 the SQL notice owner. Checked accumulation and cancellation publish no partial
 text, and no legacy tree or declaration metadata survives a call.
+
+`ProcessXSLT` owns one raw source reader, one independent raw stylesheet reader,
+the namespace-aware XSLT compiler, transformation and direct result-tree saver.
+Its `XSLTError` preserves the actual source/style/compile/apply stage and one
+ordered LEGACY diagnostic accumulator, including callbacks from earlier usable
+readers. The private XSLT reader may finalize an actually completed grammar tree
+after a converter fault; it does not publish a valid strict `Result`, erase
+callbacks, reparse a prefix or change any other operation's byte acceptance.
+Original BOM-only diagnostic windows remain attached to that reader.
+Transform ERROR state remains distinct from stopped XPath/termination/ordinary
+failure: a failed transformation cannot publish a result, but genuine later
+structured callbacks are not suppressed by an earlier generic runtime report.
+
+Compiled declarations, true match-pattern branches, mode/name dispatch indexes,
+lexical namespace/base/line metadata, output properties and resolved attribute
+sets belong to the invocation. Attribute-set resolution merges real attribute
+instructions and releases dependency edges, including recursive edges; runtime
+application never traverses an unresolved dependency graph. Explicit
+template/sequence/result-target continuations own local scopes and parameters.
+Built-in child continuations retain original text/CDATA boundaries and own an
+invocation-local ambient XPath focus. Elements and matched ordinary text,
+comments and PIs update that focus; CDATA and unmatched leaves inherit it.
+Nested default traversal restores its actual caller's focus before the next
+sibling. Explicit `apply-templates` keeps its separate selected-list positions.
+Stylesheet bindings and static/dynamic constructors share lexical QName
+validation. SQL parameter names retain their separate released splitting and
+expansion rules; a leading-colon name does not alias an unqualified declaration.
+Globals have separate dependency state: each eager select evaluation retains its
+own ordered XPath callbacks, and a failed value remains uncomputed for later
+global evaluations. Supplied parameter expressions see earlier supplied values,
+not stylesheet globals; a declared variable ignores a supplied override before
+its expression is compiled. Named decimal formats retain their first declaration.
+The optional XPath environment supplies instruction-current nodes, expanded-name
+bindings, distinct result tree fragments and XSLT functions.
+Every projected node has a real document owner; document order and generated
+identity are invocation-local. Transform document registrations own lazy key
+indexes separately from XPath ownership, including the stylesheet document-info
+fallback. The nil environment retains the ordinary XPath/scalar/table contract.
+The compiler preprocesses the actual stylesheet document visible through
+`document('')`, retaining foreign top-level data while stripping stylesheet-only
+nodes and splicing real `xsl:text` children. Separate instructions retain their
+owned language metadata; no alternate projection or reparsed source is used.
+Source whitespace stripping uses compiled strip/preserve name rules and their
+specificity/order, independently of source `xml:space`; stylesheet whitespace
+preprocessing retains its separate `xml:space` policy. Match grammar and balanced
+XPath predicate compilation are separate stages: generic pattern errors add no
+structured Detail, while real predicate/select callbacks and earlier reader
+diagnostics remain ordered and intact.
+
+Only genuine in-memory document identities are readable during transformation.
+External includes/imports parse the entity loader's actual empty input; runtime
+file/network loading is denied before I/O. There is no filesystem, network,
+subprocess, plugin or native-library transform path. Source/result nodes are
+never shared mutably. The ordered result builder fixes namespaces, replaces
+attributes by expanded name and retains text-only disable-output-escaping facts.
+Namespace preprocessing relocates locally excluded prefixed declarations to the
+stylesheet root before inherited result namespaces are collected. Root exclusions
+filter that inherited set; local exclusions are not blanket result-time URI
+filters. Namespace aliases replace namespace URIs while preserving literal
+prefixes, with subsequent result-name fixup owning any necessary bindings.
+The saver consumes that tree directly, with merged XML/HTML/text properties and
+intrinsic encoders; it never reparses through typed XML serialization.
+`XSLTResult.Text` owns the complete immutable datum, including embedded NUL.
+Empty success is non-NULL; ordinary cancellation, growth and invariant failures
+are errors, not a partial result or a fabricated NULL. No compiled program,
+context, document, key index, encoder state or mutable buffer escapes the call.
 
 XPath compilation retains immutable syntax only. Invocation-private frames
 project seven node kinds with stable owner/namespace identity, document order,
@@ -704,6 +770,14 @@ typed-text/binary-send observations, distinct from raw character casts.
 Legacy scalar/table policy, stage projection and invocation isolation use the
 reusable `RUN='^(TestXML2|TestLegacyXPathTable)'` family, including real
 parser/decoder/compiler/evaluator cancellation and strict-core contrasts.
+
+XSLT compiler/pattern/template/XPath-environment/parameter/result/diagnostic,
+no-I/O and admitted-phase cancellation/ownership units use
+`RUN='^TestXSLT'`. They assert independently specified native values and real
+private program/tree/scope state; public SQL compatibility belongs to the
+dual-mode XML2 reference family. Concurrent ownership units are also suitable
+for selected `RACE=1` execution. Collation and number-format helpers retain
+their independent release-source/data provenance beside their implementations.
 
 XMLTABLE invocation, namespace, node-output and cancellation units use
 `RUN='^TestXMLTableProvider$'`.

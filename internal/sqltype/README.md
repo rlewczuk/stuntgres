@@ -185,6 +185,12 @@ admission and removes it before nested binding.
   another rounding policy. `XML2Valid` forwards actual parser warnings through
   `InputEnvironment.XMLInput` and reads that invocation's XML mode; ordinary
   context errors remain ordinary and the core mapper remains independent.
+  `XML2XSLT` separately selects transformation despite its shared TEXT result.
+  Source/style parse failures map to distinct `2200M` primaries and compile/apply
+  failures to distinct `10608` primaries, retaining the complete runtime Detail.
+  Ordinary context/size/invariant errors remain ordinary. The successful owned
+  TEXT datum retains every output byte, including NUL and encoded non-UTF8 bytes;
+  empty output is nonNULL and only an explicit runtime NULL becomes SQL NULL.
   `XML2Table` consumes owned, fully materialized source pairs through their
   genuine OUTPUT hooks and maps private LEGACY nullable strings through every
   declared destination INPUT/typmod/domain hook, including NULL domain checks.

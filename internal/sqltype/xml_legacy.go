@@ -47,6 +47,39 @@ func XML2Scalar(ctx context.Context, result *Descriptor, input, path string) (Va
 	}
 }
 
+// XML2XSLT is operation-selected: TEXT also serves legacy xpath_string.
+// Preserve the complete owned datum, including NUL and non-UTF8 output bytes.
+func XML2XSLT(ctx context.Context, result *Descriptor, source, stylesheet, params string) (Value, error) {
+	if result == nil || result.ID() != Text {
+		return Value{}, fmt.Errorf("invalid xslt_process result descriptor")
+	}
+	v, err := xml.ProcessXSLT(ctx, source, stylesheet, params)
+	if err != nil {
+		var failure *xml.XSLTError
+		if !errors.As(err, &failure) {
+			return Value{}, err
+		}
+		code, primary := "10608", ""
+		switch failure.Stage {
+		case xml.XSLTSourceParse:
+			code, primary = "2200M", "error parsing XML document"
+		case xml.XSLTStyleParse:
+			code, primary = "2200M", "error parsing stylesheet as XML document"
+		case xml.XSLTCompile:
+			primary = "failed to parse stylesheet"
+		case xml.XSLTApply:
+			primary = "failed to apply stylesheet"
+		default:
+			return Value{}, err
+		}
+		return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: primary, Detail: failure.Detail}
+	}
+	if v.Null {
+		return Null(result), nil
+	}
+	return String(result, v.Text), nil
+}
+
 func XML2Valid(ctx context.Context, result *Descriptor, input string, env InputEnvironment) (Value, error) {
 	if result == nil || result.ID() != Bool {
 		return Value{}, fmt.Errorf("invalid xml_valid result descriptor")

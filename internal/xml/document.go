@@ -21,7 +21,10 @@ const (
 	entityReferenceNode
 )
 
-type document struct{ nodes []*node }
+type document struct {
+	nodes []*node
+	baseURI string
+}
 type node struct {
 	kind                            nodeKind
 	name, prefix, local, uri, value string
@@ -30,6 +33,9 @@ type node struct {
 	doctype                         *doctype
 	textParts                       []string
 	dataPresent                     bool
+	line, offset int
+	baseURI string
+	disableEscaping bool
 }
 type nodeAttribute struct {
 	name, prefix, local, uri, value string
@@ -171,6 +177,7 @@ func (p *parser) collectElement(name, local string, attrs []ordinaryAttribute, n
 	}
 	n := &node{kind: elementNode, name: name, local: local, prefix: attributePrefix(name, local), namespaces: ns}
 	n.uri = p.boundURI(n.prefix, true)
+	if p.parent != nil { n.baseURI = p.parent.baseURI }
 	for _, a := range attrs {
 		p.err = p.ctx.Err()
 		if p.err != nil {
@@ -178,6 +185,9 @@ func (p *parser) collectElement(name, local string, attrs []ordinaryAttribute, n
 		}
 		prefix := attributePrefix(a.name, a.local)
 		n.attributes = checkedAppend(p, n.attributes, nodeAttribute{name: a.name, local: a.local, prefix: prefix, uri: p.boundURI(prefix, false), value: a.value, defaulted: a.defaulted, id: a.id})
+		if p.boundURI(prefix, false) == xmlNamespaceURI && a.local == "base" {
+			n.baseURI = xsltResolveBase(n.baseURI,a.value)
+		}
 		if p.err != nil {
 			return nil
 		}

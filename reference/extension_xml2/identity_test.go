@@ -7,7 +7,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-const xml2Names = "'xml_valid','xpath_bool','xpath_list','xpath_nodeset','xpath_number','xpath_string','xpath_table'"
+const xml2Names = "'xml_valid','xpath_bool','xpath_list','xpath_nodeset','xpath_number','xpath_string','xpath_table','xslt_process'"
 
 func xml2Inventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
@@ -27,6 +27,8 @@ func xml2Inventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 			{"xpath_number", int64(2), "25 25", int64(700), true, "i", "s", "c", "xpath_number", "$libdir/pgxml", true, true, true, false},
 			{"xpath_string", int64(2), "25 25", int64(25), true, "i", "s", "c", "xpath_string", "$libdir/pgxml", true, true, true, false},
 			{"xpath_table", int64(5), "25 25 25 25 25", int64(2249), true, "s", "s", "c", "xpath_table", "$libdir/pgxml", true, true, true, true},
+			{"xslt_process", int64(2), "25 25", int64(25), true, "i", "s", "c", "xslt_process", "$libdir/pgxml", true, true, true, false},
+			{"xslt_process", int64(3), "25 25 25", int64(25), true, "v", "s", "c", "xslt_process", "$libdir/pgxml", true, true, true, false},
 		}))
 	xml2Both(t, p, b, c, fixture.Select("SELECT p.proname,p.pronargs,p.provariadic::bigint AS variadic,p.pronargdefaults,p.proretset FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='xml2' AND p.proname IN ("+xml2Names+") ORDER BY p.proname,p.pronargs",
 		[]string{"proname", "pronargs", "variadic", "pronargdefaults", "proretset"}, []string{"NAME", "INT2", "INT8", "INT2", "BOOL"}, [][]any{
@@ -40,11 +42,13 @@ func xml2Inventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 			{"xpath_number", int64(2), int64(0), int64(0), false},
 			{"xpath_string", int64(2), int64(0), int64(0), false},
 			{"xpath_table", int64(5), int64(0), int64(0), true},
+			{"xslt_process", int64(2), int64(0), int64(0), false},
+			{"xslt_process", int64(3), int64(0), int64(0), false},
 		}))
 	xml2Both(t, p, b, c, fixture.Select("SELECT p.procost,p.prorows FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='xml2' AND p.proname='xpath_table' AND p.proargtypes::text='25 25 25 25 25'",
 		[]string{"procost", "prorows"}, []string{"FLOAT4", "FLOAT4"}, [][]any{{float64(1), float64(1000)}}))
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid=1255 AND d.refclassid=3079 AND d.deptype='e' AND e.extname='xml2'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid=1255 AND d.refclassid=3079 AND d.deptype='e' AND e.extname='xml2'", []string{"count"}, []string{"INT8"}, [][]any{{int64(12)}}))
 	}
 }
 

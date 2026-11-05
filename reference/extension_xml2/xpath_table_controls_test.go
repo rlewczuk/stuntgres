@@ -88,8 +88,8 @@ func xtControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			t.FailNow()
 		}
 	}
-	// Only xpath_table is detached. No consumer here depends on the four
-	// attached scalars, so removing the header must preserve this source/view.
+	// Only xpath_table is detached. No consumer here depends on the attached
+	// scalars, so removing the header must preserve this source/view.
 	xtExec(t, p, b, c, "DROP EXTENSION xml2")
 	xml2Both(t, p, b, c, want)
 	fixture.RunStep(t, p.Ctx, h, b.Recorder, want)
