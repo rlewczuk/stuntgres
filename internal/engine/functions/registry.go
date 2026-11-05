@@ -170,6 +170,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pgrowlocks"}, Installed: PgrowlocksExtension, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: []string{DblinkGetPkeyName}, Installed: DblinkExtension, Bind: bindDblinkGetPkey},
 	{Names: []string{"pg_stat_statements", "pg_stat_statements_info"}, Installed: PgStatStatementsExtension, Bind: bindPgStatStatements, NamedCall: namedPgStatStatements},
+	{Names: []string{"pg_stat_statements_reset"}, Installed: PgStatStatementsExtension, Bind: bindPgStatStatementsReset, NamedCall: namedPgStatStatementsReset},
 	{Names: []string{"pgp_armor_headers"}, Installed: PgcryptoExtension, Bind: bindPgpArmorHeaders},
 	{Names: []string{"pgstatindex", "pgstathashindex", "pgstatginindex"}, Installed: PgstattupleExtension, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
 	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Installed: PgstattupleExtension, Bind: bindPgstattuple, NamedCall: namedPgstattuple},

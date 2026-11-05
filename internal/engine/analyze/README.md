@@ -581,6 +581,10 @@ library, and never the root engine or `session`. The engine, the root driver
   SQL name, not its C entry symbol or current public label. The already selected
   resident procedure and sealed origin retain callable authority across rename,
   relocation and native replay; executable-symbol validation stays independent.
+  Complete installed named calls use the selected declaration's actual names
+  and nominal formals before any same-spelled ordinary family matcher. Partial
+  named calls must fit the declaration's default count, then use the authenticated
+  family's named/default hook; its rejection never retries another matcher.
   Ordinary callable operands are transformed before FILTER, and FILTER before
   namespace/signature errors. The selected routine's actual kind rejects scalar
   decorations before implicit selected-formal conversion; explicitly written

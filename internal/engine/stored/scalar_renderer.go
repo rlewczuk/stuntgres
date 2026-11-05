@@ -225,6 +225,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgStatStatementsExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledPgStatStatementsResetExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgpArmorHeadersExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledTablefuncCrosstabExpr:

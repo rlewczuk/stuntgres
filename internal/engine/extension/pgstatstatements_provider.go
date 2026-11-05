@@ -26,7 +26,7 @@ func (p *PgStatStatementsProvider) ValidateExtension(v catalog.Read, e *catalog.
 	return ValidateCurrentInstallation(v, e, p)
 }
 func (p *PgStatStatementsProvider) validateRecipe(v catalog.Read, e *catalog.Extension) error {
-	if p != StockPgStatStatements || !currentManifest(v, e) || e.Name() != "pg_stat_statements" || e.Version != "1.12" || len(e.Members) != 2 {
+	if p != StockPgStatStatements || !currentManifest(v, e) || e.Name() != "pg_stat_statements" || e.Version != "1.12" || len(e.Members) != 3 {
 		return fmt.Errorf("stuntgres: invalid pg_stat_statements manifest")
 	}
 	for _, a := range e.Members {
@@ -53,9 +53,19 @@ var pgStatStatementsOutputs = func() *catalog.RoutineOutputs {
 }()
 var pgStatStatementsInfoOutputs = catalog.NewRoutineOutputs([]ids.OID{20, 1184}, "dealloc", "stats_reset")
 
+var pgStatStatementsResetDefaults = catalog.NewRoutineLiteralDefaults(
+	catalog.RoutineLiteral{SourceType: 23, Text: "0"},
+	catalog.RoutineLiteral{SourceType: 23, Text: "0"},
+	catalog.RoutineLiteral{SourceType: 23, Text: "0"},
+	catalog.RoutineLiteral{SourceType: 16, Text: "false"},
+)
+
 func pgStatStatementsDeclaration(slot int) catalog.InstalledRoutineDeclaration {
 	if slot == 0 {
 		return catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: pgStatStatementsOutputs}
+	}
+	if slot == 2 {
+		return catalog.InstalledRoutineDeclaration{Parallel: 's', Defaults: 4, ArgumentNames: [4]string{"userid", "dbid", "queryid", "minmax_only"}}
 	}
 	return catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgStatStatementsInfoOutputs}
 }

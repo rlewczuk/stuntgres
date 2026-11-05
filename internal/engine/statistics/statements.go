@@ -215,12 +215,11 @@ func (s *Statements) Snapshot() []StatementEntry {
 }
 func (s *Statements) Info() StatementInfo { s.mu.Lock(); defer s.mu.Unlock(); return s.info }
 
-// Clear is the single shared reset seam. Database replacement uses the same
-// filter as SQL reset; unrelated database entries and held snapshots survive.
+// Clear fences active admissions as well as clearing entries. Native database
+// replacement prevents pre-replacement work from repopulating replaced history.
 func (s *Statements) Clear(filter StatementFilter, minmaxOnly bool, now time.Time) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	before := len(s.entries)
 	for id, admission := range s.active {
 		for i, key := range admission.keys {
 			if filter.matches(key) {
@@ -233,6 +232,21 @@ func (s *Statements) Clear(filter StatementFilter, minmaxOnly bool, now time.Tim
 		}
 		s.active[id] = admission
 	}
+	return s.resetEntriesLocked(filter, minmaxOnly, now)
+}
+
+// Reset is the SQL operation: eligible in-flight work may record its actual
+// later successful phase. It neither creates nor changes active admissions,
+// including any fences already imposed by native Clear.
+func (s *Statements) Reset(filter StatementFilter, minmaxOnly bool, now time.Time) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resetEntriesLocked(filter, minmaxOnly, now)
+}
+
+// resetEntriesLocked owns entry and global-info mutation under the leaf mutex.
+func (s *Statements) resetEntriesLocked(filter StatementFilter, minmaxOnly bool, now time.Time) int {
+	before := len(s.entries)
 	count := 0
 	for key, e := range s.entries {
 		if !filter.matches(key) {
@@ -240,7 +254,6 @@ func (s *Statements) Clear(filter StatementFilter, minmaxOnly bool, now time.Tim
 		}
 		count++
 		if minmaxOnly {
-			// Live admissions were fenced above, including evicted keys.
 			e.Planning.clearExtrema()
 			e.Execution.clearExtrema()
 			e.MinMaxStatsSince = now

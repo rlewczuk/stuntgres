@@ -193,25 +193,33 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		if candidate.NamedDeclaration != nil {
 			declared = candidate.NamedDeclaration
 		}
-		if len(operands) != len(declared) || len(declared) > 4 || raw.Variadic {
+		if len(declared) > 4 || raw.Variadic {
 			return false
 		}
-		var names [7]string
-		copy(names[:], candidate.Procedure.Installed.ArgumentNames[:])
-		written, _, valid := functions.RegexpSlots(raw, names, len(operands))
-		if !valid {
-			return false
-		}
-		candidate.Inputs = make([]sqltype.Usage, len(declared))
-		candidate.Targets = make([]sqltype.Usage, len(declared))
-		for i, slot := range written[:len(operands)] {
-			target := declared[slot]
-			if operands[i].Usage.Type != nil && !b.CanCoerce(operands[i].Usage, target, sqltype.Implicit) {
+		if len(operands) == len(declared) {
+			// Complete installed calls belong to their actual declaration,
+			// not an ordinary family sharing the same binding spelling.
+			var names [7]string
+			copy(names[:], candidate.Procedure.Installed.ArgumentNames[:])
+			written, _, valid := functions.RegexpSlots(raw, names, len(operands))
+			if !valid {
 				return false
 			}
-			candidate.Inputs[i], candidate.Targets[i] = target, target
+			candidate.Inputs = make([]sqltype.Usage, len(declared))
+			candidate.Targets = make([]sqltype.Usage, len(declared))
+			for i, slot := range written[:len(operands)] {
+				target := declared[slot]
+				if operands[i].Usage.Type != nil && !b.CanCoerce(operands[i].Usage, target, sqltype.Implicit) {
+					return false
+				}
+				candidate.Inputs[i], candidate.Targets[i] = target, target
+			}
+			return true
 		}
-		return true
+		defaults := int(candidate.Procedure.Installed.Defaults)
+		if candidate.NamedDeclaration == nil || defaults > len(declared) || len(operands) > len(declared) || len(operands) < len(declared)-defaults {
+			return false
+		}
 	}
 	if candidate.NamedDeclaration != nil {
 		binding, err := callableProviderBindingName(b.BindingCatalog(), candidate.Procedure)
@@ -222,6 +230,8 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		if !ok || family.NamedCall == nil {
 			return false
 		}
+		// Installed omissions need a default-aware family shape; declarations
+		// without catalog names retain their named hook. Rejection is final.
 		raw = providerFunctionSyntax(raw, binding)
 		var valid bool
 		candidate.Inputs, candidate.Targets, valid = family.NamedCall(b, raw, operands, candidate.NamedDeclaration)

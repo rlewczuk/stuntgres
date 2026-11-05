@@ -954,6 +954,23 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledPgStatStatements(n, view)
 		rebound = n
+	case plan.InstalledPgStatStatementsResetExpr:
+		if n.Procedure == nil || n.RoutineReference != n.Procedure {
+			return nil, false, fmt.Errorf("stuntgres: invalid statement statistics reset expression")
+		}
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		// The shared Info traversal already mapped the captured declaration.
+		// Reuse that exact immutable result: a remapper need not intern copies.
+		proc, ok := info.RoutineReference.(*catalog.Procedure)
+		if !ok || proc == nil {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped statement statistics reset function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledPgStatStatementsReset(n, view)
+		rebound = n
 	case plan.InstalledPgpArmorHeadersExpr:
 		n.Arg = child(n.Arg)
 		proc, ok := originalProcedure(n.Procedure)

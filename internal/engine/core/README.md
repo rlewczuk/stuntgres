@@ -2163,19 +2163,24 @@ disposal can split a nested planning entry from a top-level execution entry.
 Each live runtime frame owns one scalar collector admission and releases it on
 every terminal, including rejection, unused/planning-only disposal and owner
 cleanup. Transfers move that frame rather than minting another admission.
-Eviction removes history, not eligibility for a later successful phase; matching
-explicit clear/replacement still fences live admitted/prospective keys even when
-their entries are absent. Unanticipated terminal keys register atomically with
+Eviction and SQL reset remove history, not eligibility for a later successful
+phase; native clear/replacement still fences live admitted/prospective keys even
+when their entries are absent. Unanticipated terminal keys register atomically with
 their successful record; earlier clears of only that unregistered key are not
 retroactive, and another prospective key's reset/extrema flags do not transfer.
 The original admitted-key destructive fence always remains effective.
 
 Projection recaptures current role authority before the collector snapshot;
 own/superuser/inherited `pg_read_all_stats` readers see text and IDs, while foreign
-ordinary readers receive redaction and NULL IDs. SQL reset overloads are owned
-separately; the real shared filtered/minmax clear seam already exists. Accepted
-native replacement clears only the replaced database's history, retaining peer
-history and owned snapshots. CREATE DATABASE's unpublished template-copy runtime
+ordinary readers receive redaction and NULL IDs. The installed scalar reset
+uses shared current routine EXECUTE admission, not text-visibility privileges.
+Its body borrows the current cluster accumulator, captures one real microsecond
+instant for mutation and TIMESTAMPTZ result, and never credits its own success.
+Only actual successful executor disposal records the caller or any other eligible
+in-flight work; SQL reset neither fences admissions nor revives native fences.
+Native replacement clears only the replaced database's history, retaining peer
+history and owned snapshots. It shares entry/info mutation with SQL reset, not
+admission policy. CREATE DATABASE's unpublished template-copy runtime
 has no cluster or registered database identity and clears no shared history.
 No runtime frames, history or handles are dumped.
 

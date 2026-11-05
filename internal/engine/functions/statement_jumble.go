@@ -442,6 +442,9 @@ func (PgstattupleStats) JumbleFields(s expr.StatementFields) {
 func (PgStatStatements) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgStatStatements")
 }
+func (PgStatStatementsReset) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.PgStatStatementsReset")
+}
 func (Pgstattuple) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.Pgstattuple") }
 func (Pgvisibility) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Pgvisibility") }
 func (n Pgsurgery) JumbleFields(s expr.StatementFields) {

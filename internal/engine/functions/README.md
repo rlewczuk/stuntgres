@@ -60,8 +60,13 @@ replay retain routine provenance, never provider state or an EXECUTE decision.
 `PgStatStatements` binds only genuine stock installed declarations. The Boolean
 showtext SRF has the released 52-column RECORD shape; the info scalar has two
 OUT fields. STRICT NULL returns no SRF rows without borrowing runtime authority.
-The typed execution bridge reaches the current statement's shared collector and
-fresh visibility decisions, never a cached snapshot or adapter-owned counters.
+`PgStatStatementsReset` is a separate volatile TIMESTAMPTZ scalar with four typed,
+defaultable formals. It preserves written argument evaluation order and arity;
+statement jumbling excludes inserted defaults and retains named formal slots.
+Explicit NULL produces one typed NULL without body demand, not an empty SRF. Shared
+routine admission owns current EXECUTE checks before surviving calls evaluate.
+The typed bridges borrow the current statement's one cluster collector; neither
+reader visibility nor reset authority is cached in an expression.
 Every concrete function expression, including private callable carriers, owns
 its static `JumbleFields` discriminator. Selected fields follow that tag;
 ordinary routine identities and lexical operands remain visitor-owned.

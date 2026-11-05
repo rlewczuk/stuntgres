@@ -87,10 +87,11 @@ scan work. Excluded phases still obey ordinary cancellation/statement timeout.
 Cooperative checkpoints do not hard-preempt an indivisible policy/codec/provider
 callback and do not impose a whole-query millisecond deadline.
 
-The pg_stat_statements bridge authenticates the installed typed carrier and
-borrows the live statement runtime for owned record rows. It owns no parallel
-accumulator or cached privileges. Planning metrics describe every real accepted
-native preflight construction; retained fold backing is not a complete generic
+The pg_stat_statements bridges authenticate installed typed carriers and borrow
+the live statement runtime for owned reader rows or a demanded scalar reset.
+They own no parallel accumulator, cached privileges or terminal success credit.
+Scalar strict NULL keeps ordinary one-row cardinality. Planning metrics describe
+every real accepted native preflight construction; retained fold backing is not a complete generic
 plan, and no cost-based generic/custom chooser or definition graph cache is
 introduced. Continuations of an already accepted portal do not rebuild a plan.
 

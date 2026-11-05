@@ -872,6 +872,19 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, n.Children())
 		}
+		if n, ok := bound.(plan.InstalledPgStatStatementsResetExpr); ok {
+			if err := extension.StockPgStatStatements.ValidateProcedure(b.BindingCatalog(), n.Procedure); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			written, err := n.WrittenArguments(r)
+			if err != nil {
+				return err
+			}
+			return children(r.Args, written)
+		}
 		if n, ok := bound.(plan.InstalledPgpArmorHeadersExpr); ok {
 			if err := extension.ValidatePgpArmorHeadersIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err

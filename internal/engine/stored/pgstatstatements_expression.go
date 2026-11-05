@@ -52,7 +52,7 @@ func pgStatStatementsRecipe(raw parser.Expr) bool {
 		return false
 	}
 	name := call.Name.Parts[len(call.Name.Parts)-1].Text
-	return name == "pg_stat_statements" || name == "pg_stat_statements_info"
+	return name == "pg_stat_statements" || name == "pg_stat_statements_info" || name == "pg_stat_statements_reset"
 }
 func (v *View) pgStatStatementsRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath) (*catalog.Procedure, error) {
 	ref, exists := v.routineRefs[path]

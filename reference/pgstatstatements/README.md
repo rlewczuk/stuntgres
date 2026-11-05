@@ -9,9 +9,10 @@ SQL, `database/sql` and `reference/fixture`, never internal engine APIs.
 The observer's pinned session disables collection. A separate worker supplies
 measured statements. New resolved objects and distinct statement shapes isolate
 streams; each counter assertion establishes its matching baseline before work.
-Cluster history is not assumed empty and SQL reset functions are not setup
-helpers. All borrowers close before extension/schema/role teardown. PostgreSQL
-scenarios run serially because their oracle and accumulated history are shared.
+Cluster history is not assumed empty. Reset scenarios explicitly assert each
+destructive setup/result; other families isolate shapes without using SQL reset
+as an unasserted setup helper. All borrowers close before extension/schema/role
+teardown. PostgreSQL scenarios run serially because their oracle is shared.
 
 Declaration expectations come from the released 1.12 SQL, independently of
 backend metadata. Logical identity/calls/rows and representative text are exact;
@@ -54,6 +55,8 @@ The permanent suffix inventory under `TestReferencePgStatStatements` is:
 | Visibility | Own/foreign redaction, inherited statistics-reader authority and immediate revoke on held prepared readers |
 | Eviction | 5100 distinct FROM-alias shapes, untied hot survivor, bounded capacity and event—not victim—deallocation accounting |
 | InFlightEviction | Real suspended executor survives max5000 pressure; normal partial Close recreates only its actual successful phase without draining or replaying evicted history |
+| ResetDeclaration, ResetArguments, ResetDiagnostics, ResetFilters, ResetMinmax, ResetInfo, ResetPrivileges | Genuine defaulted scalar declaration, named/coerced/strict NULL calls, complete diagnostics, cross-role/database filters, all-field cumulative preservation, exact same-server reset timestamps/global outcomes and live ACL admission |
+| ResetCompletion, ResetInFlight, ResetControls, ResetFeatureSmoke | Enabled caller1/1 only at actual terminal, old eligible executor completion after SQL reset versus native Clear fences, genuine stored identities/current deparse and native-control lifetimes |
 | Controls | Persistent provider/member/owner identities, stored consumers/data, failed replacement atomicity, clean local history and intact peer history |
 | ConsumerLifecycle | Ordinary scripted views retain changed definitions, moved identities, comments, ownership/ACLs, actual membership or absence through native replacement; unrelated canonical-name tables and detached historical function cohorts remain independent |
 | Protocol | Actual public server/pgconn simple and extended messages, Parse/Describe, volatile portal suspension/resume and explicit close-time accounting, COPY and CopyFail atomicity |
@@ -65,6 +68,10 @@ shared definitions. They exercise public Dump/Reset/Restore rather than SQL rese
 overloads. Held rows remain owned across replacement; private SQL state and
 collector history do not become dumped data. Protocol uses the existing public
 server fixture and real frontend messages, not internal collector calls.
+Reset cancellation observes genuine queued argument-relation admission before
+the body, then joins cancellation. Its Admin monitoring legitimately adds cluster
+history, so only these monitored cases compare both seeded A/B rows in all52
+fields plus full info; all other reset failure cases compare complete history.
 Utility SET, named DEALLOCATE and FETCH check exact representatives through
 independently expected per-execution call/row deltas, including history retained
 across installation replacement. Named deallocation is collected with its name
@@ -122,4 +129,4 @@ make check REFERENCE=1 RUN='^TestReferencePgStatStatements'
 Follow [docs/TESTING.md](../../docs/TESTING.md). The shared backend loop is
 unfiltered; missing native behavior cannot prevent the sibling PostgreSQL
 subtest from observing the independently specified contract. No recorder learns
-expectations and no SQL reset overload is implemented or substituted here.
+expectations; reset scenarios exercise genuine public SQL, never collector mocks.

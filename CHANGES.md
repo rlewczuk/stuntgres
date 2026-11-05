@@ -6,6 +6,13 @@
   adjacent-only compaction, strict NULL/error precedence and original provider
   authority through prepared, stored and native-control lifetimes.
 
+- Implement the installed pg_stat_statements_reset scalar with shared named/default
+  binding, current EXECUTE authority, filtered/minmax mutation and exact reset
+  timestamps. Preserve eligible in-flight SQL completion, native replacement
+  fences, and genuine stored identities/defaults/ACLs through native controls.
+  Retain written arity and named formal identity through statement jumbling and
+  stored replay without promoting omitted defaults into source operands.
+
 - Implement installed intarray icount, idx, both subarray overloads, intset and
   unary/binary # through shared catalog selection, immutable expressions and
   integer-array kernels. Preserve released signed boundaries, count's NULL-element

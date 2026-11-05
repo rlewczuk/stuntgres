@@ -626,6 +626,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgStatStatementsExpr{PgStatStatements: c, Procedure: p, Ref: ref}, nil
+	case functions.PgStatStatementsReset:
+		if err := extension.StockPgStatStatements.ValidateProcedure(r.catalog, p); err != nil {
+			return nil, err
+		}
+		if p.Origin.Declaration != 2 {
+			return nil, fmt.Errorf("stuntgres: mismatched statement statistics reset declaration")
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgStatStatementsResetExpr{PgStatStatementsReset: c, Procedure: p, Ref: ref}, nil
 	case functions.PgpArmorHeaders:
 		return r.attachPgpArmorHeaders(c, ref)
 	case functions.TablefuncNormal:

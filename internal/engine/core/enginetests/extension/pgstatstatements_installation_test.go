@@ -52,7 +52,7 @@ func TestPgStatStatementsInstallation(t *testing.T) {
 	pgssOwnerExec(t, e, s, "CREATE EXTENSION pg_stat_statements")
 	read := e.CatalogRead()
 	ext := read.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pg_stat_statements"}))
-	if ext.Version != "1.12" || len(ext.Installation.Members) != 2 || len(ext.Members) != 8 {
+	if ext.Version != "1.12" || len(ext.Installation.Members) != 3 || len(ext.Members) != 9 {
 		t.Fatal("recipe roots versus ordinary companion closure", ext)
 	}
 	if err := extension.StockPgStatStatements.ValidateExtension(read, ext); err != nil {
@@ -129,8 +129,8 @@ func TestPgStatStatementsInstallation(t *testing.T) {
 		if address := other.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pg_stat_statements"}); address != (ids.ObjectAddress{}) {
 			t.Fatal("failed candidate leaked extension", address)
 		}
-		for name := range counts {
-			if address := other.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: existing.Namespace(), Name: name, Signature: map[string]string{"pg_stat_statements": "16", "pg_stat_statements_info": ""}[name]}); address != (ids.ObjectAddress{}) {
+		for name, signature := range map[string]string{"pg_stat_statements": "16", "pg_stat_statements_info": "", "pg_stat_statements_reset": "26,26,20,16"} {
+			if address := other.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: existing.Namespace(), Name: name, Signature: signature}); address != (ids.ObjectAddress{}) {
 				t.Fatal("failed candidate leaked installed procedure", address)
 			}
 		}
@@ -265,8 +265,8 @@ func TestPgStatStatementsInstallationReplacementIdentity(t *testing.T) {
 		t.Fatal("fixture did not distinguish replay allocation from live identity")
 	}
 	fixed, err := control.CompatibleInstallationIdentities(before, input)
-	if err != nil || len(fixed) != 3 || fixed[imported.Address()] != live.Address() {
-		t.Fatal("genuine active cohort did not select its live header and two procedures", fixed, err)
+	if err != nil || len(fixed) != 4 || fixed[imported.Address()] != live.Address() {
+		t.Fatal("genuine active cohort did not select its live header and three procedures", fixed, err)
 	}
 	for slot, address := range imported.Installation.Members {
 		if fixed[address] != live.Installation.Members[slot] {
@@ -365,7 +365,7 @@ func TestPgStatStatementsInstallationReplacementCohorts(t *testing.T) {
 	target, _, live := setup(false)
 	source, detached, active := setup(true)
 	fixed, err := control.CompatibleInstallationIdentities(target.CatalogRead(), source.CatalogRead())
-	if err != nil || len(fixed) != 3 || fixed[active.Address()] != live.Address() || fixed[detached.Address()] != (ids.ObjectAddress{}) {
+	if err != nil || len(fixed) != 4 || fixed[active.Address()] != live.Address() || fixed[detached.Address()] != (ids.ObjectAddress{}) {
 		t.Fatal("historical source cohort was conflated with the live provider", fixed, err)
 	}
 	for slot, address := range detached.Installation.Members {

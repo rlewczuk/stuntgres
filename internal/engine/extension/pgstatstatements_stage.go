@@ -11,8 +11,8 @@ import (
 )
 
 func (p *PgStatStatementsProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
-	ext.Members = make([]ids.ObjectAddress, 0, 2)
-	for slot, name := range []string{"pg_stat_statements", "pg_stat_statements_info"} {
+	ext.Members = make([]ids.ObjectAddress, 0, 3)
+	for slot, name := range []string{"pg_stat_statements", "pg_stat_statements_info", "pg_stat_statements_reset"} {
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -27,13 +27,28 @@ func (p *PgStatStatementsProvider) Stage(stage Stage, ext *catalog.Extension, ow
 			signature = ""
 			symbol = name
 		}
-		procedure := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2249, Volatility: expr.Volatile, Strict: true, Installed: pgStatStatementsDeclaration(slot), Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/pg_stat_statements", HasBinary: true}, Implementation: p}
-		procedure.ACL = stage.CreationRoutineACL(owner, ext.TargetNamespace)
+		result := ids.OID(2249)
+		if slot == 2 {
+			signature, symbol, result = "26,26,20,16", "pg_stat_statements_reset_1_11", 1184
+		}
+		procedure := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Volatility: expr.Volatile, Strict: true, Installed: pgStatStatementsDeclaration(slot), Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/pg_stat_statements", HasBinary: true}, Implementation: p}
+		if slot == 2 {
+			procedure.LiteralDefaults = pgStatStatementsResetDefaults
+			procedure.ACL, err = stage.RoutineCreationACLWithoutPublic(owner, ext.TargetNamespace)
+			if err != nil {
+				return err
+			}
+		} else {
+			procedure.ACL = stage.CreationRoutineACL(owner, ext.TargetNamespace)
+		}
 		if stage.LookupName(catalog.DescriptorNameKey(procedure)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", name)}
 		}
 		if err := stage.Create(procedure); err != nil {
 			return err
+		}
+		if slot == 2 {
+			stage.RecordInitialPrivilege(procedure.Address(), 'e', procedure.ACL)
 		}
 		ext.Members = append(ext.Members, procedure.Address())
 	}

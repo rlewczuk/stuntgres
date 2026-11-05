@@ -149,8 +149,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   keep `ProcedureSymbol`. Probe, named-call and selected-gateway matching share
   this selection. Registry classification never substitutes for current origin,
   provider-family or execution privilege checks and exposes no C-symbol aliases.
-  Stock pg_stat_statements 1.12 seals exactly two C-function recipe roots. Its
-  optional `ConsumerViews` manifest creates the two ordinary SQL views only
+  Stock pg_stat_statements 1.12 seals three C-function recipe roots: the two
+  readers retain slots0/1 and the scalar reset owns slot2, four immutable literal
+  defaults and genuine argument names. Reset's script PUBLIC EXECUTE revoke
+  preserves named creation grants and records an independent initial ACL.
+  Its `ConsumerViews` manifest still creates exactly two ordinary SQL views
   after sealing, through `StageConsumers` in the same unpublished candidate.
   Ordinary views acquire real membership and rowtype/array closure, never
   fabricated installed relation origins. Each `ConsumerView` owns its ordinary

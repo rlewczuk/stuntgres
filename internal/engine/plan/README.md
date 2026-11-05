@@ -10,10 +10,12 @@ evaluates them. Node `Eval` methods never name engine state: they use
 volatile zero-child trigger kernel. Rebuild/substitution preserve that carrier;
 runtime validation never borrows an active trigger invocation for scalar SQL.
 
-`InstalledPgStatStatementsExpr` preserves the genuine Procedure/Ref and Boolean
-child around the volatile fixed-record kernel. Scalar info and set-returning
-statistics keep distinct admission/cardinality. Rebuild, substitution and stored
-remapping retain provider authority, not runtime history or visibility grants.
+`InstalledPgStatStatementsExpr` preserves genuine Procedure/Ref and Boolean
+child around the fixed-record reader kernel. Scalar info and set-returning
+statistics retain distinct admission/cardinality. The separate
+`InstalledPgStatStatementsResetExpr` carries four typed/defaultable scalar inputs
+and their written evaluation order. Rebuild, substitution and stored remapping
+retain provider authority/provenance, never runtime history or EXECUTE decisions.
 
 Each concrete expression owns a static `JumbleFields` discriminator. Installed
 and lexical wrappers override promoted kernel projections without adding a

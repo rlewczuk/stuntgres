@@ -89,7 +89,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			return invalid()
 		}
 	case StockPgStatStatements:
-		count = 2
+		count = 3
 		if ext.Version != "1.12" || slot >= count {
 			return invalid()
 		}
@@ -98,7 +98,14 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if slot == 1 {
 			name, sqlName, signature = "pg_stat_statements_info", "pg_stat_statements_info", ""
 		}
-		if p.Installed != pgStatStatementsDeclaration(slot) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_stat_statements", HasBinary: true}) {
+		if slot == 2 {
+			name, sqlName, signature, result = "pg_stat_statements_reset_1_11", "pg_stat_statements_reset", "26,26,20,16", 1184
+		}
+		defaults := (*catalog.RoutineLiteralDefaults)(nil)
+		if slot == 2 {
+			defaults = pgStatStatementsResetDefaults
+		}
+		if p.LiteralDefaults != defaults || p.Installed != pgStatStatementsDeclaration(slot) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_stat_statements", HasBinary: true}) {
 			return invalid()
 		}
 	case StockDblink:

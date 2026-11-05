@@ -1283,6 +1283,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing statement statistics namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Children(), true)
+	case plan.InstalledPgStatStatementsResetExpr:
+		if err := ValidateInstalledPgStatStatementsReset(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Ref.Address)
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing statement statistics reset namespace")
+		}
+		return pgStatStatementsResetCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, child)
 	case plan.InstalledPgpArmorHeadersExpr:
 		if err := ValidateInstalledPgpArmorHeaders(n, r.View); err != nil {
 			return "", err

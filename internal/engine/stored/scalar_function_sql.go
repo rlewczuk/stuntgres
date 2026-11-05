@@ -582,6 +582,17 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Children())
+	case plan.InstalledPgStatStatementsResetExpr:
+		if err := ValidateInstalledPgStatStatementsReset(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored statement statistics reset namespace")
+		}
+		r.record(n.Ref)
+		return pgStatStatementsResetCallSQL(n, procedure, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledPgpArmorHeadersExpr:
 		if err := ValidateInstalledPgpArmorHeaders(n, view); err != nil {
 			return "", err

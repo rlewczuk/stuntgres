@@ -12,10 +12,16 @@ change the explicit quoted extension names in membership or ownership errors,
 or identifier quoting for other object classes.
 
 Installed pg_stat_statements expressions retain their exact sealed function
-declarations and fixed OUT shapes through capture, dependency visitation,
-retagging, remapping and both deparsers. Ordinary scripted views have no
-installed relation origin: their current SQL, identities and membership use
-the existing ordinary view codecs and native owner/membership remapping.
+declarations through capture, dependency visitation, retagging, remapping and
+both deparsers. Readers retain fixed OUT shapes; scalar reset retains its four
+typed/defaultable formals and written evaluation order/arity. Omitted defaults
+have no fictitious source occurrences, remain omitted during rendering, and
+must retain their sealed typed literal values. Current qualified genuine names and
+destination-owned references/types survive replay without retaining runtime or
+ACL decisions. The reset carrier reuses the shared traversal's single mapped
+routine declaration for both its function field and Info reference; remappers
+need not intern copies. Ordinary scripted views have no installed relation origin: their
+current SQL, identities and membership use the existing ordinary view codecs.
 
 
 The expression deparser is also the presentation owner for nonexecuting logical

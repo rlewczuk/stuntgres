@@ -269,7 +269,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 		{DblinkExtension, "dblink_get_pkey dblink_build_sql_delete dblink_build_sql_insert dblink_build_sql_update"},
 		{PgFreespaceExtension, "pg_freespace"},
 		{PgBuffercacheExtension, "pg_buffercache_pages"},
-		{PgStatStatementsExtension, "pg_stat_statements pg_stat_statements_info"},
+		{PgStatStatementsExtension, "pg_stat_statements pg_stat_statements_info pg_stat_statements_reset"},
 	} {
 		for name := range strings.FieldsSeq(family.names) {
 			definition, ok := Lookup(name)

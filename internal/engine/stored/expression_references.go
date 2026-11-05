@@ -219,6 +219,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		}
 	case plan.InstalledPgStatStatementsExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledPgStatStatementsResetExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgpArmorHeadersExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledTablefuncCrosstabExpr:

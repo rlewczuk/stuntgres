@@ -446,16 +446,20 @@ executor graph or catalog callback. `Begin` registers admitted and known
 prospective terminal keys together. `RecordPlan` and `RecordExecution` consume
 explicit successful key, cleaned raw source, timestamp, rows and measured time.
 An unanticipated terminal key registers atomically with its first record; earlier
-resulting-key-only clears are not retroactive. A destructive admitted-key clear
-always fences the original work. `Release` ends admission ownership on every
-successful or failed terminal; released tokens cannot publish.
+resulting-key-only native clears are not retroactive. A destructive admitted-key
+native clear always fences the original work. `Release` ends admission ownership
+on every successful or failed terminal; released tokens cannot publish.
 
 Eviction removes history, not active eligibility: later valid success merges into
 the current entry or allocates bounded new history using successful raw source
-and time. Existing representatives remain first. `Clear` matches active key slots
-even after eviction; minmax fences are key-specific and preserve cumulative
-moments. Owned snapshots survive all mutations. Actual all-entry removal resets
-global info, including filtered removal and the empty-store minmax edge.
+and time. Existing representatives remain first. Native `Clear` matches active
+key slots even after eviction; its minmax fences are key-specific and preserve
+cumulative moments. SQL `Reset` shares the same locked entry/info mutation but
+never changes admissions: eligible later successful phases can recreate removed
+history or initialize reset extrema. It cannot revive prior native fences and
+does not itself allocate entries or credit phases. Owned snapshots survive both
+operations. Actual all-entry removal resets global info, including filtered
+removal and the empty-physical-store minmax edge.
 Planning and execution use Welford population moments. Sticky usage starts at
 the current median (initially10), decays by0.5 and resets to1 before first-success
 increment; completed usage decays by0.99. Deallocation takes the sorted
@@ -481,9 +485,9 @@ Nesting, truncate, COW and pending-prefix accounting uses
 `make check RUN='^TestStatsSnapshotTransactionAccounting$'`, also with `RACE=1`.
 Public SQL scenarios live in `reference/session_state`, using
 `make check RUN='^TestReferenceStatsSnapshot'` in native and `REFERENCE=1` modes.
-Statement arithmetic, explicit admission release, filtered/minmax clear fencing,
+Statement arithmetic, SQL reset versus native clear admission lifetimes,
 bounded sticky/median eviction and concurrent snapshots use
-`make check RUN='^TestPgStatStatements(Accumulator|Clear|Eviction)'`, also with
+`make check RUN='^TestPgStatStatements(Accumulator|Clear|Reset|Eviction)'`, also with
 `RACE=1`.
 
 

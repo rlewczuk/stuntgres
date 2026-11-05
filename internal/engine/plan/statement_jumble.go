@@ -103,6 +103,9 @@ func (InstalledPgrowlocksExpr) JumbleFields(s expr.StatementFields) {
 func (InstalledPgStatStatementsExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgStatStatementsExpr")
 }
+func (InstalledPgStatStatementsResetExpr) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("plan.InstalledPgStatStatementsResetExpr")
+}
 func (InstalledPgstattupleExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledPgstattupleExpr")
 }
