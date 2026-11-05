@@ -300,7 +300,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		domain := domainUnitType(t, view, "pt18_query_domain")
 		nested := domainUnitType(t, view, "pt18_query_nested")
 		ext, ok := view.Extension(base.Extension)
-		if !ok || len(ext.Members) != 41 || len(ext.Installation.Members) != 39 || catalog.ExtensionMembership(array(t, view, base)) != ext.Address() {
+		if !ok || len(ext.Members) != 46 || len(ext.Installation.Members) != 44 || catalog.ExtensionMembership(array(t, view, base)) != ext.Address() {
 			t.Fatal("missing actual intarray installation")
 		}
 		if err := extension.StockIntarray.ValidateExtension(view, ext); err != nil {

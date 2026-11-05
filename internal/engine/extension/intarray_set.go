@@ -31,6 +31,10 @@ var intarraySetRecipes = [...]intarraySetRecipe{
 var intarrayEstimatorNames = [...]string{"_int_overlap_sel", "_int_contains_sel", "_int_contained_sel", "_int_overlap_joinsel", "_int_contains_joinsel", "_int_contained_joinsel"}
 
 func intarrayProcedureDeclaration(slot int) (string, catalog.ProcedureSignature, ids.OID, expr.Volatility) {
+	if slot >= IntarraySortProcedureStart && slot < IntarrayMemberCount {
+		r := intarraySortRecipes[slot-IntarraySortProcedureStart]
+		return r.name, r.signature, 1007, expr.Immutable
+	}
 	if slot >= IntarraySliceProcedureStart && slot < IntarraySliceOperatorStart {
 		r := intarraySliceRecipes[slot-IntarraySliceProcedureStart]
 		return r.name, r.signature, r.result, expr.Immutable
@@ -47,6 +51,11 @@ func intarrayProcedureDeclaration(slot int) (string, catalog.ProcedureSignature,
 }
 
 func IntarrayProcedureName(name string) bool {
+	for _, r := range intarraySortRecipes {
+		if r.name == name {
+			return true
+		}
+	}
 	for _, r := range intarraySliceRecipes {
 		if r.name == name {
 			return true

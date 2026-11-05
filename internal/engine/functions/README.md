@@ -71,15 +71,16 @@ support codec. Rebuild and retag follow destination result/formal generations,
 never a source catalog, execution handle or mutable name-based capability.
 
 `IntarraySet` retains two exact typed formals; `IntarraySlice` retains one to
-three in fixed buffers, with unused slots empty. Both retain the selected
-installed routine reference and closed overload role. Ordinary operator binding
-delegates to the same immutable node as named calls. Children evaluate once in source order;
+three in fixed buffers, and `IntarraySort` retains one or two in fixed two-slot
+buffers, with unused slots empty. Each retains the selected installed routine
+reference and closed overload role. Ordinary operator binding delegates to the
+same immutable node as named calls. Children evaluate once in source order;
 strict typed NULL, routine entry/leave, capture, reconstruction, retagging,
 grouping and scalar FROM opening use the shared protocols. Type-owned kernels
 borrow immutable arrays. No catalog, session, ACL decision or estimator runtime
 is retained. Stored owners authenticate original routine provenance before
 rendering or generation remapping; NULL never repairs invalid lifetime evidence.
-The slice node owns its static statement-jumble discriminator; shared traversal
+Slice and sort nodes own static statement-jumble discriminators; shared traversal
 records the selected routine/operator identity and every active lexical operand.
 
 

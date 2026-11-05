@@ -189,6 +189,12 @@ Rules:
   and unary/binary # use `RUN='^TestReferenceIntarraySlice'`. Direct/prepared/held
   transport, full diagnostics, original identity lifetimes and actual native
   control/replay behavior share independent release expectations.
+- Installed intarray sorting overloads and adjacent-only uniqueness use
+  `RUN='^TestReferenceIntarraySort'`. Independent values, complete diagnostics,
+  catalog declarations and stored authority share direct/prepared/held routes;
+  native controls retain readers and replay actual emitted SQL on PostgreSQL.
+  Failed replacement uses literal INSERT payloads reaching stored sort/uniq
+  CHECK expressions, preserving Restore's scalar admission boundary.
 - `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
   `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,

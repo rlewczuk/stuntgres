@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	IntarraySetProcedureStart = 6
-	IntarrayEstimatorStart    = 16
-	IntarraySetOperatorStart  = 22
+	IntarraySetProcedureStart   = 6
+	IntarrayEstimatorStart      = 16
+	IntarraySetOperatorStart    = 22
 	IntarraySliceProcedureStart = 32
 	IntarraySliceOperatorStart  = 37
-	IntarrayMemberCount         = 39
+	IntarraySortProcedureStart  = 39
+	IntarrayMemberCount         = 44
 )
 
 var intarrayTypeNames = [2]string{"query_int", "intbig_gkey"}
@@ -44,7 +45,7 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		if i < IntarraySetProcedureStart && i%3 == 0 {
 			class = ids.TypeClassID
 		}
-		if i >= IntarraySetOperatorStart && i < IntarraySliceProcedureStart || i >= IntarraySliceOperatorStart {
+		if i >= IntarraySetOperatorStart && i < IntarraySliceProcedureStart || i >= IntarraySliceOperatorStart && i < IntarraySortProcedureStart {
 			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
@@ -118,5 +119,8 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 	if err := p.stageSet(stage, ext, owner); err != nil {
 		return err
 	}
-	return p.stageSlice(stage, ext, owner)
+	if err := p.stageSlice(stage, ext, owner); err != nil {
+		return err
+	}
+	return p.stageSort(stage, ext, owner)
 }

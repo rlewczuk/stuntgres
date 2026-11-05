@@ -312,6 +312,7 @@ func (LtreePath) JumbleFields(s expr.StatementFields)      { s.JumbleText("funct
 func (IntbigIO) JumbleFields(s expr.StatementFields)       { s.JumbleText("functions.IntbigIO") }
 func (IntarraySet) JumbleFields(s expr.StatementFields)    { s.JumbleText("functions.IntarraySet") }
 func (IntarraySlice) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.IntarraySlice") }
+func (IntarraySort) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.IntarraySort") }
 func (PgTrgm) JumbleFields(s expr.StatementFields)         { s.JumbleText("functions.PgTrgm") }
 func (Posix) JumbleFields(s expr.StatementFields)          { s.JumbleText("functions.Posix") }
 func (Regexp) JumbleFields(s expr.StatementFields)         { s.JumbleText("functions.Regexp") }

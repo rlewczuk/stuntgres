@@ -187,7 +187,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.PgTrgmProviderOf(d) == extension.StockPgTrgm || extension.LtreeProviderOf(d) == extension.StockLtree || extension.IsnProviderOf(d) == extension.StockIsn {
 				hasSQL = true
 			}
-			if extension.IntarrayProviderOf(d) == extension.StockIntarray && d.Origin != nil && (d.Origin.Declaration >= 4 && d.Origin.Declaration < extension.IntarrayEstimatorStart || d.Origin.Declaration >= extension.IntarraySliceProcedureStart && d.Origin.Declaration < extension.IntarraySliceOperatorStart) {
+			if extension.IntarrayProviderOf(d) == extension.StockIntarray && d.Origin != nil && (d.Origin.Declaration >= 4 && d.Origin.Declaration < extension.IntarrayEstimatorStart || d.Origin.Declaration >= extension.IntarraySliceProcedureStart && d.Origin.Declaration < extension.IntarraySliceOperatorStart || d.Origin.Declaration >= extension.IntarraySortProcedureStart && d.Origin.Declaration < extension.IntarrayMemberCount) {
 				hasSQL = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
@@ -851,6 +851,22 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return node, nil
 	}
 	if d != nil {
+		if operation, ok := extension.IntarraySortProcedure(selected.auth.ReadCatalog(), d); ok {
+			node, err := b.bindSelectedIntarraySort(raw, selected, operation)
+			if err == nil && freezeSyntax {
+				symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+				if failure != nil {
+					return nil, failure
+				}
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 		if operation, ok := extension.IntarraySliceProcedure(selected.auth.ReadCatalog(), d); ok {
 			node, err := b.bindSelectedIntarraySlice(raw, selected, operation)
 			if err == nil && freezeSyntax {

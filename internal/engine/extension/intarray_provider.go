@@ -103,7 +103,10 @@ func (p *IntarrayProvider) validateRecipe(v catalog.Read, ext *catalog.Extension
 			return invalid()
 		}
 	}
-	return p.validateSlice(v, ext)
+	if err := p.validateSlice(v, ext); err != nil {
+		return err
+	}
+	return p.validateSort(v, ext)
 }
 
 func (p *IntarrayProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {

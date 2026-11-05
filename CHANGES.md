@@ -1,5 +1,11 @@
 # Changes
 
+- Implement the five installed intarray sort, sort_asc, sort_desc and uniq
+  overloads through selected immutable expressions and shared typed arrays.
+  Preserve duplicate multiplicity, flat numeric ordering, shape/lower bounds,
+  adjacent-only compaction, strict NULL/error precedence and original provider
+  authority through prepared, stored and native-control lifetimes.
+
 - Implement installed intarray icount, idx, both subarray overloads, intset and
   unary/binary # through shared catalog selection, immutable expressions and
   integer-array kernels. Preserve released signed boundaries, count's NULL-element

@@ -635,6 +635,16 @@ construction owns the same shared array representation. Linear validation,
 search and copy loops honor the operation context. Canonical result descriptor
 authority belongs to catalog binding/stored validation, not a kernel registry.
 
+`IntarraySortOperation` validates exact array/text operand generations and the
+array result before strict NULL handling. Every nonnull array rejects NULL
+leaves before short-input or direction shortcuts. Numeric sorting owns one
+leaf buffer, retains duplicates and preserves rank, lengths and lower bounds;
+it never invokes generic first-axis array ordering. Adjacent-only uniqueness
+borrows unchanged immutable inputs, otherwise owns exactly the retained leaves
+and resizes the first dimension to their count and later dimensions to one.
+Validation, copying, comparison and compaction honor the operation context;
+cancellation publishes no partial result or mutation of borrowed backing.
+
 ### Range families
 
 `NewRangeFamily` creates reciprocal range/multirange descriptors with a captured
@@ -1134,7 +1144,7 @@ match engine tests of the same mechanism):
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Installed rejecting support-key identity, NULL and generic arrays: `RUN='^TestIntbigGkey'`
-- Selected integer-array kernels and immutable backing: `RUN='^TestIntarray(Set|Slice)'`
+- Selected integer-array kernels and immutable backing: `RUN='^TestIntarray(Set|Slice|Sort)'`
 - Earth domain, coordinate, point and surface-query kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel|QueryKernel|QueryCancellation)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|Operator(BitUnknownPreference|UnknownCategoryOrder)|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`

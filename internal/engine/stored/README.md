@@ -272,10 +272,11 @@ The retained member is a sealed declaration slot, not a position in current
 extension membership. Both qualified operators and genuine direct calls survive
 detach, foreign attachment, original-header retirement and authorized transport;
 mutable names and equal numeric OIDs never authorize remapping.
-`IntarraySet` and `IntarraySlice` follow the same source/current routine
-authentication with exact builtin integer-array/integer formals and BOOL,
-integer or integer-array result. Slice remapping visits only active operands.
-Reference remapping, retagging and current-name rendering preserve its selected
+`IntarraySet`, `IntarraySlice` and `IntarraySort` follow the same source/current
+routine authentication with exact builtin integer-array/integer/text formals
+and BOOL, integer or integer-array result. Slice and sort remapping visit only
+active operands; binary sort retains its destination-owned text formal.
+Reference remapping, retagging and current-name rendering preserve each selected
 operation and original installation, including detached genuine routines;
 same-OID foreign generations and copied origins cannot acquire destination authority.
 SQL dependency recording extracts each real selected routine declaration through
@@ -1552,6 +1553,14 @@ Bounded path expression/capture and source/destination ownership use
 Mixed scalar label-query ownership uses `RUN='^TestLtreeLtxtqueryStored'`.
 Installed ISN original/current declaration and operand-generation transport uses
 `RUN='^TestIsnExpression'`, shared with accepted prepared ownership witnesses.
+Selected integer-array ownership uses `RUN='^TestIntarray(Set|Slice|Sort)'`.
+Written occurrence identity is the source/expansion-ordinal pair, with lexical
+operand positions preserved. Builtin arrays are descriptor leaves in type
+mapping; element-generation corruption fixtures must install the foreign element
+in the mapped active array descriptor, not only change an unused scalar policy.
+Analysis-only conditional occurrence checks inspect `plan.ConditionalExpr.Args`;
+that owner does not implement `expr.Composite`. Executable simplification is a
+separate phase and must not define expectations for the retained analyzed graph.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

@@ -102,6 +102,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case functions.HstoreRows:
 		r.Add(n.Ref.Address)
+	case functions.IntarraySort:
+		r.Add(n.Ref.Address)
 	case functions.IntarraySlice:
 		r.Add(n.Ref.Address)
 	case functions.IntarraySet:

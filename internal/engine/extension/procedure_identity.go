@@ -418,7 +418,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 	case StockIntarray:
 		count = IntarrayMemberCount
-		if len(ext.Members) != count || slot < 0 || slot >= IntarraySliceOperatorStart || slot >= IntarraySetOperatorStart && slot < IntarraySliceProcedureStart || slot == 0 || slot == 3 || ext.Provider != "intarray" || ext.Version != "1.5" {
+		if len(ext.Members) != count || slot < 0 || slot >= count || slot >= IntarraySliceOperatorStart && slot < IntarraySortProcedureStart || slot >= IntarraySetOperatorStart && slot < IntarraySliceProcedureStart || slot == 0 || slot == 3 || ext.Provider != "intarray" || ext.Version != "1.5" {
 			return invalid()
 		}
 		if slot >= IntarraySetProcedureStart {

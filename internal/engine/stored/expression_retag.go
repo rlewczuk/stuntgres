@@ -195,6 +195,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, installed := node.(functions.IntarraySort); installed {
+				if failure := remapIntarraySortRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if call, installed := node.(functions.IntarraySlice); installed {
 				if failure := remapIntarraySliceRoutine(view, reader, captured, current, call, retainedType); failure != nil {
 					return nil, false, failure

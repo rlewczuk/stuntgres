@@ -116,6 +116,18 @@ func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Render
 		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
 		return spec, nil
 	}
+	if call, installed := node.(functions.IntarraySort); installed {
+		current, err := currentIntarraySort(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing intarray sort namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := node.(functions.IntarraySlice); installed {
 		current, err := currentIntarraySlice(view, call)
 		if err != nil {

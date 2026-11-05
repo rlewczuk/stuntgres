@@ -20,7 +20,7 @@ import (
 func TestIntarraySetProviderIdentity(t *testing.T) {
 	e, ext, _ := intarrayUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.Members) != 41 || len(ext.Installation.Members) != 39 || len(ext.Installation.Declarations) != 39 {
+	if len(ext.Members) != 46 || len(ext.Installation.Members) != 44 || len(ext.Installation.Declarations) != 44 {
 		t.Fatal("selected recipe boundaries")
 	}
 	names := []string{"_int_overlap", "_int_contains", "_int_contained", "intarray_push_elem", "intarray_push_array", "intarray_del_elem", "intset_subtract", "intset_union_elem", "_int_union", "_int_inter", "_int_overlap_sel", "_int_contains_sel", "_int_contained_sel", "_int_overlap_joinsel", "_int_contains_joinsel", "_int_contained_joinsel"}
@@ -29,7 +29,7 @@ func TestIntarraySetProviderIdentity(t *testing.T) {
 		if slot == 0 || slot == 3 {
 			class = ids.TypeClassID
 		}
-		if slot >= 22 && slot < 32 || slot >= 37 {
+		if slot >= 22 && slot < 32 || slot >= 37 && slot < 39 {
 			class = ids.OperatorClassID
 		}
 		if address.ClassID != class {
