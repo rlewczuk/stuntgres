@@ -378,6 +378,43 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   `RestoreSepgsqlRetiredColumns` checks actual private finish publication,
   retained immutable descriptors and failed/canceled atomic rejection. These
   internal owner units supplement, not replace, dual-mode external definitions.
+
+  The focused `Context(Functions|Permissions|Transactions|Controls|FeatureSmoke)`
+  definitions cover the four documented context signatures through direct,
+  prepared and held calls, text coercion, typed NULL/reset, exact translations
+  and identity fallback. Fresh local policies isolate setcurrent from
+  dyntransition (including same-subject and NULL reset), permissive validation,
+  and runtime-NULL ACL versus MAC admission. Transaction/savepoint/trusted-body
+  witnesses retain independent physical peers and SQL-role independence.
+  Controls rename genuine declarations and retain wrappers, view expressions,
+  prepared objects, open rows and metadata through actual Dump/Reset/Restore;
+  failed and canceled controls preserve catalog and subjects. Ordinary phases
+  assert real SQL identity functions, ACLs, dependent renames and table
+  transactions on both backends, not invented PostgreSQL provider functions.
+  Runtime NULL uses row input or generic prepared parameters, not a literal
+  eliminated by STRICT constant folding.
+
+  ```sh
+  make check RUN='^TestReferenceSepgsqlSimulationContext(Functions|Permissions|Transactions|Controls|FeatureSmoke)$'
+  make check REFERENCE=1 RUN='^TestReferenceSepgsqlSimulationContext(Functions|Permissions|Transactions|Controls|FeatureSmoke)$'
+  make check RUN='^TestSepgsqlSimulationContextCancellation$'
+  make check RACE=1 RUN='^(TestSepgsqlSimulationContextCancellation|TestReferenceSepgsqlSimulationContext(Functions|Permissions|Transactions|Controls|FeatureSmoke))$'
+  make check RUN='^TestReferenceSepgsqlSimulationContextFeatureSmoke$'
+  make check REFERENCE=1 RUN='^TestReferenceSepgsqlSimulationContextFeatureSmoke$'
+  ```
+
+  `ContextCancellation` pauses the genuine invocation entry check with its
+  already-observed nil error, cancels behind Engine.Mu, then requires the real
+  final fence to reject before any Set. Subject mark/current/generation are
+  inspected before statement cleanup, followed by rollback and a successful
+  uncanceled positive control. It supplements public pre-canceled SQL and
+  independent ordinary PostgreSQL phases; it is not active-host oracle proof.
+  The context smoke expects A, allowed R with peer A, full invalid42602 and
+  default-denied42501 preserving R, NULL reset to A, both exact translation
+  compositions and typed conversion NULLs. The embedding fixture is the runner:
+  the shipped CLI has no simulation registration flag. These are selectors and
+  expectations, not claims of exercised verification.
+
   `GenericLabelResolution` checks real missing/foreign/owned objects before
   unsupported-provider rejection, including type/domain and existing tablespaces,
   without adding label support or physical tablespace creation. The focused

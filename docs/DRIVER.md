@@ -1014,6 +1014,33 @@ classes and backslash escapes; `*` spans name separators. Within brackets an
 escaped hyphen is literal: `[a\-z]` matches `a`, `-`, or `z`, not `b`, whereas
 `[a-z]` remains a range. Negated classes retain the corresponding complement.
 
+The four context declarations use the ordinary resolver, coercions and routine
+admission: `sepgsql_getcon() RETURNS text`, `sepgsql_setcon(text) RETURNS boolean`,
+and STRICT `sepgsql_mcstrans_in(text)` / `sepgsql_mcstrans_out(text) RETURNS text`.
+All are scalar, VOLATILE and PARALLEL UNSAFE. `getcon` returns the physical
+session's effective configured subject, including a trusted-body override; it is
+not an authenticated host label. `setcon` is nonstrict: NULL requests the
+connection's original subject, not its most recent subject. Every request,
+including NULL and the current subject, requires both `process:setcurrent` on
+the effective subject and `process:dyntransition` to the requested subject.
+SQL superuser does not bypass those decisions. Non-NULL inputs require exact
+registered context membership, including in permissive mode. Invalid inputs
+reject with 42602, policy denials with 42501, and failed or canceled transitions
+preserve the subject. Successful transitions return BOOL true; transaction abort
+and savepoint rollback restore the corresponding earlier subject, while commit
+retains the pending subject. Trusted bodies mask pending changes until return.
+SQL role changes and catalog Reset/Restore do not replace physical subjects.
+
+Translation uses the copied exact raw/display pairs in `Translations`: `in`
+maps display to raw and `out` maps raw to display. Both return typed TEXT NULL
+for NULL, and return unmatched strings unchanged, including empty and whitespace
+strings; translation does not validate subject-context membership. These pairs
+are configured simulation data, not host-policy names or daemon observations.
+Ordinary EXECUTE ACL and MAC admission still apply to runtime-NULL calls before
+STRICT body suppression. Renamed genuine declarations retain their original
+provider identity; Dump/Restore preserves declarations and stored expressions,
+not host registration or physical-session subjects.
+
 Public `sepgsql_restorecon(text)` is nonstrict: NULL selects the default profile;
 every non-NULL string (including empty) names an exact registered profile, never
 a host filename. It first checks the current SQL superuser, then the profile.
