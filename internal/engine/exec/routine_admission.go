@@ -181,7 +181,7 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 		}
 		if null {
 			switch node.(type) {
-			case functions.IntbigIO, functions.IntarraySet:
+			case functions.IntbigIO, functions.IntarraySet, functions.IntarraySlice:
 				return checkIntarrayNullRoutineLifetime(c, auth, dependencies, captured)
 			}
 			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {

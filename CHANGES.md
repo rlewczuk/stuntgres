@@ -1,5 +1,10 @@
 # Changes
 
+- Implement installed intarray icount, idx, both subarray overloads, intset and
+  unary/binary # through shared catalog selection, immutable expressions and
+  integer-array kernels. Preserve released signed boundaries, count's NULL-element
+  exception, original routine/operator identities and stored/native-control ownership.
+
 - Collect supported direct foreign ANALYZE extended statistics from the same
   genuine once-imported sample as scalar facts, including noninherited
   ndistinct, dependencies, MCV and expression summaries. Apply current enabled

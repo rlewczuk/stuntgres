@@ -103,7 +103,7 @@ func TestIntarraySetRemap(t *testing.T) {
 	}
 	tv := target.CatalogRead()
 	destination := tv.MustExtension(tv.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}))
-	if destination.Installation == original.Installation || len(destination.Installation.Members) != 32 || tv.Owner().Domain == sv.Owner().Domain {
+	if destination.Installation == original.Installation || len(destination.Installation.Members) != 39 || tv.Owner().Domain == sv.Owner().Domain {
 		t.Fatal("destination retained source installation")
 	}
 	displacedProcedure := false

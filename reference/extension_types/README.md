@@ -185,6 +185,10 @@ Rules:
   stored consumers, presentation changes and destination-recorded native
   controls share independent expectations. Operators are schema-qualified so
   builtin polymorphic array overloads cannot stand in for the installed provider.
+- Selected intarray count, first-index, subarray overloads, singleton construction
+  and unary/binary # use `RUN='^TestReferenceIntarraySlice'`. Direct/prepared/held
+  transport, full diagnostics, original identity lifetimes and actual native
+  control/replay behavior share independent release expectations.
 - `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
   `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,

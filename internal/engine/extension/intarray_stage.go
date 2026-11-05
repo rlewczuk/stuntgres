@@ -16,7 +16,9 @@ const (
 	IntarraySetProcedureStart = 6
 	IntarrayEstimatorStart    = 16
 	IntarraySetOperatorStart  = 22
-	IntarrayMemberCount       = 32
+	IntarraySliceProcedureStart = 32
+	IntarraySliceOperatorStart  = 37
+	IntarrayMemberCount         = 39
 )
 
 var intarrayTypeNames = [2]string{"query_int", "intbig_gkey"}
@@ -42,7 +44,7 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 		if i < IntarraySetProcedureStart && i%3 == 0 {
 			class = ids.TypeClassID
 		}
-		if i >= IntarraySetOperatorStart {
+		if i >= IntarraySetOperatorStart && i < IntarraySliceProcedureStart || i >= IntarraySliceOperatorStart {
 			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
@@ -113,5 +115,8 @@ func (p *IntarrayProvider) Stage(stage Stage, ext *catalog.Extension, owner auth
 			}
 		}
 	}
-	return p.stageSet(stage, ext, owner)
+	if err := p.stageSet(stage, ext, owner); err != nil {
+		return err
+	}
+	return p.stageSlice(stage, ext, owner)
 }

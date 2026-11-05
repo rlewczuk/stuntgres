@@ -56,7 +56,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 34 || len(ext.Installation.Members) != 32 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 41 || len(ext.Installation.Members) != 39 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -113,7 +113,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 34 || !arrayInternal || !members[arrayAddress] {
+	if len(members) != 41 || !arrayInternal || !members[arrayAddress] {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -142,7 +142,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := extensionOwnerRecipeOrder(records[0])
-	if record.Name != "intarray" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 34 {
+	if record.Name != "intarray" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 41 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {

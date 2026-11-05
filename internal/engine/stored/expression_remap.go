@@ -104,6 +104,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case functions.IntarraySlice:
+		for i := range n.Operation.Arity() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.IntarraySet:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
 		if ref != nil {

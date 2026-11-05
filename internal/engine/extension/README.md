@@ -293,23 +293,26 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   roles. Its reciprocal array is internally dependent and a current direct
   extension member, without an invented scalar recipe slot. Mutable labels and
   membership never grant codec execution.
-- **Intarray members** (`intarray_provider.go`, `intarray_stage.go`, `intarray_set.go`):
+- **Intarray members** (`intarray_provider.go`, `intarray_stage.go`, `intarray_set.go`, `intarray_slice.go`):
   the trusted relocatable 1.5 provider preserves query_int and bqarr_in/out at
   slots 0–2, intbig_gkey and _intbig_in/out at slots 3–5. Ten strict immutable
   executable integer-array backers occupy 6–15, six genuine stable INTERNAL
   estimator declarations occupy 16–21, and ten selected operators occupy 22–31.
+  Five strict immutable slice declarations occupy 32–36: icount, idx, both
+  subarray overloads and intset. Prefix and binary # occupy 37–38 with their
+  genuine icount/idx backers and no estimator or commutator links.
   Estimators are catalog dependencies, not scalar execution kernels. Reciprocal
   commutators and restriction/join links use the complete privately allocated
   graph. Both generated type companions join current membership without extra
-  original slots (32 sealed roles, 34 initial members). The support-key companion
+  original slots (39 sealed roles, 41 initial members). The support-key companion
   uses the shared concrete array codec; query_int's stays lookup-only.
   One private stage makes late type, helper and operator collisions atomic.
   Sealed installation roles, not mutable names or membership, drive validation,
   execution selection, ownership replay and destination remapping. Support-I/O
   slots 4/5 retain typed strict NULL and released nonnull rejecting diagnostics;
-  bqarr declarations gain no direct-call gateway. Set calls bind through ordinary
-  catalog overload selection and shared coercion. Unrelated query/index families
-  remain outside this bounded recipe.
+  bqarr declarations gain no direct-call gateway. Set and slice calls bind through
+  ordinary catalog overload selection and shared coercion. Unrelated query/index
+  families remain outside this bounded recipe.
   Dump emits symbolic installation before consumers, preserving logical data,
   owners and dependencies rather than C library handles or physical GiST pages.
 - **Ltree members** (`ltree_provider.go`, `ltree_stage.go`, `ltree_arrays.go`):

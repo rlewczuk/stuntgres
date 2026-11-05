@@ -620,6 +620,16 @@ deletion preserves rank/lower bounds and survivor order, returns the immutable
 original on no match, and resizes surviving dimensions to count × 1 × ….
 Constructed outputs transfer exclusively owned buffers through `OwnedArrayValue`.
 
+`IntarraySliceOperation` validates each of its five actual overloads before
+strictness, including exact operand/formal pointers and scalar/array element
+generation links. Count borrows the flattened length without scanning or
+rejecting NULL elements; search validates the complete array before its first
+storage-order match. Slice validates before boundaries, uses released signed
+INT4 arithmetic, and copies into an owned flat lower-one array; singleton
+construction owns the same shared array representation. Linear validation,
+search and copy loops honor the operation context. Canonical result descriptor
+authority belongs to catalog binding/stored validation, not a kernel registry.
+
 ### Range families
 
 `NewRangeFamily` creates reciprocal range/multirange descriptors with a captured
@@ -1117,7 +1127,7 @@ match engine tests of the same mechanism):
 - Installed ltree codecs, typed comparisons/keys, identity and cancellation: `RUN='^TestLtree'`
 - Installed interval scalar codec and exact representation: `RUN='^TestSeg'`
 - Installed rejecting support-key identity, NULL and generic arrays: `RUN='^TestIntbigGkey'`
-- Selected integer-array kernels and immutable backing: `RUN='^TestIntarraySet'`
+- Selected integer-array kernels and immutable backing: `RUN='^TestIntarray(Set|Slice)'`
 - Earth domain, coordinate, point and surface-query kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel|QueryKernel|QueryCancellation)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|Operator(BitUnknownPreference|UnknownCategoryOrder)|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
