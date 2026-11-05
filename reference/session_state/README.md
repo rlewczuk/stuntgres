@@ -47,6 +47,27 @@ Native endpoints are typed NULL; the TCP oracle uses its actual activity
 endpoints. Native Dump/Reset/Restore phases retain real attachments and detached
 rows, and cancellation requires observed admission and joined workers.
 
+Legacy backend-state scenarios use `RUN='^TestReferenceBackendState'`
+in both fixture modes. The ten untagged definitions independently specify the
+six one-slot scalar declarations, strict NULL versus missing nonnull composite,
+direct/retained prepared metadata and carriers, original SQL/timestamp lifetime,
+lazy assigned child-XID cache (64 entries, sticky overflow and subtree abort),
+shared activity cuts, current inherited role/EXECUTE admission and full English
+diagnostics with Unicode positions. They exercise real LOCK and PgSleep owners,
+cancel/join barriers, retirement, cross-database attachments and explicit native
+control phases; expected TCP idle waits are Client/ClientRead, while native has
+no socket wait. The SQL OUT field `subxact_overflowed` is grounded in PG18.6
+FROM, expansion and field-access observations; the alternative
+`subxact_overflow` is rejected at the record expression, including Unicode offsets.
+The builtin pg_proc inventory's six release rows live in the fifth expected-fact
+shard; the first four shards and fixed result-type inventory are unchanged.
+Owning typed/projection/cache/runtime units retain actual declaration,
+canonical ancestry, physical incarnation and prepared definition backing.
+Independent-Driver control isolation establishes a marked source peer positively,
+then proves its absence in the restored destination while retaining destination
+and source identity checks. It does not infer isolation from a total backend
+count: native controls may borrow another genuine pooled physical attachment.
+
 
 Logical-slot monitoring uses `RUN='^TestReferencePGStatReplicationSlots'` in both
 fixture modes for typed empty/populated inventory, query composition, current

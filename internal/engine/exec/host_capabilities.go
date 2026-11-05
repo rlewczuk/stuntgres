@@ -114,6 +114,7 @@ type SessionInquiryRuntime interface {
 	BackendMemoryContexts(result *sqltype.Descriptor) ([]sqltype.Value, error)
 	functions.BackendCurrentRuntime
 	functions.BackendIdentityRuntime
+	functions.BackendStateRuntime
 }
 
 // TransactionInquiryRuntime holds the bodies of

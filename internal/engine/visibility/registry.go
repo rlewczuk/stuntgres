@@ -22,6 +22,9 @@ type Entry struct {
 	AgeAnchor             uint32
 	AgeDemanded           bool
 	Snapshot, SafeBuilder bool
+	SubxactCache          [64]uint64 // Actual cached child full XIDs, in assignment order.
+	SubxactCount          uint8
+	SubxactOverflowed     bool         // Sticky until top-level completion.
 	Ticket                *lock.Ticket // assignment mirror only; never take manager.mu under Engine.mu
 }
 
@@ -198,7 +201,7 @@ func (reg *Registry) ResetPhaseLocked(ref ids.TxRef) {
 		if v.AssignedXID == 0 && v.Ticket == nil && v.ExportXmin == 0 {
 			delete(reg.Entries, ref)
 		} else {
-			reg.Entries[ref] = Entry{AssignedXID: v.AssignedXID, FullXID: v.FullXID, Ticket: v.Ticket, ExportXmin: v.ExportXmin, ExportFullXmin: v.ExportFullXmin}
+			reg.Entries[ref] = Entry{AssignedXID: v.AssignedXID, FullXID: v.FullXID, Ticket: v.Ticket, ExportXmin: v.ExportXmin, ExportFullXmin: v.ExportFullXmin, SubxactCache: v.SubxactCache, SubxactCount: v.SubxactCount, SubxactOverflowed: v.SubxactOverflowed}
 		}
 	}
 }

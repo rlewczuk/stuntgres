@@ -174,3 +174,9 @@
 1391	pg_stat_get_backend_start	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	1184	23	\N	\N	\N	false	\N	pg_stat_get_backend_start	\N	false	\N
 1392	pg_stat_get_backend_client_addr	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	869	23	\N	\N	\N	false	\N	pg_stat_get_backend_client_addr	\N	false	\N
 1393	pg_stat_get_backend_client_port	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	23	23	\N	\N	\N	false	\N	pg_stat_get_backend_client_port	\N	false	\N
+1940	pg_stat_get_backend_activity	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	23	\N	\N	\N	false	\N	pg_stat_get_backend_activity	\N	false	\N
+2094	pg_stat_get_backend_activity_start	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	1184	23	\N	\N	\N	false	\N	pg_stat_get_backend_activity_start	\N	false	\N
+2857	pg_stat_get_backend_xact_start	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	1184	23	\N	\N	\N	false	\N	pg_stat_get_backend_xact_start	\N	false	\N
+2853	pg_stat_get_backend_wait_event	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	23	\N	\N	\N	false	\N	pg_stat_get_backend_wait_event	\N	false	\N
+2788	pg_stat_get_backend_wait_event_type	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	25	23	\N	\N	\N	false	\N	pg_stat_get_backend_wait_event_type	\N	false	\N
+6107	pg_stat_get_backend_subxact	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	2249	23	{23,23,16}	{i,o,o}	{bid,subxact_count,subxact_overflowed}	false	\N	pg_stat_get_backend_subxact	\N	false	\N

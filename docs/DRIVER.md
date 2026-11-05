@@ -585,6 +585,28 @@ Prepare retains only typed recipes; each Execute rechecks current authority.
 Cumulative resets and native Reset/Restore preserve surviving slot/PID/login/
 database/birth; monitoring identities and history are not serialized by Dump.
 
+The six scalar `pg_stat_get_backend_{activity,activity_start,xact_start,
+wait_event,wait_event_type,subxact}(integer)` inquiries use those same slots.
+Activity is the original most-recent SQL source; the two times are TIMESTAMPTZ.
+Waits are current actual wait name/type over the retained physical incarnation,
+not cached lock state. Native idle has no socket wait. Current inherited
+authority masks activity and both waits with `<insufficient privilege>` and
+times with NULL. Missing slots instead return `<backend information not available>`
+for text and NULL times; an empty stored query returns
+`<command string not enabled>`. Subxact is an unredacted scalar RECORD with
+`subxact_count INT4, subxact_overflowed BOOL`, counting actually assigned cached
+child XIDs, not savepoint depth. RELEASE retains children; subtree abort removes
+cached members without refilling from uncached survivors; overflow stays sticky
+until top completion. The cache holds 64 children. NULL input is whole SQL NULL;
+a missing slot is a nonnull record with two NULL attributes. FROM always yields
+one scalar row. Native TEXT/RECORD scan as string, finite TIMESTAMPTZ as time.Time;
+record expansion uses int64/bool. Prepare retains only the typed recipe and
+fixed OUT metadata; query/times/count share the activity cut until clear/end,
+while current privileges and genuine waits are resolved on each Execute.
+Held statements retain their builtin-only OUT contract across native Reset/
+Restore and rebind execution to the replacement catalog; already returned Rows
+keep their pre-replacement descriptors and values.
+
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is
 one read-only system view with exactly 22 nullable columns, in release order:
 `datid oid`, `datname name`, `pid integer`, `leader_pid integer`, `usesysid oid`,

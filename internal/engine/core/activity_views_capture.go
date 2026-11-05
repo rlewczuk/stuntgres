@@ -35,7 +35,7 @@ func (e *Engine) overlayActivityWaits(live, activities map[ids.SessionToken]stat
 	for token, a := range activities {
 		a.WaitType, a.Wait = "", ""
 		current, exists := live[token]
-		if exists && current.Active {
+		if exists && current.Incarnation == a.Incarnation && current.Active {
 			a.WaitType, a.Wait = current.WaitType, current.Wait
 			if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
 				a.WaitType, a.Wait = "Lock", wait.Event
@@ -69,6 +69,8 @@ func (e *Engine) captureActivitiesLocked(scope *StatementScope, liveWaits bool) 
 					entry, exists := target.Visibility.Entries[tx]
 					if exists {
 						a.XID = target.Visibility.AssignedXIDLocked(tx)
+						a.SubxactCount = entry.SubxactCount
+						a.SubxactOverflowed = entry.SubxactOverflowed
 						xmin := entry.ActivityFullXmin
 						for _, h := range []uint64{entry.ImportedFullXmin, entry.ExportFullXmin} {
 							if h != 0 && (xmin == 0 || h < xmin) {

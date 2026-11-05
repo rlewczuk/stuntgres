@@ -92,6 +92,8 @@ import (
 // Legacy backend identity adds seven strict STABLE/parallel-restricted calls:
 // zero-input SETOF INT4 OID1936 (rows100), and six unnamed one-INT4 scalar
 // declarations1937/1938/1939/1391/1392/1393 (rows0), all with cost1.
+// Legacy backend state adds six strict STABLE/parallel-restricted one-INT4
+// scalars, cost1/rows0: five unnamed inputs and subxact's bid plus two OUTs.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -284,8 +286,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// 1936 has zero inputs and SETOF INT4/rows100; the six unnamed one-INT4
 	// scalars have rows0. All retain strict STABLE/restricted metadata, cost1,
 	// no OUT/default fields and their exact internal implementation symbols.
-	if len(facts) != 2296 {
-		t.Fatalf("released represented overloads: got %d, want 2296", len(facts))
+	// Legacy backend state adds six released scalar declarations1940/2094/
+	// 2857/2853/2788/6107; only6107 has named IN/OUT metadata.
+	if len(facts) != 2302 {
+		t.Fatalf("released represented overloads: got %d, want 2302", len(facts))
 	}
 	return facts
 }

@@ -91,7 +91,7 @@ func (e *Engine) AssignTransactionXIDLocked(ref ids.TxRef) error {
 		for i := range owner.Savepoints {
 			mark := &owner.Savepoints[i]
 			if mark.FullXID == 0 {
-				mark.FullXID = e.Visibility.AssignChildXIDLocked(parent)
+				mark.FullXID = e.Visibility.AssignChildXIDLocked(ref, parent)
 			}
 			mark.Assigned = true
 			parent = mark.FullXID

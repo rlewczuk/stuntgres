@@ -73,6 +73,7 @@ func (reg *Registry) RecordCommitTimestampLocked(ref ids.TxRef, stamp int64, ori
 		return
 	}
 	reg.EndTransactionIdentityLocked(ref, true)
+	v = reg.Entries[ref] // End cleared the child cache; never republish its old copy.
 	if reg.trackCommitTimestamp {
 		entry := CommitTimestamp{Stamp: stamp, Origin: origin, Present: true}
 		reg.CommitTimestamps[v.FullXID] = entry

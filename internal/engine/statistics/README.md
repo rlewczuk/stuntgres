@@ -368,11 +368,13 @@ bounded by peak physical concurrency, not churn. Reset/Replace preserve the
 allocator and every surviving physical identity. Detached activity cuts copy
 slot and birth together, so recycling cannot relabel old cached rows. No read
 sorts, renumbers or builds another slot registry; monitoring is never Dump state.
-Core enriches one complete unmasked cut with canonical assigned low32 XID and
-accepted public full-XID horizons under cluster authority, then installs it in
-Reader independently of cumulative modes/stamp. Each execution overlays detached
-manager waits and live sleep ownership after releasing cluster synchronization;
-`pg_stat_activity`'s current inherited-role masking happens only in its pure catalog producer.
+Core enriches one complete unmasked cut with canonical assigned low32 XID,
+accepted public full-XID horizons and scalar child-cache count/overflow under
+cluster authority, then installs it in Reader independently of cumulative modes/
+stamp. No cache array or session pointer enters Activity. Requested live waits
+overlay detached manager/sleep ownership only after cluster unlock and exact
+physical-incarnation matching. Activity and legacy inquiry privilege masks are
+applied only in pure catalog projection, never stored in the reader.
 The provider does not cache a role spelling: the producer joins the current role
 name by immutable principal identity, with typed NULL for an absent role. A
 dropped cached target does not invalidate unrelated rows or legitimate observer

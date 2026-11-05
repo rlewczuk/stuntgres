@@ -5,6 +5,17 @@
   mapping identities, current-role option redaction, lifecycle diagnostics and
   native controls without changing raw-catalog nullability or disclosure rules.
 
+- Implement the six legacy backend-slot activity/time/wait/subtransaction
+  inquiries through typed scalar recipes and current routine authority.
+  Share detached activity cuts while projecting live physical-incarnation waits
+  and current inherited privileges. Track the real 64-child full-XID cache,
+  sticky overflow, release retention, subtree abort and top completion, including
+  commit-timestamp publication. Preserve strict whole-record NULL versus missing
+  two-NULL composites, exact OUT metadata and record diagnostic positions.
+  Keep builtin-only anonymous RECORD signatures rebindable through native
+  Reset/Restore while preserving named/nested catalog-type lifetime fences and
+  refreshing actual prepared analysis and fold backing.
+
 - Implement the seven legacy backend-ID identity functions with stable,
   recyclable zero-based physical slots distinct from PIDs, exact typed routine
   declarations, current inherited privilege filtering and truthful NULL native

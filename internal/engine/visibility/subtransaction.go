@@ -26,7 +26,7 @@ func (reg *Registry) PreflightXIDsLocked(count int) error {
 // AssignChildXIDLocked uses the same allocator as top transactions. Children
 // share their parent's completion authority, not its MVCC/SSI/lock ownership.
 // Call only after preflighting the entire stack under Engine.Mu.
-func (reg *Registry) AssignChildXIDLocked(parent uint64) uint64 {
+func (reg *Registry) AssignChildXIDLocked(ref ids.TxRef, parent uint64) uint64 {
 	full, _ := NextFullXID(reg.assignedXID)
 	reg.assignedXID = full
 	if reg.History == nil {
@@ -50,6 +50,14 @@ func (reg *Registry) AssignChildXIDLocked(parent uint64) uint64 {
 		}
 		reg.CommitTimestamps[full] = CommitTimestamp{}
 	}
+	v := reg.Entries[ref]
+	if int(v.SubxactCount) < len(v.SubxactCache) {
+		v.SubxactCache[v.SubxactCount] = full
+		v.SubxactCount++
+	} else {
+		v.SubxactOverflowed = true
+	}
+	reg.Entries[ref] = v
 	return full
 }
 func (reg *Registry) identityInProgress(full uint64) bool {
@@ -75,15 +83,35 @@ func (reg *Registry) identityInProgress(full uint64) bool {
 
 // AbortChildLocked aborts a real subtree, including released descendants still
 // linked to it. A repeated ROLLBACK TO later assigns a new generation.
-func (reg *Registry) AbortChildLocked(full uint64) {
+func (reg *Registry) AbortChildLocked(ref ids.TxRef, full uint64) {
 	r, ok := reg.History[full]
 	if !ok || r.Parent == 0 {
+		return
+	}
+	// The explicit top authority prevents a stale/foreign caller from
+	// aborting another incarnation's canonical subtree or cached members.
+	v, exists := reg.Entries[ref]
+	root := r.Parent
+	for root != 0 && root != v.FullXID {
+		root = reg.History[root].Parent
+	}
+	if !exists || v.FullXID == 0 || root != v.FullXID {
 		return
 	}
 	r.State = ids.TxAborted
 	reg.History[full] = r
 	reg.finishChildren(full, ids.TxAborted)
 	reg.latestCompletedXID = max(reg.latestCompletedXID, full)
+	count := uint8(0)
+	for _, child := range v.SubxactCache[:v.SubxactCount] {
+		if reg.History[child].State != ids.TxAborted {
+			v.SubxactCache[count] = child
+			count++
+		}
+	}
+	clear(v.SubxactCache[count:v.SubxactCount])
+	v.SubxactCount = count
+	reg.Entries[ref] = v
 }
 func (reg *Registry) finishChildren(parent uint64, state ids.TxCompletion) {
 	for _, child := range reg.children[parent] {

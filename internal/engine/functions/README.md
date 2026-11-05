@@ -34,6 +34,12 @@ use the existing owned cursor; scalar FROM uses ScalarSource, including one
 NULL row. Capture, rebuild, grouping, jumbling and stored retagging retain
 ordinary routine provenance and immutable operands, never rows or masks.
 
+`BackendState` owns six strict STABLE one-INT4 slot recipes, all scalar sources.
+It retains ordinary routine provenance and a fixed two-field OUT shape for
+subxact, never authority or a monitoring cut. Record NULL remains a call for
+ordinary EXECUTE admission; scalar known-NULL planning follows existing policy.
+Non-NULL calls borrow `BackendStateRuntime` only during execution.
+
 
 `StatsXactBlocks` owns the strict OID-to-INT8 fetched/hit inquiries and their
 ordinary routine identities. Non-NULL calls are volatile and never folded;
@@ -1916,6 +1922,7 @@ Session activity leaf and composed authority units use `RUN='^TestSessionActivit
 Snapshot recipe and authority units use `RUN='^TestStatsSnapshotExpressionAuthority'`.
 Legacy identity declaration, strict planning and immutable protocol units use
 `RUN='^TestBackendIdentityBinding$'`; public SQL stays in `reference/session_state`.
+Legacy state recipe/record/provenance units use `RUN='^TestBackendStateBinding$'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
 use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.

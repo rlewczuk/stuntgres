@@ -18,8 +18,8 @@ func TestLogicalChildIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	top := reg.FullXIDLocked(ref)
-	child := reg.AssignChildXIDLocked(top)
-	grandchild := reg.AssignChildXIDLocked(child)
+	child := reg.AssignChildXIDLocked(ref, top)
+	grandchild := reg.AssignChildXIDLocked(ref, child)
 	if top != 3 || child != 4 || grandchild != 5 || len(reg.Entries) != 1 || reg.History[child].Ticket != nil || reg.History[grandchild].Parent != child {
 		t.Fatal("parallel identity owner", reg)
 	}
@@ -34,7 +34,7 @@ func TestLogicalChildIdentity(t *testing.T) {
 		}
 	}
 	// Subcommit retains ancestry; rolling back its parent must abort both.
-	reg.AbortChildLocked(child)
+	reg.AbortChildLocked(ref, child)
 	for _, xid := range []uint64{child, grandchild} {
 		status, _, _ := reg.TransactionStatusLocked(xid)
 		if status != "aborted" {
@@ -44,7 +44,7 @@ func TestLogicalChildIdentity(t *testing.T) {
 	if err := reg.PreflightXIDsLocked(1); err != nil {
 		t.Fatal(err)
 	}
-	survivor := reg.AssignChildXIDLocked(top)
+	survivor := reg.AssignChildXIDLocked(ref, top)
 	reg.RecordCommitTimestampLocked(ref, 12345, 7)
 	if reg.History[top].State != ids.TxCommitted || reg.History[survivor].State != ids.TxCommitted || reg.History[child].State != ids.TxAborted {
 		t.Fatal("completion ancestry lost", reg.History)
@@ -69,13 +69,13 @@ func TestLogicalChildAssignmentPreflight(t *testing.T) {
 	if err := reg.AssignTransactionXIDLocked(ref); err != nil {
 		t.Fatal(err)
 	}
-	child := reg.AssignChildXIDLocked(reg.FullXIDLocked(ref))
+	child := reg.AssignChildXIDLocked(ref, reg.FullXIDLocked(ref))
 	reg.assignedXID = 1<<32 | uint64(uint32(child)-1)
 	frontier := reg.assignedXID
 	if err := reg.PreflightXIDsLocked(1); err == nil || reg.assignedXID != frontier {
 		t.Fatal("live child low alias accepted", err)
 	}
-	reg.AbortChildLocked(child)
+	reg.AbortChildLocked(ref, child)
 	if err := reg.PreflightXIDsLocked(1); err != nil {
 		t.Fatal("completed child alias refused", err)
 	}

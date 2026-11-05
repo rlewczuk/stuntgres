@@ -13,6 +13,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		2022: {"pid", "datid", "pid", "usesysid", "application_name", "state", "query", "wait_event_type", "wait_event", "xact_start", "query_start", "backend_start", "state_change", "client_addr", "client_hostname", "client_port", "backend_xid", "backend_xmin", "backend_type", "ssl", "sslversion", "sslcipher", "sslbits", "ssl_client_dn", "ssl_client_serial", "ssl_issuer_dn", "gss_auth", "gss_princ", "gss_enc", "gss_delegation", "leader_pid", "query_id"},
 		6386: {"backend_pid", "backend_type", "object", "context", "reads", "read_bytes", "read_time", "writes", "write_bytes", "write_time", "writebacks", "writeback_time", "extends", "extend_bytes", "extend_time", "hits", "evictions", "reuses", "fsyncs", "fsync_time", "stats_reset"},
 		6313: {"backend_pid", "wal_records", "wal_fpi", "wal_bytes", "wal_buffers_full", "stats_reset"},
+		6107: {"bid", "subxact_count", "subxact_overflowed"},
 		2096: {"pid", "timeout"},
 		3436: {"wait", "wait_seconds"},
 		2172: {"label", "fast"},

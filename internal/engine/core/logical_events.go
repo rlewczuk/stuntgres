@@ -129,7 +129,7 @@ func (e *Engine) abortLogicalChildrenLocked(t *session.TransactionOwner, serial 
 			continue
 		}
 		if m.FullXID != 0 {
-			e.Visibility.AbortChildLocked(m.FullXID)
+			e.Visibility.AbortChildLocked(t.Ref, m.FullXID)
 			if anchor := e.logicalHistory.Active(top); anchor != nil {
 				parent := top
 				if i > 0 && t.Savepoints[i-1].FullXID != 0 {

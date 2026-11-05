@@ -493,6 +493,8 @@ type Activity struct {
 	QueryID                                            int64 // Canonical signed INT8 bits, matching StatementJumble/StatementKey.
 	QueryAvailable                                     bool
 	XID, Xmin                                          uint32
+	SubxactCount                                       uint8
+	SubxactOverflowed                                  bool
 	Active, Disabled                                   bool // Active is actual command ownership, including disabled publication.
 	WaitType, Wait                                     string
 }

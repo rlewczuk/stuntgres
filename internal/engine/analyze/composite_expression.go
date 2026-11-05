@@ -188,13 +188,18 @@ func (b *Binder) SelectCompositeField(base expr.Expr, name string, pos parser.Po
 		return b.compositeFieldAt(base, index, pos)
 	}
 	message := fmt.Sprintf("column %q not found in data type %s", name, b.DiagnosticTypeName(typ))
+	errorPos := pos
 	if shape.ID() == 2249 {
 		message = fmt.Sprintf("could not identify column %q in record data type", name)
+		// PostgreSQL locates an anonymous-record field failure at the
+		// record expression, not the following attribute token.
+		errorPos = base.SourcePosition()
 	}
 	if row, ok := base.(plan.RowExpr); ok && row.WholeNames != nil {
 		message = fmt.Sprintf("column %s.%s does not exist", row.WholeName, name)
+		errorPos = pos // Whole-row columns retain namespace/attribute diagnostics.
 	}
-	return nil, expr.ErrorAt("42703", message, pos)
+	return nil, expr.ErrorAt("42703", message, errorPos)
 }
 func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position) (expr.Expr, error) {
 	shape := base.ResultUsage().Type.BaseType()

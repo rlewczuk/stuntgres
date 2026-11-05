@@ -107,6 +107,13 @@ standard library. It never imports the root engine. Layering is in
   owners. Status and low-alias liveness follow parent completion authority;
   subtree abort includes released descendants, and committed children inherit
   the top transaction's timestamp/origin reservation.
+  Each Entry owns a fixed64 full-XID child cache. Assignment takes the explicit
+  top TxRef and appends only real children, in ancestor-before-child order.
+  RELEASE retains cached entries; subtree abort takes that same authority and
+  compacts only actually aborted cached members, zeroing the tail without
+  refilling from uncached survivors. Overflow is sticky until top completion;
+  new assignments may use freed slots. Commit-timestamp completion reloads the
+  cleared Entry instead of resurrecting a stale copy. Reads allocate no XIDs.
 - **Completion input.** `RecordCommitTimestampLocked` takes an explicit PostgreSQL
   timestamp-microsecond value (including infinities) and numeric origin. Core owns
   local stop-time selection and physical origin context/fallback persistence;
@@ -249,6 +256,8 @@ stamps use `RUN='^TestPrivateDeletes'`.
 Canonical child assignment, subtree status, timestamps, exhaustion and live-alias
 preflight use `make check RUN='^TestLogicalChild'`; composed savepoint/exception
 and session-ending proofs use `make check RUN='^TestLogicalStream'`.
+Exact fixed-cache content, sticky overflow and full-XID lifetime use
+`make check RUN='^TestBackendStateSubxactCache$'`, also with `RACE=1`.
 
 ```sh
 make check RACE=1 RUN='^Test(LiveVersionOverlayAndEnds|NextFullXID|Registry(CommitSeq|XIDAssignment)|SafeSnapshot(Abandon|FenceWakes|Wait)|SerializableGraph|SerializablePrecommit|View(ForgedCopy|RetainRelease)|WriteSetMerges)'

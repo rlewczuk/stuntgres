@@ -46,6 +46,18 @@ These calls share the retained activity cut, including retired entries until
 clear/end, rather than IO/WAL's current-liveness gate. Slots may be recycled;
 surviving attachments keep their identities through cumulative/native resets.
 
+Six additional one-slot scalar inquiries are callable through the same typed
+path: `pg_stat_get_backend_activity`, `pg_stat_get_backend_activity_start`,
+`pg_stat_get_backend_xact_start`, `pg_stat_get_backend_wait_event`,
+`pg_stat_get_backend_wait_event_type` and `pg_stat_get_backend_subxact`.
+Original query/times and real cached child-XID count share the activity cut;
+waits remain live and current role authority is not cached. Subxact has fixed
+OUT fields `subxact_count integer, subxact_overflowed boolean`, a 64-child cache,
+sticky overflow, release retention and actual subtree-abort removal. It is
+not statistics-privilege redacted. Strict whole-record NULL differs from the
+nonnull two-NULL record returned for a missing slot. Only subxact names its
+input (`bid`); all six are strict STABLE parallel-restricted scalar functions.
+
 `pg_catalog.pg_stat_activity` is a typed, read-only 22-column system view of real
 logical sessions across one Driver cluster. All columns are nullable; native
 endpoint/leader values stay NULL without corresponding physical endpoints/workers.

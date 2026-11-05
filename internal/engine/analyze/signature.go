@@ -36,15 +36,18 @@ func StatementCatalogType(t *sqltype.Descriptor) bool {
 	if t == nil {
 		return false
 	}
-	if t.IsUserDefined() || t.IsDomain() {
-		return true
-	}
 	if t.ID() == 2249 && t.IsComposite() {
 		for i := range t.CompositeLen() {
 			if StatementCatalogType(t.CompositeMember(i).Usage.Type) {
 				return true
 			}
 		}
+		// An anonymous shape has no catalog identity of its own, even
+		// though a concrete RECORD satisfies Descriptor.IsUserDefined.
+		return false
+	}
+	if t.IsUserDefined() || t.IsDomain() {
+		return true
 	}
 	return t.IsArray() && StatementCatalogType(t.Element())
 }

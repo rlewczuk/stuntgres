@@ -82,6 +82,12 @@ rows100; the six unnamed one-INT4 scalar signatures have rows0, no defaults or
 OUT shape. The catalog estimate switch and internal source display share those
 declarations; no identity-ledger duplicate or metadata-only shim is introduced.
 
+Legacy state routines 1940/2094/2857/2853/2788/6107 are strict STABLE,
+parallel-restricted, cost1 rows0 catalog-provider scalars with ordinary PUBLIC
+EXECUTE. All take INT4; only6107 has input name `bid` and immutable OUT metadata
+`subxact_count integer, subxact_overflowed boolean`. Display sources retain the
+exact release internal names; no extra overload or metadata-only shim is used.
+
 
 The executable `pg_mcv_list_items` declaration reuses fixed identity 3427 and
 formal 5017, with one named input and five fixed OUT fields. The strict STABLE,

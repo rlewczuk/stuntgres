@@ -33,6 +33,10 @@ activity cut, without sorting, compacting or joining to live session membership.
 PID/database/login are public; start and truthful endpoint absence reuse the
 existing current inherited activity authority, including retained dropped roles.
 Typed scalars and ID vectors are detached, not provider-owned or mask-cached.
+Legacy state projection uses the same detached slots and current authority.
+Missing/redacted/empty-query text have distinct legacy sentinels; zero times
+and absent live waits are typed NULL. Subxact counts are not privilege masked:
+present zero, strict whole NULL and missing nonnull two-NULL records stay distinct.
 
 
 `pg_replication_origin_status` projects one detached cluster progress map paired
@@ -2299,6 +2303,8 @@ through the shared usage-origin projector.
 
 Legacy identity typed projection/current authority units use
 `RUN='^TestBackendIdentityProjection$'`; SQL witnesses stay in `reference/session_state`.
+Legacy state masks, sentinels and record projection use
+`RUN='^TestBackendStateProjection$'`.
 
 Analyze progress projection and runtime mechanics share
 `make check RUN='^TestAnalyzeProgress'`: typed NULL/zero, database LEFT JOIN,

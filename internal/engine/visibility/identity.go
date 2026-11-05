@@ -117,6 +117,10 @@ func (reg *Registry) TransactionStatusLocked(xid uint64) (string, bool, error) {
 // committed or aborted and mirrors that onto its ticket. Caller holds Engine.mu.
 func (reg *Registry) EndTransactionIdentityLocked(ref ids.TxRef, committed bool) {
 	v := reg.Entries[ref]
+	v.SubxactCache, v.SubxactCount, v.SubxactOverflowed = [64]uint64{}, 0, false
+	if _, exists := reg.Entries[ref]; exists {
+		reg.Entries[ref] = v
+	}
 	if v.FullXID == 0 {
 		return
 	}

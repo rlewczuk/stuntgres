@@ -61,4 +61,78 @@ func TestExpectedCheckLifetimeFencesCatalogTypes(t *testing.T) {
 			t.Errorf("%s: CheckLifetime = %v, want 0A000 %q", c.name, err, c.message)
 		}
 	}
+
+	record := func(member *sqltype.Descriptor) *sqltype.Descriptor {
+		t.Helper()
+		shape, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "value", Usage: member.Usage()}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return shape
+	}
+	array := func(element *sqltype.Descriptor) *sqltype.Descriptor {
+		t.Helper()
+		shape, err := sqltype.Array(2287, "_record", element)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return shape
+	}
+	domain, err := sqltype.Domain(90002, "count_domain", "public.count_domain", int4.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	named, err := sqltype.Composite(90003, "count_row", "public.count_row", 90004,
+		[]sqltype.CompositeMember{{Attribute: 1, Name: "count", Usage: int4.Usage()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	builtinRecord := record(int4)
+	for _, shape := range []struct {
+		name    string
+		typ     *sqltype.Descriptor
+		catalog bool
+	}{
+		{"builtin record", builtinRecord, false},
+		{"nested builtin record", record(builtinRecord), false},
+		{"builtin record array", array(builtinRecord), false},
+		{"named builtin-member composite", named, true},
+		{"record enum member", record(mood), true},
+		{"record domain member", record(domain), true},
+		{"nested record enum member", record(record(mood)), true},
+		{"record named composite member", record(named), true},
+		{"catalog record array", array(record(mood)), true},
+		{"record catalog-array member", record(array(record(domain))), true},
+	} {
+		if got := StatementCatalogType(shape.typ); got != shape.catalog {
+			t.Fatal("record occurrence versus member lifetime", shape.name, got)
+		}
+		for _, result := range []bool{false, true} {
+			expected := Expected{Held: true, CatalogOwner: owner, CatalogEpoch: epoch}
+			message := "cached plan must not change parameter type"
+			if result {
+				expected.Results = []catalog.Column{{Name: "record", Usage: shape.typ.Usage()}}
+				message = "cached plan must not change result type"
+			} else {
+				expected.Parameters = ParameterInfo{Count: 1, Types: []sqltype.Usage{shape.typ.Usage()}}
+			}
+			for _, changedOwner := range []bool{false, true} {
+				nextOwner, nextEpoch := owner, epoch+1
+				if changedOwner {
+					nextOwner, nextEpoch = replacement, epoch
+				}
+				err := expected.CheckLifetime(nextOwner, nextEpoch)
+				if !shape.catalog {
+					if err != nil {
+						t.Fatal("builtin-only anonymous shape acquired catalog lifetime", shape.name, result, err)
+					}
+					continue
+				}
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != message {
+					t.Fatal("nested catalog member escaped lifetime fence", shape.name, result, err)
+				}
+			}
+		}
+	}
 }

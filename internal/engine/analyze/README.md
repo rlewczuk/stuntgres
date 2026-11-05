@@ -576,8 +576,14 @@ library, and never the root engine or `session`. The engine, the root driver
   `core.Description` supplies these inputs; core, not the binder or root adapter,
   owns the prepared analysis manifest, validity and lifecycle publication.
   Captured literal reuse checks a replaced catalog lifetime before datum retagging.
-  Catalog-owned result/parameter signatures retain their cached-plan fences;
-  enum/constrained-domain inputs retain their stronger input fence. Rebindable
+  Catalog-owned result/parameter signatures retain their cached-plan fences.
+  Anonymous RECORD occurrences have no catalog identity of their own: their
+  lifetime classification recursively follows their members, including record
+  arrays. Builtin-only fixed OUT shapes remain rebindable across native catalog
+  replacement; named composites, domains and nested catalog-owned members still
+  fence held results/parameters. This does not relax exact parameter shapes or
+  internal record-usage checks.
+  Enum/constrained-domain inputs retain their stronger input fence. Rebindable
   builtin signatures decode written literals under current authority when their
   old descriptor retired. Candidate captures replace—not duplicate—old cells,
   remain private until successful publication, and reuse the current immutable
@@ -853,6 +859,8 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 ## Testing
 
 Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
+Held signature owner/epoch fences and anonymous-record member lifetime use
+`RUN='^TestExpectedCheckLifetimeFencesCatalogTypes$'`.
 Installed visibility binding, remap and retained definition ownership use
 `RUN='^TestPgvisibility'`.
 Surgery binding, remap and retained definition ownership use

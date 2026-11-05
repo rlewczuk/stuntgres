@@ -59,12 +59,26 @@ and returns detached computed RECORD values, never session/provider pointers.
 
 Legacy backend-ID inquiries borrow that same unmasked activity cut through
 `SessionInquiryRuntime`, under executing routine authorization and Engine.Mu.
-They skip wait overlays and cumulative capture. Pure catalog projection scans
-the stored slot, never a live PID/registry gate: retirement and slot recycling
+Identity and non-wait state calls skip wait overlays and cumulative capture.
+Pure catalog projection scans the stored slot, never a live PID/registry gate:
+retirement and slot recycling
 cannot replace an identity in an existing cut. Current inherited authority is
 reapplied to protected facts after unlock; scalar NULL never borrows this bridge.
 The default activity provider alone allocates physical slots. Reset/Restore
 retain surviving registrations; staging sessions and Dump carry no slot history.
+The common capture also copies canonical child-cache count/overflow from the
+exact database/epoch/transaction Entry. State waits overlay manager/sleep facts
+after unlocking, joining both token and physical incarnation before command
+TxRef matching. Current masks are reapplied after raw capture; no prepared
+definition or reader retains authority. Top completion clears child-cache state
+before commit-timestamp publication can republish an Entry copy.
+Held builtin-only fixed OUT RECORD signatures survive Reset/Restore. Reanalysis
+and accepted fold backing still move to the replacement epoch under the same
+definition owner; prior accepted groups and detached Rows remain immutable.
+The immutable public signature is distinct from each execution's private
+descriptor generation: rebuilt OUT members use current catalog primitive
+authority, while old Rows retain their original members. Strict record-usage
+checks compare within that execution generation, not across replacement epochs.
 
 
 Detached ordinary catalog publication owns only its staged heap replacements
@@ -3831,6 +3845,8 @@ routine depth, trigger depth, effective-user/configuration and command policy.
 
 Legacy identity composed reader/definition ownership and joined capture races
 use `RUN='^TestBackendIdentity(RuntimeLifetime|ConcurrentCapture)$'`.
+Legacy state canonical/shared-cut and prepared backing ownership plus joined
+capture races use `RUN='^TestBackendState(RuntimeLifetime|ConcurrentCapture)$'`.
 
 Analyze progress mechanics use `make check RUN='^TestAnalyzeProgress'`:
 exact-pointer target/terminal ownership, immutable startup principal and fresh
