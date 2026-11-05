@@ -16,6 +16,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 The rules below also apply to `reference/inheritance` and `reference/partitions`.
 
 - Scenario helpers: `relationOptionsScenario` (`relation_options_helpers_test.go`).
+- Public mapping-view scenarios reuse `fdwScenario` with handlerless metadata and
+  `pg_user_mappings_helpers_test.go` for direct/fresh/held queries, independently
+  specified masks and relational OID checks. They retain every mapping identity
+  while checking whole-array NULL disclosure under current authority, populated
+  and empty metadata, lifecycle diagnostics and explicit native-control phases;
+  no foreign connection is implied.
 - Foreign tables use no canned rows. Natively, `newFDWSQLReader`
   (`fdw_reader_test.go`) serves an independent in-process stuntgres database
   (DSN `fdw-independent/<test>`) through wrappers registered with
@@ -341,7 +347,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   late completion cannot publish a staged prefix. Atomicity retains parsed
   duplicate-column CREATE's exact42701 and absence of relation/rowtype metadata.
   Parent data is read with ONLY; no foreign rows are requested.
-- `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
+- `pg_user_mapping` and `pg_user_mappings`: `RUN='^TestReferencePGUserMapping'`
 
 Also in this package: `make check RUN='^TestReferenceSeriesCheckRestrictions$'`
 and the migrated smoke tests `make check RUN='^TestReferenceSmoke(Check|NotNull|Drop)'`.

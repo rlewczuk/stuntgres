@@ -552,6 +552,18 @@ registry so binary lookup reaches the core's existing authority/snapshot capture
   arrays and captured type generation across later definition replacement.
   Metadata neither invokes registered providers nor attempts foreign connections;
   valid no-handler definitions remain catalog-visible.
+- `pg_user_mappings` projects every actual mapping with its mapping/server/role
+  identities and current names; PUBLIC has role OID zero and name `public`.
+  Each execution captures current actor/catalog/role authority, including held
+  prepared executions. `ForeignServerVisible` admits the complete ordered options
+  array only for a superuser, the exact mapped user with server USAGE or inherited
+  ownership, or a PUBLIC mapping's inherited server owner. Ownership alone never
+  reveals another named user's options. Denial and absent options yield whole-array
+  typed NULL without removing the mapping row. Retained rows own their prior
+  capture. All six view columns are nullable in source-result and catalog-attribute
+  metadata, including empty results; raw `pg_user_mapping` identity columns retain
+  their nonnullable contract. Handlerless declarations and view reads require no
+  provider invocation or external connection.
 - `pg_shseclabel` (3592, rowtype4066) validates owned source authority and exact
   nonnullable OID/OID/TEXT/TEXT metadata (C collation on text), then emits the
   immutable shared provider associations. Ordinary PUBLIC SELECT/current ACL

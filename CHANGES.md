@@ -1,5 +1,10 @@
 # Changes
 
+- Correct `pg_user_mappings` result metadata to mark all six view columns nullable,
+  including empty and prepared results. Add independent reference coverage for
+  mapping identities, current-role option redaction, lifecycle diagnostics and
+  native controls without changing raw-catalog nullability or disclosure rules.
+
 - Implement the seven legacy backend-ID identity functions with stable,
   recyclable zero-based physical slots distinct from PIDs, exact typed routine
   declarations, current inherited privilege filtering and truthful NULL native
