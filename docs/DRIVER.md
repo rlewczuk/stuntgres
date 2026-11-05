@@ -2707,6 +2707,20 @@ option change together with transactional validator writes. This does not supply
 a foreign handler: remote reads and writes still require a genuine compatible
 registered provider.
 
+Stock `CREATE EXTENSION file_fdw` needs no Driver registration. It installs the
+handler, validator and wrapper, and validates the selected filename/program,
+format, header, delimiter, quote, escape, null, encoding and column force options.
+File/program authority follows the effective role's inherited privileges on
+every validation, including retained prepared calls and table-option ALTER.
+Configuration is persistent metadata: successful declaration does not read a
+file or execute a command. Server filesystem/process execution is an external
+mechanism; a demanded native scan returns `0A000`,
+`file_fdw server filesystem and program execution are not supported by the embedded engine`.
+No user mapping or synthetic data hides that boundary. The stock handler does
+not support IMPORT FOREIGN SCHEMA. Native Dump/Restore preserves authentic
+installed identities, renamed helpers/wrapper, owners and ordered foreign
+metadata alongside local data, never foreign rows or live external handles.
+
 ### Host-owned external SQL
 
 `Driver.RegisterExternalSQLProvider(ExternalSQLProviderDefinition{Name, Version,

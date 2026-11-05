@@ -38,10 +38,13 @@ func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) err
 // consulted only for those statements, at the same point as before the move.
 // GiST CREATE admission uses only the captured method's native authority;
 // method and option diagnostics remain the ordinary index binder's responsibility.
+// Option-only foreign commands arrive as their original ForeignDDL through the
+// FDW target classifier; structural/default forms keep ordinary ALTER syntax.
+// Metadata options do not recurse, but still reject an incomplete detach.
 func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.Relation, replayAllowed func(parser.Statement, *catalog.Relation) bool) error {
 	if d.Membership != nil && d.Membership.DetachPending {
 		switch s := statement.(type) {
-		case *parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableAttachPartition, *parser.AlterTableOf:
+		case *parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableAttachPartition, *parser.AlterTableOf, *parser.ForeignDDL:
 			return PendingDetachError(d, false)
 		case *parser.AlterTableDetachPartition:
 			if s.Mode != parser.DetachFinalize {

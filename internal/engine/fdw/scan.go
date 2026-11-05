@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
@@ -48,7 +49,7 @@ func relationRequest(view access.View, invoker authorization.PrincipalRef, relat
 	}
 	request := catalog.ForeignRequest{Schema: view.Catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options)}
 	request.ServerOID = uint32(server.Address().ObjectID)
-	if mapped {
+	if mapped && !extension.StockFileFDW.SupportsHandler(view.Catalog.MustProcedure(wrapper.Handler)) {
 		mapping, err := MappingFor(view, server)
 		if err != nil {
 			return nil, catalog.ForeignRequest{}, err

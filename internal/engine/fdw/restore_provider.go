@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
@@ -13,9 +14,11 @@ import (
 // at the destination registry's token for the same name and signature, so
 // execution authority stays in the destination installation. Neither imported labels/OIDs nor the presence of a live catalog
 // declaration selects a callback: Reset must reseed even a dropped registration.
-// Registry lookup happens only while constructing the private replacement;
-// published execution continues to use immutable procedure tokens.
-func RebindReplacementProviders(current catalog.Read, registry Registry, next *catalog.State) error {
+// The view owns next's current principal domain: source before principal
+// remapping, destination afterwards. Registry lookup still uses destination
+// capabilities and only happens while constructing the private replacement.
+// Published execution continues to use immutable procedure tokens.
+func RebindReplacementProviders(view catalog.Read, registry Registry, next *catalog.State) error {
 	type key struct {
 		name      catalog.ForeignFunctionName
 		signature catalog.ProcedureSignature
@@ -24,6 +27,10 @@ func RebindReplacementProviders(current catalog.Read, registry Registry, next *c
 	for _, descriptor := range next.Descriptors() {
 		imported, ok := descriptor.(*catalog.Procedure)
 		if !ok || imported.Foreign == nil {
+			continue
+		}
+		if imported.Implementation == extension.StockFileFDW {
+			if err := extension.StockFileFDW.ValidateProcedure(view.WithState(next), imported); err != nil { return err }
 			continue
 		}
 		if installed == nil {
@@ -42,7 +49,7 @@ func RebindReplacementProviders(current catalog.Read, registry Registry, next *c
 		}
 		// The registry authorizes only the genuine immutable handler/validator
 		// shape. It does not grant a callable capability to an arbitrary carrier.
-		if err := (stored.ProcedureProvider{}).Validate(current.WithState(next), imported); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(view.WithState(next), imported); err != nil {
 			return err
 		}
 		destination := installed[key{imported.Foreign.Name, imported.Signature}]

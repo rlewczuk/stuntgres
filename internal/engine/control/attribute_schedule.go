@@ -92,15 +92,10 @@ func (s *dumpScript) sourceAttributeShape(r *catalog.Relation) bool {
 func (s *dumpScript) prepareAttributeSchedules(ctx context.Context) error {
 	s.attributeSchedules = make(map[ids.ObjectAddress]*attributeSchedule)
 	s.deferredColumnStorage = make(map[ids.ObjectAddress]bool)
-	byAddress := make(map[ids.ObjectAddress]*catalog.Relation, len(s.Tables))
-	var ordered []*catalog.Relation
-	for i := range s.Tables {
-		r := s.Tables[i].Descriptor
-		byAddress[r.Address()] = r
-		ordered = append(ordered, r)
-	}
+	byAddress := make(map[ids.ObjectAddress]*catalog.Relation, len(s.attributeHistory.relations))
+	ordered := s.attributeHistory.relations
+	for _, r := range ordered { byAddress[r.Address()] = r }
 	identity := func(r *catalog.Relation) string { return s.OriginalCatalog.Get(r.Namespace()).Name() + "." + r.Name() }
-	slices.SortFunc(ordered, func(a, b *catalog.Relation) int { return strings.Compare(identity(a), identity(b)) })
 	seen := make(map[ids.ObjectAddress]bool)
 	for _, root := range ordered {
 		if seen[root.Address()] {
@@ -255,7 +250,7 @@ func (s *dumpScript) installAttributeScheduleGraph() {
 func (s *dumpScript) finishAttributeScheduleGraph() {
 	for address, plan := range s.attributeSchedules {
 		completion := dump.Event{OID: address.ObjectID, Phase: dump.AttributeCompletion}
-		for _, phase := range []dump.Phase{dump.Rows, dump.Defaults, dump.InheritanceRecipes, dump.InheritanceChecks, dump.InvalidConstraints} {
+		for _, phase := range []dump.Phase{dump.Rows, dump.TableCompletion, dump.Defaults, dump.InheritanceRecipes, dump.InheritanceChecks, dump.InvalidConstraints} {
 			event := dump.Event{OID: address.ObjectID, Phase: phase}
 			if _, exists := s.Graph[event]; exists {
 				s.Graph.Add(event, completion)
@@ -279,7 +274,9 @@ func (s *dumpScript) finishAttributeScheduleGraph() {
 
 func (s *dumpScript) stagedTableCreateSQL(ctx context.Context, t *table.DumpRelation, op attributeOperation) (string, error) {
 	var line strings.Builder
-	line.WriteString("CREATE TABLE " + catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " (")
+	prefix := "CREATE TABLE "
+	if t.Descriptor.Foreign != nil { prefix = "CREATE FOREIGN TABLE " }
+	line.WriteString(prefix + catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " (")
 	for i, number := range op.Locals {
 		if i != 0 {
 			line.WriteString(", ")
@@ -305,7 +302,9 @@ func (s *dumpScript) stagedTableCreateSQL(ctx context.Context, t *table.DumpRela
 		}
 		line.WriteString(")")
 	}
-	line.WriteString(";\n")
+	foreign, err := foreignTableClause(s.CatalogView, t.Descriptor)
+	if err != nil { return "", err }
+	line.WriteString(foreign + ";\n")
 	return line.String(), nil
 }
 
@@ -340,6 +339,7 @@ func emitDumpAttributeCompletion(ctx context.Context, s *dumpScript, w *dumpWrit
 	if event.Step != 0 {
 		return nil
 	}
+	if t.Descriptor.Foreign != nil { return nil }
 	return emitTableCompletion(ctx, s, w, t, t.Descriptor.OfType != (ids.ObjectAddress{}))
 }
 

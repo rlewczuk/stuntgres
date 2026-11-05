@@ -154,6 +154,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   provider provenance. Its runtime authenticates the current concrete provider
   and reference lifetime before reporting scalar misuse. It cannot borrow a
   surrounding trigger frame; rebuild/capture retain its original occurrence.
+  `FileFDWExpr` similarly retains only original installed provenance and typed
+  children. It never folds or caches parsed options/current role authority;
+  rebuild and stored capture preserve the owning declaration occurrence.
   Literal evaluation requires exact descriptor identity and concrete values,
   except for the finite, canonically owned query-only pseudo NULL capability.
   A literal may retain `expr.UnknownInput` source provenance for selected argument

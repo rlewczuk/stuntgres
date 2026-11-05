@@ -58,6 +58,7 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 					t.Fatal("missing genuine builtin codec")
 				}
 				provider := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 94002), ObjectNamespace: fdwUnitAddress(ids.NamespaceClassID, ids.PublicNamespaceOID), ObjectRevision: 1, ObjectName: "late", Owner: source.Bootstrap, RelationKind: catalog.ForeignRelation, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1}, Index: map[string]int{"id": 0}, Foreign: &catalog.ForeignTableDefinition{Server: server.Address()}}
+				provider.ColumnMeta.HighWater = 1
 				literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(provider.Address().ObjectID), 10))}
 				var expression expr.Expr = literal
 				usage := regclass.Usage()
@@ -70,11 +71,14 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 					t.Fatal("fixture does not exercise the intended actual default eligibility")
 				}
 				consumer := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 94001), ObjectNamespace: provider.Namespace(), ObjectRevision: 1, ObjectName: "early", Owner: source.Bootstrap, RelationKind: catalog.ForeignRelation, Columns: []catalog.Column{{Name: "ref", Usage: usage, Nullable: true}}, Attributes: []int32{1}, Index: map[string]int{"ref": 0}, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: definition}}, Foreign: &catalog.ForeignTableDefinition{Server: server.Address()}}
+				consumer.ColumnMeta.HighWater = 1
 				if shared {
 					consumer.Columns = append(consumer.Columns, catalog.Column{Name: "guard", Usage: boolean.Usage(), Nullable: true})
 					consumer.Attributes = append(consumer.Attributes, 3)
 					consumer.Index["guard"] = 1
 					consumer.ColumnMeta.Defaults[3] = catalog.ColumnDefault{OID: 94004, Expression: plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: literal, Not: true}}
+					consumer.ColumnMeta.HighWater = 3
+					consumer.ColumnMeta.Dropped = map[int32]catalog.AttributeMetadata{2: {Number: 2, Dropped: true, Local: true, Facts: integer.AttributeFacts()}}
 				}
 				for _, relation := range []*catalog.Relation{consumer, provider} {
 					source.State.SetDescriptor(relation.Address(), relation)
@@ -104,7 +108,11 @@ func TestFDWDumpDeferredDefaults(t *testing.T) {
 					if shared {
 						inlineDefaults = 1
 					}
-					if strings.Count(capture.ForeignDeclarations[consumer.Address().ObjectID].SQL, " DEFAULT ") != inlineDefaults {
+					script := &dumpScript{Capture: capture}
+					if err := script.prepareAttributeHistory(); err != nil { t.Fatal(err) }
+					declaration, err := script.foreignTableDeclaration(context.Background(), consumer.Address().ObjectID)
+					if err != nil { t.Fatal(err) }
+					if strings.Count(declaration, " DEFAULT ") != inlineDefaults {
 						t.Fatal("eligible omission changed an inline default or left an eligible default inline")
 					}
 					var output bytes.Buffer

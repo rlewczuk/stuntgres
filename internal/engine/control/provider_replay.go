@@ -227,6 +227,8 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 			return "ALTER TEXT SEARCH CONFIGURATION " + name
 		}
 		switch p.objectKind {
+		case "FOREIGN DATA WRAPPER":
+			return "ALTER FOREIGN DATA WRAPPER " + catalog.QuoteIdentifier(key.name)
 		case "OPERATOR CLASS", "OPERATOR FAMILY":
 			return "ALTER " + p.objectKind + " " + name + " USING " + catalog.QuoteIdentifier(p.arguments)
 		case "PROCEDURE", "AGGREGATE":

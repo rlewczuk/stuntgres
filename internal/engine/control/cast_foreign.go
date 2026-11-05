@@ -6,7 +6,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
@@ -71,11 +70,6 @@ func (s *dumpScript) separateForeignCastConsumers(ctx context.Context) error {
 			s.ForeignDefaults = make(map[ids.OID]map[int32]bool)
 		}
 		s.ForeignDefaults[oid] = selected
-		statement, err := fdw.DumpTable(ctx, s.CatalogView, s.DomainRoles, r, selected)
-		if err != nil {
-			return err
-		}
-		s.ForeignDeclarations[oid] = statement
 		c := dumpCollection{Capture: s.Capture}
 		edges, err := c.tableDumpPredecessors(r, &table.DumpRelation{DeferredDefinitions: selected})
 		if err != nil {

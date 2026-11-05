@@ -1,6 +1,7 @@
 package enginetests
 
 import (
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -58,4 +59,42 @@ func TestPgStatStatementsFingerprintUtilityMissingForeignOrder(t *testing.T) {
 		}
 	}()
 	analyze.JumbleUtility(&parser.ForeignDDL{ColumnOptions: map[string][]parser.ForeignOption{"a": {{}}}})
+}
+
+func TestPgStatStatementsFingerprintUtilityForeignDuplicateColumns(t *testing.T) {
+	for _, source := range []string{
+		"CREATE FOREIGN TABLE pgss_foreign(id integer,id integer) SERVER pgss_server",
+		"CREATE FOREIGN TABLE pgss_foreign(a integer OPTIONS(one 'first'),b integer OPTIONS(two 'b'),a text OPTIONS(one 'last',two 'tail')) SERVER pgss_server",
+	} {
+		t.Run(source, func(t *testing.T) {
+			statement := enginetest.Statement(t, source).(*parser.ForeignDDL)
+			before := enginetest.Statement(t, source).(*parser.ForeignDDL)
+			first, _ := analyze.JumbleUtility(statement)
+			if first.QueryID() == 0 || !reflect.DeepEqual(statement, before) { t.Fatal("duplicate-column jumble lost identity or changed its AST") }
+			last := len(statement.Table.Elements)-1
+			if statement.Table.Elements[0].Column.Name != statement.Table.Elements[last].Column.Name || len(statement.ColumnOptions) != last { t.Fatal("fixture lost actual duplicate occurrence/map ownership") }
+			original := statement.ColumnOptions
+			reordered := make(map[string][]parser.ForeignOption, len(original))
+			for i := len(statement.Table.Elements)-1; i >= 0; i-- {
+				name := statement.Table.Elements[i].Column.Name
+				reordered[name] = original[name]
+			}
+			statement.ColumnOptions = reordered
+			again, _ := analyze.JumbleUtility(statement)
+			if first.QueryID() != again.QueryID() { t.Fatal("map insertion order changed duplicate-column identity") }
+			statement.Table.Elements = statement.Table.Elements[:last]
+			fewer, _ := analyze.JumbleUtility(statement)
+			if first.QueryID() == fewer.QueryID() { t.Fatal("duplicate raw declaration occurrence was discarded") }
+		})
+	}
+}
+
+func TestPgStatStatementsFingerprintUtilityUnmatchedForeignOrder(t *testing.T) {
+	statement := enginetest.Statement(t, "CREATE FOREIGN TABLE pgss_foreign(a integer,a integer) SERVER pgss_server").(*parser.ForeignDDL)
+	statement.ColumnOptions["unmatched"] = nil
+	defer func() {
+		got, ok := recover().(string)
+		if !ok || got != "stuntgres: foreign column options lack matching declarations" { t.Fatalf("unexpected unmatched declaration signal: %q", got) }
+	}()
+	analyze.JumbleUtility(statement)
 }

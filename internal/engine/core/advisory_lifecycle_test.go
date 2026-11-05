@@ -97,7 +97,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *core.Engine) {
 		t.Fatal(indexErr)
 	}
 	e.Mu.Lock()
-	next, _, err := core.EngineRemapPreparedCatalog(e, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+	next, _, err := core.EngineRemapPreparedCatalog(e, replacement.WithState(catalog.CloneState(replacement.State())), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.Catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {

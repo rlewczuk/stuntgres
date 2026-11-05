@@ -17,5 +17,7 @@ func sqlError(code, message string) error {
 
 // insertError is sqlError with a statement position, like the engine's helper.
 func insertError(code, message string, pos parser.Position) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
+	position := ""
+	if pos.Character > 0 { position = strconv.Itoa(pos.Character) }
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
 }

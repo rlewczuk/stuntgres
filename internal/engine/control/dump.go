@@ -92,6 +92,8 @@ type Capture struct {
 	Composites            map[ids.OID]*catalog.Relation
 	Graph                 dump.Graph
 	ForeignDeclarations   map[ids.OID]dump.Statement
+	// ForeignTables retains declaration metadata only; never heap rows/frontiers.
+	ForeignTables         map[ids.OID]table.DumpRelation
 	// Foreign defaults replay after every provider/name phase, independently
 	// of ordinary table deferral and without physical rows or storage.
 	ForeignDefaults map[ids.OID]map[int32]bool

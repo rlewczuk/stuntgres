@@ -14,7 +14,8 @@ import (
 // install lock against captured authorities. No callbacks, source lock or external
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
-func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, catalog.ProcedureRemapper, error) {
+func (e *Engine) remapPreparedCatalog(sourceCatalog catalog.Read, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, catalog.ProcedureRemapper, error) {
+	state := sourceCatalog.State()
 	e.Catalog.RetainDatabasesLocked(state)
 	// Foreign storage is reminted into the destination ownership universe.
 	// Preserve object OIDs, not a source heap/index incarnation locator.
@@ -34,7 +35,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			foreignOriginals = append(foreignOriginals, procedure)
 		}
 	}
-	if err := fdw.RebindReplacementProviders(e.Catalog.Current(), e.Foreign, state); err != nil {
+	if err := fdw.RebindReplacementProviders(sourceCatalog, e.Foreign, state); err != nil {
 		return nil, nil, err
 	}
 	mapHost, err := e.hostReplacementMapper(state)

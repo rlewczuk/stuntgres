@@ -191,7 +191,11 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   CREATE FOREIGN TABLE share `finishForeignTableCreation`: a sealed core
   construction token supplies relation-shape, table and configured-column
   visibility before the corresponding validators complete. It never routes
-  ALTER through a shell or exposes incomplete descriptors to committed readers;
+  ALTER through a shell or exposes incomplete descriptors to committed readers.
+  Successful completion returns that unique fresh relation's genuine `Created`
+  reference for ordinary paired Restore constructor admission. Errors/cancellation
+  and skipped IF NOT EXISTS creation return no Created identity; imports discard
+  the result without changing their enclosing atomic publication.
   `executeForeignImport` keeps the importer callback, the per-table relock,
   re-authorization and epoch check, consumes each completed definition's fresh
   stage into the ordinary statement-private overlay, and retains initial

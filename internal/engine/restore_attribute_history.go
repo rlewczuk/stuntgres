@@ -107,6 +107,7 @@ func (r *restoreRun) admitAttributeRetirement(op *session.Operation, s *parser.A
 		if _, exists := d.ColumnMeta.Identities[number]; exists {
 			return attributeRestoreBoundary()
 		}
+		if d.Foreign != nil && len(d.Foreign.Columns[number]) != 0 { return attributeRestoreBoundary() }
 		if d.Security.ColumnACL[number].Explicit {
 			return attributeRestoreBoundary()
 		}
@@ -217,6 +218,9 @@ func beforeRestoreAttributeForeignKey(r *restoreRun, op *session.Operation, stmt
 }
 
 func afterRestoreAttributeConstructor(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
+	if foreign, ok := stmt.(*parser.ForeignDDL); ok && foreign.Action == "create" && foreign.Kind == "table" && foreign.Table != nil {
+		stmt = foreign.Table
+	}
 	creation, ok := stmt.(*parser.CreateTable)
 	if !ok {
 		return nil
@@ -230,6 +234,29 @@ func afterRestoreAttributeConstructor(r *restoreRun, _ *session.Operation, stmt 
 	}
 	r.attributeConstructors[target] = outcome.Created
 	delete(r.attributePairs.Creates, creation)
+	return nil
+}
+
+func (r *restoreRun) admitForeignAttributeOptions(op *session.Operation, s *parser.ForeignDDL) error {
+	boundary := func() error { return core.SQLError("0A000", "restore accepts only paired generated foreign column options") }
+	pair, paired := r.attributePairs.ForeignOptions[s]
+	action := control.ForeignAttributeOptions(s)
+	if !paired || action == nil || action.Column.Text != pair.Column ||
+		s.Name.Parts[0].Text != pair.Target.Schema || s.Name.Parts[1].Text != pair.Target.Table { return boundary() }
+	e := r.stage
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil { return err }
+	if err := op.Context().Err(); err != nil { return err }
+	d, err := r.attributeRelationLocked(auth, pair.Target)
+	if err != nil { return boundary() }
+	if d.RelationKind != catalog.ForeignRelation || d.Foreign == nil { return boundary() }
+	slot := d.IndexForAttribute(pair.Number)
+	if slot < 0 || d.Columns[slot].Name != pair.Column || len(d.Foreign.Columns[pair.Number]) != 0 { return boundary() }
+	delete(r.attributePairs.ForeignOptions, s)
+	// This grants admission only. The original statement still runs ordinary
+	// foreign target/owner admission and the actual current provider validator.
 	return nil
 }
 
@@ -261,7 +288,7 @@ func afterRestoreAttributeDefinition(r *restoreRun, _ *session.Operation, stmt p
 }
 
 func finishRestoreAttributeRetirements(r *restoreRun, _ context.Context, _ *session.Operation) error {
-	if len(r.attributePairs.Drops)+len(r.attributePairs.Adds)+len(r.attributePairs.Constraints)+len(r.attributePairs.Creates)+len(r.attributePairs.Detaches)+len(r.attributePairs.Teardowns) != 0 {
+	if len(r.attributePairs.Drops)+len(r.attributePairs.Adds)+len(r.attributePairs.Constraints)+len(r.attributePairs.Creates)+len(r.attributePairs.Detaches)+len(r.attributePairs.Teardowns)+len(r.attributePairs.ForeignOptions) != 0 {
 		return core.SQLError("0A000", "restore has unconsumed generated attribute constructors")
 	}
 	return nil

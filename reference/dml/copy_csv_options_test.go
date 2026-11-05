@@ -107,6 +107,10 @@ func TestReferenceCopyCSVOptionsDiagnostics(t *testing.T) {
 		for _, tc := range []struct{ option, dir, code, message string }{
 			{"FORMAT csv,QUOTE 'é'", "FROM", "0A000", "COPY quote must be a single one-byte character"}, {"FORMAT csv,ESCAPE 'é'", "FROM", "0A000", "COPY escape must be a single one-byte character"},
 			{"QUOTE '\"'", "FROM", "0A000", "COPY QUOTE requires CSV mode"}, {"ESCAPE '!'", "FROM", "0A000", "COPY ESCAPE requires CSV mode"},
+			{"QUOTE 'é'", "FROM", "0A000", "COPY QUOTE requires CSV mode"}, {"ESCAPE 'é'", "FROM", "0A000", "COPY ESCAPE requires CSV mode"},
+			{"QUOTE 'é',FORMAT invalid", "FROM", "22023", `COPY format "invalid" not recognized`},
+			{"FORMAT binary,DELIMITER '',HEADER true", "FROM", "42601", "cannot specify DELIMITER in BINARY mode"},
+			{"FORMAT csv,DELIMITER ';',QUOTE ';',ESCAPE 'é'", "FROM", "22023", "COPY delimiter and quote must be different"},
 			{"FORCE_QUOTE *", "TO", "0A000", "COPY FORCE_QUOTE requires CSV mode"}, {"FORCE_NULL(v)", "FROM", "0A000", "COPY FORCE_NULL requires CSV mode"}, {"FORCE_NOT_NULL(v)", "FROM", "0A000", "COPY FORCE_NOT_NULL requires CSV mode"},
 			{"FORMAT csv,FORCE_QUOTE *", "FROM", "0A000", "COPY FORCE_QUOTE cannot be used with COPY FROM"}, {"FORMAT csv,FORCE_NULL(v)", "TO", "22023", "COPY FORCE_NULL cannot be used with COPY TO"}, {"FORMAT csv,FORCE_NOT_NULL(v)", "TO", "22023", "COPY FORCE_NOT_NULL cannot be used with COPY TO"},
 			{"FORMAT csv,DELIMITER '\"'", "FROM", "22023", "COPY delimiter and quote must be different"}, {"FORMAT csv,NULL 'a\"b'", "FROM", "22023", "CSV quote character must not appear in the NULL specification"}, {"FORMAT csv,DEFAULT 'a\"b'", "FROM", "0A000", "CSV quote character must not appear in the DEFAULT specification"},
@@ -125,7 +129,11 @@ func TestReferenceCopyCSVOptionsDiagnostics(t *testing.T) {
 					q += " STDOUT WITH(" + tc.option + ")"
 					result, err = c.to(q, &output)
 				}
-				copyTextDiagnostic(t, result, err, fixture.Diagnostic{Code: tc.code, Message: tc.message})
+				want := fixture.Diagnostic{Code: tc.code, Message: tc.message}
+				if tc.option == "QUOTE 'é',FORMAT invalid" {
+					want.Position = strconv.Itoa(utf8.RuneCountInString(q[:strings.LastIndex(q, "FORMAT")]) + 1)
+				}
+				copyTextDiagnostic(t, result, err, want)
 				if !b.PG && never.calls != 0 {
 					t.Fatal("preflight read caller")
 				}

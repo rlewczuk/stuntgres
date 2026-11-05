@@ -496,6 +496,10 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		return err
 	}
 	for oid, statement := range s.ForeignDeclarations {
+		if _, foreign := s.ForeignTables[oid]; foreign {
+			statement.SQL, err = s.foreignTableDeclaration(ctx, oid)
+			if err != nil { return err }
+		}
 		s.declarations[oid] = statement
 	}
 	for oid, statement := range s.familySeedFinal {

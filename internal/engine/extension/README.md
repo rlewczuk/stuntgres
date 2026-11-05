@@ -149,6 +149,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   keep `ProcedureSymbol`. Probe, named-call and selected-gateway matching share
   this selection. Registry classification never substitutes for current origin,
   provider-family or execution privilege checks and exposes no C-symbol aliases.
+  Stock file_fdw 1.0 seals two strict volatile C helper declarations and its
+  global wrapper. Their exact immutable method tokens, canonical slots and
+  reciprocal helper links are authenticated independently of mutable labels,
+  owners and membership. `ForeignObject.Origin` participates in the same seal,
+  class validation, owner codec and coherent canonical/live remapping as other
+  installed members; Driver registrations cannot select this recipe. Native
+  replay reinstalls it before foreign consumers and replays global wrapper
+  identity through the existing provider collision planner.
   Stock pg_stat_statements 1.12 seals three C-function recipe roots: the two
   readers retain slots0/1 and the scalar reset owns slot2, four immutable literal
   defaults and genuine argument names. Reset's script PUBLIC EXECUTE revoke

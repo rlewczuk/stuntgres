@@ -370,7 +370,7 @@ func principalMappings(m PrincipalRemap) (func(authorization.ACLValue) (authoriz
 		}
 		n := *d
 		var err error
-		n.Owner, err = m.SeededOwner(d.Owner, d.Seeded() || d.Foreign != nil)
+		n.Owner, err = m.SeededOwner(d.Owner, d.Seeded() || d.Foreign != nil && d.Implementation == nil)
 		if err != nil {
 			return nil, err
 		}

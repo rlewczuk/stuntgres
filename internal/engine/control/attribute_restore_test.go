@@ -19,6 +19,13 @@ func TestAccessRelationsAttributeDropPairs(t *testing.T) {
 		{`CREATE TABLE public.p(a INT,` + name + ` pg_catalog.int4); CREATE TABLE public.c(b INT) INHERITS(public.p); ALTER TABLE public.p DROP COLUMN ` + name, 1, false},
 		{`CREATE TABLE public.p(a INT,b INT) PARTITION BY RANGE(a); CREATE TABLE public.c(a INT,` + name + ` pg_catalog.int4,b INT); ALTER TABLE ONLY public.c DROP COLUMN ` + name + `; ALTER TABLE public.p ATTACH PARTITION public.c FOR VALUES FROM(0) TO(10)`, 1, false},
 		{`CREATE TYPE public.row_type AS (a INT,b INT); CREATE TABLE public.c(a INT,` + name + ` pg_catalog.int4,b INT); ALTER TABLE ONLY public.c DROP COLUMN ` + name + `; ALTER TABLE public.c OF public.row_type`, 1, false},
+		{`CREATE FOREIGN TABLE public.t(a INT,` + name + ` pg_catalog.int4) SERVER files; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 1, false},
+		{`CREATE FOREIGN TABLE public.t(a INT,` + name + ` pg_catalog.text) SERVER files; ALTER TABLE ONLY public.t ALTER COLUMN ` + name + ` SET STORAGE EXTERNAL; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 1, false},
+		{`CREATE TABLE public.p(a INT,` + name + ` pg_catalog.int4); CREATE FOREIGN TABLE public.c(b INT) INHERITS(public.p) SERVER files; ALTER TABLE public.p DROP COLUMN ` + name, 1, false},
+		{`CREATE FOREIGN TABLE public.t(` + name + ` pg_catalog.int4 OPTIONS(force_null 'true')) SERVER files; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
+		{`CREATE FOREIGN TABLE public.t(` + name + ` pg_catalog.int4 DEFAULT 1) SERVER files; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
+		{`CREATE FOREIGN TABLE public.t(` + name + ` pg_catalog.int4 NOT NULL) SERVER files; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
+		{`CREATE FOREIGN TABLE IF NOT EXISTS public.t(` + name + ` pg_catalog.int4) SERVER files; ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
 		{`ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
 		{`CREATE TABLE public.t(` + name + ` INT); ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
 		{`CREATE TABLE public.t(` + name + ` pg_catalog.int4 DEFAULT 1); ALTER TABLE ONLY public.t DROP COLUMN ` + name, 0, false},
@@ -114,6 +121,53 @@ func TestAccessRelationsAttributeCheckConstructorPairs(t *testing.T) {
 					t.Fatal("conditional staged CHECK admitted")
 				}
 			}
+		})
+	}
+}
+
+func TestAccessRelationsForeignOptionPairs(t *testing.T) {
+	const ordinary = `CREATE TABLE public.parent(id INT,txt TEXT); CREATE FOREIGN TABLE public.child() INHERITS(public.parent) SERVER files; `
+	const partition = `CREATE TABLE public.parent(id INT,txt TEXT) PARTITION BY RANGE(id); `
+	const completion = `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(force_null 'true',force_not_null 'off');`
+	const hole = "__stuntgres_retired_abc_2"
+	for _, tc := range []struct { name, sql string; number int32; noHistory bool }{
+		{"inherited", ordinary + completion, 2, false},
+		{"compact partition", partition + `CREATE FOREIGN TABLE public.child PARTITION OF public.parent FOR VALUES FROM(0) TO(10) SERVER files; ` + completion, 2, true},
+		{"dense parent live shape", `CREATE TABLE public.parent(id INT,` + hole + ` pg_catalog.int4,txt TEXT) PARTITION BY RANGE(id); ALTER TABLE ONLY public.parent DROP COLUMN ` + hole + `; CREATE FOREIGN TABLE public.child PARTITION OF public.parent FOR VALUES FROM(0) TO(10) SERVER files; ` + completion, 2, true},
+		{"separate attachment", partition + `CREATE FOREIGN TABLE public.child(id INT,` + hole + ` pg_catalog.int4,txt TEXT) SERVER files; ALTER TABLE ONLY public.child DROP COLUMN ` + hole + `; ALTER TABLE public.parent ATTACH PARTITION public.child FOR VALUES FROM(0) TO(10); ` + completion, 3, false},
+		{"provider parses Boolean", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(force_null 'not-a-Boolean');`, 2, false},
+		{"one completion only", ordinary + completion + completion, 2, false},
+		{"no constructor", completion, 0, false},
+		{"ordinary target", `CREATE TABLE public.child(id INT,txt TEXT); ` + completion, 0, false},
+		{"missing parent shape", `CREATE FOREIGN TABLE public.child PARTITION OF public.parent FOR VALUES FROM(0) TO(10) SERVER files; ` + completion, 0, false},
+		{"unqualified target", ordinary + `ALTER FOREIGN TABLE child ALTER COLUMN txt OPTIONS(force_null 'true');`, 0, false},
+		{"wrong column", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN absent OPTIONS(force_null 'true');`, 0, false},
+		{"SET is not generated ADD", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(SET force_null 'true');`, 0, false},
+		{"DROP is not generated ADD", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(DROP force_null);`, 0, false},
+		{"explicit ADD is not canonical", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(ADD force_null 'true');`, 0, false},
+		{"unselected option", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(column_name 'remote');`, 0, false},
+		{"duplicate key", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(force_null 'true',force_null 'false');`, 0, false},
+		{"multiple actions", ordinary + `ALTER FOREIGN TABLE public.child ALTER COLUMN txt OPTIONS(force_null 'true'),ALTER COLUMN id OPTIONS(force_null 'true');`, 0, false},
+		{"IF EXISTS", ordinary + `ALTER FOREIGN TABLE IF EXISTS public.child ALTER COLUMN txt OPTIONS(force_null 'true');`, 0, false},
+		{"late after consumer", ordinary + `SELECT 1; ` + completion, 0, false},
+		{"already configured local", `CREATE FOREIGN TABLE public.child(id INT,txt TEXT OPTIONS(force_null 'true')) SERVER files; ` + completion, 0, false},
+		{"inert placeholder", `CREATE FOREIGN TABLE public.child(id INT,` + hole + ` pg_catalog.int4) SERVER files; ALTER FOREIGN TABLE public.child ALTER COLUMN ` + hole + ` OPTIONS(force_null 'true');`, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			statements, err := parser.Parse(tc.sql)
+			if err != nil { t.Fatal("unit syntax", err) }
+			original, err := parser.Parse(tc.sql)
+			if err != nil { t.Fatal(err) }
+			pairs, err := PairAttributeConstructors(statements)
+			if err != nil { t.Fatal(err) }
+			want := 0
+			if tc.number != 0 { want = 1 }
+			if len(pairs.ForeignOptions) != want { t.Fatal("foreign option pairing", len(pairs.ForeignOptions), want) }
+			if tc.noHistory && (len(pairs.Adds) != 0 || len(pairs.Drops) != 0 || len(pairs.Detaches) != 0 || len(pairs.Teardowns) != 0) { t.Fatal("completion-only partition metadata gained history authority") }
+			for statement, pair := range pairs.ForeignOptions {
+				if ForeignAttributeOptions(statement) != &statement.TableActions[0] || pair.Target != (AttributeDropTarget{"public", "child"}) || pair.Number != tc.number || pair.Column != "txt" { t.Fatal("completion lost original action or stable slot", pair) }
+			}
+			if !reflect.DeepEqual(statements, original) { t.Fatal("option pairing mutated source AST") }
 		})
 	}
 }

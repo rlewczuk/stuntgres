@@ -9,7 +9,7 @@ GRANT and foreign-table DDL.
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
 imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
-`ids`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`, `settings`,
+`ids`, `lock`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`, `settings`,
 `sqlstate`, `sqltype`, `table` (CREATE FOREIGN TABLE stages through
 `table.StageCreateTable`) and the standard library, and never the engine,
 `dml` or another upper feature. `table` never imports it. The engine and the
@@ -42,8 +42,13 @@ assumptions into remote validation scans.
   ordinary utility admission resolves the same capability identity. Handlers
   retain their empty input signature; validators retain `text[], oid`.
   Replacement rebinds imported tokens (`RebindReplacementProviders`) before
-  the single strict source-principal graph memo is constructed. Historical original carriers use that same scoped
-  source-to-destination token map; retained destination TEMP authority stays separate.
+  the single strict source-principal graph memo is constructed. That first
+  authentication uses the candidate's source-owned catalog view, not the
+  destination principal domain; configured callbacks still come only from the
+  destination registry. After principal remapping, replacement authenticates
+  again against the destination-owned view. Historical original carriers use
+  that same scoped source-to-destination token map; retained destination TEMP
+  authority stays separate.
   An optional `ExternalProvider` binding resolves to an immutable authentic
   Driver registration before engine publication. Captured ForeignQuerySource
   handler tokens carry this binding through base/composite execution; no current
@@ -110,6 +115,14 @@ assumptions into remote validation scans.
   root Finish owns metadata and transactional routine writes together.
   Empty jobs and native callbacks do not require that SQL journal admission.
   No label lookup supplies executable authority.
+  Authenticated stock file_fdw validation also uses `ValidationRuntime`, before
+  its SQL-only branch: current inherited file/program authority is captured by
+  core, then `file_options.go` performs pure ordered validation through shared
+  COPY options. Direct arrays preserve omitted versus empty values. Neither
+  parsing nor catalog publication opens a source or retains caller authority.
+  Only its authenticated handler omits generic user mapping admission; the
+  ordinary handler factory still runs before the explicit external-execution
+  boundary. It has no importer and never supplies foreign rows.
   Table creation retains raw immutable column syntax and stable attribute
   identities. `PrepareColumnValidation` transforms and resolves one column only
   after table validation and preceding column phases succeed. Its installation
@@ -119,6 +132,15 @@ assumptions into remote validation scans.
   `ImportError`), foreign-table syntax checks (`CheckTableDeclaration`,
   `TableSyntax`, `AlterAdmission`) and scan requests (`ScanRequest`,
   `RequiredAttributes`).
+  `AlterAdmission` and the owning `TargetAdmission` entry share one pure-options
+  classifier. Only nonempty table/column OPTIONS retain the original foreign
+  command through ordinary ACCESS EXCLUSIVE/owner/IF EXISTS admission, without
+  appearing as an empty structural ALTER on partition leaves. Mixed, default,
+  owner and structural forms keep their ordinary projections and boundaries.
+  Actual foreign kind, locked reference, server/wrapper and current validator
+  checks remain in the executor; pending detach remains a normal ALTER refusal.
+  `TestFDWTableOptionAdmission` covers this original-node path, immutable syntax,
+  prepare/noisy/mixed/default/empty negatives and the pending-detach boundary.
   Constraint admission distinguishes primary, unique, foreign-key and exclusion
   declarations with their retained source positions; identity, LIKE logical
   fields and hierarchy metadata use the shared table stages.
@@ -187,16 +209,20 @@ assumptions into remote validation scans.
     over an `access.View`: it returns the `GrantChange`s in statement order
     and the warnings, which come back even with a later error so the engine
     emits them first.
-- **Logical persistence** (`dump.go`): `DumpObject`, `DumpTable`,
-  `DumpProcedure` and `DumpOptions` render immutable captured declarations,
-  actual qualified capability identities and ordered options; `control` owns
-  graph ordering and output.
+- **Logical persistence** (`dump.go`): `DumpObject`, `DumpProcedure` and
+  `DumpOptions` render captured identities/options; `DumpTable` attaches foreign
+  completion metadata to the shared shape declaration rendered by `control`.
+  The single shared constructor preserves retired slots and trailing highwater,
+  with column options addressed by original stable attributes, not live slots.
+  Foreign capture contains metadata only, never heap rows or a visibility frontier.
   Foreign inheritance and partition declarations retain parent graph edges;
   partition members share the compact PARTITION OF versus separate CREATE/ATTACH
   decision, installing column options exactly once for the chosen constructor.
   Owned identity sequences use ordinary sequence declaration/state completion.
-  Foreign CHECK validity and column options replay as descriptor changes without
-  scanning or serializing source rows.
+  Foreign CHECK validity and declared column options remain metadata rather than
+  scans or serialized source rows. Selected inherited force options use control's
+  fresh-constructor/live-column completion pair and the normal owner/validator
+  executor; this adds no general wrapped ALTER replay capability.
   - Foreign tables never use storage/row collection. Declaration references
     distinguish the actual procedure descriptor: `DumpProcedure` validates only
     native prerequisites, which require compatible destination registrations,

@@ -97,13 +97,17 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 		case *catalog.OperatorFamily:
 			kind = "OPERATOR FAMILY"
 			signature = catalog.ProcedureSignature(identity.Signature)
+		case *catalog.ForeignObject:
+			if selected.Address().ClassID == ids.ForeignWrapperClassID { kind = "FOREIGN DATA WRAPPER" }
 		}
 		if kind != "" {
 			originalName := d.Name()
 			if parked := placement.procedureNames[d.Address()]; parked != "" {
 				originalName = parked
 			}
-			replay := providerReplay{original: providerKey{item.schema, originalName, signature}, current: providerKey{identity.Schema, identity.Name, signature}, arguments: identity.Signature, family: family, objectKind: kind}
+			originalSchema := item.schema
+			if selected.Namespace() == (ids.ObjectAddress{}) { originalSchema = "" }
+			replay := providerReplay{original: providerKey{originalSchema, originalName, signature}, current: providerKey{identity.Schema, identity.Name, signature}, arguments: identity.Signature, family: family, objectKind: kind}
 			if procedure, ok := current.(*catalog.Procedure); ok {
 				if procedure.RoutineKind == catalog.AggregateRoutine {
 					// CREATE EXTENSION restores the aggregate's immutable estimates.

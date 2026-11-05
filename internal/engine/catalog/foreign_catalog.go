@@ -13,6 +13,7 @@ import (
 type ForeignObject struct {
 	ObjectAddress                       ids.ObjectAddress
 	Extension                           ids.ObjectAddress
+	Origin                              *InstalledOrigin
 	ObjectRevision                      ids.DefinitionRevision
 	ObjectName                          string
 	Owner                               authorization.PrincipalRef
@@ -61,6 +62,17 @@ func (p ForeignCatalogProvider) Validate(v Read, descriptor Descriptor) error {
 	d, ok := descriptor.(*ForeignObject)
 	if !ok || d.Address().ClassID != p.Class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid SQL/MED descriptor")
+	}
+	if d.Origin != nil {
+		if !d.Origin.Valid(d.Address()) || v.Owner() == nil {
+			return fmt.Errorf("stuntgres: invalid installed foreign declaration")
+		}
+		implementation := d.Origin.Installation.Implementation
+		validator, ok := implementation.(interface { ValidateForeign(Read, *ForeignObject) error })
+		if !ok || v.Owner().Extensions[d.Origin.Installation.Provider] != implementation {
+			return fmt.Errorf("stuntgres: invalid installed foreign provider")
+		}
+		if err := validator.ValidateForeign(v, d); err != nil { return err }
 	}
 	switch p.Class {
 	case ids.ForeignWrapperClassID:

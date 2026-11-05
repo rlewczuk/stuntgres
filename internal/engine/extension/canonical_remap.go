@@ -34,6 +34,15 @@ func canonicalDeclarationRemapper(mapping map[ids.ObjectAddress]ids.ObjectAddres
 			n.Array = array
 			return &n
 		}
+		if foreign, ok := d.(*catalog.ForeignObject); ok {
+			n := *foreign
+			n.ObjectAddress = address(foreign.Address())
+			n.Extension = address(foreign.Extension)
+			n.Wrapper, n.Server = address(foreign.Wrapper), address(foreign.Server)
+			n.Handler, n.Validator = address(foreign.Handler), address(foreign.Validator)
+			if n.ObjectAddress == foreign.ObjectAddress && n.Extension == foreign.Extension && n.Wrapper == foreign.Wrapper && n.Server == foreign.Server && n.Handler == foreign.Handler && n.Validator == foreign.Validator { return foreign }
+			return &n
+		}
 		// Canonical snapshots have no origin. Their routine/operator/text-search
 		// address-bearing declarations share the actual descriptor remap owner.
 		return remapDescriptor(d, mapping, func(i *catalog.Installation) *catalog.Installation { return i })

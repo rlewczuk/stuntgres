@@ -117,7 +117,7 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 	// Same-catalog principal remap is not a default-bearing Restore facility.
 	copy := catalog.CloneState(before)
 	f.e.Mu.Lock()
-	remapped, _, err := core.EngineRemapPreparedCatalog(f.e, copy, f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, f.e.Catalog.Read(before)), f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, f.e.Catalog.Read(before)), nil)
+	remapped, _, err := core.EngineRemapPreparedCatalog(f.e, f.e.Catalog.Read(copy), f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, f.e.Catalog.Read(before)), f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, f.e.Catalog.Read(before)), nil)
 	f.e.Mu.Unlock()
 	if err != nil || remapped.DefaultACL(key).OID != used {
 		t.Fatal("principal remap lost identity", err)

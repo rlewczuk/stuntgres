@@ -87,7 +87,7 @@ var dumpPhaseEmitters = [...]dumpPhaseEmitter{
 	dump.InvalidConstraints:      {dumpInvalidConstraintOwner, emitDumpInvalidConstraints},
 	dump.IndexAttachment:         {dumpBootstrapOwner, emitDumpIndexAttachment},
 	dump.TableAttachment:         {dumpBootstrapOwner, emitDumpTableAttachment},
-	dump.TableCompletion:         {}, // orders later phases only
+	dump.TableCompletion:         {nil, emitDumpForeignTableCompletion},
 	dump.InvalidIndexPreparation: {dumpBootstrapOwner, emitDumpInvalidIndex},
 	dump.InvalidIndexCompletion:  {dumpBootstrapOwner, emitDumpInvalidIndex},
 	dump.InheritanceRecipes:      {dumpTableOwner, emitDumpInheritanceRecipes},
@@ -141,6 +141,10 @@ func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 // table returns a copy of the captured table record for oid; emitters may
 // adjust the copy without changing the capture.
 func (s *dumpScript) table(oid ids.OID) table.DumpRelation {
+	if t, ok := s.ForeignTables[oid]; ok {
+		t.DeferredDefinitions = s.ForeignDefaults[oid]
+		return t
+	}
 	return s.Tables[s.TableIndices[oid]]
 }
 

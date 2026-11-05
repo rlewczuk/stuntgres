@@ -67,6 +67,9 @@ PARTITION OF or separate CREATE/ATTACH decision as local members; parent
 completion waits for the actual foreign member completion. Identity-sequence
 references resolve to the reciprocal local or foreign owner declaration, and
 the ordinary sequence-completion section restores generator state afterward.
+Foreign completion also applies captured metadata/owners only after attribute
+retirement; it never acquires a heap or row frontier. `ForeignTables` keeps the
+declaration-only metadata used by the same sparse-shape renderer as local tables.
 The existing bootstrap-owned scratch phases also create detached fresh exclusion
 providers through ordinary temporary-parent DDL. Scratch columns share the normal
 column-type/collation renderer; captured table defaults, identities, ownership and
@@ -816,6 +819,12 @@ No physical WAL position or flush guarantee is serialized.
   Immutable destination registration authority survives SQL DROP: Reset can
   reseed it without application callbacks or adopting a source token. Registry
   lookup is replacement-only, never runtime public-name fallback.
+  Installed file_fdw helpers and the global wrapper instead reconstruct through
+  their stock installation recipe. The wrapper has no duplicate ordinary CREATE
+  event; global rename uses the same collision planner with a schema-free key.
+  Native replay admits that rename only for the authenticated installed wrapper.
+  Canonical helper links and live descriptors remap exactly once through their
+  existing separate owners, retaining one coherent installed-origin backing.
   Body-edge address and principal remapping preserve original declaration
   revisions and shared/cyclic associations, not newer current descriptors at
   historical addresses; owners/ACLs are remapped before recipe reconstruction.
@@ -902,8 +911,25 @@ No physical WAL position or flush guarantee is serialized.
   layout, including local dropped slots. Existing attachment, row, constraint and
   provider dependencies remain authoritative; partition membership is not an
   ordinary history edge or a transient helper.
+  Foreign declarations share this exact metadata history and schedule, including
+  trailing highwater and mixed ordinary/foreign inheritance. Their consumer
+  barrier is `TableCompletion`, not a synthetic `Rows` event. Original stable
+  attribute numbers select column FDW options. Scheduled additions retain the
+  actual ordinary ALTER AST and use `AlterTableColumnOptionsLocked`, so genuine
+  foreign validation/options and shape changes share one private publication.
   Restore pre-pairs literal constructors, checks their destination-owned fresh
   references and exact live closure, and delegates effects to ordinary DDL.
+  Foreign CREATE pairing retains its actual inner `CreateTable` pointer and the
+  completed constructor's real destination reference; no name lookup or cloned
+  AST grants authority. Inert retirements cannot carry foreign column options.
+  Selected inherited `force_null`/`force_not_null` options have a separate
+  ADD-only, single-column completion pair on the original ForeignDDL node.
+  Admission checks the actual fresh foreign reference and live stable column,
+  then ordinary execution performs current owner and provider validation.
+  Data/ACL consumption and a completed option pair prevent later reuse.
+  Compact partition constructors retain only the preceding parent's live shape
+  as dense completion metadata; they gain no ordinary history edge or ADD/DROP
+  authority. Separate attachment retains its original sparse column numbers.
   Closed staged CHECK declarations use that constructor authority, including
   ordinary inherited/local definition merges, rather than unrelated generated
   expression repair authority. Standalone fresh CHECK replay still requires an

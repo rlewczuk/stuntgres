@@ -50,6 +50,11 @@ it. It never builds a binder.
   which uses `EffectiveChildren` for both recursion and ONLY before descendant
   locking, without changing canonical membership or direct inherited eligibility.
   Unrelated relation rename and namespace-transfer boundaries stay unchanged.
+  Genuine nonempty foreign table/column OPTIONS retain their original syntax
+  through FDW target classification and ordinary lock/owner admission. They
+  mutate only foreign metadata, not hierarchy shape or descendant options.
+  Incomplete detach still rejects them; structural/default/mixed foreign forms
+  keep the ordinary projected ALTER boundaries.
   `PrepareConstraintDrop` captures the actual inherited UNIQUE/EXCLUDE backing
   indexes depth-first before any removal, retaining inherited/backing-index
   validation and NOT NULL fallback. Its consumed-once `Apply` marks only the

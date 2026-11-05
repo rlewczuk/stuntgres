@@ -274,6 +274,10 @@ func importMemberAuthority(d catalog.Descriptor, owner authorization.PrincipalRe
 		n := *d
 		n.Owner, n.ACL = owner, acl
 		return &n, nil
+	case *catalog.ForeignObject:
+		n := *d
+		n.Owner, n.ACL = owner, acl
+		return &n, nil
 	case *catalog.Type:
 		n := *d
 		n.Owner, n.ACL = owner, acl

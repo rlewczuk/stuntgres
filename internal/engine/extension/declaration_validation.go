@@ -23,5 +23,8 @@ func validateInstalledDeclaration(view catalog.Read, d catalog.Descriptor) error
 	if typ, ok := d.(*catalog.Type); ok {
 		return ValidateTypeOrigin(view, typ)
 	}
+	if foreign, ok := d.(*catalog.ForeignObject); ok {
+		return (catalog.ForeignCatalogProvider{Class: foreign.Address().ClassID}).Validate(view, foreign)
+	}
 	return InvalidProviderDescriptor()
 }

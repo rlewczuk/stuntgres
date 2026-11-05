@@ -41,6 +41,12 @@ func TestFDWDumpHierarchyCompletion(t *testing.T) {
 				Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{attribute}, Index: map[string]int{"id": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: attribute},
 				Foreign:    &catalog.ForeignTableDefinition{Server: server.Address(), Columns: map[int32][]catalog.ForeignOption{attribute: {{Name: "column_name", Value: "remote_id"}}}},
 				Membership: &catalog.PartitionMembership{Parent: parent.Address(), Strategy: parser.PartitionHash, Modulus: 2, Remainder: 0}}
+			if attach {
+				child.ColumnMeta.Dropped = map[int32]catalog.AttributeMetadata{
+					1: {Number: 1, Dropped: true, Local: true, Facts: integer.AttributeFacts()},
+					2: {Number: 2, Dropped: true, Local: true, Facts: integer.AttributeFacts()},
+				}
+			}
 			parent.Partition.Children = []ids.ObjectAddress{child.Address()}
 			for _, relation := range []*catalog.Relation{parent, child} {
 				source.State.SetDescriptor(relation.Address(), relation)
@@ -87,6 +93,10 @@ func TestFDWDumpHierarchyCompletion(t *testing.T) {
 				t.Fatal("parent/member declaration and completion order lost", order)
 			}
 			statement := capture.ForeignDeclarations[child.Address().ObjectID]
+			script := &dumpScript{Capture: capture}
+			if err := script.prepareAttributeHistory(); err != nil { t.Fatal(err) }
+			statement.SQL, err = script.foreignTableDeclaration(ctx, child.Address().ObjectID)
+			if err != nil { t.Fatal(err) }
 			if strings.Contains(statement.SQL, " PARTITION OF ") == attach {
 				t.Fatal("foreign constructor ignored the shared membership decision", statement.SQL)
 			}
@@ -122,6 +132,10 @@ func TestFDWDumpIdentityDependencies(t *testing.T) {
 	boolean, _ := source.CatalogView.LookupType(sqltype.Bool)
 	owner := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 95002), ObjectNamespace: fdwUnitAddress(ids.NamespaceClassID, ids.PublicNamespaceOID), ObjectName: "identity_owner", ObjectRevision: 1, Owner: source.Bootstrap, RelationKind: catalog.ForeignRelation,
 		Columns: []catalog.Column{{Name: "id", Usage: integer.Usage()}}, Attributes: []int32{3}, Index: map[string]int{"id": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Foreign: &catalog.ForeignTableDefinition{Server: server.Address()}}
+	owner.ColumnMeta.Dropped = map[int32]catalog.AttributeMetadata{
+		1: {Number: 1, Dropped: true, Local: true, Facts: integer.AttributeFacts()},
+		2: {Number: 2, Dropped: true, Local: true, Facts: integer.AttributeFacts()},
+	}
 	owned := owner.Address()
 	owned.SubID = 3
 	seq := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 95001), ObjectNamespace: owner.Namespace(), ObjectName: "identity_sequence", ObjectRevision: 1, Owner: owner.Owner, RelationKind: catalog.SequenceRelation,

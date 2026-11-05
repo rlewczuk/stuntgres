@@ -30,7 +30,7 @@ func parameterSharedReservationPublication(t *testing.T) {
 			a.Mu.Lock()
 			defer a.Mu.Unlock()
 			oids := a.Catalog.OIDReservationLocked()
-			next, procedures, err := core.EngineRemapPreparedCatalog(a, catalog.CloneState(sourceRead.State()), source.Roles(), a.RoleStore.PublishedRead(&a.Catalog.Owner, a.Catalog.Current()), source.ImportTargets)
+			next, procedures, err := core.EngineRemapPreparedCatalog(a, sourceRead.WithState(catalog.CloneState(sourceRead.State())), source.Roles(), a.RoleStore.PublishedRead(&a.Catalog.Owner, a.Catalog.Current()), source.ImportTargets)
 			if err != nil { t.Fatal(err) }
 			relations := map[ids.ObjectAddress]*storage.Relation{}
 			sequences := map[ids.ObjectAddress]*storage.SequenceGenerator{}

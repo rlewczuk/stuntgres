@@ -63,7 +63,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		t.Fatal("structural type copying acquired foreign routine authority")
 	}
 	target.Mu.Lock()
-	prepared, procedure, err := core.EngineRemapPreparedCatalog(target, candidate, sourceRoles, targetRoles, nil)
+	prepared, procedure, err := core.EngineRemapPreparedCatalog(target, source.Catalog.Read(candidate), sourceRoles, targetRoles, nil)
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

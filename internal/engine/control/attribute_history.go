@@ -24,12 +24,19 @@ type attributeHistory struct {
 	origins map[attributeSlot]attributeSlot
 	shared  map[attributeSlot][]attributeSlot
 	policyTypes map[string]bool
+	relations []*catalog.Relation
+}
+
+func attributeConsumerEvent(r *catalog.Relation) dump.Event {
+	phase := dump.Rows
+	if r.Foreign != nil { phase = dump.TableCompletion }
+	return dump.Event{OID: r.Address().ObjectID, Phase: phase}
 }
 
 func (s *dumpScript) prepareAttributeHistory() error {
 	h := &attributeHistory{names: make(map[attributeSlot]string), origins: make(map[attributeSlot]attributeSlot), shared: make(map[attributeSlot][]attributeSlot)}
 	s.attributeHistory = h
-	var relations []*catalog.Relation
+	relations := make([]*catalog.Relation, 0, len(s.Tables)+len(s.ForeignTables))
 	usedNames := make(map[string]bool)
 	for _, d := range s.OriginalCatalog.Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok {
@@ -41,8 +48,10 @@ func (s *dumpScript) prepareAttributeHistory() error {
 	for i := range s.Tables {
 		relations = append(relations, s.Tables[i].Descriptor)
 	}
+	for _, t := range s.ForeignTables { relations = append(relations, t.Descriptor) }
 	identity := func(r *catalog.Relation) string { return s.OriginalCatalog.Get(r.Namespace()).Name() + "." + r.Name() }
 	slices.SortFunc(relations, func(a, b *catalog.Relation) int { return strings.Compare(identity(a), identity(b)) })
+	h.relations = relations
 	// Dropped source names/origins no longer exist. Choose a deterministic
 	// synthetic history using only scalar tombstone facts and current edges.
 	for _, r := range relations {
@@ -134,10 +143,10 @@ func (s *dumpScript) addAttributeRetirementEvents() {
 		}
 		event := dump.Event{OID: source.Relation.ObjectID, Phase: dump.AttributeRetirement}
 		s.Graph.Add(event, dump.Event{OID: source.Relation.ObjectID})
-		s.Graph.Add(dump.Event{OID: source.Relation.ObjectID, Phase: dump.Rows}, event)
+		s.Graph.Add(attributeConsumerEvent(s.OriginalCatalog.MustRelation(source.Relation)), event)
 		for _, slot := range participants {
 			s.Graph.Add(event, dump.Event{OID: slot.Relation.ObjectID})
-			s.Graph.Add(dump.Event{OID: slot.Relation.ObjectID, Phase: dump.Rows}, event)
+			s.Graph.Add(attributeConsumerEvent(s.OriginalCatalog.MustRelation(slot.Relation)), event)
 		}
 		// A child not participating in this synthetic retired origin must be
 		// created after retirement, so it cannot inherit an extra physical slot.

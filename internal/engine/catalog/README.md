@@ -479,6 +479,11 @@ neither owns catalog authority.
   provenance and genuine backing routines. Immutable routine admission compares
   the complete released declaration, including formal names and intrinsic body,
   handler/support and dependency payloads; an e link or copied origin grants no ABI.
+  Installed SQL/MED wrappers carry the same `InstalledOrigin`. Their class
+  provider delegates recipe validation to the registered implementation;
+  ordinary wrappers gain no origin through membership. Principal remapping
+  preserves independently owned stock helpers rather than treating their
+  foreign method payload as a bootstrap Driver registration.
 - **Text-search descriptors** (`extension_catalog.go`, `dictionary.go`):
   dictionaries hold ordered decoded immutable options, actual owner/template,
   comment metadata and a catalog-free `DictionaryRuntime`. Comments are empty

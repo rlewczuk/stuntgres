@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -255,15 +256,27 @@ func TestFDWDumpDefinitions(t *testing.T) {
 	ns := &catalog.Namespace{ObjectAddress: fdwUnitAddress(ids.NamespaceClassID, 93000), ObjectName: "unit", ObjectRevision: 1, Owner: source.Bootstrap}
 	source.State.SetDescriptor(ns.Address(), ns)
 	source.State.BindName(catalog.DescriptorNameKey(ns), ns.Address())
-	var integer *sqltype.Descriptor
+	var integer, text *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
-		if typ.ID() == sqltype.Int4 {
-			integer = typ
-			break
+		switch typ.ID() {
+		case sqltype.Int4: integer = typ
+		case sqltype.Text: text = typ
 		}
 	}
 	relation := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 93001), ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1, Owner: source.Bootstrap, RelationKind: catalog.ForeignRelation, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "note", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 3}, Comment: "table's comment", Foreign: &catalog.ForeignTableDefinition{Server: server.Address(), Columns: map[int32][]catalog.ForeignOption{3: {{Name: "column_name", Value: "actual_note"}}}}}
-	statement, err := fdw.DumpTable(context.Background(), source.CatalogView, source.DomainRoles, relation, nil)
+	facts := text.AttributeFacts()
+	facts.Storage = "e"
+	relation.ColumnMeta = catalog.ColumnMetadata{HighWater: 3, Dropped: map[int32]catalog.AttributeMetadata{2: {Number: 2, Dropped: true, Local: true, Facts: facts}}}
+	source.State.SetDescriptor(relation.Address(), relation)
+	source.State.BindName(catalog.DescriptorNameKey(relation), relation.Address())
+	capture := &Capture{CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog, DomainRoles: source.DomainRoles, Graph: make(dump.Graph)}
+	collection := &dumpCollection{Capture: capture, source: source}
+	if err := collectForeignRelationDump(context.Background(), collection, relation.Address(), relation, relationDumpContext{}); err != nil { t.Fatal(err) }
+	script := &dumpScript{Capture: capture}
+	if err := script.prepareAttributeHistory(); err != nil { t.Fatal(err) }
+	definition, err := script.foreignTableDeclaration(context.Background(), relation.Address().ObjectID)
+	if err != nil { t.Fatal(err) }
+	statement, err := fdw.DumpTable(context.Background(), source.CatalogView, source.DomainRoles, relation, definition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,6 +289,20 @@ func TestFDWDumpDefinitions(t *testing.T) {
 	if relation.Foreign.Columns[3][0].Value != "actual_note" || relation.Attributes[1] != 3 || relation.Comment != "table's comment" {
 		t.Fatal("foreign renderer mutated input")
 	}
+	var policies bytes.Buffer
+	writer := &dumpWriter{ctx: context.Background(), dst: &policies}
+	if err := script.emitLocalAttributeRetirements(writer, relation); err != nil { t.Fatal(err) }
+	if !strings.Contains(policies.String(), " SET STORAGE EXTERNAL;") || !strings.Contains(policies.String(), " DROP COLUMN ") || strings.Contains(policies.String(), "COMPRESSION") { t.Fatal("foreign retired STORAGE lost or unsupported compression emitted", policies.String()) }
+	policies.Reset()
+	script.deferredColumnStorage = map[ids.ObjectAddress]bool{relation.Address(): true}
+	if err := emitDumpDeferredColumnStorage(context.Background(), script, writer); err != nil { t.Fatal(err) }
+	if !strings.Contains(policies.String(), `"unit"."t" ALTER COLUMN "note" SET STORAGE PLAIN;`) || strings.Contains(policies.String(), "COMPRESSION") { t.Fatal("deferred foreign metadata omitted or gained compression", policies.String()) }
+	ordinary := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 93002), ObjectNamespace: ns.Address(), ObjectName: "ordinary", ObjectRevision: 1, Owner: source.Bootstrap, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "note", Usage: text.Usage(), Nullable: true}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1, Storage: map[int32]catalog.ColumnStorage{1: {Compression: "p"}}}}
+	script.attributeHistory.relations = append(script.attributeHistory.relations, ordinary)
+	script.deferredColumnStorage[ordinary.Address()] = true
+	policies.Reset()
+	if err := emitDumpDeferredColumnStorage(context.Background(), script, writer); err != nil { t.Fatal(err) }
+	if !strings.Contains(policies.String(), `"unit"."ordinary" ALTER COLUMN "note" SET COMPRESSION pglz;`) || strings.Contains(policies.String(), `"unit"."t" ALTER COLUMN "note" SET COMPRESSION`) { t.Fatal("ordinary compression changed or leaked into foreign metadata", policies.String()) }
 }
 
 func TestFDWDumpDependencies(t *testing.T) {
@@ -444,6 +471,7 @@ func TestFDWDumpACLPreflight(t *testing.T) {
 			t.Fatal("builtin int4 missing")
 		}
 		relation := &catalog.Relation{ObjectAddress: fdwUnitAddress(ids.RelationClassID, 95001), ObjectNamespace: ns.Address(), ObjectName: "f", ObjectRevision: 1, Owner: source.Bootstrap, RelationKind: catalog.ForeignRelation, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, Index: map[string]int{"id": 0}, Foreign: &catalog.ForeignTableDefinition{Server: s.Address()}}
+		relation.ColumnMeta.HighWater = 1
 		if column {
 			relation.Security.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true}}
 		} else {

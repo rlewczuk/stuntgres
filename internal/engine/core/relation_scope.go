@@ -230,7 +230,7 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 
 // relationTargetEntries decide the relation a statement targets; each
 // statement kind belongs to one package's entry.
-var relationTargetEntries = []table.TargetEntry{view.TargetAdmission, table.TargetAdmission, dml.TargetAdmission}
+var relationTargetEntries = []table.TargetEntry{view.TargetAdmission, table.TargetAdmission, dml.TargetAdmission, fdw.TargetAdmission}
 
 // AcquireRelationTarget admits the relation stmt targets for family code.
 // The body stays acquireRelationTarget: read-only reference fixtures wait on

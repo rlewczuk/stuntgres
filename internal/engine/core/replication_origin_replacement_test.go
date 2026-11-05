@@ -113,7 +113,7 @@ func originReplacementPendingFence(t *testing.T) {
 	defer target.ReplacementMu.Unlock()
 	target.Mu.Lock()
 	oids := target.Catalog.OIDReservationLocked()
-	next, procedures, err := core.EngineRemapPreparedCatalog(target, catalog.CloneState(sourceRead.State()), donor.Roles(), target.RoleStore.PublishedRead(&target.Catalog.Owner, target.Catalog.Current()), nil)
+	next, procedures, err := core.EngineRemapPreparedCatalog(target, sourceRead.WithState(catalog.CloneState(sourceRead.State())), donor.Roles(), target.RoleStore.PublishedRead(&target.Catalog.Owner, target.Catalog.Current()), nil)
 	if err != nil {
 		target.Mu.Unlock()
 		t.Fatal(err)

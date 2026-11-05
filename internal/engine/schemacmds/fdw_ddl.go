@@ -79,7 +79,8 @@ func ExecuteForeignDDL(e *core.Engine, scope *core.StatementScope, s *parser.For
 		scope.ReplacementRead = false
 	}
 	if s.Kind == "table" && s.Action == "create" {
-		return core.Result{}, finishForeignTableCreation(e, scope, stage, jobs)
+		created, err := finishForeignTableCreation(e, scope, stage, jobs)
+		return core.Result{Created: created}, err
 	}
 	if err := fdw.RunValidations(op.Context(), scope, jobs); err != nil {
 		return core.Result{}, err

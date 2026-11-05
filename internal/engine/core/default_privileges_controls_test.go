@@ -53,7 +53,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
 
 		target.e.RoleStore.PublishLocked(roles)
-		if _, _, err := core.EngineRemapPreparedCatalog(target.e, candidate, source.e.Roles(), snapshot, nil); err == nil {
+		if _, _, err := core.EngineRemapPreparedCatalog(target.e, retained.WithState(candidate), source.e.Roles(), snapshot, nil); err == nil {
 			t.Fatal("recycled recipient incarnation imported")
 		}
 	})

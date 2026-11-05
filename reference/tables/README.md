@@ -330,6 +330,17 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   RETURNING counts; ForeignMutations retains explicit rollback/autocommit proof.
   ForeignCancellation reuses the genuine post-fetch/advisory cancellation owners.
   Select every changed family in both native and `REFERENCE=1` modes.
+- Stock file configuration: `RUN='^TestReferenceFileFDW'`. Shared direct/prepared
+  scenarios assert configuration, authority, complete diagnostics and installed
+  identity; native-only phases exercise logical controls and the explicit
+  external filesystem/program boundary without opening a source. Controls retain
+  sparse attnums/options and trailing highwater through repeated/fresh-destination
+  replay, including source-shaped/staged mixed inheritance and selected inherited
+  force options on compact/separately attached foreign partitions, including
+  genuine direct/prepared option ALTER and wrong-kind rejection. Malformed or
+  late completion cannot publish a staged prefix. Atomicity retains parsed
+  duplicate-column CREATE's exact42701 and absence of relation/rowtype metadata.
+  Parent data is read with ONLY; no foreign rows are requested.
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 
 Also in this package: `make check RUN='^TestReferenceSeriesCheckRestrictions$'`

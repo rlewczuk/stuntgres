@@ -96,5 +96,6 @@ func executeImportedDefinition(e *core.Engine, scope *core.StatementScope, table
 	if err != nil {
 		return fdw.ImportError(err, name)
 	}
-	return fdw.ImportError(finishForeignTableCreation(e, scope, stage, validations), name)
+	_, err = finishForeignTableCreation(e, scope, stage, validations)
+	return fdw.ImportError(err, name)
 }

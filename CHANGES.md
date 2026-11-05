@@ -21,6 +21,22 @@
   Retain written arity and named formal identity through statement jumbling and
   stored replay without promoting omitted defaults into source operands.
 
+- Install authentic file_fdw helper/wrapper metadata and validate its eleven
+  selected options through shared COPY semantics and current inherited role
+  authority, fenced through the statement's original membership snapshot.
+  Preserve atomic options/owners and installed identities through logical native
+  replay with source-owned authentication before principal remap and destination
+  authentication afterwards. Foreign declarations share sparse attribute history
+  and mixed-inheritance scheduling, preserving dropped gaps/trailing highwater
+  without foreign heap rows. Pair selected inherited force-option replay with
+  genuine fresh columns and current owner/provider validation. Admit pure foreign
+  options as metadata on partition leaves without structural ALTER expansion;
+  retain duplicate-column CREATE diagnostics through raw utility jumbling.
+  Include its released1.0 control facts in complete available-extension
+  inventories, distinct from installed objects or external execution support.
+  Keep absent option diagnostic positions distinct from real COPY positions
+  and server file/program execution an explicit boundary.
+
 - Implement installed intarray icount, idx, both subarray overloads, intset and
   unary/binary # through shared catalog selection, immutable expressions and
   integer-array kernels. Preserve released signed boundaries, count's NULL-element

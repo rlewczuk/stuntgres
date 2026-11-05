@@ -30,7 +30,11 @@ parameters in source order; without a squash, constants start after the highest
 explicit parameter. `JumbleUtility` classifies every raw root and nested syntax
 record through static typed selected-field access, never reflection/hash-all or
 silent empty identities. Ordered function/role/column options use their retained
-declaration order; LIKE alone uses its released bitmask. Grammar-selected
+declaration order; the foreign column-option map emits each distinct key once
+at its first declaration, using the parser's retained final list. Duplicate raw
+column declarations remain selected and reach ordinary CREATE diagnostics;
+missing declaration ownership remains an invariant failure. LIKE alone uses its
+released bitmask. Grammar-selected
 `JumbleArgs` is not inferred from a GUC's spelling. `JumbleUtilityBound` consumes
 genuine accepted CTAS/DECLARE/EXPLAIN/CALL analysis without rebinding. CALL keeps
 only the scalar fingerprint/source spans of erased pure-OUT actuals, never
@@ -42,6 +46,10 @@ omits exact-identity source-assignment carriers while retaining real conversions
 and the typed implicit constants. Owner units, including the executable utility
 inventory, selective SQL/JSON defaults, normalized spans and accepted child
 bindings, use `make check RUN='^TestPgStatStatementsFingerprint'`.
+`TestPgStatStatementsFingerprintUtilityForeignDuplicateColumns` covers parsed
+duplicate occurrences, final-map ownership, insertion independence and immutable
+syntax; `TestPgStatStatementsFingerprintUtilityUnmatchedForeignOrder` retains
+the unmatched-map invariant alongside `UtilityMissingForeignOrder`.
 `TestPgStatStatementsFingerprintBtreeGINCompound` covers the genuine installed
 enum comparator's discriminator, both ordered operands and selected routine
 OID, including literal normalization, immutable reconstruction, presentation

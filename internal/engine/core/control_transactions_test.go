@@ -162,7 +162,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					return err
 				}
 				reservedNext = oids.Next
-				next, _, err := core.EngineRemapPreparedCatalog(target, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+				next, _, err := core.EngineRemapPreparedCatalog(target, replacement.WithState(catalog.CloneState(replacement.State())), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}

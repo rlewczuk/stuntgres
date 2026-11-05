@@ -18,6 +18,10 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer v.Close()
+		// Released file_fdw.control: version1.0, superuser-required/untrusted,
+		// relocatable, no fixed schema or prerequisites; availability is not install.
+		fileAvailable := [][]any{{"file_fdw", "1.0", nil, "foreign-data wrapper for flat file access"}}
+		fileVersions := [][]any{{"file_fdw", "1.0", false, true, false, true, nil, nil, "foreign-data wrapper for flat file access"}}
 		for _, installed := range []bool{false, true} {
 			var installedVersion any
 			if installed {
@@ -75,6 +79,10 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='btree_gin' AND version='1.3'", true, [][]any{{"btree_gin", "1.3", false, true, true, true, nil, nil, "support for indexing common datatypes in GIN"}}, pg))
 			availableExtensionsHeld(t, p, a, false, pg, [][]any{{"btree_gin", "1.3", nil, "support for indexing common datatypes in GIN"}}, "btree_gin")
 			availableExtensionsHeld(t, p, v, true, pg, [][]any{{"btree_gin", "1.3", false, true, true, true, nil, nil, "support for indexing common datatypes in GIN"}}, "btree_gin", "1.3")
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='file_fdw'", false, fileAvailable, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='file_fdw' AND version='1.0'", true, fileVersions, pg))
+			availableExtensionsHeld(t, p, a, false, pg, fileAvailable, "file_fdw")
+			availableExtensionsHeld(t, p, v, true, pg, fileVersions, "file_fdw", "1.0")
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='dblink'", false, [][]any{{"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='dblink' AND version='1.2'", true, [][]any{{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_freespacemap'", false, [][]any{{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"}}, pg))
@@ -161,12 +169,10 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"})
 				wantAvailable = append(wantAvailable, []any{"tsm_system_time", "1.0", nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"})
 				wantVersions = append(wantVersions, []any{"tsm_system_time", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"})
+				wantAvailable = append(wantAvailable, fileAvailable[0])
+				wantVersions = append(wantVersions, fileVersions[0])
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
-				for _, name := range []string{"file_fdw"} {
-					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, [][]any{}, pg, name))
-					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1", true, [][]any{}, pg, name))
-				}
 			} else {
 				// Positive real-package control, explicitly not native inventory parity.
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT name FROM pg_available_extensions WHERE name='plpgsql'", []string{"name"}, []string{"NAME"}, [][]any{{"plpgsql"}}))

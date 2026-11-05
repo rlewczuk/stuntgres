@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,6 +15,11 @@ import (
 // explicit-call EXECUTE admission for the captured catalog validator. The caller
 // holds neither Engine.Mu nor ReplacementMu; publication remains its responsibility.
 func (s *StatementScope) ValidateForeignOptions(d *catalog.Procedure, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) error {
+	if d != nil && d.Implementation == extension.StockFileFDW {
+		privileges, err := s.fileFDWPrivileges(d, kind)
+		if err != nil { return err }
+		return fdw.ValidateFileOptions(s.executionContext(), kind, options, privileges)
+	}
 	frame, result, err := s.prepareForeignValidator(d, kind, options)
 	if err != nil {
 		return err

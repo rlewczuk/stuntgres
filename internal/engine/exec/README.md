@@ -15,6 +15,13 @@ their local context is installed for evaluation and cleared on every exit.
 Full-text vector conversion forwards the effective evaluator context explicitly,
 never recovers an older operation context from the host.
 
+Installed file_fdw scalar evaluation authenticates the original selected
+declaration and current routine lifetime, evaluates its typed children and enters
+the ordinary routine boundary. STRICT NULL returns typed NULL; the validator
+borrows the statement's bounded current-role runtime and returns concrete VOID.
+The handler's method table remains an authenticated factory result, never a
+printable scalar or an alternate source of ambient file/program privileges.
+
 `CatalogSourceFalse` is a literal-only bound-plan proof for a single unsampled
 source directly under a first-conjunct BOOL FALSE filter. It inspects occurrence,
 reference and immutable literal authority without evaluating an expression.

@@ -31,7 +31,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*core.Engine, *catalog.Proc
 	next, principal, err := func() (*catalog.State, catalog.ProcedureRemapper, error) {
 		target.Mu.Lock()
 		defer target.Mu.Unlock()
-		return core.EngineRemapPreparedCatalog(target, next, sourceRoles, targetRoles, nil)
+		return core.EngineRemapPreparedCatalog(target, source.WithState(next), sourceRoles, targetRoles, nil)
 	}()
 	if err != nil {
 		t.Fatal(err)

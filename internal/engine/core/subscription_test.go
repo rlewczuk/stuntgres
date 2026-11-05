@@ -158,7 +158,7 @@ func TestSubscriptionReplacementCatalogFence(t *testing.T) {
 	}
 	target.Mu.Lock()
 	oids := target.Catalog.OIDReservationLocked()
-	next, _, err := core.EngineRemapPreparedCatalog(target, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+	next, _, err := core.EngineRemapPreparedCatalog(target, replacement.WithState(catalog.CloneState(replacement.State())), sourceRoles, targetRoles, nil)
 	if err != nil {
 		target.Mu.Unlock()
 		t.Fatal(err)

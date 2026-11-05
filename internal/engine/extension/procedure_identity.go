@@ -37,6 +37,9 @@ func ProcedureBindingName(v catalog.Read, p *catalog.Procedure) (string, error) 
 }
 
 func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection procedureNameKind) (string, error) {
+	if p != nil && p.Implementation == StockFileFDW {
+		return fileFDWProcedureName(v, p)
+	}
 	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid installed procedure identity") }
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()

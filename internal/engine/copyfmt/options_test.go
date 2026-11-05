@@ -2,6 +2,7 @@ package copyfmt
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -64,6 +65,42 @@ func TestCopyBinaryOptions(t *testing.T) {
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 		if !errors.As(err, &d) || *d != want {
 			t.Fatal(tc.q, err)
+		}
+	}
+}
+
+func TestCopyFileFDWOptionOrdering(t *testing.T) {
+	for _, tc := range []struct { options, code, message string }{
+		{"QUOTE 'é'", "0A000", "COPY QUOTE requires CSV mode"},
+		{"ESCAPE 'é'", "0A000", "COPY ESCAPE requires CSV mode"},
+		{"FORMAT binary,DELIMITER '',HEADER true", "42601", "cannot specify DELIMITER in BINARY mode"},
+		{"FORMAT csv,DELIMITER ';',QUOTE ';',ESCAPE 'é'", "22023", "COPY delimiter and quote must be different"},
+		{"DELIMITER E'\\n',QUOTE 'é'", "22023", "COPY delimiter cannot be newline or carriage return"},
+	} {
+		statement := copyStatement(t, "COPY t FROM STDIN WITH("+tc.options+")")
+		_, err := ParseOptions(statement)
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
+		if !errors.As(err, &got) || *got != want { t.Fatalf("%s: got %#v want %+v", tc.options, err, want) }
+	}
+	// Numeric parser nodes retain COPY's Boolean HEADER spelling; file_fdw
+	// adapts foreign strings with Numeric=false instead of weakening COPY.
+	for _, options := range []string{"FORMAT csv,HEADER 1", "FORMAT binary,HEADER 0"} {
+		if _, err := ParseOptions(copyStatement(t, "COPY t FROM STDIN WITH("+options+")")); err != nil { t.Fatal(err) }
+	}
+	// Adapted FDW strings have no SQL source position. Retain actual COPY
+	// token positions while omitting absent ones, including extraction errors.
+	for _, options := range []string{"FORMAT invalid", "ENCODING invalid", "FORMAT csv,FORMAT csv"} {
+		query := "COPY t FROM STDIN WITH("+options+")"
+		statement := copyStatement(t, query)
+		wantPosition := strconv.Itoa(strings.LastIndex(query, strings.Fields(options)[0])+1)
+		_, err := ParseOptions(statement)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Position != wantPosition { t.Fatalf("%s: source position got %#v want %s", options, err, wantPosition) }
+		for _, position := range []parser.Position{{}, {Offset: -1}} {
+			for i := range statement.Options { statement.Options[i].Pos = position }
+			_, err := ParseOptions(statement)
+			if !errors.As(err, &diagnostic) || diagnostic.Position != "" { t.Fatalf("%s: absent position got %#v", options, err) }
 		}
 	}
 }

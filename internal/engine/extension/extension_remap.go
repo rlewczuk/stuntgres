@@ -389,12 +389,10 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.Extension = e
 		return &n
 	case *catalog.ForeignObject:
-		e := address(d.Extension)
-		if e == d.Extension {
-			return d
-		}
 		n := *d
-		n.Extension = e
+		n.Extension = address(d.Extension)
+		n.Origin = origin(d.Origin)
+		if n.Extension == d.Extension && n.Origin == d.Origin { return d }
 		return &n
 	case *catalog.Cast:
 		n := *d

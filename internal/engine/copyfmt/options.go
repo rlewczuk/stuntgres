@@ -64,6 +64,7 @@ type Options struct {
 func ParseOptions(s *parser.Copy) (Options, error) {
 	o := Options{}
 	delimiterSet, nullSet, quoteSet, escapeSet := false, false, false, false
+	delimiter, quote, escape := "", "", ""
 	for i, v := range s.Options {
 		name := strings.ToLower(v.Name)
 		for _, prior := range s.Options[:i] {
@@ -72,7 +73,7 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 			}
 		}
 		switch name {
-		case "format", "delimiter", "null", "default", "on_error", "log_verbosity", "encoding":
+		case "format", "delimiter", "quote", "escape", "null", "default", "on_error", "log_verbosity", "encoding":
 			if !v.HasValue {
 				return o, sqlError("42601", name+" requires a parameter")
 			}
@@ -89,16 +90,13 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 				return o, insertError("22023", fmt.Sprintf("COPY format \"%s\" not recognized", v.Value), v.Pos)
 			}
 		case "delimiter", "quote", "escape":
-			if len(v.Value) != 1 {
-				return o, sqlError("0A000", "COPY "+name+" must be a single one-byte character")
-			}
 			switch name {
 			case "delimiter":
-				o.Delimiter, delimiterSet = v.Value[0], true
+				delimiter, delimiterSet = v.Value, true
 			case "quote":
-				o.Quote, quoteSet = v.Value[0], true
+				quote, quoteSet = v.Value, true
 			case "escape":
-				o.Escape, escapeSet = v.Value[0], true
+				escape, escapeSet = v.Value, true
 			}
 		case "null":
 			o.Null, nullSet = v.Value, true
@@ -218,9 +216,12 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 				return o, sqlError("42601", "cannot specify "+option.name+" in BINARY mode")
 			}
 		}
-		if o.Header != 0 {
-			return o, sqlError("0A000", "cannot specify HEADER in BINARY mode")
+	}
+	if delimiterSet {
+		if len(delimiter) != 1 {
+			return o, sqlError("0A000", "COPY delimiter must be a single one-byte character")
 		}
+		o.Delimiter = delimiter[0]
 	}
 	if !delimiterSet {
 		if o.Format == CSV {
@@ -232,18 +233,55 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 	if !nullSet && o.Format != CSV {
 		o.Null = `\N`
 	}
+	if o.Delimiter == '\r' || o.Delimiter == '\n' {
+		return o, sqlError("22023", "COPY delimiter cannot be newline or carriage return")
+	}
+	if strings.ContainsAny(o.Null, "\r\n") {
+		return o, sqlError("22023", "COPY null representation cannot use newline or carriage return")
+	}
+	if o.HasDefault && strings.ContainsAny(o.Default, "\r\n") {
+		return o, sqlError("22023", "COPY default representation cannot use newline or carriage return")
+	}
+	d := o.Delimiter
+	if o.Format != CSV && (d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9') {
+		return o, sqlError("22023", fmt.Sprintf("COPY delimiter cannot be \"%c\"", d))
+	}
+	if o.Format == Binary && o.Header != 0 {
+		return o, sqlError("0A000", "cannot specify HEADER in BINARY mode")
+	}
 	if !quoteSet {
 		o.Quote = '"'
 	}
+	if quoteSet && o.Format != CSV {
+		return o, sqlError("0A000", "COPY QUOTE requires CSV mode")
+	}
+	if quoteSet && o.Format == CSV {
+		if len(quote) != 1 {
+			return o, sqlError("0A000", "COPY quote must be a single one-byte character")
+		}
+		o.Quote = quote[0]
+	}
+	if o.Format == CSV && d == o.Quote {
+		return o, sqlError("22023", "COPY delimiter and quote must be different")
+	}
+	if escapeSet && o.Format != CSV {
+		return o, sqlError("0A000", "COPY ESCAPE requires CSV mode")
+	}
 	if !escapeSet {
 		o.Escape = o.Quote
+	}
+	if escapeSet && o.Format == CSV {
+		if len(escape) != 1 {
+			return o, sqlError("0A000", "COPY escape must be a single one-byte character")
+		}
+		o.Escape = escape[0]
 	}
 	if o.Format != CSV {
 		for _, option := range []struct {
 			name string
 			set  bool
 		}{
-			{"QUOTE", quoteSet}, {"ESCAPE", escapeSet}, {"FORCE_QUOTE", o.ForceQuote.specified},
+			{"FORCE_QUOTE", o.ForceQuote.specified},
 			{"FORCE_NOT_NULL", o.ForceNotNull.specified}, {"FORCE_NULL", o.ForceNull.specified},
 		} {
 			if option.set {
@@ -262,22 +300,6 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 	}
 	if o.ForceNull.specified && !s.From {
 		return o, sqlError("22023", "COPY FORCE_NULL cannot be used with COPY TO")
-	}
-	if o.Delimiter == '\r' || o.Delimiter == '\n' {
-		return o, sqlError("22023", "COPY delimiter cannot be newline or carriage return")
-	}
-	if strings.ContainsAny(o.Null, "\r\n") {
-		return o, sqlError("22023", "COPY null representation cannot use newline or carriage return")
-	}
-	if o.HasDefault && strings.ContainsAny(o.Default, "\r\n") {
-		return o, sqlError("22023", "COPY default representation cannot use newline or carriage return")
-	}
-	d := o.Delimiter
-	if o.Format != CSV && (d == '\\' || d == '.' || d >= 'a' && d <= 'z' || d >= '0' && d <= '9') {
-		return o, sqlError("22023", fmt.Sprintf("COPY delimiter cannot be \"%c\"", d))
-	}
-	if o.Format == CSV && d == o.Quote {
-		return o, sqlError("22023", "COPY delimiter and quote must be different")
 	}
 	if strings.IndexByte(o.Null, d) >= 0 {
 		return o, sqlError("22023", "COPY delimiter character must not appear in the NULL specification")

@@ -477,6 +477,13 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   released comment. Filtering asserts these rows directly, freshly prepared and
   held in both modes; complete native inventory and private statement-frontier
   expectations include the same available-but-uninstalled module.
+  Stock file_fdw uses default/version1.0 and the released comment
+  `foreign-data wrapper for flat file access`: superuser-required, untrusted,
+  relocatable, no fixed schema or prerequisites. It is available but uninstalled
+  in these registry fixtures, not an unavailable-module control. Its independent
+  rows join both complete native inventories without filtering unknown rows or
+  weakening bag completeness. Run `make check RUN='^TestReferenceAvailableExtensionsFiltering$'`
+  in native and `REFERENCE=1` modes for direct, prepared and held observations.
 - Installed dictionary metadata: `RUN='^TestReferenceTSDict'` preserves full
   metadata and identity links across unaccent installation/removal, including
   the complete native bootstrap inventory of 18 dictionaries (simple and 17

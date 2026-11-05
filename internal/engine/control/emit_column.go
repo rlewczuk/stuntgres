@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
@@ -26,7 +27,8 @@ func writeDumpColumn(ctx context.Context, s *dumpScript, t *table.DumpRelation, 
 			return err
 		}
 	}
-	if definition, exists := t.Defaults[t.Attributes[i]]; exists && provenance.ExplicitDefault && !(s.DeferDefaults && t.DeferredDefinitions[t.Attributes[i]]) {
+	if t.Descriptor.Foreign != nil { line.WriteString(fdw.DumpOptions(t.Descriptor.Foreign.Columns[t.Attributes[i]])) }
+	if definition, exists := t.Defaults[t.Attributes[i]]; exists && provenance.ExplicitDefault && !((s.DeferDefaults || t.Descriptor.Foreign != nil) && t.DeferredDefinitions[t.Attributes[i]]) {
 		text, err := stored.DefaultSQL(ctx, s.CatalogView, definition.Expression)
 		if err != nil {
 			return err

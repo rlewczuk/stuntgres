@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -48,6 +49,9 @@ func HandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject, restricted
 	p, ok := catalog.Procedure(wrapper.Handler)
 	if !ok || p.Foreign == nil || p.Foreign.Wrapper == nil {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.Name()))
+	}
+	if p.Implementation == extension.StockFileFDW || p.Foreign.Wrapper == extension.StockFileFDW {
+		if err := extension.StockFileFDW.ValidateProcedure(catalog, p); err != nil { return nil, err }
 	}
 	return p.Foreign, nil
 }

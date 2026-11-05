@@ -39,11 +39,14 @@ func emitDumpDeclaration(ctx context.Context, s *dumpScript, w *dumpWriter, even
 		}
 	}
 	if declaration, exists := s.declarations[oid]; exists {
+		r, foreign := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+		foreign = foreign && r.Foreign != nil
+		if foreign { declaration.FollowingSQL = "" }
 		if err := emitDumpStatement(s, w, oid, declaration); err != nil {
 			return err
 		}
-		if r, ok := s.OriginalCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); ok && r.RelationKind == catalog.ForeignRelation {
-			return emitRelationColumnStorage(s, w, r)
+		if foreign && s.attributeSchedules[r.Address()] == nil {
+			return s.emitLocalAttributeRetirements(w, r)
 		}
 		return nil
 	}
@@ -437,7 +440,8 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 		typed := t.Descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate
 		hasElements := !typed || len(t.Columns) != 0 || len(t.Descriptor.Constraints.Check) != 0 || len(t.Descriptor.Constraints.Unique) != 0 || len(t.Descriptor.Constraints.Exclusion) != 0 || len(t.Descriptor.Constraints.ForeignKeys) != 0
 		prefix := "CREATE TABLE "
-		if t.Descriptor.Persistence == "unlogged" {
+		if t.Descriptor.Foreign != nil { prefix = "CREATE FOREIGN TABLE " }
+		if t.Descriptor.Foreign == nil && t.Descriptor.Persistence == "unlogged" {
 			prefix = "CREATE UNLOGGED TABLE "
 		}
 		line.WriteString(prefix + qualified)
@@ -599,19 +603,27 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 		}
 	} else {
 		var deferred map[int32]bool
-		if s.DeferDefaults {
+		if s.DeferDefaults || t.Descriptor.Foreign != nil {
 			deferred = t.DeferredDefinitions
 		}
 		definition, err := partition.ChildSQL(ctx, s.CatalogView, t.Descriptor, qualified, deferred)
 		if err != nil {
 			return "", err
 		}
-		line.WriteString(definition)
+		if t.Descriptor.Foreign != nil {
+			tail, ok := strings.CutPrefix(definition, "CREATE TABLE ")
+			if !ok { return "", fmt.Errorf("stuntgres: invalid foreign partition constructor") }
+			line.WriteString("CREATE FOREIGN TABLE " + tail)
+		} else {
+			line.WriteString(definition)
+		}
 	}
 	key, err := partition.KeySQL(ctx, s.CatalogView, t.Descriptor)
 	if err != nil {
 		return "", err
 	}
-	line.WriteString(key + ";\n")
+	foreign, err := foreignTableClause(s.CatalogView, t.Descriptor)
+	if err != nil { return "", err }
+	line.WriteString(key + foreign + ";\n")
 	return line.String(), nil
 }

@@ -1404,7 +1404,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 	replacement.State().SetACLItemImport(e.RoleStore.ACLItemImporter(source.RoleStore, &e.Catalog, sourceRoles, targetRoles, source.ImportTargets))
 	defer func() { replacement.State().SetACLItemImport(nil) }()
 	var procedure catalog.ProcedureRemapper
-	next, procedure, err = e.remapPreparedCatalog(replacement.State(), sourceRoles, targetRoles, source.ImportTargets)
+	next, procedure, err = e.remapPreparedCatalog(replacement, sourceRoles, targetRoles, source.ImportTargets)
 	if err != nil {
 		return ChangeSet{}, err
 	}

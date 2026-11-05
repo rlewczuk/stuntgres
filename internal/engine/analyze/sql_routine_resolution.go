@@ -109,6 +109,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	// Canonical module names only admit catalog discovery. A selected sealed
 	// declaration, never this hint or an unrelated cast, grants capability.
 	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime" || name == "lo_manage" || name == "is_valid" || name == "make_valid" || name == "isn_weak"
+	if name == "file_fdw_handler" || name == "file_fdw_validator" { providerOverride = true }
 	if strings.HasPrefix(name, "gin_") && extension.BtreeGinRoutineName(name) {
 		providerOverride = true
 	}
@@ -181,6 +182,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
 			}
+			if d.Implementation == extension.StockFileFDW { hasSQL = true }
 			if d.Implementation == extension.StockBtreeGin {
 				hasSQL = true
 			}
@@ -482,7 +484,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if selection.Targets != nil {
 			target = selection.Targets[i]
 		}
-		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CitextProviderOf(selection.Procedure) == extension.StockCitext || extension.HstoreProviderOf(selection.Procedure) == extension.StockHstore || extension.PgTrgmProviderOf(selection.Procedure) == extension.StockPgTrgm || selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Providers&functions.CastRoutineProvider != 0 || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
+		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || selection.Procedure.Implementation == extension.StockFileFDW || extension.CitextProviderOf(selection.Procedure) == extension.StockCitext || extension.HstoreProviderOf(selection.Procedure) == extension.StockHstore || extension.PgTrgmProviderOf(selection.Procedure) == extension.StockPgTrgm || selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Providers&functions.CastRoutineProvider != 0 || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
 			previousDependencies := b.Dependencies
 			if raw.ProcedureCall {
 				b.Dependencies = callArguments[i].dependencies
@@ -697,6 +699,19 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
+	if d != nil && d.Implementation == extension.StockFileFDW {
+		if err := extension.StockFileFDW.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil { return nil, err }
+		if err := functions.ValidateCallSyntax(b, raw); err != nil { return nil, err }
+		if err := functions.CallDecorationError(raw); err != nil { return nil, err }
+		namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
+		if !ok { return nil, fmt.Errorf("stuntgres: missing file_fdw namespace") }
+		info := b.Info(b.Type(sqltype.ID(d.Result)).Usage(), raw.Pos, selected.properties)
+		info.RoutineReference = d
+		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
+		b.dependency(ref, d.Revision())
+		node := plan.FileFDWExpr{Info: info, Ref: ref, Namespace: namespace.Name(), Args: selected.args}
+		return node, node.ValidateStoredProvider()
+	}
 	if d != nil && extension.StockInsertUsername.SupportsDMLTrigger(d) {
 		if err := extension.StockInsertUsername.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil {
 			return nil, err

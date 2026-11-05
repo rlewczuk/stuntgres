@@ -24,6 +24,12 @@ file.
   admitted; binary accepts STOP only. These are plain values, never callbacks.
   `ENCODING` is a recognized name/ID; core supplies a plain immutable directional
   capability, reusing the active outgoing pair for same-encoding COPY TO.
+  Scalar option extraction precedes mode, byte-length and cross-option checks;
+  QUOTE/ESCAPE lengths cannot eclipse a non-CSV mode error. The stock file_fdw
+  validator reuses this parser with absent source positions and string-valued
+  options, preserving COPY's distinct numeric HEADER nodes and FORCE lists.
+  Extraction diagnostics omit the Position field for absent locations rather
+  than reporting zero; ordinary SQL COPY retains its real token positions.
 - **FORCE binding** (`force.go`): `Options.BindForces` turns
   FORCE_QUOTE/FORCE_NULL/FORCE_NOT_NULL into per-field flags, read with
   `Forced`. Relation COPY resolves names through `ResolveColumns`, the same

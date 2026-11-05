@@ -94,8 +94,23 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 			return control.Admitted, nil
 		}
 	}
+	if s.Action == "alter" && s.Kind == "wrapper" && len(s.Name.Parts) == 1 && s.NewName.Text != "" &&
+		!s.IfExists && !s.IfNotExists && s.Owner == nil && s.Inner == nil && s.Table == nil &&
+		len(s.Support) == 0 && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && len(s.ColumnOptions) == 0 {
+		auth, err := core.OperationAuthorization(op)
+		if err != nil { return control.NotHandled, err }
+		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: s.Name.Parts[0].Text})
+		if wrapper, ok := auth.Catalog.Foreign(address); ok && wrapper.Origin != nil && wrapper.Origin.Installation.Implementation == extension.StockFileFDW {
+			if err := extension.StockFileFDW.ValidateForeign(auth.Catalog, wrapper); err != nil { return control.NotHandled, err }
+			return control.Admitted, nil
+		}
+	}
 	if s.Action == "alter" && s.Kind == "table" && s.Inner != nil && !s.IfExists && !s.IfNotExists && s.Owner == nil && len(s.Support) == 0 && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && len(s.ColumnOptions) == 0 && s.NewName.Text == "" {
 		return control.AdmitRelationIdentity(r, op, s.Inner)
+	}
+	if s.Action == "alter" && s.Kind == "table" && len(s.TableActions) != 0 && s.TableActions[0].Column.Text != "" && len(s.TableActions[0].Options) != 0 {
+		if err := r.admitForeignAttributeOptions(op, s); err != nil { return control.NotHandled, err }
+		return control.Admitted, nil
 	}
 	if alteration := restoreForeignDefault(s); alteration != nil {
 		if err := dump.RestoreScalar(alteration.Expression, true); err != nil {

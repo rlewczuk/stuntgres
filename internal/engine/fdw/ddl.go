@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -94,7 +95,7 @@ func ValidatorJob(read catalog.Read, wrapper *catalog.ForeignObject, kind catalo
 		return Validation{}, nil, nil
 	}
 	p, ok := read.Procedure(wrapper.Validator)
-	if !ok || p.SQL == nil && (p.Foreign == nil || p.Foreign.Validator == nil) {
+	if !ok || p.SQL == nil && !extension.StockFileFDW.SupportsValidator(p) && (p.Foreign == nil || p.Foreign.Validator == nil) {
 		return Validation{}, nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.Name()))
 	}
 	return Validation{procedure: p, kind: kind, options: append([]catalog.ForeignOption{}, options...)}, p, nil
@@ -115,7 +116,9 @@ func RunValidations(ctx context.Context, runtime ValidationRuntime, jobs []Valid
 		}
 		if job.procedure != nil {
 			var err error
-			if job.procedure.Foreign != nil && job.procedure.Foreign.Validator != nil {
+			if extension.StockFileFDW.SupportsValidator(job.procedure) && runtime != nil {
+				err = runtime.ValidateForeignOptions(job.procedure, job.kind, job.options)
+			} else if job.procedure.Foreign != nil && job.procedure.Foreign.Validator != nil {
 				err = job.procedure.Foreign.Validator(ctx, job.kind, job.options)
 			} else if runtime != nil {
 				err = runtime.ValidateForeignOptions(job.procedure, job.kind, job.options)

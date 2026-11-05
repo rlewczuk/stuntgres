@@ -82,6 +82,8 @@ func DescriptorOrigin(d Descriptor) *InstalledOrigin {
 		return d.Origin
 	case *Cast:
 		return d.Origin
+	case *ForeignObject:
+		return d.Origin
 	}
 	return nil
 }
@@ -127,6 +129,10 @@ func WithInstalledOrigin(d Descriptor, origin *InstalledOrigin) Descriptor {
 		n.Origin = origin
 		return &n
 	case *Cast:
+		n := *d
+		n.Origin = origin
+		return &n
+	case *ForeignObject:
 		n := *d
 		n.Origin = origin
 		return &n

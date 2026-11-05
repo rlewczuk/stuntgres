@@ -6,6 +6,8 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -79,7 +81,40 @@ func TableSyntax(table *parser.CreateTable) *parser.CreateTable {
 	return next
 }
 
+// tableOptionsOnly retains metadata-only syntax separately from structural
+// ALTER TABLE actions. Option names, operations and values belong to the
+// genuine wrapper validator, not relation-lock or partition admission.
+func tableOptionsOnly(s *parser.ForeignDDL) bool {
+	if s == nil || s.Action != "alter" || s.Kind != "table" || len(s.Name.Parts) == 0 || s.IfNotExists || s.Mode != parser.DropRestrict ||
+		s.Inner != nil || s.Owner != nil || s.Table != nil || s.NewName.Text != "" || len(s.Names) != 0 ||
+		len(s.Support) != 0 || len(s.Options) != 0 || len(s.ColumnOptions) != 0 || s.Server.Text != "" ||
+		s.Role != (parser.GrantGrantee{}) || s.ServerType != nil || s.Version != nil || s.VersionSet ||
+		s.RemoteSchema.Text != "" || s.LocalSchema.Text != "" || len(s.ImportFilter) != 0 || s.ImportExcept || len(s.TableActions) == 0 {
+		return false
+	}
+	for _, action := range s.TableActions {
+		if action.Ordinary != nil || action.Default != nil || len(action.ColumnOptions) != 0 || len(action.Options) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// TargetAdmission uses the ordinary ALTER lock/owner path for the original
+// option-only foreign command. Its executor still admits the actual foreign
+// kind, locked reference, server/wrapper and current validator authority.
+func TargetAdmission(stmt parser.Statement, execute bool) (table.Target, bool, error) {
+	s, ok := stmt.(*parser.ForeignDDL)
+	if !execute || !ok || !tableOptionsOnly(s) {
+		return table.Target{}, false, nil
+	}
+	return table.Target{Name: s.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: s.IfExists}, true, nil
+}
+
 func AlterAdmission(s *parser.ForeignDDL) parser.Statement {
+	if tableOptionsOnly(s) {
+		return s
+	}
 	if s.Inner != nil {
 		return s.Inner
 	}

@@ -46,7 +46,8 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	oidFrontier, revision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
 	roleRevision, principal, membership := e.RoleStore.NextRevision(), e.RoleStore.NextPrincipal(), e.RoleStore.NextMembershipOID()
-	sourceRoles := e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Read(next), roles)
+	sourceCatalog := e.Catalog.Read(next)
+	sourceRoles := e.RoleStore.Read(&e.Catalog.Owner, sourceCatalog, roles)
 	shapes := make(map[ids.ObjectAddress]storage.RowShape, len(e.Storage.Relations))
 	for address, store := range e.Storage.Relations {
 		shapes[address] = storage.RowShape{Original: store, Root: store.Versions, ObservedEnds: store.Ends, Generation: store.Generation}
@@ -118,7 +119,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	var procedure catalog.ProcedureRemapper
 	if err == nil {
-		_, procedure, err = stage.remapPreparedCatalog(candidate, sourceRoles, stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
+		_, procedure, err = stage.remapPreparedCatalog(sourceCatalog.WithState(candidate), sourceRoles, stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
 	}
 	if err == nil {
 		if origin == nil {

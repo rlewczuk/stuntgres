@@ -116,7 +116,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if d.SQLType.SQLName() != "information_schema.time_stamp" || original.Get(d.Namespace()).Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
-	remapped, _, err := core.EngineRemapPreparedCatalog(target, catalog.CloneState(source.Catalog.State), source.Roles(), target.Roles(), nil)
+	remapped, _, err := core.EngineRemapPreparedCatalog(target, source.Catalog.Read(catalog.CloneState(source.Catalog.State)), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

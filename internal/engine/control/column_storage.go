@@ -71,9 +71,9 @@ func emitRelationColumnStorage(s *dumpScript, w *dumpWriter, r *catalog.Relation
 // attributes retain their separate after-consumer, before-DROP barriers.
 func emitDumpDeferredColumnStorage(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 	var relations []*catalog.Relation
-	for _, t := range s.Tables {
-		if s.deferredColumnStorage[t.Descriptor.Address()] {
-			relations = append(relations, t.Descriptor)
+	for _, r := range s.attributeHistory.relations {
+		if s.deferredColumnStorage[r.Address()] {
+			relations = append(relations, r)
 		}
 	}
 	identity := func(r *catalog.Relation) string {
@@ -93,7 +93,7 @@ func emitDumpDeferredColumnStorage(ctx context.Context, s *dumpScript, w *dumpWr
 		}
 		qualified := identity(r)
 		for i, column := range r.Columns {
-			if err := emitColumnProperties(w, qualified, column.Name, r.ColumnStorage(i), true, true); err != nil {
+			if err := emitColumnProperties(w, qualified, column.Name, r.ColumnStorage(i), true, r.RelationKind != catalog.ForeignRelation); err != nil {
 				return err
 			}
 			if err := emitColumnStatistics(w, qualified, column.Name, r.ColumnMeta.Statistics[r.Attributes[i]]); err != nil {
@@ -110,10 +110,10 @@ func (s *dumpScript) retiredAttributeType(r *catalog.Relation, number int32) str
 		h.policyTypes = make(map[string]bool)
 		// One shared inherited placeholder must have one constructor type,
 		// even when its participants retained different policies at retirement.
-		for _, t := range s.Tables {
-			for attribute, fact := range t.Descriptor.ColumnMeta.Dropped {
+		for _, r := range h.relations {
+			for attribute, fact := range r.ColumnMeta.Dropped {
 				if fact.Facts.Storage != "" && fact.Facts.Storage != "p" || fact.Compression != "" {
-					h.policyTypes[h.names[attributeSlot{t.Descriptor.Address(), attribute}]] = true
+					h.policyTypes[h.names[attributeSlot{r.Address(), attribute}]] = true
 				}
 			}
 		}
@@ -129,7 +129,7 @@ func (s *dumpScript) emitRetiredStorage(w *dumpWriter, r *catalog.Relation, numb
 		return nil
 	}
 	qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
-	return emitColumnProperties(w, qualified, s.attributeHistory.names[attributeSlot{r.Address(), number}], catalog.ColumnStorage{Storage: fact.Facts.Storage, Compression: fact.Compression}, true, true)
+	return emitColumnProperties(w, qualified, s.attributeHistory.names[attributeSlot{r.Address(), number}], catalog.ColumnStorage{Storage: fact.Facts.Storage, Compression: fact.Compression}, true, r.RelationKind != catalog.ForeignRelation)
 }
 
 func emitDumpIndexStorage(_ context.Context, s *dumpScript, w *dumpWriter) error {

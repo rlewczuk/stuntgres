@@ -29,6 +29,11 @@ type AttributeAddPair struct {
 	Number       int32
 	Participants []AttributeMember
 }
+type ForeignAttributeOptionPair struct {
+	Target AttributeDropTarget
+	Number int32
+	Column string
+}
 type AttributeConstructorPairs struct {
 	Creates     map[*parser.CreateTable]AttributeDropTarget
 	Drops       map[*parser.AlterTable]AttributeDropPair
@@ -36,16 +41,20 @@ type AttributeConstructorPairs struct {
 	Constraints map[*parser.AlterTable]AttributeDropTarget
 	Detaches    map[*parser.AlterTable]AttributeDetachPair
 	Teardowns   map[*parser.DropTable]AttributeDropTarget
+	ForeignOptions map[*parser.ForeignDDL]ForeignAttributeOptionPair
 }
 type constructorColumn struct {
 	Name                        string
 	Local, Dropped, Placeholder bool
+	OptionsCompleted bool
 	Origins                     []AttributeDropTarget
 }
 type attributeConstructor struct {
 	parents        []AttributeDropTarget
 	columns        []constructorColumn
 	closed, staged bool
+	foreign, optionsClosed bool
+	completionOnly bool
 }
 
 func attributeTarget(name parser.ObjectName) (AttributeDropTarget, bool) {
@@ -80,7 +89,7 @@ func AttributePlaceholderName(name string) bool {
 	return true
 }
 func inertAttributePlaceholder(column *parser.Column) bool {
-	if column == nil || !AttributePlaceholderName(column.Name) || len(column.Constraints) != 0 || column.Collation != nil {
+	if column == nil || !AttributePlaceholderName(column.Name) || len(column.Constraints) != 0 || column.Collation != nil || len(column.ForeignOptions) != 0 {
 		return false
 	}
 	t := column.TypeName
@@ -113,6 +122,7 @@ func constructorInherit(c *attributeConstructor, parent AttributeDropTarget, a c
 		return i
 	}
 	a.Local = false
+	a.OptionsCompleted = false // FDW options belong to each relation, not its parent.
 	a.Origins = []AttributeDropTarget{parent}
 	c.columns = append(c.columns, a)
 	return len(c.columns) - 1
@@ -207,13 +217,30 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 		return nil
 	}
 	for _, statement := range statements {
+		foreignCreation := false
+		if foreign, ok := statement.(*parser.ForeignDDL); ok && foreign.Action == "create" && foreign.Kind == "table" && foreign.Table != nil && !foreign.IfNotExists {
+			foreignCreation = true
+			statement = foreign.Table
+		}
 		switch s := statement.(type) {
 		case *parser.CreateTable:
 			target, ok := attributeTarget(s.Name)
-			if !ok || s.IfNotExists || s.OfType != nil || s.PartitionBy != nil || s.PartitionOf != nil {
+			if !ok || s.IfNotExists || s.OfType != nil || s.PartitionOf != nil && !foreignCreation {
 				continue
 			}
-			c := &attributeConstructor{}
+			completionOnly := s.PartitionBy != nil || s.PartitionOf != nil
+			c := &attributeConstructor{foreign: foreignCreation, closed: completionOnly, completionOnly: completionOnly}
+			if s.PartitionOf != nil {
+				parent, qualified := attributeTarget(s.PartitionOf.Name)
+				p := constructors[parent]
+				if !qualified || p == nil || p.optionsClosed { continue }
+				// Compact partition construction copies only the preceding
+				// parent's live columns into dense slots. It is not an ordinary
+				// history edge and grants no staged ADD/DROP/helper authority.
+				for _, a := range p.columns {
+					if !a.Dropped { c.columns = append(c.columns, constructorColumn{Name: a.Name, Placeholder: a.Placeholder}) }
+				}
+			}
 			for _, name := range s.Parents {
 				parent, ok := attributeTarget(name)
 				if !ok {
@@ -237,15 +264,27 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 				if i := constructorLive(c, column.Name); i >= 0 {
 					c.columns[i].Local = true
 					c.columns[i].Placeholder = inertAttributePlaceholder(column)
+					c.columns[i].OptionsCompleted = len(column.ForeignOptions) != 0
 				} else {
-					c.columns = append(c.columns, constructorColumn{Name: column.Name, Local: true, Placeholder: inertAttributePlaceholder(column)})
+					c.columns = append(c.columns, constructorColumn{Name: column.Name, Local: true, Placeholder: inertAttributePlaceholder(column), OptionsCompleted: len(column.ForeignOptions) != 0})
 				}
 			}
-			if constructors[target] == nil {
+			if constructors[target] == nil && !completionOnly {
 				order = append(order, target)
 			}
 			constructors[target] = c
-			pairs.Creates[s] = target
+			if !completionOnly || foreignCreation { pairs.Creates[s] = target }
+		case *parser.ForeignDDL:
+			action := ForeignAttributeOptions(s)
+			if action == nil { continue }
+			target, qualified := attributeTarget(s.Name)
+			c := constructors[target]
+			if !qualified || c == nil || !c.foreign || c.optionsClosed { continue }
+			i := constructorLive(c, action.Column.Text)
+			if i < 0 || c.columns[i].Placeholder || c.columns[i].OptionsCompleted { continue }
+			if pairs.ForeignOptions == nil { pairs.ForeignOptions = make(map[*parser.ForeignDDL]ForeignAttributeOptionPair) }
+			pairs.ForeignOptions[s] = ForeignAttributeOptionPair{Target: target, Number: int32(i+1), Column: action.Column.Text}
+			c.columns[i].OptionsCompleted = true
 		case *parser.AlterTable:
 			target, qualified := attributeTarget(s.Name)
 			if !qualified {
@@ -256,6 +295,12 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 				continue
 			}
 			a := s.Actions[0]
+			if c.completionOnly && !c.optionsClosed && generatedAttributeDrop(s) {
+				// Observe literal parent shape for dense partition completion,
+				// without pairing or admitting an ordinary history operation.
+				if i := constructorLive(c, a.Column.Text); i >= 0 && c.columns[i].Placeholder { c.columns[i].Dropped = true }
+				continue
+			}
 			if pair, ok := pairAttributeHelperDetach(s, constructors, helperObligations); ok {
 				pairs.Detaches[s] = pair
 				c.parents = slices.DeleteFunc(c.parents, func(parent AttributeDropTarget) bool { return parent == pair.Helper })
@@ -265,7 +310,7 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 				if constructorLive(c, a.Definition.Name) >= 0 {
 					continue
 				}
-				column := constructorColumn{Name: a.Definition.Name, Local: true, Placeholder: inertAttributePlaceholder(a.Definition)}
+				column := constructorColumn{Name: a.Definition.Name, Local: true, Placeholder: inertAttributePlaceholder(a.Definition), OptionsCompleted: len(a.Definition.ForeignOptions) != 0}
 				c.columns = append(c.columns, column)
 				c.staged = true
 				pair := AttributeAddPair{Target: target, Number: int32(len(c.columns)), Participants: []AttributeMember{constructorMember(target, c, len(c.columns)-1)}}
@@ -342,6 +387,7 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 			if target, ok := attributeTarget(s.Name); ok {
 				if c := constructors[target]; c != nil {
 					c.closed = true
+					c.optionsClosed = true
 				}
 			}
 		case *parser.Update:
@@ -351,6 +397,7 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 					if target, ok := attributeTarget(name); ok {
 						if c := constructors[target]; c != nil {
 							c.closed = true
+							c.optionsClosed = true
 						}
 					}
 				}
@@ -358,6 +405,7 @@ func PairAttributeConstructors(statements []parser.Statement) (AttributeConstruc
 		case *parser.Select:
 			for _, c := range constructors {
 				c.closed = true
+				c.optionsClosed = true
 			}
 		}
 	}
@@ -407,4 +455,29 @@ func CheckAttributeDefinition(s *parser.AlterTable) error {
 		return sqlError("0A000", "restore accepts only paired attribute constructors")
 	}
 	return CheckCreateTable(&parser.CreateTable{Name: s.Name, Elements: []parser.TableElement{element}})
+}
+
+// ForeignAttributeOptions recognizes only the writer's selected ADD-only column
+// completion. It returns the original action; no synthesized AST grants authority.
+func ForeignAttributeOptions(s *parser.ForeignDDL) *parser.ForeignTableAction {
+	if s == nil || s.Action != "alter" || s.Kind != "table" || len(s.Name.Parts) != 2 || s.IfExists || s.IfNotExists ||
+		s.Owner != nil || s.Inner != nil || s.Table != nil || s.NewName.Text != "" || len(s.Names) != 0 ||
+		len(s.Support) != 0 || s.VersionSet || s.Version != nil || s.ServerType != nil || s.Server.Text != "" ||
+		len(s.Options) != 0 || len(s.ColumnOptions) != 0 || len(s.TableActions) != 1 {
+		return nil
+	}
+	action := &s.TableActions[0]
+	if action.Ordinary != nil || action.Default != nil || action.Column.Text == "" || len(action.ColumnOptions) != 0 || len(action.Options) == 0 || len(action.Options) > 2 { return nil }
+	var forceNull, forceNotNull bool
+	for _, option := range action.Options {
+		if option.Action != "" { return nil }
+		switch option.Name.Text {
+		case "force_null":
+			if forceNull { return nil }; forceNull = true
+		case "force_not_null":
+			if forceNotNull { return nil }; forceNotNull = true
+		default: return nil
+		}
+	}
+	return action
 }

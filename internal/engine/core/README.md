@@ -972,6 +972,27 @@ including table ALTER and IMPORT. Metadata and routine writes share root Finish
 and cannot commit independently on body, result or publication failure. Empty
 jobs and native callbacks do not open a journal through this SQL seam. Ordinary
 SQL validators restore as routines, without destination native tokens.
+Authenticated stock file_fdw takes a bounded branch before SQL frame/journal
+creation. `file_fdw.go` captures the current routine authorization and inherited
+`pg_read_server_files`/`pg_execute_server_program` facts under `Engine.Mu`,
+authenticates the selected declaration and releases the lock before pure option
+parsing. Explicit calls retain ordinary routine/schema admission and STRICT
+typed NULL/VOID behavior; catalog-selected calls omit only EXECUTE admission.
+No prepared carrier retains parsed options, elevated role facts or session state.
+The table-option branch captures the first `CatalogAuthorityLocked` snapshot
+under the same mutex as membership facts, without replacing an earlier authority.
+The existing Finish preflight therefore fences authorization and published role
+membership changes as well as catalog/procedure changes, without a SQL journal.
+Native replacement carries the owning source catalog view into
+`remapPreparedCatalog`: provider authentication precedes principal remapping,
+so authentic source owners cannot yet be checked in the destination domain.
+Destination registry selection remains separate, and final replacement checks
+use the fully remapped destination authority.
+Option-only foreign ALTER retains its actual `ForeignDDL` through the owning
+FDW target entry and ordinary lock/owner/reference publication path. It is not
+an empty structural ALTER on a compact or separately attached partition;
+structural/default/mixed actions retain their existing projected admission.
+The real executor still checks foreign kind and current provider authority.
 
 Routine command policy is invocation-local and carries no cached actor.
 PL CREATE validation and invocation compilation are distinct: an absent language

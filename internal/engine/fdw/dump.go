@@ -10,12 +10,8 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/typedef"
-	"stuntgres/internal/parser"
 )
 
 // DumpOptions preserves provider option order and SQL literal bytes, including
@@ -152,9 +148,10 @@ func DumpObject(view catalog.Read, roles authorization.Read, d *catalog.ForeignO
 	return dump.Statement{Owner: "postgres", SQL: sql}, nil
 }
 
-// DumpTable renders logical foreign descriptors, never storage or remote rows.
-// Column options are addressed by stable attnum rather than live slice slot.
-func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read, r *catalog.Relation, deferred map[int32]bool) (dump.Statement, error) {
+// DumpTable attaches provider-specific completion metadata to the declaration
+// rendered by control's shared physical-attribute constructor. No remote rows
+// or storage are captured here.
+func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read, r *catalog.Relation, definition string) (dump.Statement, error) {
 	if r.Foreign == nil {
 		return dump.Statement{}, fmt.Errorf("stuntgres: missing foreign table definition")
 	}
@@ -166,116 +163,12 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 	if !ok {
 		return dump.Statement{}, fmt.Errorf("stuntgres: missing foreign table namespace")
 	}
-	server, ok := view.Foreign(r.Foreign.Server)
-	if !ok || server.Address().ClassID != ids.ForeignServerClassID {
-		return dump.Statement{}, fmt.Errorf("stuntgres: missing foreign server")
-	}
 	if len(r.Columns) != len(r.Attributes) {
 		return dump.Statement{}, fmt.Errorf("stuntgres: invalid foreign attributes")
 	}
 	qualified := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name())
 	partitionChild := r.Membership != nil && !partition.DumpNeedsAttach(view, r)
 	var b strings.Builder
-	b.WriteString("CREATE FOREIGN TABLE " + qualified + " (")
-	emitted := 0
-	for i, column := range r.Columns {
-		if r.Inheritance != nil && !r.Inheritance.Columns[r.Attributes[i]].Local {
-			continue
-		}
-		if emitted > 0 {
-			b.WriteString(", ")
-		}
-		emitted++
-		attribute := r.Attributes[i]
-		spelling, err := regobj.ColumnDeclaration(view, column)
-		if err != nil {
-			return dump.Statement{}, err
-		}
-		b.WriteString(catalog.QuoteIdentifier(column.Name) + " " + spelling)
-		if column.Usage.Collation.ID != column.Usage.Type.Usage().Collation.ID {
-			collation := typedef.CollationSQLName(view, column.Usage.Collation.ID)
-			if collation == "" {
-				return dump.Statement{}, fmt.Errorf("stuntgres: unsupported stored collation")
-			}
-			b.WriteString(" COLLATE " + collation)
-		}
-		b.WriteString(DumpOptions(r.Foreign.Columns[attribute]))
-		if definition, ok := r.ColumnMeta.Defaults[attribute]; ok && !deferred[attribute] {
-			text, err := stored.DefaultSQL(ctx, view, definition.Expression)
-			if err != nil {
-				return dump.Statement{}, err
-			}
-			b.WriteString(" DEFAULT " + text)
-		}
-		if definition, ok := r.ColumnMeta.Generations[attribute]; ok {
-			text, err := (stored.ScalarRenderer{Owner: r}).SQL(ctx, view, definition.Expression)
-			if err != nil {
-				return dump.Statement{}, err
-			}
-			b.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.SQL())
-		}
-		if identity, ok := r.ColumnMeta.Identities[attribute]; ok {
-			seq := view.MustRelation(identity.Sequence)
-			mode := "ALWAYS"
-			if identity.Mode == parser.IdentityByDefault {
-				mode = "BY DEFAULT"
-			}
-			name := catalog.QuoteIdentifier(view.Get(seq.Namespace()).Name()) + "." + catalog.QuoteIdentifier(seq.Name())
-			b.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + name)
-			if !sequence.IdentityDumpDivergent(*seq.Sequence, column.Usage.Type.ID()) {
-				b.WriteString(" " + sequence.NumericSQL(*seq.Sequence))
-			}
-			b.WriteString(")")
-		}
-		if !column.Nullable {
-			for _, constraint := range r.Constraints.NotNull {
-				if constraint.Attribute == attribute && !constraint.NotValid {
-					b.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
-					break
-				}
-			}
-		}
-	}
-	for _, check := range table.OrderedChecks(r) {
-		if check.NotValid || r.Inheritance != nil && !r.Inheritance.Checks[check.Name].Local {
-			continue
-		}
-		text, err := (stored.ScalarRenderer{Owner: r, CheckReplayPrecision: true}).SQL(ctx, view, check.Expression)
-		if err != nil {
-			return dump.Statement{}, err
-		}
-		if emitted != 0 {
-			b.WriteString(", ")
-		}
-		emitted++
-		b.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")")
-		if check.NoInherit {
-			b.WriteString(" NO INHERIT")
-		}
-	}
-	b.WriteString(")")
-	if r.Inheritance != nil && len(r.Inheritance.Parents) != 0 {
-		b.WriteString(" INHERITS (")
-		for i, edge := range r.Inheritance.Parents {
-			if i != 0 {
-				b.WriteString(", ")
-			}
-			parent := view.MustRelation(edge.Relation)
-			b.WriteString(catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()))
-		}
-		b.WriteString(")")
-	}
-	b.WriteString(" SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n")
-	definition := b.String()
-	if partitionChild {
-		text, err := partition.ChildSQL(ctx, view, r, qualified, deferred)
-		if err != nil {
-			return dump.Statement{}, err
-		}
-		definition = strings.Replace(text, "CREATE TABLE ", "CREATE FOREIGN TABLE ", 1)
-		definition = strings.TrimSuffix(strings.TrimSpace(definition), ";") + " SERVER " + catalog.QuoteIdentifier(server.Name()) + DumpOptions(r.Foreign.Options) + ";\n"
-	}
-	b.Reset()
 	for i, column := range r.Columns {
 		attribute := r.Attributes[i]
 		if (partitionChild || r.Inheritance != nil && !r.Inheritance.Columns[attribute].Local) && len(r.Foreign.Columns[attribute]) != 0 {
