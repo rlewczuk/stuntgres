@@ -17,6 +17,7 @@ type RelationScan struct {
 	pruned     bool
 	crossed    int
 	rangeStart int // Worker-local physical prefix, not fetched by this invocation.
+	readSource bool // DML owns activation here; query stages own their own frontier.
 }
 
 type relationScanProgress struct {
@@ -29,7 +30,9 @@ type relationScanCounts struct {
 	starts, tuples int64
 }
 
-func NewRelationScan(source *Source) RelationScan { return RelationScan{source: source} }
+func NewRelationScan(source *Source) RelationScan {
+	return RelationScan{source: source, readSource: true}
+}
 
 func (s *RelationScan) start(source *Source, p *relationScanProgress) {
 	if p.started {
@@ -38,6 +41,9 @@ func (s *RelationScan) start(source *Source, p *relationScanProgress) {
 	p.started = true
 	if source == nil || source.Anonymous != nil || source.Foreign != nil || source.Materialized || source.Final != nil || source.Input != nil || source.Singleton || source.NestedRoot != nil || source.RlsDenied {
 		return
+	}
+	if s.readSource {
+		source.beginRead()
 	}
 	if s.local != nil {
 		s.local.starts++

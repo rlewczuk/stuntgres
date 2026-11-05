@@ -132,6 +132,9 @@ func (h *statementHost) RecordDatabaseStatistics(fact statistics.DatabaseFact) {
 		return
 	}
 	s := h.scope()
+	if fact.WorkersPlanned != 0 || fact.WorkersLaunched != 0 {
+		s.recordStatementCounters(statistics.StatementCounters{WorkersPlanned: fact.WorkersPlanned, WorkersLaunched: fact.WorkersLaunched})
+	}
 	addDatabaseStats(s.Engine(), s.Op.Session, fact)
 }
 

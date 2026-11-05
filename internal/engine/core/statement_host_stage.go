@@ -239,6 +239,10 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			}
 		}
 	}
+	counters, err := s.statementMutationBatch(ref, old, versions)
+	if err != nil {
+		return result, err
+	}
 	if len(versions) != 0 {
 		if w.Rows == nil {
 			w.Rows = make(map[ids.ObjectAddress][]storage.RowVersion)
@@ -252,6 +256,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		copy(batch.Accepted, versions)
 		store := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
 		store.Headers = storage.ReplaceHeapHeaders(store.Headers, versions, e.Visibility.FullXIDLocked(s.TxRef))
+		s.recordStatementCounters(counters)
 		relevant := s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog()))
 		for i, next := range versions {
 			mode := batch.ActionMode
@@ -384,6 +389,10 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 			}
 		}
 	}
+	counters, err := s.statementMutationBatch(ref, nil, versions)
+	if err != nil {
+		return false, err
+	}
 	if w.Rows == nil {
 		w.Rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 	}
@@ -393,6 +402,9 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 		w.Rows[ref.Address] = append(w.Rows[ref.Address], versions...)
 	}
 	copy(batch.Accepted, versions)
+	if len(versions) != 0 {
+		s.recordStatementInsert(ref, counters)
+	}
 	if s.foreignEffectRelevant(ref, e.PrivateCatalogLocked(s.PendingCatalog())) {
 		for _, next := range versions {
 			s.recordForeignEffect(ref, storage.RowVersion{}, next)
@@ -487,6 +499,9 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 		if err = e.SerializableWriteLocked(s, ref, events[:]); err != nil {
 			return false, false, storage.RowVersion{}, err
 		}
+	}
+	if err = s.acceptedStatementMutation(ref, nil, &version); err != nil {
+		return false, false, storage.RowVersion{}, err
 	}
 	if w.Rows == nil {
 		w.Rows = make(map[ids.ObjectAddress][]storage.RowVersion)

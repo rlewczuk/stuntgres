@@ -56,7 +56,7 @@ func openForeignHierarchy(ctx context.Context, state *State, source *Source, nod
 					out.readSegment(position)
 					child = Stage{Source: segment.Prefix, Columns: segment.Leaf.Relation.Columns}
 					if source.LiveHost() != nil {
-						childScan = NewRelationScan(segment.Prefix)
+						childScan = RelationScan{source: segment.Prefix}
 						childScan.admission = source
 						child.scan = &childScan
 					}

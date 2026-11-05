@@ -2160,6 +2160,46 @@ Planning-only CTE/DML Bind retains the accepted measurement without an executor
 completion. Its later Execute counts its genuine fresh native construction;
 plain SELECT instead retains the already initialized producer across messages.
 
+Each frame owns fixed pending planning/execution counter vectors. Events enter
+the current actual phase and active lexical ancestor phases once, including work
+of an untracked child; child completion never merges them again. Routine scratch
+borrows the parent sink even when the child has no admission. Procedural COMMIT
+and ROLLBACK preserve that still-active lexical sink through transaction scratch
+rebasing and saved-scratch restoration. Portal transfer
+detaches lexical ancestry; resumed motion borrows only its genuinely current
+enclosing sink. Accepted planning publishes independently of execution success.
+
+The RSR-MI technical policy reuses native storage owners: each reached nonempty
+`SourceReadLease.Open` requests one representative block through the existing
+query-stage or DML candidate-scan frontier. Cache-eligible shared sources consume the cache's atomic
+resident-before-touch outcome, including denied admission; TEMP/private retained
+sources use resident-source local/shared hits without another cache. Authority,
+session, catalog epoch, locator and retained storage lineage are checked before
+work. Statement collection is independent of cumulative generation/track_counts.
+Engine.Mu precedes the capture/cache leaf, which is released before settings or
+counter delivery. Close only releases the existing idempotent capture pin.
+Parallel observers capture immutable qualification on the coordinator, touch
+the shared cache at their actual reached Open and accumulate private scalars.
+Only the coordinator delivers those outcomes after join, including reached
+failed prefixes; workers never inspect lexical scope/settings or a session
+Writer. Worker Close does not release the original source's capture pin.
+
+Canonical accepted insert/replacement/deletion windows size immutable old/new
+images with storage.RowAllocation: INSERT new, DELETE old, UPDATE old+new.
+Each image independently contributes ceil(bytes/8192) dirtied page-equivalents;
+TEMP is local, other native storage shared. Ordinary logged user heap mutations
+also contribute one logical WAL record and their shape bytes. NULL and type
+slots, not payload length or result-row counts, determine sizing. Batch sizing
+completes before adding work; failed terminal execution publishes no vector.
+Partition movement retains the accepted OLD image size across its physical
+DELETE/INSERT and rounds the completed UPDATE once. A destination veto retains
+only the actual deletion; nested trigger scratch cannot consume that image.
+Coordinator launch/join facts supply real planned/launched native workers.
+Physical writeback, spill, block I/O durations, FPI/WAL-buffer and JIT producers
+are absent and remain explicitly typed zero. No frame, pin, worker or counter
+history is serialized; exact info, privileges, query identity and SQL state retain
+their existing owners.
+
 Execution uses actual command completion or producer work/disposal, not
 transport tags or reads of materialized output. A portal retains its measurement
 through suspension and exhaustion until normal disposal. Closing an initialized
@@ -3921,6 +3961,17 @@ Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
+
+Statement counter source authority/backing, accepted mutation windows, scalar
+phase ancestry, retained portal/fold lifetime, reset/replacement and joined worker
+owners use `make check RUN='^TestPgStatStatementsCounters'`, also with `RACE=1`.
+These internal owner proofs supplement the public dual-mode pgstatstatements
+family; test-only bridges expose actual owners without a production inspection API.
+Live lease probes run at the retained executor's typed evaluation frontier;
+protocol output sinks deliberately have detached producer authority. Worker
+launch witnesses use command admission's settings snapshot, not initialization
+admission. Persistent literal-fold backing is asserted independently of routine
+work evaluated by an enclosing planning conversion.
 
 Legacy identity composed reader/definition ownership and joined capture races
 use `RUN='^TestBackendIdentity(RuntimeLifetime|ConcurrentCapture)$'`.

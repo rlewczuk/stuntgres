@@ -253,6 +253,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		e.initializeTemporarySourceLocked(scope, target)
+		e.captureReadSourcesLocked(scope, target)
 		inputs, err := e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)
 		if err != nil {
 			target.Close()
@@ -306,6 +307,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		borrowQueryAuthority(source, scope)
 		e.initializeTemporarySourceLocked(scope, source)
+		e.captureReadSourcesLocked(scope, source)
 		var from *exec.Source
 		if b.Update.From != nil || b.SubqueryDemand {
 			from, err = e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)

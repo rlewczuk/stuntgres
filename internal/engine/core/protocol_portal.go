@@ -388,6 +388,9 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	bind.Resource = &c.PreparedResource
 	bind.producer = c
 	bind.statementStats, s.statementStats = s.statementStats, nil
+	if bind.statementStats != nil {
+		bind.statementStats.parent = nil
+	}
 	if f := bind.statementStats; f != nil {
 		f.execStart, f.elapsed, f.rows = time.Time{}, 0, 0
 		f.executed, f.pullRows = false, true
@@ -459,6 +462,8 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		out.CommandTag, out.Count = result.CommandTag, result.Count
 		return out, nil
 	}
+	previousCounters := s.activateStatementCounters(p.statementStats)
+	defer s.restoreStatementCounters(p.statementStats, previousCounters)
 	auto := p.autoExplain
 	auto.resume()
 	previousAuto, previousContext := s.autoExplain, s.invocationContext
@@ -636,6 +641,7 @@ func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader
 		// and completed rows replace the uninitialized planning-Bind frame.
 		p.statementStats.finish(false)
 		p.statementStats, s.statementStats = s.statementStats, nil
+		p.statementStats.parent = nil
 		if rows, ok := result.Rows.(*statementStatsRows); ok {
 			// The portal owns producer timing/counting from this handoff onward;
 			// do not observe each demand through both result and portal wrappers.

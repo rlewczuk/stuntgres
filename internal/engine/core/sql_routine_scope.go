@@ -43,12 +43,14 @@ func (s *StatementScope) leaveSQLRoutine() {
 type sqlRoutineScratch struct {
 	txRef                     ids.TxRef
 	statementStats            *statementStatsFrame
+	statementStatsParent      *statementStatsFrame
 	statementStatsDepth       int
 	statementStatsUtilityBody bool
 	statementStatsSource      string
 	statementStatsOffset      int
 	statementStatsSpans       []statementStatsSpan
 	statementStatsCompletions []*statementStatsFrame
+	statementStatsMove        statementStatsMove
 	autoExplain               *autoExplainFrame
 	autoExplainFamily         *bool
 	autoExplainCompletions    []*autoExplainFrame
@@ -101,10 +103,12 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
 		txRef:          s.TxRef,
 		statementStats: s.statementStats, statementStatsDepth: s.statementStatsDepth, statementStatsSource: s.statementStatsSource,
+		statementStatsParent: s.statementStatsParent,
 		statementStatsUtilityBody: s.statementStatsUtilityBody,
 		statementStatsOffset:      s.statementStatsOffset,
 		statementStatsSpans:       s.statementStatsSpans,
 		statementStatsCompletions: s.statementStatsCompletions,
+		statementStatsMove:        s.statementStatsMove,
 		autoExplain:               s.autoExplain, autoExplainFamily: s.autoExplainFamily, autoExplainCompletions: s.autoExplainCompletions,
 		autoExplainStatement: s.autoExplainStatement,
 		currentSnapshot:      s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
@@ -133,10 +137,12 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.installRuleScratch(c.command)
 	s.statementStats, s.statementStatsDepth, s.statementStatsSource = c.statementStats, c.statementStatsDepth, c.statementStatsSource
+	s.statementStatsParent = c.statementStatsParent
 	s.statementStatsUtilityBody = c.statementStatsUtilityBody
 	s.statementStatsOffset = c.statementStatsOffset
 	s.statementStatsSpans = c.statementStatsSpans
 	s.statementStatsCompletions = c.statementStatsCompletions
+	s.statementStatsMove = c.statementStatsMove
 	s.autoExplain, s.autoExplainFamily, s.autoExplainCompletions = c.autoExplain, c.autoExplainFamily, c.autoExplainCompletions
 	s.autoExplainStatement = c.autoExplainStatement
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
@@ -224,6 +230,10 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	}
 	s.installSQLRoutineScratch(child)
 	s.statementStatsDepth = saved.statementStatsDepth + 1
+	s.statementStatsParent = saved.statementStats
+	if s.statementStatsParent == nil {
+		s.statementStatsParent = saved.statementStatsParent
+	}
 	s.autoExplainFamily = saved.autoExplainFamily
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
@@ -338,6 +348,7 @@ func (s *StatementScope) rebaseRoutineScratch(c sqlRoutineScratch) sqlRoutineScr
 	demand.policy.base, demand.policy.writes, demand.policy.deletes = nil, nil, nil
 	return sqlRoutineScratch{txRef: s.TxRef, input: input, output: output,
 		statementStats: c.statementStats, statementStatsDepth: c.statementStatsDepth, statementStatsSource: c.statementStatsSource, statementStatsOffset: c.statementStatsOffset,
+		statementStatsParent: c.statementStatsParent,
 		statementStatsUtilityBody: c.statementStatsUtilityBody,
 		statementStatsCompletions: c.statementStatsCompletions,
 		autoExplain:               c.autoExplain, autoExplainFamily: c.autoExplainFamily, autoExplainCompletions: c.autoExplainCompletions,

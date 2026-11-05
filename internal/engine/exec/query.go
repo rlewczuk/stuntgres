@@ -1600,7 +1600,7 @@ func initializeRelationSource(ctx context.Context, state *State, n *plan.SourceN
 	}
 	child := Stage{Source: source, Columns: n.Schema(), readSource: true, scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
 	if source.Anonymous == nil && source.LiveHost() != nil {
-		scan := NewRelationScan(source)
+		scan := RelationScan{source: source}
 		scan.local = state.scanCounts
 		if state.ScanRange {
 			scan.rangeStart = state.ScanStart

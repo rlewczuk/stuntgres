@@ -2,6 +2,7 @@ package core
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
@@ -21,6 +22,7 @@ type logicalBufferRead struct {
 	cache  *logicalBufferCache
 	entry  *logicalBufferEntry
 	opened bool
+	authority *exec.Authority
 	// Only index captures collect. Operation supplies live restricted/proconfig
 	// settings at Open; its transaction owner serializes the pending Writer.
 	op  *session.Operation
@@ -31,28 +33,67 @@ func (r *logicalBufferRead) Open() {
 	e := r.engine
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	if r.authority == nil {
+		return
+	}
+	host, ok := r.authority.Host.(*statementHost)
+	if !ok || host == nil {
+		return
+	}
+	s := host.scope()
+	if s.Op == nil || s.Op.Session == nil || s.Engine() != e || EngineOf(s.Op.Session) != e || s.Op.Session.SessionToken != r.owner || s.Active() != nil {
+		return
+	}
+	valid, resident := r.openLocked()
+	if valid {
+		v := statistics.StatementCounters{SharedRead: 1}
+		if resident {
+			v.SharedRead, v.SharedHit = 0, 1
+		}
+		s.recordStatementCounters(v)
+	}
+}
+
+// Engine.Mu is held. The cache returns the atomic resident-before-touch outcome;
+// the capture mutex is released before invoking settings or statistics owners.
+func (r *logicalBufferRead) openLocked() (valid, resident bool) {
+	valid, resident = r.openCacheLocked()
+	if !valid {
+		return false, false
+	}
+	// Cache leaf is released before settings or provider authority is entered.
+	if r.op != nil && !r.op.Released {
+		_, _, policy := r.op.EffectiveSettings().StatsConfiguration()
+		PayloadOf(r.op.Session).statsWriter.IndexBlock(&r.engine.Statistics, statistics.Key{Object: r.ref, Category: statistics.Relation}, policy, resident)
+	}
+	return true, resident
+}
+
+// Engine.Mu is held. This cache-only half is safe for a qualified worker: no
+// operation, lexical scope, settings or cumulative Writer is touched.
+func (r *logicalBufferRead) openCacheLocked() (valid, resident bool) {
+	e := r.engine
 	// Unpublished template runtimes have no cluster. A bridge from a retired
 	// runtime cannot acquire a shared cache owner before attachment.
 	if e.Cluster == nil {
-		return
+		return false, false
 	}
 	view := e.Catalog.Current()
 	database, exists := view.Database(e.Catalog.DatabaseAddress())
 	if !exists || e.Cluster.Targets[database.Name()] != e || view.Epoch() != r.key.epoch {
-		return
+		return false, false
 	}
 	relation, ok := view.Relation(r.key.relation)
 	if !ok {
-		return
+		return false, false
 	}
 	key, eligible := logicalBufferIdentity(view, relation)
 	if !eligible || key != r.key {
-		return
+		return false, false
 	}
+	r.mu.Lock()
 	cache := e.logicalBuffersLocked()
-	resident := false
+	resident = false
 	if r.opened && r.entry != nil {
 		resident = cache.touch(r.entry)
 	}
@@ -60,11 +101,8 @@ func (r *logicalBufferRead) Open() {
 		r.entry, resident = cache.open(r.key, r.owner)
 	}
 	r.opened, r.cache = true, cache
-	// Cache leaf is released before settings or provider authority is entered.
-	if r.op != nil && !r.op.Released {
-		_, _, policy := r.op.EffectiveSettings().StatsConfiguration()
-		PayloadOf(r.op.Session).statsWriter.IndexBlock(&e.Statistics, statistics.Key{Object: r.ref, Category: statistics.Relation}, policy, resident)
-	}
+	r.mu.Unlock()
+	return true, resident
 }
 func (r *logicalBufferRead) Close() {
 	r.mu.Lock()

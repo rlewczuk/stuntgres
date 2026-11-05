@@ -741,8 +741,16 @@ not peer history or already owned results; failure leaves history intact.
 Dump serializes provider/view definitions and SQL state, never collected runtime
 history or live executors. Altered/moved/detached script views use the ordinary
 view/owner/membership codecs. Planning counts are actual accepted native builds,
-not PostgreSQL generic-plan cache invocation counts. This logical module does not
-load PostgreSQL C libraries, preload shared memory or persist shutdown files.
+not PostgreSQL generic-plan cache invocation counts. RSR-MI technical estimates
+use actual nonempty source requests and the existing shared-cache outcome;
+TEMP/private retained sources contribute resident-source hits. Accepted native
+mutation images use storage's header/bitmap/type-slot allocation, rounded per
+event to 8192-byte dirtied equivalents; ordinary logged user heaps contribute
+one logical WAL record and image bytes (UPDATE old+new). Actual native worker
+launch facts are retained. Writeback, spill, physical I/O times, FPI/WAL-buffer
+and JIT producers are absent, not inferred from CPU time or rows. Exact
+identity/info/privileges are not approximated. This logical module does not load
+PostgreSQL C libraries, preload shared memory or persist shutdown/text files.
 
 `CREATE EXTENSION pg_buffercache VERSION '1.6'` installs ordinary nine-column
 `pg_buffercache` and three-column `pg_buffercache_numa` views, backed by the

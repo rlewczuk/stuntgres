@@ -10,6 +10,7 @@ func TestReferencePgStatStatementsResetCompletion(t *testing.T) {
 	for _, planning := range []string{"off", "on"} {
 		t.Run(planning, func(t *testing.T) {
 			pgssCase(t, true, func(s *pgssScenario) {
+				pgssCounterSetup(s)
 				pgssResetSeed(s)
 				s.work(fixture.Exec("SET pg_stat_statements.track_planning="+planning, 0))
 				stmt, err := s.worker.PrepareContext(s.p.Ctx, pgssResetCall)
@@ -24,6 +25,7 @@ func TestReferencePgStatStatementsResetCompletion(t *testing.T) {
 					pgssResetScalar(s, x, pgssResetCall, false)
 					s.both(fixture.Select("SELECT count(*) AS groups,COALESCE(sum(calls),0)::bigint AS calls,COALESCE(sum(rows),0)::bigint AS rows,COALESCE(sum(plans),0)::bigint AS plans FROM pgss_part.pg_stat_statements", []string{"groups", "calls", "rows", "plans"}, []string{"INT8", "INT8", "INT8", "INT8"}, [][]any{{int64(1), int64(1), int64(1), int64(0)}}))
 					s.entry(pgssResetCall, 1, 1)
+					pgssCounterCheck(s, pgssResetCall, 1, 1, pgssCounterWant{serial: true})
 				}
 				stmt.Close()
 				s.entry(pgssResetCall, 1, 1)

@@ -40,6 +40,7 @@ func TestReferencePgStatStatementsConsumerLifecycle(t *testing.T) {
 				types := append(append([]string(nil), pgssTypes...), "INT4")
 				run(fixture.Select("SELECT * FROM pgss_consumer_move.pgss_consumer_saved WHERE false", names, types, nil))
 				run(fixture.Select("SELECT marker FROM pgss_consumer_move.pgss_consumer_saved WHERE query='SELECT k FROM pgss_part.pgss_consumer_rows'", []string{"marker"}, []string{"INT4"}, [][]any{{int64(17)}}))
+				run(fixture.Select("SELECT shared_blks_hit+shared_blks_read>0 AS work FROM pgss_consumer_move.pgss_consumer_saved WHERE query='SELECT k FROM pgss_part.pgss_consumer_rows'", []string{"work"}, []string{"BOOL"}, [][]any{{true}}))
 				run(fixture.Select("SELECT count(*) AS n FROM pgss_part.pgss_consumer_dependent WHERE query='SELECT k FROM pgss_part.pgss_consumer_rows'", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 				run(fixture.Select("SELECT k FROM pgss_part.pg_stat_statements", []string{"k"}, []string{"INT4"}, [][]any{{int64(73)}}))
 				run(fixture.Select("SELECT r.rolname::text AS owner,c.reloptions::text AS options,obj_description(c.oid,'pg_class') AS comment,has_table_privilege('pgss_consumer_reader',c.oid,'SELECT') AS readable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='pgss_consumer_move' AND c.relname='pgss_consumer_saved'", []string{"owner", "options", "comment", "readable"}, []string{"TEXT", "TEXT", "TEXT", "BOOL"}, [][]any{{"pgss_consumer_owner", "{security_barrier=true}", "retained ordinary consumer", true}}))
@@ -135,6 +136,17 @@ func pgssConsumerOriginal(s *pgssScenario) {
 func pgssConsumerMeasured(s *pgssScenario) {
 	s.t.Helper()
 	s.work(fixture.Select("SELECT k FROM pgss_part.pgss_consumer_rows", []string{"k"}, []string{"INT4"}, [][]any{{int64(17)}}))
+	requests := "shared_blks_hit+shared_blks_read=1"
+	if s.b.PG {
+		requests = "shared_blks_hit+shared_blks_read>0"
+	}
+	s.both(fixture.Select("SELECT "+requests+" AS work FROM pgss_part.pg_stat_statements(true) WHERE query='SELECT k FROM pgss_part.pgss_consumer_rows' AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"work"}, []string{"BOOL"}, [][]any{{true}}))
+	s.work(fixture.Prepared(fixture.Exec("UPDATE pgss_part.pgss_consumer_rows SET k=k", 1)))
+	wal := "wal_records=1 AND wal_bytes=80 AND shared_blks_dirtied=1"
+	if s.b.PG {
+		wal = "wal_records>0 AND wal_bytes>0"
+	}
+	s.both(fixture.Select("SELECT "+wal+" AS images FROM pgss_part.pg_stat_statements(true) WHERE query='UPDATE pgss_part.pgss_consumer_rows SET k=k' AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"images"}, []string{"BOOL"}, [][]any{{true}}))
 }
 func pgssConsumerAssertBoth(s *pgssScenario, check func(func(fixture.Step))) {
 	s.t.Helper()

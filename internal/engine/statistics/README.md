@@ -454,7 +454,12 @@ use the same selected first-access definition with `RACE=1` for composed capture
 mutex protects owned entries and scalar active admissions, never a session,
 executor graph or catalog callback. `Begin` registers admitted and known
 prospective terminal keys together. `RecordPlan` and `RecordExecution` consume
-explicit successful key, cleaned raw source, timestamp, rows and measured time.
+explicit successful key, cleaned raw source, timestamp, rows, measured time and a
+fixed `StatementCounters` value. Successful planning and execution add to the same
+detached vector under the existing admission fences; failed phases add nothing.
+WAL bytes retain unsigned 64-bit arithmetic through exact decimal NUMERIC
+projection. Counters are never reconstructed from cumulative database snapshots,
+rows, timing or optional execution observations.
 An unanticipated terminal key registers atomically with its first record; earlier
 resulting-key-only native clears are not retroactive. A destructive admitted-key
 native clear always fences the original work. `Release` ends admission ownership
@@ -476,6 +481,10 @@ increment; completed usage decays by0.99. Deallocation takes the sorted
 pre-removal upper median and removes a least-used batch; `Info.Dealloc` counts
 batches, not victims. Runtime history and active admissions are not persistent
 SQL data.
+Minmax-only reset preserves the entire counter vector; destructive reset removes
+it with its entry. Neither operation resets source residency or cumulative
+statistics. Runtime replacement fences old vectors through the same active
+admissions as calls and rows, not through another counter generation.
 Zero-sample sticky admissions are not visible rows. Native planning samples
 represent real accepted construction events, including repeated prepared builds;
 fold hits do not fabricate generic-plan reuse. Exact accumulator arithmetic is
@@ -499,8 +508,8 @@ Public SQL scenarios live in `reference/session_state`, using
 `make check RUN='^TestReferenceStatsSnapshot'` in native and `REFERENCE=1` modes.
 Statement arithmetic, SQL reset versus native clear admission lifetimes,
 bounded sticky/median eviction and concurrent snapshots use
-`make check RUN='^TestPgStatStatements(Accumulator|Clear|Reset|Eviction)'`, also with
-`RACE=1`.
+`make check RUN='^TestPgStatStatements(Accumulator|Clear|Reset|Eviction|Counters)'`,
+also with `RACE=1`.
 
 
 Core outside-transaction gating, virtual-time one-shot retry and callback lifetime

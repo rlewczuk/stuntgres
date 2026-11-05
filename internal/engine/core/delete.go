@@ -141,6 +141,9 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	if err := e.AssignTransactionXIDLocked(s.TxRef); err != nil {
 		return err
 	}
+	if err := s.acceptedStatementDeletion(candidate.Ref, original, candidate.Moved); err != nil {
+		return err
+	}
 	candidate.EndFullXID = e.Visibility.FullXIDLocked(s.TxRef)
 	physical := original
 	physical.RepairStamp = candidate.RepairStamp
@@ -179,6 +182,7 @@ func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, 
 	e := s.Engine()
 	e.Mu.Lock()
 	e.initializeTemporarySourceLocked(s, source)
+	e.captureReadSourcesLocked(s, source)
 	e.Mu.Unlock()
 	defer source.Close()
 	outcome, err := dml.ExecuteDelete(s.WriteHost(), dml.DeleteInput{Context: s.ActivateRuntime(s.executionContext()), Binding: b, Source: source, Inputs: inputs, Parameters: parameters})

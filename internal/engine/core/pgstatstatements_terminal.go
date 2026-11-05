@@ -112,16 +112,18 @@ func (f *statementStatsFrame) finish(success bool) {
 	f.finished = true
 	if !f.admitted {
 		f.pending, f.session = nil, nil
+		f.parent = nil
 		return
 	}
 	defer func() {
 		f.store.Release(f.token)
 		f.source, f.session = "", nil
+		f.parent = nil
 	}()
 	if success && f.executed && !f.failed {
 		f.captureOwnerTerminal()
 		if f.terminalEnabled {
-			f.store.RecordExecution(f.token, statistics.StatementRecord{Key: f.terminalKey, Query: f.source, At: time.Now(), Milliseconds: float64(f.elapsed) / float64(time.Millisecond), Rows: f.rows})
+			f.store.RecordExecution(f.token, statistics.StatementRecord{Key: f.terminalKey, Query: f.source, At: time.Now(), Milliseconds: float64(f.elapsed) / float64(time.Millisecond), Rows: f.rows, Counters: f.execCounters})
 		}
 	}
 }

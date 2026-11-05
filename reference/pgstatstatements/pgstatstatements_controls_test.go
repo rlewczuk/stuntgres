@@ -15,12 +15,17 @@ import (
 func TestReferencePgStatStatementsControls(t *testing.T) {
 	pgssCase(t, true, func(s *pgssScenario) {
 		t := s.t
+		pgssCounterSetup(s)
 		s.exec("CREATE TABLE pgss_part.pgss_control_data(k integer)")
 		s.run(fixture.Exec("INSERT INTO pgss_part.pgss_control_data VALUES(17)", 1))
 		s.exec("CREATE VIEW pgss_part.pgss_control_consumer AS SELECT query,calls FROM pgss_part.pg_stat_statements(false)")
 		q := "SELECT k AS pgss_control_measured FROM pgss_part.pgss_control_data"
 		s.work(fixture.Select(q, []string{"pgss_control_measured"}, []string{"INT4"}, [][]any{{int64(17)}}))
 		s.counts(q, 1, 1, 1)
+		pgssCounterCheck(s, q, 1, 1, pgssCounterWant{read: 1, pgShared: true, serial: true})
+		mutation := "UPDATE pgss_part.pgss_control_data SET k=k"
+		s.work(fixture.Prepared(fixture.Exec(mutation, 1)))
+		pgssCounterCheck(s, mutation, 1, 1, pgssCounterWant{anySharedSplit: true, sharedRequests: 1, dirty: 1, records: 1, bytes: 80, pgShared: true, pgWAL: true, serial: true})
 		pgssProviderRelationships(s)
 		s.both(fixture.Select("SELECT * FROM pgss_part.pgss_control_consumer WHERE false", []string{"query", "calls"}, []string{"TEXT", "INT8"}, nil))
 		if s.b.PG {
@@ -45,12 +50,21 @@ func TestReferencePgStatStatementsControls(t *testing.T) {
 			s.both(fixture.Select("SELECT calls,rows FROM pgss_part.pg_stat_statements WHERE query=$1", []string{"calls", "rows"}, []string{"INT8", "INT8"}, [][]any{{int64(1), int64(1)}}, peerQ))
 		}
 		peerCount()
+		history, info := pgssResetSnapshot(s), pgssResetInfo(s)
+		var extension, function int64
+		identity := "SELECT e.oid::bigint,p.oid::bigint FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace JOIN pg_proc p ON p.pronamespace=n.oid WHERE e.extname='pg_stat_statements' AND p.proname='pg_stat_statements'"
+		if err := s.observer.QueryRowContext(s.p.Ctx, identity).Scan(&extension, &function); err != nil {
+			t.Fatal(err)
+		}
 		var dump bytes.Buffer
 		if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &dump); err != nil {
 			t.Fatal(err)
 		}
 		unchanged := func() {
 			s.counts(q, 1, 1, 1)
+			pgssResetEqual(t, pgssResetSnapshot(s), history)
+			pgssResetEqual(t, pgssResetInfo(s), info)
+			s.both(fixture.Select(identity, []string{"oid", "oid"}, []string{"INT8", "INT8"}, [][]any{{extension, function}}))
 			s.both(fixture.Select("SELECT k FROM pgss_part.pgss_control_data", []string{"k"}, []string{"INT4"}, [][]any{{int64(17)}}))
 			pgssProviderRelationships(s)
 			peerCount()
@@ -81,11 +95,6 @@ func TestReferencePgStatStatementsControls(t *testing.T) {
 		unchanged()
 		// Compatible live replay keeps provider identity, but clears runtime
 		// history only for the replaced database.
-		var extension, function int64
-		identity := "SELECT e.oid::bigint,p.oid::bigint FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace JOIN pg_proc p ON p.pronamespace=n.oid WHERE e.extname='pg_stat_statements' AND p.proname='pg_stat_statements'"
-		if err := s.observer.QueryRowContext(s.p.Ctx, identity).Scan(&extension, &function); err != nil {
-			t.Fatal(err)
-		}
 		if err := stuntgres.Restore(s.p.Ctx, s.p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
@@ -155,6 +164,10 @@ func pgssControlRoundtrip(s *pgssScenario, table string, values []int64) {
 	s.work(step)
 	s.work(fixture.Prepared(step))
 	s.counts(q, 1, 2, int64(2*len(values)))
+	pgssCounterCheck(s, q, 2, int64(2*len(values)), pgssCounterWant{anySharedSplit: true, sharedRequests: 2, pgShared: true, serial: true})
+	mutation := "UPDATE " + table + " SET k=k"
+	s.work(fixture.Prepared(fixture.Exec(mutation, int64(len(values)))))
+	pgssCounterCheck(s, mutation, 1, int64(len(values)), pgssCounterWant{anySharedSplit: true, sharedRequests: 1, dirty: int64(len(values)), records: int64(len(values)), bytes: int64(80 * len(values)), pgShared: true, pgWAL: true, serial: true})
 	connector, err := stuntgres.NewDriver().OpenConnector("pgss_control_independent")
 	if err != nil {
 		s.t.Fatal(err)

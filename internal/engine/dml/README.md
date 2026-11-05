@@ -80,6 +80,10 @@ Frontend stream capability admission stays in core, before target execution.
   mutexes. Replacement/deletion grant inspection and changed repair-key
   readmission run outside both mutexes; the final exact-key check and accepted
   action publication share the same Engine window.
+  A partition UPDATE brackets its physical movement with BeginUpdateMove and
+  EndUpdateMove. The host combines accepted OLD/NEW image work as one UPDATE,
+  or preserves only the accepted deletion when destination insertion is vetoed;
+  nested trigger commands own separate lexical image state.
   `StageInsertAttempt` records immutable pre-index insertion evidence without
   publishing a table effect. Non-speculative INSERT candidates carry that exact
   event through batch/revalidation/RETURNING transfer; failed uniqueness keeps

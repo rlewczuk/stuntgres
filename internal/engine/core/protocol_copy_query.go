@@ -38,6 +38,9 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	// The capture is not a registered portal. Keep its genuine executor frame
 	// with COPY's lexical child until actual output and producer close complete.
 	s.statementStats, capture.statementStats = capture.statementStats, nil
+	if s.statementStats != nil {
+		s.statementStats.parent = s.statementStatsParent
+	}
 	rows.output = exec.NewFinalRows(rows.schema, 0)
 	rows.output.Output = s.Output
 	err = func() error {

@@ -10,6 +10,7 @@ import (
 func TestReferencePgStatStatementsResetInfo(t *testing.T) {
 	t.Run("outcome_edges", func(t *testing.T) {
 		pgssCase(t, true, func(s *pgssScenario) {
+			pgssCounterSetup(s)
 			pgssResetScalar(s, s.observer, pgssResetCall, false)
 			for _, args := range []string{"0,0,0,false", "4294967295,4294967295,-1,false", "0,0,0,true", "4294967295,4294967295,-1,true"} {
 				q := "SELECT pgss_part.pg_stat_statements_reset(" + args + ")"
@@ -18,6 +19,8 @@ func TestReferencePgStatStatementsResetInfo(t *testing.T) {
 				pgssResetEqual(s.t, pgssResetSnapshot(s), [][]any(nil))
 			}
 			a, b := pgssResetSeed(s)
+			pgssCounterCheck(s, a, 2, 3, pgssCounterWant{read: 1, hit: 1, pgShared: true, serial: true})
+			pgssCounterCheck(s, b, 1, 1, pgssCounterWant{hit: 1, pgShared: true, serial: true})
 			info := pgssResetInfo(s)
 			for _, args := range []string{"4294967295,0,0,false", "0,0,-1,true", "0,0,0,true"} {
 				pgssResetScalar(s, s.observer, "SELECT pgss_part.pg_stat_statements_reset("+args+")", false)
@@ -27,6 +30,7 @@ func TestReferencePgStatStatementsResetInfo(t *testing.T) {
 			q := "SELECT pgss_part.pg_stat_statements_reset($1::oid,$2::oid,$3::bigint)"
 			pgssResetScalar(s, s.observer, q, false, u, d, qid)
 			pgssResetEqual(s.t, pgssResetInfo(s), info)
+			pgssCounterCheck(s, b, 1, 1, pgssCounterWant{hit: 1, pgShared: true, serial: true})
 			u, d, qid = pgssResetIdentity(s, b)
 			at := pgssResetScalar(s, pgssResetHeld(s, q), q, false, u, d, qid)
 			s.both(fixture.Select("SELECT dealloc,stats_reset=$1 AS same FROM pgss_part.pg_stat_statements_info", []string{"dealloc", "same"}, []string{"INT8", "BOOL"}, [][]any{{int64(0), true}}, at))

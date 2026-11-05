@@ -46,12 +46,64 @@ func (m StatementMoments) Stddev() float64 {
 }
 func (m *StatementMoments) clearExtrema() { m.Min, m.Max, m.extrema = 0, 0, 0 }
 
+// StatementCounters is successful logical work, copied with its owning entry.
+// Mechanisms without native producers remain zero; no runtime handles escape.
+type StatementCounters struct {
+	SharedHit, SharedRead, SharedDirtied, SharedWritten int64
+	LocalHit, LocalRead, LocalDirtied, LocalWritten int64
+	TempRead, TempWritten int64
+	SharedReadTime, SharedWriteTime, LocalReadTime, LocalWriteTime float64
+	TempReadTime, TempWriteTime float64
+	WALRecords, WALFPI int64
+	WALBytes uint64
+	WALBuffersFull int64
+	JITFunctions, JITInliningCount, JITOptimizationCount, JITEmissionCount, JITDeformCount int64
+	JITGenerationTime, JITInliningTime, JITOptimizationTime, JITEmissionTime, JITDeformTime float64
+	WorkersPlanned, WorkersLaunched int64
+}
+
+func (c *StatementCounters) Add(v StatementCounters) {
+	c.SharedHit += v.SharedHit
+	c.SharedRead += v.SharedRead
+	c.SharedDirtied += v.SharedDirtied
+	c.SharedWritten += v.SharedWritten
+	c.LocalHit += v.LocalHit
+	c.LocalRead += v.LocalRead
+	c.LocalDirtied += v.LocalDirtied
+	c.LocalWritten += v.LocalWritten
+	c.TempRead += v.TempRead
+	c.TempWritten += v.TempWritten
+	c.SharedReadTime += v.SharedReadTime
+	c.SharedWriteTime += v.SharedWriteTime
+	c.LocalReadTime += v.LocalReadTime
+	c.LocalWriteTime += v.LocalWriteTime
+	c.TempReadTime += v.TempReadTime
+	c.TempWriteTime += v.TempWriteTime
+	c.WALRecords += v.WALRecords
+	c.WALFPI += v.WALFPI
+	c.WALBytes += v.WALBytes
+	c.WALBuffersFull += v.WALBuffersFull
+	c.JITFunctions += v.JITFunctions
+	c.JITInliningCount += v.JITInliningCount
+	c.JITOptimizationCount += v.JITOptimizationCount
+	c.JITEmissionCount += v.JITEmissionCount
+	c.JITDeformCount += v.JITDeformCount
+	c.JITGenerationTime += v.JITGenerationTime
+	c.JITInliningTime += v.JITInliningTime
+	c.JITOptimizationTime += v.JITOptimizationTime
+	c.JITEmissionTime += v.JITEmissionTime
+	c.JITDeformTime += v.JITDeformTime
+	c.WorkersPlanned += v.WorkersPlanned
+	c.WorkersLaunched += v.WorkersLaunched
+}
+
 // StatementEntry is an owned snapshot; no live session, plan or executor escapes.
 type StatementEntry struct {
 	Key                          StatementKey
 	Query                        string
 	Planning, Execution          StatementMoments
 	Rows                         int64
+	Counters                     StatementCounters
 	StatsSince, MinMaxStatsSince time.Time
 }
 type statementEntry struct {
@@ -71,6 +123,7 @@ type StatementRecord struct {
 	At           time.Time
 	Milliseconds float64
 	Rows         int64
+	Counters     StatementCounters
 }
 
 type statementAdmission struct {
@@ -192,6 +245,7 @@ func (s *Statements) record(token StatementToken, record StatementRecord, planni
 	} else {
 		e.Rows += record.Rows
 	}
+	e.Counters.Add(record.Counters)
 	// A matching minmax clear fences only this key's new extrema baseline;
 	// accepted in-flight samples still contribute cumulative moments and rows.
 	oldMin, oldMax, oldN := m.Min, m.Max, m.extrema

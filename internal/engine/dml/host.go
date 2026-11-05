@@ -245,6 +245,10 @@ type Stage interface {
 	// Delete stages an exact granted deletion, readmitting changed keys unlocked.
 	// It reports false when no longer live and flushes its event after unlocking.
 	Delete(c visibility.DeleteCandidate, expected storage.RowVersion) (bool, error)
+	// Update movement borrows one lexical accepted-image owner across its
+	// physical DELETE/INSERT. End preserves a deletion if INSERT is vetoed.
+	BeginUpdateMove(destination ids.ObjectRef)
+	EndUpdateMove()
 }
 
 // ReplaceLane is how StageReplacement stages successors.

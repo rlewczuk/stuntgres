@@ -12,7 +12,7 @@ func TestReferencePgStatStatementsVisibility(t *testing.T) {
 		for _, name := range []string{"pgss_visibility_a", "pgss_visibility_b", "pgss_visibility_group"} {
 			s.exec("CREATE ROLE " + name)
 		}
-		s.exec("GRANT USAGE ON SCHEMA pgss_part TO pgss_visibility_a,pgss_visibility_b")
+		s.exec("GRANT USAGE ON SCHEMA pgss_part TO pgss_visibility_a,pgss_visibility_b,pgss_visibility_group")
 		s.exec("CREATE TABLE pgss_part.pgss_visibility_secret(k integer)")
 		s.run(fixture.Exec("INSERT INTO pgss_part.pgss_visibility_secret VALUES(41)", 1))
 		s.exec("GRANT SELECT ON pgss_part.pgss_visibility_secret TO pgss_visibility_a,pgss_visibility_b")
@@ -23,10 +23,10 @@ func TestReferencePgStatStatementsVisibility(t *testing.T) {
 			s.work(fixture.Exec("RESET ROLE", 0))
 		}
 		defer s.worker.ExecContext(s.p.Ctx, "RESET ROLE")
-		read := "SELECT r.rolname::text AS role,s.queryid IS NOT NULL AS identified,s.query,s.calls,s.rows FROM pgss_part.pg_stat_statements s JOIN pg_roles r ON r.oid=s.userid WHERE r.rolname IN ('pgss_visibility_a','pgss_visibility_b') AND s.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY r.rolname"
-		names := []string{"role", "identified", "query", "calls", "rows"}
-		types := []string{"TEXT", "BOOL", "TEXT", "INT8", "INT8"}
-		visible := [][]any{{"pgss_visibility_a", true, q, int64(1), int64(1)}, {"pgss_visibility_b", true, q, int64(1), int64(1)}}
+		read := "SELECT r.rolname::text AS role,s.queryid IS NOT NULL AS identified,s.query,s.calls,s.rows,s.shared_blks_hit+s.shared_blks_read>0 AS work FROM pgss_part.pg_stat_statements s JOIN pg_roles r ON r.oid=s.userid WHERE r.rolname IN ('pgss_visibility_a','pgss_visibility_b') AND s.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY r.rolname"
+		names := []string{"role", "identified", "query", "calls", "rows", "work"}
+		types := []string{"TEXT", "BOOL", "TEXT", "INT8", "INT8", "BOOL"}
+		visible := [][]any{{"pgss_visibility_a", true, q, int64(1), int64(1), true}, {"pgss_visibility_b", true, q, int64(1), int64(1), true}}
 		s.both(fixture.Select(read, names, types, visible))
 		s.both(fixture.Select("SELECT count(DISTINCT queryid) AS n FROM pgss_part.pg_stat_statements WHERE userid IN (SELECT oid FROM pg_roles WHERE rolname IN ('pgss_visibility_a','pgss_visibility_b')) AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 		s.exec("SET ROLE pgss_visibility_b")
@@ -36,7 +36,7 @@ func TestReferencePgStatStatementsVisibility(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer held.Close()
-		denied := [][]any{{"pgss_visibility_a", false, "<insufficient privilege>", int64(1), int64(1)}, {"pgss_visibility_b", true, q, int64(1), int64(1)}}
+		denied := [][]any{{"pgss_visibility_a", false, "<insufficient privilege>", int64(1), int64(1), true}, {"pgss_visibility_b", true, q, int64(1), int64(1), true}}
 		check := func(want [][]any) {
 			s.both(fixture.Select(read, names, types, want))
 			fixture.RunStep(t, s.p.Ctx, fixture.HeldStatement{Executor: s.observer, Statement: held, SQL: read}, s.b.Recorder, fixture.Select(read, names, types, want))
@@ -44,7 +44,7 @@ func TestReferencePgStatStatementsVisibility(t *testing.T) {
 		check(denied)
 		// showtext=false suppresses even authorized own text without hiding
 		// counters; forbidden IDs stay NULL independently of showtext.
-		s.both(fixture.Select("SELECT r.rolname::text AS role,s.queryid IS NOT NULL AS identified,s.query,s.calls,s.rows FROM pgss_part.pg_stat_statements(false) s JOIN pg_roles r ON r.oid=s.userid WHERE r.rolname IN ('pgss_visibility_a','pgss_visibility_b') AND s.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY r.rolname", names, types, [][]any{{"pgss_visibility_a", false, nil, int64(1), int64(1)}, {"pgss_visibility_b", true, nil, int64(1), int64(1)}}))
+		s.both(fixture.Select("SELECT r.rolname::text AS role,s.queryid IS NOT NULL AS identified,s.query,s.calls,s.rows,s.shared_blks_hit+s.shared_blks_read>0 AS work FROM pgss_part.pg_stat_statements(false) s JOIN pg_roles r ON r.oid=s.userid WHERE r.rolname IN ('pgss_visibility_a','pgss_visibility_b') AND s.dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY r.rolname", names, types, [][]any{{"pgss_visibility_a", false, nil, int64(1), int64(1), true}, {"pgss_visibility_b", true, nil, int64(1), int64(1), true}}))
 		s.both(fixture.Select("SELECT * FROM pgss_part.pg_stat_statements(NULL::boolean)", pgssNames, pgssTypes, nil))
 		// Authority changes occur on the other session. Retained prepared
 		// readers must re-evaluate inherited authority at every execution.
@@ -55,5 +55,22 @@ func TestReferencePgStatStatementsVisibility(t *testing.T) {
 		check(denied)
 		s.exec("RESET ROLE")
 		check(visible)
+		s.exec("CREATE TABLE pgss_part.pgss_visibility_images(k integer,v text)")
+		s.exec("GRANT INSERT ON pgss_part.pgss_visibility_images TO pgss_visibility_group")
+		s.work(fixture.Exec("SET ROLE pgss_visibility_group", 0))
+		insert := "INSERT INTO pgss_part.pgss_visibility_images VALUES($1::integer,$2::text)"
+		s.work(fixture.Exec(insert, 1, int64(1), "visible counters"))
+		s.work(fixture.Exec("RESET ROLE", 0))
+		var mutationID int64
+		if err := s.observer.QueryRowContext(s.p.Ctx, "SELECT queryid FROM pgss_part.pg_stat_statements WHERE query=$1 AND userid=(SELECT oid FROM pg_roles WHERE rolname='pgss_visibility_group') AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", insert).Scan(&mutationID); err != nil {
+			s.t.Fatal(err)
+		}
+		s.exec("SET ROLE pgss_visibility_b")
+		mutationRead := "SELECT queryid IS NULL AS redacted,query,wal_records>0 AND wal_bytes>0 AS work,calls,rows FROM pgss_part.pg_stat_statements WHERE userid=(SELECT oid FROM pg_roles WHERE rolname='pgss_visibility_group') AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())"
+		s.both(fixture.Select(mutationRead, []string{"redacted", "query", "work", "calls", "rows"}, []string{"BOOL", "TEXT", "BOOL", "INT8", "INT8"}, [][]any{{true, "<insufficient privilege>", true, int64(1), int64(1)}}))
+		s.both(fixture.Select("SELECT query IS NULL AS hidden,wal_records>0 AND wal_bytes>0 AS work FROM pgss_part.pg_stat_statements(false) WHERE userid=(SELECT oid FROM pg_roles WHERE rolname='pgss_visibility_group') AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"hidden", "work"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+		s.both(fixture.Select("SELECT dealloc>=0 AS valid,stats_reset IS NOT NULL AS dated FROM pgss_part.pg_stat_statements_info", []string{"valid", "dated"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+		s.exec("RESET ROLE")
+		s.both(fixture.Select("SELECT queryid=$1 AS identified,wal_records>0 AND wal_bytes>0 AS work FROM pgss_part.pg_stat_statements WHERE query=$2 AND userid=(SELECT oid FROM pg_roles WHERE rolname='pgss_visibility_group') AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"identified", "work"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, mutationID, insert))
 	})
 }

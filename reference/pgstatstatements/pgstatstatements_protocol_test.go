@@ -56,6 +56,13 @@ func TestReferencePgStatStatementsProtocol(t *testing.T) {
 				step := fixture.Select(q, []string{"groups", "calls", "rows"}, []string{"INT8", "INT8", "INT8"}, [][]any{{groups, calls, rows}}, pattern)
 				run(t, step)
 				run(t, fixture.Prepared(step))
+				requests := calls
+				if strings.HasPrefix(pattern, "COPY") {
+					requests = 0
+				}
+				step = pgssCounterRequests(b.PG, "pgss_wire", pattern, requests)
+				run(t, step)
+				run(t, fixture.Prepared(step))
 			}
 			batchPattern := "SELECT k AS pgss_wire_batch FROM public.pgss_protocol_data WHERE k=%"
 			counts(t, batchPattern, 0, 0, 0)
@@ -138,6 +145,13 @@ func TestReferencePgStatStatementsProtocol(t *testing.T) {
 				t.Fatalf("wire COPY tag=%s error=%v", tag, err)
 			}
 			counts(t, copySQL, 1, 1, 2)
+			wal := "wal_records=2 AND wal_bytes=80 AND shared_blks_dirtied=2"
+			if b.PG {
+				wal = "wal_records>0 AND wal_bytes>0"
+			}
+			copyCounters := fixture.Select("SELECT "+wal+" AS images FROM pgss_wire.pg_stat_statements WHERE query=$1 AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"images"}, []string{"BOOL"}, [][]any{{true}}, copySQL)
+			run(t, copyCounters)
+			run(t, fixture.Prepared(copyCounters))
 			pgssWireSend(t, wire, &pgproto3.Query{String: copySQL})
 			m = pgssWireReceive(t, f.Ctx, wire)
 			copyIn, ok := m.(*pgproto3.CopyInResponse)
@@ -155,6 +169,8 @@ func TestReferencePgStatStatementsProtocol(t *testing.T) {
 			fixture.AssertDiagnostic(t, pgconn.ErrorResponseToPgError(failure), &want)
 			pgssWireWant(t, f.Ctx, wire, &pgproto3.ReadyForQuery{TxStatus: 'I'})
 			counts(t, copySQL, 1, 1, 2)
+			run(t, copyCounters)
+			run(t, fixture.Prepared(copyCounters))
 			run(t, fixture.Select("SELECT k FROM public.pgss_protocol_copy ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
 			t.Run("unused_initialized_close", func(t *testing.T) {
 				simple(t, "SET pg_stat_statements.track_utility=off; SET pg_stat_statements.track_planning=on; BEGIN")
@@ -162,6 +178,9 @@ func TestReferencePgStatStatementsProtocol(t *testing.T) {
 				planCounts := func(groups, plans, calls, rows int64) {
 					t.Helper()
 					step := fixture.Select("SELECT count(*) AS groups,COALESCE(sum(plans),0)::bigint AS plans,COALESCE(sum(calls),0)::bigint AS calls,COALESCE(sum(rows),0)::bigint AS rows FROM pgss_wire.pg_stat_statements WHERE query LIKE $1 AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"groups", "plans", "calls", "rows"}, []string{"INT8", "INT8", "INT8", "INT8"}, [][]any{{groups, plans, calls, rows}}, "SELECT nextval% AS pgss_wire_unused FROM public.pgss_protocol_data pgss_unused")
+					run(t, step)
+					run(t, fixture.Prepared(step))
+					step = pgssCounterRequests(b.PG, "pgss_wire", "SELECT nextval% AS pgss_wire_unused FROM public.pgss_protocol_data pgss_unused", 0)
 					run(t, step)
 					run(t, fixture.Prepared(step))
 				}
@@ -192,6 +211,9 @@ func TestReferencePgStatStatementsProtocol(t *testing.T) {
 				planCounts := func() {
 					t.Helper()
 					step := fixture.Select("SELECT count(*) AS groups,COALESCE(sum(plans),0)::bigint AS plans,COALESCE(sum(calls),0)::bigint AS calls,COALESCE(sum(rows),0)::bigint AS rows FROM pgss_wire.pg_stat_statements WHERE query LIKE $1 AND dbid=(SELECT oid FROM pg_database WHERE datname=current_database())", []string{"groups", "plans", "calls", "rows"}, []string{"INT8", "INT8", "INT8", "INT8"}, [][]any{{int64(0), int64(0), int64(0), int64(0)}}, "SELECT % AS pgss_wire_failed_plan")
+					run(t, step)
+					run(t, fixture.Prepared(step))
+					step = pgssCounterRequests(b.PG, "pgss_wire", "SELECT % AS pgss_wire_failed_plan", 0)
 					run(t, step)
 					run(t, fixture.Prepared(step))
 				}

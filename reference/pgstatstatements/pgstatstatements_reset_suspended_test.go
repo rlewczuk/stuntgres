@@ -44,6 +44,12 @@ func TestReferencePgStatStatementsResetInFlight(t *testing.T) {
 			counts := func(pattern string, calls, rows int64) {
 				t.Helper()
 				run(fixture.Select("SELECT COALESCE(sum(calls),0)::bigint AS calls,COALESCE(sum(rows),0)::bigint AS rows FROM pgss_reset_wire.pg_stat_statements WHERE query LIKE $1", []string{"calls", "rows"}, []string{"INT8", "INT8"}, [][]any{{calls, rows}}, pattern))
+				step := pgssCounterRequests(b.PG, "pgss_reset_wire", pattern, calls)
+				if pattern == "SELECT pgss_reset_wire.pg_stat_statements_reset()" {
+					step = pgssCounterRequests(b.PG, "pgss_reset_wire", pattern, 0)
+				}
+				run(step)
+				run(fixture.Prepared(step))
 			}
 			simple("SET pg_stat_statements.track_utility=off; SET pg_stat_statements.track_planning=off; SET pg_stat_statements.track=top; BEGIN")
 			reset := "SELECT pgss_reset_wire.pg_stat_statements_reset()"

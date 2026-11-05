@@ -216,6 +216,7 @@ type QueryParallelRun struct {
 	start       int // Allocation-free contiguous run when indices is nil.
 	scanCounts  relationScanCounts
 	statistics  statistics.DatabaseFact
+	readLease   SourceReadLease
 }
 
 func (r *QueryParallelRun) index(ordinal int) int {
@@ -254,12 +255,14 @@ func parallelProjectionSlots(project *plan.ProjectNode) ([]int, bool) {
 	return slots, true
 }
 
-func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool, methods plan.PlannerMethods, capture *EvaluationCapture) (run QueryParallelRun, err error) {
+func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *Source, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool, methods plan.PlannerMethods, capture *EvaluationCapture, readLease SourceReadLease) (run QueryParallelRun, err error) {
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return run, err
 	}
 	defer worker.Close()
+	worker.ReadLease = readLease
+	run.readLease = readLease
 	defer func() { run.statistics = worker.databaseStatistics }()
 	state := &State{Methods: methods, methodsCaptured: true, Source: worker, Parameters: parameters, Input: input, Output: output, ClosedEvaluation: capture, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
 	state.scanCounts = &run.scanCounts
@@ -343,6 +346,9 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	runs := make([]QueryParallelRun, workers)
+	for i := range runs {
+		runs[i].readLease = captureWorkerRead(source)
+	}
 	var joined sync.WaitGroup
 	var errorMu sync.Mutex
 	var first error
@@ -353,7 +359,9 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, captures[i].Input, captures[i].Output, direct, methods, captures[i])
+			lease := runs[i].readLease
+			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, captures[i].Input, captures[i].Output, direct, methods, captures[i], lease)
+			run.readLease = lease // Retain even if worker-source construction failed.
 			runs[i] = run // Failed output still owns its actual fetched prefix.
 			if err != nil {
 				errorMu.Lock()
@@ -375,6 +383,7 @@ func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	access.Record(counts.starts, counts.tuples, 0)
 	for i := range runs {
 		mergeDatabaseWorker(source, runs[i].statistics)
+		mergeWorkerRead(source, runs[i].readLease)
 	}
 	if first != nil {
 		return nil, 0, first

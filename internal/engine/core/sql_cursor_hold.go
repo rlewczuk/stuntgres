@@ -204,6 +204,8 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		s.autoExplainFamily = previousFamily
 	}()
 	frame := c.statementStats
+	previousCounters := s.activateStatementCounters(frame)
+	defer s.restoreStatementCounters(frame, previousCounters)
 	var statsStart time.Time
 	if frame != nil {
 		statsStart = time.Now()

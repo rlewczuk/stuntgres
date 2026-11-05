@@ -35,6 +35,8 @@ type statementStatsFrame struct {
 	planElapsed                time.Duration
 	planBuilt, planAccepted    bool
 	admitted                   bool
+	parent                     *statementStatsFrame
+	planCounters, execCounters statistics.StatementCounters
 }
 
 // A synthesized PL cursor-argument query keeps declaration-ordered source,
@@ -135,6 +137,7 @@ func (s *StatementScope) beginStatementStatsLocked(statement parser.Statement, b
 		}
 		frame = &statementStatsFrame{store: s.Engine().Cluster.StatementStatistics, session: s.Op.Session, planning: planning, utility: utility,
 			key: statistics.StatementKey{UserID: userID, DatabaseID: uint32(s.Engine().Catalog.DatabaseAddress().ObjectID), TopLevel: s.statementStatsDepth == 0}}
+		frame.parent = s.statementStatsParent
 		if utility {
 			frame.execStart = time.Now()
 		}
@@ -264,8 +267,9 @@ func (s *StatementScope) statementStatsPlanAccepted() {
 	}
 	f.planAccepted = true
 	if f.planning {
-		f.store.RecordPlan(f.token, statistics.StatementRecord{Key: f.key, Query: f.source, At: time.Now(), Milliseconds: float64(f.planElapsed) / float64(time.Millisecond)})
+		f.store.RecordPlan(f.token, statistics.StatementRecord{Key: f.key, Query: f.source, At: time.Now(), Milliseconds: float64(f.planElapsed) / float64(time.Millisecond), Counters: f.planCounters})
 	}
+	f.planCounters = statistics.StatementCounters{}
 	f.execStart = time.Now()
 }
 
@@ -274,6 +278,9 @@ func (s *StatementScope) statementStatsPlanAccepted() {
 func (s *StatementScope) transferStatementStatsPlanningBind(bind *protocolPortal) {
 	s.statementStatsPlanAccepted()
 	bind.statementStats, s.statementStats = s.statementStats, nil
+	if bind.statementStats != nil {
+		bind.statementStats.parent = nil
+	}
 	if frame := bind.statementStats; frame != nil {
 		frame.execStart = time.Time{}
 	}

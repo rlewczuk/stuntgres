@@ -76,22 +76,7 @@ func (h *statementHost) PgStatStatements(show, info bool, result *sqltype.Descri
 			return nil, err
 		}
 		fields := make([]sqltype.Value, 52)
-		for j := range fields {
-			typ := result.CompositeMember(j).Usage.Type
-			switch typ.ID() {
-			case sqltype.Int8:
-				fields[j], err = sqltype.Integer(typ, 0)
-			case sqltype.Float8:
-				fields[j], err = sqltype.Float(typ, 0)
-			case sqltype.Numeric:
-				fields[j], err = typ.Input(ctx, "0", -1)
-			default:
-				fields[j] = sqltype.Null(typ)
-			}
-			if err != nil {
-				return nil, err
-			}
-		}
+		fields[4] = sqltype.Null(result.CompositeMember(4).Usage.Type)
 		fields[0], err = sqltype.OIDValue(result.CompositeMember(0).Usage.Type, entry.Key.UserID)
 		if err != nil {
 			return nil, err
@@ -138,6 +123,9 @@ func (h *statementHost) PgStatStatements(show, info bool, result *sqltype.Descri
 		}
 		fields[17], err = sqltype.Integer(result.CompositeMember(17).Usage.Type, entry.Rows)
 		if err != nil {
+			return nil, err
+		}
+		if err = projectStatementCounters(ctx, result, fields, entry.Counters); err != nil {
 			return nil, err
 		}
 		fields[50], err = sqltype.TimestampValue(result.CompositeMember(50).Usage.Type, entry.StatsSince.UnixMicro()-activityEpochUnixMicros)

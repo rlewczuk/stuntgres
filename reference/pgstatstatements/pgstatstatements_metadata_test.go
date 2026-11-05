@@ -77,6 +77,9 @@ func TestReferencePgStatStatementsMetadata(t *testing.T) {
 			var conditions []string
 			for _, name := range pgssNames[18:50] {
 				op := "=0"
+				if name == "shared_blks_read" {
+					op = "=1" // One fresh, nonempty native heap source request.
+				}
 				if s.b.PG {
 					op = ">=0"
 				}

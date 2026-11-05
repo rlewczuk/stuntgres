@@ -8,9 +8,11 @@ import (
 
 func TestReferencePgStatStatementsResetMinmax(t *testing.T) {
 	pgssCase(t, true, func(s *pgssScenario) {
+		pgssCounterSetup(s)
 		pgssResetScalar(s, s.observer, pgssResetCall, false)
 		s.work(fixture.Exec("SET pg_stat_statements.track_planning=on", 0))
 		a, _ := pgssResetSeed(s)
+		pgssCounterCheck(s, a, 2, 3, pgssCounterWant{read: 1, hit: 1, pgShared: true, serial: true})
 		u, d, qid := pgssResetIdentity(s, a)
 		before, info := pgssResetSnapshot(s), pgssResetInfo(s)
 		if len(before) != 2 {
@@ -30,6 +32,7 @@ func TestReferencePgStatStatementsResetMinmax(t *testing.T) {
 		s.work(fixture.Exec("SET pg_stat_statements.track_planning=off", 0))
 		s.work(fixture.Select(a, []string{"pgss_reset_a"}, []string{"INT4"}, [][]any{{int64(1)}}, int64(1)))
 		s.both(fixture.Select("SELECT calls,rows,min_plan_time=0 AND max_plan_time=0 AS no_plan_extrema,min_exec_time>0 AND max_exec_time=min_exec_time AS new_exec_extrema,minmax_stats_since=$2 AS same_reset FROM pgss_part.pg_stat_statements WHERE queryid=$1", []string{"calls", "rows", "no_plan_extrema", "new_exec_extrema", "same_reset"}, []string{"INT8", "INT8", "BOOL", "BOOL", "BOOL"}, [][]any{{int64(3), int64(4), true, true, true}}, qid, at))
+		pgssCounterCheck(s, a, 3, 4, pgssCounterWant{read: 1, hit: 2, pgShared: true, serial: true})
 		pgssResetEqual(s.t, pgssResetInfo(s), info)
 	})
 }

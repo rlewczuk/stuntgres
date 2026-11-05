@@ -11,6 +11,27 @@ type SourceReadLease interface {
 	Close()
 }
 
+// ParallelSourceReadLease captures immutable admission on the coordinator.
+// Workers own private outcomes; MergeWorker runs once after join. Worker Close
+// never releases the original capture's shared pin.
+type ParallelSourceReadLease interface {
+	CaptureWorker() SourceReadLease
+	MergeWorker(SourceReadLease)
+}
+
+func captureWorkerRead(source *Source) SourceReadLease {
+	if lease, ok := source.ReadLease.(ParallelSourceReadLease); ok {
+		return lease.CaptureWorker()
+	}
+	return nil
+}
+
+func mergeWorkerRead(source *Source, worker SourceReadLease) {
+	if lease, ok := source.ReadLease.(ParallelSourceReadLease); ok && worker != nil {
+		lease.MergeWorker(worker)
+	}
+}
+
 func (s *Source) beginRead() {
 	if s != nil && s.ReadLease != nil && s.Count() != 0 {
 		s.ReadLease.Open()

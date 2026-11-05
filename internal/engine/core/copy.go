@@ -72,12 +72,17 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		// ownership changes here: protocol, source, snapshot and execution
 		// scratch retain their existing stream lifetime.
 		parent, depth, utilityBody := s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody
+		ancestor := s.statementStatsParent
+		if parent != nil {
+			s.statementStatsParent = parent
+		}
 		s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody = nil, depth+1, false
 		var rows exec.RowResult
 		completed := false
 		defer func() {
 			defer func() {
 				s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody = parent, depth, utilityBody
+				s.statementStatsParent = ancestor
 			}()
 			if rows != nil {
 				closeErr := rows.Close()

@@ -293,13 +293,24 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   identity/security/dispatch path, but activates only when nonzero valid sampling
   consumes its child (including SYSTEM_TIME positive infinity). Zero and rejected
   arguments never open a read lease, and an empty source has no representative.
-  These are native logical read-attribution counters, not PostgreSQL physical
-  buffer-count parity. Hierarchy stages activate only reached physical
-  segments, and index consumers activate their selected index. Stage-local read
-  and segment frontiers survive rewind but not fresh invocation.
-  Capture-owned pins survive successful borrowed invocations. Owner Finish,
-  error/cancel and Source.Close release them idempotently, before source graph
-  detachment; close never reacquires engine authority.
+  The same frontier supplies the RSR statement representative-source-request
+  estimate, independently of cumulative track_counts/generation. Each actual
+  qualifying nonempty Open consumes one existing cache hit/read outcome, or a
+  TEMP/private resident-source hit; cardinality and returned rows do not rescale
+  it. Hierarchy stages activate only reached physical segments, and index
+  consumers activate their selected index. Stage-local read and segment frontiers
+  survive rewind but not fresh invocation; retained materialized replay adds no
+  request. DML's `NewRelationScan` activates the same lease once per reached
+  physical candidate scan, independently of query stages' existing frontier.
+  Capture-owned pins survive successful borrowed invocations. Owner
+  Finish, error/cancel and Source.Close release them idempotently, before source
+  graph detachment; close never reacquires engine authority. Parallel read
+  observers are captured on the coordinator; actual worker Opens touch cache
+  and collect private scalar outcomes without lexical scope/frame access.
+  The coordinator drains them once after join, including reached failed
+  prefixes. Worker Close does not release the original capture's pin.
+  Coordinator facts report actual planned/launched workers once; joined
+  worker-private facts do not duplicate those counts.
   `Authority.PreserveParameterDemand` is immutable command-invocation metadata,
   captured from the preparation evaluator before executor source publication.
   `State.Evaluation` restores it when constructing fresh statement frames;

@@ -338,6 +338,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	r.ordinal = c.ordinal
 	if s.statementStats != nil && !s.statementStats.utility {
 		c.statementStats, s.statementStats = s.statementStats, nil
+		c.statementStats.parent = nil
 		if !c.statementStats.execStart.IsZero() {
 			c.statementStats.elapsed += time.Since(c.statementStats.execStart)
 		}
@@ -521,6 +522,8 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		s.autoExplainFamily = previousFamily
 	}()
 	frame := c.statementStats
+	previousCounters := s.activateStatementCounters(frame)
+	defer s.restoreStatementCounters(frame, previousCounters)
 	var statsStart time.Time
 	if frame != nil {
 		statsStart = time.Now()

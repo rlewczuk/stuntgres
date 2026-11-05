@@ -112,6 +112,8 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	if err := ClaimUniqueRow(evaluation.Context, h, physical.Leaf.Ref, old); err != nil {
 		return false, err
 	}
+	h.BeginUpdateMove(named.Ref.Domain().Ref(named.Ref.Epoch, destination.Address()))
+	defer h.EndUpdateMove()
 	deletion := physical.Deletion()
 	deletion.Moved = true
 	deleted, err := h.Delete(deletion, old)

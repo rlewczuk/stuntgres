@@ -17,11 +17,25 @@ teardown. PostgreSQL scenarios run serially because their oracle is shared.
 Declaration expectations come from the released 1.12 SQL, independently of
 backend metadata. Logical identity/calls/rows and representative text are exact;
 generated query IDs are checked through identity relationships, not allocator
-values. PostgreSQL physical fields have nonnegative independent expectations;
-native columns 19–50 have a typed deterministic-zero boundary owned by the
-physical-counter projection part. Collector timestamps are real, not physical
-approximations. PostgreSQL's preload/shared-memory ABI and statistics files are
-oracle process mechanisms, not native SQL installation or logical collection.
+values. PostgreSQL physical fields have nonnegative independent expectations.
+Native RSR-MI estimates use actual reached nonempty source requests with the
+existing shared-cache hit/read outcome; TEMP/private retained sources are
+resident-source hits. Accepted mutation images reuse storage's row-header,
+bitmap and type-slot shape: INSERT new, DELETE old, UPDATE old+new. Each event
+rounds dirtied image bytes up to 8192 independently; logged ordinary user heaps
+also contribute one logical WAL record and those bytes. `(int,text)` nonNULL
+costs72, a NULL text costs40, and their UPDATE image costs112. Partition movement
+combines its accepted old/new sides into that one event; an INSERT veto keeps
+only the accepted deletion, independently of nested trigger images. Real
+coordinator facts supply workers. Each genuinely opened worker source requests
+its own representative block; gathered/materialized output creates no request.
+Worker scenarios distinguish a supported partial-state aggregate from an
+ineligible serial aggregate; launch settings alone never imply worker work.
+Physical writeback/spill/I/O durations/FPI/WAL buffers/JIT
+have no native producer and remain typed zero. These estimates do not alter SQL
+values, rows, identity, calls, exact info or privileges. Collector timestamps are
+real. PostgreSQL's preload/shared-memory ABI, text files and process workers are
+external mechanisms, not native SQL installation or runtime-handle persistence.
 
 ## Testing
 
@@ -63,6 +77,7 @@ The permanent suffix inventory under `TestReferencePgStatStatements` is:
 | Protocol | Actual public server/pgconn simple and extended messages, Parse/Describe, volatile portal suspension/resume and explicit close-time accounting, COPY and CopyFail atomicity |
 | CursorLifetime, CursorArgumentSource | PL cursor planning, partial/unused closure, failed-executor rejection, completed children retained after parent failure and declaration-ordered named argument source provenance |
 | FeatureSmoke | Literal grouping, held execution, real timings, failed write, foreign visibility, STRICT metadata and native persistent control roundtrip |
+| CountersRead, CountersMutation, CountersWorkers, CountersLifecycle, CountersMetadata, CountersFailures, CountersControls, CountersSmoke | Independently specified source-frontier/cache/resident-source and accepted-image estimates, actual workers/phases, absent-mechanism zeros, all52 metadata/ACLs, complete failure diagnostics and native persistent/resource controls |
 
 DatabaseIdentity executes each ALTER directly, freshly prepared and twice through
 one held statement. Catalog identity/flags/limits, rename effects, same-space
@@ -80,6 +95,10 @@ shared definitions. They exercise public Dump/Reset/Restore rather than SQL rese
 overloads. Held rows remain owned across replacement; private SQL state and
 collector history do not become dumped data. Protocol uses the existing public
 server fixture and real frontend messages, not internal collector calls.
+Fresh-driver replay checks target-table/principal/database history, not an empty
+cluster: the first collection-disabling SET can itself be a genuine utility
+entry. Unmeasured direct/prepared replay preserves the fresh collector's exact
+reset timestamp and deallocation state.
 Reset cancellation observes genuine queued argument-relation admission before
 the body, then joins cancellation. Its Admin monitoring legitimately adds cluster
 history, so only these monitored cases compare both seeded A/B rows in all52

@@ -53,12 +53,14 @@ type StatementScope struct {
 	self                      *StatementScope
 	statsFunction             *statsFunctionFrame
 	statementStats            *statementStatsFrame
+	statementStatsParent      *statementStatsFrame // Borrowed only during active lexical nesting.
 	statementStatsDepth       int
 	statementStatsUtilityBody bool // Current typed utility execution, excluding command-end transaction cleanup.
 	statementStatsSource      string
 	statementStatsOffset      int
 	statementStatsSpans       []statementStatsSpan
 	statementStatsCompletions []*statementStatsFrame
+	statementStatsMove        statementStatsMove
 	autoExplain               *autoExplainFrame
 	autoExplainFamily         *bool
 	autoExplainCompletions    []*autoExplainFrame
