@@ -125,6 +125,18 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Capture-lifetime changes must not repin the composite-shape and
   enum-rename/native-control expectations that prepared-rebind scenarios share.
   The rebind contract is in the [engine README](../../internal/engine/README.md).
+- Backup-control metadata distinguishes stored view columns from computed
+  results: native views report known nullable columns, while computed results
+  and pq columns report unknown nullability. Native-control fixtures retain raw
+  NULL and raw empty ACL replay; stock explicit-empty ACLs use ordinary REVOKE
+  or the one-dimensional `acldefault('c',0)` construction, not a raw `'{}'`
+  cast. Cleanup repairs malformed stock ACL dimensions before ordinary REVOKE,
+  preserving valid grants until dependency-aware revocation completes.
+  Backup diagnostics and feature smoke also demand `22012` before scalar NULL
+  for `abs(1/$n::integer)` with a zero denominator, and full PG_LSN NULL metadata
+  for denominator2. Both literal and parameter NULL labels use direct, actual
+  prepared and held routes, plus one retained statement across `0 → 2 → 0`;
+  no generic-plan setting or prepare-phase error replaces execution evidence.
 - `TestReferenceFixtures`, `TestReferenceIdentifierKeywordInventory`,
   `TestReferenceNotices(Payload|Severity|Permission)` and
   `TestReferenceSessionIdentity(Trust|SessionAuthorityAndMembership)` carry the

@@ -1575,6 +1575,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3436: {Language: catalog.InternalRoutineLanguage, Source: "pg_promote"},
 	3071: {Language: catalog.InternalRoutineLanguage, Source: "pg_wal_replay_pause"},
 	3072: {Language: catalog.InternalRoutineLanguage, Source: "pg_wal_replay_resume"},
+	2172: {Language: catalog.InternalRoutineLanguage, Source: "pg_backup_start"},
+	2739: {Language: catalog.InternalRoutineLanguage, Source: "pg_backup_stop"},
 	3577: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_emit_message_text"},
 	3578: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_emit_message_bytea"},
 	6344: {Language: catalog.InternalRoutineLanguage, Source: "pg_sync_replication_slots"},

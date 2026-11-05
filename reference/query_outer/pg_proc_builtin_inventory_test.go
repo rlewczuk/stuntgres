@@ -41,6 +41,8 @@ import (
 // parallel-unsafe metadata, exact OUT formals, defaults and overload symbols.
 // Logical-message OIDs3577/3578 and sync OID6344 retain strict/volatile/
 // parallel-unsafe scalar declarations, actual message input names and emit defaults.
+// Backup boundary OIDs2172/2739 retain strict VOLATILE/parallel-restricted
+// signatures, named inputs, declared defaults and stop's three exact OUT fields.
 // XML aggregate OID2901 retains its non-strict IMMUTABLE/parallel-safe XML
 // signature and aggregate_dummy symbol; xmlconcat2 remains lookup-only.
 // Relation/attribute statistics restore/clear OIDs6362/6397/6363/6398 add
@@ -273,8 +275,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Subscription cumulative statistics adds strict STABLE/restricted scalar
 	// RECORD declaration6231, one named IN OID, eleven OUT fields and rows0.
 	// MCV item inspection adds the one-input/five-OUT record set OID3427.
-	if len(facts) != 2284 {
-		t.Fatalf("released represented overloads: got %d, want 2284", len(facts))
+	if len(facts) != 2286 {
+		t.Fatalf("released represented overloads: got %d, want 2286", len(facts))
 	}
 	return facts
 }

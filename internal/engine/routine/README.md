@@ -33,6 +33,15 @@ under the catalog provider. Offset and split retain complete IN/OUT names in
 facts and executable declarations share these identities, with ordinary default
 PUBLIC EXECUTE and no physical-WAL privilege seed.
 
+Backup declarations are exactly 2172 `(text,boolean)` returning PG_LSN and
+2739 `(boolean)` returning fixed scalar RECORD, both strict volatile and
+parallel-restricted. Start owns `label,fast` input names and a false default;
+stop's `RoutineOutputs` owns `wait_for_archive,lsn,labelfile,spcmapfile` with a
+true input default and PG_LSN/TEXT/TEXT outputs. The backup-specific restricted
+roster seeds explicit owner-only EXECUTE on fresh descriptors. Mutable current
+ACLs and independently captured historical initial privileges use ordinary
+authority; REPLICATION confers no special function access.
+
 The executable `gin_clean_pending_list` declaration is routine 3789, one
 unnamed REGCLASS formal (2205), scalar INT8 result (20), STRICT VOLATILE and
 parallel-unsafe. Internal language/source `gin_clean_pending_list`, cost 1 and

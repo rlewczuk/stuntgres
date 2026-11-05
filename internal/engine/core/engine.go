@@ -302,6 +302,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	routine.SeedServerSignalACLs(procedures, bootstrap)
 	routine.SeedReplicationOriginACLs(procedures, bootstrap)
 	routine.SeedWALPositionACLs(procedures, bootstrap)
+	routine.SeedBackupControlACLs(procedures, bootstrap)
 	routine.SeedBackendMemoryACL(procedures, bootstrap, principals.LookupRef("pg_read_all_stats"))
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), procedures, routine.NativeAccessMethodProcedures(bootstrap), routine.RestrictedStatsProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)

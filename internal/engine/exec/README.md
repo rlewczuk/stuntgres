@@ -1162,12 +1162,18 @@ generic/custom plan cache or change SQL/PL/host invocation owners. Immutable
 child errors and their current-actor EXECUTE checks still precede erasure; a
 runtime-only sibling, including a domain coercion, is discarded without execution.
 Within this already-proven NULL frontier, initialized custom-plan parameters
-also supply demanded immutable arithmetic children through the existing planning
-admission evaluator. Only typed arithmetic and its selected operator/coercion
-wrappers enter; arbitrary functions, row/stage/domain/volatile providers and
-uninitialized frames do not. The temporary value is discarded after checking
-errors, without parameter substitution, a global arithmetic-folding change or
-mutation of the analyzed recipe. Generic parameter-demand barriers remain intact.
+also supply demanded immutable arithmetic descendants through the existing
+planning admission evaluator. Discovery inspects comparison/operator/collation/
+non-domain coercion carriers and ordinary immutable scalar Composite children,
+but never executes an enclosing function merely to find arithmetic. Evaluation
+still requires the narrow typed arithmetic tree, including its selected operator
+and coercion authority; arbitrary providers do not become evaluable. Whole-argument
+row/stage/domain/volatile and transitive execution-demand barriers stop descent.
+Conditional branches, RECORD/set sources, special fold routes and uninitialized
+arithmetic inputs remain outside this demand point. The temporary value is
+discarded after checking errors, without parameter substitution, persistent
+parameter-fold capture or mutation of the analyzed recipe. Generic parameter
+demand and missing execution-context barriers remain intact.
 A domain conversion in the NULL-supplying argument is not a proof. Runtime row
 NULL is not a planning fact and retains sibling admission and effects.
 Declared RECORD results, SRFs and compound NULL-aware carriers are excluded.
@@ -1502,7 +1508,7 @@ both native and `REFERENCE=1` runs against the pinned PostgreSQL 18.6 fixture.
 ```sh
 make check RUN='^TestArrayRandomStrictNull(Planning|OriginalAuthority|ConcurrentReuse|StoredDefaultClosure)$'
 make check RUN='^TestArrayRandomStrictNullConcurrentReuse$' RACE=1
-make check RUN='^TestStrictParameterNull(Planning|Boundaries|CompoundSemantics)$'
+make check RUN='^TestStrictParameterNull(Planning|Boundaries|CompoundSemantics|ComparisonInputs)$'
 make check RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|Held|Stored)$'
 make check RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|Held|Stored)$' REFERENCE=1
 ```

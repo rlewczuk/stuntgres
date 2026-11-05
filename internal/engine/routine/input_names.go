@@ -13,6 +13,7 @@ var builtinRoutineInputNames = map[ids.OID]*catalog.RoutineInputNames{
 	2307: catalog.NewRoutineInputNames("target"),
 	2096: catalog.NewRoutineInputNames("pid", "timeout"),
 	3436: catalog.NewRoutineInputNames("wait", "wait_seconds"),
+	2172: catalog.NewRoutineInputNames("label", "fast"),
 	3577: catalog.NewRoutineInputNames("transactional", "prefix", "message", "flush"),
 	3578: catalog.NewRoutineInputNames("transactional", "prefix", "message", "flush"),
 	2923: catalog.NewRoutineInputNames("tbl", "nulls", "tableforest", "targetns"),

@@ -252,6 +252,16 @@ restricted seed. Untyped or widened catalog updates do not acquire this replay
 capability.
 The WAL-position restricted roster follows this exact identity/provider/owner
 comparison too; changed, raw-NULL and explicit-empty ACLs always require repair.
+The two backup-control identities use a separate exact restricted seed roster.
+Only their canonical provider/identity/signature, bootstrap owner and one
+owner-EXECUTE entry omit repair. Raw NULL, explicit empty, effective PUBLIC
+defaults, changed grants and grant options remain distinct replay state;
+historical initial privileges are captured independently from current ACLs.
+Backup-control empty repairs use the same qualified constructor as every other
+object ACL: stored raw text `'{}'` does not admit a literal array cast as replay
+syntax or bypass the canonical repair parser.
+Logical Dump/Reset/Restore does not begin or finish a physical online backup,
+serialize physical backup state or produce backup files/LSNs.
 The replication statistics reset roster uses the same exact raw-seed comparison.
 Default PUBLIC EXECUTE from raw NULL must never be mistaken for owner-only
 bootstrap; modified grants and grant options retain ordered principal remapping.

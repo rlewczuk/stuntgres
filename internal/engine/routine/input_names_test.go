@@ -12,6 +12,8 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3775: {"target"},
 		2096: {"pid", "timeout"},
 		3436: {"wait", "wait_seconds"},
+		2172: {"label", "fast"},
+		2739: {"wait_for_archive", "lsn", "labelfile", "spcmapfile"},
 		3577: {"transactional", "prefix", "message", "flush"},
 		3578: {"transactional", "prefix", "message", "flush"},
 		2923: {"tbl", "nulls", "tableforest", "targetns"},

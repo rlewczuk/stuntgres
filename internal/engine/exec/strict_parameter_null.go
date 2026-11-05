@@ -111,20 +111,58 @@ func planStrictNullArithmetic(c *Context, node expr.Expr) error {
 	}
 	var failure error
 	plan.ExpressionChildren(node, func(child expr.Expr) {
-		if failure != nil || child == nil || !child.Properties().ParameterDependent || !OperatorExecutionConstant(child, c) {
-			return
-		}
-		arithmetic, ready := strictNullArithmeticTree(child, c)
-		if arithmetic && ready && !planningExecutionBarrier(c, child) {
-			_, failure = FoldPlanningExpression(c, child)
+		if failure == nil && child != nil && child.Properties().ParameterDependent &&
+			OperatorExecutionConstant(child, c) && !planningExecutionBarrier(c, child) {
+			failure = demandStrictNullArithmetic(c, child)
 		}
 	})
 	return failure
 }
 
-// Availability alone must not admit arbitrary immutable functions. Only typed
-// arithmetic, its selected operator/coercion wrappers and owned frame leaves
-// enter this demand point; row, stage, domain and volatile providers stay out.
+// Discovery receives a whole argument already certified execution-constant and
+// free of transitive execution barriers. Inspect ordinary immutable providers
+// without rescanning every enclosing subtree; only narrow arithmetic candidates
+// may compute, with their own readiness and admission still intact.
+func demandStrictNullArithmetic(c *Context, node expr.Expr) error {
+	if node == nil || !node.Properties().ParameterDependent {
+		return nil
+	}
+	if arithmetic, ready := strictNullArithmeticTree(node, c); arithmetic && ready {
+		if OperatorExecutionConstant(node, c) && !planningExecutionBarrier(c, node) {
+			_, err := FoldPlanningExpression(c, node)
+			return err
+		}
+		return nil
+	}
+	switch n := node.(type) {
+	case plan.CollationExpr, plan.SelectedOperatorExpr, plan.ComparisonExpr, plan.ArithmeticExpr:
+		// These lexical carriers also belong to the narrow evaluator.
+	case plan.CoercionExpr:
+		if n.Usage.Type == nil || n.Usage.Type.IsDomain() {
+			return nil
+		}
+	case expr.Composite:
+		if planningFold(node) != expr.FoldConstant || node.ResultUsage().Type == nil ||
+			node.ResultUsage().Type.ID() == 2249 {
+			return nil
+		}
+	default:
+		// In particular, conditional/short-circuit and query carriers are
+		// owned by their existing demanded-branch planners, not this visitor.
+		return nil
+	}
+	var failure error
+	plan.ExpressionChildren(node, func(child expr.Expr) {
+		if failure == nil {
+			failure = demandStrictNullArithmetic(c, child)
+		}
+	})
+	return failure
+}
+
+// Evaluation readiness is deliberately narrower than descendant discovery.
+// Arbitrary Composite providers are never evaluated by this proof, even when
+// inspection can reach arithmetic beneath them.
 func strictNullArithmeticTree(node expr.Expr, c *Context) (arithmetic, ready bool) {
 	switch n := node.(type) {
 	case plan.LiteralExpr:
@@ -140,6 +178,10 @@ func strictNullArithmeticTree(node expr.Expr, c *Context) (arithmetic, ready boo
 		return strictNullArithmeticTree(n.Child, c)
 	case plan.SelectedOperatorExpr:
 		return strictNullArithmeticTree(n.Provider, c)
+	case plan.ComparisonExpr:
+		leftArithmetic, leftReady := strictNullArithmeticTree(n.Left, c)
+		rightArithmetic, rightReady := strictNullArithmeticTree(n.Right, c)
+		return leftArithmetic || rightArithmetic, leftReady && rightReady
 	case plan.ArithmeticExpr:
 		_, left := strictNullArithmeticTree(n.Left, c)
 		right := true

@@ -14,6 +14,8 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 		2307: {{SourceType: 25, Null: true}},
 		3775: {{SourceType: 25, Null: true}},
 		2096: {{SourceType: 23, Text: "0"}},
+		2172: {{SourceType: 16, Text: "false"}},
+		2739: {{SourceType: 16, Text: "true"}},
 		3436: {{SourceType: 16, Text: "true"}, {SourceType: 23, Text: "60"}},
 		3577: {{SourceType: 16, Text: "false"}},
 		3578: {{SourceType: 16, Text: "false"}},
@@ -61,7 +63,7 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 			t.Fatal("COW lost default authority")
 		}
 	}
-	if seen != 33 || defaults != 55 {
+	if seen != 35 || defaults != 57 {
 		t.Fatal("finite inventory", seen, defaults)
 	}
 	input := []catalog.RoutineLiteral{{SourceType: 16, Text: "true"}}

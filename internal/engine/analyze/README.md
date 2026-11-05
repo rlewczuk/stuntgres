@@ -835,6 +835,9 @@ Actual rank/headline overload identity, ordered literal/parameter provenance and
 reconstruction units live in `enginetests/fts_rank_jumble_test.go`, selected by
 `RUN='^TestFTS(Rank|Headline)StatementJumble$'`. These supplement public SQL
 coverage; no row expectations or runtime evaluation belong to these units.
+Backup-control pre-fold classification, selected routine identity and lexical
+normalization/reconstruction units use `RUN='^TestBackupControlStatementJumble$'`
+in `enginetests/backup_control_jumble_test.go`, without runtime backup evaluation.
 Checked callable lookup versus unsupported array execution, nested shape,
 malformed-child precedence and once-only operand analysis use
 `RUN='^TestFTS(Rank|Headline)CallableLookup$'` in the same test owner.

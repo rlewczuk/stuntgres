@@ -122,6 +122,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_get_backend_memory_contexts"}, ExactSpelling: true, Bind: bindBackendMemory},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: recoveryControlNames[:], ExactSpelling: true, Bind: bindRecoveryControl, NamedCall: namedRecoveryControl},
+	{Names: backupControlNames[:], ExactSpelling: true, Bind: bindBackupControl, NamedCall: namedBackupControl},
 	{Names: replicationMessagesNames[:], ExactSpelling: true, Bind: bindReplicationMessages, NamedCall: namedReplicationMessages},
 	{Names: walPositionNames[:], ExactSpelling: true, Bind: bindWALPosition},
 	{Names: walNameNames[:], ExactSpelling: true, Bind: bindWALName, NamedCall: namedWALName},

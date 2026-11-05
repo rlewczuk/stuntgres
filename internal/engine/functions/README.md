@@ -297,6 +297,28 @@ including the distinction between optimizer-elided NULLs and surviving calls.
 Capture, checked reconstruction and stored rendering preserve routine provenance,
 operand order and named destinations through ordinary native control replay.
 
+`BackupControl` owns the two volatile backup-boundary recipes and supplied
+typed operands with named formal destinations, never backup/session handles or
+cached EXECUTE authority. Omitted booleans use declaration defaults; explicit
+NULL remains strict. Central admission may erase scalar start with a constant
+NULL, but fixed RECORD stop survives planning and still requires EXECUTE.
+Before scalar erasure, shared planning demands ready typed parameter arithmetic
+even beneath ordinary immutable wrappers such as `abs`; inspecting those lexical
+children does not authorize executing the enclosing provider. Generic-plan,
+execution-demand, row/stage/domain and volatility barriers remain unchanged.
+Runtime NULL handling follows child evaluation; non-NULL start labels longer
+than 1024 UTF8 bytes fail before physical access. Authorized valid calls report
+explicit `0A000` because no physical online backup lifecycle exists: no LSN,
+label file, tablespace map or active-backup state is invented. Stock PostgreSQL
+instead performs a genuine connection-owned start/stop lifecycle. Checked
+reconstruction and ordinary capture/rendering preserve provenance and remapped
+destination authority. Frozen query recipes preserve lexical operands and named
+destinations separately from the full formal routine identity, including reordered
+start arguments and omitted stop defaults; metadata binding performs no physical work.
+Its `StatementJumbler` emits the concrete `functions.BackupControl` tag; the
+shared analyzer retains the selected routine OID, supplied lexical children and
+literal/parameter locations before folding, without executing backup work.
+
 `PGLSNDiff` owns two typed PG_LSN operands and the existing exact subtraction
 provider with an unconstrained NUMERIC result. Its immutable, strict recipe uses
 ordinary folding, routine admission, capture and checked provider reconstruction.
@@ -1878,6 +1900,8 @@ Recovery inquiry carriers, fixed OUT validation and physical source admission us
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
 Recovery-control typed recipes, reconstruction and ACL seed units use
 `RUN='^TestRecoveryControl'`; public witnesses use `^TestReferenceRecoveryControl`.
+Backup-control typed recipes, reconstruction and ACL seeds use
+`RUN='^TestBackupControl'`; public SQL scenarios live in `reference/sessions`.
 Replication-message declarations, binding, strict evaluation and immutable
 protocols use `RUN='^TestReplicationMessages'`; public SQL is in `reference/sessions`.
 WAL-position typed recipes, reconstruction and ACL seeds use

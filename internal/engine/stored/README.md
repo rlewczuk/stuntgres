@@ -39,10 +39,11 @@ capture rejects them before dependency/presentation publication, including
 subqueries and unused CTE definitions; stored-view validation rejects forged
 captures rather than inventing a serializable source.
 
-Frozen WAL summary, replication-slot lifecycle and recovery-promotion view recipes
-retain written named operands and their formal destinations when rendering both
-catalog presentation and replay SQL. Reordered calls must not become positional
-during dump/restore; copy overloads and omitted call defaults remain distinct.
+Frozen WAL summary, replication-slot lifecycle, recovery-promotion and backup-control
+view recipes retain written named operands and their formal destinations when
+rendering both catalog presentation and replay SQL. Reordered calls must not
+become positional during dump/restore; full selected routine identities, copy
+overloads and omitted call defaults remain distinct.
 Attribute-statistics view calls use that same written-operand renderer: restore
 retains explicit `VARIADIC` and its `kwargs` label, while clear retains reordered
 formal labels. This applies to both catalog presentation and native replay SQL,

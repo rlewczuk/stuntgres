@@ -162,3 +162,5 @@
 2979	pg_stat_get_function_total_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_total_time	\N	false	\N
 2980	pg_stat_get_function_self_time	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	701	26	\N	\N	\N	false	\N	pg_stat_get_function_self_time	\N	false	\N
 6231	pg_stat_get_subscription_stats	11	12	1	0	0	0	f	false	false	true	false	s	r	1	0	2249	26	{26,26,20,20,20,20,20,20,20,20,20,1184}	{i,o,o,o,o,o,o,o,o,o,o,o}	{subid,subid,apply_error_count,sync_error_count,confl_insert_exists,confl_update_origin_differs,confl_update_exists,confl_update_missing,confl_delete_origin_differs,confl_delete_missing,confl_multiple_unique_conflicts,stats_reset}	false	\N	pg_stat_get_subscription_stats	\N	false	\N
+2172	pg_backup_start	11	12	1	0	0	0	f	false	false	true	false	v	r	2	1	3220	25 16	\N	\N	{label,fast}	true	\N	pg_backup_start	\N	false	\N
+2739	pg_backup_stop	11	12	1	0	0	0	f	false	false	true	false	v	r	1	1	2249	16	{16,3220,25,25}	{i,o,o,o}	{wait_for_archive,lsn,labelfile,spcmapfile}	true	\N	pg_backup_stop	\N	false	\N

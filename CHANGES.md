@@ -28,6 +28,24 @@
   policies; source/stylesheet document parsing adds no XSLT transformation or
   output-encoding capability.
 
+- Add the two PostgreSQL online-backup SQL identities, typed named/default
+  arguments, scalar/RECORD NULL metadata and live owner-only EXECUTE seeds.
+  Preserve current and historical ACLs through logical native replay. Validate
+  backup labels by UTF8 byte length, then explicitly reject unavailable physical
+  lifecycle work with `0A000`, without invented LSNs, files or active state.
+  Cover independent public direct/prepared lifecycle, diagnostics, privilege,
+  metadata and logical-control outcomes plus immutable typed recipes. Classify
+  backup recipes for pre-fold statement jumbling with selected routine identity
+  and lexical operands, including strict NULL calls. Preserve demanded typed
+  parameter arithmetic errors beneath ordinary immutable wrappers before scalar
+  strict NULL folding, without evaluating unrelated enclosing providers or
+  invoking physical backup work; retain typed-frame and planning-authority barriers.
+  Distinguish stored-view nullability from computed-result metadata in logical
+  control coverage; preserve native raw empty ACL state using the same canonical
+  constructor as stock, repairing malformed stock ACL dimensions before cleanup.
+  Preserve backup-control named destinations in frozen-query deparse and replay,
+  keeping reordered lexical operands separate from the full formal routine identity.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-
