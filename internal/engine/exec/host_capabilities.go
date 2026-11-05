@@ -107,6 +107,7 @@ type SessionInquiryRuntime interface {
 	NotificationQueueUsage() (float64, error)
 	BackendMemoryContexts(result *sqltype.Descriptor) ([]sqltype.Value, error)
 	functions.BackendCurrentRuntime
+	functions.BackendIdentityRuntime
 }
 
 // TransactionInquiryRuntime holds the bodies of

@@ -89,6 +89,9 @@ import (
 // result, strict IMMUTABLE/parallel-safe defaults and its internal source.
 // MCV item inspection adds OID3427's strict STABLE/parallel-safe record set,
 // named input/five OUT fields, row estimate1000 and released internal symbol.
+// Legacy backend identity adds seven strict STABLE/parallel-restricted calls:
+// zero-input SETOF INT4 OID1936 (rows100), and six unnamed one-INT4 scalar
+// declarations1937/1938/1939/1391/1392/1393 (rows0), all with cost1.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -277,8 +280,12 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// MCV item inspection adds the one-input/five-OUT record set OID3427.
 	// Current backend activity/IO/WAL add the released one-INT4 declarations
 	// 2022/6386/6313, with 31/20/5 OUT fields and SRF/SRF/scalar cardinality.
-	if len(facts) != 2289 {
-		t.Fatalf("released represented overloads: got %d, want 2289", len(facts))
+	// Legacy backend identity adds the seven released callable declarations:
+	// 1936 has zero inputs and SETOF INT4/rows100; the six unnamed one-INT4
+	// scalars have rows0. All retain strict STABLE/restricted metadata, cost1,
+	// no OUT/default fields and their exact internal implementation symbols.
+	if len(facts) != 2296 {
+		t.Fatalf("released represented overloads: got %d, want 2296", len(facts))
 	}
 	return facts
 }

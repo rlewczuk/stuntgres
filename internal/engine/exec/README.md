@@ -586,6 +586,10 @@ close their cursor on every exit and publish no partial map or tuple collection.
   Session activity forwards through `LiveHost`: FETCH borrows its current client
   source without replacing or depending on the cursor's clock snapshots.
   Neither source nor live session authority enters `CursorExpressionData`.
+  Legacy backend-ID calls also forward through `LiveHost.SessionInquiry` after
+  EvaluationContext checks and ordinary routine admission. The narrow typed
+  capability captures the shared activity cut at Execute, not Prepare, without
+  retaining a provider, role mask or current-liveness decision in the recipe.
   For ordinary, noncaptured execution, `FunctionInput` overlays only XML input
   mode from the current admitted host:
   already-open cursor stages therefore use current FETCH/Execute mode for

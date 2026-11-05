@@ -564,6 +564,27 @@ both IO and WAL together. Clear/end releases captures without flushing/resetting
 the provider. Returned native Rows remain detached across later resets or
 accepted native catalog replacement; monitoring history is not Dump state.
 
+The legacy identity family takes backend **slots**, not PIDs:
+`pg_stat_get_backend_idset()` returns an unordered SETOF INT4 of zero-based live
+slots. `pg_stat_get_backend_pid`, `pg_stat_get_backend_dbid`,
+`pg_stat_get_backend_userid`, `pg_stat_get_backend_start`,
+`pg_stat_get_backend_client_addr` and `pg_stat_get_backend_client_port` each take
+one unnamed integer and return INT4, OID, OID, TIMESTAMPTZ, INET and INT4,
+respectively. Slots remain stable for a physical attachment and may be recycled
+after retirement; removing another backend never renumbers survivors. PID,
+database and immutable login OIDs are public. Start/address/port require current
+inherited target-login or `pg_read_all_stats` authority, including superuser.
+Native endpoints are typed NULL, never loopback or Unix-socket port -1.
+The seven calls share the unmasked activity cut independently of cumulative mode:
+retired identities stay readable in a retained cut until clear/end; a fresh
+unrepresented slot returns typed NULL for every scalar. A genuinely reused slot
+instead identifies its new physical owner. NULL input gives one typed NULL
+scalar row, including scalar FROM. Computed metadata has unknown nullability;
+native integer/OID, timestamp and INET scan types are int64, time.Time and string.
+Prepare retains only typed recipes; each Execute rechecks current authority.
+Cumulative resets and native Reset/Restore preserve surviving slot/PID/login/
+database/birth; monitoring identities and history are not serialized by Dump.
+
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is
 one read-only system view with exactly 22 nullable columns, in release order:
 `datid oid`, `datname name`, `pid integer`, `leader_pid integer`, `usesysid oid`,

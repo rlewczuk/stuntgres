@@ -75,6 +75,13 @@ VOLATILE SETOF RECORD (rows5), WAL is strict VOLATILE scalar RECORD (rows0).
 The OUT declaration owns all IN/OUT names; activity masking is execution state,
 not an ACL seed or metadata-only backing descriptor.
 
+Legacy identity routines 1936–1939 and 1391–1393 use their existing fixed
+identities as callable catalog-provider declarations, strict STABLE and parallel
+restricted with cost1 and ordinary PUBLIC EXECUTE. Only1936 is SETOF INT4 with
+rows100; the six unnamed one-INT4 scalar signatures have rows0, no defaults or
+OUT shape. The catalog estimate switch and internal source display share those
+declarations; no identity-ledger duplicate or metadata-only shim is introduced.
+
 
 The executable `pg_mcv_list_items` declaration reuses fixed identity 3427 and
 formal 5017, with one named input and five fixed OUT fields. The strict STABLE,

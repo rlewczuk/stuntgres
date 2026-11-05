@@ -105,6 +105,11 @@ five fixed OUT fields, strict STABLE/parallel-safe record-set metadata,
 row estimate 1000 and internal source `pg_stats_ext_mcvlist_items`.
 The complete membership bag and all direct/prepared property projections
 include this released declaration.
+Legacy backend identity adds callable OIDs1936–1939 and1391–1393 to the same
+complete membership bag and all28 direct/prepared property projections. The
+strict STABLE/restricted declarations have cost1, no names/defaults/OUT fields,
+and only zero-input1936 returns a set (INT4, rows100); the six unnamed INT4
+scalar inputs have rows0 and their exact released result types.
 The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
 signatures, their modern implementation symbols, strictness, volatility and
 parallel-safety declarations; snapshot member expansion has row estimate 50.

@@ -30,6 +30,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		6399,                                           // current asynchronous I/O handles
 		2282,                                           // current backend memory contexts
 		2022,                                           // current backend activity
+		1936,                                           // legacy backend identity slots
 		2306,                                           // SLRU view backing authority
 		6014,                                           // allocated replication-origin progress
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets

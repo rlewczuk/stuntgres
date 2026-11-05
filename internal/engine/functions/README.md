@@ -25,6 +25,15 @@ Both strict declarations remain calls even for literal NULL: RECORD/SRF
 planning exclusions preserve ordinary EXECUTE admission before the NULL result.
 Granted NULL returns without borrowing statistics runtime or provider state.
 
+`BackendIdentity` owns exactly seven legacy slot inquiries: one zero-operand
+INT4 SRF and six unnamed INT4-to-scalar recipes. Stable non-NULL calls never
+planning-fold or capture monitoring state at Prepare. Ordinary strict scalar
+planning may erase known NULL calls; surviving runtime NULL checks routine
+admission before returning typed NULL without borrowing provider state. ID sets
+use the existing owned cursor; scalar FROM uses ScalarSource, including one
+NULL row. Capture, rebuild, grouping, jumbling and stored retagging retain
+ordinary routine provenance and immutable operands, never rows or masks.
+
 
 `StatsXactBlocks` owns the strict OID-to-INT8 fetched/hit inquiries and their
 ordinary routine identities. Non-NULL calls are volatile and never folded;
@@ -1883,6 +1892,8 @@ Visibility inquiry binding/protocol and composed capture ownership use
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Snapshot recipe and authority units use `RUN='^TestStatsSnapshotExpressionAuthority'`.
+Legacy identity declaration, strict planning and immutable protocol units use
+`RUN='^TestBackendIdentityBinding$'`; public SQL stays in `reference/session_state`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
 use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.

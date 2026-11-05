@@ -111,6 +111,8 @@ type Provider struct {
 	backends            map[ids.SessionToken]BackendFact
 	liveBackends        map[ids.SessionToken]uint64
 	activityIncarnation uint64 // Never rewound by reset/replacement or retirement.
+	activityNextID      uint64 // Zero-based INT4 slots, independent of PID/incarnation.
+	activityFreeIDs     []int32
 }
 
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
@@ -480,6 +482,7 @@ func (w *Writer) IO(p *Provider, k Key, policy Policy, operations int64, elapsed
 // Activity is detached publication, never permission to inspect a live session.
 type Activity struct {
 	Incarnation                                        uint64 // Nonzero physical birth stamp, not a timestamp or SQL ID.
+	BackendID                                          int32  // Stable physical slot; zero is valid.
 	Command                                            ids.CommandIdentity
 	Database                                           ids.OID
 	DatabaseName                                       string
@@ -511,6 +514,16 @@ func (p *Provider) RegisterActivity(token ids.SessionToken, a Activity) uint64 {
 		panic("stuntgres: backend activity incarnation exhausted")
 	}
 	a.Incarnation = p.activityIncarnation
+	if last := len(p.activityFreeIDs) - 1; last >= 0 {
+		a.BackendID = p.activityFreeIDs[last]
+		p.activityFreeIDs = p.activityFreeIDs[:last]
+	} else {
+		if p.activityNextID > 1<<31-1 {
+			panic("stuntgres: backend activity slots exhausted")
+		}
+		a.BackendID = int32(p.activityNextID)
+		p.activityNextID++
+	}
 	p.activities[token] = a
 	return a.Incarnation
 }
@@ -617,7 +630,10 @@ func (p *Provider) CaptureActivities() map[ids.SessionToken]Activity {
 func (p *Provider) End(session ids.SessionToken) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	delete(p.activities, session)
+	if a, registered := p.activities[session]; registered {
+		delete(p.activities, session)
+		p.activityFreeIDs = append(p.activityFreeIDs, a.BackendID)
+	}
 	p.endBackend(session)
 }
 

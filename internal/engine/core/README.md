@@ -57,6 +57,15 @@ Owner selections in cumulative snapshot sources exclude mirrored
 registrations; provider locks remain leaves. Projection happens after unlocking
 and returns detached computed RECORD values, never session/provider pointers.
 
+Legacy backend-ID inquiries borrow that same unmasked activity cut through
+`SessionInquiryRuntime`, under executing routine authorization and Engine.Mu.
+They skip wait overlays and cumulative capture. Pure catalog projection scans
+the stored slot, never a live PID/registry gate: retirement and slot recycling
+cannot replace an identity in an existing cut. Current inherited authority is
+reapplied to protected facts after unlock; scalar NULL never borrows this bridge.
+The default activity provider alone allocates physical slots. Reset/Restore
+retain surviving registrations; staging sessions and Dump carry no slot history.
+
 
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
@@ -3754,6 +3763,9 @@ Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
 
 ## Testing
+
+Legacy identity composed reader/definition ownership and joined capture races
+use `RUN='^TestBackendIdentity(RuntimeLifetime|ConcurrentCapture)$'`.
 
 Simulated HBA holder ownership in `enginetests/pgcatalog` uses
 `make check RUN='^TestPGHBAFileRulesHolder'`: destination staging, replacement,

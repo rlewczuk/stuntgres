@@ -1,5 +1,13 @@
 # Changes
 
+- Implement the seven legacy backend-ID identity functions with stable,
+  recyclable zero-based physical slots distinct from PIDs, exact typed routine
+  declarations, current inherited privilege filtering and truthful NULL native
+  endpoints. Share retained activity cuts through retirement and slot reuse;
+  preserve surviving identities through cumulative/native resets. Add independent
+  dual-mode metadata/diagnostic/lifecycle coverage, complete 28-field builtin
+  inventory expectations and durable feature smoke.
+
 - Implement the five installed intarray sort, sort_asc, sort_desc and uniq
   overloads through selected immutable expressions and shared typed arrays.
   Preserve duplicate multiplicity, flat numeric ordering, shape/lower bounds,

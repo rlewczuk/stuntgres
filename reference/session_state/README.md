@@ -38,6 +38,15 @@ then cancels and joins the row consumer before releasing the holder. Recovery
 checks the preserved reader, or proves documented pq transport retirement before
 acquiring a healthy replacement; monitored target birth/reset remain unchanged.
 
+Legacy backend-ID identity scenarios use `RUN='^TestReferenceBackendIdentity'`
+in both fixture modes. Independently known physical peers establish slot/PID,
+database, immutable login and birth relationships; slots are unordered and may
+be recycled after retirement. Shared activity cuts retain old membership until
+clear/end, while current inherited authority is checked on every held Execute.
+Native endpoints are typed NULL; the TCP oracle uses its actual activity
+endpoints. Native Dump/Reset/Restore phases retain real attachments and detached
+rows, and cancellation requires observed admission and joined workers.
+
 
 Logical-slot monitoring uses `RUN='^TestReferencePGStatReplicationSlots'` in both
 fixture modes for typed empty/populated inventory, query composition, current

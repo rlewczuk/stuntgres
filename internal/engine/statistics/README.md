@@ -360,6 +360,14 @@ duplicate publication preserves the first startup facts rather than relabeling.
 Command, transaction, setting-restoration and drained-retirement owners publish
 actual facts, with exact command guards for query IDs and sleep wait callbacks.
 Reset/Replace never remint backend birth or erase live activity.
+Each real registration also owns a zero-based INT4 `BackendID`, independent of
+PID and incarnation. Under the same leaf mutex, registration reuses one retired
+slot before advancing a checked high-water counter; End returns a slot exactly
+once. Duplicate/invalid/private registrations consume nothing. Free storage is
+bounded by peak physical concurrency, not churn. Reset/Replace preserve the
+allocator and every surviving physical identity. Detached activity cuts copy
+slot and birth together, so recycling cannot relabel old cached rows. No read
+sorts, renumbers or builds another slot registry; monitoring is never Dump state.
 Core enriches one complete unmasked cut with canonical assigned low32 XID and
 accepted public full-XID horizons under cluster authority, then installs it in
 Reader independently of cumulative modes/stamp. Each execution overlays detached
@@ -475,6 +483,8 @@ independent of cross-engine clocks and physical planning invocation frequency.
 
 Deterministic publication, reader, suppression, identity/reset and concurrent
 merge tests use `make check RUN='^TestStats(Provider|Checkpointer)'`; add `RACE=1` for concurrency.
+Physical backend-slot ownership and recycling units use
+`make check RUN='^TestBackendIdentityProviderSlots$'`, also with `RACE=1`.
 Sequence encounter merging, reader snapshots and identity/reset fencing use
 `make check RUN='^TestStatsSequence'`, also with `RACE=1`.
 Pending block arithmetic, generation/retirement fences and allocation-free lookup

@@ -50,7 +50,7 @@ func TestStatsProviderGSSAPILifetime(t *testing.T) {
 			}
 			empty.Clear()
 			initial := empty.Activities(&p)
-			if len(initial) != 2 || initial[a] != (statistics.Activity{Principal: loginA, Incarnation: 1}) || initial[b] != (statistics.Activity{Principal: loginB, Incarnation: 2}) {
+			if len(initial) != 2 || initial[a] != (statistics.Activity{Principal: loginA, Incarnation: 1, BackendID: 0}) || initial[b] != (statistics.Activity{Principal: loginB, Incarnation: 2, BackendID: 1}) {
 				t.Fatal("initial attachment facts", initial)
 			}
 			delete(initial, a)

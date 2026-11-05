@@ -37,6 +37,15 @@ liveness and retained activity membership. Supported absent physical counters
 are typed zero; unsupported IO operations are NULL. Shared IO/WAL resets do not
 replace backend reset timestamps, and backend birth has no reset timestamp.
 
+The legacy `pg_stat_get_backend_idset()` INT4 set and its six one-integer
+`pg_stat_get_backend_{pid,dbid,userid,start,client_addr,client_port}` accessors
+use stable zero-based backend slots, not PIDs. Identity fields are public;
+start/endpoints use current inherited login-role or stats-reader authority.
+Native endpoints and absent/strict-NULL scalar results are typed NULL.
+These calls share the retained activity cut, including retired entries until
+clear/end, rather than IO/WAL's current-liveness gate. Slots may be recycled;
+surviving attachments keep their identities through cumulative/native resets.
+
 `pg_catalog.pg_stat_activity` is a typed, read-only 22-column system view of real
 logical sessions across one Driver cluster. All columns are nullable; native
 endpoint/leader values stay NULL without corresponding physical endpoints/workers.

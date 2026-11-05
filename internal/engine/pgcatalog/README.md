@@ -28,6 +28,12 @@ projectors shared with the views. Their caller supplies reset authority:
 SharedIO/SharedWAL for views, one backend ResetAt for both getters. Generic
 operation counts and durations cannot become physical IO/WAL counters.
 
+Legacy backend-ID projection scans stored physical slots in the same unmasked
+activity cut, without sorting, compacting or joining to live session membership.
+PID/database/login are public; start and truthful endpoint absence reuse the
+existing current inherited activity authority, including retained dropped roles.
+Typed scalars and ID vectors are detached, not provider-owned or mask-cached.
+
 
 `pg_replication_origin_status` projects one detached cluster progress map paired
 with current catalog/role roots under `Engine.Mu`. Map presence (including zero),
@@ -2251,6 +2257,9 @@ table-default ACL fallback. Its display inventory is independent of execution
 through the shared usage-origin projector.
 
 ## Testing
+
+Legacy identity typed projection/current authority units use
+`RUN='^TestBackendIdentityProjection$'`; SQL witnesses stay in `reference/session_state`.
 
 Detached archiver projection, typed absence and source authority use
 `make check RUN='^TestPGStatArchiverProjection$'` in `enginetests/`.
