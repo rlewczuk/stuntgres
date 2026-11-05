@@ -31,6 +31,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	pgstats := family == functions.PgstattupleExtension && signature == ""
 	spatial := family == functions.CubeExtension && signature == ""
 	crosstab := family == functions.TablefuncExtension && signature == ""
+	buffercache := family == functions.PgBuffercacheExtension && signature == ""
 	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
 			return nil, nil
@@ -41,7 +42,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, nil
 	}
 	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil {
-		if !(string(selected.Signature) == signature || crosstab && extension.TablefuncProviderOf(selected) == extension.StockTablefunc || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
+		if !(string(selected.Signature) == signature || buffercache && extension.PgBuffercacheProviderOf(selected) == extension.StockPgBuffercache || crosstab && extension.TablefuncProviderOf(selected) == extension.StockTablefunc || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 			return nil, nil
 		}
 		binding, failure := extension.ProcedureBindingName(auth.ReadCatalog(), selected)
@@ -89,6 +90,14 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		proc = ProcedureInNamespaces(auth.ReadCatalog(), path, text, "25")
 		if proc == nil {
 			proc = ProcedureInNamespaces(auth.ReadCatalog(), path, text, "2205")
+		}
+	}
+	if buffercache && proc == nil {
+		for _, candidate := range []catalog.ProcedureSignature{"", "23", "2205"} {
+			proc = ProcedureInNamespaces(auth.ReadCatalog(), path, text, candidate)
+			if proc != nil {
+				break
+			}
 		}
 	}
 	if proc != nil {
@@ -298,6 +307,19 @@ func (r installedExtensionRoutine) PgvisibilityDeclaration() (functions.Pgvisibi
 	}
 	return member.Kind, members
 }
+func (r installedExtensionRoutine) PgBuffercacheEvictionDeclaration() (functions.PgBuffercacheEvictionKind, []sqltype.CompositeMember) {
+	slot := r.procedure.Origin.Declaration
+	if slot == 0 || int(slot) > len(extension.PgBuffercacheEvictionMembers) {
+		return functions.PgBuffercacheEvictionKind(255), nil
+	}
+	member := extension.PgBuffercacheEvictionMembers[slot-1]
+	outputs := r.procedure.OutputDeclaration()
+	members := make([]sqltype.CompositeMember, outputs.Len())
+	for i := range members {
+		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+	}
+	return member.Kind, members
+}
 
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
 	ext, ok := catalog.OriginInstallation(r.procedure)
@@ -432,6 +454,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgFreespaceExpr{PgFreespace: c, Procedure: p, Ref: ref}, nil
+	case functions.PgBuffercacheEviction:
+		if err := extension.ValidatePgBuffercacheIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgBuffercacheEvictionCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgBuffercacheEvictionExpr{PgBuffercacheEviction: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgvisibility:
 		if err := extension.ValidatePgvisibilityIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

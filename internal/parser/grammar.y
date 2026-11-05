@@ -945,7 +945,7 @@ package parser
 %type <tok> conditional_word
 %type <tok> comparison_operator
 %type <call> function_args function_argument_list ordinary_named_arguments ordinary_mixed_arguments
-%type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_within transaction_time_filtered transaction_time_call
+%type <call> transaction_time_head call_arguments transaction_time_base transaction_time_within transaction_time_filtered transaction_time_call
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
 %type <tok> insert_head on_keyword
@@ -3315,12 +3315,12 @@ check_function_call: check_function_head function_args ')' {call,ok:=selectedSca
  * ORDER requires an argument; argument-free ORDER remains a syntax error. */
 transaction_time_head: TX_TIME_FUNC '(' { sqllex.(*lexer).formatCallHead($1);$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
  | name '.' TX_TIME_FUNC '(' { sqllex.(*lexer).formatCallHead($3);$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
-transaction_time_args: function_args { $$=$1 }
+call_arguments: function_args { $$=$1 }
  | '*' { $$=FunctionExpr{Star:true} }
  | DISTINCT function_argument_list aggregate_order { $$=$2;$$.Distinct=true;$$.Order=$3 }
  | ALL function_argument_list aggregate_order { $$=$2;$$.All=true;$$.Order=$3 }
  | function_argument_list ORDER BY order_keys { $$=$1;$$.Order=$4 } ;
-transaction_time_base: transaction_time_head transaction_time_args ')' { $$=$2;$$.Name=$1.Name;$$.Pos=$1.Pos } ;
+transaction_time_base: transaction_time_head call_arguments ')' { $$=$2;$$.Name=$1.Name;$$.Pos=$1.Pos } ;
 transaction_time_within: transaction_time_base %prec ')' { $$=$1 }
  | transaction_time_base WITHIN GROUP '(' ORDER BY order_keys ')' {if !sqllex.(*lexer).securityLabelSyntax && !selectedWithinFunctionName($1.Name.Parts[len($1.Name.Parts)-1].Text) {sqllex.(*lexer).syntax($2);return 1};call,ok:=withinCall(sqllex,$1,$2,$7);if !ok{return 1};$$=call.(FunctionExpr)} ;
 /* Label modifiers admit PostgreSQL's ordered WITHIN/FILTER/OVER composition.
@@ -3662,18 +3662,18 @@ from_atom: from_base { $$=$1 }
    } ;
 table_sample: TABLESAMPLE relation_name '(' count_values ')' sample_repeatable {$$=&TableSample{Method:$2,Arguments:$4,Repeatable:$6}} ;
 sample_repeatable: /* empty */ {$$=nil} | REPEATABLE '(' target_or ')' {$$=$3} ;
-function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
- | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
- | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+function_table_call: check_function_head call_arguments ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
+ | name '.' check_function_head call_arguments ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos;$$.ResolutionOnly=$3.resolutionOnly}
+ | STRING_FUNC '(' call_arguments ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
  | sqljson_object_head sqljson_legacy_values ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:$2,Pos:$1.pos} }
  | sqljson_object_head VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:[]Expr{$3},Variadic:true,Pos:$1.pos} }
  | sqljson_object_head sqljson_legacy_values ',' VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:append($2,$5),Variadic:true,Pos:$1.pos} }
- | SELECTED_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
- | name '.' SELECTED_FUNC '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
- | name '.' OVERLAPS '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
+ | SELECTED_FUNC '(' call_arguments ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | name '.' SELECTED_FUNC '(' call_arguments ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
+ | name '.' OVERLAPS '(' call_arguments ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | transaction_time_base {$$=$1}
- | name '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
- | name '.' col_label '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos} ;
+ | name '(' call_arguments ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | name '.' col_label '(' call_arguments ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos} ;
 /* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
  * ordinary call lets from_atom own both named aliases and top-level definitions. */
 /* Ordinary calls share the scalar source path; typed source admission follows

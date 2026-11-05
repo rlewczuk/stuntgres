@@ -1220,20 +1220,12 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return functions.TriggerBuiltin{Info: info, Name: symbol}, nil
 	}
 	if d != nil && d.RoutineDefinition() != nil {
-		modifier := ""
-		if raw.Distinct {
-			modifier = "DISTINCT"
-		} else if raw.Filter != nil {
-			modifier = "FILTER"
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
 		}
-		if modifier != "" {
-			return nil, expr.ErrorAt("42809", modifier+" specified, but "+catalog.ObjectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-		}
-		if raw.Window != nil {
-			return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
-		}
-		if raw.Star || len(raw.Order) != 0 {
-			return nil, expr.ErrorAt("0A000", "SQL scalar function call modifiers are unsupported", raw.Pos)
+		if raw.Star {
+			name := catalog.ObjectNameText(raw.Name)
+			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 		}
 		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())

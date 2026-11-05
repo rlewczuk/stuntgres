@@ -49,7 +49,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgStatStatements && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgStatStatements && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockPgBuffercache && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -550,12 +550,17 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			}
 		}
 	case StockPgBuffercache:
-		count = 1
-		if ext.Provider != "pg_buffercache" || ext.Version != "1.6" || slot != 0 {
+		count = 4
+		if ext.Provider != "pg_buffercache" || ext.Version != "1.6" || slot >= count {
 			return invalid()
 		}
+		declaration := pgBuffercacheDeclaration
 		name, signature, result, volatility, strict = "pg_buffercache_pages", "", 2249, expr.Volatile, false
-		if p.Installed != pgBuffercacheDeclaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_buffercache", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.DeclarationBody != nil || len(p.Body) != 0 {
+		if slot != 0 {
+			member := PgBuffercacheEvictionMembers[slot-1]
+			name, signature, strict, declaration = member.Name, member.Signature, member.Strict, member.Declaration
+		}
+		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_buffercache", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.DeclarationBody != nil || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockPgFreespace:

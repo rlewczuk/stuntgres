@@ -45,14 +45,19 @@ func ValidatePgBuffercacheIdentity(v catalog.Read, p *catalog.Procedure, ref ids
 	return StockPgBuffercache.ValidateProcedure(v, p)
 }
 func (p *PgBuffercacheProvider) validateRecipe(v catalog.Read, e *catalog.Extension) error {
-	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 1 {
+	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 4 {
 		return fmt.Errorf("stuntgres: invalid pg_buffercache manifest")
 	}
-	procedure, ok := v.Procedure(e.Members[0])
-	if !ok {
-		return fmt.Errorf("stuntgres: missing pg_buffercache declaration")
+	for _, address := range e.Members {
+		procedure, ok := v.Procedure(address)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing pg_buffercache declaration")
+		}
+		if err := p.ValidateProcedure(v, procedure); err != nil {
+			return err
+		}
 	}
-	return p.ValidateProcedure(v, procedure)
+	return nil
 }
 func (provider *PgBuffercacheProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	monitor := stage.CurrentRead().Owner().Principals.Principal(3373) // PostgreSQL's fixed pg_monitor identity.
@@ -84,7 +89,7 @@ func (provider *PgBuffercacheProvider) Stage(stage Stage, ext *catalog.Extension
 	}
 	stage.RecordInitialPrivilege(p.Address(), 'e', p.ACL)
 	ext.Members = append(ext.Members, p.Address())
-	return nil
+	return provider.stageEvictions(stage, ext, owner)
 }
 func (*PgBuffercacheProvider) ConsumerViews(version string) ([]ConsumerView, error) {
 	if version != "1.6" {

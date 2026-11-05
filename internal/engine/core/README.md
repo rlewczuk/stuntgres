@@ -2229,6 +2229,19 @@ not PostgreSQL page occupancy, writeback or backend pins. Lowest vacant slots an
 first unpinned circular victims make allocation deterministic; all-pinned reads
 still succeed without inventing an occupied slot.
 
+Eviction resolves current invoker and relation authority before entering the
+same cache leaf. Single-slot removal and sparse relation/all removal retire both
+indexes only for unpinned entries; returned counts describe performed removals
+and skipped occupied candidates, never unused capacity. Relation selectors retain
+domain, epoch and full storage identity, while all-cache removal spans the shared
+cluster. The logical entries are clean, so removal performs no invented writeback.
+Fresh reads recreate usage at one. Eviction is observational state, not table
+mutation to restore on transaction rollback; detached snapshots remain unchanged.
+The final engine-lock window checks the operation context after authority and
+argument validation, before cache reconciliation or retirement. Cancellation
+while an admitted call waits for that mutex therefore leaves occupancy, usage
+and pins unchanged; transaction rollback cannot undo an eviction already made.
+
 Lock order is statement/session authority, cluster metadata mutex, source-lease
 mutex, then cache leaf mutex. Close takes only source/cache leaf ownership, never
 engine authority. Sparse publication reconciliation retains metadata-only changes

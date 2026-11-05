@@ -921,6 +921,12 @@ close their cursor on every exit and publish no partial map or tuple collection.
   coordinates or weaken forged-provider rejection. Subsequent VPC calls borrow
   the same initializer; cancellation and close release the payload without
   retaining session pins or an engine.
+  Declared-OUT eviction records use a separate scalar kernel shared by Eval and
+  first demanded source Advance. Open owns evaluated arguments, never a live
+  owner. Current ordinary EXECUTE admission also applies to strict NULL; non-NULL
+  work enters the genuine routine-body initializer and registered core cache
+  authority before mutation. Results contain flags/counts only, with one row per
+  invocation and no cached permission or cache-root references.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed six-value frame projects formal slots without

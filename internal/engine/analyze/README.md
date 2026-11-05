@@ -598,6 +598,8 @@ library, and never the root engine or `session`. The engine, the root driver
   executable scalar behavior, and signature failures precede resolved-decoration
   rejection. Providers analyze FILTER predicates before rejecting a resolved
   nonaggregate call, without publishing an executable node on either failure.
+  SQL routine scalars share these resolved decoration diagnostics, including
+  star and in-call ordering, rather than exposing a separate capability error.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget` and
   the `*Retarget` interfaces.
 - **Privilege walkers** (`binding_privileges.go`, `requirements.go`):

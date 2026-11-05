@@ -735,6 +735,13 @@ plan carrier retains current procedure/reference provenance through reconstructi
 stored remapping and native replay; authorization and actual output validation
 belong to the statement runtime, not this pure declaration boundary.
 
+`PgBuffercacheEviction` binds the three declared-OUT scalar records separately
+from pages' anonymous SETOF shape. It retains a sealed operation, zero or one
+owned typed operand and resident output usage. Ordinary callable selection and
+coercion decide applicability, including eligible text-to-regclass input; no
+convenience overload or mutable name grants provider authority. All operations
+remain volatile and unfolded, with strict NULL body suppression owned by runtime.
+
 `random` and `random_normal` retain their selected declarations and children
 through binding. Conditional planning and statement preflight process required
 constant children before strict literal-NULL elimination. Required immutable

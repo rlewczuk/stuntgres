@@ -159,6 +159,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgFreespaceExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledPgBuffercacheEvictionExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgvisibilityExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgsurgeryExpr:

@@ -125,3 +125,32 @@ func (c *logicalBufferCache) retireLocked(key logicalBufferKey, entry *logicalBu
 	c.nextFree = min(c.nextFree, entry.slot)
 	entry.owners = nil // No session tokens survive successful retirement.
 }
+
+// Caller has resolved authority and storage before entering this leaf mutex.
+func (c *logicalBufferCache) evictSlot(slot int64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.bySlot[slot]
+	if entry == nil || len(entry.owners) != 0 {
+		return false
+	}
+	c.retireLocked(entry.key, entry)
+	return true
+}
+
+func (c *logicalBufferCache) evictMatching(key *logicalBufferKey) (evicted, skipped int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for candidate, entry := range c.byKey {
+		if key != nil && candidate != *key {
+			continue
+		}
+		if len(entry.owners) != 0 {
+			skipped++
+			continue
+		}
+		c.retireLocked(candidate, entry)
+		evicted++
+	}
+	return
+}

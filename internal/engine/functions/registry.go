@@ -183,6 +183,7 @@ var definitions = [...]Definition{
 	{Names: []string{"heap_force_freeze", "heap_force_kill"}, Installed: PgsurgeryExtension, Bind: bindPgsurgery, NamedCall: namedPgsurgery},
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
 	{Names: []string{"pg_buffercache_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
+	{Names: []string{"pg_buffercache_evict", "pg_buffercache_evict_relation", "pg_buffercache_evict_all"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercacheEviction},
 	{Names: pageinspectNames[:], Installed: PageinspectExtension, Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Installed: TablefuncExtension, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Installed: TablefuncExtension, Bind: bindConnectby},

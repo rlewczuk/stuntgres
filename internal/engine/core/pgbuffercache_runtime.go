@@ -32,17 +32,23 @@ func (h *contribHost) PgBuffercache(result *sqltype.Descriptor) (expr.SourceCurs
 // Unlike private publication, an observation needs a genuine live cache owner.
 // Never fabricate empty rows or a private cache for an unattached runtime.
 func (e *Engine) snapshotLogicalBuffersLocked() (logicalBufferSnapshot, error) {
-	cluster := e.Cluster
-	if cluster == nil || e.Mu != &cluster.Mu || e.RoleStore != &cluster.Roles {
-		return logicalBufferSnapshot{}, fmt.Errorf("stuntgres: pg_buffercache requires a registered database runtime")
-	}
-	database, ok := e.Catalog.Current().Database(e.Catalog.DatabaseAddress())
-	if !ok || cluster.Targets[database.Name()] != e {
-		return logicalBufferSnapshot{}, fmt.Errorf("stuntgres: pg_buffercache requires a registered database runtime")
+	if err := e.registeredLogicalBufferOwnerLocked(); err != nil {
+		return logicalBufferSnapshot{}, err
 	}
 	e.reconcileLogicalBuffersLocked()
 	capacity, rows := e.logicalBuffersLocked().snapshot()
 	return logicalBufferSnapshot{capacity: capacity, rows: rows}, nil
+}
+func (e *Engine) registeredLogicalBufferOwnerLocked() error {
+	cluster := e.Cluster
+	if cluster == nil || e.Mu != &cluster.Mu || e.RoleStore != &cluster.Roles {
+		return fmt.Errorf("stuntgres: pg_buffercache requires a registered database runtime")
+	}
+	database, ok := e.Catalog.Current().Database(e.Catalog.DatabaseAddress())
+	if !ok || cluster.Targets[database.Name()] != e {
+		return fmt.Errorf("stuntgres: pg_buffercache requires a registered database runtime")
+	}
+	return nil
 }
 func nextLogicalBuffer(ctx context.Context, cursor *expr.SourceCursor) (sqltype.Value, bool, error) {
 	if err := ctx.Err(); err != nil {

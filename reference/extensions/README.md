@@ -269,6 +269,13 @@ Unused-slot NULLs require a real witness. Native controls retain SQL state while
 discarding target live occupancy; source-owner units supplement public lifetime
 scenarios without adding an inspection API.
 
+The same family includes declared-OUT eviction metadata, genuine removal and
+fresh read usage, pinned protection, storage targeting and shared-cluster counts.
+Ordinary routine/default ACLs remain distinct from runtime superuser checks.
+Generic ordinary/shadow source-call contrasts preserve decoration diagnostics
+without granting provider behavior by name. Stored field views and native replay
+retain callable identity and ACLs, never live occupancy or pin ownership.
+
 Free-space inquiries use `RUN='^TestReferencePgFreespace'`. The shared fixture
 keeps compact native live-row estimates distinct from PostgreSQL FSM counters,
 while fixing exact declaration, identity, ACL, NULL and diagnostic contracts.

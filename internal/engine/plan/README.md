@@ -252,6 +252,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   and SETOF record remain distinct. Shared strict simplification can replace a
   known-NULL scalar, never the non-STRICT wrapper or a non-NULL state inquiry.
   Nodes retain no execution host, capture roots or authority.
+  `InstalledPgBuffercacheEvictionExpr` preserves the authentic routine, sealed
+  operation, owned operands and declared-OUT usage through source matching and
+  reconstruction. Scalar and FROM routes each demand one invocation, including
+  one all-NULL FROM row for strict NULL. Nodes retain no cache/session authority.
   `InstalledPgvisibilityExpr` retains its authentic procedure/reference,
   operation, lexical formal slots and nominal TID/VOID or record usage through
   rebuilding and source occurrence matching. Its runtime distinguishes scalar-once

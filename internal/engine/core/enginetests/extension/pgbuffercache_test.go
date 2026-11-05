@@ -58,14 +58,29 @@ func TestPgBuffercacheProviderIdentity(t *testing.T) {
 	ext := buffercacheInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgBuffercache.Control()
-	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 4 || len(ext.Installation.Members) != 1 {
+	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 7 || len(ext.Installation.Members) != 4 {
 		t.Fatal("provider and ordinary consumer authority mixed", control, ext)
 	}
 	if err := extension.StockPgBuffercache.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	procedure := view.MustProcedure(ext.Members[0])
-	relation := view.MustRelation(ext.Members[1])
+	var procedure *catalog.Procedure
+	var relation *catalog.Relation
+	for _, address := range ext.Members {
+		switch address.ClassID {
+		case ids.ProcedureClassID:
+			if candidate := view.MustProcedure(address); candidate.Name() == "pg_buffercache_pages" {
+				procedure = candidate
+			}
+		case ids.RelationClassID:
+			if candidate := view.MustRelation(address); candidate.Name() == "pg_buffercache" {
+				relation = candidate
+			}
+		}
+	}
+	if procedure == nil || relation == nil {
+		t.Fatal("missing class-qualified pages/view members", ext.Members)
+	}
 	if procedure.Result != 2249 || procedure.Signature != "" || procedure.OutputDeclaration() != nil || !procedure.Installed.ReturnsSet || procedure.Installed.Parallel != 's' || procedure.Strict || procedure.SecurityDefiner || procedure.Volatility != expr.Volatile {
 		t.Fatal("released anonymous declaration", procedure)
 	}
@@ -197,10 +212,14 @@ func TestPgBuffercacheExpressionIdentity(t *testing.T) {
 			state.SetDescriptor(address, next)
 			state.BindName(catalog.DescriptorNameKey(next), address)
 		}
-		// The ordinary view and its generated types share the remapped cohort.
-		for _, address := range ext.Members[1:] {
-			consumer := descriptor(view.Get(address))
-			state.SetDescriptor(consumer.Address(), consumer)
+		// Every other recipe procedure and the ordinary view/type closure
+		// share the remapped extension cohort, regardless of member order.
+		for _, address := range ext.Members {
+			if _, mapped := mapping[address]; mapped {
+				continue
+			}
+			member := descriptor(view.Get(address))
+			state.SetDescriptor(member.Address(), member)
 		}
 		state.SetEpoch(state.Epoch() + 1)
 		remap := func(ref ids.ObjectRef) ids.ObjectRef {

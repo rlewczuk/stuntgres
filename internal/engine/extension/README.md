@@ -592,6 +592,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   provenance. Stored caller definitions survive ordinary expression remapping;
   execution validates current authority before anonymous-record/count/type errors.
   The core-owned logical read cache is not PostgreSQL shared memory or a C ABI.
+  Recipe slots one through three seal the integer, regclass and zero-input
+  eviction declarations with exact scalar-record OUT fields; pages retains slot
+  zero. Evictions use ordinary creation/default routine ACLs, not pages' script
+  revocations or monitor grants. Runtime effective-superuser admission is separate
+  from those SQL ACLs. Ordinary view/type/array members remain outside the four
+  provider declaration slots, and canonical replay preserves their whole cohort.
+  Installation conflicts preserve the released statement and script location in
+  diagnostic Context: the integer declaration first occurs in 1.4--1.5, before
+  its 1.6 OUT-record replacement; relation/all conflicts come from 1.5--1.6.
+  This diagnostic provenance does not install the historical boolean-returning
+  declaration.
 - **pg_visibility** (`pgvisibility_provider.go`) seals eight declarations: the
   five map/page/summary read recipes, two scalar TID set checks, and a scalar VOID
   map truncator with no OUT declaration. Incumbent slots remain stable. Immutable

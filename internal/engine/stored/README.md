@@ -1514,6 +1514,13 @@ retain nominal usage, dependencies and current names through replay/remap/retag.
 Definition/Dump inspection does not execute volatile children. Views and
 independent destinations retain symbolic identity, never execution grants.
 
+`InstalledPgBuffercacheEvictionExpr` participates in the same closed scalar,
+literal/reference/dependency, rendering and remap/retag lanes. Validation checks
+the sealed operation and resident declared-OUT names, ordinals and type
+generations as well as original procedure/domain/epoch. Stored views project
+primitive OUT fields rather than persisting a pseudo-RECORD column; inspection
+and replay never execute the volatile mutation to obtain its shape.
+
 `InstalledPgsurgeryExpr` uses the same reference/literal/dependency, remap, retag
 and rendering lanes. Both genuine input names render in lexical order; the
 volatile VOID carrier preserves installed origin and the authenticated finite

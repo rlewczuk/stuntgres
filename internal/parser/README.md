@@ -23,6 +23,12 @@ Function-source lowering retains explicit ROWS FROM provenance even for a single
 regexp member. Both function-source carriers keep the written calls and their
 per-member column definitions; raw utility identity consumes that syntax without
 changing analyzed execution or canonical stored-query presentation.
+
+Ordinary function-source arguments reuse the shared call-argument carrier,
+including named/VARIADIC notation and star, DISTINCT, ALL and in-call ORDER BY.
+This preserves syntax and positions for ordinary binder diagnostics, not aggregate
+execution in FROM. FROM FILTER/OVER keep their existing syntax rejection frontier.
+
 TABLESAMPLE belongs to the physical table reference, inside an optional
 alias-before-sampling wrapper. Its qualified method, ordered arguments and
 optional REPEATABLE expression retain original positions and participate in the

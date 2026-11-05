@@ -36,6 +36,7 @@ type ContribRuntime interface {
 	TablefuncCrosstab(text, categories string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
 	PgBuffercache(result *sqltype.Descriptor) (expr.SourceCursor, error)
+	PgBuffercacheEviction(n plan.InstalledPgBuffercacheEvictionExpr, input int64) ([3]int64, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
