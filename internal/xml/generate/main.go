@@ -1,4 +1,4 @@
-// Command generate emits pinned recognition switches and the licensed JIS0208 table.
+// Command generate emits pinned recognition switches and licensed JIS forward tables.
 package main
 
 import (
@@ -108,4 +108,7 @@ func main() {
  data,err=os.ReadFile("internal/xml/data/JIS0208.TXT");if err!=nil{panic(err)}
  table,err:=parseJIS0208(data);if err!=nil{panic(err)}
  if err=os.WriteFile("internal/xml/jis0208_generated.go",generateJIS0208(table),0644);err!=nil{panic(err)}
+ data,err=os.ReadFile("internal/xml/data/JIS0212.TXT");if err!=nil{panic(err)}
+ table,err=parseJIS0212(data);if err!=nil{panic(err)}
+ if err=os.WriteFile("internal/xml/jis0212_generated.go",generateJIS0212(table),0644);err!=nil{panic(err)}
 }

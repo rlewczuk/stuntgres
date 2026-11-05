@@ -20,6 +20,14 @@
   empty byte input. Keep unknown-operand ambiguity independent of operator
   declaration order while preserving known-array overload selection.
 
+- Extend shared XML2 raw document input with genuine ASCII/US-ASCII and complete
+  ISO-2022-JP-2 decoding, including independent G0/G2 state, single shifts,
+  physical-EOF buffering, owned diagnostics and failure-atomic collection.
+  Reuse qualified existing mappings and add licensed offline-generated JIS0212
+  data. Preserve decoded-Text validation, old codecs, DTD/no-I/O and cancellation
+  policies; source/stylesheet document parsing adds no XSLT transformation or
+  output-encoding capability.
+
 - Expose the genuine eight-column `pg_catalog.pg_seclabels` system view with
   nullable owned metadata, initialized nominal identities, owner/PUBLIC ACLs and
   allocation-free empty capture. Preserve the full dependency-aware thirteen-

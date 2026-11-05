@@ -211,3 +211,46 @@ and [HTMLtree.c](https://raw.githubusercontent.com/GNOME/libxml2/v2.9.14/HTMLtre
 own canonical declarations and XHTML boolean membership. Additional labeled units
 extend these source rules without claiming fresh SQL observations. Attribution
 remains in `../LICENSE-libxml2`.
+
+## Raw-memory JIS0212 source
+
+`JIS0212.TXT` retains the unmodified original bytes and header from
+[Unicode's JIS X 0212 (1990) mapping](https://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/JIS/JIS0212.TXT),
+table version 2.0, Unicode version 1.1, header dated 2015-12-02, retrieved
+2026-11-05. Its copyright 2015 Unicode, Inc. and terms-of-use header remain
+intact; the accompanying Unicode License V3 is in `LICENSE-Unicode`.
+The original file has 143486 bytes, 6067 assigned cells and 2769 holes in its
+94×94 extent. First and last assignments are 222F→U+02D8 and 6D63→U+9FA5.
+Independent distinguishing assignments include 2237→U+007E, 2243→U+00A6 and
+2B31→U+00E9. This is the original forward repertoire, not PostgreSQL EUC_JP's
+different plane-two admission and mappings. No glibc LGPL mapping data is
+copied or relicensed.
+
+Pinned exact-length reader qualification identifies one JIS0212 mapping
+difference: **2237**, original **U+007E**, decodes as **U+FF5E**. The matching
+[glibc2.36 `jis0212.c`](https://sources.debian.org/data/main/g/glibc/2.36-9%2Bdeb12u14/iconvdata/jis0212.c)
+independently confirms it: the first forward interval starts at index006C
+(cell222F), table index0, and its ninth entry (cell2237) is FF5E. Tests assert
+the original value before applying this sole factual correction, following the
+existing JIS0208 correction pattern. The licensed Unicode file remains
+unchanged; assignment and hole inventories are unchanged.
+
+The ordinary offline generator validates Format A row syntax, strict cell order,
+unique 94×94 membership, nonzero BMP scalars and the complete 6067 assignments.
+It asserts original2237 before applying the sole correction and emits immutable
+`../jis0212_generated.go`, two big-endian bytes per cell, zero for each hole.
+Run `go run ./internal/xml/generate` from the repository root using only vendored
+inputs. Generator tests corrupt actual rows and independently compare every
+emitted assignment/hole with the original source plus the explicit correction.
+
+Raw-input mapping tests independently read this original source and the licensed
+PostgreSQL release GB2312/KSC5601/Greek `.map` inputs, never candidate Go tables
+or `LookupUTF8` output. Exact-length pinned reader qualification covered all
+8836 cells per plane, both JIS0208 designations, every ASCII/Roman/Kana byte,
+both complete SS2 payload inventories, and state/EOF/error boundaries: 46177
+cases with the sole source correction above. Stateful framing and invocation
+expectations also follow the matching glibc input loop/helper ordering. No
+runtime table parser, host codec, filesystem/network I/O or mutable cache is
+introduced. Public SQL cannot qualify raw NUL or transport-invalid UTF8 bytes.
+
+

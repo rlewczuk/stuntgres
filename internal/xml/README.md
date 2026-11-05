@@ -79,6 +79,12 @@ override UTF8 BOM detection, preserves earlier declaration events, and precedes
 later standalone/close errors. Only unread bytes are decoded; the same scanner
 continues over the final character spelling. Malformed declaration recovery
 retains its pointer-only skip and independently tracked character column.
+ASCII validates every unread physical byte as genuine sevenbit, including after
+NUL or a completed root. Character references remain XML spelling, so `&#233;`
+can collect é while literal UTF8 bytes under ASCII fail atomically. The validated
+identity spelling shares immutable backing. High bytes return `RawInputError`
+with only actual prefix grammar diagnostics, never fabricated iconv callbacks.
+
 Physical EOF genuine partial ISO-2022-JP designation prefixes remain buffered
 without producing a character: ESC alone or followed by `(` or `$`, and a lone
 JIS lead in the selected double-byte state. Illegal bytes do not become buffered
@@ -93,12 +99,24 @@ prefix for grammar diagnostics. Genuine incomplete physical tails still emit
 no character. Replay does not retry the known conversion fault or add decoder
 events; parser continuation and failure-atomic publication remain separate.
 
+ISO-2022-JP-2 has invocation-private independent G0 and G2 designations. G0 owns
+ASCII, Roman, Kana, JIS0208, JIS0212, GB2312 and KSC5601; G2 owns Latin1 or Greek.
+SS2 emits exactly one scalar and retains both sets. LF changes neither set; no
+MIME line-width or final-ASCII restriction applies. Any physical ESC suffix with
+fewer than three bytes is buffered, including ESC-X; ESC-$-( needs four bytes.
+Pair EOF ordering is set-specific: JIS0212/GB reject an invalid first lead before
+checking availability, whereas KSC checks availability first. Complete unknown
+escapes still emit literal ESC for grammar validation. Every emission replay
+keeps full original lookahead, and a real failed-buffer retry retains both sets.
+
 Executable RawMemory labels use ASCII case-insensitivity, without trimming,
 punctuation removal, PostgreSQL aliases or ICU fuzzy matching:
 
 | Labels | Effective codec |
 | --- | --- |
 | UTF8, UTF-8 | UTF8 |
+| ASCII, US-ASCII | ASCII |
+| ISO-2022-JP-2, ISO2022JP2, CSISO2022JP2 | ISO-2022-JP-2 |
 | ISO-2022-JP, ISO2022JP, CSISO2022JP, ISO_2022_JP | ISO-2022-JP |
 | EUC_JP, EUC-JP; EUC_CN; EUC_KR; EUC_TW | corresponding PostgreSQL direct codec |
 | EUC-JISX0213; SHIFT_JISX0213 | EUC_JIS_2004; SHIFT_JIS_2004 |
@@ -114,14 +132,18 @@ Ranges above enumerate finite decimal suffixes, not wildcard aliases. The
 39 nonUTF8 direct identities reuse their existing mappings, including both words
 of combined JIS2004 mappings. Genuine ISO-2022-JP owns ASCII, Roman yen/overline
 and JIS0208 designations and its complete independently licensed forward table.
+JP2 reuses that JIS0208 table, an independently licensed complete JIS0212 forward
+table, and exhaustively qualified existing GB2312/KSC5601/Greek mapping-only
+lookups. JIS0212's sole qualified source correction is documented in
+[`data/README.md`](data/README.md); no duplicate GB/KSC/Greek tables or runtime
+external decoder are introduced.
 Raw JOHAB admits its two-byte Hangul/symbol framing before consulting the
 existing immutable PostgreSQL Unicode mappings via `pgencoding18.LookupUTF8`.
 This is separate from the PostgreSQL byte-string verifier: raw `88 61` decodes
 as U+AC00 and raw `8F 41` as U+B028, each consuming two bytes. Valid framing does
 not admit an unmapped cell. Symbol subranges retain the D9/DA/DE restrictions,
-and invalid/truncated frames fail without repair. ASCII keeps the existing
-mapping policy; PostgreSQL `Verify`, `Length`, Binary input and all old callers
-retain their own contracts.
+and invalid/truncated frames fail without repair. PostgreSQL `Verify`, `Length`,
+Binary input and all old callers retain their own contracts.
 Recognition alone never authorizes decoding: unknown/rejected labels fail,
 recognized labels outside this admitted set report unavailable capability.
 RawMemory introduces no SQL function, XPath policy, stylesheet transformation,

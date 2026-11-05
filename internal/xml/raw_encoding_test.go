@@ -77,7 +77,7 @@ func TestXMLRawLabels(t *testing.T) {
 		if re.Declaration!=decl{t.Fatalf("declaration %+v want %+v",re.Declaration,decl)}
 		assertRawDiagnostics(t,re.Diagnostics,want,re.Detail())
 	}
-	for _,label:=range []string{"ASCII","US-ASCII","ISO-2022-JP-2","UNICODE","UTF16","UTF-16"}{
+	for _,label:=range []string{"UNICODE","UTF16","UTF-16"}{
 		err:=rawAtomicFailure(t,rawDocument(label,"A"));var re *RawInputError
 		decl:=rawDecl(label);decl.End=0
 		if !errors.As(err,&re)||re.Kind!=RawUnavailableCodec||re.Label!=label||re.Codec!=""||re.RawOffset!=len(rawHeader(label))-2||re.Bytes!=""||re.Cause!=nil||re.Declaration!=decl||len(re.Diagnostics)!=0||re.Detail()!=""{t.Fatalf("capability %s: %+v",label,err)}

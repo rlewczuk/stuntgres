@@ -95,13 +95,16 @@ func (p *parser) selectRawEncoding(label string) bool {
 	if status.fault>=0 {
 		at:=prefix+status.fault
 		p.rawFailure=&RawInputError{Kind:RawInvalidSequence,Label:decoded[prefix-len(label)-1:prefix-1],Codec:p.rawInfo.Codec,RawOffset:at+p.rawBOMBytes,Bytes:strings.Clone(original[at:at+min(4,len(original)-at)]),Cause:status.cause}
-		p.rawConversionEvent(original[at:])
-		// xmlSwitchEncoding's initial conversion can leave a failed input
-		// buffer. The following reader fill retries that same buffer with its
-		// designation unchanged; each genuinely failed attempt reports once.
-		if p.retryRawBuffer(original[at:],id,status.state) {
+		// Builtin ASCII has no converter callbacks. Still reject its entire
+		// physical input, retaining only real grammar events from the prefix.
+		if id!=rawASCII {
 			p.rawConversionEvent(original[at:])
-			p.rawEvent(Diagnostic{Condition:"XML_IO_ENCODER",Domain:IODomain,Severity:Error,Message:"encoder error"})
+			// A real reader-fill retry retains both JP2 sets. Sizing/emission
+			// are private passes, not additional conversion attempts.
+			if p.retryRawBuffer(original[at:],id,status.state,status.jp2) {
+				p.rawConversionEvent(original[at:])
+				p.rawEvent(Diagnostic{Condition:"XML_IO_ENCODER",Domain:IODomain,Severity:Error,Message:"encoder error"})
+			}
 		}
 	}
 	return p.err==nil
@@ -117,9 +120,10 @@ func labelRejectedRaw(label string) bool {
 	return false
 }
 
-func (p *parser) retryRawBuffer(input string,id int,state byte) bool {
+func (p *parser) retryRawBuffer(input string,id int,state byte,jp2 jp2State) bool {
 	if p.err=p.ctx.Err();p.err!=nil{return false}
 	if id==rawISO2022JP {_,_,_,_,invalid:=iso2022JPStep(input,state);return invalid}
+	if id==rawISO2022JP2 {return iso2022JP2Step(input,jp2).invalid}
 	if id==40 {
 		n:=rawJOHABWidth(input);if n<0{return true}
 		first,_:=pgencoding18.LookupUTF8(id,pgencoding18.Pack(input,n),n)
