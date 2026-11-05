@@ -44,3 +44,18 @@ func extensionRootExpansion(r DropReader, roots map[ids.ObjectAddress]bool, expa
 	}
 	return address, true
 }
+
+// generatedArrayOwner is the element type that owns address, a generated
+// array, through the INTERNAL dependency pg_type records for it.
+func generatedArrayOwner(r DropReader, address ids.ObjectAddress) (ids.ObjectAddress, bool) {
+	array, ok := r.RetirementDescriptor(address).(*catalog.Type)
+	if !ok || address.SubID != 0 || !array.SQLType.IsArray() || array.SQLType.IsCatalogVector() {
+		return ids.ObjectAddress{}, false
+	}
+	owner := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.SQLType.Element().ID())}
+	element, ok := r.RetirementDescriptor(owner).(*catalog.Type)
+	if !ok || element.Array != array.SQLType.ID() {
+		return ids.ObjectAddress{}, false
+	}
+	return owner, true
+}

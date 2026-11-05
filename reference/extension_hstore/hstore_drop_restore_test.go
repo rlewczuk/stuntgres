@@ -10,11 +10,11 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-type hstoreDropIdentities struct{ typ, input, output, handler, jsonb, table int64 }
+type hstoreDropIdentities struct{ typ, array, input, output, handler, jsonb, table int64 }
 
 func hstoreDropIdentitiesOf(t *testing.T, p *fixture.Pair, db fixture.Executor) hstoreDropIdentities {
 	t.Helper()
-	rows, err := db.QueryContext(p.Ctx, `SELECT 'hstore'::regtype::oid::bigint,'hstore_in(cstring)'::regprocedure::oid::bigint,'hstore_out(hstore)'::regprocedure::oid::bigint,'hstore_subscript_handler(internal)'::regprocedure::oid::bigint,'hstore_to_jsonb(hstore)'::regprocedure::oid::bigint,'hs_jsonb_dependent'::regclass::oid::bigint`)
+	rows, err := db.QueryContext(p.Ctx, `SELECT 'hstore'::regtype::oid::bigint,'hstore[]'::regtype::oid::bigint,'hstore_in(cstring)'::regprocedure::oid::bigint,'hstore_out(hstore)'::regprocedure::oid::bigint,'hstore_subscript_handler(internal)'::regprocedure::oid::bigint,'hstore_to_jsonb(hstore)'::regprocedure::oid::bigint,'hs_jsonb_dependent'::regclass::oid::bigint`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func hstoreDropIdentitiesOf(t *testing.T, p *fixture.Pair, db fixture.Executor) 
 	if !rows.Next() {
 		t.Fatal("missing witness identities", rows.Err())
 	}
-	if err := rows.Scan(&id.typ, &id.input, &id.output, &id.handler, &id.jsonb, &id.table); err != nil {
+	if err := rows.Scan(&id.typ, &id.array, &id.input, &id.output, &id.handler, &id.jsonb, &id.table); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -32,11 +32,12 @@ func hstoreDropIdentitiesOf(t *testing.T, p *fixture.Pair, db fixture.Executor) 
 // detail applies PostgreSQL's findDependentObjects rule to the observed
 // identities: members are walked newest first, depth first, and the view is
 // reported through its first-reached parent. Type hstore is entered at the
-// newest of itself and the functions it references (typinput, typoutput,
-// typsubscript), and from the type the newer of table and cast function is
-// walked first.
+// newest of itself, the functions it references (typinput, typoutput,
+// typsubscript) and its generated array, which INTERNAL ownership redirects
+// to the type. From the type the newer of table and cast function is walked
+// first.
 func (id hstoreDropIdentities) detail() string {
-	entry := max(id.typ, id.input, id.output, id.handler)
+	entry := max(id.typ, id.array, id.input, id.output, id.handler)
 	if entry > id.jsonb && id.table > id.jsonb {
 		return hstoreDropWitnessDetail
 	}

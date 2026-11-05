@@ -326,7 +326,12 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   extension expands that extension), so the newest member reaching a shared
   dependent claims it. Such walks also follow installed routines' signature
   types, views' output-column types, and reach a view through a selected
-  column rather than that column's type.
+  column rather than that column's type, or through the operator it calls
+  rather than the operator's function. A generated array reached before its
+  element type enters that unentered owner (even a pending root) first, as
+  INTERNAL ownership requires. In every walk a view's expression edge is
+  ordered by its `_RETURN` rule's identity (`DomainDependency.Via`), which
+  restore can remint apart from the view's.
   `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
   root's expression-dependency pass, `DropRoots` adds the relations the drop
   already removed, `PlanDrop` classifies the closure into targets, surviving

@@ -198,6 +198,24 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		if state.expanded {
 			return nil
 		}
+		// A generated array is INTERNAL to its element type. Reached before
+		// that owner is entered, even while the owner is a pending root, the
+		// walk enters the owner instead. Its walk expands a root array in
+		// place; any other array expands once the owner returns.
+		if extensionOrder {
+			if owner, ok := generatedArrayOwner(r, target); ok && !visits[owner].expanded {
+				ownerRoot := root
+				if roots[owner] {
+					ownerRoot = owner
+				}
+				if err := visit(owner, ownerRoot); err != nil {
+					return err
+				}
+				if state = visits[target]; state.expanded {
+					return nil
+				}
+			}
+		}
 		state.expanded = true
 		visits[target] = state
 		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && target.SubID == 0 && relation.RowType != 0 {
@@ -576,12 +594,14 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 							if name == "" {
 								name = stored.DependencyRelationName(base, d, path)
 							}
-							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
-							direct[len(direct)-1].Normal = true
 							// The NORMAL edge is on _RETURN; its INTERNAL owner
-							// reverses to this view. Namespace/AUTO view reaches
-							// do not confer the rule's independent NORMAL flag.
-							markNormal(ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()})
+							// reverses to this view. The rule's own identity,
+							// remintable apart from the view's, orders the reach.
+							// Namespace/AUTO view reaches do not confer the
+							// rule's independent NORMAL flag.
+							rule := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d, Normal: true, Via: rule})
+							markNormal(rule)
 						}
 					}
 					// Output columns have their own datatype dependencies, just
@@ -716,6 +736,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		reverse := columnRootOrder || compositeDefaultOrder || domainRootOrder || procedureRootOrder || extensionOrder
 		sort.Slice(direct, func(i, j int) bool {
 			a, b := direct[i].Address, direct[j].Address
+			if via := direct[i].Via; via != (ids.ObjectAddress{}) {
+				a = via
+			}
+			if via := direct[j].Via; via != (ids.ObjectAddress{}) {
+				b = via
+			}
 			if a.ObjectID != b.ObjectID {
 				if reverse {
 					return a.ObjectID > b.ObjectID
@@ -990,15 +1016,20 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 // retiring columns; explicit SQL datatype references remain direct.
 // anyType extends this from domains to every type, for extension-order walks,
 // and classifies every view by its SQL-recorded references: a type reached only
-// through a function or operator result is passive too.
+// through a function or operator result is passive too. It also classifies a
+// function target: an operator's implementing function is a lifetime capture,
+// while pg_depend records only the operator.
 func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.ObjectAddress, anyType bool) (bool, error) {
 	base := r.BaseRead()
-	if target.ClassID != ids.TypeClassID {
+	routine := anyType && target.ClassID == ids.ProcedureClassID
+	if target.ClassID != ids.TypeClassID && !routine {
 		return false, nil
 	}
-	domain, ok := r.RetirementDescriptor(target).(*catalog.Type)
-	if !ok || !anyType && !domain.SQLType.IsDomain() {
-		return false, nil
+	if !routine {
+		domain, ok := r.RetirementDescriptor(target).(*catalog.Type)
+		if !ok || !anyType && !domain.SQLType.IsDomain() {
+			return false, nil
+		}
 	}
 	storedView := stored.ViewOf(relation)
 	if storedView == nil || storedView.Query() == nil {
@@ -1033,7 +1064,16 @@ func PassiveTypeDependency(r DropReader, relation *catalog.Relation, target ids.
 	if err != nil {
 		return false, err
 	}
-	return !slices.Contains(refs, target), nil
+	if slices.Contains(refs, target) {
+		return false, nil
+	}
+	if !routine {
+		return true, nil
+	}
+	return slices.ContainsFunc(refs, func(ref ids.ObjectAddress) bool {
+		operator, ok := r.RetirementDescriptor(ref).(*catalog.Operator)
+		return ok && ref.ClassID == ids.OperatorClassID && operator.Function == target.ObjectID
+	}), nil
 }
 
 // Retained query recipes are validated against their entering definitions, not
