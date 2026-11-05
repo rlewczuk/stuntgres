@@ -407,9 +407,9 @@ provider authority. Public CHECK writes and diagnostics live in the shared
 reference scenarios, not these composed-owner units.
 
 SSLInfo provider, expression-protocol and stored-identity units use
-`RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
-sealed authority, scalar source cardinality and destination remapping without
-internal public-SQL scenarios.
+`RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect sealed
+authority, argument ownership/dependencies, scalar versus fixed-OUT source
+cardinality and destination generations without internal public-SQL scenarios.
 Pgcrypto provider/remap/volatility components explicitly supply a test-only
 installed-catalog initializer and on policy for isolated kernel evaluation.
 They do not acquire SQL session authority or grant missing live hosts a fallback.

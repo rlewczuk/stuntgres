@@ -23,7 +23,7 @@ func CryptoExpressionSignature(n plan.InstalledCryptoExpr) catalog.ProcedureSign
 }
 
 // Crypto calls retain their own declaration and argument-closure rules. Nested
-// sslinfo inquiries delegate only the authenticated leaf, never an arbitrary
+// sslinfo inquiries delegate their authenticated scalar tree, never an arbitrary
 // rejected subtree or unrelated volatile producer.
 func ClosedPgcryptoDefault(node expr.Expr) bool {
 	if node == nil {
@@ -377,7 +377,7 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		}
 		return true
 	case plan.InstalledSSLInfoExpr:
-		return !p.StageDependent && ValidInstalledSSLInfoShape(n)
+		return !p.StageDependent && ValidInstalledSSLInfoShape(n) && !n.Procedure.Installed.ReturnsSet && closedPgstattupleExpression(n.Arg, view, rowOwner)
 	case plan.InstalledPgFreespaceExpr:
 		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

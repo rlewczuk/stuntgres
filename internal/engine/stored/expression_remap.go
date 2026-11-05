@@ -683,6 +683,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		next = n
 	case plan.InstalledSSLInfoExpr:
+		if n.Arg != nil {
+			n.Arg = child(n.Arg)
+		}
 		if ref != nil {
 			n.Ref = ref(n.Ref)
 		}

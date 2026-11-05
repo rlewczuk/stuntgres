@@ -70,6 +70,7 @@ func TestReferenceSSLInfoIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION sslinfo SCHEMA ssl_part VERSION '1.2'", 0))
 		sslInfoInventory(t, p, c, b.Recorder)
 		before := sslInfoIdentities(t, p, c)
+		allBefore := sslInfoCertificateIdentities(t, p, c)
 		run(fixture.ImplicitError("CREATE EXTENSION sslinfo", fixture.Diagnostic{Code: "42710", Message: `extension "sslinfo" already exists`}))
 		var notices []fixture.Diagnostic
 		_, nc, nr := fixture.NoticeReferencePool(t, p, b.PG, &notices)
@@ -86,10 +87,12 @@ func TestReferenceSSLInfoIdentity(t *testing.T) {
 		if after := sslInfoIdentities(t, p, c); !reflect.DeepEqual(before, after) {
 			t.Fatalf("repeat installation changed identities: %v -> %v", before, after)
 		}
+		if after := sslInfoCertificateIdentities(t, p, c); !reflect.DeepEqual(allBefore, after) {
+			t.Fatalf("repeat installation changed ten-member identities: %v -> %v", allBefore, after)
+		}
 		sslInfoInventory(t, p, c, b.Recorder)
 		if !b.PG {
-			run(fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.refclassid=3079 AND d.deptype='e' AND e.extname='sslinfo'", []string{"count"}, []string{"INT8"}, [][]any{{int64(7)}}))
-			run(fixture.Select("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='ssl_part' AND p.proname IN ('ssl_client_dn_field','ssl_issuer_field','ssl_extension_info')", []string{"proname"}, []string{"NAME"}, nil))
+			run(fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.refclassid=3079 AND d.deptype='e' AND e.extname='sslinfo'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}))
 		}
 	})
 }

@@ -294,10 +294,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   Its statement discriminator retains the lexical-to-formal slot projection;
   the shared analyzed jumble streams the genuine callable OID and typed children,
   never mutable routine spelling or a cached execution grant.
-  `InstalledSSLInfoExpr` keeps exact procedure/reference authority around the
-  zero-child inquiry recipe, even though embedded connections always take its
-  non-TLS branch. Rebuild, retag, substitution and grouping preserve the wrapper;
-  volatile false/NULL outcomes are never rewritten into immutable constants.
+  `InstalledSSLInfoExpr` keeps exact procedure/reference authority around scalar
+  argument recipes and the fixed-OUT empty certificate source. Rebuild, retag,
+  substitution and grouping retain children, merged properties and the wrapper;
+  source occurrence matching preserves the installed identity and record Usage
+  through shared target-list lowering, never scalar evaluation of the SRF.
+  Volatile non-TLS outcomes are never rewritten into immutable constants.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`, `Unknown`
   and `TruthOf`.
 - **Structural NULL** (`structural_null.go`): `StructuralNull` recognizes a

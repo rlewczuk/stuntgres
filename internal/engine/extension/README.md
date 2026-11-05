@@ -259,13 +259,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Signature collisions retain released `xml2--1.1.sql` statement
   provenance through atomic staging; final 1.2 bodies do not invent an update
   graph or imply a shared-library loader.
-  SSLInfo 1.2 seals exactly seven zero-input scalar inquiries: ssl_is_used,
-  ssl_version, ssl_cipher, ssl_client_cert_present, ssl_client_serial,
-  ssl_client_dn and ssl_issuer_dn. Its untrusted superuser-only relocatable
-  installation retains strict, volatile, parallel-restricted C declarations.
-  Embedded connections have no TLS transport: the two BOOL inquiries return
-  false and the five other results are typed SQL NULL. No certificate state,
-  TLS handshake, adjacent sslinfo functions or shared-library loader is implied.
+  SSLInfo 1.2 seals ten strict, volatile, parallel-restricted C declarations.
+  The original seven zero-input scalar slots remain stable; two TEXT-field
+  scalars and the fixed-OUT certificate source append to them. The untrusted,
+  superuser-only relocatable installation owns signatures and OUT metadata.
+  Embedded non-TLS evaluation returns false BOOL inquiries, typed scalar NULLs
+  and an empty `(name TEXT, value TEXT, critical BOOL)` source, after ordinary
+  argument execution and invocation admission. No transport or certificate state
+  is retained by the provider.
   Stock tcn owns one volatile, non-strict trigger declaration and exposes native
   DML-trigger capability only for its immutable installed slot. Capability does
   not replace procedure-origin validation; rename, relocation and replay retain

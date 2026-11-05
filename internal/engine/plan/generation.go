@@ -95,7 +95,7 @@ func GenerationImmutable(node expr.Expr) bool {
 	case InstalledXML2Expr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledSSLInfoExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && one(n.Arg)
 	case InstalledUUIDOsspExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledCryptoExpr:

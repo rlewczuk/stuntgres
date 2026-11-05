@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
@@ -8,36 +9,51 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-// ValidInstalledSSLInfoShape checks the captured declaration and zero-child
-// recipe. Catalog membership and current generation are validated by the owner.
+// ValidInstalledSSLInfoShape checks the captured declaration and argument recipe.
+// Catalog membership and current generation are validated by the owner.
 func ValidInstalledSSLInfoShape(n plan.InstalledSSLInfoExpr) bool {
-	if n.Procedure == nil || extension.SSLInfoProviderOf(n.Procedure) != extension.StockSSLInfo || n.RoutineReference != n.Procedure || n.Ref.Domain() == nil || n.Ref.Epoch == 0 || n.Ref.Address != n.Procedure.Address() || n.Ref.Address.ClassID != ids.ProcedureClassID || n.Ref.Address.SubID != 0 || n.Procedure.Signature != "" || n.Validate() != nil {
+	if n.Procedure == nil || extension.SSLInfoProviderOf(n.Procedure) != extension.StockSSLInfo || n.RoutineReference != n.Procedure || n.Ref.Domain() == nil || n.Ref.Epoch == 0 || n.Ref.Address != n.Procedure.Address() || n.Ref.Address.ClassID != ids.ProcedureClassID || n.Ref.Address.SubID != 0 || n.Validate() != nil {
 		return false
 	}
 	origin := n.Procedure.Origin
 	if !origin.Valid(n.Ref.Address) || origin.Installation.Implementation != extension.StockSSLInfo || origin.Installation.Name() != "sslinfo" || origin.Installation.Version != "1.2" || origin.Declaration >= len(functions.SSLInfoMembers) || functions.SSLInfoMembers[origin.Declaration].Name != n.Name {
 		return false
 	}
+	member := functions.SSLInfoMembers[origin.Declaration]
+	if n.Procedure.Signature != catalog.ProcedureSignature(member.Signature) || n.Procedure.Result != ids.OID(member.Result) || n.Procedure.Installed.ReturnsSet != member.Set {
+		return false
+	}
+	expected := expr.Properties{Volatility: expr.Volatile}
+	if n.Arg != nil {
+		expected = expr.MergeProperties(expected, n.Arg.Properties())
+	}
 	properties := n.Properties()
-	properties.StageDependent = false
-	return properties == (expr.Properties{Volatility: expr.Volatile})
+	properties.StageDependent, expected.StageDependent = false, false
+	return properties == expected
 }
 
-// ClosedSSLInfoDefault authenticates installed zero-argument calls, not their
-// constant non-TLS outputs. It never admits a bare carrier or unrelated volatile
-// producer through an otherwise transparent scalar expression.
+// ClosedSSLInfoDefault authenticates scalar calls and their closed arguments,
+// not their constant non-TLS outputs. Bare carriers confer no default authority.
 func ClosedSSLInfoDefault(node expr.Expr) bool {
 	valid, contains := closedSSLInfoDefaultTree(node)
 	return valid && contains
 }
 
 func closedSSLInfoDefaultTree(node expr.Expr) (bool, bool) {
-	if node == nil { return true, false }
+	if node == nil {
+		return true, false
+	}
 	p := node.Properties()
-	if p.RowDependent || p.ParameterDependent || p.StageDependent { return false, false }
+	if p.RowDependent || p.ParameterDependent || p.StageDependent {
+		return false, false
+	}
 	switch n := node.(type) {
 	case plan.InstalledSSLInfoExpr:
-		return ValidInstalledSSLInfoShape(n), true
+		if !ValidInstalledSSLInfoShape(n) || n.Procedure.Installed.ReturnsSet {
+			return false, false
+		}
+		valid, _ := closedSSLInfoDefaultTree(n.Arg)
+		return valid, true
 	case functions.UUIDGeneration, plan.InstalledUUIDOsspExpr:
 		return ClosedUUIDDefault(node), false
 	case functions.SequenceCall:

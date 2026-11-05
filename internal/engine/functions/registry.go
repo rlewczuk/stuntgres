@@ -146,7 +146,7 @@ var definitions = [...]Definition{
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration, NamedCall: namedUUIDGeneration},
 	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat, ProbeCall: probeFormat},
 	{Names: []string{"uuid_generate_v4", "uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc", "uuid_generate_v3", "uuid_generate_v5"}, Installed: UUIDOsspExtension, Bind: bindUUIDOssp},
-	{Names: []string{"ssl_is_used", "ssl_version", "ssl_cipher", "ssl_client_cert_present", "ssl_client_serial", "ssl_client_dn", "ssl_issuer_dn"}, Installed: SSLInfoExtension, Bind: bindSSLInfo},
+	{Names: []string{"ssl_is_used", "ssl_version", "ssl_cipher", "ssl_client_cert_present", "ssl_client_serial", "ssl_client_dn", "ssl_issuer_dn", "ssl_client_dn_field", "ssl_issuer_field", "ssl_extension_info"}, Installed: SSLInfoExtension, Bind: bindSSLInfo},
 	{Names: []string{"xml_valid", "xpath_string", "xpath_number", "xpath_bool", "xpath_nodeset", "xpath_list", "xslt_process"}, Installed: XML2Extension, Bind: bindXML2},
 	{Names: []string{"xpath_table"}, Installed: XML2Extension, Bind: bindXML2XPathTable},
 	{Names: arrayInspectNames[:], Bind: bindArrayInspect, ProbeCall: probeArrayInput},

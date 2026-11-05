@@ -476,18 +476,19 @@ execution rows. Current installed authority precedes surviving runtime calls;
 NULL operands yield an empty source. Declared FROM definitions supply destination
 types, while nonNULL unresolved target-list calls fail at source opening.
 
-`SSLInfo` is a zero-child installed selector with BOOL, TEXT or NUMERIC result
-usage. It retains neither transport state nor certificates: embedded non-TLS
-sessions yield two false booleans and five typed NULLs. All seven inquiries stay
-VOLATILE, `FoldNever` and `PreflightKeep`, including scalar-once FROM sources
-that emit one row even for NULL. The installed plan wrapper preserves procedure
-identity through capture, grouping, reconstruction and native replay. Only the
-authenticated closed installed call is admitted in defaults; fixed branch values
-never grant literal, immutable or name-based execution authority.
-Nested mixed defaults retain the consuming family's argument restrictions.
-Crypto's closure delegates only an installed sslinfo leaf to its authenticated
-owner, including beneath CASE; it never retries a rejected whole subtree through
-another family or admits unrelated volatile producers.
+`SSLInfo` retains an installed selector and its optional TEXT argument, never
+transport or certificate state. Scalar argument evaluation and STRICT semantics
+precede the non-TLS result: false for BOOL inquiries, otherwise typed NULL.
+Scalar FROM emits one row even for NULL; the fixed-OUT certificate SRF is a typed
+empty source. All ten declarations remain VOLATILE, `FoldNever` and
+`PreflightKeep`. Child capture, reconstruction, grouping and replay preserve the
+installed wrapper and merged operand properties. Closed-default admission
+authenticates scalar authority and recursively checks the argument; ordinary
+row/parameter-dependent stored expressions do not become closed defaults.
+Nested mixed defaults retain each consuming family's argument restrictions.
+Crypto delegates installed sslinfo subtrees to their authenticated owner,
+including beneath CASE, never retrying an arbitrary rejected subtree or
+admitting unrelated volatile producers.
 
 `SessionActivity` is a zero-child typed recipe with ordinary routine provenance.
 Query text is volatile; physical identity and cluster event clocks are stable.

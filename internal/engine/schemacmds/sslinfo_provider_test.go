@@ -36,7 +36,7 @@ func TestSSLInfoProviderIdentity(t *testing.T) {
 	e, ext := sslInfoUnitInstalled(t)
 	view := e.CatalogRead()
 	control := extension.StockSSLInfo.Control()
-	if control.Version != "1.2" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "information about SSL certificates" || ext.Version != "1.2" || len(ext.Members) != 7 {
+	if control.Version != "1.2" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "information about SSL certificates" || ext.Version != "1.2" || len(ext.Members) != 10 {
 		t.Fatal("installation/control", control, ext)
 	}
 	versions := extension.StockSSLInfo.Versions()
@@ -47,12 +47,26 @@ func TestSSLInfoProviderIdentity(t *testing.T) {
 	if extension.StockSSLInfo.Versions().Bases[0] != "1.2" {
 		t.Fatal("mutable version backing")
 	}
-	// Independent released script subset, not expectations copied from member data.
-	names := []string{"ssl_client_serial", "ssl_is_used", "ssl_version", "ssl_cipher", "ssl_client_cert_present", "ssl_client_dn", "ssl_issuer_dn"}
-	results := []ids.OID{1700, 16, 25, 25, 16, 25, 25}
+	// Independent released declarations, retaining the original seven ordinals.
+	names := []string{"ssl_client_serial", "ssl_is_used", "ssl_version", "ssl_cipher", "ssl_client_cert_present", "ssl_client_dn", "ssl_issuer_dn", "ssl_client_dn_field", "ssl_issuer_field", "ssl_extension_info"}
+	results := []ids.OID{1700, 16, 25, 25, 16, 25, 25, 25, 25, 2249}
+	signatures := []catalog.ProcedureSignature{"", "", "", "", "", "", "", "25", "25", ""}
 	for slot, address := range ext.Members {
 		p := view.MustProcedure(address)
-		if p.Name() != names[slot] || p.Signature != "" || p.Result != results[slot] || p.Volatility != expr.Volatile || !p.Strict || p.RoutineKind != catalog.FunctionRoutine || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace || p.Origin.Declaration != slot || p.Origin.Installation != ext.Installation || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: names[slot], Binary: "$libdir/sslinfo", HasBinary: true}) {
+		declaration := p.Installed
+		if slot == 9 {
+			outputs := declaration.Outputs
+			if !declaration.ReturnsSet || declaration.Rows != 1000 || outputs == nil || outputs.Inputs() != 0 || outputs.Len() != 3 {
+				t.Fatal("fixed OUT declaration", declaration)
+			}
+			for i, name := range []string{"name", "value", "critical"} {
+				if outputs.Name(i) != name || outputs.Type(i) != []ids.OID{25, 25, 16}[i] {
+					t.Fatal("OUT order/name/type", i, outputs)
+				}
+			}
+			declaration.ReturnsSet, declaration.Rows, declaration.Outputs = false, 0, nil
+		}
+		if p.Name() != names[slot] || p.Signature != signatures[slot] || p.Result != results[slot] || p.Volatility != expr.Volatile || !p.Strict || p.SecurityDefiner || p.RoutineKind != catalog.FunctionRoutine || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace || p.Origin.Declaration != slot || p.Origin.Installation != ext.Installation || declaration != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: names[slot], Binary: "$libdir/sslinfo", HasBinary: true}) {
 			t.Fatal("released declaration", slot, p)
 		}
 		if symbol, err := extension.ProcedureSymbol(view, p); err != nil || symbol != names[slot] {
@@ -64,11 +78,6 @@ func TestSSLInfoProviderIdentity(t *testing.T) {
 	}
 	if err := extension.StockSSLInfo.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
-	}
-	for _, name := range []string{"ssl_client_dn_field", "ssl_issuer_field", "ssl_extension_info"} {
-		for p := range catalog.DefinitionProceduresNamedAt(view, nil, ext.TargetNamespace, name) {
-			t.Fatal("adjacent declaration installed", p)
-		}
 	}
 	original := view.MustProcedure(ext.Members[1])
 	for _, mutate := range []func(*catalog.Procedure){
@@ -96,6 +105,30 @@ func TestSSLInfoProviderIdentity(t *testing.T) {
 			t.Fatal("forged procedure admitted", bad)
 		}
 	}
+	for _, slot := range []int{7, 8, 9} {
+		original := view.MustProcedure(ext.Members[slot])
+		for _, mutate := range []func(*catalog.Procedure){
+			func(p *catalog.Procedure) { p.Signature = "16" },
+			func(p *catalog.Procedure) { p.Origin.Declaration = 6 },
+			func(p *catalog.Procedure) { p.Installed.ReturnsSet = !p.Installed.ReturnsSet },
+			func(p *catalog.Procedure) {
+				p.Installed.Outputs = catalog.NewRoutineOutputs([]ids.OID{25, 16, 25}, "name", "critical", "value")
+			},
+			func(p *catalog.Procedure) {
+				p.Installed.Outputs = catalog.NewRoutineOutputs([]ids.OID{25, 25, 16}, "value", "name", "critical")
+			},
+		} {
+			bad := *original
+			origin := *bad.Origin
+			bad.Origin = &origin
+			mutate(&bad)
+			state := catalog.CloneState(view.State())
+			state.SetDescriptor(bad.Address(), &bad)
+			if err := extension.StockSSLInfo.ValidateProcedure(view.WithState(state), &bad); err == nil {
+				t.Fatal("forged certificate declaration", slot, bad)
+			}
+		}
+	}
 	// Relabel, relocate and detach without replacing immutable release authority.
 	state := catalog.CloneState(view.State())
 	changed := *original
@@ -115,12 +148,12 @@ func TestSSLInfoProviderIdentity(t *testing.T) {
 	if err := extension.StockSSLInfo.ValidateExtension(current, &parent); err != nil {
 		t.Fatal("lawful membership change", err)
 	}
-	if view.Get(original.Address()) != original || len(ext.Members) != 7 {
+	if view.Get(original.Address()) != original || len(ext.Members) != 10 {
 		t.Fatal("immutable source changed")
 	}
 	// Early and late signature collisions leave the published root untouched,
 	// even when earlier declarations were successfully added to the private stage.
-	for _, collision := range []int{0, 6} {
+	for _, collision := range []int{0, 6, 7, 9} {
 		base := catalog.CloneState(view.State())
 		for slot, address := range ext.Members {
 			if slot != collision {

@@ -53,7 +53,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgStatStatements && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockPgBuffercache && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgStatStatements && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockPgBuffercache && p.Implementation != StockHstore && p.Implementation != StockSSLInfo {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -180,8 +180,8 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			return invalid()
 		}
 		m := functions.SSLInfoMembers[slot]
-		name, result, volatility = m.Name, ids.OID(m.Result), expr.Volatile
-		if ext.Version != "1.2" || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/sslinfo", HasBinary: true}) {
+		name, signature, result, volatility = m.Name, catalog.ProcedureSignature(m.Signature), ids.OID(m.Result), expr.Volatile
+		if ext.Version != "1.2" || p.Installed != sslInfoDeclaration(m) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/sslinfo", HasBinary: true}) {
 			return invalid()
 		}
 	case StockUUIDOssp:

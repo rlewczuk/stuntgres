@@ -520,7 +520,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   assert complete logical diagnostics and forbid returned rows; successful
   BYTEA cases preserve arbitrary octets and text cases validate encoding.
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
-- sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
+- sslinfo connection and certificate inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
 - pg_trgm: `RUN='^TestReferencePgTrgm'`. Settings scenarios create fresh physical

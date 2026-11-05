@@ -5,11 +5,21 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
+
+var sslInfoOutputs = catalog.NewRoutineOutputs([]ids.OID{25, 25, 16}, "name", "value", "critical")
+
+func sslInfoDeclaration(member functions.SSLInfoMember) catalog.InstalledRoutineDeclaration {
+	declaration := catalog.InstalledRoutineDeclaration{Parallel: 'r'}
+	if member.Set {
+		declaration.ReturnsSet, declaration.Rows, declaration.Outputs = true, 1000, sslInfoOutputs
+	}
+	return declaration
+}
 
 // Stage installs the sslinfo functions into stage, owned by owner,
 // allocating identities in member order.
@@ -25,8 +35,8 @@ func (p *SSLInfoProvider) Stage(stage Stage, ext *catalog.Extension, owner autho
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		declaration := catalog.InstalledRoutineDeclaration{Parallel: 'r'}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: "", Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: ids.OID(member.Result), Volatility: expr.Volatile, Strict: true, Installed: declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name}, Implementation: p}
+		declaration := sslInfoDeclaration(member)
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: ids.OID(member.Result), Volatility: expr.Volatile, Strict: true, Installed: declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: member.Name}, Implementation: p}
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/sslinfo", true
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}

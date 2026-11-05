@@ -320,7 +320,7 @@ func (r installedExtensionRoutine) PgBuffercacheEvictionDeclaration() (functions
 	outputs := r.procedure.OutputDeclaration()
 	members := make([]sqltype.CompositeMember, outputs.Len())
 	for i := range members {
-		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(outputs.Inputs() + i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
 	}
 	return member.Kind, members
 }
@@ -334,7 +334,7 @@ func (r installedExtensionRoutine) PgBuffercacheAggregateDeclaration() (function
 	outputs := r.procedure.OutputDeclaration()
 	members := make([]sqltype.CompositeMember, outputs.Len())
 	for i := range members {
-		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
 	}
 	return member.Kind, members
 }
@@ -625,6 +625,17 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	case functions.SSLInfo:
 		if extension.SSLInfoProviderOf(p) != extension.StockSSLInfo {
 			break
+		}
+		if _, set := c.SourceAdmission(); set {
+			if b.Params.ExecuteParameters {
+				return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+			}
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+				return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+			}
+			if err := b.AdmitSetReturning(c.Pos); err != nil {
+				return nil, err
+			}
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())

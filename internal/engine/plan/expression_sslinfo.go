@@ -5,18 +5,21 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // InstalledSSLInfoExpr retains installed authority despite fixed non-TLS values.
 type InstalledSSLInfoExpr struct {
 	functions.SSLInfo
 	Procedure *catalog.Procedure
-	Ref ids.ObjectRef
+	Ref       ids.ObjectRef
 }
 
 func (n InstalledSSLInfoExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	inner, err := n.SSLInfo.Rebuild(info, children)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	n.SSLInfo = inner.(functions.SSLInfo)
 	return n, nil
 }
@@ -30,4 +33,10 @@ func (n InstalledSSLInfoExpr) Retag(info expr.Info, children []expr.Expr, change
 func (n InstalledSSLInfoExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(InstalledSSLInfoExpr)
 	return ok && n.Procedure == o.Procedure && n.Ref == o.Ref && n.SSLInfo.SameGroup(o.SSLInfo, same, definition)
+}
+
+func (n InstalledSSLInfoExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(InstalledSSLInfoExpr)
+	_, set := n.SourceAdmission()
+	return ok && set && n.Name == o.Name && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage())
 }

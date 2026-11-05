@@ -1060,7 +1060,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing sslinfo function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), nil, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Children(), true)
 	case plan.InstalledUUIDOsspExpr:
 		if err := ValidateInstalledUUIDOssp(n, r.View); err != nil {
 			return "", err

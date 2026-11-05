@@ -622,6 +622,11 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		stage(&e.Info)
 		bound = e
 	case plan.InstalledSSLInfoExpr:
+		e.Property = expr.Properties{Volatility: expr.Volatile}
+		if e.Arg != nil {
+			e.Arg = rewrite(e.Arg)
+			e.Property = expr.MergeProperties(e.Property, e.Arg.Properties())
+		}
 		stage(&e.Info)
 		bound = e
 	case plan.InstalledUUIDOsspExpr:
