@@ -98,8 +98,8 @@ func (r *analyzeRun) captureNative(relations []*catalog.Relation) error {
 	return nil
 }
 
-// The same projected accepted row enters scalar and extended collectors. Mixed
-// sampling changes the population estimate, never literal input multiplicity.
+// Scalar acquisition completes before any extended expression is evaluated.
+// Replay retains native source/rank recipes and only necessary owned foreign rows.
 func (r *analyzeRun) collect(inherited bool, visits []*analyzeSegment, sampled *float64) (*storage.RelationStatistics, uint64, error) {
 	core.HostOf(r.s).ReleaseReplacementRead()
 	columns := r.columns
@@ -107,77 +107,84 @@ func (r *analyzeRun) collect(inherited bool, visits []*analyzeSegment, sampled *
 		columns[i].Key.Inherited = inherited
 		columns[i].SamplePopulation = sampled
 	}
-	collectors := make([]*storage.ExtendedCollector, len(r.extended))
-	for i := range r.extended {
-		input := r.extended[i].ExtendedInput
-		input.Key.Inherited = inherited
-		input.SamplePopulation = sampled
-		var err error
-		collectors[i], err = storage.NewExtendedCollector(input)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: r.s.ActivateRuntime(r.s.Op.Context()), Host: core.HostOf(r.s), Input: r.s.Input, Output: r.s.Output, Catalog: r.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority = &r.auth
-	// Imported cells and expression coercions share this pass's captured
-	// catalog/routine authority and its already activated runtime context.
 	evaluation.Input.DomainChecks = &evaluation
+	var allocation analyzeAllocation
+	if sampled != nil {
+		allocation = r.allocation(visits)
+	}
+	if inherited {
+		r.progress.ChildrenStart(len(visits))
+	}
 	stats, count, err := storage.CollectStatistics(r.s.Op.Context(), columns, func(yield func([]sqltype.Value) error) error {
-		for _, segment := range visits {
-			var scratch []sqltype.Value
-			if segment.layout != nil {
-				scratch = make([]sqltype.Value, len(segment.layout))
+		accepted := 0
+		for index, segment := range visits {
+			if inherited {
+				r.progress.ChildStart(segment.relation.Address().ObjectID)
 			}
-			consume := func(values []sqltype.Value) error {
-				if segment.layout != nil {
-					for slot, physical := range segment.layout {
-						scratch[slot] = values[physical]
-					}
-					values = scratch
-				}
-				for i, collector := range collectors {
-					if err := r.extended[i].add(&evaluation, collector, values); err != nil {
-						return err
-					}
-				}
-				return yield(values)
+			if err := r.s.Op.Context().Err(); err != nil {
+				return err
 			}
-			if segment.foreign != nil {
-				if segment.sample != nil {
-					if err := segment.sample.each(&evaluation, consume); err != nil {
-						return err
-					}
-				}
-				continue
-			}
-			n := segment.source.Count()
-			k := n
+			var sample *analyzeForeignSample
 			if sampled != nil {
-				k = segment.accepted
-			}
-			for j := range k {
-				if err := r.s.Op.Context().Err(); err != nil {
+				var err error
+				sample, err = r.allocateVisit(&allocation, segment, sampled)
+				if err != nil {
 					return err
 				}
-				ordinal := j
-				if k < n {
-					ordinal = analyzeMidpoint(j, n, k)
+			} else {
+				segment.accepted = segment.source.Count()
+			}
+			n := segment.accepted
+			r.progress.SampleStart(n)
+			if segment.layout != nil && segment.scratch == nil {
+				segment.scratch = make([]sqltype.Value, len(segment.layout))
+			}
+			segment.rows = nil
+			retain := sample != nil && len(r.extended) != 0 && n != 0
+			if retain {
+				segment.rows = make([][]sqltype.Value, 0, n)
+			}
+			completed := 0
+			consume := func(values []sqltype.Value) error {
+				values = segment.project(values)
+				if err := yield(values); err != nil {
+					return err
 				}
-				if err := consume(segment.source.VersionAt(segment.source.RawIndex(ordinal)).Values); err != nil {
+				if retain {
+					if segment.layout != nil {
+						// Projection scratch is borrowed. Retain one owned parent
+						// row; imported identity-layout rows already own their cells.
+						values = append([]sqltype.Value(nil), values...)
+					}
+					segment.rows = append(segment.rows, values)
+				}
+				completed++
+				accepted++
+				r.progress.SampleDone(completed, n)
+				return nil
+			}
+			if sample != nil {
+				if err := sample.each(&evaluation, consume); err != nil {
+					return err
+				}
+			} else if segment.source != nil {
+				if err := segment.eachNative(r.s.Op.Context(), consume); err != nil {
 					return err
 				}
 			}
+			if inherited {
+				r.progress.ChildDone(index + 1)
+			}
+		}
+		if accepted != 0 {
+			r.progress.Phase("computing statistics")
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, 0, err
-	}
-	if count != 0 {
-		for _, warning := range r.extendedWarnings {
-			r.s.Op.EmitNotice(session.LevelWarning, warning)
-		}
 	}
 	if stats != nil {
 		optionName := "n_distinct"
@@ -197,18 +204,26 @@ func (r *analyzeRun) collect(inherited bool, visits []*analyzeSegment, sampled *
 			}
 		}
 	}
-	for i, collector := range collectors {
-		fact, err := collector.Finish(r.s.Op.Context())
-		if err != nil {
-			return nil, 0, err
+	if count != 0 && len(r.columns) != 0 && len(r.definitions) != 0 {
+		r.progress.ExtendedStart(len(r.definitions))
+		for _, warning := range r.extendedWarnings {
+			r.s.Op.EmitNotice(session.LevelWarning, warning)
 		}
-		if fact != nil {
+		completed := 0
+		for i := range r.extended {
+			fact, err := r.buildExtended(&evaluation, &r.extended[i], inherited, visits, sampled)
+			if err != nil {
+				return nil, 0, err
+			}
 			key := r.extended[i].Key
 			key.Inherited = inherited
-			if inherited {
-				fact.Hierarchy = r.hierarchy
+			if err := r.acceptExtended(key, fact); err != nil {
+				return nil, 0, err
 			}
-			r.extendedDelta[key] = fact
+			if fact != nil {
+				completed++
+				r.progress.ExtendedDone(completed)
+			}
 		}
 	}
 	return stats, count, nil

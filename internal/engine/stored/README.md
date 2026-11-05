@@ -954,6 +954,10 @@ host methods.
   `QueryRenderer` and `Presentation` (`view_deparse*.go`,
   `view_render_sources.go`, `sqljson_deparse.go`): whole queries,
   `View.SelectSQL`, `ViewDefinitionSQL` (`pg_get_viewdef`) and `PolicySQL`.
+  `ViewTargetsSQL` is the common byte-measured target-list layout operation for
+  stored queries and structurally bounded builtin display fragments. It accepts
+  complete already-rendered targets, never splits identifiers/literals/expressions
+  and grants no query execution or definition authority.
   Frozen-query function presentation is independent of scalar-node `Render`.
   Its ordinary replay branch schema-qualifies `pg_wal_lsn_diff`, while catalog
   display uses ordinary identifier formatting. Both paths preserve captured

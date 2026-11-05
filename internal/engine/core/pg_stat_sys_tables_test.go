@@ -82,7 +82,7 @@ func tableStatisticsCatalogIdentity(t *testing.T, user bool) {
 		t.Fatal("identity/schema/name selection")
 	}
 	for _, pretty := range []bool{false, true} {
-		definition := pgcatalog.BuiltinViewDefinition(a.ObjectID, pretty, func(n pgcatalog.BuiltinViewName) string {
+		definition := pgcatalog.BuiltinViewDefinition(a.ObjectID, pretty, nil, func(n pgcatalog.BuiltinViewName) string {
 			if n.IdentifierOnly {
 				return `"` + n.Name + `"`
 			}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/sqltype"
 )
 
 // A retained visit is command-local work, not stored hierarchy authority. Even a
@@ -17,7 +18,8 @@ type analyzeSegment struct {
 	store    *storage.Relation
 	source   *exec.Source
 	foreign  *analyzeForeignSource
-	sample   *analyzeForeignSample
+	rows     [][]sqltype.Value
+	scratch  []sqltype.Value
 	layout   []int
 	dead     int64
 	weight   float64
@@ -103,51 +105,58 @@ func (r *analyzeRun) sampleTarget() int {
 	return target
 }
 
-func (r *analyzeRun) allocate(visits []*analyzeSegment) (float64, error) {
-	maximum := float64(0)
+// Allocation keeps arithmetic command-local, but acquisition belongs to each
+// scalar visit, after its current-child/reset publication.
+type analyzeAllocation struct {
+	maximum, total   float64
+	target, accepted int
+	dead             float64
+}
+
+func (r *analyzeRun) allocation(visits []*analyzeSegment) analyzeAllocation {
+	a := analyzeAllocation{target: r.sampleTarget()}
 	for _, visit := range visits {
-		maximum = max(maximum, visit.weight)
+		a.maximum = max(a.maximum, visit.weight)
 	}
-	if maximum == 0 {
-		return 0, nil
-	}
-	// Normalization prevents a finite collection of finite weights overflowing
-	// the total. At least one normalized weight is exactly one.
-	total := float64(0)
-	for _, visit := range visits {
-		total += visit.weight / maximum
-	}
-	target, accepted := r.sampleTarget(), 0
-	population, dead := float64(0), float64(0)
-	for _, visit := range visits {
-		if err := r.s.Op.Context().Err(); err != nil {
-			return 0, err
-		}
-		quota := int(min(float64(target-accepted), math.RoundToEven(float64(target)*(visit.weight/maximum)/total)))
-		if quota == 0 {
-			continue
-		}
-		var live, removed float64
-		if visit.foreign != nil {
-			sample, err := visit.foreign.acquire(r.e, r.s, r.auth, quota, false)
-			if err != nil {
-				return 0, err
-			}
-			visit.sample = sample
-			visit.accepted = len(sample.Rows)
-			live, removed = sample.TotalRows, sample.TotalDeadRows
-		} else {
-			visit.accepted = min(quota, visit.source.Count())
-			live, removed = float64(visit.source.Count()), float64(visit.dead)
-		}
-		accepted += visit.accepted
-		population += live
-		dead += removed
-		if !validForeignEstimate(population) || !validForeignEstimate(dead) {
-			return 0, fmt.Errorf("stuntgres: invalid inherited ANALYZE population")
+	if a.maximum != 0 {
+		// Normalize before summing to avoid overflowing finite input weights.
+		for _, visit := range visits {
+			a.total += visit.weight / a.maximum
 		}
 	}
-	return population, nil
+	return a
+}
+
+func (r *analyzeRun) allocateVisit(a *analyzeAllocation, visit *analyzeSegment, population *float64) (*analyzeForeignSample, error) {
+	visit.accepted = 0
+	if a.maximum == 0 {
+		return nil, nil
+	}
+	quota := int(min(float64(a.target-a.accepted), math.RoundToEven(float64(a.target)*(visit.weight/a.maximum)/a.total)))
+	if quota == 0 {
+		return nil, nil
+	}
+	var sample *analyzeForeignSample
+	var live, removed float64
+	if visit.foreign != nil {
+		var err error
+		sample, err = visit.foreign.acquire(r.e, r.s, r.auth, quota, false)
+		if err != nil {
+			return nil, err
+		}
+		visit.accepted = len(sample.Rows)
+		live, removed = sample.TotalRows, sample.TotalDeadRows
+	} else {
+		visit.accepted = min(quota, visit.source.Count())
+		live, removed = float64(visit.source.Count()), float64(visit.dead)
+	}
+	a.accepted += visit.accepted
+	*population += live
+	a.dead += removed
+	if !validForeignEstimate(*population) || !validForeignEstimate(a.dead) {
+		return nil, fmt.Errorf("stuntgres: invalid inherited ANALYZE population")
+	}
+	return sample, nil
 }
 
 // floor((j+1/2)*n/k), using a double-width product so neither large source

@@ -1519,7 +1519,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `TableStatistics`, `SequenceIOStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
+| `Maintenance`, `TableStatistics`, `SequenceIOStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress`, `VisitAnalyzeProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
 | `XactRelationStatistics` | copied physical-owner pending access facts plus live current tuple frames, independent of cumulative Reader cuts |
 | `IOStatisticsReset` | one SharedIO reset timestamp from the transaction-owned statistics reader, with no provider or session authority crossing the interface |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
@@ -1551,6 +1551,29 @@ Ordinary CREATE reports index OID zero; concurrent CREATE reports its published
 index, and REINDEX its current existing target. Idle, finished, failed and
 canceled commands have no progress row. Concurrent cancellation can retain the
 ordinary PostgreSQL invalid-index artifact without retaining progress.
+
+`VisitAnalyzeProgress` supplies coherent detached facts for one actual admitted
+ANALYZE target per physical backend across the cluster. Its thirteen-column
+producer retains public pid/datid/datname and masks the ten remaining cells to
+typed NULL for restricted observers. Authorized unknown/inapplicable numbers
+are zero; a missing real database LEFT JOIN independently gives NULL datname.
+The observer's current effective role closure is fresh on every execution;
+the worker's immutable startup principal remains the visibility owner.
+Sample pairs approximate only physical blocks with overflow-safe B(N)=ceil(N/128)
+and completed-prefix D(k,N)=k/128 except the final short prefix uses B(N).
+Current-child entry resets both sample counters atomically. Inherited entry
+retains local sample facts; extended entry publishes the fetched list total but
+retains computed until a real whole-definition success writes the current pass
+count. Delay is FLOAT8 milliseconds, zero without actual cost sleeps.
+Success/error/cancel remove the row, not manufacture completion. Captures cache
+neither live membership nor authority and returned typed rows never borrow facts.
+The single structural view declaration owns native relation12363/rule12364 and
+reuses seeded row12311/array12310, with NAME collation950 and TEXT collation100.
+Its actual `_RETURN`, twenty backing parameter aliases, phase CASEs and casts
+share normal `pg_get_viewdef`/`pg_get_ruledef` rendering. Read-only mutations use
+the common semantic binder and ordinary non-updatable-view diagnostics.
+Bootstrap uses the ordinary materialized owner ACL plus explicit PUBLIC SELECT,
+preserving the exact owner/public entries through catalog construction.
 
 `pg_stat_progress_cluster` retains its exact twelve typed columns and view/
 `_RETURN` metadata, with native identities independent of initdb allocation.
@@ -2219,15 +2242,19 @@ update and insert flags are NO; this does not change rule visitation or DDL.
 `SummaryViewDefinition` supplies canonical default metadata;
 `BuiltinViewDefinition` selects explicit default or pretty fragments and formats
 their occurrences using captured naming and identifier formatters. UDT, COPY,
-CLUSTER/FULL and CREATE INDEX progress inquiries own both released forms; absent pretty
+CLUSTER/FULL, ANALYZE and CREATE INDEX progress inquiries own both released forms; absent pretty
 fragments never become a synthesized definition. The same runtime authority
 renders `pg_views` and `views` in default
 format and serves the boolean `pg_get_viewdef` presentation selector.
+Explicit target-boundary annotations permit requested wrap-width layout without
+parsing or replacing SQL text. Only wrap requests collect rendered whole targets;
+core applies the same `stored.ViewTargetsSQL` byte-measured formatter as stored
+queries. Default/pretty fragments and identity formatting retain their exact bytes.
 `cluster_progress.go` owns the single CLUSTER/FULL source, canonical relation
 OID12208/rule OID12209 and REL_18_6 default/pretty projection, including command/
 phase CASEs, OID cast and parameter aliases. Its shared CLUSTER/FULL visitor uses
 the current private catalog runtime and authenticated viewer; symbolic metadata
-does not perform maintenance work. COPY, CLUSTER/FULL, CREATE INDEX,
+does not perform maintenance work. COPY, CLUSTER/FULL, ANALYZE, CREATE INDEX,
 database statistics, subscription statistics and WAL statistics declare native `_RETURN`
 identities, stamped into immutable relation descriptors during bootstrap.
 The rewrite declaration regression checks this complete view/rule inventory
@@ -2260,6 +2287,12 @@ through the shared usage-origin projector.
 
 Legacy identity typed projection/current authority units use
 `RUN='^TestBackendIdentityProjection$'`; SQL witnesses stay in `reference/session_state`.
+
+Analyze progress projection and runtime mechanics share
+`make check RUN='^TestAnalyzeProgress'`: typed NULL/zero, database LEFT JOIN,
+seeded row/array identity, exact rule ownership, immutable backing and fresh
+observer authority. The builtin rewrite declaration family remains
+`make check RUN='^TestPGRewriteBuiltinDeclarations$'`.
 
 Detached archiver projection, typed absence and source authority use
 `make check RUN='^TestPGStatArchiverProjection$'` in `enginetests/`.

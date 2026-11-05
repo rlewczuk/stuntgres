@@ -223,7 +223,7 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 					targets[i] += " AS " + presentation.identifier(column.Name)
 				}
 			}
-			return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") \"*VALUES*\"", nil
+			return ViewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") \"*VALUES*\"", nil
 		}
 		if renamed {
 			if presentation.Deparse {
@@ -235,7 +235,7 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 					}
 					targets[i] = fmt.Sprintf("column%d AS %s", i+1, presentation.identifier(name))
 				}
-				return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") AS __view_values", nil
+				return ViewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") AS __view_values", nil
 			}
 			text = "SELECT * FROM (" + text + ") AS __view_values(" + strings.Join(labels, ", ") + ")"
 		}
@@ -370,7 +370,7 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	if len(targets) == 0 {
 		targets = append(targets, "(ROW()).*")
 	}
-	text := viewTargetsSQL(targets, presentation, s.Distinct != nil)
+	text := ViewTargetsSQL(targets, presentation, s.Distinct != nil)
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
 		keys := make([]string, len(s.Distinct.On))
 		for i, raw := range s.Distinct.On {
@@ -621,8 +621,10 @@ func (renderer *QueryRenderer) selectOutputSQL(ctx context.Context, catalog cata
 	return "", fmt.Errorf("stuntgres: missing view ORDER target expression")
 }
 
-// Measure complete target bytes, never split identifiers, literals or expressions.
-func viewTargetsSQL(targets []string, presentation Presentation, distinct bool) string {
+// ViewTargetsSQL lays out complete rendered SELECT targets, measuring bytes
+// without splitting identifiers, literals or expressions. Stored queries and
+// explicitly bounded builtin fragments share this presentation-only formatter.
+func ViewTargetsSQL(targets []string, presentation Presentation, distinct bool) string {
 	prefix := "SELECT "
 	if distinct {
 		prefix += "DISTINCT "

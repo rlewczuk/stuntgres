@@ -222,7 +222,7 @@ func TestSeclabelsCaptureAuthority(t *testing.T) {
 	}
 	for _, pretty := range []bool{false, true} {
 		references := make(map[string]bool)
-		definition := pgcatalog.BuiltinViewDefinition(pgcatalog.SeclabelsOID, pretty, func(n pgcatalog.BuiltinViewName) string {
+		definition := pgcatalog.BuiltinViewDefinition(pgcatalog.SeclabelsOID, pretty, nil, func(n pgcatalog.BuiltinViewName) string {
 			if n.IdentifierOnly {
 				return n.Name
 			}

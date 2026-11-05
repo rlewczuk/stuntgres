@@ -505,7 +505,20 @@ rechecks authority and publishes through the existing canonical/Journal path.
 An empty sample or zero returned population builds no definitions and retains
 compatible old payload. Failed direct scalar or extended work publishes no local
 success; a completed foreign-root local pass still precedes inherited work.
-These are collection/publication seams, not progress counters or an observer API.
+Progress membership starts after supported capability/column admission and ends
+on every target exit. Acquisition, scalar Finish, each whole extended build and
+authority acceptance, and local/final publication are separate real boundaries.
+The inherited acquisition phase precedes descendant waits, retaining completed
+local counters until the retained physical visit set exists. Each visit resets
+its current-child sampling pair before quota/acquisition/import/projection;
+only a successful complete or legitimate zero-work visit increments children.
+Extended totals count fetched definitions before eligibility skips. Completion
+counts accepted whole definitions, not kinds or expressions; starting a second
+pass retains the prior completion count until its first accepted definition.
+Current child survives scalar/extended/finalizing work. Sampling estimates use
+ceil(N/128) blocks for actual accepted records, completed full128-record prefixes
+and the final short prefix; pending foreign acquisition and zero work report0/0.
+Delay remains0 without actual cost sleeps. Progress does not own statistics.
 
 Structural traversal includes foreign descendants and partition intermediates,
 deduplicates diamonds and excludes peer TEMP branches. Unsupported foreign
@@ -535,7 +548,7 @@ foreign estimates, can be fractional or incomplete after skipped visits, and
 feeds scalar/expression sample estimation. Joint kinds describe that same sample.
 The sole float64 InheritedTuples supplies inherited planning and partition
 reltuples; partition parents have no local scan or integer population copy.
-Allocation weights and estimates assert no physical pages, AIO or progress.
+Allocation weights and estimates assert no physical pages or AIO.
 
 
 Typed column facts install only after all required target passes complete;
@@ -555,9 +568,13 @@ a private TRUNCATE successor, ANALYZE also records the scan on that actual heap;
 this preserves maintenance ordering through commit and savepoint rollback while
 column deltas remain transactional.
 Requested ndistinct, dependencies, MCV and automatic expression definitions are
-captured with the same relation/selection authority. Native/inherited collectors
-share one traversal per population; direct foreign collection imports once and
-then builds each definition from those owned typed rows after scalar completion.
+captured with the same relation/selection authority. Scalar traversal completes
+before extended expressions/Add/Finish, one definition at a time. Native replay
+uses the captured immutable source and accepted midpoint-rank/layout recipe,
+never retained per-row copies. Foreign rows import once and retain only necessary
+owned parent-projected typed rows; borrowed provider/projection scratch is never
+retained. Scalar-only passes allocate no replay row list. Both paths accept each
+whole definition through the same live authority/cancellation gate.
 Every simple key must occur in the admitted selected enabled scalar set; missing
 keys emit WARNING42P17 for each completed nonempty collection pass and retain
 compatible old payload without charging either direct or mixed sample budgets.
@@ -626,6 +643,10 @@ relations use the canonical relation-metadata cardinality.
 Logical rewrite destinations, historic schema backing and failed-stage evidence
 use `make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
 
+ANALYZE boundary tests compose genuine commands, collectors, imported samples
+and authority/publication gates through test-owned operation contexts, without
+production progress setters or observation hooks.
+
 ```sh
 make check RUN='^TestAlter'                                # ALTER TABLE passes, defaults, types, schema
 make check RUN='^TestAlterStatistics'                      # metadata ownership and publication
@@ -642,5 +663,6 @@ make check RUN='^Test(JournalSecurityLabelFirstPredecessor|SepgsqlSimulationCont
 make check RUN='^TestAlterPersistence'                     # metadata, cache, post-grant fences and retained authority
 make check RUN='^TestAlterAccessMethod'                    # method intent, providers, publication and retained authority
 make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
+make check RUN='^TestAnalyze'                              # ANALYZE collection, progress and publication
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races
 ```

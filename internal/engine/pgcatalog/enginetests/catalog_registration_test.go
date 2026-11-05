@@ -87,7 +87,7 @@ func TestCatalogBuiltinViewDefinitionInventory(t *testing.T) {
 		if pgcatalog.SummaryViewDefinition(oid) == "" {
 			t.Errorf("builtin view %s (%d) has no canonical definition", relation.Name(), oid)
 		}
-		definition := pgcatalog.BuiltinViewDefinition(oid, false, func(name pgcatalog.BuiltinViewName) string {
+		definition := pgcatalog.BuiltinViewDefinition(oid, false, nil, func(name pgcatalog.BuiltinViewName) string {
 			return name.Name
 		})
 		if definition == "" {

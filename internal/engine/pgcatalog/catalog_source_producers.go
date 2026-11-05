@@ -150,6 +150,7 @@ var producers = [...]Registration{
 	{AIOSOID, captureAIOS},
 	{StatioAllIndexesOID, captureStatioIndexes},
 	{StatioUserIndexesOID, captureStatioIndexes},
+	{ProgressAnalyzeOID, captureAnalyzeProgress},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},

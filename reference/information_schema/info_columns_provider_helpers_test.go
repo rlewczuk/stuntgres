@@ -219,6 +219,7 @@ func icProviderInventory(c *icCase) {
 			views = append(views, "pg_stat_io")
 			views = append(views, "pg_stat_user_indexes")
 			views = append(views, "pg_stat_subscription_stats")
+			views = append(views, "pg_stat_progress_analyze")
 			views = append(views, "pg_stats_ext", "pg_stats_ext_exprs")
 			for _, view := range views {
 				if view == table {

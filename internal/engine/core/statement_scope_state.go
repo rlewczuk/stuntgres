@@ -93,6 +93,7 @@ type StatementScope struct {
 	Finished                        bool
 	copyProgress                    *copyProgress // Finish-owned COPY lifetime, before transaction publication.
 	indexProgress                   *indexProgress
+	analyzeProgress                 *AnalyzeProgress
 	message                         bool
 	messageEnded                    bool
 	messageResult                   error

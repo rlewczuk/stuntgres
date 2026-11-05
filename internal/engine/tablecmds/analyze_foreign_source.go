@@ -212,15 +212,25 @@ func (r *analyzeRun) collectForeign(f *analyzeForeignSource, options table.Analy
 	if len(r.extended) != 0 && sample.TotalRows > 0 && len(sample.Rows) != 0 {
 		pass.rows = make([][]sqltype.Value, 0, len(sample.Rows))
 	}
+	r.progress.SampleStart(len(sample.Rows))
 	stats, count, err := storage.CollectStatistics(pass.evaluation.Context, columns, func(yield func([]sqltype.Value) error) error {
-		return sample.each(&pass.evaluation, func(values []sqltype.Value) error {
-			// ImportValues allocates each row and owns its immutable typed cells;
-			// retain that row, never the provider's borrowed external cells.
+		completed := 0
+		err := sample.each(&pass.evaluation, func(values []sqltype.Value) error {
+			if err := yield(values); err != nil {
+				return err
+			}
+			// ImportValues owns the immutable cells, never provider scratch.
 			if pass.rows != nil {
 				pass.rows = append(pass.rows, values)
 			}
-			return yield(values)
+			completed++
+			r.progress.SampleDone(completed, len(sample.Rows))
+			return nil
 		})
+		if err == nil && completed != 0 {
+			r.progress.Phase("computing statistics")
+		}
+		return err
 	})
 	if err != nil {
 		return nil, err

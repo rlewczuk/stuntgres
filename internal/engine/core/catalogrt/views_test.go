@@ -143,7 +143,7 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 			}
 			for _, quote := range []bool{false, true} {
 				runtime.Presentation.Output.QuoteAllIdentifiers = quote
-				got, err := runtime.BuiltinViewDefinition(context.Background(), read, relation)
+				got, err := runtime.BuiltinViewDefinition(context.Background(), read, relation, nil)
 				if tc.missingNamespace {
 					if got != "" || !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatalf("inconsistent namespace published %q, %v", got, err)
@@ -160,7 +160,7 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 					t.Fatalf("quote=%t definition=%q err=%v; want call %s(%s)", quote, got, err, want, argument)
 				}
 				// A newer descriptor must not leak into a previously captured read.
-				old, err := runtime.BuiltinViewDefinition(context.Background(), base, relation)
+				old, err := runtime.BuiltinViewDefinition(context.Background(), base, relation, nil)
 				oldCall := "pg_get_userbyid(c.relowner)"
 				if quote {
 					oldCall = `"pg_get_userbyid"("c"."relowner")`

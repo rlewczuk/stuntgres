@@ -326,6 +326,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			in.HBARules = e.HBARules.Capture()
 			unlockBefore = true
 		}
+	case pgcatalog.ProgressAnalyzeOID:
+		fallthrough
 	case pgcatalog.StatReplicationSlotsOID, pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.StatsExtOID, pgcatalog.StatsExtExprsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID, pgcatalog.StatioAllSequencesOID, pgcatalog.StatioSysSequencesOID, pgcatalog.StatioUserSequencesOID, pgcatalog.StatAllIndexesOID, pgcatalog.StatSysIndexesOID, pgcatalog.StatUserIndexesOID, pgcatalog.StatioAllIndexesOID, pgcatalog.StatioUserIndexesOID, pgcatalog.StatioAllTablesOID, pgcatalog.StatioSysTablesOID, pgcatalog.StatioUserTablesOID:
 		fallthrough
 	case pgcatalog.StatDatabaseOID, pgcatalog.StatXactAllTablesOID, pgcatalog.StatXactSysTablesOID, pgcatalog.StatXactUserTablesOID, pgcatalog.StatXactUserFunctionsOID, pgcatalog.StatUserFunctionsOID:

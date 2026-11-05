@@ -52,7 +52,7 @@ func deparseRewrite(c *exec.Context, in DeparseInputs, signature functions.Depar
 				presentation.Columns = relation.Columns
 				body, err = stored.ViewOf(relation).SelectSQL(c.Context, in.Catalog, presentation)
 			} else if in.BuiltinViewDefinition != nil {
-				body, err = in.BuiltinViewDefinition(c.Context, in.Catalog, relation, renderer.Pretty)
+				body, err = in.BuiltinViewDefinition(c.Context, in.Catalog, relation, renderer.Pretty, nil)
 			}
 			if err != nil {
 				return sqltype.Value{}, err

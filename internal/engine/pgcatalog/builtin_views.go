@@ -20,8 +20,9 @@ type BuiltinViewName struct {
 }
 
 type builtinViewPart struct {
-	text string
-	name BuiltinViewName
+	text           string
+	name           BuiltinViewName
+	targetBoundary viewTargetBoundary
 }
 type builtinView struct {
 	oid            ids.OID
@@ -34,6 +35,27 @@ type builtinView struct {
 	writable       []int32
 	declaration    *builtinRewriteDeclaration
 	declarationErr error
+}
+
+type viewTargetBoundary uint8
+
+const (
+	viewTargetNone viewTargetBoundary = iota
+	viewTargetStart
+	viewTargetNext
+	viewTargetEnd
+)
+
+func viewTargetsStart() builtinViewPart {
+	return builtinViewPart{text: " SELECT ", targetBoundary: viewTargetStart}
+}
+
+func viewTargetSeparator() builtinViewPart {
+	return builtinViewPart{text: ",\n    ", targetBoundary: viewTargetNext}
+}
+
+func viewTargetsEnd() builtinViewPart {
+	return builtinViewPart{targetBoundary: viewTargetEnd}
 }
 
 func viewText(text string) builtinViewPart { return builtinViewPart{text: text} }
@@ -103,10 +125,12 @@ func indexBuiltinViews() map[ids.OID]builtinView {
 // It grants neither execution nor virtual-source write authority.
 func SummaryViewDefinition(oid ids.OID) string { return builtinViews[oid].canonical }
 
-// BuiltinViewDefinition formats only the inventory's explicit object-name and
-// identifier occurrences. Expressions, keywords and syntax remain literal;
-// this is not a query deparser or a SQL token-replacement mechanism.
-func BuiltinViewDefinition(oid ids.OID, pretty bool, spelling func(BuiltinViewName) string) string {
+// BuiltinViewDefinition formats the inventory's explicit identity occurrences.
+// An optional target formatter lays out explicitly bounded complete targets;
+// nil preserves default/pretty bytes without allocating a target collection.
+// No rendered SQL is parsed or rewritten. Missing layout metadata returns empty
+// text for a requested wrapped form, like missing pretty metadata.
+func BuiltinViewDefinition(oid ids.OID, pretty bool, formatTargets func([]string) string, spelling func(BuiltinViewName) string) string {
 	record, ok := builtinViews[oid]
 	if !ok {
 		return ""
@@ -118,13 +142,39 @@ func BuiltinViewDefinition(oid ids.OID, pretty bool, spelling func(BuiltinViewNa
 	if len(parts) == 0 {
 		return ""
 	}
+	if formatTargets != nil && parts[0].targetBoundary != viewTargetStart {
+		return ""
+	}
 	var text strings.Builder
 	text.Grow(len(record.canonical))
+	var target strings.Builder
+	var targets []string
+	inTargets := false
 	for _, part := range parts {
+		if formatTargets != nil {
+			switch part.targetBoundary {
+			case viewTargetStart:
+				inTargets = true
+				continue
+			case viewTargetNext:
+				targets = append(targets, target.String())
+				target.Reset()
+				continue
+			case viewTargetEnd:
+				targets = append(targets, target.String())
+				text.WriteString(formatTargets(targets))
+				inTargets = false
+				continue
+			}
+		}
+		out := &text
+		if inTargets {
+			out = &target
+		}
 		if part.name.Class == 0 && !part.name.IdentifierOnly {
-			text.WriteString(part.text)
+			out.WriteString(part.text)
 		} else {
-			text.WriteString(spelling(part.name))
+			out.WriteString(spelling(part.name))
 		}
 	}
 	return text.String()

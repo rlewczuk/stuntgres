@@ -50,7 +50,10 @@ It is a leaf below core (ENGINE-SPLIT §3, L14.5).
   core passes captured presentation and journal authority to `core/stats`,
   without applying DATA SELECT or backing-function EXECUTE to public views.
 - A `Runtime` without a `Host` serves only the presentation methods: core's
-  deparse functions and `BuiltinViewDefinition`.
+  deparse functions and `BuiltinViewDefinition`. Its optional borrowed wrap width
+  selects structural target layout through `stored.ViewTargetsSQL`; nil keeps
+  default/pretty bytes and allocates no target collection. No presentation call
+  retains the width, source authority or rendered target slice.
 - Provenance is same-pointer authority (the engine's `catalog.Owner`), never
   equal names, OIDs or epochs. `ValidateCapture` checks the exact source and
   ref and the current principal before producing rows, even for an empty

@@ -76,6 +76,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		{languageAddress, extensionAddress, 'e'},
 		pgDependUnitEdge(2618, pgcatalog.ProgressCopyRuleOID, 0, 1259, pgcatalog.ProgressCopyOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.ProgressCreateIndexRuleOID, 0, 1259, pgcatalog.ProgressCreateIndexOID, 0, 'i'),
+		pgDependUnitEdge(2618, pgcatalog.ProgressAnalyzeRuleOID, 0, 1259, pgcatalog.ProgressAnalyzeOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.ProgressClusterRuleOID, 0, 1259, pgcatalog.ProgressClusterOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.StatSubscriptionRuleOID, 0, 1259, pgcatalog.StatSubscriptionOID, 0, 'i'),
 		pgDependUnitEdge(2618, pgcatalog.StatDatabaseRuleOID, 0, 1259, pgcatalog.StatDatabaseOID, 0, 'i'),

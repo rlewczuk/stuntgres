@@ -3724,6 +3724,23 @@ session, transaction, prepared-analysis and typed-frame authorities.
   fallible conversion and unlocked socket delivery precede publication, followed
   by exact owner/lifecycle/catalog readmission. Idle control warnings borrow the
   idle owner without starting a transaction.
+- `analyze_progress.go` owns one admitted ANALYZE target per physical SessionID
+  across the cluster. Admission follows target eligibility; target-lock waits,
+  unsupported capability and preparation alone publish nothing. The immutable
+  startup `CountedAuthenticated` principal owns visibility even after SET ROLE.
+  Engine.Mu owns membership, an entry mutex owns coherent facts, and the only
+  nested order is engine → entry. Serial command callbacks update entries without
+  entering the engine or performing provider work under either mutex.
+  Explicit per-target End and the Finish safety defer remove only the exact
+  pointer, including failure/cancel/panic, never a later target or unfinished
+  completion. Fresh catalog capture uses current observer role closure, real
+  cluster database identity and detached facts, outside cumulative statistics.
+  Sampling estimates use B(N)=N/128 plus a nonzero remainder and
+  D(k,N)=B(N) at the final prefix, otherwise k/128. Only 128-row boundaries and
+  final short prefixes lock; no addition can overflow. ChildStart atomically
+  resets the sample pair; inherited entry retains local samples, and extended
+  entry retains prior computed until a whole current-pass definition succeeds.
+  No synthetic background work or cost sleeps advance counters; delay is zero.
 - `copy_progress.go` registers a real admitted COPY only after relation/query
   preflight and reservation, before external stream hooks. The cluster owns one
   entry per backend under the shared `Engine.Mu`; database reset/replacement does
@@ -3766,6 +3783,11 @@ routine depth, trigger depth, effective-user/configuration and command policy.
 
 Legacy identity composed reader/definition ownership and joined capture races
 use `RUN='^TestBackendIdentity(RuntimeLifetime|ConcurrentCapture)$'`.
+
+Analyze progress mechanics use `make check RUN='^TestAnalyzeProgress'`:
+exact-pointer target/terminal ownership, immutable startup principal and fresh
+observer closure, coherent concurrent capture, detached typed rows and overflow-
+safe logical block boundaries. Public SQL witnesses remain in `reference/`.
 
 Simulated HBA holder ownership in `enginetests/pgcatalog` uses
 `make check RUN='^TestPGHBAFileRulesHolder'`: destination staging, replacement,

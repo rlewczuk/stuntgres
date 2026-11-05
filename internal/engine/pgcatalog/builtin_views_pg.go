@@ -23,6 +23,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: StatsExtOID, parts: extendedStatisticsViewParts(false), prettyParts: extendedStatisticsViewParts(true)},
 	{oid: StatsExtExprsOID, parts: expressionStatisticsViewParts(false), prettyParts: expressionStatisticsViewParts(true)},
 	{oid: ProgressCreateIndexOID, returnRule: ProgressCreateIndexRuleOID, parts: createIndexProgressViewParts(false), prettyParts: createIndexProgressViewParts(true)},
+	{oid: ProgressAnalyzeOID, returnRule: ProgressAnalyzeRuleOID, parts: analyzeProgressViewParts(false), prettyParts: analyzeProgressViewParts(true)},
 	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts(false), prettyParts: clusterProgressViewParts(true)},
 	{oid: StatDatabaseOID, returnRule: StatDatabaseRuleOID, parts: databaseStatisticsViewParts(false), prettyParts: databaseStatisticsViewParts(true)},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},

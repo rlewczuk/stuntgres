@@ -10,7 +10,7 @@ import (
 )
 
 func TestReferenceDeparseRewriteBootstrapReturnRules(t *testing.T) {
-	for _, view := range []string{"pg_stat_progress_copy", "pg_stat_progress_create_index"} {
+	for _, view := range []string{"pg_stat_progress_copy", "pg_stat_progress_create_index", "pg_stat_progress_analyze"} {
 		t.Run(view, func(t *testing.T) {
 			fixture.DeparseRelationsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				var id int64
@@ -29,6 +29,12 @@ func TestReferenceDeparseRewriteBootstrapReturnRules(t *testing.T) {
 						body = rewriteIndexDefaultBody
 						if pretty {
 							body = rewriteIndexPrettyBody
+						}
+					}
+					if view == "pg_stat_progress_analyze" {
+						body = analyzeProgressDefaultBody
+						if pretty {
+							body = analyzeProgressPrettyBody
 						}
 					}
 					target := "pg_catalog." + view

@@ -104,7 +104,7 @@ func TestCopyProgressTypedCapture(t *testing.T) {
 
 func TestCopyProgressViewDefinitionNames(t *testing.T) {
 	for _, pretty := range []bool{false, true} {
-		definition := pgcatalog.BuiltinViewDefinition(pgcatalog.ProgressCopyOID, pretty, func(name pgcatalog.BuiltinViewName) string {
+		definition := pgcatalog.BuiltinViewDefinition(pgcatalog.ProgressCopyOID, pretty, nil, func(name pgcatalog.BuiltinViewName) string {
 			if name.IdentifierOnly {
 				return `"` + name.Name + `"`
 			}

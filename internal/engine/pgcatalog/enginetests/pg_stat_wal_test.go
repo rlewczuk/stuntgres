@@ -31,7 +31,7 @@ func TestPGStatWALProjection(t *testing.T) {
 	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), Owner: view.Owner(), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Source: source}
 	for _, pretty := range []bool{false, true} {
 		seen := false
-		pgcatalog.BuiltinViewDefinition(pgcatalog.StatWALOID, pretty, func(name pgcatalog.BuiltinViewName) string {
+		pgcatalog.BuiltinViewDefinition(pgcatalog.StatWALOID, pretty, nil, func(name pgcatalog.BuiltinViewName) string {
 			if name.Class == ids.ProcedureClassID {
 				if name.Namespace != ids.PGCatalogNamespaceOID || name.Name != "pg_stat_get_wal" || name.Signature != "" || name.RoutineOID != 1136 {
 					t.Fatal("lost exact backing procedure dependency", name)

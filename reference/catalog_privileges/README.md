@@ -287,9 +287,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   ReadOnly checks complete direct/prepared55000 diagnostics and unchanged state.
   Run the selected family both natively and with `REFERENCE=1`; owner barriers
   supplement, never replace, these public active-work witnesses.
+- ANALYZE progress: `RUN='^TestReferenceAnalyzeProgress'`; shared direct/prepared
+  catalog, rewrite, admission, live mutation, fresh-role visibility and genuine
+  descendant-lock lifetime scenarios. Each held worker requires its exact
+  database/PID/child AccessShare queue entry and blocker PID before any inherited
+  snapshot assertion; another worker's scheduler frames cannot admit it.
+  Concurrent worker bags include distinct databases; native replacement retains
+  detached active results. Run the same selector with `REFERENCE=1`.
 - Bootstrap trigger/rule deparse inventory:
-  `RUN='^TestReferenceDeparseRewriteBootstrapReturnRules$'` checks both advertised
-  progress-view `_RETURN` identities through all overloads, exact independent
+  `RUN='^TestReferenceDeparseRewriteBootstrapReturnRules$'` checks all advertised
+  COPY, CREATE INDEX and ANALYZE progress-view `_RETURN` identities through all overloads, exact independent
   default/pretty bodies, captured naming and identifier quoting. The CREATE
   INDEX pretty body uses released reduced cast/concatenation parentheses; it is
   not default text with different whitespace. Run both native and `REFERENCE=1`.

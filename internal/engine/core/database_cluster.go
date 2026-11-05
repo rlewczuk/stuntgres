@@ -51,8 +51,9 @@ type DatabaseCluster struct {
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
 	// Active commands across every target, guarded by the shared engine mutex.
-	copyProgress  map[ids.SessionID]*copyProgress
-	indexProgress map[ids.SessionID]*indexProgress
+	copyProgress    map[ids.SessionID]*copyProgress
+	indexProgress   map[ids.SessionID]*indexProgress
+	analyzeProgress map[ids.SessionID]*AnalyzeProgress
 	// Transient exclusion only; live registrations belong to the catalog.
 	replicationOrigins                  map[ids.OID]replicationOriginReservation
 	replicationOriginProgress           map[ids.OID]uint64

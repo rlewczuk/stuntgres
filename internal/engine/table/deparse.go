@@ -35,10 +35,11 @@ type DeparseInputs struct {
 	TemporaryOwner ids.SessionToken
 	// ResolveRelation resolves a TEXT relation name as a utility lookup.
 	ResolveRelation func(parser.ObjectName) (ids.ObjectRef, error)
-	// BuiltinViewDefinition renders explicitly owned default or pretty fragments
-	// from the same captured authority as catalog sources. The bool selects pretty;
-	// empty text means no definition is owned for the requested format.
-	BuiltinViewDefinition func(context.Context, catalog.Read, *catalog.Relation, bool) (string, error)
+	// BuiltinViewDefinition renders explicitly owned default/pretty fragments
+	// from the same captured authority as catalog sources. A nonnil wrap selects
+	// explicit target layout; the borrowed width expires when the call returns.
+	// Empty text means no definition is owned for the requested format.
+	BuiltinViewDefinition func(context.Context, catalog.Read, *catalog.Relation, bool, *int64) (string, error)
 }
 
 // Deparse answers one deparse inquiry over in.
@@ -292,11 +293,21 @@ func deparseRelation(c *exec.Context, in DeparseInputs, signature functions.Depa
 		}
 		text, err = index.DefinitionSQL(c.Context, view, relation, index.Presentation{Column: column, Pretty: pretty, Path: in.Path, Temporary: in.Temporary(), Output: in.Output})
 	} else {
+		var wrap int64
+		var builtinWrap *int64
+		if signature == functions.DeparseViewWrap {
+			pretty = true
+			wrap, err = values[1].Integer()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			builtinWrap = &wrap
+		}
 		if relation.View == nil {
-			if in.BuiltinViewDefinition == nil || signature != functions.DeparseViewOID && signature != functions.DeparseViewText && signature != functions.DeparseViewOIDPretty && signature != functions.DeparseViewTextPretty {
+			if in.BuiltinViewDefinition == nil {
 				return sqltype.Null(result), nil
 			}
-			text, err := in.BuiltinViewDefinition(c.Context, view, relation, pretty)
+			text, err := in.BuiltinViewDefinition(c.Context, view, relation, pretty, builtinWrap)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -304,14 +315,6 @@ func deparseRelation(c *exec.Context, in DeparseInputs, signature functions.Depa
 				return sqltype.Null(result), nil
 			}
 			return sqltype.String(result, text+";"), nil
-		}
-		var wrap int64
-		if signature == functions.DeparseViewWrap {
-			pretty = true
-			wrap, err = values[1].Integer()
-			if err != nil {
-				return sqltype.Value{}, err
-			}
 		}
 		text, err = stored.ViewOf(relation).SelectSQL(c.Context, view, stored.Presentation{Deparse: true, Pretty: pretty, Wrap: wrap, Path: in.Path, Columns: relation.Columns, Output: in.Output, NonstandardStrings: in.NonstandardStrings})
 		text += ";"

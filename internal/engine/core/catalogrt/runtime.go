@@ -76,6 +76,7 @@ type Host interface {
 	VisitClusterProgress(context.Context, func(pgcatalog.ClusterProgressFact) error) error
 	VisitCopyProgress(context.Context, func(pgcatalog.CopyProgressFact) error) error
 	VisitCreateIndexProgress(context.Context, func(pgcatalog.CreateIndexProgressFact) error) error
+	VisitAnalyzeProgress(context.Context, func(pgcatalog.AnalyzeProgressFact) error) error
 }
 
 var _ pgcatalog.Runtime = Runtime{}
@@ -314,7 +315,7 @@ func (r Runtime) PartitionReferences(ctx context.Context, view catalog.Read, rel
 }
 func (r Runtime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	if relation.View == nil {
-		return r.BuiltinViewDefinition(ctx, view, relation)
+		return r.BuiltinViewDefinition(ctx, view, relation, nil)
 	}
 	return stored.ViewDefinitionSQL(ctx, view, relation, r.Presentation)
 }

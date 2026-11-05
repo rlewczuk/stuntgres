@@ -33,6 +33,7 @@ type analyzeRun struct {
 	extendedDelta    map[storage.ExtendedStatisticsKey]*storage.ExtendedStatistics
 	hierarchy        *storage.StatisticsHierarchy
 	started          time.Time
+	progress         *core.AnalyzeProgress
 }
 
 func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarget, options table.AnalyzeOptions) error {
@@ -88,6 +89,10 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if err != nil {
 		return err
 	}
+	e.Mu.Lock()
+	r.progress = s.BeginAnalyzeProgressLocked(relation.Address())
+	e.Mu.Unlock()
+	defer r.progress.End()
 	inherited := len(closure) > 1 || relation.Partition != nil
 	if inherited {
 		r.hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
@@ -100,6 +105,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		}
 	}
 	if relation.Partition == nil {
+		r.progress.Phase("acquiring sample rows")
 		var local *storage.RelationStatistics
 		var rows uint64
 		var foreignFact *storage.ForeignAnalyzeStatistics
@@ -111,9 +117,13 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 				// accepted deltas are real, separate work before publication.
 				local, foreignFact = pass.statistics, pass.foreign
 				if foreignFact.SampleRows != 0 && foreignFact.TotalRows > 0 {
+					if len(r.definitions) != 0 {
+						r.progress.ExtendedStart(len(r.definitions))
+					}
 					for _, warning := range r.extendedWarnings {
 						s.Op.EmitNotice(session.LevelWarning, warning)
 					}
+					completed := 0
 					for i := range r.extended {
 						fact, buildErr := pass.buildExtended(&r.extended[i])
 						if buildErr != nil {
@@ -121,6 +131,10 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 						}
 						if err := r.acceptExtended(r.extended[i].Key, fact); err != nil {
 							return err
+						}
+						if fact != nil {
+							completed++
+							r.progress.ExtendedDone(completed)
 						}
 					}
 				}
@@ -153,6 +167,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	}
 	var population float64
 	if inherited {
+		r.progress.Phase("acquiring inherited sample rows")
 		// Child AccessShare waits are never SKIP_LOCKED: that option controls
 		// target admission, not inherited sampling.
 		for _, child := range closure {
@@ -168,10 +183,6 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		}
 		var sampled *float64
 		if mixed {
-			population, err = r.allocate(visits)
-			if err != nil {
-				return err
-			}
 			sampled = &population
 		}
 		facts, count, err := r.collect(true, visits, sampled)
@@ -285,6 +296,7 @@ func (r *analyzeRun) forgetImportedLocked(metadata *storage.RelationMetadata, ma
 }
 
 func (r *analyzeRun) publishLocal(rows uint64, foreign *storage.ForeignAnalyzeStatistics, final bool) error {
+	r.progress.Phase("finalizing analyze")
 	r.e.Mu.Lock()
 	defer r.e.Mu.Unlock()
 	if err := r.authorityLocked(); err != nil {
@@ -356,6 +368,7 @@ func (r *analyzeRun) clearInheritedLocked(metadata *storage.RelationMetadata) {
 }
 
 func (r *analyzeRun) publishFinal(population float64) error {
+	r.progress.Phase("finalizing analyze")
 	if !validForeignEstimate(population) {
 		return fmt.Errorf("stuntgres: invalid inherited ANALYZE population")
 	}

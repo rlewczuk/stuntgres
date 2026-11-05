@@ -180,6 +180,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'`.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - Foreign explain and sampled analysis: `RUN='^TestReferenceFDW(Explain|Analyze)'`.
+  Live ANALYZE ownership, imported statistics, retained inherited visits and
+  provider cancellation/replacement use `RUN='^TestReferenceFDWAnalyzeProgress'`.
   The real SQL reader uses reservoir sampling with a separately counted source
   population. Its explicit negotiation `TotalPages` is provider-owned logical
   metadata (normally one segment, configurable for allocation scenarios), not a

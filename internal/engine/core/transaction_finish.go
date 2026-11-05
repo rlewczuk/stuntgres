@@ -23,6 +23,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 		return errors.New("stuntgres: foreign or missing statement scope")
 	}
 	defer s.endIndexProgress(s.indexProgress)
+	defer s.analyzeProgress.End()
 	if s.Finished {
 		return s.result
 	}

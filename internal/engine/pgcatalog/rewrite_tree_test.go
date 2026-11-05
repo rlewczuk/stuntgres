@@ -46,11 +46,12 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 		t.Fatal("PG_NODE_TREE")
 	}
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 194}, &catalog.Type{SQLType: typ})
-	// COPY/CREATE INDEX/CLUSTER progress, database/subscription/WAL statistics,
-	// and security labels own the eight explicit builtin _RETURN declarations.
+	// Progress, database/subscription/WAL statistics and security labels own
+	// the complete explicit builtin _RETURN declaration inventory.
 	want := map[ids.OID]ids.OID{
 		ProgressCopyOID:          ProgressCopyRuleOID,
 		ProgressCreateIndexOID:   ProgressCreateIndexRuleOID,
+		ProgressAnalyzeOID:       ProgressAnalyzeRuleOID,
 		ProgressClusterOID:       ProgressClusterRuleOID,
 		StatDatabaseOID:          StatDatabaseRuleOID,
 		StatSubscriptionOID:      StatSubscriptionRuleOID,

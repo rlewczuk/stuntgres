@@ -423,12 +423,13 @@ call live here.
   at publication by `ValidateLikeSources`).
   Trigger targets use ShareRowExclusive for CREATE and AccessExclusive for DROP;
   both therefore contend with genuine execution RowExclusive on tables or views.
-  OID/TEXT view-definition inquiries, including boolean format selectors, use
-  captured `DeparseInputs.BuiltinViewDefinition` authority for builtin views
-  without stored payloads. Default format uses canonical fragments; pretty
-  format requires explicitly owned pretty fragments. Ordinary nonviews return
-  NULL. Stored-view rendering retains its own pretty/wrap presentation path;
-  builtin callbacks do not claim wrap-width support.
+  OID/TEXT view-definition inquiries, including boolean format and integer wrap
+  selectors, use captured `DeparseInputs.BuiltinViewDefinition` authority for
+  builtin views without stored payloads. Default/pretty bytes remain explicitly
+  owned fragments. Wrap requests select pretty and pass a call-borrowed width;
+  structural target boundaries use the same `stored.ViewTargetsSQL` formatter
+  as stored queries, never parsing or replacing rendered SQL. Ordinary nonviews
+  return NULL. Stored views retain their existing pretty/wrap presentation.
   Trigger/rule inquiries dispatch by their own object class before relation-OID
   lookup. Trigger inventory includes immutable user/partition-clone payloads and
   all FK-owned RI identities; projection and display share validated RI slot,

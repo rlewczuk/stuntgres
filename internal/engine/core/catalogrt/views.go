@@ -75,9 +75,10 @@ func (r Runtime) catalogViewLeafEvents(ctx context.Context, read catalog.Read, r
 	return events, nil
 }
 
-// BuiltinViewDefinition renders a builtin view's definition with the
-// runtime's presentation.
-func (r Runtime) BuiltinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
+// BuiltinViewDefinition renders a builtin view with captured presentation.
+// A nonnil borrowed wrap width selects layout of explicit whole-target bounds;
+// nil preserves default/pretty fragments without collecting rendered targets.
+func (r Runtime) BuiltinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation, wrap *int64) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -85,7 +86,15 @@ func (r Runtime) BuiltinViewDefinition(ctx context.Context, read catalog.Read, r
 		return "", ids.ErrCatalogReplaced
 	}
 	var spellingErr error
-	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, r.Presentation.Pretty, func(name pgcatalog.BuiltinViewName) string {
+	var formatTargets func([]string) string
+	if wrap != nil {
+		presentation := r.Presentation
+		presentation.Wrap = *wrap
+		formatTargets = func(targets []string) string {
+			return stored.ViewTargetsSQL(targets, presentation, false)
+		}
+	}
+	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, r.Presentation.Pretty, formatTargets, func(name pgcatalog.BuiltinViewName) string {
 		if spellingErr != nil {
 			return ""
 		}

@@ -92,13 +92,13 @@ func (s *StatementScope) deparseInputs() table.DeparseInputs {
 		in.Database = auth.Session.DatabaseName
 	}
 	runtime := catalogrt.Runtime{View: auth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
-	in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, relation *catalog.Relation, pretty bool) (string, error) {
+	in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, relation *catalog.Relation, pretty bool, wrap *int64) (string, error) {
 		if relation.RelationKind != catalog.CatalogRelation || pgcatalog.SummaryViewDefinition(relation.Address().ObjectID) == "" {
 			return "", nil
 		}
 		presentation := runtime
 		presentation.Presentation.Pretty = pretty
-		return presentation.BuiltinViewDefinition(ctx, read, relation)
+		return presentation.BuiltinViewDefinition(ctx, read, relation, wrap)
 	}
 	return in
 }

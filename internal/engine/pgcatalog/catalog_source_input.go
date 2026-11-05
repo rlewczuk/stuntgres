@@ -244,6 +244,7 @@ type Runtime interface {
 	VisitClusterProgress(context.Context, func(ClusterProgressFact) error) error
 	VisitCopyProgress(context.Context, func(CopyProgressFact) error) error
 	VisitCreateIndexProgress(context.Context, func(CreateIndexProgressFact) error) error
+	VisitAnalyzeProgress(context.Context, func(AnalyzeProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment
 	DatabaseName() string
 	TemporaryOwner() ids.SessionToken

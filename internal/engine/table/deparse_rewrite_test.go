@@ -36,7 +36,7 @@ func TestDeparseRewriteReturnInventory(t *testing.T) {
 	}
 	f.in.Catalog = f.in.Catalog.WithState(state)
 	f.in.Path = []ids.ObjectAddress{namespace}
-	f.in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, d *catalog.Relation, pretty bool) (string, error) {
+	f.in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, d *catalog.Relation, pretty bool, wrap *int64) (string, error) {
 		if read.State() != state || d != bootstrap {
 			t.Fatal("callback lost captured authority")
 		}
@@ -95,7 +95,7 @@ func TestDeparseRewriteTemporaryNaming(t *testing.T) {
 	state.SetDescriptor(relation.Address(), relation)
 	state.BindName(catalog.DescriptorNameKey(relation), relation.Address())
 	f.in.Catalog = f.in.Catalog.WithState(state)
-	f.in.BuiltinViewDefinition = func(context.Context, catalog.Read, *catalog.Relation, bool) (string, error) {
+	f.in.BuiltinViewDefinition = func(context.Context, catalog.Read, *catalog.Relation, bool, *int64) (string, error) {
 		return " SELECT true AS flag", nil
 	}
 	// The fixture's Temporary callback fails if called: naming consumes only

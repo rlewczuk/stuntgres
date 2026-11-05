@@ -68,7 +68,7 @@ func TestPGStatXactSysTablesCatalogIdentity(t *testing.T) {
 		}
 	}
 	for _, pretty := range []bool{false, true} {
-		rendered := pgcatalog.BuiltinViewDefinition(pgcatalog.StatXactSysTablesOID, pretty, func(n pgcatalog.BuiltinViewName) string {
+		rendered := pgcatalog.BuiltinViewDefinition(pgcatalog.StatXactSysTablesOID, pretty, nil, func(n pgcatalog.BuiltinViewName) string {
 			if n.IdentifierOnly {
 				return `"` + n.Name + `"`
 			}
