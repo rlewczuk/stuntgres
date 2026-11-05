@@ -23,7 +23,7 @@ func statsProviderBackendNoParticipants(t *testing.T) {
 	invalid := []ids.SessionToken{{}, domain.Session(0), domain.DetachedSession(1), domain.PrivateSession(owner)}
 	var writer statistics.Writer
 	for _, token := range invalid {
-		if p.BeginBackend(token) {
+		if p.BeginBackend(token, 1) {
 			t.Fatal("invalid or private identity received backend authority", token)
 		}
 		writer.Backend(&p, token, statistics.Fact{Operations: 1}, statistics.Fact{Operations: 2})
@@ -55,7 +55,7 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 	domain := new(ids.Domain)
 	peer := domain.Session(1)
 	at := time.Unix(100, 0)
-	if !p.BeginBackend(peer) {
+	if !p.BeginBackend(peer, 1) {
 		t.Fatal("live peer registration rejected")
 	}
 	var seed statistics.Writer
@@ -64,10 +64,10 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 	before, _ := p.ReadBackend(peer)
 	var retained statistics.Reader
 	retained.Configure("snapshot", 1)
-	retained.ReadBackend(&p, peer, at)
+	retained.ReadBackend(&p, statistics.BackendIdentity{Token: peer, Incarnation: 1}, at)
 	for i := ids.SessionID(2); i <= 129; i++ {
 		token := domain.Session(i)
-		p.BeginBackend(token)
+		p.BeginBackend(token, 1)
 		var writer statistics.Writer
 		writer.Backend(&p, token, statistics.Fact{Operations: 11}, statistics.Fact{Operations: 13})
 		writer.Flush(&p, at, true)
@@ -91,12 +91,12 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 		if current, _ := p.ReadBackend(peer); current != before {
 			t.Fatal("end changed active peer", current, before)
 		}
-		if cached, _ := retained.ReadBackend(&p, peer, at); cached != before {
+		if cached, _ := retained.ReadBackend(&p, statistics.BackendIdentity{Token: peer, Incarnation: 1}, at); cached != before {
 			t.Fatal("end changed retained peer capture")
 		}
 	}
 	ended := domain.Session(130)
-	p.BeginBackend(ended)
+	p.BeginBackend(ended, 1)
 	var late statistics.Writer
 	late.Backend(&p, ended, statistics.Fact{Operations: 5}, statistics.Fact{Operations: 6})
 	var peerPending statistics.Writer
@@ -105,8 +105,8 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 	p.Replace(at, nil)
 	late.Flush(&p, at, true)
 	peerPending.Flush(&p, at, true)
-	if _, exists := p.ReadBackend(peer); exists {
-		t.Fatal("old live pending generation crossed replacement")
+	if f, exists := p.ReadBackend(peer); !exists || f != (statistics.BackendFact{}) {
+		t.Fatal("old live pending generation crossed replacement", f, exists)
 	}
 	late.Backend(&p, ended, statistics.Fact{Operations: 7}, statistics.Fact{Operations: 8})
 	if late.Pending() || backendRegistrationCount(&p) != 1 {
@@ -125,7 +125,7 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 	if _, exists := p.ReadBackend(ended); exists {
 		t.Fatal("reset restored ended authority")
 	}
-	if cached, _ := retained.ReadBackend(&p, peer, at); cached != before {
+	if cached, _ := retained.ReadBackend(&p, statistics.BackendIdentity{Token: peer, Incarnation: 1}, at); cached != before {
 		t.Fatal("replacement mutated retained snapshot")
 	}
 	p.End(peer)
@@ -138,7 +138,7 @@ func statsProviderBackendRegistrationChurn(t *testing.T) {
 func statsProviderBackendRegistrationInheritance(t *testing.T) {
 	var source, destination statistics.Provider
 	token := new(ids.Domain).Session(1)
-	source.BeginBackend(token)
+	source.BeginBackend(token, 1)
 	var writer statistics.Writer
 	at := time.Unix(100, 0)
 	writer.Backend(&source, token, statistics.Fact{Operations: 11}, statistics.Fact{Operations: 13})
@@ -148,8 +148,8 @@ func statsProviderBackendRegistrationInheritance(t *testing.T) {
 	if backendRegistrationCount(&destination) != 1 {
 		t.Fatal("new target missed active registration")
 	}
-	if _, exists := destination.ReadBackend(token); exists {
-		t.Fatal("new target inherited monitoring history")
+	if f, exists := destination.ReadBackend(token); !exists || f != (statistics.BackendFact{}) {
+		t.Fatal("new target inherited monitoring history", f, exists)
 	}
 	var targetWriter statistics.Writer
 	targetWriter.Backend(&destination, token, statistics.Fact{Operations: 17}, statistics.Fact{Operations: 19})

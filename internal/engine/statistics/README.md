@@ -71,10 +71,14 @@ provider. `ResetShared`/`ResetAllShared`/`ResetSLRU` modify published state only
 IO/WAL keyed facts remain the sole operations/duration authority and use their
 family reset times, including absent keys. Archiver reset removes last-operation
 presentation; prefetch resets cumulative counters but preserves its three current
-gauges. Full-session-token backend partitions contain separate IO/WAL facts;
-missing resets never allocate. `BeginBackend` grants positive metrics reporting
-authority only from successful actual public-session publication. Report and
-flush require that membership; End deletes membership and facts rather than
+gauges. Full-session-token backend partitions cache IO/WAL and one reset stamp
+together. A positive live registration is logically present with zero counters
+and NULL reset even before reporting, without allocating stored report history.
+`ResetBackend` accepts that registration; unknown resets never allocate.
+`RegisterActivity` mints one nonzero monotonic physical incarnation on actual
+birth, preserved across reset/replacement and copied into owner/mirror
+`BeginBackend` registrations. Report batches retain that stamp; flush requires
+the same current incarnation. End deletes membership and facts rather than
 retaining ended tokens. Invalid, detached and private identities never receive
 membership, and their end paths allocate no history. State is bounded by current
 public lifetimes, not connection churn, and cannot retain private session owners.
@@ -134,15 +138,16 @@ semantics, without changing generation/pending work or retained Reader cuts.
 
 Fixed, SLRU and backend event deltas share `Writer` generation, publication gate
 and throttle with keyed work; targeted resets never touch any pending partition.
-The same Reader captures every local modeled partition and only Database and
-Subscription facts from actual peer providers on first snapshot access, even
-when a relation, sequence, index or fixed-family source triggers that access.
-Core holds the shared cluster mutex across the cut; provider locks remain leaves.
-Original owning keys and per-entry NULL reset semantics survive in one cache.
-No peer relation/function/backend partitions enter the local cut. Cache mode
-retains only actually accessed keys or fixed families, including the whole SLRU
-array; prefetch remains current and non-triggering. Clear releases all partitions
-and cached activity together.
+The same Reader captures every local modeled partition plus Database,
+Subscription and actual owning backend entries from peer providers on first
+snapshot access. Core supplies token/incarnation selections from genuine
+session registries and the shared live activity authority under the cluster
+mutex; provider locks remain leaves. Mirrored registrations never overwrite an
+owner fact. Each retained backend entry includes its incarnation atomically with
+the whole BackendFact; mismatches yield absence without rereading/evicting an
+old cut. Standalone capture uses the existing registration stamp. Cache mode
+retains accessed positive/negative keys and whole fixed/backend families.
+Prefetch remains current; clear releases all cumulative and raw activity cuts.
 The core traverses actual per-database providers for cluster-wide reset effects;
 there is no second cluster provider or competing IO/WAL counter copy.
 `ReadSLRUs` returns one detached eight-entry family under one leaf lock, so none
@@ -393,16 +398,16 @@ Settlement adds the same ledger I/U/D attempts to database history once, before
 relation retirement, without relation live/dead/truncate estimate effects.
 Committed and aborted executed work both count under existing first-pre-truncate
 and child/prepared rules. The existing `CaptureSource`/`Capture` traversal includes
-each peer's database and Subscription keys, the current database's other
-categories and the shared database key in one initial cut.
+each peer's database and Subscription keys and selected owning backend entries,
+the current database's other categories and the shared database key in one cut.
 All cumulative production entry points establish that domain before keyed or
 fixed-family reads can mark the snapshot full: database statistics, table/
 heap-block/index-block/sequence statistics, index access statistics, IO reset
 timestamps, and the archiver/SLRU, subscription-stats and demand-admitted bgwriter
 source captures. Core admission
 precedes the capture; undemanded/suppressed bgwriter reads stay lazy. The provider
-never invokes an engine/session callback. The current provider's fixed/shared,
-SLRU and backend partitions remain part of its same all-kind cut. The shared
+never invokes an engine/session callback. The current provider's fixed/shared
+and SLRU partitions and genuine owning backend entries remain in that same cut. The shared
 database key is copied in its owning provider's same leaf-lock interval, never by
 a second later capture that could overwrite a captured provider. Missing/reset
 defaults retain their own provider authority. Reader configuration, timestamp/

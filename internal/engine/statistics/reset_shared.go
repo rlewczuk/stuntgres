@@ -99,6 +99,11 @@ type BackendFact struct {
 	ResetAt time.Time
 }
 
+type backendDelta struct {
+	BackendFact
+	incarnation uint64
+}
+
 func mergeShared(a, b SharedFact) SharedFact {
 	for i := range a.Counters {
 		a.Counters[i] += b.Counters[i]
@@ -140,8 +145,23 @@ func (p *Provider) ReadSLRUs() [SLRUCount]SLRUFact {
 func (p *Provider) ReadBackend(token ids.SessionToken) (BackendFact, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	f, ok := p.backends[token]
-	return f, ok
+	return p.readBackend(token)
+}
+
+// Registration establishes logical presence before the first report. Reading
+// that zero entry never creates stored history or a reset timestamp.
+func (p *Provider) readBackend(token ids.SessionToken) (BackendFact, bool) {
+	if _, live := p.liveBackends[token]; !live {
+		return BackendFact{}, false
+	}
+	return p.backends[token], true
+}
+
+func (p *Provider) readBackendIdentity(identity BackendIdentity) (BackendFact, bool) {
+	if identity.Incarnation == 0 || p.liveBackends[identity.Token] != identity.Incarnation {
+		return BackendFact{}, false
+	}
+	return p.readBackend(identity.Token)
 }
 
 // ReportPrefetchGauges sets actual instantaneous measurements without inventing
@@ -205,8 +225,11 @@ func (p *Provider) ResetSLRU(k SLRUKind, at time.Time) {
 func (p *Provider) ResetBackend(token ids.SessionToken, at time.Time) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, ok := p.backends[token]; !ok {
+	if _, ok := p.liveBackends[token]; !ok {
 		return false
+	}
+	if p.backends == nil {
+		p.backends = make(map[ids.SessionToken]BackendFact)
 	}
 	p.backends[token] = BackendFact{IO: Fact{ResetAt: at}, WAL: Fact{ResetAt: at}, ResetAt: at}
 	return true
@@ -218,16 +241,19 @@ func validBackendToken(token ids.SessionToken) bool {
 // BeginBackend grants positive reporting authority only at successful actual
 // public-session publication. A report cannot register its own stale identity.
 // Core serializes registration, inheritance and end under the cluster mutex.
-func (p *Provider) BeginBackend(token ids.SessionToken) bool {
-	if !validBackendToken(token) {
+func (p *Provider) BeginBackend(token ids.SessionToken, incarnation uint64) bool {
+	if !validBackendToken(token) || incarnation == 0 {
 		return false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.liveBackends == nil {
-		p.liveBackends = make(map[ids.SessionToken]struct{})
+		p.liveBackends = make(map[ids.SessionToken]uint64)
 	}
-	p.liveBackends[token] = struct{}{}
+	if existing, present := p.liveBackends[token]; present {
+		return existing == incarnation
+	}
+	p.liveBackends[token] = incarnation
 	return true
 }
 
@@ -240,11 +266,11 @@ func (p *Provider) InheritBackendRegistrations(source *Provider) {
 		return
 	}
 	source.mu.Lock()
-	var live map[ids.SessionToken]struct{}
+	var live map[ids.SessionToken]uint64
 	if len(source.liveBackends) != 0 {
-		live = make(map[ids.SessionToken]struct{}, len(source.liveBackends))
-		for token := range source.liveBackends {
-			live[token] = struct{}{}
+		live = make(map[ids.SessionToken]uint64, len(source.liveBackends))
+		for token, incarnation := range source.liveBackends {
+			live[token] = incarnation
 		}
 	}
 	source.mu.Unlock()
@@ -331,14 +357,18 @@ func (w *Writer) Backend(p *Provider, token ids.SessionToken, io, wal Fact) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, live := p.liveBackends[token]; !live {
+	incarnation, live := p.liveBackends[token]
+	if !live {
 		return
 	}
 	w.initialize(p)
 	if w.backendPending == nil {
-		w.backendPending = make(map[ids.SessionToken]BackendFact)
+		w.backendPending = make(map[ids.SessionToken]backendDelta)
 	}
 	f := w.backendPending[token]
+	if f.incarnation != incarnation {
+		f = backendDelta{incarnation: incarnation}
+	}
 	f.IO = merge(f.IO, io)
 	f.WAL = merge(f.WAL, wal)
 	w.backendPending[token] = f
@@ -355,7 +385,7 @@ func (w *Writer) flushShared(p *Provider) {
 		p.slru[k] = mergeSLRU(p.slru[k], w.slruPending[k])
 	}
 	for token, delta := range w.backendPending {
-		if _, live := p.liveBackends[token]; !live {
+		if incarnation, live := p.liveBackends[token]; !live || incarnation != delta.incarnation {
 			continue
 		}
 		if p.backends == nil {

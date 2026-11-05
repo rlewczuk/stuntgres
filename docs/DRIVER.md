@@ -552,6 +552,18 @@ matters; no implicit row order is portable.
 
 ### Session activity monitoring
 
+The callable backend-current functions use ordinary computed result metadata:
+expanded fixed OUT fields preserve names/types and typmod -1, with unknown
+nullability and no table/attribute origin. A target-list call has one RECORD
+column; activity/IO are sets, backend WAL is scalar. Strict NULL/unknown IO is
+empty with complete metadata; whole-NULL backend WAL expands to one five-NULL
+row. Prepare/Describe retains no target, activity/cumulative cut or privilege
+decision. Execution shares the view's raw activity lifetime and current mask;
+backend metrics additionally require a still-live owning session, and cache
+both IO and WAL together. Clear/end releases captures without flushing/resetting
+the provider. Returned native Rows remain detached across later resets or
+accepted native catalog replacement; monitoring history is not Dump state.
+
 `pg_catalog.pg_stat_activity` (also unqualified on the ordinary catalog path) is
 one read-only system view with exactly 22 nullable columns, in release order:
 `datid oid`, `datname name`, `pid integer`, `leader_pid integer`, `usesysid oid`,

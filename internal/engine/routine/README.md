@@ -68,6 +68,14 @@ fields form strict VOLATILE/parallel-restricted SETOF record, cost 1 and rows 10
 The fresh descriptor receives owner/pg_read_all_stats EXECUTE; subsequent grants
 and revokes use normal runtime authority independently of the view's SELECT.
 
+Current-backend routines 2022/6386/6313 are callable catalog-provider declarations:
+one named INT4 PID, fixed 31/20/5 OUT fields, parallel restricted and implicit
+PUBLIC EXECUTE. Activity is nonstrict STABLE SETOF RECORD (rows100), IO is strict
+VOLATILE SETOF RECORD (rows5), WAL is strict VOLATILE scalar RECORD (rows0).
+The OUT declaration owns all IN/OUT names; activity masking is execution state,
+not an ACL seed or metadata-only backing descriptor.
+
+
 The executable `pg_mcv_list_items` declaration reuses fixed identity 3427 and
 formal 5017, with one named input and five fixed OUT fields. The strict STABLE,
 parallel-safe set belongs to the embedded provider; its internal display source

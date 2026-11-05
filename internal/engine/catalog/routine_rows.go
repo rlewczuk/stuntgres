@@ -7,6 +7,8 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 	switch d.Identity.ID {
 	case 3689, 3690: // ts_stat
 		return 10000
+	case 6386: // current backend IO capabilities
+		return 5
 	case 2289: // pg_options_to_table(text[])
 		return 3
 	case 2763: // regexp_matches(text,text)
@@ -27,6 +29,7 @@ func builtinRoutineRows(d *BuiltinRoutineDeclaration) float32 {
 		6321, 6322, // physical WAL summaries
 		6399,                                           // current asynchronous I/O handles
 		2282,                                           // current backend memory contexts
+		2022,                                           // current backend activity
 		2306,                                           // SLRU view backing authority
 		6014,                                           // allocated replication-origin progress
 		3205, 3208, 3219, 3465, 3475, 3491, 3931, 3932, // JSONB sets

@@ -39,8 +39,12 @@ func sharedStatsBackendRegistrationChurn(t *testing.T) {
 	retainedA.Configure("snapshot", 1)
 	retainedB.Configure("snapshot", 1)
 	at := time.Unix(100, 0)
-	retainedA.ReadBackend(&e.Statistics, s.Token(), at)
-	retainedB.ReadBackend(&peer.Statistics, ps.Token(), at)
+	activityA, _ := e.Statistics.LiveActivity(s.Token())
+	activityB, _ := e.Statistics.LiveActivity(ps.Token())
+	identityA := statistics.BackendIdentity{Token: s.Token(), Incarnation: activityA.Incarnation}
+	identityB := statistics.BackendIdentity{Token: ps.Token(), Incarnation: activityB.Incarnation}
+	retainedA.ReadBackend(&e.Statistics, identityA, at)
+	retainedB.ReadBackend(&peer.Statistics, identityB, at)
 	checkLive := func() {
 		t.Helper()
 		for _, p := range providers {
@@ -52,10 +56,10 @@ func sharedStatsBackendRegistrationChurn(t *testing.T) {
 		if current, _ := peer.Statistics.ReadBackend(ps.Token()); current != b {
 			t.Fatal("churn changed independent live B", current, b)
 		}
-		if cached, _ := retainedA.ReadBackend(&e.Statistics, s.Token(), at); cached != a {
+		if cached, _ := retainedA.ReadBackend(&e.Statistics, identityA, at); cached != a {
 			t.Fatal("churn changed retained A")
 		}
-		if cached, _ := retainedB.ReadBackend(&peer.Statistics, ps.Token(), at); cached != b {
+		if cached, _ := retainedB.ReadBackend(&peer.Statistics, identityB, at); cached != b {
 			t.Fatal("churn changed retained B")
 		}
 	}
@@ -215,7 +219,7 @@ func sharedStatsBackendRegistrationChurn(t *testing.T) {
 		if current, _ := peer.Statistics.ReadBackend(ps.Token()); current != b {
 			t.Fatal("replacement changed active peer database")
 		}
-		if cached, _ := retainedA.ReadBackend(&e.Statistics, s.Token(), at); cached != a {
+		if cached, _ := retainedA.ReadBackend(&e.Statistics, identityA, at); cached != a {
 			t.Fatal("replacement changed retained backend snapshot")
 		}
 	}
@@ -235,8 +239,8 @@ func sharedStatsBackendTargetInheritance(t *testing.T) {
 		t.Fatal(err)
 	}
 	sharedStatsBackendSizes(t, &target.Statistics, 1, 0)
-	if _, exists := target.Statistics.ReadBackend(s.Token()); exists {
-		t.Fatal("new target inherited backend monitoring history")
+	if f, exists := target.Statistics.ReadBackend(s.Token()); !exists || f != (statistics.BackendFact{}) {
+		t.Fatal("new target inherited backend monitoring history", f, exists)
 	}
 	sharedStatsBackend(target, s, 17, 19)
 	if f, ok := target.Statistics.ReadBackend(s.Token()); !ok || f.IO.Operations != 17 || f.WAL.Operations != 19 || !f.ResetAt.IsZero() {

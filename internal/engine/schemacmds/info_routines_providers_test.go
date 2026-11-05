@@ -27,6 +27,24 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		seen[p.Address().ObjectID] = true
 	}
 	for _, want := range []struct {
+		oid         ids.OID
+		fields      int
+		input       string
+		set, strict bool
+		rows        float32
+		volatility  expr.Volatility
+	}{
+		{2022, 31, "pid", true, false, 100, expr.Stable},
+		{6386, 20, "backend_pid", true, true, 5, expr.Volatile},
+		{6313, 5, "backend_pid", false, true, 0, expr.Volatile},
+	} {
+		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: want.oid})
+		out := p.OutputDeclaration()
+		if !seen[want.oid] || p.Builtin.Providers == 0 || p.Signature != "23" || p.Result != 2249 || p.Strict != want.strict || p.Volatility != want.volatility || p.ReturnsSet() != want.set || p.RowEstimate() != want.rows || p.CostEstimate() != 1 || p.Builtin.Parallel != 'r' || p.ACL.Explicit || len(p.ACL.Entries) != 0 || out == nil || out.Inputs() != 1 || out.Len() != want.fields || out.Name(0) != want.input {
+			t.Fatal("released callable backend declaration", p, want)
+		}
+	}
+	for _, want := range []struct {
 		oid        ids.OID
 		name       string
 		result     ids.OID

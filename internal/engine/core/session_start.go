@@ -256,16 +256,16 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 				owner.Mu.Lock()
 				application := owner.Value("application_name")
 				owner.Mu.Unlock()
-				e.activityProvider().RegisterActivity(s.SessionToken, statistics.Activity{
+				incarnation := e.activityProvider().RegisterActivity(s.SessionToken, statistics.Activity{
 					Database: e.Catalog.Owner.DatabaseAddress().ObjectID, DatabaseName: s.DatabaseName,
 					Principal: authenticated, Application: application,
 					BackendType: "client backend", BackendStart: born, State: "idle", StateChange: born,
 				})
-				e.Statistics.BeginBackend(s.SessionToken)
+				e.Statistics.BeginBackend(s.SessionToken, incarnation)
 				if e.Cluster != nil {
 					for _, target := range e.Cluster.Targets {
 						if target != e {
-							target.Statistics.BeginBackend(s.SessionToken)
+							target.Statistics.BeginBackend(s.SessionToken, incarnation)
 						}
 					}
 				}

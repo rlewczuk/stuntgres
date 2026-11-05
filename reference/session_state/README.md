@@ -29,6 +29,16 @@ transaction and routine lifetimes, list selection and the physical boundary.
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 
+Current-backend callable scenarios use `RUN='^TestReferenceBackendCurrent'` in
+both fixture modes. Dedicated physical connections distinguish retained status
+membership, current inherited projection, owning-provider cumulative cuts and
+actual retirement; no ordering is inferred from un-ordered record sources.
+Cancellation starts a live operation, observes its genuine relation-lock wait,
+then cancels and joins the row consumer before releasing the holder. Recovery
+checks the preserved reader, or proves documented pq transport retirement before
+acquiring a healthy replacement; monitored target birth/reset remain unchanged.
+
+
 Logical-slot monitoring uses `RUN='^TestReferencePGStatReplicationSlots'` in both
 fixture modes for typed empty/populated inventory, query composition, current
 SELECT admission, stock test_decoding publication/drop, physical rejected-start

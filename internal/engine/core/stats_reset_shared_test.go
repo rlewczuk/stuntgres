@@ -255,8 +255,8 @@ func TestStatsResetSharedClusterIsolation(t *testing.T) {
 	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := e.Statistics.ReadBackend(s.Token()); ok {
-		t.Fatal("native replacement retained backend history")
+	if f, ok := e.Statistics.ReadBackend(s.Token()); !ok || f != (statistics.BackendFact{}) {
+		t.Fatal("native replacement retained backend history", f, ok)
 	}
 	if got, _ := peer.Statistics.ReadBackend(ps.Token()); got != backend {
 		t.Fatal("native replacement changed peer database")
@@ -265,8 +265,8 @@ func TestStatsResetSharedClusterIsolation(t *testing.T) {
 	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := e.Statistics.ReadBackend(s.Token()); ok {
-		t.Fatal("Restore serialized backend monitoring history")
+	if f, ok := e.Statistics.ReadBackend(s.Token()); !ok || f != (statistics.BackendFact{}) {
+		t.Fatal("Restore serialized backend monitoring history", f, ok)
 	}
 	if got, _ := peer.Statistics.ReadBackend(ps.Token()); got != backend {
 		t.Fatal("Restore changed peer backend")
@@ -278,8 +278,8 @@ func TestStatsResetSharedClusterIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	late.Flush(&e.Statistics, time.Now(), true)
-	if _, ok := e.Statistics.ReadBackend(s.Token()); ok {
-		t.Fatal("old generation recreated backend")
+	if f, ok := e.Statistics.ReadBackend(s.Token()); !ok || f != (statistics.BackendFact{}) {
+		t.Fatal("old generation recreated backend", f, ok)
 	}
 }
 func TestStatsResetSharedProviderSmoke(t *testing.T) {

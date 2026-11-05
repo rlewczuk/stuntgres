@@ -299,14 +299,14 @@ func TestPGStatSubscriptionStatsSnapshots(t *testing.T) {
 			})
 		}
 	}
-	for _, first := range []string{"table", "sequence", "index", "bgwriter", "archiver", "slru", "subscription", "database", "runtime", "runtime_database"} {
+	for _, first := range []string{"table", "sequence", "index", "bgwriter", "archiver", "slru", "subscription", "database", "runtime", "runtime_database", "backend_io", "backend_wal"} {
 		t.Run(first, func(t *testing.T) {
 			e, s, peer, ps, keys := resetStatsFixture(t)
 			a, c := keys[0], keys[2]
 			local := subscriptionStatsSeed(e, a, subscriptionStatsLocal)
 			remote := subscriptionStatsSeed(peer, c, subscriptionStatsPeer)
 			statsFunctionExec(t, s, "CREATE TABLE stats_first(v integer)", "CREATE INDEX stats_first_idx ON stats_first USING hash(v)", "CREATE SEQUENCE stats_first_seq", "SET stats_fetch_consistency=snapshot", "BEGIN")
-			// Peer relation/function/backend facts stay excluded; database facts share the cut.
+			// Peer relation/function facts stay excluded; owning backend and database facts share the cut.
 			foreignRelation := statistics.Key{Object: peer.Catalog.Domain.Ref(peer.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 700001}), Category: statistics.Relation}
 			foreignFunction := foreignRelation
 			foreignFunction.Category = statistics.Function
@@ -319,6 +319,8 @@ func TestPGStatSubscriptionStatsSnapshots(t *testing.T) {
 			writer.Flush(&peer.Statistics, time.Now(), true)
 			queries := map[string]string{"table": "SELECT seq_scan FROM pg_stat_all_tables WHERE relid='stats_first'::regclass", "sequence": "SELECT blks_read FROM pg_statio_all_sequences WHERE relid='stats_first_seq'::regclass", "index": "SELECT idx_scan FROM pg_stat_all_indexes WHERE indexrelid='stats_first_idx'::regclass", "bgwriter": "SELECT buffers_clean FROM pg_stat_bgwriter", "archiver": "SELECT archived_count FROM pg_stat_archiver", "slru": "SELECT blks_hit FROM pg_stat_slru"}
 			queries["database"] = "SELECT tup_inserted FROM pg_stat_database"
+			queries["backend_io"] = fmt.Sprintf("SELECT reads FROM pg_stat_get_backend_io(%d)", ps.Token().ID())
+			queries["backend_wal"] = fmt.Sprintf("SELECT wal_records FROM pg_stat_get_backend_wal(%d)", ps.Token().ID())
 			if first == "subscription" {
 				subscriptionStatsOwned(t, subscriptionStatsCapture(t, e, s), map[ids.OID]statistics.Fact{a.Object.Address.ObjectID: local, keys[1].Object.Address.ObjectID: e.Statistics.Read(keys[1]), c.Object.Address.ObjectID: remote})
 			} else if first == "runtime" {
@@ -384,8 +386,8 @@ func TestPGStatSubscriptionStatsSnapshots(t *testing.T) {
 					t.Fatal("imported projected or unrelated peer partition", key)
 				}
 			}
-			if backend := owned.FieldByName("backends").MapIndex(reflect.ValueOf(ps.Token())); backend.IsValid() && backend.FieldByName("fact").FieldByName("IO").FieldByName("Operations").Int() == 227 {
-				t.Fatal("imported peer backend partition")
+			if backend := owned.FieldByName("backends").MapIndex(reflect.ValueOf(ps.Token())); !backend.IsValid() || !backend.FieldByName("exists").Bool() || backend.FieldByName("fact").FieldByName("IO").FieldByName("Operations").Int() != 227 || backend.FieldByName("fact").FieldByName("WAL").FieldByName("Operations").Int() != 229 {
+				t.Fatal("owning peer backend omitted or overwritten by mirrored zero")
 			}
 			retained := bgwriterReaderState(s)
 			resetStatsExec(t, ps, fmt.Sprintf("SELECT pg_stat_reset_subscription_stats(%d::oid)", c.Object.Address.ObjectID))

@@ -45,6 +45,19 @@ Staged/imported type reownership completes this builtin pair coherently through
 the shared typedef member traversal, preserving its effective builtin namespace,
 catalog metadata and legitimate relation mapping without user-type serialization.
 
+Current-backend function execution shares the view's unmasked activity capture
+and live wait overlay. Current routine authority projects privileges anew.
+Backend IO/WAL resolve the real owning session across database registries under
+the cluster mutex, release registry locks before pinning lifecycle, and require
+retained activity membership with the same nonzero physical incarnation before
+reading the owning provider's whole backend entry. Owner selections carry that
+birth stamp into cumulative caches, closing same-token/PID reuse even when the
+SQL birth timestamps collide or cumulative capture preceded activity capture.
+Owner selections in cumulative snapshot sources exclude mirrored
+registrations; provider locks remain leaves. Projection happens after unlocking
+and returns detached computed RECORD values, never session/provider pointers.
+
+
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
 heaps from the current committed map without mutating captured maps or retained

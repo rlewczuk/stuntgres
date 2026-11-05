@@ -41,6 +41,17 @@ func captureDatabaseStats(e *Engine, reader *statistics.Reader) {
 	sharedCaptured := false
 	for _, target := range targets {
 		source := statistics.CaptureSource{Provider: &target.Statistics, Database: databaseStatsKey(target), All: target == e}
+		// The registry carries immutable public identity. Mirrors grant reporting
+		// authority but never replace an owning provider's captured backend fact.
+		target.sessionMu.Lock()
+		for token, session := range target.sessions {
+			if p := PayloadOf(session); p != nil && p.statsPublic {
+				if activity, present := e.activityProvider().LiveActivity(token); present {
+					source.Owners = append(source.Owners, statistics.BackendIdentity{Token: token, Incarnation: activity.Incarnation})
+				}
+			}
+		}
+		target.sessionMu.Unlock()
 		if target == shared {
 			source.Shared = sharedDatabaseStatsKey(shared)
 			sharedCaptured = true

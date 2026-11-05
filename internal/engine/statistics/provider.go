@@ -40,7 +40,7 @@ type Fact struct {
 	SequencePageAccesses                                                                           int64
 	BlocksFetched, BlocksHit                                                                       int64
 	TotalTime, SelfTime                                                                            time.Duration
-	FunctionLogicalTotal, FunctionLogicalSelf                                                       int64
+	FunctionLogicalTotal, FunctionLogicalSelf                                                      int64
 	SpillTxns, SpillCount, SpillBytes, StreamTxns, StreamCount, StreamBytes, TotalTxns, TotalBytes int64
 	ApplyErrorCount, SyncErrorCount                                                                int64
 	ConflInsertExists, ConflUpdateOriginDiffers, ConflUpdateExists, ConflUpdateMissing             int64
@@ -100,16 +100,17 @@ func (a *DatabaseFact) Add(b DatabaseFact) {
 // Provider's mutex is a leaf: it never calls engine, session, clock or settings.
 // Zero value is ready for use. A provider belongs to one database incarnation.
 type Provider struct {
-	mu           sync.Mutex
-	facts        map[Key]Fact
-	activities   map[ids.SessionToken]Activity
-	reset        time.Time
-	generation   uint64
-	retired      map[Key]struct{}
-	shared       [SharedKindCount]SharedFact
-	slru         [SLRUCount]SLRUFact
-	backends     map[ids.SessionToken]BackendFact
-	liveBackends map[ids.SessionToken]struct{}
+	mu                  sync.Mutex
+	facts               map[Key]Fact
+	activities          map[ids.SessionToken]Activity
+	reset               time.Time
+	generation          uint64
+	retired             map[Key]struct{}
+	shared              [SharedKindCount]SharedFact
+	slru                [SLRUCount]SLRUFact
+	backends            map[ids.SessionToken]BackendFact
+	liveBackends        map[ids.SessionToken]uint64
+	activityIncarnation uint64 // Never rewound by reset/replacement or retirement.
 }
 
 func (p *Provider) Read(k Key) Fact { p.mu.Lock(); defer p.mu.Unlock(); return p.read(k) }
@@ -206,10 +207,10 @@ type Writer struct {
 	generation             uint64
 	initialized            bool
 	chargedSelf            time.Duration // Backend-wide completed function self time; owner-serialized.
-	logicalSelf            int64 // Completed invocation units, independent of elapsed timing.
+	logicalSelf            int64         // Completed invocation units, independent of elapsed timing.
 	sharedPending          [SharedKindCount]SharedFact
 	slruPending            [SLRUCount]SLRUFact
-	backendPending         map[ids.SessionToken]BackendFact
+	backendPending         map[ids.SessionToken]backendDelta
 	sharedDirty, slruDirty uint8
 }
 
@@ -397,9 +398,9 @@ func (w *Writer) IndexBlock(p *Provider, k Key, policy Policy, resident bool) {
 // FunctionUsage retains pending-local baselines, never a pointer into a map.
 // The owner must not flush while an invocation is active.
 type FunctionUsage struct {
-	key                Key
-	generation         uint64
-	total, chargedSelf time.Duration
+	key                       Key
+	generation                uint64
+	total, chargedSelf        time.Duration
 	logicalTotal, logicalSelf int64
 }
 
@@ -478,6 +479,7 @@ func (w *Writer) IO(p *Provider, k Key, policy Policy, operations int64, elapsed
 
 // Activity is detached publication, never permission to inspect a live session.
 type Activity struct {
+	Incarnation                                        uint64 // Nonzero physical birth stamp, not a timestamp or SQL ID.
 	Command                                            ids.CommandIdentity
 	Database                                           ids.OID
 	DatabaseName                                       string
@@ -492,19 +494,34 @@ type Activity struct {
 	WaitType, Wait                                     string
 }
 
-func (p *Provider) RegisterActivity(token ids.SessionToken, a Activity) {
+func (p *Provider) RegisterActivity(token ids.SessionToken, a Activity) uint64 {
 	if !validBackendToken(token) || a.Principal.ID() == 0 {
-		return
+		return 0
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, registered := p.activities[token]; registered {
-		return // Startup identity cannot be relabeled by duplicate attachment.
+	if existing, registered := p.activities[token]; registered {
+		return existing.Incarnation // Duplicate attachment cannot relabel birth.
 	}
 	if p.activities == nil {
 		p.activities = make(map[ids.SessionToken]Activity)
 	}
+	p.activityIncarnation++
+	if p.activityIncarnation == 0 {
+		panic("stuntgres: backend activity incarnation exhausted")
+	}
+	a.Incarnation = p.activityIncarnation
 	p.activities[token] = a
+	return a.Incarnation
+}
+
+// LiveActivity returns one detached current birth/status without allocating a
+// complete cut. Core supplies cluster and lifecycle authority before this leaf.
+func (p *Provider) LiveActivity(token ids.SessionToken) (Activity, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	a, exists := p.activities[token]
+	return a, exists
 }
 
 func (p *Provider) Command(token ids.SessionToken, command ids.CommandIdentity, query string, at time.Time, enabled bool) {

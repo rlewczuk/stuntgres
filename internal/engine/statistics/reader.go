@@ -25,8 +25,16 @@ type factRead struct {
 	exists bool
 }
 type backendRead struct {
-	fact   BackendFact
-	exists bool
+	fact        BackendFact
+	exists      bool
+	incarnation uint64
+}
+
+// BackendIdentity couples a complete session token to its genuine published
+// birth. Recycled numeric IDs/tokens cannot adopt a retained cumulative entry.
+type BackendIdentity struct {
+	Token       ids.SessionToken
+	Incarnation uint64
 }
 
 func (r *Reader) Configure(mode string, generation uint64) {
@@ -46,6 +54,7 @@ func (r *Reader) NeedsSnapshot() bool  { return r.mode == "snapshot" && !r.full 
 // Cluster-aware consumers first Capture their complete accessible domain.
 func (r *Reader) capture(p *Provider, now time.Time) {
 	r.captureLocked(p, true, Key{})
+	r.captureBackendsLocked(p, nil, true)
 	r.full, r.stamp = true, now
 }
 func (r *Reader) missing(p *Provider, category Category) Fact {
@@ -138,11 +147,20 @@ func (r *Reader) ReadSLRUs(p *Provider, now time.Time) [SLRUCount]SLRUFact {
 	r.ReadShared(p, SLRU, now)
 	return r.slru
 }
-func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time) (BackendFact, bool) {
+func (r *Reader) ReadBackend(p *Provider, identity BackendIdentity, now time.Time) (BackendFact, bool) {
+	if identity.Incarnation == 0 {
+		return BackendFact{}, false
+	}
+	token := identity.Token
 	if r.mode == "none" {
-		return p.ReadBackend(token)
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return p.readBackendIdentity(identity)
 	}
 	if f, ok := r.backends[token]; ok {
+		if f.incarnation != identity.Incarnation {
+			return BackendFact{}, false
+		}
 		return f.fact, f.exists
 	}
 	if r.full {
@@ -153,23 +171,28 @@ func (r *Reader) ReadBackend(p *Provider, token ids.SessionToken, now time.Time)
 	if r.mode == "snapshot" {
 		r.capture(p, now)
 		f := r.backends[token]
+		if f.incarnation != identity.Incarnation {
+			return BackendFact{}, false
+		}
 		return f.fact, f.exists
 	}
 	if r.backends == nil {
 		r.backends = make(map[ids.SessionToken]backendRead)
 	}
-	f, ok := p.backends[token]
-	r.backends[token] = backendRead{f, ok}
+	f, ok := p.readBackendIdentity(identity)
+	r.backends[token] = backendRead{fact: f, exists: ok, incarnation: identity.Incarnation}
 	return f, ok
 }
 
-// CaptureSource describes the accessible capture domain: all current-database
-// objects, and database plus subscription facts from every other database.
+// CaptureSource describes local objects, peer database/subscription facts and
+// explicitly selected owning backend incarnations, never mirrored partitions.
 type CaptureSource struct {
 	Provider *Provider
 	Database Key
 	Shared   Key // Optional shared-database fact in this same provider lock.
 	All      bool
+	// Owners is the actual owning session selection, not mirrored registrations.
+	Owners []BackendIdentity
 }
 type captureDefault struct {
 	provider          *Provider
@@ -188,10 +211,6 @@ func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
 		}
 		r.shared, r.slru = p.shared, p.slru
 		r.kinds = (1 << SharedKindCount) - 1
-		r.backends = make(map[ids.SessionToken]backendRead, len(p.backends))
-		for token, f := range p.backends {
-			r.backends[token] = backendRead{f, true}
-		}
 	} else {
 		f, exists := p.readEntry(database)
 		r.cache[database] = factRead{f, exists}
@@ -200,6 +219,23 @@ func (r *Reader) captureLocked(p *Provider, all bool, database Key) {
 				r.cache[key] = factRead{p.read(key), true}
 			}
 		}
+	}
+}
+
+func (r *Reader) captureBackendsLocked(p *Provider, owners []BackendIdentity, standalone bool) {
+	if r.backends == nil {
+		r.backends = make(map[ids.SessionToken]backendRead)
+	}
+	if standalone {
+		for token, incarnation := range p.liveBackends {
+			f, exists := p.readBackend(token)
+			r.backends[token] = backendRead{fact: f, exists: exists, incarnation: incarnation}
+		}
+		return
+	}
+	for _, identity := range owners {
+		f, exists := p.readBackendIdentity(identity)
+		r.backends[identity.Token] = backendRead{fact: f, exists: exists, incarnation: identity.Incarnation}
 	}
 }
 
@@ -213,6 +249,7 @@ func (r *Reader) Capture(sources []CaptureSource, now time.Time) {
 		p := source.Provider
 		p.mu.Lock()
 		r.captureLocked(p, source.All, source.Database)
+		r.captureBackendsLocked(p, source.Owners, false)
 		if !source.All && source.Shared != (Key{}) {
 			f, exists := p.readEntry(source.Shared)
 			r.cache[source.Shared] = factRead{f, exists}

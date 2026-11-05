@@ -39,7 +39,7 @@ func TestStatsProviderGSSAPILifetime(t *testing.T) {
 			if got := p.CaptureActivities(); len(got) != 0 {
 				t.Fatal("zero principal admitted", got)
 			}
-			if !p.BeginBackend(a) || !p.BeginBackend(b) {
+			if !p.BeginBackend(a, 1) || !p.BeginBackend(b, 2) {
 				t.Fatal("public lifetime rejected")
 			}
 			p.RegisterActivity(a, statistics.Activity{Principal: loginA})
@@ -50,7 +50,7 @@ func TestStatsProviderGSSAPILifetime(t *testing.T) {
 			}
 			empty.Clear()
 			initial := empty.Activities(&p)
-			if len(initial) != 2 || initial[a] != (statistics.Activity{Principal: loginA}) || initial[b] != (statistics.Activity{Principal: loginB}) {
+			if len(initial) != 2 || initial[a] != (statistics.Activity{Principal: loginA, Incarnation: 1}) || initial[b] != (statistics.Activity{Principal: loginB, Incarnation: 2}) {
 				t.Fatal("initial attachment facts", initial)
 			}
 			delete(initial, a)
@@ -80,8 +80,8 @@ func TestStatsProviderGSSAPILifetime(t *testing.T) {
 				if got := fresh.Activities(&p); len(got) != 2 || got[a].Principal != loginA || got[b].Principal != loginB {
 					t.Fatal("reset retired live membership", got)
 				}
-				if _, ok := p.ReadBackend(a); ok {
-					t.Fatal("membership fabricated backend metrics")
+				if f, ok := p.ReadBackend(a); !ok || f != (statistics.BackendFact{}) {
+					t.Fatal("registered backend must be logically present without history", f, ok)
 				}
 			}
 			var target statistics.Provider
@@ -118,7 +118,7 @@ func TestStatsProviderGSSAPILifetime(t *testing.T) {
 	t.Run("concurrent_capture_end_and_target", func(t *testing.T) {
 		var p, target statistics.Provider
 		token, login := new(ids.Domain).Session(1), statsLogin()
-		p.BeginBackend(token)
+		p.BeginBackend(token, 1)
 		p.RegisterActivity(token, statistics.Activity{Principal: login})
 		gate := make(chan struct{})
 		var workers sync.WaitGroup

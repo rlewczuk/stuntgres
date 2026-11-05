@@ -15,6 +15,17 @@ provenance retain no session or permission decision. Source opening borrows
 composites; the ordinary source cursor releases pending values on cancellation.
 FROM, target-list records and member expansion use the existing source protocol.
 
+`BackendCurrent` owns the one-INT4 PID recipes for current activity, backend IO
+and backend WAL. Fixed OUT shapes contain 31, 20 and 5 members respectively;
+activity/IO are record sets, WAL is a scalar record whose absent value is whole
+SQL NULL. Strict NULL IO keeps empty-set identity through planning. Expressions
+retain only operand, output usage and ordinary routine provenance; execution
+borrows the current `BackendCurrentRuntime`, never Prepare's provider or mask.
+Both strict declarations remain calls even for literal NULL: RECORD/SRF
+planning exclusions preserve ordinary EXECUTE admission before the NULL result.
+Granted NULL returns without borrowing statistics runtime or provider state.
+
+
 `StatsXactBlocks` owns the strict OID-to-INT8 fetched/hit inquiries and their
 ordinary routine identities. Non-NULL calls are volatile and never folded;
 shared strict after-bare planning and current-frame preflight can erase known

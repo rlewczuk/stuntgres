@@ -21,6 +21,14 @@ They retain all-formal order separately from input/default slots, including OUT,
 INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
 cannot replace these descriptor-owned facts.
 
+Backend-current callable projection reuses raw activity facts and current
+inherited authenticated-owner authority, with its distinct 31-field OUT order.
+`PhysicalIORows` and `PhysicalWALRow` are pure typed empty-physical-event
+projectors shared with the views. Their caller supplies reset authority:
+SharedIO/SharedWAL for views, one backend ResetAt for both getters. Generic
+operation counts and durations cannot become physical IO/WAL counters.
+
+
 `pg_replication_origin_status` projects one detached cluster progress map paired
 with current catalog/role roots under `Engine.Mu`. Map presence (including zero),
 not registration enumeration, owns row existence; orphan names are typed NULL.

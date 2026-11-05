@@ -22,21 +22,27 @@ func (e *Engine) captureActivityViewsLocked(scope *StatementScope, ref ids.Objec
 	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep, Catalog: auth.Catalog, Roles: auth.Roles, ActivityObserver: auth.State.CurrentUser, Activities: activities}
 	e.Mu.Unlock()
 	if activity {
-		waits := e.Locks.ActivityWaits()
-		for token, a := range activities {
-			a.WaitType, a.Wait = "", ""
-			current, exists := live[token]
-			if exists && current.Active {
-				a.WaitType, a.Wait = current.WaitType, current.Wait
-				if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
-					a.WaitType, a.Wait = "Lock", wait.Event
-				}
-			}
-			activities[token] = a
-		}
+		e.overlayActivityWaits(live, activities)
 	}
 	produce, _ := pgcatalog.ProducerFor(source.Address().ObjectID)
 	return catalogrt.CaptureRows(in, produce)
+}
+
+// Manager observations are overlaid only after releasing Engine.Mu, joining
+// exact physical tokens and command transactions, never PID-shaped identities.
+func (e *Engine) overlayActivityWaits(live, activities map[ids.SessionToken]statistics.Activity) {
+	waits := e.Locks.ActivityWaits()
+	for token, a := range activities {
+		a.WaitType, a.Wait = "", ""
+		current, exists := live[token]
+		if exists && current.Active {
+			a.WaitType, a.Wait = current.WaitType, current.Wait
+			if wait, ok := waits[token]; ok && wait.Transaction == current.Command.Transaction {
+				a.WaitType, a.Wait = "Lock", wait.Event
+			}
+		}
+		activities[token] = a
+	}
 }
 
 // Engine.Mu and transaction admission are held. Activity, SSL and GSSAPI

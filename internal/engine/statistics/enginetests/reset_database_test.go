@@ -41,7 +41,7 @@ func TestStatsProviderResetDatabase(t *testing.T) {
 		controls[key] = p.Read(key)
 	}
 	token := db.Object.Domain().Session(1)
-	p.BeginBackend(token)
+	p.BeginBackend(token, 1)
 	var fixedWriter statistics.Writer
 	for kind := statistics.SharedKind(0); kind < statistics.SharedKindCount; kind++ {
 		fixedWriter.Shared(&p, kind, sharedVector(31))
@@ -153,7 +153,7 @@ func TestStatsProviderResetDatabasePending(t *testing.T) {
 	w.Add(&p, a, statistics.Fact{Inserts: 2})
 	w.Add(&p, db, statistics.Fact{Database: statistics.DatabaseFact{Commits: 2}})
 	token := db.Object.Domain().Session(1)
-	p.BeginBackend(token)
+	p.BeginBackend(token, 1)
 	w.Shared(&p, statistics.Archiver, sharedVector(3))
 	w.SLRU(&p, statistics.Transaction, slruVector(4))
 	w.Backend(&p, token, statistics.Fact{Operations: 5}, statistics.Fact{Operations: 6})

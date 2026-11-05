@@ -1,7 +1,9 @@
 package pgcatalog
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -36,34 +38,48 @@ func capturePGStatWAL(in Input) ([][]sqltype.Value, error) {
 			return nil, fmt.Errorf("stuntgres: invalid WAL source attribute")
 		}
 	}
-	row := make([]sqltype.Value, len(walColumns))
+	var types [5]*sqltype.Descriptor
+	for i := range types {
+		types[i] = in.Source.Columns[i].Usage.Type
+	}
+	row, err := PhysicalWALRow(in.Context, types, in.WAL.ResetAt)
+	if err != nil {
+		return nil, err
+	}
+	return [][]sqltype.Value{row}, nil
+}
+
+// PhysicalWALRow projects the absent physical event set with explicit reset
+// authority. Generic operation counts are not WAL records, bytes or FPIs.
+func PhysicalWALRow(ctx context.Context, types [5]*sqltype.Descriptor, reset time.Time) ([]sqltype.Value, error) {
+	row := make([]sqltype.Value, len(types))
 	// No physical WAL generator, full-page images or buffers exist. These
 	// technical estimates are exactly zero, never inferred from keyed IO facts
-	// or unrelated SharedFact slots. Only ResetAt has shared event authority.
+	// or unrelated SharedFact slots. Only the explicit reset has event authority.
 	for _, column := range [...]int{0, 1, 3} {
-		value, err := sqltype.Integer(in.Source.Columns[column].Usage.Type, 0)
+		value, err := sqltype.Integer(types[column], 0)
 		if err != nil {
 			return nil, err
 		}
 		row[column] = value
 	}
-	bytes, err := sqltype.NumericUint64Value(in.Source.Columns[2].Usage.Type, 0)
+	bytes, err := sqltype.NumericUint64Value(types[2], 0)
 	if err != nil {
 		return nil, err
 	}
 	row[2] = bytes
-	row[4] = sqltype.Null(in.Source.Columns[4].Usage.Type)
-	if !in.WAL.ResetAt.IsZero() {
-		stamp, err := sqltype.TimestampFromTime(in.Source.Columns[4].Usage.Type, in.WAL.ResetAt.UTC())
+	row[4] = sqltype.Null(types[4])
+	if !reset.IsZero() {
+		stamp, err := sqltype.TimestampFromTime(types[4], reset.UTC())
 		if err != nil {
 			return nil, err
 		}
 		row[4] = stamp
 	}
-	if err := in.Context.Err(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return [][]sqltype.Value{row}, nil
+	return row, nil
 }
 
 // Display only: shared-provider capture owns execution, not a callable getter.

@@ -275,8 +275,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Subscription cumulative statistics adds strict STABLE/restricted scalar
 	// RECORD declaration6231, one named IN OID, eleven OUT fields and rows0.
 	// MCV item inspection adds the one-input/five-OUT record set OID3427.
-	if len(facts) != 2286 {
-		t.Fatalf("released represented overloads: got %d, want 2286", len(facts))
+	// Current backend activity/IO/WAL add the released one-INT4 declarations
+	// 2022/6386/6313, with 31/20/5 OUT fields and SRF/SRF/scalar cardinality.
+	if len(facts) != 2289 {
+		t.Fatalf("released represented overloads: got %d, want 2289", len(facts))
 	}
 	return facts
 }

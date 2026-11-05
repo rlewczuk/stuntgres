@@ -1,8 +1,10 @@
 package pgcatalog
 
 import (
+	"context"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
+	"time"
 )
 
 // StatIOOID is the native inventory identity, not an initdb-allocated OID.
@@ -34,9 +36,9 @@ var statIOColumns = []ColumnSpec{
 // These are capabilities, not claims that embedded workers or IO exist.
 // REL_18_6 pgstat_io.c and regress/expected/stats.out include relation/init.
 var statIOBackends = [...]struct {
-	name string
+	name     string
 	contexts []string
-	temp bool
+	temp     bool
 }{
 	{"autovacuum launcher", []string{"bulkread", "init", "normal"}, false},
 	{"autovacuum worker", []string{"bulkread", "init", "normal", "vacuum"}, false},
@@ -116,18 +118,29 @@ func captureStatIO(in Input) ([][]sqltype.Value, error) {
 	if err := validateMaintenanceSource(in, statIOColumns); err != nil {
 		return nil, err
 	}
+	var types [20]*sqltype.Descriptor
+	for i := range types {
+		types[i] = in.Source.Columns[i].Usage.Type
+	}
+	return PhysicalIORows(in.Context, types, "", in.Runtime.IOStatisticsReset())
+}
+
+// PhysicalIORows shares the capability matrix with the view. Empty backend
+// selects the whole view; a getter supplies one genuinely present backend kind
+// and its own backend reset, never the shared IO reset.
+func PhysicalIORows(ctx context.Context, types [20]*sqltype.Descriptor, selected string, reset time.Time) ([][]sqltype.Value, error) {
 	// Absent physical PostgreSQL IO: counts = |empty event set|, bytes and
 	// milliseconds = sums over that set. Never reinterpret logical DML/sequence
 	// encounters or unrelated keyed provider facts as physical IO.
-	integer, err := sqltype.Integer(in.Source.Columns[3].Usage.Type, 0)
+	integer, err := sqltype.Integer(types[3], 0)
 	if err != nil {
 		return nil, err
 	}
-	numeric, err := in.Source.Columns[4].Usage.Type.Input(in.Context, "0", -1)
+	numeric, err := sqltype.NumericUint64Value(types[4], 0)
 	if err != nil {
 		return nil, err
 	}
-	floating, err := sqltype.Float(in.Source.Columns[5].Usage.Type, 0)
+	floating, err := sqltype.Float(types[5], 0)
 	if err != nil {
 		return nil, err
 	}
@@ -142,36 +155,41 @@ func captureStatIO(in Input) ([][]sqltype.Value, error) {
 			template[i] = floating
 		}
 	}
-	// One shared-reader access gives every row the same genuine IO reset cut,
-	// including WAL objects (which do not use the SharedWAL reset family).
-	template[19] = sqltype.Null(in.Source.Columns[19].Usage.Type)
-	if at := in.Runtime.IOStatisticsReset(); !at.IsZero() {
-		template[19], err = sqltype.TimestampFromTime(in.Source.Columns[19].Usage.Type, at)
+	template[19] = sqltype.Null(types[19])
+	if !reset.IsZero() {
+		template[19], err = sqltype.TimestampFromTime(types[19], reset.UTC())
 		if err != nil {
 			return nil, err
 		}
 	}
-	rows := make([][]sqltype.Value, 0, 79)
+	capacity := 8
+	if selected == "" {
+		capacity = 79
+	}
+	rows := make([][]sqltype.Value, 0, capacity)
 	appendRow := func(backend sqltype.Value, name, object, context string) error {
-		if err := in.Context.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		row := make([]sqltype.Value, len(template))
 		copy(row, template[:])
 		row[0] = backend
-		row[1] = sqltype.String(in.Source.Columns[1].Usage.Type, object)
-		row[2] = sqltype.String(in.Source.Columns[2].Usage.Type, context)
+		row[1] = sqltype.String(types[1], object)
+		row[2] = sqltype.String(types[2], context)
 		mask := statIOSupport(name, object, context)
 		for i, operation := range statIOFieldOperations {
 			if mask&operation == 0 {
-				row[i+3] = sqltype.Null(in.Source.Columns[i+3].Usage.Type)
+				row[i+3] = sqltype.Null(types[i+3])
 			}
 		}
 		rows = append(rows, row)
 		return nil
 	}
 	for _, backend := range statIOBackends {
-		name := sqltype.String(in.Source.Columns[0].Usage.Type, backend.name)
+		if selected != "" && selected != backend.name {
+			continue
+		}
+		name := sqltype.String(types[0], backend.name)
 		for _, context := range backend.contexts {
 			if err := appendRow(name, backend.name, "relation", context); err != nil {
 				return nil, err
@@ -188,5 +206,5 @@ func captureStatIO(in Input) ([][]sqltype.Value, error) {
 			}
 		}
 	}
-	return rows, in.Context.Err()
+	return rows, ctx.Err()
 }

@@ -26,6 +26,17 @@ diagnostic source continues to use its explicitly attached actual file reader.
 
 ## Activity monitoring
 
+`pg_stat_get_activity(integer)` and `pg_stat_get_backend_io(integer)` expose
+fixed 31/20-field record sets; `pg_stat_get_backend_wal(integer)` exposes a
+five-field scalar record. Inputs are physical-session PIDs, not backend slots.
+Activity shares current inherited redaction and the view's retained raw cut;
+NULL or -1 selects all extant status entries. IO NULL/unknown yields no rows,
+while WAL NULL/unknown is whole SQL NULL (one expanded FROM row of NULL fields).
+IO/WAL share one backend cumulative/reset entry, gated by current physical
+liveness and retained activity membership. Supported absent physical counters
+are typed zero; unsupported IO operations are NULL. Shared IO/WAL resets do not
+replace backend reset timestamps, and backend birth has no reset timestamp.
+
 `pg_catalog.pg_stat_activity` is a typed, read-only 22-column system view of real
 logical sessions across one Driver cluster. All columns are nullable; native
 endpoint/leader values stay NULL without corresponding physical endpoints/workers.

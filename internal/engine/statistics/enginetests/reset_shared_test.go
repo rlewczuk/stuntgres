@@ -181,8 +181,8 @@ func TestStatsProviderResetBackend(t *testing.T) {
 	a, b := d.Session(1), d.Session(2)
 	var w statistics.Writer
 	at := time.Unix(100, 0).UTC()
-	p.BeginBackend(a)
-	p.BeginBackend(b)
+	p.BeginBackend(a, 1)
+	p.BeginBackend(b, 2)
 	io, wal := statsKeys()
 	io.Category, wal.Category = statistics.IO, statistics.WAL
 	w.Add(&p, io, statistics.Fact{Operations: 23})
@@ -192,7 +192,7 @@ func TestStatsProviderResetBackend(t *testing.T) {
 	w.Flush(&p, at, true)
 	var retained statistics.Reader
 	retained.Configure("snapshot", 1)
-	originalA, _ := retained.ReadBackend(&p, a, at)
+	originalA, _ := retained.ReadBackend(&p, statistics.BackendIdentity{Token: a, Incarnation: 1}, at)
 	beforeB, _ := p.ReadBackend(b)
 	if !p.ResetBackend(a, at) {
 		t.Fatal("missing A")
@@ -221,7 +221,7 @@ func TestStatsProviderResetBackend(t *testing.T) {
 	if after, _ := p.ReadBackend(b); after != beforeB {
 		t.Fatal("end changed peer")
 	}
-	if cached, ok := retained.ReadBackend(&p, a, at); !ok || cached != originalA {
+	if cached, ok := retained.ReadBackend(&p, statistics.BackendIdentity{Token: a, Incarnation: 1}, at); !ok || cached != originalA {
 		t.Fatal("end changed retained backend snapshot", cached, ok)
 	}
 	p.Replace(at, nil)
@@ -240,7 +240,7 @@ func TestStatsProviderResetSharedPending(t *testing.T) {
 	a, b := statsKeys()
 	a.Category, b.Category = statistics.IO, statistics.WAL
 	token := new(ids.Domain).Session(1)
-	p.BeginBackend(token)
+	p.BeginBackend(token, 1)
 	var w statistics.Writer
 	for _, key := range []statistics.Key{a, b} {
 		w.Add(&p, key, statistics.Fact{Operations: 10, TotalTime: 20 * time.Millisecond})
@@ -296,7 +296,7 @@ func TestStatsProviderResetSharedReaders(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			var p statistics.Provider
 			p.Reset(at)
-			p.BeginBackend(token)
+			p.BeginBackend(token, 1)
 			sharedSeed(&p, statistics.Archiver, 10, at)
 			a, _ := statsKeys()
 			var w statistics.Writer
@@ -306,11 +306,11 @@ func TestStatsProviderResetSharedReaders(t *testing.T) {
 			var r statistics.Reader
 			r.Configure(mode, 1)
 			before := r.ReadShared(&p, statistics.Archiver, at)
-			backend, _ := r.ReadBackend(&p, token, at)
+			backend, _ := r.ReadBackend(&p, statistics.BackendIdentity{Token: token, Incarnation: 1}, at)
 			p.ResetAllShared(next)
 			p.ResetBackend(token, next)
 			got := r.ReadShared(&p, statistics.Archiver, next)
-			after, _ := r.ReadBackend(&p, token, next)
+			after, _ := r.ReadBackend(&p, statistics.BackendIdentity{Token: token, Incarnation: 1}, next)
 			if mode == "none" {
 				if got.Counters[0] != 0 || after.IO.Operations != 0 {
 					t.Fatal("none stale")
