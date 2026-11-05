@@ -28,6 +28,36 @@ func (j *StatementJumble) utilityStatementFields(node any, anchor *int) bool {
 		utilitySlice(j, n.Options, anchor)
 	case parser.CreateDatabaseStmt:
 		return j.utilityStatementFields(&n, anchor)
+	case *parser.AlterDatabaseStmt:
+		if n == nil {
+			j.number(0)
+			return true
+		}
+		j.utilityPosition(n.Pos, anchor)
+		switch n.Action {
+		case "rename":
+			j.text("AlterDatabaseRename")
+			j.text(n.Name)
+			j.text(n.NewName)
+		case "refresh":
+			j.text("AlterDatabaseRefreshCollStmt")
+			j.text(n.Name)
+		case "", "options":
+			j.text("AlterDatabaseStmt")
+			j.text(n.Name)
+			utilitySlice(j, n.Options, anchor)
+		case "tablespace":
+			// REL_18_6 gram.y builds the same one-DefElem list as the
+			// general option spelling. Project it without a temporary list.
+			j.text("AlterDatabaseStmt")
+			j.text(n.Name)
+			j.number(1)
+			j.utilityDatabaseOption("tablespace", n.Tablespace, false, false)
+		default:
+			panic("stuntgres: unclassified ALTER DATABASE action")
+		}
+	case parser.AlterDatabaseStmt:
+		return j.utilityStatementFields(&n, anchor)
 	case *parser.Vacuum:
 		if n == nil {
 			j.number(0)

@@ -165,7 +165,7 @@ func TestDatabaseTemplatePublication(t *testing.T) {
 				t.Fatal("failed preparation leaked replacement read protection")
 			}
 			source.ReplacementMu.Unlock()
-			a, err := e.AdmitDatabase(t.Context(), e.Roles().LookupRef("postgres"), core.DatabaseSelector{Name: source.DatabaseName, Explicit: true})
+			a, err := e.AdmitDatabase(t.Context(), e.Roles().LookupRef("postgres"), enginetest.NextSessionID(), core.DatabaseSelector{Name: source.DatabaseName, Explicit: true})
 			if err != nil {
 				t.Fatal("source admission leaked", err)
 			}
@@ -204,7 +204,7 @@ func TestDatabaseTemplatePublication(t *testing.T) {
 		if _, err := e.SelectDatabase(t.Context(), "unit_final_cancel"); err == nil {
 			t.Fatal("canceled target selectable")
 		}
-		a, err := e.AdmitDatabase(t.Context(), e.Roles().LookupRef("postgres"), core.DatabaseSelector{Name: source.DatabaseName, Explicit: true})
+		a, err := e.AdmitDatabase(t.Context(), e.Roles().LookupRef("postgres"), enginetest.NextSessionID(), core.DatabaseSelector{Name: source.DatabaseName, Explicit: true})
 		if err != nil {
 			t.Fatal(err)
 		}

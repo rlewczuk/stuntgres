@@ -31,6 +31,7 @@ import (
 // restore engine, never against the target engine.
 type restoreRun struct {
 	stage                *core.Engine
+	tablespaceRepairs    core.TablespaceRepairs
 	source               string
 	statements           []parser.Statement
 	hostRequirements     map[string]bool
@@ -175,9 +176,9 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 	return pairRestoreComparisonContext(r)
 }
 
-// Start starts the stage session as the bootstrap superuser, acquires its
-// operation and allocates the captures. end clears the replay flags, releases
-// the operation and ends the session, in that order.
+// Start starts a private maintenance session on the isolated replay stage,
+// without public admission/counts. end clears replay flags, releases the
+// operation and ends the session, in that order.
 func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), error) {
 	stage := h.run.stage
 	// The isolated role snapshot retains exact target identities for final remapping.
@@ -192,10 +193,12 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		return nil, nil, err
 	}
 	core.OperationReplay(op).StagingEffects = true
+	core.OperationReplay(op).TablespaceRepairs = &h.run.tablespaceRepairs
 	end := func() {
 		clearRestoreMembershipHistory(op)
 		clear(h.run.partitionTeardowns)
 		core.OperationReplay(op).StagingEffects = false
+		core.OperationReplay(op).TablespaceRepairs = nil
 		core.OperationReplay(op).SQLBodies = false
 		core.OperationReplay(op).PLChecked = nil
 		core.OperationReplay(op).GinInsert = nil

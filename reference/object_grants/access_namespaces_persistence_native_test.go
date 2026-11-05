@@ -105,7 +105,9 @@ func accessNamespacesFreshPersistence(t *testing.T, p *fixture.Pair, emitted str
 		t.Fatal(err)
 	}
 	defer retained.Close()
-	if err := stuntgres.Restore(p.Ctx, fresh, strings.NewReader(emitted)); err != nil {
+	// The dump does not carry shared authority. Explicit named setup exercises
+	// the existing owner/raw ACL repair contract on this independent cluster.
+	if err := stuntgres.Restore(p.Ctx, fresh, strings.NewReader(emitted+accessNamespacesSharedSetup)); err != nil {
 		t.Fatal(err)
 	}
 	var destinationOID int64
@@ -178,7 +180,7 @@ func accessNamespacesNativeSmoke(t *testing.T, p *fixture.Pair) {
 	if err := fresh.QueryRowContext(p.Ctx, "SELECT datdba,datacl::text FROM pg_database WHERE datname=current_database()").Scan(&beforeOwner, &beforeACL); err != nil {
 		t.Fatal(err)
 	}
-	if err := stuntgres.Restore(p.Ctx, fresh, bytes.NewReader(saved.Bytes())); err != nil {
+	if err := stuntgres.Restore(p.Ctx, fresh, io.MultiReader(bytes.NewReader(saved.Bytes()), strings.NewReader(accessNamespacesDefaultTablespaceSetup))); err != nil {
 		t.Fatal(err)
 	}
 	for _, o := range []struct{ function, name, privilege string }{{"has_schema_privilege", "an_persist", "USAGE"}, {"has_type_privilege", "an_persist.d", "USAGE"}, {"has_tablespace_privilege", "pg_default", "CREATE"}} {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"reflect"
 	"slices"
 
 	"stuntgres/internal/engine/ids"
@@ -9,8 +10,10 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// Discovery never holds sessionMu while acquiring owner locks. Session tokens
-// impose the same total order in opposing captures; Engine.Mu comes last.
+// Discovery never holds sessionMu while acquiring owner locks. Public IDs and,
+// for ID0 owners, retained private Session pointers impose one total order in
+// opposing captures. The typed owners slice keeps those sessions live throughout;
+// pointer observations are ordering keys only. Engine.Mu comes last.
 func (e *Engine) heapStatisticsOwners(caller *session.TransactionOwner) []*session.TransactionOwner {
 	e.sessionMu.Lock()
 	owners := make([]*session.TransactionOwner, 0, len(e.sessions)+1)
@@ -29,6 +32,15 @@ func (e *Engine) heapStatisticsOwners(caller *session.TransactionOwner) []*sessi
 		}
 		if a.Session.SessionToken.ID() > b.Session.SessionToken.ID() {
 			return 1
+		}
+		if a.Session.SessionToken.ID() == 0 {
+			left, right := reflect.ValueOf(a.Session).Pointer(), reflect.ValueOf(b.Session).Pointer()
+			if left < right {
+				return -1
+			}
+			if left > right {
+				return 1
+			}
 		}
 		return 0
 	})

@@ -30,7 +30,7 @@ func (m *Manager) validInquiryRequest(r *relationRequest, entry *relationEntry, 
 	if _, journaled := r.ticket.resources[resource]; !journaled {
 		return false
 	}
-	if r.ticket.persistent {
+	if r.ticket.persistent && !m.databaseAdmissionResource(resource, r.mode) {
 		_, journaled := m.owners[r.provenance].resources[resource]
 		return journaled
 	}
@@ -82,6 +82,20 @@ func (m *Manager) BlockingPids(domain *ids.Domain, pid ids.SessionID) ([]int32, 
 				continue
 			}
 			if pending := m.pendingInquiryRequest(ticket); m.roleDomain != nil && pending != nil && pending.ref.Domain() == m.roleDomain {
+				r = pending
+				break
+			}
+		}
+	}
+	if r == nil && pid != 0 {
+		// Physical startup can wait on a shared database before it owns a
+		// transaction. Discover only that exact public pending request across
+		// domains, not unrelated session advisory or local-resource waits.
+		for _, ticket := range m.sessions {
+			if ticket.session.ID() != pid || ticket.session.Private() != nil {
+				continue
+			}
+			if pending := m.pendingInquiryRequest(ticket); pending != nil && m.databaseAdmissionResource(pending.ref, pending.mode) {
 				r = pending
 				break
 			}

@@ -182,7 +182,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	admission, err := c.engine.AdmitDatabase(ctx, principal, core.DatabaseSelector{Name: c.database, Explicit: c.explicitDatabase})
+	admission, err := c.engine.AdmitDatabase(ctx, principal, id, core.DatabaseSelector{Name: c.database, Explicit: c.explicitDatabase})
 	if err != nil {
 		return nil, err
 	}

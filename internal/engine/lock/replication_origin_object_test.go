@@ -3,6 +3,7 @@ package lock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -18,6 +19,10 @@ func TestReplicationOriginStateObjectLocks(t *testing.T) {
 				objectID = 1663
 			}
 			resource := Resource{ObjectRef: shared.Domain().Ref(shared.Epoch, ids.ObjectAddress{ClassID: class, ObjectID: objectID})}
+			modes := []Mode{AccessShare, AccessExclusive}
+			if class == ids.DatabaseClassID {
+				modes = append(modes, RowExclusive, Share)
+			}
 			for _, mutate := range []func(*Resource){
 				func(r *Resource) { r.ObjectRef = a.domain.Ref(a.epoch, r.Address) },
 				func(r *Resource) { r.ObjectRef = b.domain.Ref(b.epoch, r.Address) },
@@ -33,11 +38,13 @@ func TestReplicationOriginStateObjectLocks(t *testing.T) {
 			} {
 				bad := resource
 				mutate(&bad)
-				if request, err := a.m.StartAcquire(t.Context(), holder, bad, AccessExclusive, Policy{}); err == nil || request != nil {
-					t.Fatal("forged shared object authority admitted", bad, err)
-				}
-				if len(a.m.Inspect().Resources) != 0 {
-					t.Fatal("invalid shared resource left partial state", bad)
+				for _, mode := range modes {
+					if request, err := a.m.StartAcquire(t.Context(), holder, bad, mode, Policy{}); err == nil || request != nil {
+						t.Fatal("forged shared object authority admitted", bad, mode, err)
+					}
+					if len(a.m.Inspect().Resources) != 0 {
+						t.Fatal("invalid shared resource left partial state", bad, mode)
+					}
 				}
 			}
 			if class == ids.ReplicationOriginClassID {
@@ -48,6 +55,9 @@ func TestReplicationOriginStateObjectLocks(t *testing.T) {
 				}
 			}
 			for _, mode := range []Mode{0, RowShare, RowExclusive, Share, ShareRowExclusive, Exclusive, TypeExclusive, ShareUpdateExclusive, ForUpdate, ForNoKeyUpdate, ForShare, ForKeyShare, UniqueClaim, TransactionCompletion, AdvisoryShare, AccessShare | AccessExclusive} {
+				if class == ids.DatabaseClassID && (mode == RowExclusive || mode == Share) {
+					continue
+				}
 				if request, err := a.m.StartAcquire(t.Context(), holder, resource, mode, Policy{}); err == nil || request != nil {
 					t.Fatal("relation/type mode admitted for shared object", mode, err)
 				}
@@ -120,5 +130,76 @@ func TestReplicationOriginStateObjectLocks(t *testing.T) {
 			a.m.End(holder)
 			a.empty()
 		})
+	}
+}
+
+func TestDatabaseSharedObjectModeCompatibility(t *testing.T) {
+	for _, held := range []Mode{AccessShare, RowExclusive, Share, AccessExclusive} {
+		for _, requested := range []Mode{AccessShare, RowExclusive, Share, AccessExclusive} {
+			t.Run(fmt.Sprint(held, "/", requested), func(t *testing.T) {
+				a, b, shared := roleLockFixtures(t)
+				holder, waiter := a.tx(), b.tx()
+				resource := Resource{ObjectRef: shared.Domain().Ref(shared.Epoch, ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 17000})}
+				if a.request(holder, resource, held) != nil {
+					t.Fatal("uncontended database mode queued", held)
+				}
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				pending, err := b.m.StartAcquire(ctx, waiter, resource, requested, Policy{})
+				conflict := held == AccessExclusive || requested == AccessExclusive ||
+					held == Share && requested == RowExclusive || held == RowExclusive && requested == Share
+				if err != nil || (pending != nil) != conflict {
+					t.Fatal("database mode compatibility", held, requested, pending, err)
+				}
+				for _, fixture := range []*lockFixture{a, b} {
+					records, err := fixture.m.PGLocks(fixture.domain, fixture.epoch)
+					if err != nil {
+						t.Fatal(err)
+					}
+					grants, waits := 0, 0
+					for _, record := range records {
+						if record.Class != uint32(ids.DatabaseClassID) || record.Object != 17000 {
+							continue
+						}
+						if record.Kind != ObjectRecord || !record.Shared || record.Subobject != 0 || record.Target != (RecordOwner{}) || record.XID != 0 {
+							t.Fatal("database mode lost shared object provenance", record)
+						}
+						switch record.Owner {
+						case (RecordOwner{Session: holder.Session().ID(), Local: holder.Ref().ID()}):
+							if record.Mode != held || record.Waiting || !record.WaitStart.IsZero() {
+								t.Fatal("database holder provenance", record)
+							}
+							grants++
+						case (RecordOwner{Session: waiter.Session().ID(), Local: waiter.Ref().ID()}):
+							if record.Mode != requested || record.Waiting != conflict || record.WaitStart.IsZero() == conflict {
+								t.Fatal("database requester provenance", record)
+							}
+							if record.Waiting {
+								waits++
+							} else {
+								grants++
+							}
+						default:
+							t.Fatal("invented database lock owner", record)
+						}
+					}
+					if conflict && (grants != 1 || waits != 1) || !conflict && (grants != 2 || waits != 0) {
+						t.Fatal("database mode inquiry inventory", grants, waits)
+					}
+				}
+				if conflict {
+					cancel()
+					if err := pending.Wait(); !errors.Is(err, context.Canceled) {
+						t.Fatal("database mode cancellation", err)
+					}
+					if !a.m.Holds(holder, resource, held) || b.m.Holds(waiter, resource, requested) {
+						t.Fatal("database cancellation changed grant authority")
+					}
+				}
+				a.m.End(holder)
+				b.m.End(waiter)
+				a.empty()
+			})
+		}
 	}
 }

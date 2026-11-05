@@ -588,6 +588,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	advisory := ref.Kind == AdvisoryBigintResource || ref.Kind == AdvisoryPairResource
 	catalogACL := ref.Kind == CatalogACLResource || ref.Kind == DefaultACLResource
 	roleSetting := ref.Kind == RoleSettingResource
+	databaseAdmission := t.persistent && m.databaseAdmissionResource(ref, mode)
 	if advisory {
 		if ref.Database != t.session.Domain() || ref.ObjectRef != (ids.ObjectRef{}) || ref.RoleTuple || ref.Name != (ids.NameKey{}) || ref.Row != 0 || ref.key != nil || ref.completion != nil || ref.DefaultClass != 0 ||
 			mode != AdvisoryShare && mode != AdvisoryExclusive || t.detached {
@@ -601,7 +602,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-	} else if t.persistent || ref.Database != nil || !catalogACL && !roleSetting && ref.Kind != RepairedTupleResource && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || roleSetting || ref.Address.ClassID != ids.RoleClassID) {
+	} else if t.persistent && !databaseAdmission || ref.Database != nil || !catalogACL && !roleSetting && ref.Kind != RepairedTupleResource && (ref.Kind != OrdinaryResource || ref.High != 0 || ref.Low != 0 || ref.DefaultClass != 0) || ref.RoleTuple && (catalogACL || roleSetting || ref.Address.ClassID != ids.RoleClassID) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
@@ -642,7 +643,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			validClass = validNamespace
 			validSignature = key.Signature != ""
 		}
-		roleName := key.ClassID == ids.RoleClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
+		roleName := (key.ClassID == ids.RoleClassID || key.ClassID == ids.DatabaseClassID) && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		subscriptionName := key.ClassID == ids.SubscriptionClassID && key.Namespace.ClassID == ids.DatabaseClassID && key.Namespace.ObjectID != 0 && key.Namespace.SubID == 0 && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		parameterName := key.ClassID == ids.ParameterClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
 		originName := key.ClassID == ids.ReplicationOriginClassID && key.Namespace == (ids.ObjectAddress{}) && ref.Domain() == m.roleDomain && ref.Epoch == m.roleEpoch
@@ -667,7 +668,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			return nil, nil
 		}
 	} else if ref.Address.ClassID == ids.DatabaseClassID || ref.Address.ClassID == ids.TablespaceClassID || ref.Address.ClassID == ids.SubscriptionClassID || ref.Address.ClassID == ids.ReplicationOriginClassID {
-		if ref.Domain() != m.roleDomain || ref.Epoch != m.roleEpoch || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 || ref.RoleTuple || ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive ||
+		if ref.Domain() != m.roleDomain || ref.Epoch != m.roleEpoch || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 || ref.RoleTuple || ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive && (ref.Address.ClassID != ids.DatabaseClassID || mode != Share && mode != RowExclusive) ||
 			ref.Address.ClassID == ids.ReplicationOriginClassID && ref.Address.ObjectID >= 65535 {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid shared catalog object lock request")
@@ -773,7 +774,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 	}
 	t.resources[ref] = struct{}{}
 	provenance := t.ref
-	if t.persistent {
+	if t.persistent && !databaseAdmission {
 		provenance = policy.Provenance
 		m.owners[provenance].resources[ref] = struct{}{}
 	}

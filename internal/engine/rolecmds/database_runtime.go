@@ -43,8 +43,12 @@ func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner au
 	target.Catalog.PublishLocked(catalog.CloneState(seed.Catalog.State))
 	previous := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
 	target.Catalog.State.UnbindName(catalog.DescriptorNameKey(previous))
-	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3, IsTemplate: options.IsTemplate, AllowConnections: options.AllowConnections, ConnectionLimit: options.ConnectionLimit}
+	database := &catalog.Database{ObjectAddress: previous.Address(), ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: 3, IsTemplate: options.IsTemplate, AllowConnections: options.AllowConnections, ConnectionLimit: options.ConnectionLimit, DefaultTablespace: catalog.DefaultTablespaceOID}
 	target.Catalog.State.SetDescriptor(database.Address(), database)
 	target.Catalog.State.BindName(catalog.DescriptorNameKey(database), database.Address())
+	// Caller owns the shared metadata mutex. Current cluster builtins, rather
+	// than hidden-seed snapshots, initialize the new private runtime.
+	e.Catalog.InheritTablespacesLocked(target.Catalog.State)
+	target.Catalog.InstallRevisionFrontierLocked(max(target.Catalog.NextRevision(), e.Catalog.NextRevision()))
 	return target
 }

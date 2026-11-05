@@ -180,6 +180,11 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   ACL INITCOND decoding outside the SQL gate must retain authority and provenance
   while queueing privately. XML/FTS adapters give their private sink precedence;
   ordinary unspecialized adapters still deliver through their live operation.
+  Core reserves a public physical connection through its single-use
+  `DatabaseAdmission` before default callbacks, without publishing an Initializing
+  Session. Its immutable principal/database counts until terminal cleanup,
+  including Ending; private maintenance is excluded. The advisory resource owns
+  the transferred persistent startup ticket after its short database grant ends.
   Command admission captures typed CPU/parallel planner costs, statistics target,
   constraint-exclusion mode, cursor fraction and recursive-worktable factor under
   the existing settings mutex alongside the worker ceiling. Consumers receive

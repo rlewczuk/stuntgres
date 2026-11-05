@@ -57,6 +57,9 @@ func (m *Manager) validRequest(r *relationRequest) bool {
 	if !r.ticket.persistent {
 		return r.ticket.ref.Epoch() >= m.domains[r.ticket.ref.Domain()].epoch
 	}
+	if m.databaseAdmissionResource(r.ref, r.mode) {
+		return true
+	}
 	source := m.owners[r.provenance]
 	return source != nil && !source.detached && source.session == r.ticket.session && r.provenance.Epoch() >= m.domains[source.ref.Domain()].epoch
 }

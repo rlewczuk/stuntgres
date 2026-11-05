@@ -24,16 +24,33 @@ func TestReferenceClientEncodingNoticeBackpressure(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			dsn := f.DSNFor(b)
 			observer := f.RawPool(t, b)
-			admin := serverAuthenticated(t, dsn)
-			clientEncodingCommand(t, admin, "CREATE TABLE ce_notice_public(v int)", "CREATE TABLE")
+			// Each socket owns one absolute deadline established before login.
+			// No connection or renewed deadline spans the two protocol scenarios.
+			authenticated := func(t *testing.T) *serverWire {
+				t.Helper()
+				address, _, _, _ := serverEndpoint(t, dsn)
+				socket, err := net.DialTimeout("tcp", address, 5*time.Second)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { socket.Close() })
+				if err := socket.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+					t.Fatal(err)
+				}
+				w := &serverWire{Conn: socket, statuses: map[string]string{}}
+				serverWantCode(t, w.login(t, dsn, 196608), "")
+				return w
+			}
+			setup := authenticated(t)
+			clientEncodingCommand(t, setup, "CREATE TABLE ce_notice_public(v int)", "CREATE TABLE")
+			if err := setup.Close(); err != nil {
+				t.Fatal(err)
+			}
 			for _, extended := range []bool{false, true} {
 				t.Run(fmt.Sprintf("extended_%t", extended), func(t *testing.T) {
-					// This admin spans subtests; bound this scenario, not its total age.
-					if err := admin.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
-						t.Fatal(err)
-					}
+					admin := authenticated(t)
 					clientEncodingCommand(t, admin, "TRUNCATE ce_notice_public", "TRUNCATE TABLE")
-					w := serverAuthenticated(t, dsn)
+					w := authenticated(t)
 					tcp := w.Conn.(*net.TCPConn)
 					if err := tcp.SetReadBuffer(4096); err != nil {
 						t.Fatal(err)
@@ -105,7 +122,7 @@ func TestReferenceClientEncodingNoticeBackpressure(t *testing.T) {
 					}
 					serverScalar(t, admin, "SELECT count(*) FROM ce_notice_public", "0")
 					serverScalar(t, admin, "SELECT 42", "42")
-					fresh := serverAuthenticated(t, dsn)
+					fresh := authenticated(t)
 					serverScalar(t, fresh, "SELECT 42", "42")
 				})
 			}

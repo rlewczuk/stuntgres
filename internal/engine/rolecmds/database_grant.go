@@ -30,6 +30,21 @@ func ExecuteDatabaseGrant(e *core.Engine, scope *core.StatementScope, s *parser.
 	for i := range s.Relations {
 		statement := *s
 		statement.Relations = s.Relations[i : i+1]
+		if len(statement.Relations[0].Parts) == 1 {
+			address := v.Catalog.NameAddress(ids.NameKey{ClassID: ids.DatabaseClassID, Name: statement.Relations[0].Parts[0].Text})
+			if address != (ids.ObjectAddress{}) {
+				e.Mu.Unlock()
+				lockErr := scope.AcquireDatabaseACL(address)
+				e.Mu.Lock()
+				if lockErr != nil {
+					return core.Result{}, lockErr
+				}
+				v, err = e.AuthorizationLocked(op)
+				if err != nil {
+					return core.Result{}, err
+				}
+			}
+		}
 		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.Catalog.RevisionLocked)
 		for _, warning := range warnings {
 			op.EmitNotice(session.LevelWarning, warning)

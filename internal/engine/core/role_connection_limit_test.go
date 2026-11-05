@@ -284,12 +284,12 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("init gate", ctx.Err())
 			}
-			// No initialized callback consumes a physical slot.
+			// Pending initialization already owns one counted physical reservation.
 			core.EngineSessionMuRef(e).Lock()
 			count := core.EngineRoleSessionCountLocked(e, d.Ref)
 			core.EngineSessionMuRef(e).Unlock()
-			if count != 0 {
-				t.Fatal("initialization consumed slot", count)
+			if count != 1 {
+				t.Fatal("initialization did not reserve its physical slot", count)
 			}
 			switch change {
 			case "nologin":
@@ -302,16 +302,31 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "duplicate ID":
-				s, err := roleLimitStart(e, d.Ref, id, nil)
-				if err != nil {
-					t.Fatal(err)
+				duplicate, err := roleLimitStart(e, d.Ref, id, nil)
+				if err == nil || duplicate != nil {
+					if duplicate != nil {
+						roleLimitClose(t, duplicate)
+					}
+					t.Fatal("duplicate identity stole an initializing reservation", err)
 				}
-				t.Cleanup(func() { roleLimitClose(t, s) })
 			case "failed initialization":
 				gate.err = errors.New("settings initialization failed")
 			}
 			close(gate.release)
 			r := roleLimitReceive(t, results)
+			if change == "duplicate ID" {
+				if r.err != nil || r.s == nil {
+					t.Fatal("duplicate attempt damaged original reservation", r.err)
+				}
+				roleLimitClose(t, r.s)
+				core.EngineSessionMuRef(e).Lock()
+				count = core.EngineRoleSessionCountLocked(e, d.Ref)
+				core.EngineSessionMuRef(e).Unlock()
+				if count != 0 {
+					t.Fatal("original reservation leaked after close", count)
+				}
+				return
+			}
 			if r.err == nil || r.s != nil {
 				if r.s != nil {
 					roleLimitClose(t, r.s)
@@ -329,9 +344,6 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			count = core.EngineRoleSessionCountLocked(e, d.Ref)
 			core.EngineSessionMuRef(e).Unlock()
 			want := 0
-			if change == "duplicate ID" {
-				want = 1
-			}
 			if count != want {
 				t.Fatal("failed init leaked count", count, want)
 			}

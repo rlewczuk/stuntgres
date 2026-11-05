@@ -56,3 +56,66 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 		f.blocking(bid)
 	}
 }
+
+type startupPrivateOwner struct{ ids.SessionOwnerMarker }
+
+func TestBlockingPidsStartupAuthority(t *testing.T) {
+	t.Run("journal-and-private", func(t *testing.T) {
+		a, b, shared := roleLockFixtures(t)
+		holder := a.tx()
+		object := Resource{ObjectRef: shared.Domain().Ref(shared.Epoch, ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 17000})}
+		a.request(holder, object, AccessExclusive)
+		startup := b.advisory(b.session())
+		pending := b.request(startup, object, RowExclusive)
+		if pending == nil {
+			t.Fatal("missing genuine queued startup")
+		}
+		a.blocking(startup.Session().ID(), int32(holder.Session().ID()))
+		a.m.mu.Lock()
+		delete(startup.resources, object)
+		a.m.mu.Unlock()
+		a.blocking(startup.Session().ID())
+		a.m.mu.Lock()
+		startup.resources[object] = struct{}{}
+		pending.mode = AccessShare
+		a.m.mu.Unlock()
+		a.blocking(startup.Session().ID())
+		a.m.mu.Lock()
+		pending.mode = RowExclusive
+		unchanged := !pending.terminal && pending.entry == a.m.entries[object] && len(pending.entry.pending) == 1
+		a.m.mu.Unlock()
+		if !unchanged {
+			t.Fatal("startup inquiry changed the authoritative request")
+		}
+		a.blocking(startup.Session().ID(), int32(holder.Session().ID()))
+		private := b.advisory(b.domain.PrivateSession(&startupPrivateOwner{}))
+		if b.request(private, object, RowExclusive) == nil {
+			t.Fatal("missing private request for visibility boundary")
+		}
+		a.blocking(0)
+		b.blocking(0)
+	})
+	t.Run("foreign-advisory", func(t *testing.T) {
+		a, b, _ := roleLockFixtures(t)
+		holder, waiter := b.advisoryParticipant(), b.advisoryParticipant()
+		key := Resource{Database: b.domain, Kind: AdvisoryBigintResource, Low: 17}
+		b.advisoryGrant(holder, key, AdvisoryExclusive)
+		pending, err := b.advisoryAcquire(waiter, key, AdvisoryExclusive, false)
+		if err != nil || pending == nil {
+			t.Fatal("missing local advisory wait", pending, err)
+		}
+		b.blocking(waiter.token.ID(), int32(holder.token.ID()))
+		a.blocking(waiter.token.ID())
+	})
+	t.Run("foreign-local", func(t *testing.T) {
+		a, b, _ := roleLockFixtures(t)
+		holder, waiter := b.tx(), b.tx()
+		object := b.relation()
+		b.request(holder, object, AccessExclusive)
+		if b.request(waiter, object, AccessShare) == nil {
+			t.Fatal("missing local relation wait")
+		}
+		b.blocking(waiter.Session().ID(), int32(holder.Session().ID()))
+		a.blocking(waiter.Session().ID())
+	})
+}

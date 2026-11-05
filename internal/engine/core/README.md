@@ -1075,9 +1075,13 @@ they do not install receipt maps or fabricated policy authority.
 Trusted Restore keeps a distinct serial initialization completion record, never
 a client MAC receipt. Only a simulation-installed RestoreStage mints its private
 engine/domain/epoch/runtime origin; one successful StartRestoreSession binds the
-physical owner. Inactive private maintenance mints no origin and remains
-multi-session. Repair does not mutate, replace or rebind an existing origin.
-The actual command owner retains that exact origin beside its frame identity.
+physical owner. That real pointer-token session remains in the engine's lifecycle
+registry through operation/resource drain, without a public ID, database/role
+reservation or activity entry. Inactive private maintenance mints no origin and
+remains multi-session. Repair does not mutate, replace or rebind an existing
+origin. The actual command owner retains that exact origin beside its frame
+identity; command Finish retires its import receipts, and terminal Unregister
+removes only that exact private session.
 Fresh operation, scope, private read, bootstrap, staging and source/SQL EXECUTE
 checks remain required at initialization and entry, including repeated sites.
 Import records contain no subject, policy decision, label predecessor or audit
@@ -2403,9 +2407,24 @@ stable default target and monotonic identities. Local Engine runtimes borrow
 that mutex and role authority from birth, but own independent catalog domains,
 storage, visibility, locks, replacement gates and session resources. Equal numeric
 local references never authorize cross-target use. Local database descriptors
-project the shared registry; registration/owner/ACL publication prepares every
-affected root before atomic installation. Retained captures remain immutable,
-and transaction-private authority overlays retain predecessor/savepoint fences.
+project the shared registry; builtin pg_default/pg_global descriptors and ACLs
+also share exact cluster authority. Registration and metadata publication prepare
+every affected root before atomic installation. `DatabasePublication` is shared
+by the direct catalog and combined row/catalog publishers, including prepared
+completion: rename installs roots, the replacement name map and runtime names in
+one callback-free region; builtin ACL changes install the same descriptor in all
+registered roots. Nonrename changes retain the map. Retained captures remain
+immutable, and transaction-private authority overlays retain predecessor/savepoint
+fences. New targets inherit current cluster builtin ACLs before remint and again
+at registration. Replacement composes candidate builtin names with latest
+destination OWNER/ACL, removing imported authority before principal mapping.
+`restore_tablespace.go` carries only touched canonical native OWNER and ACL repair
+fields, whether deliberately supplied or emitted after a captured builtin alias
+rename. Replay starts with canonical seed names and resolves repairs through its
+actual current bindings. Exact pre-reader shared predecessors and principal
+remapping fence atomic co-publication with replacement; canonical-name ordinary
+dump state cannot reset shared authority. Projected roots advance destination
+revision clocks past received metadata without reducing reserved frontiers.
 Database identity reservation starts at or beyond every runtime's local allocation
 frontier (including unpublished DDL reservations) and skips imported definition OIDs.
 Local object allocation also reserves projected database identities; registering
@@ -2424,11 +2443,16 @@ Template copies use pointer-qualified `DatabaseTemplateLease` readers under
 AdmissionMu. Acquisition holds shared Mu first, counts every reserved/consumed
 physical owner and detached prepared transaction, and excludes only the exact
 consumed executor Session pointer. Last-reader release closes the source's
-notification generation. `AdmitDatabase` waits on that generation or cancellation
-with neither lock held and reserves nothing until readmission. Cleanup/release
-takes AdmissionMu only. Source replacement read protection is acquired outside
-Mu/AdmissionMu and retained through copying/publication; a current-source statement
-reuses its existing reservation rather than recursively entering behind a writer.
+notification generation. Before queuing its startup RowExclusive grant,
+`AdmitDatabase` checks that genuine lease generation under Mu then AdmissionMu.
+It waits without locks so an established copy lease does not put compatible
+copies behind a queued startup. After the grant it rechecks exact selector,
+principal and lease before reserving; any generation wait releases the grant
+first. A racing lease establishment retains ordinary manager FIFO behavior.
+Cleanup/release takes AdmissionMu only. Source replacement read protection is
+acquired outside Mu/AdmissionMu and retained through copying/publication; a
+current-source statement reuses its existing reservation rather than recursively
+entering behind a writer.
 
 Persisted defaults share the immutable role publication and its existing
 transaction journal. Scope keys use principal references and cluster database
@@ -2457,6 +2481,10 @@ for both live and reset role state; clipping NOTICE precedes lookup diagnostics.
 Rejected persisted startup roles warn and retain login identity; callbacks run
 outside locks. Private Restore bypasses persisted startup defaults, while
 destination defaults survive replacement.
+Replay uses `StartRestoreSession`, retaining its genuine trusted initialization
+origin and pointer-owned private identity in the ordinary session lifecycle
+registry: no public admission/count reservation or backend activity, with
+ordinary operation leases/resources/authority and exact terminal removal.
 
 Creation copies the actual registered source's committed persistent catalog,
 rows, indexes, sequences and dependencies into fresh local authority, preserving
@@ -2479,23 +2507,55 @@ owners remain distinct on re-clone. Detached metadata is not retained as a live
 destination consumer during Reset/Restore; ordinary live TEMP retains its exact
 ownership, backing and dependency protections.
 
+Explicit registered sources use that same remint/copy pipeline. A genuine shared
+database Share grant excludes startup RowExclusive through source validation,
+capture and final registration, while permitting compatible source copies and
+ACL AccessShare writers. Exact source-authority and journal fences remain
+necessary for those compatible writers. The source replacement read gate prevents
+Reset/Restore from changing its storage generation. Current-source cloning
+excludes only the exact issuer from busy counts and copies committed persistent
+state, not its transaction or usable TEMP/session resources.
+
 The CREATE DATABASE executor and its option rules are in
 [`rolecmds`](../rolecmds/README.md#database-creation).
 
 `pg_database` captures every registered target in this cluster, never other DSNs.
-Each row has its own stable identity, owner/ACL and runtime freezing horizon.
-Encoding 6, provider `c` and C/C locales are immutable semantic defaults.
-`datistemplate`, `datallowconn` and `datconnlimit` project the real CREATE policy
-(defaults false/true/−1), retained across replacement. Physical placement and
-multixact horizons, ICU locale/rules and collation versions remain typed NULL.
+Each row has its own stable identity, owner/ACL, template and admission flags,
+connection limit and runtime freezing horizon. Encoding 6, provider `c` and C/C
+locales are real native semantics. Logical pg_default authority is stored on
+the descriptor, independently of typed-NULL physical placement. Genuine C
+recorded/actual versions remain NULL; refresh uses the ordinary notice pipeline.
 Fresh/held executions capture current registry authority; returned Rows keep
 their original inventory and types. Named database grants and owner changes
 resolve registered noncurrent targets through that same authority; table access
 remains database-local.
 
-The shared mutex orders short metadata publication before local session registry
-inspection for cluster-wide role limits. Never hold it across external I/O,
-callbacks, relation-lock waits, session teardown or nested replacement: source
+Public startup captures its exact physical token and target under metadata,
+waits outside it for a narrow shared-database RowExclusive grant, then rechecks
+selector/principal and ordered ALLOW_CONNECTIONS/CONNECT/database-limit/role-limit
+authority. The single-use `DatabaseAdmission` reserves database and principal
+counts before callbacks; the live Session registry is populated only after
+initialization succeeds. The short grant ends after reservation and the
+persistent ticket transfers into ordinary session resource ownership.
+Self-pointer provenance rejects copied, foreign and already consumed handles.
+Failure and terminal cleanup release the same reservation once, including
+initializing/ending and exempt principals; private maintenance is uncounted.
+After callbacks, LOGIN, initial-role, role-limit and lifecycle fences remain;
+ALLOW_CONNECTIONS, CONNECT and database limits govern future admissions, not
+retrospective rejection of an already reserved public initializer. A defaults
+callback can therefore overlap committed database policy changes without losing
+its captured admission; failure and physical end still release its slot and
+persistent ticket exactly once.
+Source copies hold compatible Share grants, excluding startup RowExclusive and
+rename AccessExclusive. ACL-only writers use AccessShare and descriptor fences.
+Utility object/destination-name grants live on existing transaction tickets
+through savepoint/rollback/2PC. Metadata precedes AdmissionMu or session registry;
+no lock wait or callback runs under these mutexes.
+
+
+The shared mutex orders short metadata publication before reservation accounting.
+Never hold it across external I/O, callbacks, relation-lock waits, session
+teardown or nested replacement: source
 capture and destination install are separate nonnested phases. Role dependencies
 include other targets' persistent objects/default ACLs; external role-reference
 labels remain scoped to their owning database. Native controls capture the
@@ -2619,10 +2679,13 @@ mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](../lock/README.md#mutex-ownership-and-lock-order)).
 
 Multi-owner physical capture discovers owner pointers under `sessionMu`, drops
-it, and acquires distinct owner mutexes in ascending session-token order
-before `Engine.Mu`. The cohort is revalidated before borrowing roots; a changed
-cohort is released completely and recaptured. No owner mutex is acquired
-under `sessionMu` or `Engine.Mu`, and no peer Admission or completion is awaited.
+it, and acquires distinct owner mutexes in ascending numeric session-ID order,
+breaking ID0 ties by the retained genuine private Session pointer identity,
+before `Engine.Mu`. Typed owner references remain live through comparison and
+capture; pointer observations grant no identity authority. The cohort is
+revalidated before borrowing roots; a changed cohort is released completely and
+recaptured. No owner mutex is acquired under `sessionMu` or `Engine.Mu`, and no
+peer Admission or completion is awaited.
 
 
 Cluster `AdmissionMu` protects only reservation state and per-target counts.
@@ -3935,6 +3998,9 @@ fresh-context retention, rollback-only prepared anchor retirement, actual prepar
 definitions/fold backing and deterministic partial-output/final-confirm
 cancellation. Injected providers
 exercise the same composition and callbacks; add `RACE=1` for owner lifetimes.
+Creation-boundary fixtures observe the creator's genuine pending transaction
+completion record before assigning a later transaction an XID; an unfinished
+slot descriptor alone precedes that snapshot and is not a synchronization barrier.
 
 Snowball provider authority, prepared ownership and publication units in
 `enginetests/functions` use the shared `enginetest` prepared-fold and catalog-stage
@@ -4109,6 +4175,9 @@ Runtime work-policy handoff and terminal-owner mechanics use
 
 Physical database reservation, provenance and terminal cleanup units share
 `RUN='^TestDatabaseAdmission'` (also with `RACE=1` for concurrency witnesses).
+Private pointer-token lifecycle, multi-owner capture ordering and terminal
+removal use `RUN='^TestPrivateSession'`, also with `RACE=1`; public admission
+and activity remain independently observed rather than inferred from registry size.
 Held cursor store/producer ownership and replacement units share
 `RUN='^TestSQLCursorHold'`; public SQL/control observations stay in reference.
 

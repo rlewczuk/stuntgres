@@ -782,13 +782,25 @@ No physical WAL position or flush guarantee is serialized.
   an ordinary CAST: that would invert their actual emission phases and create
   an artificial cycle through the CAST's own installation predecessor.
   Other supported routine, language, wrapper, server, namespace, type,
-  tablespace, relation and column raw ACLs use destination-resolved administrative
-  catalog repairs
-  (`object_acl.go`). Namespace/tablespace owner and ACL repairs run after schema
+  relation and column raw ACLs use destination-resolved administrative catalog
+  repairs (`object_acl.go`). Namespace owner and ACL repairs run after schema
   creation, before dependent definitions. Type ACLs run at their definition or
   owning-family identity-ready event, before consumers requiring USAGE. Final
   repairs reconcile exact provenance after later identity and owner operations.
-  Named regrole repairs preserve retained namespace/tablespace owners. Type
+  Named regrole repairs preserve retained namespace owners. Database and builtin
+  tablespace authority belongs to the destination cluster: canonical-name
+  ordinary dumps omit it, and Reset/ordinary Restore retain latest shared
+  OWNER/ACL. Each captured builtin alias instead emits its rename before exact
+  OWNER/ACL repairs, including raw NULL and grant options; a canonical-named
+  peer builtin does not acquire repairs merely because another builtin is aliased.
+  Replay starts with canonical seed names, so alias-addressed repairs require
+  their actual preceding rename SQL. These and deliberately supplied canonical
+  builtin tablespace OWNER and ACL repairs use the same bounded native capability. A
+  touched-field delta captures exact current shared predecessors, remaps only
+  touched owner/ACL fields and co-publishes local replacement plus every shared
+  root atomically. Invalid input, cancellation or stale predecessors publish
+  neither local nor shared changes; no options/custom tablespaces/public UPDATE
+  are admitted. Type
   locators use exact regtype identities, including generated companions. The
   role-aware ACLITEM codec preserves grantors/options and NULL versus
   explicit-empty/default-equivalent ACLs without collapsing raw provenance.
@@ -1079,9 +1091,11 @@ handle or remote row is represented by these registration prerequisites.
 `Host` is the engine's side of one Restore (root `restoreHost`):
 
 - `Begin(source, statements)` records the script on the run. `Start(ctx)`
-  starts the private stage's session as the bootstrap superuser and acquires
-  its operation; `end` clears replay flags, releases the operation and ends the
-  session, in that order. A failed `Start` cleans up and returns no `end`.
+  starts a pointer-owned private maintenance session as the bootstrap superuser
+  and acquires its operation, without a public admission/count reservation.
+  This does not reenable a disabled target or bypass the ordinary public borrower.
+  `end` clears replay flags and repair captures, releases the operation and ends
+  the session, in that order. A failed `Start` cleans up and returns no `end`.
   The root holds its non-retractable-effect policy for that entire operation,
   including nested routine/default/CHECK/index evaluation, not just one admitted
   statement. Actual foreign acquisition, modification and schema import enforce

@@ -71,6 +71,20 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   EXECUTE a test changes, unlink created large objects with `largeObjectCleanup`,
   and restore database ACLs in `t.Cleanup` under a bounded context
   (`objectGrantDatabaseCleanup` in `object_grant_database_admission_test.go`).
+- Builtin tablespace grants are current cluster authority across selected
+  databases. Canonical-name ordinary native dumps omit builtin OWNER/ACL state.
+  Reset reestablishes canonical names while retaining destination OWNER/ACL;
+  Restore without explicit repairs composes candidate names with the latest
+  destination OWNER/ACL, including changes after capture. Each captured aliased
+  builtin is the exception: its dump emits a rename followed by exact canonical
+  native OWNER/ACL repairs for that builtin. Canonical peers in mixed images
+  retain their latest destination authority. Emitted or deliberately supplied
+  repairs are cluster-scoped administrative input with atomic, pre-reader
+  predecessor-fenced publication of touched fields only. Replay starts with
+  canonical names; alias-addressed repairs first require supported stage rename
+  SQL, never hidden destination bindings. Independent fresh-destination owner/raw
+  ACL witnesses supply canonical-name setup explicitly, not as an assumed part of
+  the ordinary canonical-name dump.
 - CONNECT witnesses open fresh authenticated login pools and close them on
   every path, including denial.
 - ACL text names the bootstrap role: `postgres` natively, `stuntgres` on the

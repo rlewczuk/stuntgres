@@ -91,9 +91,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
-- Notice-backpressure scenarios renew the shared admin socket's existing 20s
-  deadline per simple/extended subtest, rather than bounding their combined age.
-  The victim socket, backpressure observation and rollback assertions stay bounded.
+- Notice-backpressure scenarios physically close setup-only sockets and allocate
+  independent authenticated admin/victim/probe sockets per simple/extended
+  subtest. Each receives one absolute 20s deadline before login, without renewal.
+  Preserve the physical-close barriers and bounded backpressure/rollback proof;
+  never extend a reused socket's lifetime to accommodate sibling scenarios.
 - Native wire cancellation keys are not `pg_locks` PIDs; identify native waiters
   by relation and mode, or by a captured XID.
 - Server fixtures that mutate builtin ACLs restart the native child with dumps
@@ -101,8 +103,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - **Physical identity.** Lock and blocking observers use `fixture.LockPID` on
   PostgreSQL; natively they read the `pg_temp_N` suffix of the session's TEMP
   namespace (`blockingConn`), initialized before BEGIN and never inside a
-  transaction that will PREPARE. Generated OIDs and PIDs are discovered from
-  catalogs or observers, never pinned.
+  transaction that will PREPARE. A physical startup blocked before initialization
+  has neither callable backend identity nor TEMP state: discover its positive PID
+  through the exact shared database RowExclusive wait in `pg_locks`, independently
+  of the blocking function under test. Observe it from another database and
+  retain the real transactional rename holder until inquiry assertions finish.
+  Connection workers must release that holder before cleanup joins, because
+  cancellation alone need not interrupt authentication. Generated OIDs and PIDs
+  are discovered from catalogs or observers, never pinned.
 - Session-message receivers use `stuntgres.WaitForNotification` natively and pgx
   `WaitForNotification` inside one bounded `sql.Conn.Raw` callback on PostgreSQL;
   the raw connection never escapes the callback

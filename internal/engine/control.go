@@ -45,7 +45,7 @@ func resetCatalogContents(ctx context.Context, e *core.Engine, origin controlOri
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	fresh := NewWithSettings(nil, e.DatabaseName, false)
+	fresh := NewWithSettings(nil, e.AttachedDatabaseName(), false)
 	if err := fresh.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		return err
 	}
@@ -113,6 +113,7 @@ func restoreCatalogContents(ctx context.Context, e *core.Engine, src io.Reader, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	run := &restoreRun{stage: e.RestoreStage(), hostContext: ctx, controlOrigin: origin, sepgsqlAuthority: authority}
+	stage := e.RestoreStage()
+	run := &restoreRun{stage: stage, tablespaceRepairs: stage.RestoreTablespaceRepairs(), hostContext: ctx, controlOrigin: origin, sepgsqlAuthority: authority}
 	return control.Restore(ctx, &restoreHost{target: e, run: run}, restoreHooks, run, src)
 }

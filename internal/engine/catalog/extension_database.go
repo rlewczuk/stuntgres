@@ -10,15 +10,17 @@ import (
 var CurrentDatabaseAddress = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 16383}
 
 type Database struct {
-	ObjectAddress    ids.ObjectAddress
-	ObjectRevision   ids.DefinitionRevision
-	ObjectName       string
-	Owner            authorization.PrincipalRef
-	ACL              authorization.ACLValue
-	FrozenXID        uint64
-	IsTemplate       bool
-	AllowConnections bool
-	ConnectionLimit  int32
+	ObjectAddress     ids.ObjectAddress
+	ObjectRevision    ids.DefinitionRevision
+	ObjectName        string
+	Owner             authorization.PrincipalRef
+	ACL               authorization.ACLValue
+	FrozenXID         uint64
+	IsTemplate        bool
+	AllowConnections  bool
+	ConnectionLimit   int32
+	DefaultTablespace ids.OID // Logical authority; not a physical placement claim.
+	CollationVersion  *string // Owned immutable nullable provider metadata.
 }
 
 func (d *Database) Address() ids.ObjectAddress { return d.ObjectAddress }
@@ -47,7 +49,13 @@ func DatabaseAuthorityCompatible(current, observed Descriptor) bool {
 		a.IsTemplate == b.IsTemplate &&
 		a.AllowConnections == b.AllowConnections &&
 		a.ConnectionLimit == b.ConnectionLimit &&
+		a.DefaultTablespace == b.DefaultTablespace &&
+		equalDatabaseVersion(a.CollationVersion, b.CollationVersion) &&
 		authorization.EqualACL(a.ACL, b.ACL)
+}
+
+func equalDatabaseVersion(a, b *string) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }
 
 type DatabaseProvider struct{}
@@ -56,7 +64,7 @@ func (DatabaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 
 func (DatabaseProvider) Validate(v Read, d Descriptor) error {
 	db, ok := d.(*Database)
-	if !ok || db.Address().ClassID != ids.DatabaseClassID || db.Address().ObjectID == 0 || db.Address().SubID != 0 || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) || db.ConnectionLimit < -1 {
+	if !ok || db.Address().ClassID != ids.DatabaseClassID || db.Address().ObjectID == 0 || db.Address().SubID != 0 || db.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) || db.ConnectionLimit < -1 || db.DefaultTablespace != DefaultTablespaceOID {
 		return fmt.Errorf("stuntgres: invalid database descriptor")
 	}
 	return nil

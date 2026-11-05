@@ -353,20 +353,40 @@ limit before defaults callbacks. Disabled databases reject everyone (FATAL 55000
 superusers bypass CONNECT and limit rejection but occupy counted physical slots.
 Database limits count reservations, initialization, live sessions and terminal
 cleanup, not borrowers. Returning a borrower does not free a slot; physical close
-does so only after cleanup drains. Role limits are checked separately at session
-publication. Names are exact decoded names, not SQL-quoted, URL-decoded or trimmed.
-Explicit empty is not the default; missing names fail with FATAL 3D000 and are
-never created by connecting. CONNECT denial is FATAL 42501; an applicable full
+does so only after cleanup drains. Cluster-wide role limits count the same retained
+physical admissions and are fenced again at session publication. Names are exact decoded names, not SQL-quoted, URL-decoded or trimmed.
+Explicit empty is not the default: it fails with FATAL 3D000 even when the opaque
+DSN itself is empty and its original attachment has an empty catalog name. An
+unselected connector still reaches that original attachment. Other missing names
+also fail with FATAL 3D000 and are never created by connecting.
+CONNECT denial is FATAL 42501; an applicable full
 database limit is FATAL 53300. Revocation after reservation affects the next
 physical admission, not the retained admission; SET ROLE never re-admits.
 
+Database rename changes explicit name lookup only at commit. Old explicit
+connectors then fail; new-name connectors reach the same data and OID. Default
+connectors follow the original stable target across rename. A public physical
+reservation, live session or prepared transaction prevents rename; returning a
+pool borrower is not physical disconnection.
+
 Reset/Dump/Restore and InspectIndex capture the selected database before releasing
 the borrower. Controls require an unwrapped native pool. Local data replacement
-affects only that database, preserving registrations, owners/ACLs, admission
-policy, shared roles and other targets. Parameter ACL authority is the shared exception: Reset clears
-it cluster-wide and Restore replaces it cluster-wide with valid destination
+affects only that database, preserving registrations, owners/ACLs, template and
+admission flags, limits, logical placement, recorded collation metadata, shared
+roles and other targets. Parameter ACL authority is the shared exception: Reset
+clears it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+
+Builtin tablespace names retain their supported Reset/Restore image. Without an
+explicit repair, replacement preserves latest destination tablespace OWNER/ACL,
+including changes after a dump was captured. An alias-bearing dump retains its
+rename and exact canonical OWNER/ACL repairs. Deliberately supplied canonical
+native repairs change only their touched fields, with pre-reader predecessor
+fences and atomic selected-data/all-target authority publication.
+Replay starts with canonical builtin names. Input addressing an alias must first
+establish it through supported rename SQL; repair never uses a hidden alternate
+destination spelling.
 
 ### Pending relation block statistics
 

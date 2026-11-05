@@ -19,7 +19,7 @@ func TestClassInputRelationLookupContexts(t *testing.T) {
 	owner := &catalog.Owner{Domain: &ids.Domain{}, Principals: &authorization.Domain{}}
 	record := &access.RoleRecord{Root: authorization.Seed(owner.Principals), Revision: 1}
 	bootstrap := owner.Principals.Principal(authorization.BootstrapPrincipalID)
-	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: bootstrap, AllowConnections: true, ConnectionLimit: -1}
+	database := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "memory", Owner: bootstrap, AllowConnections: true, ConnectionLimit: -1, DefaultTablespace: catalog.DefaultTablespaceOID}
 	state.SetDescriptor(database.Address(), database)
 	state.BindName(catalog.DescriptorNameKey(database), database.Address())
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "lookup_schema", Owner: bootstrap}

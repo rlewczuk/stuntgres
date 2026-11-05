@@ -17,14 +17,14 @@ import (
 )
 
 func (e *Engine) StartSession(ctx context.Context, admission *DatabaseAdmission, start session.SessionStart) (*session.Session, error) {
-	if err := admission.claim(e); err != nil {
+	if err := admission.claim(e, start.ID); err != nil {
 		return nil, err
 	}
 	return e.startSession(ctx, start, admission.principal, admission, false)
 }
 
-// StartRestoreSession initializes the private replay owner. It has real cleanup
-// but no public physical database reservation or persistent session identity.
+// StartRestoreSession initializes the private replay owner. It has real lifecycle
+// registration and cleanup, but no public database reservation or session ID.
 func (e *Engine) StartRestoreSession(ctx context.Context, principal authorization.PrincipalRef) (*session.Session, error) {
 	s, err := e.startSession(ctx, session.SessionStart{}, principal, nil, true)
 	if err != nil {
@@ -97,15 +97,31 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 	if admission != nil {
 		admission.cluster.AdmissionMu.Lock()
 		admission.owner = s
+		s.Advisory.Ticket, s.Advisory.Locks = admission.ticket, e.Locks
+		admission.ticket = nil
 		admission.cluster.AdmissionMu.Unlock()
 	}
 	owned = false
 	if private {
 		s.SessionToken = e.Catalog.Domain.PrivateSession(s)
 	}
-	s.DatabaseName = e.DatabaseName
+	if admission != nil {
+		s.DatabaseName = admission.name
+	} else {
+		e.Mu.Lock()
+		s.DatabaseName = e.DatabaseName
+		e.Mu.Unlock()
+	}
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(ctx, true)
+	var admissionErr error
+	if !private {
+		_, admissionErr = op.Attach(session.AdvisorySession, &s.Advisory)
+		if admissionErr != nil {
+			e.EndLockOwner(s.Advisory.Ticket)
+			s.Advisory.Ticket = nil
+		}
+	}
 	auth := &session.AuthorizationState{Session: s, State: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, Revision: 1}
 	_, authErr = op.Attach(session.Authorization, auth)
 	if authErr == nil {
@@ -135,7 +151,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		}
 	}
 	if err == nil {
-		err = authErr
+		err = errors.Join(authErr, admissionErr)
 	}
 	var resetRole authorization.PrincipalRef
 	if err == nil && e.Sepgsql != nil {
@@ -168,7 +184,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		payload.notifications.Session = s
 		_, err = op.Attach(session.Notifications, (*notificationSessionEnd)(&payload.notifications))
 	}
-	if err == nil {
+	if err == nil && private {
 		var ticket *lock.Ticket
 		if session.TokenAttached(s.SessionToken) {
 			ticket, err = e.Locks.RegisterSession(s.SessionToken)
@@ -241,15 +257,22 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		}
 		if e.sessions[s.SessionToken] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
-		} else if !roleDescriptor.Superuser && roleDescriptor.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(roleDescriptor.ConnectionLimit) {
+		}
+		if err == nil && !private && !roleDescriptor.Superuser && roleDescriptor.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) > int(roleDescriptor.ConnectionLimit) {
 			err = role.ConnectionLimitError(roleDescriptor.Name)
-		} else if err = ctx.Err(); err == nil {
+		}
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err == nil {
 			if resetRole != (authorization.PrincipalRef{}) {
 				auth.State.CurrentUser, auth.State.ResetRole = resetRole, resetRole
 				auth.State.ActiveRole = true
 				auth.State.RoleText, auth.State.ResetRoleText = resetRoleText, resetRoleText
 			}
 			s.State = session.Live
+			// Lifecycle ownership includes private pointer-token sessions.
+			// Public admission, role occupancy and activity remain separate.
 			e.sessions[s.SessionToken] = s
 			if !private {
 				born := activityTime()

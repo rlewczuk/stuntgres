@@ -178,6 +178,7 @@ func TestEventTriggerClassification(t *testing.T) {
 	}
 	check(&parser.AlterOwner{Kind: "database"}, "", false)
 	check(&parser.AlterOwner{Kind: "tablespace"}, "", false)
+	check(&parser.AlterDatabaseStmt{}, "", false)
 	check(&parser.AlterOwner{Kind: "type"}, "ALTER TYPE", true)
 	check(&parser.AlterOwner{Kind: "domain"}, "ALTER DOMAIN", true)
 	check(&parser.AlterOwner{Kind: "large object"}, "ALTER LARGE OBJECT", true)

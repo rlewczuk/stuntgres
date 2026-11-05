@@ -155,7 +155,8 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 				var visible bool
 				var err error
 				if ticket.persistent {
-					owner, visible, err = PublicOwner(domain, domain.Tx(ticket.session, 0, 0, nil, 0), false)
+					ownerDomain := ticket.session.Domain()
+					owner, visible, err = PublicOwner(ownerDomain, ownerDomain.Tx(ticket.session, 0, 0, nil, 0), false)
 					if current, ok := active[owner.Session]; ok {
 						owner = current
 					}
@@ -196,10 +197,18 @@ func (m *Manager) PGLocks(domain *ids.Domain, epoch ids.CatalogEpoch) ([]Record,
 				continue
 			}
 			identity, visible := identities[m.owners[request.provenance]]
+			owner := identity.owner
+			if request.ticket.persistent && m.databaseAdmissionResource(resource, request.mode) {
+				ownerDomain := request.ticket.session.Domain()
+				var err error
+				owner, visible, err = PublicOwner(ownerDomain, ownerDomain.Tx(request.ticket.session, 0, 0, nil, 0), false)
+				if err != nil {
+					return nil, err
+				}
+			}
 			if !visible {
 				continue
 			}
-			owner := identity.owner
 			var record Record
 			if catalogACL || resource.completion != nil || resource.Row != 0 || resource.key != nil || resource.Name != (ids.NameKey{}) || resource.RoleTuple {
 				target := resource.completion

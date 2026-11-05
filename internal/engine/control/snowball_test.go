@@ -18,7 +18,7 @@ func snowballUnitSource(t *testing.T) Source {
 	store.State = source.State
 	share := new(catalog.SeedShare)
 	store.BeginSeedLocked(share, 256)
-	database := &catalog.Database{ObjectAddress: store.DatabaseAddress(), ObjectRevision: 1, ObjectName: "snowball_unit", Owner: source.Bootstrap, AllowConnections: true, ConnectionLimit: -1}
+	database := &catalog.Database{ObjectAddress: store.DatabaseAddress(), ObjectRevision: 1, ObjectName: "snowball_unit", Owner: source.Bootstrap, AllowConnections: true, ConnectionLimit: -1, DefaultTablespace: catalog.DefaultTablespaceOID}
 	source.State.SetDescriptor(database.Address(), database)
 	source.State.BindName(catalog.DescriptorNameKey(database), database.Address())
 	runtime, err := functions.DefaultSnowballDictionary()

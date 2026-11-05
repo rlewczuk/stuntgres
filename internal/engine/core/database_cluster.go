@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/statistics"
-	"stuntgres/internal/sqlstate"
 )
 
 // DatabaseCluster is owned by the pointer-stable mutex shared by its runtimes.
@@ -45,9 +45,12 @@ type DatabaseCluster struct {
 	Seed        *Engine
 	// AdmissionMu protects only reservation states/counts. Metadata admission
 	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
-	AdmissionMu    sync.Mutex
-	admissions     map[*Engine]int
-	templateCopies map[*Engine]*databaseTemplateReaders
+	AdmissionMu sync.Mutex
+	admissions  map[*Engine]int
+	// Both dimensions derive from the same single-use admission owner; neither
+	// session publication nor SET ROLE adds a second physical reservation.
+	principalAdmissions map[authorization.PrincipalRef]int
+	templateCopies      map[*Engine]*databaseTemplateReaders
 	// Immutable queue head root; all runtimes use this cluster's mu.
 	notificationHead *session.NotificationQueuePosition
 	// Active commands across every target, guarded by the shared engine mutex.
@@ -82,16 +85,30 @@ func (c *DatabaseCluster) Catalogs(yield func(*catalog.Store) bool) {
 	}
 }
 
+// selectDatabaseLocked resolves only the selection mode, under cluster metadata.
+// An empty opaque host key may own the original attachment, but an explicit
+// empty database name never selects it. Default selection retains its identity.
+func (c *DatabaseCluster) selectDatabaseLocked(selector DatabaseSelector) *Engine {
+	if !selector.Explicit {
+		return c.DefaultTarget
+	}
+	if selector.Name == "" {
+		return nil
+	}
+	return c.Targets[selector.Name]
+}
+
 // SelectDatabase resolves an exact decoded NAME, never an opaque host key.
+// Physical startup still requires AdmitDatabase's exact selector recheck.
 func (e *Engine) SelectDatabase(ctx context.Context, name string) (*Engine, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	target := e.Cluster.Targets[name]
+	target := e.Cluster.selectDatabaseLocked(DatabaseSelector{Name: name, Explicit: true})
 	if target == nil {
-		return nil, &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "3D000", Message: fmt.Sprintf(`database "%s" does not exist`, name)}
+		return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, name))
 	}
 	return target, nil
 }

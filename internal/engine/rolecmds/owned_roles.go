@@ -203,6 +203,20 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 			return core.Result{}, err
 		}
 	}
+	// Bulk ownership/ACL cleanup uses the same shared database exclusion as
+	// named metadata writers. These remain ordinary transaction contributions.
+	var databases []ids.OID
+	for address := range stage.Descriptors() {
+		if address.ClassID == ids.DatabaseClassID {
+			databases = append(databases, address.ObjectID)
+		}
+	}
+	slices.Sort(databases)
+	for _, oid := range databases {
+		if err := scope.AcquireDatabaseACL(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}); err != nil {
+			return core.Result{}, err
+		}
+	}
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false

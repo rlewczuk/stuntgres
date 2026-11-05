@@ -26,6 +26,10 @@ func (e *Engine) remapPreparedCatalog(sourceCatalog catalog.Read, source, target
 			state.SetDescriptor(address, &next)
 		}
 	}
+	tablespaces, err := takeReplacementTablespaces(state)
+	if err != nil {
+		return nil, nil, err
+	}
 	// Resolve configured destination capabilities before the principal graph
 	// memoizes private declarations. A later provider COW copy would otherwise
 	// look like a foreign-source declaration to that same strict source policy.
@@ -96,6 +100,9 @@ func (e *Engine) remapPreparedCatalog(sourceCatalog catalog.Read, source, target
 	if err := catalog.RemapPrincipals(state, policy); err != nil {
 		return nil, nil, err
 	}
+	if err := e.retainTablespaceAuthorityLocked(state, tablespaces); err != nil {
+		return nil, nil, err
+	}
 	if err := catalog.ValidateDefaultACLs(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(state)), e.Catalog.Read(state)); err != nil {
 		return nil, nil, err
 	}
@@ -116,8 +123,9 @@ func (e *Engine) RestoreStage() *Engine {
 	database := e.Catalog.State.MustDatabase(e.Catalog.DatabaseAddress())
 	parameterPredecessor := e.Catalog.State
 	originPredecessor := e.originProgressPredecessorLocked()
+	tablespaceRepairs := e.captureTablespaceRepairsLocked()
 	e.Mu.Unlock()
-	stage, err := e.Factory(nil, e.DatabaseName, false)
+	stage, err := e.Factory(nil, database.Name(), false)
 	if err != nil {
 		panic(err)
 	}
@@ -137,6 +145,7 @@ func (e *Engine) RestoreStage() *Engine {
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
 	stage.ImportParameterPredecessor = parameterPredecessor
 	stage.importOriginProgressPredecessor = &originPredecessor
+	stage.importTablespaceRepairs = tablespaceRepairs
 	retainedDatabase := *database
 	// The private staging engine has its own principal authority, but retains
 	// the selected database address rather than silently reverting to default.
@@ -145,19 +154,34 @@ func (e *Engine) RestoreStage() *Engine {
 	stage.Catalog.State.RemoveDescriptor(initial.Address())
 	stage.Catalog.Database = database.Address()
 	retainedDatabase.Owner = stage.RoleStore.Domain.Principal(database.Owner.ID())
-	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
-	for i := range retainedDatabase.ACL.Entries {
-		entry := &retainedDatabase.ACL.Entries[i]
-		entry.Grantor = stage.RoleStore.Domain.Principal(entry.Grantor.ID())
-		if !entry.Grantee.Public {
-			entry.Grantee.Role = stage.RoleStore.Domain.Principal(entry.Grantee.Role.ID())
-		}
+	capturedPrincipal := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+		return stage.RoleStore.Domain.Principal(ref.ID()), nil
+	}
+	retainedDatabase.ACL, err = catalog.RemapACL(database.ACL, capturedPrincipal)
+	if err != nil {
+		panic(err)
 	}
 	stage.Catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
 	stage.Catalog.State.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
 	if stage.Sepgsql != nil {
 		stage.restoreInitializationOrigin = &restoreInitializationOrigin{engine: stage, domain: stage.Catalog.Domain, epoch: stage.Catalog.State.Epoch(), policy: stage.Sepgsql}
 	}
+	// The candidate starts from canonical seed names. Dump replay establishes
+	// aliases explicitly before its exact canonical OWNER/ACL repair statements.
+	// Only captured authority fields, not destination alias snapshots, initialize
+	// this private stage.
+	for _, repair := range tablespaceRepairs {
+		original := repair.Original
+		mapped := *stage.Catalog.State.Get(original.Address()).(*catalog.Tablespace)
+		mapped.ObjectRevision = original.Revision()
+		mapped.Owner = stage.RoleStore.Domain.Principal(original.Owner.ID())
+		mapped.ACL, err = catalog.RemapACL(original.ACL, capturedPrincipal)
+		if err != nil {
+			panic(err)
+		}
+		stage.Catalog.State.SetDescriptor(mapped.Address(), &mapped)
+	}
+	stage.Catalog.InstallRevisionFrontierLocked(catalog.RevisionFrontier(stage.Catalog.NextRevision(), stage.Catalog.State.Descriptors()))
 	return stage
 }
 

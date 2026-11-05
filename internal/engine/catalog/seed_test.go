@@ -31,7 +31,7 @@ func newSeedStore(share *SeedShare) *Store {
 // finishes the seed.
 func finishSeedFixture(s *Store, share *SeedShare, database string) {
 	domain := &authorization.Domain{}
-	db := &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: domain.Principal(authorization.BootstrapPrincipalID), AllowConnections: true, ConnectionLimit: -1}
+	db := &Database{ObjectAddress: s.DatabaseAddress(), ObjectRevision: 1, ObjectName: database, Owner: domain.Principal(authorization.BootstrapPrincipalID), AllowConnections: true, ConnectionLimit: -1, DefaultTablespace: DefaultTablespaceOID}
 	s.State.SetDescriptor(db.Address(), db)
 	s.State.BindName(DescriptorNameKey(db), db.Address())
 	s.FinishSeedLocked(share)
@@ -121,7 +121,7 @@ func TestInstallCatalogSourceOwnsRowType(t *testing.T) {
 }
 
 func TestDatabaseAuthorityAdmissionPolicy(t *testing.T) {
-	current := &Database{ObjectAddress: CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "policy", AllowConnections: true, ConnectionLimit: -1, FrozenXID: 3}
+	current := &Database{ObjectAddress: CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: "policy", AllowConnections: true, ConnectionLimit: -1, FrozenXID: 3, DefaultTablespace: DefaultTablespaceOID}
 	observed := *current
 	observed.FrozenXID++
 	if !DatabaseAuthorityCompatible(current, &observed) {

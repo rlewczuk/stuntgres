@@ -36,6 +36,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   a `GrantPlan` (`Candidate`, `Changed`); sequence plan stamps come from a
   `revision` allocator; the partial-grant warning is
   `authorization.GrantWarning`, which database and FDW grants share.
+  Changed builtin tablespace ACL descriptors also consume that allocator before
+  staging, so each committed peer writer advances the descriptor revision as
+  well as the cluster projection's destination clock. A no-op ACL does not
+  allocate a revision; allocation failure returns no candidate.
   The root admits named relations with AccessShare before ACL planning and may
   refresh the request-owned `Targets` inventory after a wait. Once staged,
   descriptor identity and epoch remain strict. Selected ACL/default commands

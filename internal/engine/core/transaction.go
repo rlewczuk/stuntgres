@@ -593,6 +593,14 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
+	if database, ok := stmt.(*parser.AlterDatabaseStmt); ok && database.SetsTablespace() {
+		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		// The executor validates the option list once before applying the
+		// TABLESPACE block restriction, without resolving a target or snapshot.
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
+	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation && !session.TransactionalSchemaUtility(stmt) {
 		// Rejected creation utilities must not enter a deferrable safe-snapshot wait.

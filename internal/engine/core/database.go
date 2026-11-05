@@ -18,7 +18,7 @@ func (e *Engine) initializeDatabase(name string) {
 		e.DatabaseName, _ = value.Text()
 	}
 	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &catalog.Database{ObjectAddress: e.Catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.DatabaseName, Owner: owner, FrozenXID: 3, AllowConnections: true, ConnectionLimit: -1}
+	db := &catalog.Database{ObjectAddress: e.Catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.DatabaseName, Owner: owner, FrozenXID: 3, AllowConnections: true, ConnectionLimit: -1, DefaultTablespace: catalog.DefaultTablespaceOID}
 	e.Catalog.State.SetDescriptor(db.Address(), db)
 	e.Catalog.State.BindName(catalog.DescriptorNameKey(db), db.Address())
 }

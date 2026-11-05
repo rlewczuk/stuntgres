@@ -91,6 +91,16 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   copies its committed catalog/storage, rechecks source and owner authority and
   registers the completed target in one publication. An unregistered `template1`
   alone uses the cluster's lazy private builtin seed.
+- `ExecuteAlterDatabase` stages rename and database attributes on the normal
+  catalog journal; core alone publishes registry names. After core's read-only
+  and aborted-state gates, the executor validates options once: written-order
+  duplicate/unknown names, then mixed TABLESPACE, then valid sole-TABLESPACE block
+  refusal, before target lookup and permissions. Owner transfer remains
+  `ExecuteOwnership`. Database utility writers use shared database AX grants;
+  rename also claims its exact destination name. Database ACL/bulk cleanup
+  writers use AS, excluding rename while letting startup inspect committed
+  rights during private ACL changes. Source Share remains compatible; exact
+  descriptor/journal fences arbitrate changes without immediate fanout.
 
 `RoleHost{core.DDLHost}` (`role_host.go`) implements `role.Host` and
 `role.StageHost`; only these executors build it. The decisions made outside a
@@ -111,9 +121,13 @@ the executor's inherited source ownership, independently of the requested owner
 and CONNECT grants. Source allow-connections policy does not restrict copying.
 Physical reservations and detached prepared transactions make the source busy;
 only the actual executing physical source owner is excluded. Compatible copies
-share a source lease, blocking new physical admissions until the last release.
-Source replacement read protection precedes shared Mu then AdmissionMu; no
-metadata lock crosses preparation or waits.
+hold genuine source Share grants and share an admission lease until the last
+release. Startup observes an established lease before requesting RowExclusive,
+so a waiting connection cannot queue ahead of another compatible copy. A startup
+racing lease establishment still follows ordinary lock-queue fairness; grant
+readmission rechecks the exact target, principal and current lease before
+reservation. Source replacement read protection precedes shared Mu then
+AdmissionMu; no metadata lock crosses preparation or waits.
 
 Copied objects retain local SQL OIDs, dependencies, owners and ACLs in a fresh
 catalog/storage authority. Transaction-private state and live source TEMP
@@ -139,6 +153,11 @@ current positive public-backend registrations from the actual source runtime.
 The shared cluster mutex serializes session startup/end and this transfer;
 provider locks are separate leaves, without re-locking the publishing session.
 Backend counters and reset history are not template data or inherited state.
+ALTER option validation preserves occurrence order for duplicate/unknown
+errors before fixed-order value checks. It does not reuse CREATE's broader
+Boolean conversion. Tablespace assignment checks actual destination CREATE
+authority even for builtin same-space pg_default. C refresh queries the genuine
+provider version and emits the unchanged notice; no data/index rebuild occurs.
 
 ## Testing
 

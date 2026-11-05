@@ -1,2 +1,2 @@
-// Package lock_test exercises lock ownership and frozen cohort decisions.
-package lock_test
+// Package lock hosts external fixtures for lock ownership and frozen cohort decisions.
+package lock

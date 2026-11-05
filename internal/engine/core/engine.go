@@ -72,6 +72,7 @@ type Engine struct {
 	ImportTargets                   map[authorization.PrincipalRef]authorization.PrincipalRef
 	ImportParameterPredecessor      *catalog.State // Parameter authority captured before Restore input.
 	importOriginProgressPredecessor *originProgressPredecessor
+	importTablespaceRepairs         TablespaceRepairs // Same pre-reader capture as roles and other shared predecessors.
 	restoreInitializationOrigin     *restoreInitializationOrigin
 	Foreign                         fdw.Registry
 	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
@@ -505,7 +506,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.ForeignDDL:
 		return Description{}, nil
-	case *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace, *parser.Load, *parser.SecurityLabel, *parser.Checkpoint, *parser.Vacuum, *parser.Cluster, *parser.Analyze:
+	case *parser.CreateDatabaseStmt, *parser.AlterDatabaseStmt, *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace, *parser.Load, *parser.SecurityLabel, *parser.Checkpoint, *parser.Vacuum, *parser.Cluster, *parser.Analyze:
 		return Description{}, nil
 	case *parser.Truncate:
 		return Description{}, nil

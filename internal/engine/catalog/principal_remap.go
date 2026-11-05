@@ -337,28 +337,32 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 	return nil
 }
 
-func principalMappings(m PrincipalRemap) (func(authorization.ACLValue) (authorization.ACLValue, error), ProcedureRemapper) {
-	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
-		if len(a.Entries) == 0 {
-			return a, nil
+// RemapACL owns the destination entries and preserves raw explicit provenance.
+// The caller supplies its already validated source/destination principal policy.
+func RemapACL(a authorization.ACLValue, principal func(authorization.PrincipalRef) (authorization.PrincipalRef, error)) (authorization.ACLValue, error) {
+	if len(a.Entries) == 0 {
+		return a, nil
+	}
+	next := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
+	for i, entry := range a.Entries {
+		var err error
+		entry.Grantor, err = principal(entry.Grantor)
+		if err != nil {
+			return authorization.ACLValue{}, err
 		}
-		n := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
-		for i, x := range a.Entries {
-			var err error
-			x.Grantor, err = m.Principal(x.Grantor)
+		if !entry.Grantee.Public {
+			entry.Grantee.Role, err = principal(entry.Grantee.Role)
 			if err != nil {
 				return authorization.ACLValue{}, err
 			}
-			if !x.Grantee.Public {
-				x.Grantee.Role, err = m.Principal(x.Grantee.Role)
-				if err != nil {
-					return authorization.ACLValue{}, err
-				}
-			}
-			n.Entries[i] = x
 		}
-		return n, nil
+		next.Entries[i] = entry
 	}
+	return next, nil
+}
+
+func principalMappings(m PrincipalRemap) (func(authorization.ACLValue) (authorization.ACLValue, error), ProcedureRemapper) {
+	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) { return RemapACL(a, m.Principal) }
 	var procedures map[*Procedure]*Procedure
 	var procedure ProcedureRemapper
 	procedure = func(d *Procedure) (*Procedure, error) {

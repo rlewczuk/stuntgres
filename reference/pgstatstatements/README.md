@@ -50,6 +50,7 @@ The permanent suffix inventory under `TestReferencePgStatStatements` is:
 | TerminalIdentity, TerminalIdentityRepresentative, TerminalIdentityRestoration, TerminalSettings, TerminalInvocation, TerminalUtilityEnable, TerminalNesting | Genuine utility-hook principal and first-text ownership, redaction, transaction versus in-utility restoration, current terminal nesting/policy and separate planning/execution keys, invocation-local restoration/session-SET escape and separately captured utility enablement |
 | Utility, UtilityIdentity, AnalyzedUtilityIdentity, CallIdentity | Disabled/enabled utilities, selected transaction kinds/names, typed utility children, authenticated renamed procedures, prepared wrappers, FETCH and genuine table/query streaming COPY with distinct wrapper/independently analyzed child accounting |
 | RawUtilityOptionOrder, RoleKindIdentity, NullableUtilityIdentity, RawRangeFunctionIdentity | Ordered raw declaration options, distinct ROLE/USER/GROUP introducers, nullable SQL/MED fields and raw function-FROM versus explicit ROWS FROM provenance, independently of equivalent catalog effects or view values |
+| DatabaseIdentity | ALTER DATABASE rename/source/target, ordered options and literal kinds, equivalent TABLESPACE spellings, distinct refresh identity, exact UTF8 batch representative and direct/fresh/held execution counts; Prepare and failures do not publish successful calls |
 | Nested, NestedSource | SQL/PL routines, triggers, top/all/none, effective SECURITY DEFINER owner, invocation-setting restoration and exact UTF8 source spans for PERFORM, INTO, loops, dynamic SQL and non-simple scalar subqueries |
 | Cluster | Shared cross-database collection without peer installation, pool-close retention and independent Driver isolation |
 | Visibility | Own/foreign redaction, inherited statistics-reader authority and immediate revoke on held prepared readers |
@@ -62,6 +63,17 @@ The permanent suffix inventory under `TestReferencePgStatStatements` is:
 | Protocol | Actual public server/pgconn simple and extended messages, Parse/Describe, volatile portal suspension/resume and explicit close-time accounting, COPY and CopyFail atomicity |
 | CursorLifetime, CursorArgumentSource | PL cursor planning, partial/unused closure, failed-executor rejection, completed children retained after parent failure and declaration-ordered named argument source provenance |
 | FeatureSmoke | Literal grouping, held execution, real timings, failed write, foreign visibility, STRICT metadata and native persistent control roundtrip |
+
+DatabaseIdentity executes each ALTER directly, freshly prepared and twice through
+one held statement. Catalog identity/flags/limits, rename effects, same-space
+metadata and refresh notices are asserted after each execution. The pinned
+PostgreSQL 18.6 collector permanently zeros a retained raw utility plan's query
+ID: direct/fresh/first-held contribute three calls, while the second held command
+still executes but contributes none. The narrowly named
+`heldRawUtilityCollectedCalls` expectation records that oracle defect; native's
+invocation-owned collector must retain all four calls. Neither execution is
+skipped or retried, and Prepare/failures still contribute none. See
+[the released source and observed proof](../../docs/POSTGRES_REGRESSION.md#held-raw-utility-plans-lose-their-statement-statistics-identity).
 
 Controls and FeatureSmoke keep native host replacement phases explicit in the
 shared definitions. They exercise public Dump/Reset/Restore rather than SQL reset

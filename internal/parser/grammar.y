@@ -715,7 +715,7 @@ package parser
 %type <tok> collation_name_word
 %type <stmt> create_extension drop_extension alter_extension_update
 %type <stmt> create_tablespace alter_tablespace_rename drop_tablespace
-%type <stmt> create_database alter_database_settings
+%type <stmt> create_database alter_database_settings alter_database
 %type <databaseOptions> database_options database_option_list
 %type <databaseOption> database_option database_option_value
 %type <tok> database_option_name
@@ -1119,6 +1119,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_tablespace | alter_tablespace_rename | drop_tablespace
  | create_database
  | alter_database_settings
+ | alter_database
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | drop_statistics
@@ -1178,6 +1179,10 @@ create_database: CREATE DATABASE name database_options {
 alter_database_settings: ALTER DATABASE name role_setting_action {
  s:=$4.(*AlterRoleSettings);$$=&AlterDatabaseSettings{Database:Identifier{Text:$3.text,Pos:$3.pos},Set:s.Set,Reset:s.Reset,FromCurrent:s.FromCurrent,Pos:$1.pos}
 } ;
+alter_database: ALTER DATABASE name RENAME TO name { $$=&AlterDatabaseStmt{Name:$3.text,Action:"rename",NewName:$6.text,Pos:$1.pos} }
+ | ALTER DATABASE name database_options { $$=&AlterDatabaseStmt{Name:$3.text,Action:"options",Options:$4,Pos:$1.pos} }
+ | ALTER DATABASE name SET TABLESPACE name { $$=&AlterDatabaseStmt{Name:$3.text,Action:"tablespace",Tablespace:$6.text,Pos:$1.pos} }
+ | ALTER DATABASE name REFRESH COLLATION VERSION { $$=&AlterDatabaseStmt{Name:$3.text,Action:"refresh",Pos:$1.pos} } ;
 database_options: database_option_list {$$=$1}
  | WITH database_option_list {$$=$2} ;
 database_option_list: /* empty */ {$$=nil}
@@ -1194,6 +1199,7 @@ database_option_value: name {$$=DatabaseOption{Value:$1.text}}
  | DEFAULT {$$=DatabaseOption{Default:true}}
  | TRUE {$$=DatabaseOption{Value:$1.text}}
  | FALSE {$$=DatabaseOption{Value:$1.text}}
+ | ON {$$=DatabaseOption{Value:$1.text}}
  | NUMBER {$$=DatabaseOption{Value:$1.text,Numeric:true}}
  | '-' NUMBER {$$=DatabaseOption{Value:"-"+$2.text,Numeric:true}}
  | '+' NUMBER {$$=DatabaseOption{Value:"+"+$2.text,Numeric:true}} ;

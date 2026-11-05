@@ -138,7 +138,8 @@ func TestSepgsqlSimulationInitializationCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admission, err := e.AdmitDatabase(t.Context(), principal, core.DatabaseSelector{Name: e.DatabaseName, Explicit: true})
+	id := enginetest.NextSessionID()
+	admission, err := e.AdmitDatabase(t.Context(), principal, id, core.DatabaseSelector{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestSepgsqlSimulationInitializationCleanup(t *testing.T) {
 		generation = subject.Generation()
 		return "", false, failure
 	})
-	s, err := e.StartSession(t.Context(), admission, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: provider})
+	s, err := e.StartSession(t.Context(), admission, session.SessionStart{ID: id, Defaults: provider})
 	if s != nil || !errors.Is(err, failure) || captured == nil || generation == 0 {
 		t.Fatalf("startup result=%v error=%v captured=%v generation=%d", s, err, captured != nil, generation)
 	}

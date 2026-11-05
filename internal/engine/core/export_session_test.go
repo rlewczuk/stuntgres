@@ -51,3 +51,6 @@ func DatabaseAdmissionSession(a *DatabaseAdmission) *session.Session {
 	defer a.cluster.AdmissionMu.Unlock()
 	return a.owner
 }
+
+// DatabaseAdmissionSessionID observes the exact reserved physical identity.
+func DatabaseAdmissionSessionID(a *DatabaseAdmission) ids.SessionID { return a.token.ID() }

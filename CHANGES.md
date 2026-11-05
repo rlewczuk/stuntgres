@@ -1342,6 +1342,25 @@
   configurations, metadata and native persistence retain actual parser identities
   across rename, schema moves and catalog replacement.
 
+- Add transactional logical database rename and mutable owner, template and
+  admission metadata. Preserve database identity and data across rename and
+  targeted native controls; enforce ordered physical connection reservations.
+  Registered template copies use the existing independent catalog/storage copy
+  pipeline. Builtin same-tablespace assignment and C collation refresh use real
+  logical authority without inventing physical placement or provider versions.
+  Builtin tablespace ACLs publish across selected targets; ordinary replacement
+  retains current owner/ACL authority while preserving the supported alias image.
+  Alias-bearing dumps order builtin renames before exact canonical owner/ACL
+  repairs, applied as predecessor-fenced changes atomic with local replacement.
+  Keep private maintenance owners in the genuine lifecycle registry without
+  public admission/activity, with total cohort lock ordering and terminal cleanup.
+  Preserve compatible source copies by waiting existing copy leases before
+  startup lock admission, without changing ordinary lock-queue fairness.
+  Classify ALTER utility identities and source spans through current statistics
+  collectors; document the pinned oracle's repeated-held-plan counting defect.
+  Keep logical-slot creation fixtures synchronized on actual completion waits,
+  not early slot visibility, preserving unchanged deadlines and two-phase checks.
+
 - Add the four logical-slot get/peek text/binary SQL signatures with initialized
   empty-options defaults, typed record metadata, ordered option validation and
   live current-role replication authorization. Preserve missing-slot 42704 under

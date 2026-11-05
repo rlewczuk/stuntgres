@@ -261,6 +261,12 @@ func sepgsqlRepairRun(t *testing.T, route string, supplied, cancelRepair bool) {
 		stage.Mu.Lock()
 		defer stage.Mu.Unlock()
 		scope = sepgsqlRepairScope(t, stage)
+		if scope.Op.Session.SessionToken.ID() != 0 || scope.Op.Session.SessionToken.Private() != scope.Op.Session || (supplied && scope.Op != op) {
+			t.Fatal("repair detached from its genuine private operation owner")
+		}
+		if core.EngineDatabaseAdmissionCount(stage) != 0 || core.EngineRoleSessionCountLocked(stage, scope.Op.Session.CountedAuthenticated) != 0 || len(stage.Statistics.CaptureActivities()) != 0 {
+			t.Fatal("private repair acquired public admission, role occupancy or activity")
+		}
 		sepgsqlAssertImportInitialization(t, stage, scope)
 		if original != sepgsqlRepairOriginOf(stage) || original.session != reflect.ValueOf(scope.Op.Session).Pointer() || original.epoch != uint64(stage.Catalog.State.Epoch()) || original.epoch == uint64(before.state.Epoch()+1) {
 			t.Fatal("repair changed original origin or collapsed distinct stage/destination epochs")
@@ -292,6 +298,12 @@ func sepgsqlRepairRun(t *testing.T, route string, supplied, cancelRepair bool) {
 		f.assertInstalled(t, before.state.Epoch()+1)
 	}
 	<-finished
+	core.EngineSessionMuRef(stage).Lock()
+	registered := core.EngineSessions(stage)[scope.Op.Session.SessionToken] == scope.Op.Session
+	core.EngineSessionMuRef(stage).Unlock()
+	if registered != supplied {
+		t.Fatal("repair did not preserve supplied owner or retire its owned session", supplied, registered)
+	}
 	if sepgsqlRepairOriginOf(stage) != original {
 		t.Fatal("repair mutated or rebound original origin after completion")
 	}

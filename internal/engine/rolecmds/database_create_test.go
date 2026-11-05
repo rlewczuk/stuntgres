@@ -357,7 +357,11 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 	if target.Cluster != nil || target.Catalog.State != root || target.Catalog.DatabaseAddress() != address {
 		t.Fatal("cancellation partially installed the private target")
 	}
-	if selected, err := e.SelectDatabase(context.Background(), "canceled"); selected != nil || err == nil {
+	selected, err := e.AdmitDatabase(context.Background(), e.Roles().LookupRef("postgres"), ids.SessionID(900010), core.DatabaseSelector{Name: "canceled", Explicit: true})
+	if selected != nil {
+		selected.Release()
+	}
+	if selected != nil || err == nil {
 		t.Fatal("canceled target can be selected", selected, err)
 	}
 }

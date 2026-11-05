@@ -7,10 +7,29 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
 const liveness = 10 * time.Second
+
+// A visible unfinished slot precedes the immutable XID snapshot. Observe the
+// creator's actual completion wait before assigning another transaction an XID.
+func (f *fixture) waitCreationBoundary(creator *session.Session) {
+	f.t.Helper()
+	eventually(f.t, "the captured creation boundary", func() bool {
+		records, err := f.e.Locks.PGLocks(f.e.Catalog.Domain, f.e.CatalogRead().State().Epoch())
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		for _, record := range records {
+			if record.Kind == lock.TransactionRecord && record.Waiting && record.Owner.Session == creator.Token().ID() {
+				return true
+			}
+		}
+		return false
+	})
+}
 
 // eventually polls cond until it holds, failing after the liveness deadline.
 func eventually(t *testing.T, what string, cond func() bool) {
@@ -137,6 +156,7 @@ func TestLogicalStreamCreationBoundary(t *testing.T) {
 		eventually(t, "slot "+name+" waiting for its consistent point", func() bool {
 			return f.value(observer, "SELECT count(*) FROM pg_replication_slots WHERE slot_name = '"+name+"' AND confirmed_flush_lsn IS NULL AND active") == "1"
 		})
+		f.waitCreationBoundary(c)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -219,6 +239,7 @@ func TestLogicalStreamTwoPhaseCreationBoundary(t *testing.T) {
 	eventually(t, "the two-phase slot waiting", func() bool {
 		return f.value(observer, "SELECT count(*) FROM pg_replication_slots WHERE slot_name = 'tp' AND confirmed_flush_lsn IS NULL") == "1"
 	})
+	f.waitCreationBoundary(c)
 	f.must(x, "INSERT INTO t VALUES (2)")
 	f.must(x, "PREPARE TRANSACTION 'px'")
 	f.must(w, "COMMIT")

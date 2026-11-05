@@ -176,6 +176,12 @@ func ObjectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGran
 					}
 					next = catalog.NormalizeTypeReplacement(d, domain, false)
 				}
+				if tablespace, ok := next.(*catalog.Tablespace); ok {
+					tablespace.ObjectRevision, err = revision()
+					if err != nil {
+						return GrantPlan{}, warnings, err
+					}
+				}
 				plan.Changed[address] = ObjectGrantChange{Descriptor: next}
 				if plan.Candidate == nil {
 					plan.Candidate = catalog.CloneState(view.Catalog.State())

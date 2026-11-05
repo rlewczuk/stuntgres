@@ -44,7 +44,16 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			table, column = "pg_namespace", "nspacl"
 			locator = "nspname=" + dump.CommentLiteral(d.Name()) + "::pg_catalog.name"
 		case *catalog.Tablespace:
-			if !acl.Explicit && owner == bootstrap.Ref {
+			// Only the captured alias image carries explicit shared authority.
+			// Canonical-name ordinary dumps retain destination OWNER/ACL instead.
+			renamed := false
+			for _, tablespace := range c.Tablespaces {
+				if tablespace.Address() == d.Address() {
+					renamed = true
+					break
+				}
+			}
+			if !renamed {
 				continue
 			}
 			table, column = "pg_tablespace", "spcacl"
@@ -157,13 +166,13 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 		switch table {
 		case "pg_language":
 			ownerColumn = "lanowner"
+		case "pg_tablespace":
+			ownerColumn = "spcowner"
 		case "pg_namespace":
 			// User namespace ownership is already in CREATE SCHEMA.
 			if d.Address().ObjectID == ids.PublicNamespaceOID || d.Address().ObjectID == ids.PGCatalogNamespaceOID || d.Address().ObjectID == ids.PGToastNamespaceOID || d.Address().ObjectID == 13229 {
 				ownerColumn = "nspowner"
 			}
-		case "pg_tablespace":
-			ownerColumn = "spcowner"
 		}
 		if ownerColumn != "" {
 			role, err := c.OriginalRoles.Descriptor(owner)

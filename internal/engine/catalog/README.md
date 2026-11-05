@@ -60,6 +60,11 @@ neither owns catalog authority.
   zero. Actual rewrites replace this field on cloned descriptors; metadata-only
   edits retain it, and foreign import remints destination identity. It grants no
   physical file/path mapping capability.
+  `Database` carries immutable owner/ACL, admission/template flags, explicit
+  connection limit, logical default-tablespace authority and owned nullable
+  recorded collation version. Constructors initialize admission explicitly,
+  limit -1 and pg_default. Only FrozenXID may drift across an unchanged
+  authority revision. Replacement retains destination database metadata.
   `Procedure.Display` holds immutable creation-owned language/source, optional
   dynamic-library provenance, support, leakproof and transform-list facts.
   Invalid zero language differs from legitimate empty source; explicit binary
@@ -398,7 +403,8 @@ neither owns catalog authority.
   descriptor/name maps; unrelated writes never erase effective membership.
 - **Shared projection** (`shared_projection.go`, `subscription_projection.go`,
   `parameter_projection.go`). Every cluster store carries the same committed
-  database, subscription and parameter descriptor pointers. Publication prepares
+  database, subscription, replication-origin, parameter and tablespace descriptors.
+  `SharedProjection` prepares each root and shared revision frontier. Publication prepares
   all affected roots, including name deletion, from each peer's current root
   before installing any under the cluster mutex. An unchanged projection allocates
   nothing; each state indexes its shared-class entries (`State.shared`), so
@@ -437,6 +443,14 @@ neither owns catalog authority.
   Parameter remint reservations retain the registered peer-store set and allocation
   frontiers as transient preconditions. Final installation rejects a peer-local
   allocation or attachment racing unlocked provider preparation, without retry.
+  Builtin replacement preserves the supported candidate alias/name image and
+  composes latest destination OWNER/ACL in core before publication. Source
+  authority is excluded from ordinary principal remapping, not imported as a
+  generic cluster snapshot. New target attachment inherits current shared
+  builtins, not seed authority. Explicit canonical native OWNER/ACL repairs are
+  bounded touched-field deltas with exact pre-reader descriptor and role
+  predecessors; replacement co-publishes their roots/frontiers atomically.
+  `DatabaseOIDLocked` reserves a database OID past all store frontiers and roots.
 - **Builtin seed** (`seed.go`, `seed_share.go`). `Store.BeginSeedLocked` starts
   the bulk load and `FinishSeedLocked` ends it. In between, OID allocation
   skips the definition-OID walk: compiled builtins use OIDs below the first

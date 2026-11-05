@@ -181,6 +181,26 @@ AdmitDatabase resolves the target and makes ordered checks plus slot reservation
 
 Counts include reserved, initializing, live and ending physical sessions (including exempt principals), never borrower handles. Admission precedes Session/default construction; earlier numeric ID reservation may leave a gap on rejection. Database/authorization consumers own SQL admission diagnostics; ordinary adapter/context errors stay ordinary. Sequential ordinary-principal limit rejection is deterministic; PostgreSQL's approximate concurrent limits promise no portable simultaneous winner.
 
+The implementation uses core `AdmitDatabase(ctx, principal, sessionID, selector)`
+and `StartSession`. Admission binds the actual physical session token and takes
+a short shared-database RowExclusive grant outside metadata. It rechecks exact
+target/name and principal under metadata before the ordered database and
+cluster-wide role limits and reservation. It releases the grant before callbacks
+and transfers the persistent ticket to the session resource owner; self-pointer
+provenance prevents copied admissions from consuming or releasing authority.
+The live session registry is populated only after successful initialization.
+Post-callback LOGIN, initial-role, role-limit and lifecycle checks retain their
+ordinary fences; CONNECT and database limits are not re-admission checks.
+Source copies hold compatible Share grants, excluding startup RowExclusive and
+rename AccessExclusive. ACL writers hold AccessShare and retain journal fences.
+Utility and exact destination-name grants remain on transaction tickets through
+savepoint/rollback/2PC. Metadata precedes AdmissionMu or the session-registry mutex;
+lock waits and host callbacks hold neither. Private maintenance is uncounted.
+Native replay uses `StartRestoreSession` with the trusted initialization origin,
+normal private resources and teardown, but no public reservation/count. It never
+reenables target admission metadata to make replay succeed.
+
+
 User precedence on **2026-10-04: “Use PostgreSQL 18 order”** supersedes the former principal-free AdmitDatabase and pre-principal limit rejection/CONNECT-at-StartSession placement. Trusted principal resolution and ALLOW_CONNECTIONS/CONNECT/applicable-limit checks now precede reservation and Session construction, following `REL_18_0 postinit.c` `CheckMyDatabase`. Defaults/attachments still initialize afterward; once-only unwind and all other acceptance remain unchanged.
 
 Explicit connector retains a name selector and resolves it on each Connect. Rename/drop affects new explicit connections, not live attachments. Default selector follows the initial stable identity across rename. Dropping default makes new default admission fail; no fallback or recreation. DatabaseID is Engine-local monotonic/nonzero/nonreused; exhaustion fails before mutation. Recreating a name gives a fresh identity. Captured DatabaseTarget validates owner/incarnation/existence; stale/dropped targets fail, never redirect or resurrect.
@@ -193,7 +213,8 @@ Public `Reset(ctx, db)`, `Dump(ctx, db, dst)` and `Restore(ctx, db, src)` signat
 |---|---|
 | Selected persistent descriptors/data/catalog epoch | Reset clears; Dump serializes supported persistent state; Restore atomically replaces after private supported CREATE/INSERT staging through the same authority |
 | Engine/database identity and registration/name/owner/admission/default metadata | Retained, not recreated or wiped |
-| Other databases, cluster roles/memberships | Unchanged and excluded from Dump/Restore |
+| Other databases' local state, cluster roles/memberships | Unchanged and excluded from Dump/Restore |
+| Shared builtin tablespaces | Candidate owns supported names/aliases; ordinary replacement retains latest destination OWNER/ACL. Explicit canonical native repair overrides only touched fields with pre-reader predecessor fences and atomic cluster-wide publication |
 | Live settings, role views, temp, SQL prepared names, named cursors, advisory state | Unchanged and excluded; persistent binding invalidation may occur but does not delete named prepared entries |
 | Anonymous committed result snapshots | Existing retained rows/metadata survive replacement |
 

@@ -31,7 +31,7 @@ func databaseAdmissionLimit(e *core.Engine, limit int32) {
 
 func databaseAdmissionReserve(t *testing.T, e *core.Engine, principal authorization.PrincipalRef) *core.DatabaseAdmission {
 	t.Helper()
-	a, err := e.AdmitDatabase(t.Context(), principal, core.DatabaseSelector{Name: e.DatabaseName, Explicit: true})
+	a, err := e.AdmitDatabase(t.Context(), principal, enginetest.NextSessionID(), core.DatabaseSelector{Name: e.DatabaseName, Explicit: e != e.Cluster.DefaultTarget})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func databaseAdmissionCount(t *testing.T, e *core.Engine, want int) {
 
 func databaseAdmissionFull(t *testing.T, e *core.Engine, principal authorization.PrincipalRef) {
 	t.Helper()
-	a, err := e.AdmitDatabase(t.Context(), principal, core.DatabaseSelector{})
+	a, err := e.AdmitDatabase(t.Context(), principal, enginetest.NextSessionID(), core.DatabaseSelector{})
 	if a != nil {
 		a.Release()
 		t.Fatal("full database admitted a reservation")
@@ -71,7 +71,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 		a.Release()
 		databaseAdmissionCount(t, e, 0)
 		a = databaseAdmissionReserve(t, e, login)
-		s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
+		s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: core.DatabaseAdmissionSessionID(a)})
 		if err != nil || s.CountedAuthenticated != login || core.EngineOf(s) != e {
 			t.Fatal("admission did not retain identity/target", s, err)
 		}
@@ -91,7 +91,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 		unblock := func() { once.Do(func() { close(gate.release) }) }
 		result := make(chan roleLimitStartResult, 1)
 		go func() {
-			s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: gate})
+			s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: core.DatabaseAdmissionSessionID(a), Defaults: gate})
 			result <- roleLimitStartResult{s, err}
 		}()
 		joined := false
@@ -136,10 +136,29 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 				}
 				defer roleLimitClose(t, incumbent)
 			}
+			if mode == "role limit" {
+				a, err := e.AdmitDatabase(t.Context(), login, enginetest.NextSessionID(), core.DatabaseSelector{})
+				if a != nil {
+					a.Release()
+					t.Fatal("role limit admitted another physical reservation")
+				}
+				var diagnostic *sqlstate.Error
+				role, _ := e.Roles().Descriptor(login)
+				want := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "53300", Message: fmt.Sprintf(`too many connections for role "%s"`, role.Name)}
+				if !errors.As(err, &diagnostic) || *diagnostic != *want {
+					t.Fatal("role-limit reservation diagnostic", err)
+				}
+				databaseAdmissionCount(t, e, 1)
+				roleLimitClose(t, incumbent)
+				next := databaseAdmissionReserve(t, e, login)
+				next.Release()
+				databaseAdmissionCount(t, e, 0)
+				return
+			}
 			a := databaseAdmissionReserve(t, e, login)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			start := session.SessionStart{ID: enginetest.NextSessionID()}
+			start := session.SessionStart{ID: core.DatabaseAdmissionSessionID(a)}
 			sentinel := errors.New("defaults failure")
 			switch mode {
 			case "canceled":
@@ -177,6 +196,13 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 
 func TestDatabaseAdmissionProvenance(t *testing.T) {
 	e, login := databaseAdmissionFixture()
+	// Provenance is independent of exhaustion: admit two genuine reservations
+	// for this principal across targets, then reject foreign/copied handles.
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	principal := enginetest.FixtureRole(roles, login)
+	principal.ConnectionLimit = 2
+	enginetest.PutFixtureRole(roles, principal)
+	e.RoleStore.PublishLocked(roles)
 	databaseAdmissionLimit(e, 2)
 	other := engine.New()
 	admin := enginetest.StartSession(t, e, nil)
@@ -202,7 +228,7 @@ func TestDatabaseAdmissionProvenance(t *testing.T) {
 		databaseAdmissionCount(t, e, 2) // The superuser setup owner is counted too.
 		copy.Release()
 	}
-	peerToken, err := e.AdmitDatabase(t.Context(), login, core.DatabaseSelector{Name: peer.DatabaseName, Explicit: true})
+	peerToken, err := e.AdmitDatabase(t.Context(), login, enginetest.NextSessionID(), core.DatabaseSelector{Name: peer.DatabaseName, Explicit: true})
 	if err != nil || peerToken.Target() != peer {
 		t.Fatal("independent target reservation failed", peerToken, err)
 	}
@@ -212,7 +238,7 @@ func TestDatabaseAdmissionProvenance(t *testing.T) {
 	if a.Target() != e || copy.Target() != nil {
 		t.Fatal("copied admission retained authority")
 	}
-	if token, err := e.AdmitDatabase(t.Context(), other.RoleStore.Domain.Principal(10), core.DatabaseSelector{}); token != nil || err == nil {
+	if token, err := e.AdmitDatabase(t.Context(), other.RoleStore.Domain.Principal(10), enginetest.NextSessionID(), core.DatabaseSelector{}); token != nil || err == nil {
 		t.Fatal("foreign principal reserved a target", token, err)
 	}
 	a.Release()
@@ -222,12 +248,12 @@ func TestDatabaseAdmissionProvenance(t *testing.T) {
 	roleLimitClose(t, admin)
 	databaseAdmissionCount(t, e, 0)
 	a = databaseAdmissionReserve(t, e, login)
-	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
+	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: core.DatabaseAdmissionSessionID(a)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer roleLimitClose(t, s)
-	if second, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()}); second != nil || err == nil {
+	if second, err := e.StartSession(t.Context(), a, session.SessionStart{ID: core.DatabaseAdmissionSessionID(a)}); second != nil || err == nil {
 		t.Fatal("consumed token reused", second, err)
 	}
 	databaseAdmissionCount(t, e, 1)
@@ -245,7 +271,7 @@ func TestDatabaseAdmissionConcurrent(t *testing.T) {
 	for range cap(results) {
 		go func() {
 			<-ready
-			a, err := e.AdmitDatabase(t.Context(), login, core.DatabaseSelector{})
+			a, err := e.AdmitDatabase(t.Context(), login, enginetest.NextSessionID(), core.DatabaseSelector{})
 			results <- outcome{a, err}
 		}()
 	}
@@ -279,7 +305,7 @@ func TestDatabaseAdmissionEnding(t *testing.T) {
 	e, login := databaseAdmissionFixture()
 	databaseAdmissionLimit(e, 1)
 	a := databaseAdmissionReserve(t, e, login)
-	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
+	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: core.DatabaseAdmissionSessionID(a)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +333,7 @@ func TestDatabaseAdmissionEnding(t *testing.T) {
 	next := databaseAdmissionReserve(t, e, login)
 	next.Release()
 	next = databaseAdmissionReserve(t, e, login)
-	failed, err := e.StartSession(t.Context(), next, session.SessionStart{ID: enginetest.NextSessionID()})
+	failed, err := e.StartSession(t.Context(), next, session.SessionStart{ID: core.DatabaseAdmissionSessionID(next)})
 	if err != nil {
 		t.Fatal(err)
 	}

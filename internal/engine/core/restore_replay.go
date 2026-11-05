@@ -15,7 +15,8 @@ import (
 // population state. Only Restore and materialized population write it, so
 // ordinary statements keep a nil slot.
 type restoreReplay struct {
-	StagingEffects         bool // Entire private Restore operation, including nested execution.
+	StagingEffects         bool               // Entire private Restore operation, including nested execution.
+	TablespaceRepairs      *TablespaceRepairs // Explicit native OWNER/ACL fields only.
 	TableDestination       bool
 	InsertAuthority        bool
 	CommentAuthority       bool

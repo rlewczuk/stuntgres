@@ -200,6 +200,12 @@ ordinary assignments to an unreserved `security` variable.
 - SQL/MED server declarations retain absent and empty TYPE/VERSION values
   distinctly. VERSION also retains explicit NULL and clause presence through
   `ForeignDDL.VersionSet`; CREATE and ALTER share the nullable version grammar.
+- `AlterDatabaseStmt` retains a focused action and ordered `DatabaseOption`
+  occurrences. `Numeric` distinguishes integer-token candidates from quoted
+  values; the executor rejects decimal/oversized numeric nodes. OWNER retains
+  the existing `AlterOwner` path. Parsing and Prepare never resolve authority.
+  Each ALTER form retains its actual top-level `Pos` for statement-statistics
+  batch spans; option diagnostic positions remain outside query identity.
 - ALTER SYSTEM owns a syntax-only AST distinct from session SET/RESET. External
   value lists are consumed without retention or normalization; signed numeric
   tokens use lexer syntax, not the session setting number consumer.

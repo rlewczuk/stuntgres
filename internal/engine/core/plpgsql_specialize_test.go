@@ -25,7 +25,7 @@ func TestPLpgSQLProcedureInvocationSpecialization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admission, err := e.AdmitDatabase(context.Background(), principal, DatabaseSelector{})
+	admission, err := e.AdmitDatabase(context.Background(), principal, 1, DatabaseSelector{})
 	if err != nil {
 		t.Fatal(err)
 	}

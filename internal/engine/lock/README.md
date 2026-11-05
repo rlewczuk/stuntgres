@@ -10,8 +10,10 @@ engine.
 `Manager` holds heavyweight lock state for one cluster's admitted databases:
 
 - **Tickets.** One `Ticket` per registered transaction (`Register`) and one
-  persistent ticket per session for session-level advisory locks
-  (`RegisterSession`). A ticket journals every resource it holds or waits on.
+  persistent ticket per session for session-level advisory locks and its narrow
+  startup database RowExclusive grant (`RegisterSession`). The startup grant ends after
+  physical reservation; admission transfers its ticket to session initialization.
+  A ticket journals every resource it holds or waits on.
   Detached catalog session tokens are never eligible for either ticket kind,
   even when their domain and displayed ID match a registered physical session.
   Its transaction ID, phase and completion state are atomic mirrors that the
@@ -32,13 +34,14 @@ engine.
   helpers requiring empty Detail/Hint are not deadlock assertions.
 - **Resources and modes.** A `Resource` is a real relation, type, namespace,
   collation, conversion, statistics, cast, transform, procedure, language, text-search parser/template/dictionary/configuration,
-  access method, operator family/class or shared role (`ids.ObjectRef`),
+  access method, operator family/class or shared role/database (`ids.ObjectRef`),
   an exact catalog destination binding (`Name`),
   a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
   unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
   database-scoped advisory key (`Database`, `Kind`, `High`, `Low`). Local resources
-  must match their ticket's database domain and epoch; shared role resources use
-  the cluster's stable role domain. Schema and role names use the zero namespace
+  must match their ticket's database domain and epoch; shared role/database
+  objects and exact database destination names use the cluster's stable role
+  domain. Schema and shared-object names use the zero namespace
   address, never a synthetic OID. All ordinary resources share one ticket,
   checkpoint and deadlock graph across databases. `Mode` uses PostgreSQL's table
   and row names; modes accumulate as bits and owners never conflict with
@@ -101,6 +104,17 @@ engine.
   grants use real class6000 IDs 1..65534 in that same shared domain, with AS/AX
   modes and database-zero object tags, never relation aliases. Subscription
   retirement and standalone retirement use this single object authority.
+  Persistent tickets accept no ordinary object resource except an exact shared
+  database RowExclusive startup request. It has no invented transaction
+  provenance; cancellation and once-only narrow release use its real ticket.
+  Immediate admission, queued validity, inquiry and narrow release share the same
+  exact resource/mode gate, including the configured shared domain and epoch.
+  Transactional database objects admit only AccessShare, RowExclusive, Share
+  and AccessExclusive. Source-copy Share grants are compatible with other copies
+  and ACL AccessShare, but exclude startup RowExclusive; startup writers remain
+  mutually compatible. Utility AX excludes every database mode, and exact
+  destination-name grants remain transactional. Other shared object classes
+  retain their AS/AX-only mode inventory.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
@@ -167,14 +181,20 @@ engine.
   completed utility phase's SUE relation grants in one manager critical section;
   the transaction ticket, completion resource and unrelated grants remain live.
   Namespace, procedure, transform, language, text-search parser/template/dictionary/configuration, access-method,
-  family/class and shared role holds project as real object tags; shared roles
-  have SQL database zero. Exact name and
+  family/class and shared role/database holds project as real object tags;
+  shared objects have SQL database zero. Exact name and
   role-tuple claims are internal, not physical
   object tags; pending claims project the actual blocker XID. Their queues join
   blocking inquiry and the same deadlock graph without exposing peer local locks.
   Catalog/default ACL claims likewise emit no invented relation, object or
   advisory holder tags. Their pending projection follows real blocker XIDs
   through the existing transaction dependency path.
+  Cross-database blocking discovery includes a positive public startup PID only
+  through its genuine persistent ticket, current pending request/journal and
+  exact shared database RowExclusive resource. It needs no transaction owner.
+  Cancellation or grant removes that wait from both inquiries. Private startup
+  owners and unrelated cross-database advisory/local waits remain invisible;
+  prepared blockers retain their zero-PID projection.
   Generated ordinary index naming snapshots only other owners' granted relation
   names for the exact namespace/domain/epoch into caller-owned scratch. Pending
   requests alone reserve no generated name. Capture takes only manager metadata,
@@ -245,7 +265,10 @@ admitting this lock grants no large-object label capability.
 `TestLargeObjectObjectLocks` pins local admission, canonical2995/public2613
 capture, independent relation/ACL identity and cancellation/checkpoint/fence
 cleanup. `TestReplicationOriginStateObjectLocks` includes shared tablespace
-AS readers and a cross-database AX waiter with actual blocker/owner records.
+AS readers and a cross-database AX waiter with actual blocker/owner records;
+database-only RX/Share admission retains the same exact shared-resource authority.
+`TestDatabaseSharedObjectModeCompatibility` checks each permitted database mode
+pair and its genuine cross-database grant/wait provenance.
 `TestPGLocksResourceRecords` pins both exact public tags. The composed generic
 label owner tests in `schemacmds` exercise these through actual SQL execution;
 TYPE/DOMAIN continue to use existing TypeExclusive, not widened type admission.

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -24,8 +25,23 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 		for _, change := range []string{"horizon", "owner", "acl", "identity"} {
 			t.Run(fmt.Sprintf("moving=%t/%s", moving, change), func(t *testing.T) {
 				e := engine.New()
-				op, done := enginetest.RoleOperation(t, e, "postgres")
-				defer done()
+				// This fixture stages maintenance publication, not a live client
+				// rename. Private pointer identity obeys public busy exclusion.
+				maintenance, err := e.StartRestoreSession(context.Background(), e.Roles().LookupRef("postgres"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					maintenance.RequestEnd(session.CleanClose)
+					if err := maintenance.WaitEnd(context.Background()); err != nil {
+						t.Error(err)
+					}
+				}()
+				op, err := maintenance.Acquire(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
 				enginetest.RoleExecute(t, e, op, "CREATE TYPE public.mood AS ENUM ('a')")
 				enginetest.RoleExecute(t, e, op, "CREATE SCHEMA moved")
 				table := domainUnitTable(t, e, op, "CREATE TABLE public.holder(v public.mood)")

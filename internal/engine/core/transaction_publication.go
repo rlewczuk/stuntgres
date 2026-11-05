@@ -627,9 +627,14 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				return err
 			}
 		}
-		var sharedRoots catalog.SharedProjection
+		var databasePublication DatabasePublication
 		if c != nil {
-			sharedRoots = e.Catalog.ProjectSharedLocked(nextCatalog, e.Cluster.Catalogs)
+			databasePublication, err = e.PrepareDatabasePublicationLocked(nextCatalog)
+			if err != nil {
+				sess.Mu.Unlock()
+				e.Mu.Unlock()
+				return err
+			}
 		}
 		var relationMetadata map[ids.ObjectAddress]*storage.RelationMetadata
 		if c != nil {
@@ -786,7 +791,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.Storage.RelationMetadata = relationMetadata
 			e.Catalog.PublishLocked(nextCatalog)
 			e.reconcileLogicalBuffersLocked()
-			sharedRoots.InstallLocked()
+			databasePublication.InstallLocked(e)
 			e.Catalog.InstallRevisionFrontierLocked(nextRevision)
 			if c.Roles != nil {
 				e.RoleStore.PublishLocked(rolePublication)

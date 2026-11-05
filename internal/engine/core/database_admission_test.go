@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"stuntgres/internal/engine/enginetest"
 
@@ -12,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
@@ -105,6 +107,142 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			}
 			if len(core.EngineSessions(e)) != 0 || core.EngineRoleSessionCountLocked(e, login) != 0 {
 				t.Fatal("physical close leaked authenticated count")
+			}
+		})
+	}
+}
+
+func TestDatabaseAdmissionPolicyTransitions(t *testing.T) {
+	for _, phase := range []string{"allow-connections", "connection-limit"} {
+		t.Run(phase, func(t *testing.T) {
+			e, login := databaseAdmissionFixture()
+			publish := func(allow bool, limit int32) {
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				next := catalog.CloneState(e.Catalog.State)
+				database := *next.MustDatabase(e.Catalog.DatabaseAddress())
+				database.AllowConnections, database.ConnectionLimit = allow, limit
+				database.ObjectRevision++
+				next.SetDescriptor(database.Address(), &database)
+				e.Catalog.PublishLocked(next)
+			}
+			publish(true, 1)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			id := enginetest.NextSessionID()
+			admission, err := e.AdmitDatabase(ctx, login, id, core.DatabaseSelector{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer admission.Release()
+			entered, release := make(chan struct{}), make(chan struct{})
+			provider := &databaseAlterDefaults{visit: func() error {
+				close(entered)
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}}
+			type outcome struct {
+				session *session.Session
+				err     error
+			}
+			result := make(chan outcome, 1)
+			joined := false
+			go func() {
+				s, err := e.StartSession(ctx, admission, session.SessionStart{ID: id, Defaults: provider})
+				result <- outcome{s, err}
+			}()
+			defer func() {
+				cancel()
+				if !joined {
+					got := <-result
+					if got.session != nil {
+						databaseAlterEnd(t, got.session)
+					}
+				}
+			}()
+			select {
+			case <-entered:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			assertOccupancy := func(count int) {
+				t.Helper()
+				if got := core.EngineDatabaseAdmissionCount(e); got != count {
+					t.Fatalf("database occupancy: got %d want %d", got, count)
+				}
+				if got := core.EngineRoleSessionCountLocked(e, login); got != count {
+					t.Fatalf("principal occupancy: got %d want %d", got, count)
+				}
+			}
+			assertOccupancy(1)
+			core.EngineSessionMuRef(e).Lock()
+			published := len(core.EngineSessions(e))
+			core.EngineSessionMuRef(e).Unlock()
+			if published != 0 {
+				t.Fatal("public initializer published before defaults finished")
+			}
+			want := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL"}
+			if phase == "allow-connections" {
+				publish(false, 1)
+				want.Code, want.Message = "55000", `database "`+e.DatabaseName+`" is not currently accepting connections`
+			} else {
+				publish(true, 0)
+				want.Code, want.Message = "53300", `too many connections for database "`+e.DatabaseName+`"`
+			}
+			// Submitted ownership cannot be abandoned by the original caller.
+			admission.Release()
+			admission.Release()
+			assertOccupancy(1)
+			close(release)
+			got := <-result
+			joined = true
+			if got.session != nil {
+				defer databaseAlterEnd(t, got.session)
+			}
+			if got.err != nil || got.session == nil || !got.session.IsLive() {
+				t.Fatal("committed database policy retrospectively rejected admission", got.session, got.err)
+			}
+			assertOccupancy(1)
+			deniedID := enginetest.NextSessionID()
+			touched := false
+			fresh, denial := enginetest.OpenSession(ctx, e, session.SessionStart{ID: deniedID, Defaults: &databaseAlterDefaults{visit: func() error {
+				touched = true
+				return nil
+			}}}, login)
+			if fresh != nil {
+				databaseAlterEnd(t, fresh)
+				t.Fatal("next physical initializer ignored committed policy")
+			}
+			var diagnostic *sqlstate.Error
+			if touched || !errors.As(denial, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+				t.Fatal("next admission diagnostic/default boundary", touched, denial)
+			}
+			assertOccupancy(1)
+			databaseAlterEnd(t, got.session)
+			databaseAlterEnd(t, got.session)
+			admission.Release()
+			assertOccupancy(0)
+			core.EngineSessionMuRef(e).Lock()
+			remaining := len(core.EngineSessions(e))
+			core.EngineSessionMuRef(e).Unlock()
+			if remaining != 0 {
+				t.Fatal("physical close retained a public lifecycle owner")
+			}
+			publish(true, 1)
+			// Reuse both identities: terminal release and rejection must each
+			// retire their genuine startup ticket, not only decrement counts.
+			for _, reuseID := range []ids.SessionID{id, deniedID} {
+				live, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: reuseID}, login)
+				if err != nil {
+					t.Fatal("policy transition leaked ticket or occupied slot", err)
+				}
+				assertOccupancy(1)
+				databaseAlterEnd(t, live)
+				assertOccupancy(0)
 			}
 		})
 	}
@@ -224,4 +362,82 @@ func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d setting
 		p.hook(ctx, d)
 	}
 	return p.value, true, p.err
+}
+
+func TestDatabaseAdmissionExactSelectors(t *testing.T) {
+	for _, name := range []string{"", " ", "postgres://opaque/database?name=other"} {
+		t.Run(name, func(t *testing.T) {
+			e := engine.NewWithSettings(nil, name, false)
+			principal, err := e.ResolveLogin("postgres")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e.DatabaseName != name || e.Cluster.DefaultTarget != e || e.Cluster.Targets[name] != e {
+				t.Fatal("constructor changed the exact original attachment")
+			}
+			before := e.Catalog.State
+			id := enginetest.NextSessionID()
+			for _, missing := range []string{"", name + " "} {
+				want := sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "3D000", Message: `database "` + missing + `" does not exist`}
+				admission, err := e.AdmitDatabase(t.Context(), principal, id, core.DatabaseSelector{Name: missing, Explicit: true})
+				if admission != nil {
+					admission.Release()
+					t.Fatal("explicit missing name reserved the original attachment", missing)
+				}
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatalf("explicit admission %q: %#v, want %#v", missing, err, want)
+				}
+				target, err := e.SelectDatabase(t.Context(), missing)
+				diagnostic = nil
+				if target != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatalf("explicit lookup %q: target=%p error=%#v, want %#v", missing, target, err, want)
+				}
+			}
+			if e.Catalog.State != before || e.DatabaseName != name || e.Cluster.DefaultTarget != e ||
+				len(e.Cluster.Targets) != 1 || e.Cluster.Targets[name] != e ||
+				len(core.EngineSessions(e)) != 0 || core.EngineDatabaseAdmissionCount(e) != 0 {
+				t.Fatal("rejected explicit selection changed the original attachment or occupancy")
+			}
+			if name != "" {
+				target, err := e.SelectDatabase(t.Context(), name)
+				if err != nil || target != e {
+					t.Fatal("exact nonempty name was not selectable", target, err)
+				}
+				admission, err := e.AdmitDatabase(t.Context(), principal, id, core.DatabaseSelector{Name: name, Explicit: true})
+				if err != nil || admission == nil {
+					t.Fatal("exact nonempty name was not admitted", err)
+				}
+				if admission.Target() != e {
+					admission.Release()
+					t.Fatal("exact name retargeted the attachment")
+				}
+				admission.Release()
+			}
+			// Reuse the rejected identity: an explicit-empty failure must not
+			// retain a ticket, and default selection must still open the same
+			// empty/whitespace/URL-named original attachment, not a renamed one.
+			admission, err := e.AdmitDatabase(t.Context(), principal, id, core.DatabaseSelector{})
+			if err != nil || admission == nil {
+				t.Fatal("default attachment became inaccessible", err)
+			}
+			defer admission.Release()
+			if admission.Target() != e {
+				t.Fatal("default selector redirected the original attachment")
+			}
+			func() {
+				live, err := e.StartSession(t.Context(), admission, session.SessionStart{ID: id})
+				if err != nil || live == nil {
+					t.Fatal("default admission failed physical startup", err)
+				}
+				defer databaseAlterEnd(t, live)
+				if core.EngineOf(live) != e || core.EngineDatabaseAdmissionCount(e) != 1 {
+					t.Fatal("default startup lost its target or physical reservation")
+				}
+			}()
+			if len(core.EngineSessions(e)) != 0 || core.EngineDatabaseAdmissionCount(e) != 0 {
+				t.Fatal("default physical close leaked publication or occupancy")
+			}
+		})
+	}
 }

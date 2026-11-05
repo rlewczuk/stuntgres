@@ -15,6 +15,14 @@ import (
 	"stuntgres/reference/fixture"
 )
 
+// Shared builtin authority is explicit native administrative setup, not portable
+// per-database dump output. The same named setup is independently replayed on PG.
+const accessNamespacesDefaultTablespaceSetup = "UPDATE pg_catalog.pg_tablespace SET spcacl='{postgres=C/postgres,og_object_other=C*/postgres,og_object_reader=C/og_object_other}'::pg_catalog.aclitem[] WHERE spcname='pg_default'::pg_catalog.name;\n"
+const accessNamespacesSharedSetup = "UPDATE pg_catalog.pg_tablespace SET spcowner='postgres'::pg_catalog.regrole WHERE spcname='pg_default'::pg_catalog.name;\n" +
+	accessNamespacesDefaultTablespaceSetup +
+	"UPDATE pg_catalog.pg_tablespace SET spcowner='og_object_other'::pg_catalog.regrole WHERE spcname='pg_global'::pg_catalog.name;\n" +
+	"UPDATE pg_catalog.pg_tablespace SET spcacl='{postgres=C/og_object_other}'::pg_catalog.aclitem[] WHERE spcname='pg_global'::pg_catalog.name;\n"
+
 func accessNamespacesPersistenceSetup(run func(fixture.Step)) {
 	for _, q := range []string{
 		"CREATE SCHEMA an_persist",
@@ -207,7 +215,7 @@ func TestReferenceAccessNamespacesPersistence(t *testing.T) {
 			if emitted == "" {
 				t.Fatal("missing actual native dump")
 			}
-			if _, err := c.ExecContext(p.Ctx, emitted); err != nil {
+			if _, err := c.ExecContext(p.Ctx, emitted+accessNamespacesSharedSetup); err != nil {
 				t.Fatal("replay actual emitted stream", err)
 			}
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

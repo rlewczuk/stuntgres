@@ -55,6 +55,36 @@ func TestExplicitUtilityRefusal(t *testing.T) {
 	}
 }
 
+func TestDatabaseAlterClassification(t *testing.T) {
+	for _, stmt := range []*parser.AlterDatabaseStmt{
+		{Action: "rename"},
+		{Action: "refresh"},
+		{Action: "options", Options: []parser.DatabaseOption{{Name: "is_template", Value: "true"}}},
+		{Action: "options", Options: []parser.DatabaseOption{{Name: "tablespace", Value: "pg_default"}}},
+		{Action: "tablespace", Tablespace: "pg_default"},
+	} {
+		if !ExplicitUtility(stmt) || TransactionalSchemaUtility(stmt) == stmt.SetsTablespace() {
+			t.Fatal("database utility classification", stmt)
+		}
+		if got := sqlText(ReadOnlyRefusal(stmt, true)); got != "25006 cannot execute ALTER DATABASE in a read-only transaction" {
+			t.Fatal("read-only priority", got)
+		}
+		if DescribeBeforeSnapshot(stmt) != DescribeOperation {
+			t.Fatal("database Prepare must remain effect-free", stmt)
+		}
+		// Only the executor's validated TABLESPACE branch invokes block
+		// refusal. Other database forms remain transactional utilities.
+		if stmt.SetsTablespace() {
+			if got := sqlText(ExplicitUtilityRefusal(stmt, TxActive, true)); got != "25001 ALTER DATABASE SET TABLESPACE cannot run inside a transaction block" {
+				t.Fatal("validated TABLESPACE block refusal", got)
+			}
+			if err := ExplicitUtilityRefusal(stmt, TxImplicit, false); err != nil {
+				t.Fatal("standalone TABLESPACE", err)
+			}
+		}
+	}
+}
+
 func TestStatementPhases(t *testing.T) {
 	call := &parser.Call{}
 	analyze := &parser.Analyze{}

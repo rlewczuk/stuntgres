@@ -364,6 +364,22 @@ No production caller changes in this design session. Future implementations migr
 
 Implementation-time inventory searches: `\.Describe\(|\.Execute\(|resolveRelation|namespaceForName|CatalogStage|ReplaceCatalog` across adapter/control/internal engine; `unsupportedWords|unsupportedIdentifiers|statement:` across parser. Host controls do not fabricate SQL authentication; serializers must preserve supported ACL/default/policy state in complete round trips.
 
+Database and builtin tablespace descriptors are shared cluster authority.
+Ordinary per-database dumps omit database attachment authority and canonical-name
+builtin tablespace OWNER/ACL state. Reset reestablishes canonical builtin names
+while retaining destination OWNER/ACL; Restore without explicit repairs composes
+candidate names with the latest destination OWNER/ACL, including later changes.
+Each captured aliased builtin is the bounded exception: its dump emits the rename
+followed by exact canonical native OWNER/ACL repairs for that builtin only.
+Canonical peers in mixed images still retain their latest destination authority.
+These emitted or deliberately supplied repairs are administrative input, not
+public catalog UPDATE: only touched fields are remapped, exact pre-reader shared
+predecessors are fenced, and all shared roots co-publish with local replacement
+or nothing publishes. Replay starts with canonical builtin names, so alias-addressed
+repairs must first establish the exact stage alias through supported rename SQL.
+Fresh-destination witnesses supply canonical-name setup explicitly instead of
+claiming that an ordinary canonical-name dump transported cluster authority.
+
 The frozen research maps bounded catalog records to the following consumer capabilities; the parent owns final scheduling/partitioning. Each row is a bounded future session exit, not permission to implement adjacent work now. W numbers refer to §10.
 
 | Capability / backlog symbol | Consumer-ready responsibility | Independent exit witness |

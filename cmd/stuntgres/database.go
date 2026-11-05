@@ -92,7 +92,7 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 	if err != nil {
 		return err
 	}
-	admission, err := d.engine.AdmitDatabase(ctx, postgres, core.DatabaseSelector{})
+	admission, err := d.engine.AdmitDatabase(ctx, postgres, 1, core.DatabaseSelector{})
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 	if err != nil {
 		return nil, nil, err
 	}
-	admission, err := d.engine.AdmitDatabase(ctx, principal, core.DatabaseSelector{})
+	admission, err := d.engine.AdmitDatabase(ctx, principal, ids.SessionID(id), core.DatabaseSelector{})
 	if err != nil {
 		return nil, nil, err
 	}

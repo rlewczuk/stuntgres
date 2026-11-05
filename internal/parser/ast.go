@@ -39,6 +39,30 @@ type DatabaseOption struct {
 
 func (*CreateDatabaseStmt) statement() {}
 
+// AlterDatabaseStmt retains syntax only. OWNER uses AlterOwner instead.
+type AlterDatabaseStmt struct {
+	Name       string
+	Action     string // rename, options, tablespace, refresh
+	NewName    string
+	Options    []DatabaseOption
+	Tablespace string
+	Pos        Position
+}
+
+func (*AlterDatabaseStmt) statement() {}
+
+func (s *AlterDatabaseStmt) SetsTablespace() bool {
+	if s.Action == "tablespace" {
+		return true
+	}
+	for _, option := range s.Options {
+		if option.Name == "tablespace" {
+			return true
+		}
+	}
+	return false
+}
+
 // Vacuum retains ordered controls for execution-time validation.
 type Vacuum struct {
 	Options []VacuumOption

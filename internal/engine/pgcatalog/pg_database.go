@@ -91,6 +91,9 @@ func capturePGDatabase(in Input) ([][]sqltype.Value, error) {
 			sqltype.Boolean(source.Columns[7].Usage.Type, false), checked(sqltype.Integer(source.Columns[8].Usage.Type, int64(database.ConnectionLimit))), null(9), null(10), null(11),
 			text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 		}
+		if database.CollationVersion != nil {
+			row[16] = text(16, *database.CollationVersion)
+		}
 		frozen := database.FrozenXID
 		if database.Address() == in.Owner.DatabaseAddress() && in.Runtime != nil {
 			frozen = in.Runtime.DatabaseFrozenXID()

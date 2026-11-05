@@ -48,8 +48,8 @@ func (s *Store) RetainDatabasesLocked(next *State) {
 }
 
 // InheritTablespacesLocked attaches a new database to the current shared
-// builtins. Replacement deliberately does not call this: Reset and Restore own
-// the replacement tablespace image.
+// builtins. Replacement instead composes its candidate alias/name image with
+// current destination OWNER/ACL at the core preparation boundary.
 func (s *Store) InheritTablespacesLocked(next *State) {
 	for _, builtin := range BuiltinTablespaces {
 		address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}
@@ -86,9 +86,15 @@ func (s *State) updateShared(a ids.ObjectAddress, d Descriptor) {
 	}
 }
 
+// SharedRoot carries a prepared catalog and its shared revision frontier.
+type SharedRoot struct {
+	State        *State
+	NextRevision ids.DefinitionRevision
+}
+
 // SharedProjection contains prepared roots, one per affected store.
 // A nil projection installs nothing.
-type SharedProjection map[*Store]*State
+type SharedProjection map[*Store]SharedRoot
 
 // ProjectSharedLocked prepares all roots before any installation. stores yields
 // every attached store, including s; next is s's unpublished root.
@@ -108,10 +114,12 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 		return nil
 	}
 	var changed []Descriptor
+	var frontier ids.DefinitionRevision
 	var removed []Descriptor
 	for address, descriptor := range next.shared.All() {
 		if current, _ := s.State.shared.Get(address); current != descriptor {
 			changed = append(changed, descriptor)
+			frontier, _ = AdvanceRevisionFrontier(frontier, descriptor)
 		}
 	}
 	for address, descriptor := range s.State.shared.All() {
@@ -145,7 +153,7 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 		if roots == nil {
 			roots = SharedProjection{}
 		}
-		roots[target] = root
+		roots[target] = SharedRoot{State: root, NextRevision: max(target.NextRevision(), frontier)}
 	}
 	return roots
 }
@@ -153,7 +161,8 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 // InstallLocked publishes every prepared root.
 func (p SharedProjection) InstallLocked() {
 	for target, root := range p {
-		target.PublishLocked(root)
+		target.PublishLocked(root.State)
+		target.InstallRevisionFrontierLocked(root.NextRevision)
 	}
 }
 

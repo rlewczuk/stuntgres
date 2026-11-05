@@ -285,6 +285,8 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 				"GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer) TO og_object_reader",
 				"GRANT SET ON PARAMETER lc_messages TO og_object_reader",
 				"GRANT CREATE ON TABLESPACE pg_default TO og_object_reader",
+				"UPDATE pg_catalog.pg_tablespace SET spcacl=NULL::pg_catalog.aclitem[],spcowner='postgres'::pg_catalog.regrole WHERE spcname='pg_default'::pg_catalog.name",
+				"UPDATE pg_catalog.pg_tablespace SET spcowner='og_object_reader'::pg_catalog.regrole WHERE spcname='pg_default'::pg_catalog.name OR TRUE",
 			} {
 				err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE og_control_prefix(x INT); SET application_name='unpublished'; "+grant+";"))
 				fixture.State(t, err, "0A000")
@@ -329,8 +331,9 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 			held := fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: read.Query}
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, read)
 			run(read)
-			// Independent post-replacement baseline families and principal policy.
-			run(fixture.Select("SELECT spcacl IS NULL AS baseline FROM pg_tablespace WHERE spcname='pg_default'", []string{"baseline"}, []string{"BOOL"}, [][]any{{true}}))
+			// Local families reset; builtin tablespace ACLs retain current cluster
+			// authority, including the grant made after the baseline dump.
+			run(objectGrantAccessValue("SELECT has_tablespace_privilege('og_object_reader','pg_default','CREATE') AS v", true))
 			run(fixture.Select("SELECT r.rolname FROM pg_roles r WHERE r.rolname IN ('og_object_reader','og_object_other') ORDER BY r.rolname", []string{"rolname"}, []string{"NAME"}, [][]any{{"og_object_other"}, {"og_object_reader"}}))
 			fresh, err := b.DB.Conn(p.Ctx)
 			if err != nil {

@@ -163,6 +163,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Role views: `RUN='^TestReferencePGRoles'`, `RUN='^TestReferencePGUser'`, `RUN='^TestReferencePGShadow'`, `RUN='^TestReferencePGGroup'`
 - Protected all-role metadata: `RUN='^TestReferencePGAuthID'`
 - Database creation, selection and targeted controls: `RUN='^TestReferenceDatabase(Create|Selection)'`
+- Database alteration, admission, registered templates and selected controls: `RUN='^TestReferenceDatabaseAlter'`
 - ACL catalogs and `pg_get_acl`: `RUN='^TestReferencePGDefaultACL'`, `RUN='^TestReferencePGParameterACL'`, `RUN='^TestReferenceObjectACL'`
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
@@ -184,8 +185,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Builtin mutations on PG end in ROLLBACK, so DROP in that phase must report
   `25001`, never a pinned-object error. Canonical autocommit pinning is shared;
   committed renamed/ordinary-owner pinning, cancellation-publication guarantees
-  and Dump/Reset/Restore are explicit native-only phases. Dependency/physical
-  nonempty/remote-database/ordinary-relocation proofs are PG-only physical phases.
+  and Dump/Reset/Restore are explicit native-only phases. Alias-bearing images
+  retain rename-before-exact-OWNER/ACL replay, while canonical-name images and
+  canonical peers in mixed images retain latest destination shared authority.
+  Reset reestablishes canonical bindings without resetting destination OWNER/raw
+  ACL; all targets retain the exact principal and effective CREATE/grant options,
+  while already-open Rows retain their older bootstrap image.
+  Mixed-image setup uses native Reset followed by a valid nonreserved alias;
+  it never relies on ordinary ALTER admitting a reserved canonical destination.
+  Dependency/physical nonempty/remote-database/ordinary-relocation proofs are
+  PG-only physical phases.
   Native phases independently assert physical CREATE and index-placement
   capability errors, no ordinary registration and no phantom placement/edges.
   Pinned native `42501` is not presented as ordinary `2BP01`/`55000` coverage.

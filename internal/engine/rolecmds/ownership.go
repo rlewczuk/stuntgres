@@ -88,6 +88,25 @@ func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *
 	if err != nil {
 		return fail(err)
 	}
+	if s.Kind == "database" && change.Object != nil {
+		address := change.Object.Address()
+		e.Mu.Unlock()
+		if err := scope.AcquireDatabase(address); err != nil {
+			return core.Result{}, err
+		}
+		e.Mu.Lock()
+		auth, err = e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			return fail(err)
+		}
+		change, err = role.PlanDatabaseOwnership(auth.View, auth, s, name, identity)
+		if err != nil {
+			return fail(err)
+		}
+		if change.Object != nil && change.Object.Address() != address {
+			return fail(core.SQLError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[0].Text)))
+		}
+	}
 	if change.Object == nil {
 		if s.Kind != "database" {
 			scope.RecordDDLCommand("ALTER "+strings.ToUpper(s.Kind), change.Address)

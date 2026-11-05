@@ -92,6 +92,9 @@ func TestTablespaceLifecycleSharedProjectionAndAttachment(t *testing.T) {
 		if store.State.Get(address) != &next || store.State.NameAddress(DescriptorNameKey(old)) != (ids.ObjectAddress{}) || store.State.NameAddress(DescriptorNameKey(&next)) != address {
 			t.Fatal("peer lost shared immutable descriptor or live name")
 		}
+		if store.NextRevision() <= next.Revision() {
+			t.Fatal("peer allocator can reuse a received shared revision")
+		}
 	}
 	if retained.Get(address) != old || retained.NameAddress(DescriptorNameKey(old)) != address {
 		t.Fatal("publication mutated retained peer image")

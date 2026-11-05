@@ -16,6 +16,8 @@ import (
 
 // OpenSession exercises public admission before startup and returns failures to
 // lifecycle tests. An omitted principal uses the engine's trusted postgres login.
+// The original attachment uses default selection, including an empty host key;
+// peer runtimes use their exact registered name.
 func OpenSession(ctx context.Context, e *core.Engine, start session.SessionStart, principals ...authorization.PrincipalRef) (*session.Session, error) {
 	var principal authorization.PrincipalRef
 	if len(principals) != 0 {
@@ -27,7 +29,7 @@ func OpenSession(ctx context.Context, e *core.Engine, start session.SessionStart
 			return nil, err
 		}
 	}
-	admission, err := e.AdmitDatabase(ctx, principal, core.DatabaseSelector{Name: e.DatabaseName, Explicit: true})
+	admission, err := e.AdmitDatabase(ctx, principal, start.ID, core.DatabaseSelector{Name: e.DatabaseName, Explicit: e != e.Cluster.DefaultTarget})
 	if err != nil {
 		return nil, err
 	}

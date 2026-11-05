@@ -68,6 +68,10 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   Conversely a no-mutation result is not itself a reason to omit a valid receipt.
   Callers own command-specific grouping, tags and subobject addresses; these
   helpers neither resolve targets nor grant publication or callback authority.
+- **Database options**: ALTER scans duplicate/unknown occurrences before fixed
+  Boolean/integer value validation, preserving omission versus DEFAULT.
+  `DatabaseCollationVersion` decides nullable metadata transitions separately
+  from the caller's genuine provider inquiry and copies changed version text.
 - **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
   `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema owner
   with the new namespace first in the path, on the host's own copy of the

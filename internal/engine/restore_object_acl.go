@@ -182,6 +182,17 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 		e.Mu.Unlock()
 		return err
 	}
+	if repair.Class == ids.TablespaceClassID {
+		replay := core.OperationReplayOrZero(op)
+		if !replay.StagingEffects || session.PrivateSessionOf(op.Session.SessionToken) == nil {
+			e.Mu.Unlock()
+			return fmt.Errorf("stuntgres: tablespace repair requires private native Restore")
+		}
+		if err := replay.TablespaceRepairs.Touch(address, repair.Owner); err != nil {
+			e.Mu.Unlock()
+			return err
+		}
+	}
 	*revision, err = e.Catalog.RevisionLocked()
 	if err != nil {
 		e.Mu.Unlock()

@@ -2,6 +2,14 @@ package analyze
 
 import "stuntgres/internal/parser"
 
+func (j *StatementJumble) utilityDatabaseOption(name, value string, defaultValue, numeric bool) {
+	j.text("DatabaseOption")
+	j.text(name)
+	j.text(value)
+	j.flag(defaultValue)
+	j.flag(numeric)
+}
+
 // Explicit REL_18_6 nested syntax selections. Source/capability/diagnostic
 // bookkeeping has no released selected field. Keep this closed inventory
 // paired with parser/analyze owner coverage, not exported-field reflection.
@@ -65,11 +73,7 @@ func (j *StatementJumble) utilitySyntaxFields(node any, anchor *int) bool {
 			j.number(0)
 			return true
 		}
-		j.text("DatabaseOption")
-		j.text(n.Name)
-		j.text(n.Value)
-		j.flag(n.Default)
-		j.flag(n.Numeric)
+		j.utilityDatabaseOption(n.Name, n.Value, n.Default, n.Numeric)
 	case parser.DatabaseOption:
 		return j.utilitySyntaxFields(&n, anchor)
 	case *parser.VacuumOption:

@@ -69,6 +69,9 @@ func ExecuteCreateDatabase(e *core.Engine, scope *core.StatementScope, statement
 		return core.Result{}, err
 	}
 	if source != nil {
+		if err := scope.AcquireRoleResource(e.DatabaseResource(sourceDatabase.Address()), lock.Share); err != nil {
+			return core.Result{}, err
+		}
 		// A current-source statement already owns this read reservation. Taking
 		// it recursively could deadlock behind a waiting replacement writer.
 		if source != e || !scope.ReplacementRead {
@@ -183,7 +186,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 	}
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
 	policy := target.Catalog.State.MustDatabase(target.Catalog.DatabaseAddress())
-	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, IsTemplate: policy.IsTemplate, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit}
+	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID, IsTemplate: policy.IsTemplate, AllowConnections: policy.AllowConnections, ConnectionLimit: policy.ConnectionLimit, DefaultTablespace: policy.DefaultTablespace, CollationVersion: policy.CollationVersion}
 	var label *catalog.SecurityLabelRecord
 	if simulation := e.Sepgsql; simulation != nil {
 		template := source.Catalog.State.MustDatabase(source.Catalog.DatabaseAddress())
@@ -220,7 +223,7 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 		if label != nil {
 			next.SetSecurityLabel(catalog.SecurityLabelKey{Object: address, Provider: "selinux"}, label)
 		}
-		roots[&runtime.Catalog] = next
+		roots[&runtime.Catalog] = catalog.SharedRoot{State: next, NextRevision: max(e.Catalog.NextRevision(), runtime.Catalog.NextRevision())}
 	}
 	if err := ctx.Err(); err != nil {
 		return core.Result{}, err

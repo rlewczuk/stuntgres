@@ -987,9 +987,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				return s.RowShapes[address].Rewritten || published.Refresh != nil && published.Refreshed == address
 			})
 		}
-		var sharedRoots catalog.SharedProjection
+		var databasePublication DatabasePublication
 		if err == nil {
-			sharedRoots = e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
+			databasePublication, err = e.PrepareDatabasePublicationLocked(next)
 		}
 		if err == nil {
 			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
@@ -1043,7 +1043,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			if scope != nil {
 				scope.advanceSepgsqlPublication(current, next)
 			}
-			sharedRoots.InstallLocked()
+			databasePublication.InstallLocked(e)
 			e.releaseStageReplicationOriginsLocked(s)
 			e.Storage.ReplaceRelationsLocked(relations)
 			e.Storage.RelationMetadata = relationMetadata
@@ -1217,6 +1217,10 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 	}
 	targetRoles := e.Roles()
 	if err := catalog.ValidateDefinitionOIDs(replacement); err != nil {
+		return ChangeSet{}, err
+	}
+	sharedRepairs, err := captureTablespaceRepairs(source, replacement, restoreOp)
+	if err != nil {
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.Descriptors() {
@@ -1414,6 +1418,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		}
 	}
 	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, procedure, &oids); err != nil {
+		return ChangeSet{}, err
+	}
+	if err := e.applyTablespaceRepairsLocked(next, sharedRepairs, sourceRoles, targetRoles, source.ImportTargets); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision, err := e.replacementACLsLocked(next)

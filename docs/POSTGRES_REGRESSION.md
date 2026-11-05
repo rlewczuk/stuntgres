@@ -31,6 +31,51 @@ docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
 
+## Held raw utility plans lose their statement-statistics identity
+
+On 2026-11-05, the recovery `tests-20` proof against the pinned PostgreSQL 18.6
+UTF8/C oracle recorded three successful calls instead of four for this stream:
+one direct ALTER DATABASE rename, one fresh prepared equivalent, and two
+executions through one held `database/sql` prepared statement. All four ALTER
+executions succeeded. An unmeasured observer restored the original database
+name after each execution, so the same SQL genuinely renamed the target again.
+The exact first representative remained
+`ALTER DATABASE /* pgss database 雪 */ pgss_database_identity_a RENAME TO pgss_database_identity_renamed_a`;
+its count was still three after the second held execution. No behavior of
+another PostgreSQL release is claimed.
+
+To reproduce, preload `pg_stat_statements`, enable `compute_query_id`, install the
+extension and enable utility tracking. Create an otherwise idle database and
+use one collecting connection for the direct, fresh-prepared and held rename
+stream above. Use a separate connection with tracking disabled to reverse each
+rename and read the collecting principal/database's statistics. Keep the same
+prepared handle for both final executions: closing and preparing again creates
+a fresh collector identity and is not this lifecycle.
+
+The released source explains the result independently of the native backend:
+
+- [`REL_18_6` pgss_ProcessUtility, lines 1107–1134](https://github.com/postgres/postgres/blob/REL_18_6/contrib/pg_stat_statements/pg_stat_statements.c#L1107-L1134)
+  saves `pstmt->queryId` locally, then sets the retained `PlannedStmt` field to
+  zero when utility collection is enabled.
+- [Lines 1182–1190](https://github.com/postgres/postgres/blob/REL_18_6/contrib/pg_stat_statements/pg_stat_statements.c#L1182-L1190)
+  explicitly explain why the hook cannot restore the old field: utility
+  execution may have freed the plan. The hook stores the locally saved identity
+  for the first execution only.
+- [`pgss_store`, lines 1303–1308](https://github.com/postgres/postgres/blob/REL_18_6/contrib/pg_stat_statements/pg_stat_statements.c#L1303-L1308)
+  returns immediately for the zero identity saved by a later execution of that
+  same retained raw utility plan.
+
+`TestReferencePgStatStatementsDatabaseIdentity` preserves both real held
+executions and independently checks their catalog effects, stable database
+identity, exact metadata and refresh notices. It expects four collected calls
+on native's existing invocation-owned collector and three on PostgreSQL's
+retained-plan path. Numeric/string Boolean arguments independently preserve
+valid raw literal-kind identity coverage; a quoted connection limit instead
+asserts the exact `42601`, `connection_limit requires an integer value` failure
+with no successful statistics entry. The same definition runs in both selected
+native and real-reference modes; no retry, skip or ALTER-only native collector
+suppression stands in for either behavior.
+
 ## Held SYSTEM_ROWS plans retain a dropped handler identity
 
 On 2026-11-02, the pinned PostgreSQL 18.6 UTF8/C oracle reported SQLSTATE

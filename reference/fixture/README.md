@@ -322,6 +322,8 @@ production dependency is involved.
   Native Driver lifetime owns registrations; there is no native DROP shim.
   `DatabaseConnectorScenarioPool` applies that same recorder/control ownership to
   an existing public connector when checking exact Driver keys or selector copies.
+  Sequential scenarios reusing cluster object names must own sibling subtests,
+  so one scenario's registered cleanup completes before the next creates them.
 - **Plain-method routes.** `Step.NonContext=true` runs proven DB/Tx plain calls
   (Exec/Query/Prepare and the returned Stmt methods) with full assertions; keep a
   separate Context companion and never fabricate its recorder key. `*sql.Conn` has
