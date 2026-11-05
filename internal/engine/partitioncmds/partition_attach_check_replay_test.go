@@ -14,7 +14,10 @@ import (
 
 func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	source := engine.New()
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
 	child.RelationKind = catalog.TableRelation

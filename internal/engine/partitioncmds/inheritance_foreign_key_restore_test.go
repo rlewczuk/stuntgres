@@ -110,7 +110,10 @@ func inheritedForeignKeyImportFixture(t *testing.T) (*core.Engine, *session.Oper
 	t.Helper()
 	source := engine.New()
 	ownershipUnitExec(t, source, "CREATE ROLE fk_receipt_owner")
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	created := make(map[ids.ObjectAddress]ids.ObjectRef)

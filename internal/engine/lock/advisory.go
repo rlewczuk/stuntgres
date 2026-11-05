@@ -14,6 +14,9 @@ func (m *Manager) RegisterSession(token ids.SessionToken) (*Ticket, error) {
 	if m.domains[token.Domain()] == nil || token.IsDetached() || token.ID() == 0 && token.Private() == nil {
 		return nil, errors.New("stuntgres: invalid advisory session")
 	}
+	if m.domains[token.Domain()].retired {
+		return nil, ErrOwnerEnded
+	}
 	if m.sessions[token] != nil {
 		return nil, errors.New("stuntgres: duplicate advisory session")
 	}

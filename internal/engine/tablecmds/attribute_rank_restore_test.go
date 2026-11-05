@@ -78,7 +78,10 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 }
 
 func TestAttributeRankRestorePublication(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	base := e.CatalogRead()
 	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "rank_restore", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: enginetest.Usage(e, sqltype.ID(1007)), DeclaredDimensions: 2, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2, Dropped: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dimensions: 2, Dropped: true, Local: true, Facts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"}, Typmod: -1}}}, Index: map[string]int{"a": 0}}
 	old.Columns = append(old.Columns, catalog.Column{Name: "scalar", Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 3})

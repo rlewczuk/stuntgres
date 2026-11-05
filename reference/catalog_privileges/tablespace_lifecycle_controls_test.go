@@ -32,7 +32,7 @@ func TestReferenceTablespaceLifecycleSharedTargets(t *testing.T) {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			if created && s.b.PG {
+			if created {
 				if _, err := s.c.ExecContext(ctx, "DROP DATABASE ts_lifecycle_shared_before"); err != nil {
 					t.Error("shared database cleanup", err)
 				}

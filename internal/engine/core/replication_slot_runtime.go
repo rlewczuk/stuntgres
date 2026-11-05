@@ -197,6 +197,10 @@ func (h *statementHost) newLogicalSlot(req slotRequest) (uint64, error) {
 	}
 	slot := &logicalSlot{name: req.name, target: e, plugin: req.plugin, temporary: req.temporary, twoPhase: req.twoPhase, failover: req.failover, creating: true, holder: token, held: true}
 	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return 0, err
+	}
 	err := h.admitSlotLocked(slot, capacity)
 	if err == nil {
 		e.registerSlotLocked(slot)
@@ -228,6 +232,9 @@ func (h *statementHost) newLogicalSlot(req slotRequest) (uint64, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := s.Op.Context().Err(); err != nil {
+		return 0, err
+	}
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
 		return 0, err
 	}
 	if src := req.source; src != nil {

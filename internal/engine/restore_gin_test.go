@@ -20,7 +20,10 @@ import (
 func ginRestoreIdentityFixture(t *testing.T, incumbents int, routed bool) (*restoreRun, *session.Operation, *parser.Insert) {
 	t.Helper()
 	source := New()
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	r := &restoreRun{stage: e}
 	host := &restoreHost{target: source, run: r}
 	op, done, err := host.Start(context.Background())

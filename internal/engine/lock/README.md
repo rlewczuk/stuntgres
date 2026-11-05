@@ -5,6 +5,15 @@ The heavyweight lock manager. It sits at layer L2 of
 imports only `ids`, `sqlstate` and the standard library. It never imports the
 engine.
 
+`RetireDomain` is terminal database lifetime, not replacement's epoch `Fence`.
+After canonical session/resource drain it retires exact-domain transaction and
+persistent tickets, waiters, resources and multixact backing. The domain retains
+a terminal admission tombstone so stale registration and AdmitDomain cannot
+resurrect it. Peer domains and the shared role/database utility issuer remain
+alive. Notifications run after manager metadata unlock; no host callbacks or
+terminal joins occur under the manager mutex.
+
+
 ## What it owns
 
 `Manager` holds heavyweight lock state for one cluster's admitted databases:

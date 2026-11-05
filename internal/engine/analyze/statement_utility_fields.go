@@ -28,6 +28,18 @@ func (j *StatementJumble) utilityStatementFields(node any, anchor *int) bool {
 		utilitySlice(j, n.Options, anchor)
 	case parser.CreateDatabaseStmt:
 		return j.utilityStatementFields(&n, anchor)
+	case *parser.DropDatabaseStmt:
+		if n == nil {
+			j.number(0)
+			return true
+		}
+		j.text("DropdbStmt")
+		j.utilityPosition(n.Pos, anchor)
+		j.text(n.Name)
+		j.flag(n.IfExists)
+		utilitySlice(j, n.Options, anchor)
+	case parser.DropDatabaseStmt:
+		return j.utilityStatementFields(&n, anchor)
 	case *parser.AlterDatabaseStmt:
 		if n == nil {
 			j.number(0)

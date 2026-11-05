@@ -19,6 +19,7 @@ import (
 type sessionPayload struct {
 	allocation      *sessionAllocation // Immutable enclosing backing owner; set before publication.
 	admission       *DatabaseAdmission // Terminal Unregister owns its once-only release.
+	cleanupSource   *session.Session   // Immutable causal owner of private TEMP cleanup.
 	Cursors         *cursorRegistry
 	PreparedSQL     *PreparedRegistry
 	sqlRoutines     map[ids.ObjectAddress]sqlRoutineAnalysis

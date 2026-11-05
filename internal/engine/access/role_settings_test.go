@@ -87,3 +87,37 @@ func TestRoleSettingsRecordOwnership(t *testing.T) {
 		t.Fatal("Restore graph provenance not reminted")
 	}
 }
+
+func TestRoleSettingsWithoutDatabase(t *testing.T) {
+	var store access.RoleStore
+	store.Initialize()
+	base := store.Published
+	database := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 200}
+	peer := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 201}
+	keys := []access.RoleSettingKey{{}, {Role: store.Domain.Principal(10)}, {Database: database}, {Database: database, Role: store.Domain.Principal(10)}, {Database: peer, Role: store.Domain.Principal(10)}}
+	root := base.Settings
+	for _, key := range keys {
+		root = root.WithRow(key, []access.RoleSetting{{Name: "application_name", Value: "owned"}})
+	}
+	before := base.WithSettings(root)
+	after := before.WithSettings(root.WithoutDatabase(database))
+	if !after.SameAuthority(before) || after.Root.Read(authorization.PrincipalRef{}).RoleCount() != before.Root.Read(authorization.PrincipalRef{}).RoleCount() {
+		t.Fatal("retirement replaced principal graph lineage")
+	}
+	for _, key := range keys {
+		old, next := before.Settings.Lookup(key), after.Settings.Lookup(key)
+		if len(old) != 1 {
+			t.Fatal("retirement mutated retained row")
+		}
+		if key.Database == database {
+			if next != nil {
+				t.Fatal("retired scope survived")
+			}
+		} else if len(next) != 1 || &next[0] != &old[0] {
+			t.Fatal("unchanged scope backing was copied")
+		}
+	}
+	if after.Settings.WithoutDatabase(database) != after.Settings {
+		t.Fatal("absent retirement allocated a replacement root")
+	}
+}

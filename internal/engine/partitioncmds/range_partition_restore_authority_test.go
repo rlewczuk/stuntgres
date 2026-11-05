@@ -21,7 +21,10 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	sourceOp, sourceDone := enginetest.RoleOperation(t, source, "postgres")
 	defer sourceDone()
 	enginetest.RoleExecute(t, source, sourceOp, "CREATE ROLE child_owner LOGIN")
-	stage := source.RestoreStage()
+	stage, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RestoreOperation(t, stage, "postgres")
 	defer done()
 	enginetest.RoleExecute(t, stage, op, "SET SESSION AUTHORIZATION child_owner")

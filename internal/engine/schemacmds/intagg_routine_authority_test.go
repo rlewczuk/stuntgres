@@ -412,7 +412,10 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if len(expected) != 0 {
 		t.Fatal("missing named member")
 	}
-	imported := e.RestoreStage()
+	imported, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	importOp, finish := enginetest.RoleOperation(t, imported, "postgres")
 	defer finish()
 	if err := extensionUnitExecute(t, imported, importOp, &parser.CreateExtension{Name: parser.Identifier{Text: "intagg"}}); err != nil {

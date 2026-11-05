@@ -715,9 +715,9 @@ package parser
 %type <tok> collation_name_word
 %type <stmt> create_extension drop_extension alter_extension_update
 %type <stmt> create_tablespace alter_tablespace_rename drop_tablespace
-%type <stmt> create_database alter_database_settings alter_database
-%type <databaseOptions> database_options database_option_list
-%type <databaseOption> database_option database_option_value
+%type <stmt> create_database drop_database alter_database_settings alter_database
+%type <databaseOptions> database_options database_option_list drop_database_options drop_database_option_list
+%type <databaseOption> database_option database_option_value drop_database_option
 %type <tok> database_option_name
 %type <desc> database_option_equals
 %type <grantor> tablespace_owner
@@ -1118,6 +1118,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_extension | drop_extension | alter_extension_update
  | create_tablespace | alter_tablespace_rename | drop_tablespace
  | create_database
+ | drop_database
  | alter_database_settings
  | alter_database
  | alter_collation | drop_collation | alter_enum
@@ -1175,6 +1176,18 @@ load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4,Pos:$1.pos}
+} ;
+drop_database: DROP DATABASE drop_target drop_database_options {
+ $$=&DropDatabaseStmt{Name:$3.Name.Text,IfExists:$3.IfExists,Options:$4,Pos:$1.pos}
+} ;
+drop_database_options: /* empty */ {$$=nil}
+ | '(' drop_database_option_list ')' {$$=$2}
+ | WITH '(' drop_database_option_list ')' {$$=$3} ;
+drop_database_option_list: drop_database_option {$$=[]DatabaseOption{$1}}
+ | drop_database_option_list ',' drop_database_option {$$=append($1,$3)} ;
+drop_database_option: name {
+ if $1.keyword==nil || $1.text!="force" {sqllex.(*lexer).syntax($1);return 1}
+ $$=DatabaseOption{Name:"force",Position:$1.pos.Character}
 } ;
 alter_database_settings: ALTER DATABASE name role_setting_action {
  s:=$4.(*AlterRoleSettings);$$=&AlterDatabaseSettings{Database:Identifier{Text:$3.text,Pos:$3.pos},Set:s.Set,Reset:s.Reset,FromCurrent:s.FromCurrent,Pos:$1.pos}

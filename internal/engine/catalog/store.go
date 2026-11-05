@@ -101,6 +101,14 @@ func (s *Store) Current() Read { return s.Read(s.State) }
 // through it, so publication points stay greppable.
 func (s *Store) PublishLocked(next *State) { s.State = next }
 
+// PublishRetirementLocked installs a prepared shared-only tombstone and releases
+// cached local definition backing. Core alone authorizes registry retirement.
+// The immutable seed and all allocation frontiers remain host authority.
+func (s *Store) PublishRetirementLocked(next *State) {
+	s.PublishLocked(next)
+	s.allocatedOIDs = allocatedOIDSet{}
+}
+
 // NextOID returns the OID allocation frontier. Zero means it is exhausted.
 func (s *Store) NextOID() ids.OID { return s.nextOID }
 

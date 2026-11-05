@@ -108,7 +108,10 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	if record.Name != "pgrowlocks" || record.Schema != "public" || record.Version != "1.2" || record.Owner != "postgres" || !record.Present || len(record.Members) != 1 || !reflect.DeepEqual(record.Members[0], expectedMember) {
 		t.Fatal("dump owner metadata", record)
 	}
-	replay := e.RestoreStage()
+	replay, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	replayOp, replayDone := enginetest.RoleOperation(t, replay, "postgres")
 	defer replayDone()
 	if err := extensionUnitExecute(t, replay, replayOp, &parser.CreateExtension{Name: parser.Identifier{Text: "pgrowlocks"}}); err != nil {

@@ -21,7 +21,10 @@ import (
 
 func sepgsqlTrustedReplayOperation(t *testing.T, source *core.Engine) (*core.Engine, *session.Operation) {
 	t.Helper()
-	stage := source.RestoreStage()
+	stage, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	s, err := stage.StartRestoreSession(t.Context(), stage.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +208,10 @@ func TestSepgsqlSimulationTrustedReplayInitialization(t *testing.T) {
 			var cause error
 			switch invalid {
 			case "missing", "foreign", "copy", "epoch", "policy":
-				foreign := stage.RestoreStage()
+				foreign, stageErr := stage.RestoreStage()
+				if stageErr != nil {
+					t.Fatal(stageErr)
+				}
 				restore := core.SubstituteRestoreInitializationOrigin(stage, foreign, invalid)
 				defer restore()
 			case "staging":
@@ -345,7 +351,10 @@ func TestSepgsqlSimulationTrustedReplayInitialization(t *testing.T) {
 		})
 	}
 	t.Run("failed_session_start_does_not_bind_origin", func(t *testing.T) {
-		stage := sepgsqlInitializationEngine(t).RestoreStage()
+		stage, stageErr := sepgsqlInitializationEngine(t).RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if _, err := stage.StartRestoreSession(ctx, stage.RoleStore.Domain.Principal(10)); !errors.Is(err, context.Canceled) {

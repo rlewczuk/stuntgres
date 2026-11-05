@@ -79,9 +79,12 @@ Alias witnesses require genuine registered handler authority and effective-role
 mapping before PUBLIC/USAGE, not SQL spelling or direct-binding fallback.
 Settings-restoration witnesses use the existing settings metadata contract:
 native current_setting TEXT is known nullable, while PostgreSQL reports unknown;
-dblink's computed TEXT remains unknown. Native other-database isolation witnesses
-use unique registrations and close every connection/pool; the Driver owns each
-registration's lifetime because native DROP DATABASE is not implemented.
+dblink's computed TEXT remains unknown. Other-database and independent-Driver
+owners retain their real handles when a selected database is retired. FORCE
+joins pending transport callbacks and actual close before completing; refused
+ordinary, unauthorized, prepared-transaction and active-slot drops preserve
+eligible resources. Same-name recreation cannot recover old handles. Delayed
+host callbacks are explicit native-only phases, not PostgreSQL timing parity.
 
 The compact connection smoke opens/lists/duplicates/replaces/disconnects real
 sessions, retains remote transaction state, checks backend exit and current
@@ -98,6 +101,10 @@ complete diagnostic assertions and dual-mode verification. This package's
 `TestMain` uses the common `fixture.Main` without changing oracle configuration.
 
 Connection family selector:
-`make check RUN='^TestReferenceDblinkConnection(Signatures|Nulls|Names|Lifecycle|Conninfo|PortBounds|Security|Controls|Cleanup|FeatureSmoke)$'`,
+`make check RUN='^TestReferenceDblinkConnection(Signatures|Nulls|Names|Lifecycle|Conninfo|PortBounds|Security|Controls|Cleanup|DatabaseDrop|FeatureSmoke)$'`,
 also with `REFERENCE=1`. Follow `docs/TESTING.md` for feature smoke and real/race
 proof. Expectations are independently specified, never learned from native output.
+The physical resource family additionally uses
+`make check REFERENCE=1 RACE=1 RUN='^TestReferenceDblinkConnectionDatabaseDrop$'`.
+Active-slot resource preservation uses the existing logical-WAL owner package:
+`make check RUN='^TestReferenceDatabaseDropResourceSlots$'`, also with `REFERENCE=1`.

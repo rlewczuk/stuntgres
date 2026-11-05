@@ -171,7 +171,10 @@ func TestPredefinedRoleControls(t *testing.T) {
 	roleAttributeApply(t, e, op, revoke)
 	roles := e.RoleStore.Published
 	sourceEdges := append([]authorization.Membership(nil), enginetest.FixtureEdges(roles)...)
-	stage := e.RestoreStage()
+	stage, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	expectedEdges := append([]authorization.Membership(nil), sourceEdges...)
 	for i := range expectedEdges {
 		expectedEdges[i].Role = stage.RoleStore.Domain.Principal(expectedEdges[i].Role.ID())

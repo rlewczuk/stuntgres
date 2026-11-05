@@ -49,6 +49,9 @@ func (h *sessionHost) DrainStatistics(s *session.Session) {
 					peer.Statistics.End(token)
 				}
 			}
+			if retained := e.Cluster.DefaultTarget; retained != e && e.Cluster.Targets[retained.DatabaseName] != retained {
+				retained.Statistics.End(token)
+			}
 		}
 	}
 	e.Mu.Unlock()
@@ -58,6 +61,7 @@ func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 	e := (*Engine)(h)
 	e.sessionMu.Lock()
 	registered := e.sessions[token] == s
+	delete(e.privateStarts, s)
 	if registered {
 		delete(e.sessions, token)
 	}

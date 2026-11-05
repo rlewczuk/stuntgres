@@ -92,6 +92,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 `fixture.Main(m, fixture.WithLegacyCryptoProvider())`, as in every catalog
 package.
 
+Logical database retirement families use `RUN='^TestReferenceDatabaseDrop'`
+in both fixture modes. Each utility route includes direct, fresh prepared and the
+same retained statement across blocker/identity transitions. Physical owners are
+closed, canceled or genuinely terminated rather than inferred from borrower return;
+native captured-control phases are explicitly separate from shared SQL assertions.
+
+
 The `TestReferencePGInitPrivs` family independently prescribes bootstrap and
 extension initial ACL privilege/grantor/option bags, rather than deriving
 expectations from current ACLs. It covers typed shape and diagnostics,
@@ -122,9 +129,9 @@ cluster inventory or nonpinned custom-tablespace authority is fabricated.
 Select the family with `make check RUN='^TestReferencePGShdepend'`, also with
 `REFERENCE=1`; native controls remain explicitly native-only phases.
 Database registration and its dependencies survive native pool close/reopen.
-Native `DROP DATABASE` is not implemented; only the real-backend phase exercises
-database removal. Native lifecycle witnesses retain peer state across selected
-database Reset/Restore, without substituting Reset for database removal.
+DROP now witnesses actual database removal and dependency retirement in both
+backends. Native lifecycle witnesses separately preserve peer state across
+selected Reset/Restore; neither control substitutes for database removal.
 Actual native Dump SQL replay on PostgreSQL independently checks exact table and
 column ACL item bags. Its raw catalog UPDATE repairs do not invoke PostgreSQL
 GRANT dependency maintenance, so that phase asserts owner-only bookkeeping before

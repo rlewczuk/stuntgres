@@ -14,7 +14,10 @@ import (
 )
 
 func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.replay_required AS integer NOT NULL"))
@@ -91,7 +94,10 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 }
 
 func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	// Restore adds captured CHECK recipes after rows, so the live declared
@@ -127,7 +133,10 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 }
 
 func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	text := "pg_catalog.timezone('UTC'::text,'-infinity'::timestamptz)"

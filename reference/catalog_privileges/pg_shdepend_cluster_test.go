@@ -96,13 +96,13 @@ func TestReferencePGShdependCluster(t *testing.T) {
 		reopenedBackend.Recorder = reopenedRecorder
 		shDatabaseBag(t, p, reopenedBackend, reopened, d2, 1259, t2, shEdge(d2, 1259, t2, 0, owner, "o"), shEdge(d2, 1259, t2, 0, reader, "a"))
 		reopened.Close()
-		// Native has no DROP DATABASE command; registered state survives pool close.
-		// The real-backend phase additionally witnesses removal and releases its DBs.
-		if b.PG {
-			shExec(t, p, b, b.DB, "DROP DATABASE sh_db_one", "DROP DATABASE sh_db_two")
-			shBag(t, p, b, b.DB, 1262, d1)
-			shBag(t, p, b, b.DB, 1262, d2)
-		}
+		// Pool close preserves registration; DROP independently removes both
+		// the shared database edges and its database-qualified local dependencies.
+		fixture.DatabaseReferenceOwners(t, p, b.DB, b.Recorder, "sh_db_one", 0)
+		fixture.DatabaseReferenceOwners(t, p, b.DB, b.Recorder, "sh_db_two", 0)
+		shExec(t, p, b, b.DB, "DROP DATABASE sh_db_one", "DROP DATABASE sh_db_two")
+		shBag(t, p, b, b.DB, 1262, d1)
+		shBag(t, p, b, b.DB, 1262, d2)
 	}
 }
 

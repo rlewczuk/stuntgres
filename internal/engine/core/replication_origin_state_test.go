@@ -216,7 +216,10 @@ func TestReplicationOriginStateReplacement(t *testing.T) {
 		t.Fatal(position, err)
 	}
 	finish(nil)
-	stage := target.RestoreStage()
+	stage, stageErr := target.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	h, finish = originStateUnitHost(t, target)
 	if _, err := originStateUnitCall(t, target, h, functions.ReplicationOriginAdvance, "state_replacement", 7, false); err != nil {
 		t.Fatal(err)
@@ -240,7 +243,13 @@ func TestReplicationOriginStateReplacement(t *testing.T) {
 	}
 	finish(nil)
 	for _, clear := range []bool{false, true} {
-		stage = target.RestoreStage()
+		{
+			nextStage, stageErr := target.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
+			stage = nextStage
+		}
 		before = target.CatalogRead().State()
 		h, finish = originStateUnitHost(t, target)
 		kind := functions.ReplicationOriginAdvance
@@ -258,7 +267,13 @@ func TestReplicationOriginStateReplacement(t *testing.T) {
 			t.Fatal("generation rejection changed registration backing")
 		}
 	}
-	stage = target.RestoreStage()
+	{
+		nextStage, stageErr := target.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
+		stage = nextStage
+	}
 	h, finish = originStateUnitHost(t, target)
 	if value, err := originStateUnitCall(t, target, h, functions.ReplicationOriginProgress, "state_replacement", 0, false); err != nil || !value.IsNull() {
 		t.Fatal(value, err)

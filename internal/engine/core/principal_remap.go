@@ -115,10 +115,14 @@ func (e *Engine) remapPreparedCatalog(sourceCatalog catalog.Read, source, target
 	return state, policy.Procedure, nil
 }
 
-func (e *Engine) RestoreStage() *Engine {
+func (e *Engine) RestoreStage() (*Engine, error) {
 	// Capture before reading: dropping and recreating an owner while a reader
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return nil, err
+	}
 	sourceRoles := e.RoleStore.CaptureLocked()
 	database := e.Catalog.State.MustDatabase(e.Catalog.DatabaseAddress())
 	parameterPredecessor := e.Catalog.State
@@ -127,17 +131,17 @@ func (e *Engine) RestoreStage() *Engine {
 	e.Mu.Unlock()
 	stage, err := e.Factory(nil, database.Name(), false)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	stage.WALNames = e.WALNames
 	if err := stage.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
-		panic(err)
+		return nil, err
 	}
 	if err := stage.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
-		panic(err)
+		return nil, err
 	}
 	if err := stage.InstallSepgsqlSimulation(e.Sepgsql, false); err != nil {
-		panic(err)
+		return nil, err
 	}
 	stage.TextSearchFiles = e.TextSearchFiles
 	stage.IdentFile = e.IdentFile
@@ -159,7 +163,7 @@ func (e *Engine) RestoreStage() *Engine {
 	}
 	retainedDatabase.ACL, err = catalog.RemapACL(database.ACL, capturedPrincipal)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	stage.Catalog.State.SetDescriptor(database.Address(), &retainedDatabase)
 	stage.Catalog.State.BindName(catalog.DescriptorNameKey(&retainedDatabase), database.Address())
@@ -177,12 +181,12 @@ func (e *Engine) RestoreStage() *Engine {
 		mapped.Owner = stage.RoleStore.Domain.Principal(original.Owner.ID())
 		mapped.ACL, err = catalog.RemapACL(original.ACL, capturedPrincipal)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		stage.Catalog.State.SetDescriptor(mapped.Address(), &mapped)
 	}
 	stage.Catalog.InstallRevisionFrontierLocked(catalog.RevisionFrontier(stage.Catalog.NextRevision(), stage.Catalog.State.Descriptors()))
-	return stage
+	return stage, nil
 }
 
 // retainedRoutineProcedureRemapper is only for destination TEMP consumers

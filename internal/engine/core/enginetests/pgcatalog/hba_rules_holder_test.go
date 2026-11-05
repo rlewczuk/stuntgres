@@ -17,7 +17,10 @@ func TestPGHBAFileRulesHolderLifecycle(t *testing.T) {
 	destination.HBARules = holder
 	holder.Set([]hbarules.Rule{{FileName: new("destination A"), Options: []string{"secret A"}}})
 	retained := holder.Capture()
-	stage := destination.RestoreStage()
+	stage, stageErr := destination.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	if stage.HBARules != holder {
 		t.Fatal("staging lost destination holder")
 	}

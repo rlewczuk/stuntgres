@@ -14,6 +14,13 @@ Role identity, attributes, membership, trusted connectors, transactional
 lifecycle, rename and persisted-default scenarios live in
 `reference/object_address`. Shared role helpers belong to `reference/fixture`.
 
+The real logical-slot database lifecycle family uses
+`RUN='^TestReferenceDatabaseDropSlots$'` in both modes. It owns persistent
+inactive-slot removal, temporary active singular/plural refusal before FORCE
+termination, and independent active/inactive peer preservation. Stock
+`test_decoding` and the existing logical-WAL fixture supply real producers.
+
+
 Existing-row USING policies filter SELECT sources and UPDATE/DELETE targets before
 non-leakproof user expressions. FALSE or NULL silently suppresses rows; missing
 applicable policies default to denial. Ordinary ACL checks remain separate, and

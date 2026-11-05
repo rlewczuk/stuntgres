@@ -45,7 +45,14 @@ func resetCatalogContents(ctx context.Context, e *core.Engine, origin controlOri
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	fresh := NewWithSettings(nil, e.AttachedDatabaseName(), false)
+	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
+	database := e.DatabaseName
+	e.Mu.Unlock()
+	fresh := NewWithSettings(nil, database, false)
 	if err := fresh.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		return err
 	}
@@ -82,6 +89,10 @@ func Dump(ctx context.Context, e *core.Engine, dst io.Writer) error {
 		return err
 	}
 	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	capture, err := captureDumpLocked(e, ctx)
 	e.Mu.Unlock()
 	if err != nil {
@@ -113,7 +124,10 @@ func restoreCatalogContents(ctx context.Context, e *core.Engine, src io.Reader, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	stage := e.RestoreStage()
+	stage, err := e.RestoreStage()
+	if err != nil {
+		return err
+	}
 	run := &restoreRun{stage: stage, tablespaceRepairs: stage.RestoreTablespaceRepairs(), hostContext: ctx, controlOrigin: origin, sepgsqlAuthority: authority}
 	return control.Restore(ctx, &restoreHost{target: e, run: run}, restoreHooks, run, src)
 }

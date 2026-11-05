@@ -49,8 +49,7 @@ func TestReferencePGShdependFeatureSmoke(t *testing.T) {
 		m := shOID(t, p, b.DB, "SELECT oid FROM pg_auth_members WHERE grantor=$1", grantor)
 		shBag(t, p, bb, peer, 1261, m, shEdge(0, 1261, m, 0, grantor, "a"))
 		peer.Close()
-		if b.PG {
-			shExec(t, p, b, b.DB, "DROP DATABASE sh_smoke_db")
-		}
+		fixture.DatabaseReferenceOwners(t, p, b.DB, b.Recorder, "sh_smoke_db", 0)
+		shExec(t, p, b, b.DB, "DROP DATABASE sh_smoke_db")
 	}
 }

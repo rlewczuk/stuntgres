@@ -120,7 +120,7 @@ func executeSettings(e *core.Engine, scope *core.StatementScope, s settingsReque
 		}
 		op.Session.Mu.Lock()
 		err = core.PublicationOperationLocked(e, op)
-		if err == nil && (s.database != nil || s.role.All) && fresh.Database != nil {
+		if err == nil && fresh.Database != nil {
 			err = e.FenceRoleSettingDatabaseLocked(op, fresh.Key.Database, fresh.Database)
 		}
 		if err == nil {

@@ -22,7 +22,10 @@ func inheritedRestoreFixture(t *testing.T) (*core.Engine, *session.Operation, ma
 	t.Helper()
 	source := engine.New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	declarations := []string{

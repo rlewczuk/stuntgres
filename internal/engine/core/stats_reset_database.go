@@ -69,7 +69,11 @@ func (h *statementHost) StatsResetDatabase(kind functions.StatsResetDatabaseKind
 				if target == defaultTarget {
 					database = &shared
 				}
-				target.Statistics.ResetObject(target.Catalog.Domain.Ref(target.Catalog.Current().Epoch(), address), statistics.Relation, database, at)
+				epoch := target.Catalog.Current().Epoch()
+				if target.retired {
+					epoch--
+				}
+				target.Statistics.ResetObject(target.Catalog.Domain.Ref(epoch, address), statistics.Relation, database, at)
 			}
 			reset(e)
 			if e.Cluster != nil {
@@ -77,6 +81,9 @@ func (h *statementHost) StatsResetDatabase(kind functions.StatsResetDatabaseKind
 					if target != e {
 						reset(target)
 					}
+				}
+				if defaultTarget != e && e.Cluster.Targets[defaultTarget.DatabaseName] != defaultTarget {
+					reset(defaultTarget)
 				}
 			}
 			return sqltype.VoidValue(result), nil

@@ -57,7 +57,10 @@ func (e *Engine) ProtocolAuthorizationStatus(s *session.Session) (name string, s
 	return selected.Name, current.Superuser, false, nil
 }
 func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
-	d, ok := e.Roles().Lookup(name)
+	e.Mu.Lock()
+	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+	d, ok := roles.Lookup(name)
+	e.Mu.Unlock()
 	if !ok {
 		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: authenticated role %q does not exist", name)
 	}

@@ -53,16 +53,20 @@ type Engine struct {
 	Analysis      BindingHost                  // Binding host without an operation; immutable after New.
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	ReplacementMu                   replacementAdmission
-	Catalog                         catalog.Store
-	DatabaseName                    string
-	DatabaseNameError               error
+	ReplacementMu     replacementAdmission
+	Catalog           catalog.Store
+	DatabaseName      string
+	DatabaseNameError error
+	// Mu owns the exact incarnation's transient DROP exclusion and tombstone.
+	dropAttempt                     *databaseDropAttempt
+	retired                         bool
 	Storage                         storage.Store
 	sessionMu                       sync.Mutex
 	sessions                        map[ids.SessionToken]*session.Session
-	Settings                        settings.Registry         // Immutable, initialized once before publication.
-	WALNames                        functions.WALNameMetadata // Immutable destination startup input; copied before binding.
-	Authority                       AuthorityInputs           // Points at settings and storage; shared by engine-built views.
+	privateStarts                   map[*session.Session]struct{} // sessionMu; transfers to sessions at publication.
+	Settings                        settings.Registry             // Immutable, initialized once before publication.
+	WALNames                        functions.WALNameMetadata     // Immutable destination startup input; copied before binding.
+	Authority                       AuthorityInputs               // Points at settings and storage; shared by engine-built views.
 	Visibility                      visibility.Registry
 	IndexWaits                      index.WaitRegistry
 	Exclusions                      index.ExclusionRegistry
@@ -506,7 +510,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.ForeignDDL:
 		return Description{}, nil
-	case *parser.CreateDatabaseStmt, *parser.AlterDatabaseStmt, *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace, *parser.Load, *parser.SecurityLabel, *parser.Checkpoint, *parser.Vacuum, *parser.Cluster, *parser.Analyze:
+	case *parser.CreateDatabaseStmt, *parser.DropDatabaseStmt, *parser.AlterDatabaseStmt, *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace, *parser.Load, *parser.SecurityLabel, *parser.Checkpoint, *parser.Vacuum, *parser.Cluster, *parser.Analyze:
 		return Description{}, nil
 	case *parser.Truncate:
 		return Description{}, nil

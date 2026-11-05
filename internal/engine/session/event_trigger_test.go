@@ -122,6 +122,7 @@ func TestEventTriggerClassification(t *testing.T) {
 	for _, stmt := range []parser.Statement{
 		&parser.CreateEventTrigger{}, &parser.AlterEventTrigger{}, &parser.DropEventTrigger{},
 		&parser.CreateDatabaseStmt{}, &parser.CreateTablespace{}, &parser.CreateRole{}, &parser.AlterRole{}, &parser.DropRole{}, &parser.RoleMembership{}, &parser.ReassignOwned{},
+		&parser.DropDatabaseStmt{},
 		&parser.AlterTablespaceRename{}, &parser.DropTablespace{},
 		&parser.RenameRole{}, &parser.AlterRoleSettings{}, &parser.AlterDatabaseSettings{},
 		&parser.Call{}, &parser.Insert{}, &parser.Update{}, &parser.Delete{}, &parser.Merge{}, &parser.Select{}, &parser.Copy{},

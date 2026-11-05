@@ -593,6 +593,15 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
+	if _, ok := stmt.(*parser.DropDatabaseStmt); ok {
+		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
+	}
 	if database, ok := stmt.(*parser.AlterDatabaseStmt); ok && database.SetsTablespace() {
 		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 			return Result{}, err

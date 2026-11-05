@@ -93,7 +93,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}()
 	var stage *Engine
 	if op == nil {
-		stage = e.RestoreStage()
+		var stageErr error
+		stage, stageErr = e.RestoreStage()
+		if stageErr != nil {
+			return nil, stageErr
+		}
 	} else {
 		stage = EngineOf(op.Session)
 	}

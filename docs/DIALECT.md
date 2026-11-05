@@ -4,6 +4,22 @@ This document records logical SQL versus external-mechanism ownership boundaries
 Other feature contracts remain in [DRIVER.md](DRIVER.md), [FIXTURES.md](FIXTURES.md)
 and the owning reference package documentation.
 
+## Logical database retirement
+
+`DROP DATABASE`, `IF EXISTS` and ordered `FORCE` options are syntax-only during
+preparation and resolve current target/owner/blockers at execution. Logical
+retirement removes the exact registered incarnation and all its SQL-local backing.
+FORCE uses the canonical physical admission and terminal resource lifecycle;
+permission preflight is all-victim and prepared transactions are never consumed.
+Current/template databases, active logical slots and subscriptions retain their
+independent restrictions and diagnostics. Physical directory, WAL/checkpoint and
+physical-slot mechanisms are not fabricated by this logical publication.
+
+The stable default attachment becomes nonselectable, not a name-based fallback.
+Peer databases, shared authority and bounded numeric-db statement history survive.
+See [the selector/control contract](DRIVER.md#selecting-a-logical-database).
+
+
 ## Authentication-file diagnostics
 
 `pg_catalog.pg_hba_file_rules` exposes eleven nullable diagnostic facts supplied

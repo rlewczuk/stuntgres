@@ -29,7 +29,10 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	e.Catalog.PublishLocked(current)
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 	entries := append([]authorization.ACLEntry(nil), database.ACL.Entries...)
-	stage := e.RestoreStage()
+	stage, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	if stage.RoleStore.Published.Revision != graph.Revision || len(fixtureEdges(stage.RoleStore.Published)) != len(edges) {
 		t.Fatal("restore reseeded or dropped membership graph")
 	}

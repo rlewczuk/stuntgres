@@ -43,7 +43,10 @@ func extensionVersionOwnerImports(t *testing.T) {
 					t.Fatal("versioned declaration/schema lost", version, member)
 				}
 			}
-			stage := e.RestoreStage()
+			stage, stageErr := e.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			op, done := enginetest.RestoreOperation(t, stage, "postgres")
 			defer done()
 			if err := extensionUnitExecute(t, stage, op, extensionVersionUnitCreate(version)); err != nil {

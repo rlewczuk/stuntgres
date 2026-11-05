@@ -180,14 +180,22 @@ func TestCommentPublishingWaiters(t *testing.T) {
 func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 	source := engine.New()
 	enginetest.Run(t, source, "CREATE USER ordinary")
+	privateOrdinary, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
+	privateShared, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	for _, tc := range []struct {
 		name         string
 		engine       *core.Engine
 		actor, query string
 	}{
 		{"public operation", source, "postgres", "COMMENT ON SCHEMA public IS 'forbidden'"},
-		{"non-superuser private authenticator", source.RestoreStage(), "ordinary", "COMMENT ON SCHEMA public IS 'forbidden'"},
-		{"shared role excluded", source.RestoreStage(), "postgres", "COMMENT ON ROLE ordinary IS 'forbidden'"},
+		{"non-superuser private authenticator", privateOrdinary, "ordinary", "COMMENT ON SCHEMA public IS 'forbidden'"},
+		{"shared role excluded", privateShared, "postgres", "COMMENT ON ROLE ordinary IS 'forbidden'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			op, done := enginetest.RoleOperation(t, tc.engine, tc.actor)

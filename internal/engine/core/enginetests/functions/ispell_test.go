@@ -110,7 +110,10 @@ func TestIspellResourcePropagation(t *testing.T) {
 	if err != nil || target.TextSearchFiles != files || e.Cluster.Seed.TextSearchFiles != files {
 		t.Fatal("logical database lost resources", err)
 	}
-	stage := target.RestoreStage()
+	stage, stageErr := target.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	if stage.TextSearchFiles != files {
 		t.Fatal("restore compiler lost destination files")
 	}

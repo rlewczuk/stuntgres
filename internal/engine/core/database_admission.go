@@ -23,18 +23,20 @@ type DatabaseSelector struct {
 // state and occupancy belong to the cluster's AdmissionMu; target and captured
 // startup authority are immutable. Copying this value never copies authority.
 type DatabaseAdmission struct {
-	self      *DatabaseAdmission
-	cluster   *DatabaseCluster
-	target    *Engine
-	database  ids.ObjectAddress
-	principal authorization.PrincipalRef
-	token     ids.SessionToken
-	ticket    *lock.Ticket
-	name      string
-	roles     authorization.Read
-	record    *access.RoleRecord
-	owner     *session.Session // Exact physical owner, once bound during construction.
-	state     uint8            // 0 reserved, 1 consumed, 2 released
+	self           *DatabaseAdmission
+	cluster        *DatabaseCluster
+	target         *Engine
+	database       ids.ObjectAddress
+	principal      authorization.PrincipalRef
+	token          ids.SessionToken
+	ticket         *lock.Ticket
+	name           string
+	roles          authorization.Read
+	record         *access.RoleRecord
+	owner          *session.Session   // Exact physical owner, once bound during construction.
+	state          uint8              // 0 reserved, 1 consumed, 2 released
+	revoked        bool               // FORCE, unlike an ordinary caller abandonment.
+	previous, next *DatabaseAdmission // AdmissionMu; no second identity registry.
 }
 
 func (a *DatabaseAdmission) Target() *Engine {
@@ -42,6 +44,22 @@ func (a *DatabaseAdmission) Target() *Engine {
 		return nil
 	}
 	return a.target
+}
+
+// unlinkLocked transfers no authority: the same owning token is removed once
+// under AdmissionMu, either by ownerless FORCE revocation or terminal release.
+func (a *DatabaseAdmission) unlinkLocked() {
+	if a.previous != nil {
+		a.previous.next = a.next
+	} else {
+		a.cluster.admissionHead = a.next
+	}
+	if a.next != nil {
+		a.next.previous = a.previous
+	} else {
+		a.cluster.admissionTail = a.previous
+	}
+	a.previous, a.next = nil, nil
 }
 
 func databaseAdmissionError(code, message string) error {
@@ -72,15 +90,19 @@ func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.Prin
 	}
 	target := cluster.selectDatabaseLocked(selector)
 	if target == nil {
+		name := selector.Name
+		if !selector.Explicit && cluster.DefaultTarget != nil {
+			name = cluster.DefaultTarget.DatabaseName
+		}
 		e.Mu.Unlock()
-		return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, selector.Name))
+		return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, name))
 	}
 	token := target.Catalog.Domain.Session(id)
 	resource := e.DatabaseResource(target.Catalog.DatabaseAddress())
 	e.Mu.Unlock()
 	ticket, err := e.Locks.RegisterSession(token)
 	if err != nil {
-		return nil, err
+		return nil, e.databaseAdmissionLockError(target, selector, err)
 	}
 	transferred := false
 	defer func() {
@@ -94,8 +116,12 @@ func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.Prin
 		// put compatible later copies behind RX through normal FIFO fairness.
 		e.Mu.Lock()
 		if cluster.selectDatabaseLocked(selector) != target {
+			name := selector.Name
+			if !selector.Explicit {
+				name = target.DatabaseName
+			}
 			e.Mu.Unlock()
-			return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, selector.Name))
+			return nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, name))
 		}
 		cluster.AdmissionMu.Lock()
 		var wait <-chan struct{}
@@ -106,15 +132,14 @@ func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.Prin
 		e.Mu.Unlock()
 		if wait == nil {
 			if err := e.Locks.Acquire(ctx, ticket, resource, lock.RowExclusive); err != nil {
-				return nil, err
+				return nil, e.databaseAdmissionLockError(target, selector, err)
 			}
 			// Recheck the exact selector, principal and lease after the real
 			// grant, and release RX before any lease-generation wait.
-			a, next, err := e.admitDatabase(ctx, principal, selector, target)
+			a, next, err := e.admitDatabase(ctx, principal, selector, target, token, ticket)
 			e.Locks.ReleaseDatabaseAdmission(ticket, resource)
 			if next == nil {
 				if err == nil {
-					a.token, a.ticket = token, ticket
 					transferred = true
 				}
 				return a, err
@@ -129,7 +154,23 @@ func (e *Engine) AdmitDatabase(ctx context.Context, principal authorization.Prin
 	}
 }
 
-func (e *Engine) admitDatabase(ctx context.Context, principal authorization.PrincipalRef, selector DatabaseSelector, expected *Engine) (*DatabaseAdmission, <-chan struct{}, error) {
+// A queued startup ticket can be retired by DROP before it becomes an owning
+// reservation. Translate only that exact missing-incarnation outcome, leaving
+// context, lock and live-target failures unchanged.
+func (e *Engine) databaseAdmissionLockError(target *Engine, selector DatabaseSelector, err error) error {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if e.Cluster.selectDatabaseLocked(selector) != target || target.retired {
+		name := selector.Name
+		if !selector.Explicit {
+			name = target.DatabaseName
+		}
+		return databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, name))
+	}
+	return err
+}
+
+func (e *Engine) admitDatabase(ctx context.Context, principal authorization.PrincipalRef, selector DatabaseSelector, expected *Engine, token ids.SessionToken, ticket *lock.Ticket) (*DatabaseAdmission, <-chan struct{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -155,6 +196,9 @@ func (e *Engine) admitDatabase(ctx context.Context, principal authorization.Prin
 	}
 	if target.DatabaseNameError != nil {
 		return nil, nil, target.DatabaseNameError
+	}
+	if target.retired || target.dropAttempt != nil {
+		return nil, nil, databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, target.DatabaseName))
 	}
 	view := target.Catalog.Current()
 	roles := target.RoleStore.PublishedRead(&target.Catalog.Owner, view)
@@ -182,7 +226,7 @@ func (e *Engine) admitDatabase(ctx context.Context, principal authorization.Prin
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	a := &DatabaseAdmission{cluster: cluster, target: target, database: database.Address(), name: database.Name(), principal: principal, roles: roles, record: target.RoleStore.Published}
+	a := &DatabaseAdmission{cluster: cluster, target: target, database: database.Address(), name: database.Name(), principal: principal, roles: roles, record: target.RoleStore.Published, token: token, ticket: ticket}
 	a.self = a
 	if cluster.admissions == nil {
 		cluster.admissions = make(map[*Engine]int)
@@ -192,6 +236,13 @@ func (e *Engine) admitDatabase(ctx context.Context, principal authorization.Prin
 		cluster.principalAdmissions = make(map[authorization.PrincipalRef]int)
 	}
 	cluster.principalAdmissions[principal]++
+	a.previous = cluster.admissionTail
+	if cluster.admissionTail != nil {
+		cluster.admissionTail.next = a
+	} else {
+		cluster.admissionHead = a
+	}
+	cluster.admissionTail = a
 	return a, nil, nil
 }
 
@@ -201,6 +252,9 @@ func (a *DatabaseAdmission) claim(e *Engine, id ids.SessionID) error {
 	}
 	a.cluster.AdmissionMu.Lock()
 	defer a.cluster.AdmissionMu.Unlock()
+	if a.revoked {
+		return databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, a.name))
+	}
 	if a.state != 0 {
 		return errors.New("stuntgres: database admission already submitted or released")
 	}
@@ -223,6 +277,7 @@ func (a *DatabaseAdmission) release(consumed bool) {
 	}
 	a.state = 2
 	a.owner = nil
+	a.unlinkLocked()
 	a.cluster.admissions[a.target]--
 	if a.cluster.admissions[a.target] == 0 {
 		delete(a.cluster.admissions, a.target)

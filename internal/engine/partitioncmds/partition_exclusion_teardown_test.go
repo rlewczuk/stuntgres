@@ -27,7 +27,10 @@ func exclusionTeardownRelation(t *testing.T, e *core.Engine, name string) *catal
 
 func exclusionTeardownFixture(t *testing.T, invalid bool, method string) (*core.Engine, *session.Operation, map[ids.ObjectAddress]partition.ReplayTeardown, parser.ObjectName) {
 	t.Helper()
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	records := make(map[ids.ObjectAddress]partition.ReplayTeardown)
@@ -98,7 +101,11 @@ func TestPartitionExclusionReplayTeardown(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			e := engine.New()
 			if private {
-				e = e.RestoreStage()
+				nextStage, stageErr := e.RestoreStage()
+				if stageErr != nil {
+					t.Fatal(stageErr)
+				}
+				e = nextStage
 			}
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -244,7 +251,10 @@ func TestPartitionExclusionReplayTeardown(t *testing.T) {
 func exclusionGuardTeardown(t *testing.T) {
 	t.Helper()
 	t.Run("guard_seed_preserves_actual_true_and_false", func(t *testing.T) {
-		e := engine.New().RestoreStage()
+		e, stageErr := engine.New().RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
 		for _, q := range []string{
@@ -296,7 +306,10 @@ func exclusionPromotionTeardown(t *testing.T) {
 	t.Helper()
 	for _, mutation := range []string{"accepted", "owner", "stale_index", "populated", "extra_index"} {
 		t.Run("promotion_gap_"+mutation, func(t *testing.T) {
-			e := engine.New().RestoreStage()
+			e, stageErr := engine.New().RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			for _, q := range []string{

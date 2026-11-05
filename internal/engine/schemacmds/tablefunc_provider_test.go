@@ -76,9 +76,17 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 			t.Fatal("procedure declaration", slot, p, symbol, err)
 		}
 		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) {
-			if p.Signature == "25,25" { p.Signature = "25,23" } else { p.Signature = "25,25" }
+			if p.Signature == "25,25" {
+				p.Signature = "25,23"
+			} else {
+				p.Signature = "25,25"
+			}
 		}, func(p *catalog.Procedure) { p.ObjectRevision = 0 }, func(p *catalog.Procedure) { p.Implementation = new(extension.TablefuncProvider) }, func(p *catalog.Procedure) { p.Installed.Rows = 1 }, func(p *catalog.Procedure) { p.Installed.Parallel = 's' }, func(p *catalog.Procedure) { p.Installed.Parallel = 'r' }, func(p *catalog.Procedure) { p.Installed.Parallel = 0 }, func(p *catalog.Procedure) {
-			if p.Display.Source == "crosstab_hash" { p.Display.Source = "crosstab" } else { p.Display.Source = "crosstab_hash" }
+			if p.Display.Source == "crosstab_hash" {
+				p.Display.Source = "crosstab"
+			} else {
+				p.Display.Source = "crosstab_hash"
+			}
 		}} {
 			state := catalog.CloneState(view.State())
 			bad := *p
@@ -270,7 +278,10 @@ func TestTablefuncCrosstabControlIdentity(t *testing.T) {
 	for i, j := 0, len(record.Members)-1; i < j; i, j = i+1, j-1 {
 		record.Members[i], record.Members[j] = record.Members[j], record.Members[i]
 	}
-	replay := e.RestoreStage()
+	replay, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	tablefuncUnitInstalled(t, replay)
 	replayView := replay.CatalogRead()
 	replayExt := replayView.MustExtension(replayView.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))

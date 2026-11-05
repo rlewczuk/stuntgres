@@ -16,7 +16,10 @@ func TestPGInitPrivsMembershipReplayGuard(t *testing.T) {
 	for _, action := range []string{"add", "drop"} {
 		for _, mismatch := range []string{"none", "ordinary", "effects", "action", "root", "extension", "domain", "epoch"} {
 			t.Run(action+"/"+mismatch, func(t *testing.T) {
-				e := engine.New().RestoreStage()
+				e, stageErr := engine.New().RestoreStage()
+				if stageErr != nil {
+					t.Fatal(stageErr)
+				}
 				op, done := enginetest.RoleOperation(t, e, "postgres")
 				defer done()
 				run := func(sql string) { enginetest.RoleExecute(t, e, op, sql) }

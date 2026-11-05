@@ -74,7 +74,10 @@ func TestAlterStorageRepairAuthorityRejections(t *testing.T) {
 		"session_invalidation", "session_end", "stale_catalog", "revision_exhaustion",
 	} {
 		t.Run(kind, func(t *testing.T) {
-			e := engine.New().RestoreStage()
+			e, stageErr := engine.New().RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			enginetest.Run(t, e, "CREATE TABLE storage_boundary(a text,b text)")
 			enginetest.Run(t, e, "INSERT INTO storage_boundary VALUES('left','right')")
 			enginetest.Run(t, e, "CREATE INDEX storage_boundary_idx ON storage_boundary(a,b)")
@@ -102,7 +105,10 @@ func TestAlterStorageRepairAuthorityRejections(t *testing.T) {
 			defer done()
 			switch kind {
 			case "foreign_operation":
-				foreign := engine.New().RestoreStage()
+				foreign, stageErr := engine.New().RestoreStage()
+				if stageErr != nil {
+					t.Fatal(stageErr)
+				}
 				foreignOp, closeForeign := roleOperation(t, foreign, "postgres")
 				defer closeForeign()
 				op = foreignOp
@@ -195,7 +201,10 @@ func TestAlterStorageRepairAuthorityRejections(t *testing.T) {
 // Captured authority must not replace a revised predecessor at the same
 // address. Exercise the exact publication tail used by RestoreIndexStorage.
 func TestAlterStorageRepairStaleCapturedAuthority(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	enginetest.Run(t, e, "CREATE TABLE storage_boundary(a text)")
 	enginetest.Run(t, e, "CREATE INDEX storage_boundary_idx ON storage_boundary(a)")
 	ref := enginetest.RoleTableRef(t, e, "storage_boundary_idx")

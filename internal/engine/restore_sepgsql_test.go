@@ -41,7 +41,10 @@ func TestRestoreSepgsqlRetiredColumns(t *testing.T) {
 			if err := source.InstallSepgsqlSimulation(policy, true); err != nil {
 				t.Fatal(err)
 			}
-			e := source.RestoreStage()
+			e, stageErr := source.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			r := &restoreRun{stage: e}
 			host := &restoreHost{target: source, run: r}
 			op, done, err := host.Start(t.Context())

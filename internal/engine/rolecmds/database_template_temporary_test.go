@@ -256,7 +256,10 @@ func TestDatabaseTemplateTemporaryMetadata(t *testing.T) {
 	for _, phase := range []string{"restore", "reset"} {
 		var err error
 		if phase == "restore" {
-			stage := target.RestoreStage()
+			stage, stageErr := target.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			_, err = target.ReplaceCatalog(t.Context(), stage, stage.CatalogRead())
 		} else {
 			err = engine.Reset(t.Context(), target)

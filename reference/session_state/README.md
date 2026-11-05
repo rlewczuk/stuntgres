@@ -13,6 +13,12 @@ characteristics (SET TRANSACTION, isolation defaults) in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rules.
 
+Database retirement observers and bounded numeric-db statement history use
+`RUN='^TestReferenceDatabaseDrop(History|Observers)$'` in both modes. Fresh
+membership, shared reset authority and retained immutable cuts are independent
+of historical pg_stat_statements entries, which survive database recreation.
+
+
 Temporary tablespace policy uses `RUN='^TestReferenceTempTablespaces'` in both
 fixture modes, covering live creation effects, metadata, diagnostics, authority,
 transaction and routine lifetimes, list selection and the physical boundary.

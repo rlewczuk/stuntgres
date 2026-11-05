@@ -14,7 +14,10 @@ import (
 )
 
 func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_mixed_required AS integer NOT NULL"))
@@ -90,7 +93,10 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 }
 
 func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_row_required AS integer NOT NULL"))

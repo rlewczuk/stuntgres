@@ -25,7 +25,7 @@ func (p *Provider) ResetDatabase(database Key, epoch ids.CatalogEpoch, shared []
 		if !selected {
 			continue
 		}
-		if _, retired := p.retired[key]; retired {
+		if p.keyRetired(key) {
 			continue
 		}
 		p.facts[key] = Fact{}
@@ -53,7 +53,7 @@ func (p *Provider) ResetObject(object ids.ObjectRef, category Category, database
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := Key{Object: object, Category: category}
-	if _, retired := p.retired[key]; !retired {
+	if !p.keyRetired(key) {
 		if _, exists := p.facts[key]; exists {
 			p.facts[key] = Fact{}
 		}
@@ -64,7 +64,7 @@ func (p *Provider) ResetObject(object ids.ObjectRef, category Category, database
 }
 
 func (p *Provider) resetDatabaseTimestamp(key Key, at time.Time, clear bool) {
-	if _, retired := p.retired[key]; retired {
+	if p.keyRetired(key) {
 		return
 	}
 	if p.facts == nil {

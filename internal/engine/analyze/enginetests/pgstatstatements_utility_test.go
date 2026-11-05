@@ -15,6 +15,7 @@ func TestPgStatStatementsFingerprintUtilityInventory(t *testing.T) {
 	roots := []parser.Statement{
 		&parser.Explain{}, &parser.CreateDatabaseStmt{}, &parser.Vacuum{}, &parser.Analyze{}, &parser.Load{}, &parser.Checkpoint{}, &parser.AlterSystem{}, &parser.CreateTablespace{},
 		&parser.AlterDatabaseStmt{},
+		&parser.DropDatabaseStmt{},
 		&parser.AlterTablespaceRename{}, &parser.DropTablespace{},
 		&parser.AlterTrigger{}, &parser.DropTrigger{}, &parser.CreateRule{}, &parser.AlterRule{}, &parser.DropRule{}, &parser.Notify{}, &parser.Listen{}, &parser.Unlisten{},
 		&parser.CreatePolicy{}, &parser.AlterPolicy{}, &parser.DropPolicy{}, &parser.Copy{}, &parser.PrepareSQL{}, &parser.ExecuteSQL{}, &parser.DeallocateSQL{}, &parser.Discard{},

@@ -90,6 +90,9 @@ func (h *statementHost) StatsResetShared(kind functions.StatsResetSharedKind, ar
 					reset(&peer.Statistics)
 				}
 			}
+			if retained := e.Cluster.DefaultTarget; retained != e && e.Cluster.Targets[retained.DatabaseName] != retained {
+				reset(&retained.Statistics)
+			}
 		}
 	}
 	return sqltype.VoidValue(result), nil
@@ -139,6 +142,9 @@ func (e *Engine) resetBackendPIDLocked(pid int64, at time.Time) {
 			if peer != e {
 				peer.Statistics.ResetBackend(token, at)
 			}
+		}
+		if retained := e.Cluster.DefaultTarget; retained != e && e.Cluster.Targets[retained.DatabaseName] != retained {
+			retained.Statistics.ResetBackend(token, at)
 		}
 	}
 }

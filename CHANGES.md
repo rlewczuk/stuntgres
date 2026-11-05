@@ -6,6 +6,17 @@
   Preserve complete serialized TEXT datums, declaration-aware source/style
   decoding, overload authority and immutable prepared/native-control lifetimes.
 
+- Implement logical `DROP DATABASE`, `IF EXISTS` and ordered FORCE options with
+  execution-time diagnostics, all-victim authenticated permission preflight and
+  genuine admission/session/resource drain. Preserve prepared, subscription and
+  real logical-slot restrictions; atomically retire database-owned metadata,
+  backing, defaults, labels, caches and domain ownership without Reset.
+  Keep stable default tombstones, exact opaque Driver identity, peer/shared
+  authority and bounded numeric-db statement history. Fence stale native controls
+  while preserving completed immutable results and detached Dump I/O.
+  Resolve queued post-drop absence through exact missing/IF EXISTS behavior and
+  retain eligible signaling over retired authenticated physical identities.
+
 - Correct `pg_user_mappings` result metadata to mark all six view columns nullable,
   including empty and prepared results. Add independent reference coverage for
   mapping identities, current-role option redaction, lifecycle diagnostics and

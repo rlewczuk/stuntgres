@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -51,6 +52,10 @@ func (e *Engine) StartRestoreSession(ctx context.Context, principal authorizatio
 // Private maintenance sessions have genuine resources and leases, but a separate
 // pointer identity domain that cannot collide with the driver's public IDs.
 func (e *Engine) startSession(ctx context.Context, start session.SessionStart, authenticated authorization.PrincipalRef, admission *DatabaseAdmission, private bool) (*session.Session, error) {
+	return e.startSessionCleanup(ctx, start, authenticated, admission, private, nil)
+}
+
+func (e *Engine) startSessionCleanup(ctx context.Context, start session.SessionStart, authenticated authorization.PrincipalRef, admission *DatabaseAdmission, private bool, cleanup *session.Session) (*session.Session, error) {
 	// Until the Session takes ownership, every early return releases the claimed
 	// reservation. Afterwards only terminal Unregister may release it.
 	owned := admission != nil
@@ -94,17 +99,49 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 	payload.allocation = allocation
 	s.Payload = payload
 	payload.admission = admission
-	if admission != nil {
-		admission.cluster.AdmissionMu.Lock()
-		admission.owner = s
-		s.Advisory.Ticket, s.Advisory.Locks = admission.ticket, e.Locks
-		admission.ticket = nil
-		admission.cluster.AdmissionMu.Unlock()
-	}
-	owned = false
+	payload.cleanupSource = cleanup
+	s.Cond = sync.NewCond(&s.Mu)
 	if private {
 		s.SessionToken = e.Catalog.Domain.PrivateSession(s)
 	}
+	op := s.Operation(ctx, true)
+	// Publish every initializing owner before running any host default callback.
+	// Mu -> AdmissionMu; no session lock or callback is nested under AdmissionMu.
+	e.Mu.Lock()
+	var lifecycleErr error
+	if e.retired || e.dropAttempt != nil && !e.dropCleanupOwnerLocked(cleanup) {
+		lifecycleErr = errDatabaseRetired
+	}
+	if admission != nil {
+		admission.cluster.AdmissionMu.Lock()
+		if admission.state != 1 || admission.owner != nil {
+			lifecycleErr = errDatabaseRetired
+		}
+		if admission.revoked {
+			lifecycleErr = databaseAdmissionError("3D000", fmt.Sprintf(`database "%s" does not exist`, admission.name))
+		}
+		if lifecycleErr == nil {
+			admission.owner = s
+			s.Advisory.Ticket, s.Advisory.Locks = admission.ticket, e.Locks
+			admission.ticket = nil
+		}
+		admission.cluster.AdmissionMu.Unlock()
+	}
+	if lifecycleErr != nil {
+		e.Mu.Unlock()
+		op.Done()
+		return nil, lifecycleErr
+	}
+	if private {
+		e.sessionMu.Lock()
+		if e.privateStarts == nil {
+			e.privateStarts = make(map[*session.Session]struct{})
+		}
+		e.privateStarts[s] = struct{}{}
+		e.sessionMu.Unlock()
+	}
+	e.Mu.Unlock()
+	owned = false
 	if admission != nil {
 		s.DatabaseName = admission.name
 	} else {
@@ -112,8 +149,6 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		s.DatabaseName = e.DatabaseName
 		e.Mu.Unlock()
 	}
-	s.Cond = sync.NewCond(&s.Mu)
-	op := s.Operation(ctx, true)
 	var admissionErr error
 	if !private {
 		_, admissionErr = op.Attach(session.AdvisorySession, &s.Advisory)
@@ -215,6 +250,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 		}
 	}
 	e.Mu.Lock()
+	if e.retired || e.dropAttempt != nil && !e.dropCleanupOwnerLocked(cleanup) {
+		err = errDatabaseRetired
+	}
 	if err == nil {
 		roleDescriptor, err = e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()).Descriptor(authenticated)
 		if err == nil && !roleDescriptor.Login {
@@ -250,6 +288,10 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 	if err == nil && s.State != session.Initializing {
 		err = errors.New("stuntgres: session initialization ended")
 	}
+	if s.Timeouts.Fatal != nil {
+		fatal := *s.Timeouts.Fatal
+		err = &fatal
+	}
 	if err == nil {
 		e.sessionMu.Lock()
 		if e.sessions == nil {
@@ -274,6 +316,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 			// Lifecycle ownership includes private pointer-token sessions.
 			// Public admission, role occupancy and activity remain separate.
 			e.sessions[s.SessionToken] = s
+			delete(e.privateStarts, s)
 			if !private {
 				born := activityTime()
 				owner.Mu.Lock()
@@ -290,6 +333,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, a
 						if target != e {
 							target.Statistics.BeginBackend(s.SessionToken, incarnation)
 						}
+					}
+					if retained := e.Cluster.DefaultTarget; retained != e && e.Cluster.Targets[retained.DatabaseName] != retained {
+						retained.Statistics.BeginBackend(s.SessionToken, incarnation)
 					}
 				}
 				payload.statsPublic = true

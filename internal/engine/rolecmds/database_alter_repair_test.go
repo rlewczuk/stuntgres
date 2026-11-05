@@ -25,7 +25,10 @@ func databaseAlterExplicitPublication(t *testing.T) {
 			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: catalog.GlobalTablespaceOID}
 			original := e.Catalog.State.Get(address).(*catalog.Tablespace)
 			peerEpoch, peerStore := peer.Catalog.State.Epoch(), &peer.Storage
-			stage := e.RestoreStage()
+			stage, stageErr := e.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			repairs := stage.RestoreTablespaceRepairs()
 			maintenance, err := stage.StartRestoreSession(context.Background(), stage.Roles().LookupRef("postgres"))
 			if err != nil {

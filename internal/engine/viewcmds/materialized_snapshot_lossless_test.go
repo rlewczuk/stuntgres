@@ -142,7 +142,10 @@ func TestMaterializedViewSnapshotConstructorTargets(t *testing.T) {
 // Exercise the closed snapshot transport and destination-owned evaluation
 // together: recognizing a function name alone must never authorize its children.
 func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_leaf(c circle)")
@@ -261,7 +264,10 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 		{"cat", `CREATE FUNCTION pg_catalog.array_cat(integer[],integer[]) RETURNS integer[] LANGUAGE SQL AS $$SELECT $1$$`, `pg_catalog.array_cat(pg_catalog.array_fill(7,ARRAY[1],ARRAY[-2]),CAST(ARRAY[8] AS pg_catalog.int4[]))`},
 	} {
 		t.Run(sample.name, func(t *testing.T) {
-			e := engine.New().RestoreStage()
+			e, stageErr := engine.New().RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_provider(v integer[])")

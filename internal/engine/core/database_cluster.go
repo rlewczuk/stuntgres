@@ -45,8 +45,9 @@ type DatabaseCluster struct {
 	Seed        *Engine
 	// AdmissionMu protects only reservation states/counts. Metadata admission
 	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
-	AdmissionMu sync.Mutex
-	admissions  map[*Engine]int
+	AdmissionMu                  sync.Mutex
+	admissions                   map[*Engine]int
+	admissionHead, admissionTail *DatabaseAdmission // Intrusive owning cohort, in admission order.
 	// Both dimensions derive from the same single-use admission owner; neither
 	// session publication nor SET ROLE adds a second physical reservation.
 	principalAdmissions map[authorization.PrincipalRef]int
@@ -72,8 +73,8 @@ type DatabaseCluster struct {
 	SeedError error
 }
 
-// Catalogs yields the catalog store of every registered runtime. A nil
-// cluster yields none.
+// Catalogs yields shared-authority holders: registered runtimes and the distinct
+// retained default tombstone. It does not confer public database selection.
 func (c *DatabaseCluster) Catalogs(yield func(*catalog.Store) bool) {
 	if c == nil {
 		return
@@ -83,6 +84,9 @@ func (c *DatabaseCluster) Catalogs(yield func(*catalog.Store) bool) {
 			return
 		}
 	}
+	if c.DefaultTarget != nil && c.Targets[c.DefaultTarget.DatabaseName] != c.DefaultTarget {
+		yield(&c.DefaultTarget.Catalog)
+	}
 }
 
 // selectDatabaseLocked resolves only the selection mode, under cluster metadata.
@@ -90,7 +94,11 @@ func (c *DatabaseCluster) Catalogs(yield func(*catalog.Store) bool) {
 // empty database name never selects it. Default selection retains its identity.
 func (c *DatabaseCluster) selectDatabaseLocked(selector DatabaseSelector) *Engine {
 	if !selector.Explicit {
-		return c.DefaultTarget
+		target := c.DefaultTarget
+		if target == nil || target.retired || c.Targets[target.DatabaseName] != target {
+			return nil
+		}
+		return target
 	}
 	if selector.Name == "" {
 		return nil
@@ -114,7 +122,10 @@ func (e *Engine) SelectDatabase(ctx context.Context, name string) (*Engine, erro
 }
 
 func (e *Engine) publishDatabaseFrozenXIDLocked() {
-	old := e.Catalog.State.MustDatabase(e.Catalog.DatabaseAddress())
+	old, ok := e.Catalog.State.Get(e.Catalog.DatabaseAddress()).(*catalog.Database)
+	if !ok || e.retired {
+		return
+	}
 	if old.FrozenXID == e.DatabaseFrozenXID {
 		return
 	}

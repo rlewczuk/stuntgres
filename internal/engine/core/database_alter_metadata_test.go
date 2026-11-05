@@ -45,7 +45,10 @@ func TestDatabaseAlterMetadata(t *testing.T) {
 		t.Fatal("constructor metadata", original)
 	}
 	t.Run("shared-builtin-retention", func(t *testing.T) {
-		stage := e.RestoreStage()
+		stage, stageErr := e.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		imported := catalog.CloneState(stage.Catalog.State)
 		for _, builtin := range catalog.BuiltinTablespaces {
 			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}

@@ -6,6 +6,14 @@ and imports `catalog`, `authorization`, `ids`, `parser`, `sqlstate`, `sqltype`
 and the standard library. It never imports the engine. The role graph and ACL
 algorithms it applies live in [`authorization`](../authorization/README.md).
 
+Database-qualified persisted defaults use immutable exact-address scopes.
+`RoleSettings.WithoutDatabase` removes only the retired incarnation's rows,
+preserving unrelated row backing and `RoleRecord.WithSettings` principal lineage.
+Database retirement co-publishes that root with shared descriptor removal; stale
+database-qualified journals retain predecessor fences. Trusted connector login
+uses cluster principal authority, independently of a retired default descriptor.
+
+
 Language descriptors use the ordinary owner/ACL/class-mask and paired role
 authority. Implicit PUBLIC USAGE applies to both trusted and untrusted languages,
 distinct from explicit empty ACL and never implying a grant option. Routine-body

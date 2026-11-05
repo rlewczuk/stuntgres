@@ -16,6 +16,10 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return false, false, false, false, false, err
+	}
 	catalogView := e.Catalog.Current()
 	namespace, ok := catalogView.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema})
 	if !ok {
@@ -39,6 +43,14 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 	writers := admitted && wait.Kind == index.WaitWriters
 	e.Mu.Unlock()
 	if err := ctx.Err(); err != nil {
+		return false, false, false, false, false, err
+	}
+	// The unlocked context callback may overlap retirement. Do not publish flags
+	// captured from an incarnation that ceased to be a live control destination.
+	e.Mu.Lock()
+	err := e.CheckDatabaseLiveLocked()
+	e.Mu.Unlock()
+	if err != nil {
 		return false, false, false, false, false, err
 	}
 	return ready, valid, live, older, writers, nil

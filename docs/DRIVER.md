@@ -369,6 +369,27 @@ connectors follow the original stable target across rename. A public physical
 reservation, live session or prepared transaction prevents rename; returning a
 pool borrower is not physical disconnection.
 
+`DROP DATABASE [IF EXISTS] name`, with optional `[WITH] (FORCE [, ...])`, retires the exact selected
+database incarnation. Ordinary DROP refuses physical reservations, initializing,
+live and ending sessions and detached prepared transactions. FORCE first checks
+every authenticated victim's termination privileges, then cancels and joins real
+session/resource teardown; it never rolls back prepared transactions. Active
+logical slots and every subscription, including disabled slot-NONE declarations,
+refuse before termination. Inactive database-owned logical slots are retired.
+Existing slots remain accessible from peer databases while victims drain; final
+retirement rechecks actual slot ownership before removing inactive target slots.
+Database-owned definitions, backing, defaults and labels disappear atomically;
+peers and cluster roles, ACLs, parameters, tablespaces and standalone origins remain.
+
+The original default target remains a nonselectable shared-authority holder
+after DROP. Default Connect fails with FATAL 3D000 naming its last attached
+name, including a rename. It never falls back to a peer, bootstraps a replacement
+cluster or adopts a recreated database of the same name. Explicit selectors can
+reach the fresh incarnation. Exact opaque Driver keys and independent Driver
+isolation are unchanged; explicit peer login and shared activity/statistics/reset
+authority remain usable after default retirement.
+
+
 Reset/Dump/Restore and InspectIndex capture the selected database before releasing
 the borrower. Controls require an unwrapped native pool. Local data replacement
 affects only that database, preserving registrations, owners/ACLs, template and
@@ -377,6 +398,14 @@ roles and other targets. Parameter ACL authority is the shared exception: Reset
 clears it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+Capture and final publication require the same live database incarnation.
+A captured Reset/Restore cannot publish after DROP/recreation, and a stale
+InspectIndex or uncaptured Dump fails ordinarily rather than panicking or
+retargeting by name. The ordinary native error is
+`stuntgres: database retired before control publication`. A fully detached Dump
+capture may finish writer I/O after retirement; retained committed Rows and
+statistics cuts remain immutable. No database lock is retained across external I/O.
+
 
 Builtin tablespace names retain their supported Reset/Restore image. Without an
 explicit repair, replacement preserves latest destination tablespace OWNER/ACL,

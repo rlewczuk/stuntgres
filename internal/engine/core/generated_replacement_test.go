@@ -116,7 +116,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	e.Mu.Lock()
 	e.Storage.InstallRelationLocked(tempAddress, &storage.Relation{Versions: []storage.RowVersion{{Values: tempValues}}})
 	e.Mu.Unlock()
-	stage := e.RestoreStage()
+	stage, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	sess, err := stage.StartRestoreSession(context.Background(), stage.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)

@@ -48,6 +48,8 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return result, true, err
 	case *parser.CreateDatabaseStmt:
 		return dispatched(rolecmds.ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
+	case *parser.DropDatabaseStmt:
+		return dispatched(rolecmds.ExecuteDropDatabase(e, scope, stmt.(*parser.DropDatabaseStmt), count))
 	case *parser.AlterDatabaseStmt:
 		return dispatched(rolecmds.ExecuteAlterDatabase(e, scope, stmt.(*parser.AlterDatabaseStmt), count))
 	case *parser.CreateTablespace:

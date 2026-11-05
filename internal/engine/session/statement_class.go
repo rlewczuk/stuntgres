@@ -37,6 +37,8 @@ func ModifyingTag(stmt parser.Statement) string {
 		return ForeignDDLTag(stmt.(*parser.ForeignDDL))
 	case *parser.CreateDatabaseStmt:
 		return "CREATE DATABASE"
+	case *parser.DropDatabaseStmt:
+		return "DROP DATABASE"
 	case *parser.AlterDatabaseStmt:
 		return "ALTER DATABASE"
 	case *parser.CreateTablespace:
@@ -318,7 +320,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		return true
-	case *parser.CreateDatabaseStmt:
+	case *parser.CreateDatabaseStmt, *parser.DropDatabaseStmt:
 		return true
 	case *parser.AlterDatabaseStmt, *parser.CreateTablespace, *parser.AlterTablespaceRename, *parser.DropTablespace:
 		return true
@@ -462,6 +464,8 @@ func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) 
 		command = "ALTER SYSTEM"
 	case *parser.CreateDatabaseStmt:
 		command = "CREATE DATABASE"
+	case *parser.DropDatabaseStmt:
+		command = "DROP DATABASE"
 	case *parser.AlterDatabaseStmt:
 		// The executor calls this only after effect-free option validation:
 		// duplicate, unknown and mixed TABLESPACE errors precede block refusal.
@@ -484,7 +488,7 @@ func ExplicitUtilityRefusal(stmt parser.Statement, state TxState, inBlock bool) 
 	if command != "" && inBlock {
 		return sqlError("25001", command+" cannot run inside a transaction block")
 	}
-	if command == "CREATE DATABASE" || command == "CREATE TABLESPACE" || command == "DROP TABLESPACE" || command == "ALTER DATABASE SET TABLESPACE" || command == "ALTER SYSTEM" || state != TxActive {
+	if command == "CREATE DATABASE" || command == "DROP DATABASE" || command == "CREATE TABLESPACE" || command == "DROP TABLESPACE" || command == "ALTER DATABASE SET TABLESPACE" || command == "ALTER SYSTEM" || state != TxActive {
 		return nil
 	}
 	return UnsupportedInBlockError()

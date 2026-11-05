@@ -158,6 +158,20 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 	return roots
 }
 
+// SharedOnlyState prepares an empty local incarnation retaining the exact
+// immutable shared descriptors, labels and parameter authority. It visits only
+// the existing shared index, never unrelated local definitions or backing.
+func SharedOnlyState(source *State, epoch ids.CatalogEpoch) *State {
+	next := NewState(epoch)
+	next.SetParameterIncarnation(source.ParameterIncarnation())
+	for address, descriptor := range source.shared.All() {
+		next.SetDescriptor(address, descriptor)
+		next.BindName(DescriptorNameKey(descriptor), address)
+	}
+	next.projectSharedLabels(source)
+	return next
+}
+
 // InstallLocked publishes every prepared root.
 func (p SharedProjection) InstallLocked() {
 	for target, root := range p {

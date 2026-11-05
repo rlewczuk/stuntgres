@@ -39,6 +39,16 @@ type DatabaseOption struct {
 
 func (*CreateDatabaseStmt) statement() {}
 
+// DropDatabaseStmt retains the raw ordered FORCE options, not a resolved target.
+type DropDatabaseStmt struct {
+	Name     string
+	IfExists bool
+	Options  []DatabaseOption
+	Pos      Position
+}
+
+func (*DropDatabaseStmt) statement() {}
+
 // AlterDatabaseStmt retains syntax only. OWNER uses AlterOwner instead.
 type AlterDatabaseStmt struct {
 	Name       string

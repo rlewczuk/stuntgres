@@ -19,7 +19,10 @@ import (
 )
 
 func TestGeometryConversionReplayShapes(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_replay_member(c circle)")

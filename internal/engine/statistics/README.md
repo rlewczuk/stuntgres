@@ -18,6 +18,14 @@ is reserved for actual admitted creation, never a reset/read. Category merges ad
 pending counters without replacing the current shared per-entry reset timestamp.
 This package never mutates physical storage or manufactures disk/WAL operations.
 
+`RetireDatabase` fences the exact local domain, including keys absent from its
+last fact map, without replacing/resetting the provider. Shared OID-zero and real
+shared-relation partitions, activity/backend membership and fixed shared/SLRU
+reset authority survive default-database retirement. Readers retain their original
+copied cuts; late local batches and usage completions cannot resurrect facts.
+The retained default provider remains reachable from peer shared-reset callers.
+
+
 Subscription error/conflict facts are cumulative execution counters, not worker
 inventory. Desired catalog Enabled state and ordinary session PIDs cannot confer
 apply-worker authority. The subscription monitoring view enumerates actual shared

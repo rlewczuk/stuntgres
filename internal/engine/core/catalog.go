@@ -1181,6 +1181,10 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		return ChangeSet{}, err
 	}
 	e.Mu.Lock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		e.Mu.Unlock()
+		return ChangeSet{}, err
+	}
 	parameterPredecessor := e.Catalog.State
 	originPredecessor := e.originProgressPredecessorLocked()
 	e.Mu.Unlock()
@@ -1283,6 +1287,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		defer e.ReplacementMu.Unlock()
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
+		if err := e.CheckDatabaseLiveLocked(); err != nil {
+			return ChangeSet{}, err
+		}
 		oids := e.Catalog.OIDReservationLocked()
 		if e.prepared.Len() != 0 {
 			return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")
@@ -1392,6 +1399,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 	defer e.ReplacementMu.Unlock()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		return ChangeSet{}, err
+	}
 	oids := e.Catalog.OIDReservationLocked()
 	if e.prepared.Len() != 0 {
 		return ChangeSet{}, fmt.Errorf("stuntgres: cannot replace catalog while prepared transactions exist")

@@ -2,6 +2,7 @@
 package statistics
 
 import (
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"sync"
@@ -106,6 +107,8 @@ type Provider struct {
 	reset               time.Time
 	generation          uint64
 	retired             map[Key]struct{}
+	retiredDatabase     *ids.Domain
+	retainedRelations   []ids.ObjectAddress
 	shared              [SharedKindCount]SharedFact
 	slru                [SLRUCount]SLRUFact
 	backends            map[ids.SessionToken]BackendFact
@@ -222,7 +225,7 @@ func (w *Writer) Pending() bool {
 func (w *Writer) Add(p *Provider, k Key, f Fact) {
 	p.mu.Lock()
 	generation := p.generation
-	_, retired := p.retired[k]
+	retired := p.keyRetired(k)
 	p.mu.Unlock()
 	if retired {
 		delete(w.pending, k)
@@ -334,7 +337,7 @@ func (w *Writer) Flush(p *Provider, now time.Time, force bool) bool {
 	if w.generation == p.generation {
 		w.flushShared(p)
 		for k, f := range w.pending {
-			if _, retired := p.retired[k]; retired {
+			if p.keyRetired(k) {
 				continue
 			}
 			if p.facts == nil {
@@ -414,7 +417,7 @@ func (w *Writer) BeginFunction(p *Provider, k Key) (FunctionUsage, bool) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired {
+	if p.keyRetired(k) {
 		return FunctionUsage{}, false
 	}
 	if !w.initialized || w.generation != p.generation {
@@ -450,7 +453,7 @@ func (w *Writer) EndFunction(p *Provider, usage FunctionUsage, elapsed time.Dura
 	if usage.generation != p.generation || w.generation != p.generation {
 		return
 	}
-	if _, retired := p.retired[usage.key]; retired {
+	if p.keyRetired(usage.key) {
 		delete(w.pending, usage.key)
 		return
 	}
@@ -644,7 +647,7 @@ func (p *Provider) End(session ids.SessionToken) {
 func (w *Writer) PendingDead(p *Provider, k Key) int64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired {
+	if p.keyRetired(k) {
 		return 0
 	}
 	if w.generation != p.generation {
@@ -661,7 +664,7 @@ func (w *Writer) PendingBlocks(p *Provider, k Key) (fetched, hit int64) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+	if p.keyRetired(k) || w.generation != p.generation {
 		return 0, 0
 	}
 	f := w.pending[k]
@@ -677,7 +680,7 @@ func (w *Writer) PendingRelation(p *Provider, k Key) Fact {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+	if p.keyRetired(k) || w.generation != p.generation {
 		return Fact{}
 	}
 	return w.pending[k]
@@ -691,7 +694,7 @@ func (w *Writer) PendingFunction(p *Provider, k Key) (Fact, bool) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired || w.generation != p.generation {
+	if p.keyRetired(k) || w.generation != p.generation {
 		return Fact{}, false
 	}
 	f, present := w.pending[k]
@@ -706,7 +709,7 @@ func (p *Provider) ReportAnalyze(k Key, policy Policy, at time.Time, elapsed tim
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired {
+	if p.keyRetired(k) {
 		return
 	}
 	if p.facts == nil {
@@ -731,7 +734,7 @@ func (p *Provider) ReportVacuum(k Key, policy Policy, at time.Time, elapsed time
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, retired := p.retired[k]; retired {
+	if p.keyRetired(k) {
 		return
 	}
 	if p.facts == nil {
@@ -757,6 +760,31 @@ func (p *Provider) Retire(k Key) {
 	}
 	p.retired[k] = struct{}{}
 	delete(p.facts, k)
+}
+
+// Database retirement does not reset cluster shared/backend/activity authority.
+// OID zero is the shared database bucket. Tombstones also fence keys first
+// produced after retirement, not only keys present in the last fact map.
+// The caller transfers immutable ownership of the shared-relation address slice.
+func (p *Provider) RetireDatabase(domain *ids.Domain, shared []ids.ObjectAddress) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.retiredDatabase = domain
+	p.retainedRelations = shared
+	for key := range p.facts {
+		if p.keyRetired(key) {
+			delete(p.facts, key)
+		}
+	}
+}
+
+func (p *Provider) keyRetired(key Key) bool {
+	if _, retired := p.retired[key]; retired {
+		return true
+	}
+	return p.retiredDatabase != nil && key.Object.Domain() == p.retiredDatabase &&
+		!(key.Category == Database && key.Object.Address.ObjectID == 0) &&
+		!(key.Category == Relation && slices.Contains(p.retainedRelations, key.Object.Address))
 }
 
 // Retire also discards the retiring owner's local pending entry. Other writers

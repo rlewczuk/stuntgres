@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/session"
@@ -36,32 +37,12 @@ func (h *statementHost) SessionSignalValue(c *exec.Context, kind functions.Sessi
 		return sqltype.Value{}, err
 	}
 	actor := expressionPrincipal(c)
-	caller, err := auth.Roles.Descriptor(actor)
+	err = sessionSignalPermission(auth.Roles, actor, target.CountedAuthenticated, kind)
 	if err != nil {
 		e.Mu.Unlock()
 		return sqltype.Value{}, err
 	}
 	target.Mu.Lock()
-	owner, err := auth.Roles.Descriptor(target.CountedAuthenticated)
-	allowed := false
-	if err == nil && (!owner.Superuser || caller.Superuser) {
-		allowed, err = auth.Roles.InheritsRole(actor, owner.Ref)
-		if err == nil && !allowed {
-			if role, ok := auth.Roles.Lookup("pg_signal_backend"); ok {
-				allowed, err = auth.Roles.InheritsRole(actor, role.Ref)
-			}
-		}
-	}
-	if err != nil {
-		target.Mu.Unlock()
-		e.Mu.Unlock()
-		return sqltype.Value{}, err
-	}
-	if !allowed {
-		target.Mu.Unlock()
-		e.Mu.Unlock()
-		return sqltype.Value{}, sessionSignalDenied(kind, owner.Superuser)
-	}
 	if kind == functions.SignalCancel {
 		target.CancelQueryLocked()
 	} else {
@@ -103,6 +84,47 @@ func sessionSignalDenied(kind functions.SessionSignalKind, superuser bool) error
 		}
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
+}
+
+// The victim is its immutable authenticated physical principal, not SET ROLE.
+// FORCE uses this same evaluator for every reservation before signaling any.
+func sessionSignalPermission(roles authorization.Read, actor, victim authorization.PrincipalRef, kind functions.SessionSignalKind) error {
+	caller, err := roles.Descriptor(actor)
+	if err != nil {
+		return err
+	}
+	// A physical owner can outlive its role tuple. Its original principal must
+	// still belong to this authority; absence is not permission to adopt a
+	// same-named replacement, nor to accept a foreign or zero principal.
+	if err := roles.ValidatePrincipal(victim); err != nil {
+		return err
+	}
+	owner, exists := roles.Find(victim)
+	if exists && owner.Superuser && !caller.Superuser {
+		return sessionSignalDenied(kind, true)
+	}
+	if caller.Superuser {
+		return nil
+	}
+	allowed := false
+	if exists {
+		allowed, err = roles.InheritsRole(actor, victim)
+		if err != nil {
+			return err
+		}
+	}
+	if !allowed {
+		if signal, ok := roles.Lookup("pg_signal_backend"); ok {
+			allowed, err = roles.InheritsRole(actor, signal.Ref)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return sessionSignalDenied(kind, owner.Superuser)
+	}
+	return nil
 }
 
 // Engine.Mu protects the cluster frontier. Release each registry mutex before

@@ -36,6 +36,12 @@ func (a *ControlSepgsqlAuthority) SepgsqlAudit(policy *sepgsql.Runtime, event se
 	a.events = append(a.events, event)
 }
 func (e *Engine) CaptureControlSepgsql(ctx context.Context, s *session.Session, notice func(sqlstate.Error)) (*ControlSepgsqlAuthority, error) {
+	e.Mu.Lock()
+	err := e.CheckDatabaseLiveLocked()
+	e.Mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 	if e.Sepgsql == nil {
 		return nil, nil
 	}
@@ -94,6 +100,9 @@ func (e *Engine) ValidateControlSepgsql(a *ControlSepgsqlAuthority) error {
 // Caller holds final replacement locks. Imported identities have already been
 // remapped and all old/new label predecessors are the actual target roots.
 func (e *Engine) checkControlSepgsqlLocked(ctx context.Context, next *catalog.State, a *ControlSepgsqlAuthority) error {
+	if err := e.CheckDatabaseLiveLocked(); err != nil {
+		return err
+	}
 	if err := e.ValidateControlSepgsql(a); err != nil {
 		return err
 	}

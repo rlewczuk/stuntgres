@@ -154,7 +154,10 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 		"INSERT INTO public.unit_mv VALUES ((SELECT 1));",
 	} {
 		t.Run(rows, func(t *testing.T) {
-			e := engine.New().RestoreStage()
+			e, stageErr := engine.New().RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
 			e.Catalog.PublishLocked(e.StageRead(stage).State())
@@ -170,7 +173,10 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			}
 		})
 	}
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	e.Catalog.PublishLocked(e.StageRead(stage).State())

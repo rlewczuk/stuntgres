@@ -85,7 +85,10 @@ func TestWALNamesMetadata(t *testing.T) {
 		if e.Cluster.Seed != nil && e.Cluster.Seed.WALNames == e.WALNames {
 			t.Fatal("fixture did not distinguish template defaults")
 		}
-		destination := e.RestoreStage()
+		destination, stageErr := e.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		if destination == e || destination.WALNames != e.WALNames {
 			t.Fatal("stage imported factory defaults")
 		}

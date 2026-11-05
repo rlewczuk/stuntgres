@@ -4,6 +4,14 @@ The catalog object model and its immutable snapshots: descriptors, `State`,
 `Read`, the provider registry, validation of the pure core kinds and the
 copy-on-write overlay `Candidate`. "Catalog" here means the data, not DDL.
 
+`SharedProjection` prepares every affected immutable shared root before install.
+Core's dedicated authorized database retirement removes the exact descriptor and
+shared label association without relaxing ordinary publishers' lost-descriptor
+invariant. `Store.PublishRetirementLocked` installs a shared-only tombstone and
+releases local allocation-cache backing while retaining provenance, host seed and
+monotonic frontiers. Detached pre-retirement reads remain immutable.
+
+
 ## Imports
 
 Layer L3 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).

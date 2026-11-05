@@ -159,6 +159,17 @@ Boolean conversion. Tablespace assignment checks actual destination CREATE
 authority even for builtin same-space pg_default. C refresh queries the genuine
 provider version and emits the unchanged notice; no data/index rebuild occurs.
 
+## Database retirement
+
+DROP dispatches positioned syntax to core's exact-incarnation retirement owner.
+Read-only and transaction admission precede lookup; execution checks owner, actual
+database-drop MAC, template/current, active logical slots, all subscriptions and
+prepared/session blockers in order. IF EXISTS changes only missing behavior.
+FORCE uses one canonical all-principal preflight and real terminal drain, never
+repeated signaling SQL. Its dedicated publication preserves the ordinary shared
+publisher's descriptor-loss invariant and the immutable cluster authority.
+
+
 ## Testing
 
 Shared parameter final-registration ownership uses

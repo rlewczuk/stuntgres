@@ -159,8 +159,7 @@ func TestReferencePGShdependControls(t *testing.T) {
 			checkShared()
 		}
 		peer.Close()
-		if b.PG {
-			shExec(t, p, b, b.DB, "DROP DATABASE sh_control_peer")
-		}
+		fixture.DatabaseReferenceOwners(t, p, b.DB, b.Recorder, "sh_control_peer", 0)
+		shExec(t, p, b, b.DB, "DROP DATABASE sh_control_peer")
 	}
 }

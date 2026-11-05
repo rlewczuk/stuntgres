@@ -221,6 +221,7 @@ type Manager struct {
 
 type databaseState struct {
 	epoch        ids.CatalogEpoch
+	retired      bool
 	multiNext    uint32
 	multiHistory map[uint32][]MultiMember
 }
@@ -240,6 +241,9 @@ func (m *Manager) AdmitDomain(domain *ids.Domain) error {
 	defer m.mu.Unlock()
 	if domain == nil || domain == m.roleDomain {
 		return errors.New("stuntgres: invalid lock database domain")
+	}
+	if state := m.domains[domain]; state != nil && state.retired {
+		return ErrOwnerEnded
 	}
 	if m.domains[domain] == nil {
 		m.domains[domain] = &databaseState{multiNext: 1}
@@ -266,6 +270,9 @@ func (m *Manager) Register(ref ids.TxRef) (*Ticket, error) {
 	state := m.domains[ref.Domain()]
 	if state == nil || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().IsDetached() || ref.Session().Domain() != ref.Domain() || ref.Session().ID() == 0 && ref.Session().Private() == nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
+	}
+	if state.retired {
+		return nil, ErrOwnerEnded
 	}
 	if ref.Epoch() < state.epoch {
 		return nil, ids.ErrCatalogReplaced

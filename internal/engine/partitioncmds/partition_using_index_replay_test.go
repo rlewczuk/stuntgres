@@ -16,7 +16,10 @@ import (
 
 func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	source := engine.New()
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	parent := partitionAttachUnitRoot(t, e, "using_replay_parent", 46800)
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
 	child.RelationKind = catalog.TableRelation

@@ -145,7 +145,10 @@ func TestWALNamesProtocols(t *testing.T) {
 		}
 		// Replacement supplies an authentic destination-owned descriptor in
 		// Info. Reconstruction must not reinstall the source principal.
-		destination := e.RestoreStage()
+		destination, stageErr := e.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		recipeSQL := call
 		if i == 1 {
 			recipeSQL = "(" + call + ").file_name"

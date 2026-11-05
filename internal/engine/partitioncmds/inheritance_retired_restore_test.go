@@ -135,7 +135,10 @@ func retiredImportFixture(t *testing.T) (*core.Engine, *session.Operation, *tabl
 	t.Helper()
 	source := engine.New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
-	e := source.RestoreStage()
+	e, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	// p.b is rank 1, occupying the archived source's old rank with another name.

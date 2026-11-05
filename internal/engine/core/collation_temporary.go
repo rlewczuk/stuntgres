@@ -98,7 +98,7 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 			return captureErr
 		}
 		if maintenance == nil {
-			maintenance, err = e.startSession(context.Background(), session.SessionStart{}, e.RoleStore.Domain.Principal(10), nil, true)
+			maintenance, err = e.startSessionCleanup(context.Background(), session.SessionStart{}, e.RoleStore.Domain.Principal(10), nil, true, source)
 			if err != nil {
 				return err
 			}

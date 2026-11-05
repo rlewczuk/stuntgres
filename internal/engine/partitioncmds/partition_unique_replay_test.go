@@ -24,7 +24,10 @@ import (
 
 func partitionUniqueReplayUnit(t *testing.T, primary bool) (*core.Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
 	t.Helper()
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	root := partitionAttachUnitRoot(t, e, "unique_replay_root", 47200)
 	mid := partitionAttachUnitRoot(t, e, "unique_replay_mid", 47201)
 	leaf := inheritanceUnitRelation(e, "unique_replay_leaf", 47202, "k")

@@ -225,6 +225,15 @@ func publishDatabaseTargetLocked(e *core.Engine, ctx context.Context, name strin
 		}
 		roots[&runtime.Catalog] = catalog.SharedRoot{State: next, NextRevision: max(e.Catalog.NextRevision(), runtime.Catalog.NextRevision())}
 	}
+	if retained := e.Cluster.DefaultTarget; retained != nil && targets[retained.DatabaseName] != retained {
+		next := catalog.CloneState(retained.Catalog.State)
+		next.SetDescriptor(address, database)
+		next.BindName(catalog.DescriptorNameKey(database), address)
+		if label != nil {
+			next.SetSecurityLabel(catalog.SecurityLabelKey{Object: address, Provider: "selinux"}, label)
+		}
+		roots[&retained.Catalog] = catalog.SharedRoot{State: next, NextRevision: max(e.Catalog.NextRevision(), retained.Catalog.NextRevision())}
+	}
 	if err := ctx.Err(); err != nil {
 		return core.Result{}, err
 	}

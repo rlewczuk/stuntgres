@@ -253,7 +253,10 @@ func TestPartitionExclusionReplayCaptureIncompleteExtension(t *testing.T) {
 }
 
 func TestPartitionExclusionReplayCaptureInitialPeerFence(t *testing.T) {
-	e := engine.New().RestoreStage()
+	e, stageErr := engine.New().RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	records := make(map[ids.ObjectAddress]partition.ReplayTeardown)

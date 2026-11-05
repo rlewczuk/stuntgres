@@ -93,6 +93,12 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   Raw bytea cells remain PostgreSQL output text; the genuine fixture handler
   decodes them once through pgx's ByteaCodec when exporting ForeignRow driver
   values, keeping NULL distinct from non-NULL empty bytes.
+  Selected-database retirement uses both the real postgres_fdw cache and native
+  capability-opened handles. Refused drops preserve resources; successful FORCE
+  joins late Open and actual Close before completion, without blocking peer
+  metadata or independent-Driver owners. These callback timing gates are
+  native-only host phases, not PostgreSQL parity claims; neither old handles nor
+  old capabilities gain authority over a same-name replacement database.
   The shared Contracts phase also preserves unqualified BYTEA/custom/array column
   OPTIONS, NOT NULL ordering and quoted/unreserved names through CREATE, ADD and
   native dump replay; ordinary-table column OPTIONS specifies the released
@@ -182,6 +188,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   independently established early-lock RR snapshot instead raises `40001`
   before projection, with exact remote Context and zero sequence invocations.
 - External SQL provider family: `RUN='^(TestReferenceExternalSQLProvider|TestExternalSQLProvider)'`.
+  Physical retirement selects
+  `RUN='^TestReferenceExternalSQLProviderDatabaseDrop$'` in both modes, adding
+  `REFERENCE=1 RACE=1` for the actual host-callback ownership race.
+  Shared dblink/FDW active-slot refusal selects
+  `RUN='^TestReferenceDatabaseDropResourceSlots$'` in both modes, in the existing
+  logical-WAL owner package rather than changing table-provider startup.
 - External column-option DROP/re-add regressions:
   `RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'`.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`

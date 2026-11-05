@@ -138,7 +138,10 @@ func extensionLiveAuthorityFences(t *testing.T) {
 func extensionOwnershipImportUnits(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	// Actual isolated Restore stage supplies captured target-principal authority.
-	stage := e.RestoreStage()
+	stage, stageErr := e.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RestoreOperation(t, stage, "postgres")
 	defer done()
 	if err := extensionUnitExecute(t, stage, op, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {
@@ -224,7 +227,10 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	admin, adminDone := enginetest.RoleOperation(t, target, "postgres")
 	defer adminDone()
 	originalOwner := roleAttributeCreate(t, target, admin, "ext_import_owner", true, parser.RoleOptions{})
-	imported := target.RestoreStage()
+	imported, stageErr := target.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	replay, replayDone := enginetest.RoleOperation(t, imported, "postgres")
 	defer replayDone()
 	if err := extensionUnitExecute(t, imported, replay, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {

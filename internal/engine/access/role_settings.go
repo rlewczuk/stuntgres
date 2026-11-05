@@ -110,6 +110,28 @@ func (s *RoleSettings) WithoutRoles(refs []authorization.PrincipalRef) *RoleSett
 	return next
 }
 
+// WithoutDatabase removes only the exact retired incarnation's scopes. Other
+// rows retain their immutable backing and graph authority is unchanged.
+func (s *RoleSettings) WithoutDatabase(database ids.ObjectAddress) *RoleSettings {
+	if s == nil {
+		return nil
+	}
+	var next *RoleSettings
+	for key := range s.rows.All() {
+		if key.Database == database {
+			if next == nil {
+				next = new(RoleSettings)
+				*next = *s
+			}
+			next.rows = next.rows.Delete(key)
+		}
+	}
+	if next == nil {
+		return s
+	}
+	return next
+}
+
 func sameSettingRow(a, b []RoleSetting) bool {
 	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }

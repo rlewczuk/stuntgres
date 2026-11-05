@@ -95,7 +95,10 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 					t.Fatal("nonowner grantor was not encoded by role name", entries, want)
 				}
 			}
-			destination := e.RestoreStage()
+			destination, stageErr := e.RestoreStage()
+			if stageErr != nil {
+				t.Fatal(stageErr)
+			}
 			if tc.name == "nonowner-grantor" {
 				destination, _, _ = typedUnitCatalog(t, false)
 				rolesOp, rolesDone := enginetest.RoleOperation(t, destination, "postgres")

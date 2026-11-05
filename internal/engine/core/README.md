@@ -2494,14 +2494,54 @@ acquired outside Mu/AdmissionMu and retained through copying/publication; a
 current-source statement reuses its existing reservation rather than recursively
 entering behind a writer.
 
+DROP owns a transient exact-attempt `live -> draining -> retired` transition.
+After an AX wait, a vanished name follows the ordinary missing/IF EXISTS branch;
+a different nonnil incarnation is never adopted by the captured DROP attempt.
+The existing admission objects form an enumerable cohort under AdmissionMu;
+token/ticket binding precedes cohort publication. Submitted ownerless admission
+can be revoked only before binding, and canonical terminal cleanup alone releases
+bound ownership. FORCE preflights all authenticated principals before changing
+any reservation or requesting termination. Public initializers remain outside
+the live registry; private initialization transfers from `privateStarts` to
+the genuine pointer-token registry at successful publication.
+Shared signaling validates current actor authority and original authenticated
+victim provenance separately from tuple existence. A retired same-domain victim
+is not a superuser; eligible administrator/signal-role authority may terminate it
+without adopting a recreated role's identity or privileges.
+
+The AX utility grant spans drain and final publication, but metadata, Session
+and replacement-writer locks never span callbacks or terminal joins. Only private
+TEMP maintenance validated against an already-ending registered public parent
+can enter a draining target; its parent completion joins that causal cleanup.
+New selected-target slot creation/publication is lifecycle-fenced. Existing peer
+advance/drop/copy uses actual slot membership and exact source identity; final
+retirement rechecks held target slots before removing inactive target entries.
+Prepared entries and subscriptions refuse retirement instead of being consumed.
+
+A dedicated prepared DROP publication reuses `catalog.SharedProjection` without
+weakening ordinary publishers' lost-descriptor invariant. It installs descriptor,
+label, exact-address default pruning, registry removal, shared-only tombstone and
+terminal local storage/cache/history/domain retirement in one no-failure region.
+Detached immutable results are never cleared in place. Allocation frontiers and
+cluster principal/ACL/parameter/tablespace/origin/plugin/LSN authority survive;
+bounded pg_stat_statements history retains saved numeric dbids.
+`Cluster.Catalogs` includes the retained default authority holder after its local
+incarnation becomes nonselectable. Trusted connector login reads published cluster
+principals, not a missing local database descriptor. Shared statistics/activity
+and reset paths retain that same default provider; local keyed producer fences
+do not reset shared state. Captured controls check the exact live incarnation at
+capture and replacement/inspection publication; `RestoreStage` is fallible.
+
+
 Persisted defaults share the immutable role publication and its existing
 transaction journal. Scope keys use principal references and cluster database
 identities, never names or local replacement epochs. Settings-only writes retain
 graph authority lineage but still participate in complete-record three-way
 merge, savepoints and final publication. Scope writers use cluster lock authority.
 ALTER DATABASE and ALTER ROLE ALL IN DATABASE share the actual database-address,
-zero-role row. Their owner-dependent mutations retain a database predecessor
-fence through final commit; scope-lock admission never retains stale authority.
+zero-role row. Every database-qualified mutation, including role-specific IN
+DATABASE, retains its database predecessor through final commit so a peer journal
+cannot resurrect defaults after retirement; scope locks retain no stale authority.
 Catalog pairs retain the registry's PostgreSQL display spelling (for example
 `TimeZone`); row replacement/reset and startup precedence use folded keys.
 Physical startup captures one committed defaults root for the login principal
@@ -4229,6 +4269,10 @@ Physical database reservation, provenance and terminal cleanup units share
 Private pointer-token lifecycle, multi-owner capture ordering and terminal
 removal use `RUN='^TestPrivateSession'`, also with `RACE=1`; public admission
 and activity remain independently observed rather than inferred from registry size.
+Database retirement ownership, immutable publication, causal maintenance, controls,
+real slot callbacks and observer/domain fences share `RUN='^TestDatabaseDrop'`,
+also with `RACE=1`. Public SQL expectations remain in external reference families.
+
 Held cursor store/producer ownership and replacement units share
 `RUN='^TestSQLCursorHold'`; public SQL/control observations stay in reference.
 

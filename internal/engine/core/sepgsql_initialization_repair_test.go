@@ -70,7 +70,10 @@ func newSepgsqlRepairFixture(t *testing.T, route string) *sepgsqlRepairFixture {
 	enginetest.SessionSQL(t, f.owner, "CREATE TABLE repair_incumbent(v integer)")
 	enginetest.SessionSQL(t, f.owner, "INSERT INTO repair_incumbent VALUES(11)")
 	enginetest.SessionSQL(t, f.owner, "CREATE SEQUENCE repair_generator START 19")
-	f.source = f.target.RestoreStage()
+	f.source, err = f.target.RestoreStage()
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.replay, err = f.source.StartRestoreSession(t.Context(), f.source.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +168,10 @@ func TestSepgsqlSimulationRemappedRepairInitialization(t *testing.T) {
 	t.Run("inactive_multi_session", func(t *testing.T) {
 		e := engine.New()
 		enginetest.Run(t, e, "CREATE ROLE child_owner LOGIN")
-		stage := e.RestoreStage()
+		stage, stageErr := e.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		if sepgsqlRepairOriginOf(stage) != (sepgsqlRepairOrigin{}) {
 			t.Fatal("inactive maintenance minted a simulation origin")
 		}

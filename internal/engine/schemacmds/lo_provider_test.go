@@ -505,7 +505,10 @@ func TestLoOwnerMetadata(t *testing.T) {
 		admin, done := enginetest.RoleOperation(t, target, "postgres")
 		defer done()
 		original := roleAttributeCreate(t, target, admin, "lo_import_owner", true, parser.RoleOptions{})
-		staged := target.RestoreStage()
+		staged, stageErr := target.RestoreStage()
+		if stageErr != nil {
+			t.Fatal(stageErr)
+		}
 		replay, replayDone := enginetest.RoleOperation(t, staged, "postgres")
 		defer replayDone()
 		extensionUnitPublish(t, staged, replay, cubeUnitStage(t, staged, replay, "lo", ""))

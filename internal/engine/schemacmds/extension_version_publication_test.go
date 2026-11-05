@@ -155,7 +155,10 @@ func TestExtensionVersionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "restore":
-				replacement := e.RestoreStage()
+				replacement, stageErr := e.RestoreStage()
+				if stageErr != nil {
+					t.Fatal(stageErr)
+				}
 				if _, err := e.ReplaceCatalog(context.Background(), replacement, replacement.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}

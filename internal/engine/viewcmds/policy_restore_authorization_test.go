@@ -19,7 +19,10 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	defer sourceDone()
 	enginetest.RoleExecute(t, source, sourceOp, "CREATE ROLE selector_owner LOGIN")
 	enginetest.RoleExecute(t, source, sourceOp, "CREATE ROLE next_owner LOGIN")
-	stage := source.RestoreStage()
+	stage, stageErr := source.RestoreStage()
+	if stageErr != nil {
+		t.Fatal(stageErr)
+	}
 	op, done := enginetest.RestoreOperation(t, stage, "postgres")
 	defer done()
 	enginetest.RoleExecute(t, stage, op, "SET SESSION AUTHORIZATION selector_owner")

@@ -92,6 +92,9 @@ func logicalWALRequired() error {
 
 // acquireSlotLocked makes token the slot's holder, as ReplicationSlotAcquire
 // with nowait: a slot held by another session fails with 55006.
+// The live cluster slot entry, not target admission, owns acquisition. PostgreSQL
+// permits a peer database to acquire an existing slot during database removal;
+// the remover must recheck held slots before its atomic retirement boundary.
 func (e *Engine) acquireSlotLocked(name string, token ids.SessionToken) (*logicalSlot, error) {
 	slot := e.Cluster.logical.slots[name]
 	if slot == nil {
