@@ -404,6 +404,19 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		if extension.ValidatePgBuffercacheEvictionCall(view, current, call) != nil {
 			return false
 		}
+	case plan.InstalledPgBuffercacheAggregateExpr:
+		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgBuffercacheIdentity(view, current, n.Ref) != nil {
+			return false
+		}
+		call := n.PgBuffercacheAggregate
+		call.RoutineReference = current
+		if extension.ValidatePgBuffercacheAggregateCall(view, current, call) != nil {
+			return false
+		}
 	case plan.InstalledPgvisibilityExpr:
 		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

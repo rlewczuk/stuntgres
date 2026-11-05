@@ -2250,6 +2250,16 @@ not PostgreSQL page occupancy, writeback or backend pins. Lowest vacant slots an
 first unpinned circular victims make allocation deterministic; all-pinned reads
 still succeed without inventing an occupied slot.
 
+Summary and usage-count inquiries validate ordinary current perfunction EXECUTE
+and namespace access at the registered owner boundary, without eviction's
+superuser body gate. After reconciliation, one leaf lock aggregates only sparse
+occupied entries into a detached fixed-size value, with no heap allocation,
+capacity loop or page snapshot copy. Six buckets include unused slots in zero;
+valid usage-zero entries still contribute to used and its average denominator.
+Pinned counts occupied buffers with any owners, not owner or alias counts.
+SQL row construction occurs after releasing the engine lock. Aggregate cursors
+retain only detached counters and result types, never cache/session authority.
+
 Eviction resolves current invoker and relation authority before entering the
 same cache leaf. Single-slot removal and sparse relation/all removal retire both
 indexes only for unpinned entries; returned counts describe performed removals
@@ -4216,10 +4226,11 @@ session admission deliberately derives its own cancellation context.
 Crosstab capture, generation, prepared-definition ownership and nested activation
 invariants share `RUN='^TestTablefuncCrosstab'`. Their composed helpers exercise
 actual installed declarations, accepted protocol bindings and statement hosts.
-Buffer-cache identity, source attribution, sparse eviction, session ownership
-and successful/failed replacement fences share `RUN='^TestPgBuffercache'`.
-Composed units retain actual protocol portals and admitted source captures;
-pure tiny-capacity units exercise pinned victims without public inspection hooks.
+Buffer-cache identity, source attribution, sparse eviction and aggregation,
+session ownership and successful/failed replacement fences share
+`RUN='^TestPgBuffercache'`. Composed units retain actual protocol portals and
+admitted source captures; fixed leaf units cover capacity/usage boundaries and
+zero-allocation aggregation without public inspection hooks.
 Public dual-mode SQL belongs to `reference/extensions`.
 Pending-block source reachability, live typed recipes, identity fences and
 virtual-time publication ownership share `RUN='^TestStatsXactBlocks'`, also with

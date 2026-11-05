@@ -321,6 +321,20 @@ func (r installedExtensionRoutine) PgBuffercacheEvictionDeclaration() (functions
 	return member.Kind, members
 }
 
+func (r installedExtensionRoutine) PgBuffercacheAggregateDeclaration() (functions.PgBuffercacheAggregateKind, []sqltype.CompositeMember) {
+	slot := r.procedure.Origin.Declaration
+	if slot < extension.PgBuffercacheAggregateStart || int(slot) >= extension.PgBuffercacheAggregateStart+len(extension.PgBuffercacheAggregateMembers) {
+		return functions.PgBuffercacheAggregateKind(255), nil
+	}
+	member := extension.PgBuffercacheAggregateMembers[slot-extension.PgBuffercacheAggregateStart]
+	outputs := r.procedure.OutputDeclaration()
+	members := make([]sqltype.CompositeMember, outputs.Len())
+	for i := range members {
+		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+	}
+	return member.Kind, members
+}
+
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
 	ext, ok := catalog.OriginInstallation(r.procedure)
 	if !ok || extension.CubeProviderOf(r.procedure) != extension.StockCube || len(ext.Members) == 0 {
@@ -464,6 +478,27 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgBuffercacheEvictionExpr{PgBuffercacheEviction: c, Procedure: p, Ref: ref}, nil
+	case functions.PgBuffercacheAggregate:
+		if err := extension.ValidatePgBuffercacheIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		if c.Kind.Set() {
+			if b.Params.ExecuteParameters {
+				return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+			}
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+				return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+			}
+			if err := b.AdmitSetReturning(c.Pos); err != nil {
+				return nil, err
+			}
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgBuffercacheAggregateCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgBuffercacheAggregateExpr{PgBuffercacheAggregate: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgvisibility:
 		if err := extension.ValidatePgvisibilityIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

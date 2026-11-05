@@ -125,6 +125,14 @@ Unnamed scalar regclass/bigint inputs return INT2; named `rel` belongs only to t
 SQL record-set wrapper. Stored literal capture and dependencies preserve actual
 procedure and regclass identities through native controls.
 
+Buffer-cache aggregate binding uses the same installed callable selection and
+resident declared-OUT type reconstruction. Only zero-input summary/usage recipes
+attach; written invalid operands still receive ordinary typed diagnostics.
+Summary enters the bounded scalar-statistics closure; usage enters shared SRF
+admission instead. Literal/dependency capture preserves genuine original routine
+identity through stored consumers and native controls without reading the cache.
+
+
 `DefaultOrigin` keeps the original consumer, stable physical attribute/default
 identity and fold provenance. `PrepareDefault` joins existing INSERT, shipped
 domain-column UPDATE DEFAULT and normalized rule/CTE preparation to the accepted

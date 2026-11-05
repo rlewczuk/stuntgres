@@ -553,15 +553,18 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			}
 		}
 	case StockPgBuffercache:
-		count = 4
+		count = 6
 		if ext.Provider != "pg_buffercache" || ext.Version != "1.6" || slot >= count {
 			return invalid()
 		}
 		declaration := pgBuffercacheDeclaration
 		name, signature, result, volatility, strict = "pg_buffercache_pages", "", 2249, expr.Volatile, false
-		if slot != 0 {
+		if slot >= 1 && slot <= 3 {
 			member := PgBuffercacheEvictionMembers[slot-1]
 			name, signature, strict, declaration = member.Name, member.Signature, member.Strict, member.Declaration
+		} else if slot >= PgBuffercacheAggregateStart {
+			member := PgBuffercacheAggregateMembers[slot-PgBuffercacheAggregateStart]
+			name, declaration = member.Name, member.Declaration
 		}
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_buffercache", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.DeclarationBody != nil || len(p.Body) != 0 {
 			return invalid()

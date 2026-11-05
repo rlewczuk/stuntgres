@@ -605,11 +605,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   eviction declarations with exact scalar-record OUT fields; pages retains slot
   zero. Evictions use ordinary creation/default routine ACLs, not pages' script
   revocations or monitor grants. Runtime effective-superuser admission is separate
-  from those SQL ACLs. Ordinary view/type/array members remain outside the four
-  provider declaration slots, and canonical replay preserves their whole cohort.
+  from those SQL ACLs. Summary and usage occupy appended slots four and five,
+  with five/four declared OUT fields and scalar/SETOF cardinality respectively.
+  Each uses pages' creation ACL, PUBLIC revoke, monitor grant and initial-ACL
+  history independently; neither has eviction's superuser body gate. Ordinary
+  view/type/array members remain outside the six provider declaration slots,
+  and canonical replay preserves their whole cohort.
   Installation conflicts preserve the released statement and script location in
   diagnostic Context: the integer declaration first occurs in 1.4--1.5, before
-  its 1.6 OUT-record replacement; relation/all conflicts come from 1.5--1.6.
+  its 1.6 OUT-record replacement; relation/all conflicts come from 1.5--1.6,
+  and aggregate conflicts retain their original 1.3--1.4 statements/locations.
   This diagnostic provenance does not install the historical boolean-returning
   declaration.
 - **pg_visibility** (`pgvisibility_provider.go`) seals eight declarations: the

@@ -259,6 +259,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   operation, owned operands and declared-OUT usage through source matching and
   reconstruction. Scalar and FROM routes each demand one invocation, including
   one all-NULL FROM row for strict NULL. Nodes retain no cache/session authority.
+  `InstalledPgBuffercacheAggregateExpr` preserves sealed summary/usage kind,
+  authentic routine/reference, exact occurrence and resident declared-OUT usage
+  through rebuild, substitution and source/group matching. Scalar summary and
+  six-row usage sources share ordinary execution hooks; neither caches counts,
+  grants or a live owner in a prepared/stored graph.
   `InstalledPgvisibilityExpr` retains its authentic procedure/reference,
   operation, lexical formal slots and nominal TID/VOID or record usage through
   rebuilding and source occurrence matching. Its runtime distinguishes scalar-once

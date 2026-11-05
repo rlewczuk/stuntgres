@@ -43,10 +43,10 @@ func TestPgBuffercacheEvictionProviderIdentity(t *testing.T) {
 	e := engine.New()
 	ext := buffercacheInstalled(t, e)
 	view := e.CatalogRead()
-	if len(ext.Members) != 7 || len(ext.Installation.Members) != 4 { t.Fatal("recipe/ordinary cohort", ext) }
+	if len(ext.Members) != 9 || len(ext.Installation.Members) != 6 { t.Fatal("recipe/ordinary cohort", ext) }
 	for _, address := range ext.Installation.Members {
 		p := view.MustProcedure(address)
-		if p.Origin.Declaration == 0 { continue }
+		if p.Origin.Declaration == 0 || p.Origin.Declaration >= extension.PgBuffercacheAggregateStart { continue }
 		member := extension.PgBuffercacheEvictionMembers[p.Origin.Declaration-1]
 		if p.Signature != member.Signature || p.Result != 2249 || p.Strict != member.Strict || p.Volatility != expr.Volatile || p.Installed != member.Declaration || p.Installed.ReturnsSet || p.SecurityDefiner { t.Fatal("released eviction identity", p) }
 		public := !p.ACL.Explicit

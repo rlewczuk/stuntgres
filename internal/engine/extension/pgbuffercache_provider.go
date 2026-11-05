@@ -45,7 +45,7 @@ func ValidatePgBuffercacheIdentity(v catalog.Read, p *catalog.Procedure, ref ids
 	return StockPgBuffercache.ValidateProcedure(v, p)
 }
 func (p *PgBuffercacheProvider) validateRecipe(v catalog.Read, e *catalog.Extension) error {
-	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 4 {
+	if p != StockPgBuffercache || !currentManifest(v, e) || e.Name() != "pg_buffercache" || e.Version != "1.6" || len(e.Members) != 6 {
 		return fmt.Errorf("stuntgres: invalid pg_buffercache manifest")
 	}
 	for _, address := range e.Members {
@@ -89,7 +89,10 @@ func (provider *PgBuffercacheProvider) Stage(stage Stage, ext *catalog.Extension
 	}
 	stage.RecordInitialPrivilege(p.Address(), 'e', p.ACL)
 	ext.Members = append(ext.Members, p.Address())
-	return provider.stageEvictions(stage, ext, owner)
+	if err := provider.stageEvictions(stage, ext, owner); err != nil {
+		return err
+	}
+	return provider.stageAggregates(stage, ext, owner)
 }
 func (*PgBuffercacheProvider) ConsumerViews(version string) ([]ConsumerView, error) {
 	if version != "1.6" {

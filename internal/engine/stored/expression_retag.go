@@ -569,6 +569,18 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InstalledPgBuffercacheAggregateExpr:
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgBuffercacheProviderOf(proc) != extension.StockPgBuffercache {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pg_buffercache aggregate function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgBuffercacheAggregate(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledPgvisibilityExpr:
 		n.Args = children(n.Args)
 		if err != nil {

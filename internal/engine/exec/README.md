@@ -941,6 +941,12 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   work enters the genuine routine-body initializer and registered core cache
   authority before mutation. Results contain flags/counts only, with one row per
   invocation and no cached permission or cache-root references.
+  Declared-OUT summary/usage inquiries enter the genuine body on scalar Eval or
+  first demanded source Advance, revalidating ordinary perfunction ACL/schema
+  access at the shared owner after reacquisition, without a superuser body gate.
+  Summary emits one record with a NULL average iff used is zero; usage emits six
+  buckets including capacity's unused slots in zero. Source payloads retain only
+  detached fixed counters and type, never a page snapshot, engine or pin owner.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed six-value frame projects formal slots without

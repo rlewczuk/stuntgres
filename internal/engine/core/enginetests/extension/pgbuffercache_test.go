@@ -58,7 +58,7 @@ func TestPgBuffercacheProviderIdentity(t *testing.T) {
 	ext := buffercacheInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgBuffercache.Control()
-	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 7 || len(ext.Installation.Members) != 4 {
+	if control.Version != "1.6" || !control.Superuser || control.Trusted || !control.Relocatable || len(ext.Members) != 9 || len(ext.Installation.Members) != 6 {
 		t.Fatal("provider and ordinary consumer authority mixed", control, ext)
 	}
 	if err := extension.StockPgBuffercache.ValidateExtension(view, ext); err != nil {

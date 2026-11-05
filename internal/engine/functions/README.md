@@ -750,6 +750,13 @@ coercion decide applicability, including eligible text-to-regclass input; no
 convenience overload or mutable name grants provider authority. All operations
 remain volatile and unfolded, with strict NULL body suppression owned by runtime.
 
+`PgBuffercacheAggregate` binds only zero-input summary and usage-count
+declarations, retaining a sealed operation and resident OUT shape. Summary is
+scalar; usage is SETOF, admitted by the shared SRF rules. Both remain nonstrict,
+volatile and unfolded. Detached fixed-size counter facts cross the host boundary;
+these pure expressions retain neither observations nor execution authority.
+
+
 `random` and `random_normal` retain their selected declarations and children
 through binding. Conditional planning and statement preflight process required
 constant children before strict literal-NULL elimination. Required immutable

@@ -269,6 +269,14 @@ Unused-slot NULLs require a real witness. Native controls retain SQL state while
 discarding target live occupancy; source-owner units supplement public lifetime
 scenarios without adding an inspection API.
 
+The same selector covers scalar summary and six usage buckets, including
+FLOAT8/empty-NULL metadata, independent perfunction grants, genuine source-pin
+cleanup and retained prepared/control consumers. Bucket totals cover capacity,
+not only used buffers. Native quiescent values are exact logical model witnesses;
+separate PostgreSQL calls use independent capacity/domain/bounds expectations,
+never background-sensitive cross-call equalities.
+
+
 The same family includes declared-OUT eviction metadata, genuine removal and
 fresh read usage, pinned protection, storage targeting and shared-cluster counts.
 Ordinary routine/default ACLs remain distinct from runtime superuser checks.

@@ -185,6 +185,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_freespace"}, Installed: PgFreespaceExtension, Bind: bindPgFreespace, NamedCall: namedPgFreespace},
 	{Names: []string{"pg_buffercache_pages"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercache},
 	{Names: []string{"pg_buffercache_evict", "pg_buffercache_evict_relation", "pg_buffercache_evict_all"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercacheEviction},
+	{Names: []string{"pg_buffercache_summary", "pg_buffercache_usage_counts"}, Installed: PgBuffercacheExtension, Bind: bindPgBuffercacheAggregate},
 	{Names: pageinspectNames[:], Installed: PageinspectExtension, Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Installed: TablefuncExtension, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Installed: TablefuncExtension, Bind: bindConnectby},

@@ -703,17 +703,25 @@ not PostgreSQL generic-plan cache invocation counts. This logical module does no
 load PostgreSQL C libraries, preload shared memory or persist shutdown files.
 
 `CREATE EXTENSION pg_buffercache VERSION '1.6'` installs an ordinary nine-column
-view and the zero-argument anonymous-record `pg_buffercache_pages()` function.
-Their genuine SELECT/EXECUTE ACLs separately grant pg_monitor and revoke PUBLIC;
-ordinary explicit grants can admit other roles. Caller-defined function columns,
-current authority and installed identities use the same SQL/prepared/control
-lifecycles as other stored objects.
+view, the zero-argument anonymous-record `pg_buffercache_pages()` function and
+declared-OUT `pg_buffercache_summary()` / `pg_buffercache_usage_counts()`.
+The view and each inquiry have independent SELECT/EXECUTE ACLs granting
+pg_monitor and revoking PUBLIC; ordinary explicit grants admit other roles
+without a superuser body gate or heap/pages/view access. Summary is one scalar
+record (also one FROM row); usage counts is SETOF record with six buckets, 0–5,
+including empty buckets. Bucket buffers sum to used plus unused capacity.
+Only an empty summary's average is NULL. Pinned counts buffers with any active
+owners, not the number of owning sessions. Caller-defined pages columns,
+declared OUT types, current privileges and installed identities use the same
+exact SQL/prepared/control lifecycles as other stored objects.
 
 The native cluster owns a deterministic logical read cache: actual reached native
 storage reads heat one representative main-fork block, usage saturates at five,
-and pins count distinct active source-owning sessions. Identity is catalog-exact;
-physical occupancy, block, dirtiness, usage and pin metrics are technical
-approximations, not PostgreSQL shared memory, writeback, C ABI or backend resources.
+and pages' pinning_backends counts distinct active source-owning sessions.
+Summary and usage buckets aggregate that same shared owner without heating it.
+Identity and SQL effects are exact; physical occupancy, block, dirtiness, usage
+and pin metrics alone are technical approximations, not PostgreSQL shared memory,
+writeback, C ABI or backend resources. The logical read cache has no dirty entries.
 Unused slots have only bufferid populated. Dump retains installed SQL/data/ACLs,
 not live cache state; successful target Reset/Restore starts its cache cold while
 preserving other databases and already detached results.

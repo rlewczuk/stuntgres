@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -117,6 +118,8 @@ func bcMetadata(t *testing.T, rows *sql.Rows, pg, view bool, names, types []stri
 		switch types[i] {
 		case "BOOL":
 			scan = reflect.TypeFor[bool]()
+		case "FLOAT8":
+			scan = reflect.TypeFor[float64]()
 		case "INT2":
 			if pg {
 				scan = reflect.TypeFor[int16]()
@@ -177,11 +180,17 @@ func bcRows(t *testing.T, rows *sql.Rows, pg, view bool, names, types []string) 
 			if v == nil {
 				continue
 			}
-			if types[i] == "BOOL" {
+			switch types[i] {
+			case "BOOL":
 				if _, ok := v.(bool); !ok {
 					t.Fatalf("non-bool cell %T", v)
 				}
-			} else {
+			case "FLOAT8":
+				n, ok := v.(float64)
+				if !ok || math.IsNaN(n) || math.IsInf(n, 0) {
+					t.Fatalf("non-finite FLOAT8 cell %T(%v)", v, v)
+				}
+			default:
 				row[i] = bcNumber(t, v, pg)
 			}
 		}

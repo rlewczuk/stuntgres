@@ -563,6 +563,20 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
+	case plan.InstalledPgBuffercacheAggregateExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored pg_buffercache aggregate reference")
+		}
+		if err := ValidateInstalledPgBuffercacheAggregate(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored pg_buffercache aggregate namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), nil)
 	case plan.InstalledPgBuffercacheExpr:
 		if err := ValidateInstalledPgBuffercache(n, view); err != nil {
 			return "", err

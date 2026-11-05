@@ -98,7 +98,7 @@ func TestReferencePgBuffercacheEvictionIdentity(t *testing.T) {
 				t.Helper()
 				for _, q := range []string{
 					"SELECT count(*) AS n FROM pg_extension WHERE extname='pg_buffercache'",
-					"SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all')",
+					"SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all','pg_buffercache_summary','pg_buffercache_usage_counts')",
 					"SELECT count(*) AS n FROM pg_class WHERE relnamespace='bc_part'::regnamespace AND relname='pg_buffercache'",
 					"SELECT count(*) AS n FROM pg_type WHERE typnamespace='bc_part'::regnamespace AND typname IN ('pg_buffercache','_pg_buffercache')",
 				} {
@@ -162,7 +162,7 @@ func TestReferencePgBuffercacheEvictionInstallationCollisions(t *testing.T) {
 				bcBoth(t, p, b, c, fixture.Select(call, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(77)}}))
 				for _, query := range []string{
 					"SELECT count(*) AS n FROM pg_extension WHERE extname='pg_buffercache'",
-					fmt.Sprintf("SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all') AND proname<>'%s'", tc.name),
+					fmt.Sprintf("SELECT count(*) AS n FROM pg_proc WHERE pronamespace='bc_part'::regnamespace AND proname IN ('pg_buffercache_pages','pg_buffercache_evict','pg_buffercache_evict_relation','pg_buffercache_evict_all','pg_buffercache_summary','pg_buffercache_usage_counts') AND proname<>'%s'", tc.name),
 					"SELECT count(*) AS n FROM pg_class WHERE relnamespace='bc_part'::regnamespace AND relname='pg_buffercache'",
 					"SELECT count(*) AS n FROM pg_type WHERE typnamespace='bc_part'::regnamespace AND typname IN ('pg_buffercache','_pg_buffercache')",
 					fmt.Sprintf("SELECT count(*) AS n FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='bc_part.%s(%s)'::regprocedure AND deptype='e'", tc.name, tc.args),
