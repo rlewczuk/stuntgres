@@ -50,6 +50,11 @@ neither owns catalog authority.
   during execution. Private callback-context tagging grants no catalog/session
   authority by itself; remote/core revalidate the genuine operation and token.
   Flat text cells preserve NULL and empty descriptors without codec duplication.
+  `ForeignColumnInputError` carries only a projected stable attribute and the
+  original input cause. Exec owns resolving that attribute through the selected
+  plan, dense import slots and retained local aliases; providers supply neither
+  local Context nor synthetic remote-SQL context. Invalid attribution is a
+  protocol error, not permission to guess a column.
 
 - **Descriptors.** `Descriptor` is the identity contract (`Address`, `Revision`,
   `Namespace`, `Name`, `Kind`) of every kind (namespaces, relations, types,

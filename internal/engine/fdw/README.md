@@ -60,12 +60,12 @@ assumptions into remote validation scans.
   prerequisites and rejects missing or same-name unbound destination capability.
   Physical handle ownership belongs to `remote`, below existing SQL transaction
   and cursor settlement, not this registry or catalog descriptors.
-  The existing registry also retains the explicit direct-dblink binding selected
-  by the Driver; definitions thread it through Reset and RestoreStage without
-  Open or a second registry. Replay distinguishes handler and dblink prerequisite
-  kinds. Each persistent dblink origin requires one canonical marker, either a
-  matching destination Name/Version binding or explicit empty source identity.
-  Missing/partial/unknown/duplicate prerequisites cannot silently drop authority.
+  The registry retains explicit dblink and postgres_fdw bindings in one immutable
+  definition set. Reset, database construction and RestoreStage copy both without
+  Open or a second registry. Replay distinguishes handler, dblink and postgres_fdw
+  prerequisite kinds. Each persistent stock origin requires a canonical marker:
+  matching destination Name/Version or explicit unbound source identity.
+  Missing/partial/unknown/duplicate markers cannot silently drop authority.
 - **Options** (`options.go`): `TransformOptions` applies ordered ADD/SET/DROP
   operations to a private copy, then validates surviving names.
 - **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of
@@ -123,6 +123,12 @@ assumptions into remote validation scans.
   Only its authenticated handler omits generic user mapping admission; the
   ordinary handler factory still runs before the explicit external-execution
   boundary. It has no importer and never supplies foreign rows.
+  Stock postgres_fdw also captures current invocation superuser and installed
+  extension facts in core, then validates through `postgres_options.go` outside
+  locks. It reuses settings number/identifier-list parsing and exact ordered
+  option storage; direct arrays preserve NULL-prepass/omitted-argument semantics.
+  Only its transport keywords reach the host. Genuine scan resources belong to
+  remote.Owner and the existing transaction coordinator, never these options.
   Table creation retains raw immutable column syntax and stable attribute
   identities. `PrepareColumnValidation` transforms and resolves one column only
   after table validation and preceding column phases succeed. Its installation
@@ -429,12 +435,16 @@ definition validation, IMPORT selection, ALTER candidates, participant
 handshake and statement end, TRUNCATE grouping) and the engine's FDW units,
 which need an `Engine`: `TestFDWStageTable` and `TestFDWLateDependency*` live
 in `internal/engine/schemacmds`, and the parallel foreign scan units
-(`TestFDWParallel*`) and `transaction_extension_test.go` in
-`internal/engine/core`. Add
-`RACE=1` for the participant tests.
+(`TestFDWParallel*`), `TestForeignScanStatementAdmission` and
+`transaction_extension_test.go` in `internal/engine/core`. Add `RACE=1` for the
+participant and real gateway/source-admission units.
+Stock option/recipe/binding/local-type/owner/publication units use
+`RUN='^TestPostgresFDW(Options|Recipe|Binding|LocalTypes|Owner|Publication)$'`.
+The corresponding public provider family uses `RUN='^TestReferencePostgresFDW'`
+in both modes; genuine physical phases require `REFERENCE=1`.
 
 ```sh
-make check RUN='^(TestFDW|TestOwnerExtension)'
+make check RUN='^(TestFDW|TestOwnerExtension|TestForeignScanStatementAdmission)'
 ```
 
 Public behavior: `^TestReferenceFDW` (wrappers, servers, mappings, IMPORT,

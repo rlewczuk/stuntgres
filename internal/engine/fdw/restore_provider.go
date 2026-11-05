@@ -30,7 +30,15 @@ func RebindReplacementProviders(view catalog.Read, registry Registry, next *cata
 			continue
 		}
 		if imported.Implementation == extension.StockFileFDW {
-			if err := extension.StockFileFDW.ValidateProcedure(view.WithState(next), imported); err != nil { return err }
+			if err := extension.StockFileFDW.ValidateProcedure(view.WithState(next), imported); err != nil {
+				return err
+			}
+			continue
+		}
+		if imported.Implementation == extension.StockPostgresFDW {
+			if err := extension.StockPostgresFDW.ValidateProcedure(view.WithState(next), imported); err != nil {
+				return err
+			}
 			continue
 		}
 		if installed == nil {

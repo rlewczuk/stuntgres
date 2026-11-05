@@ -23,6 +23,8 @@ type Owner struct {
 	dblinkNamed      map[string]*connection
 	dblinkPending    map[*DblinkOpen]struct{}
 	dblinkGeneration uint64
+	postgres         map[PostgresKey]*postgresEntry
+	postgresPending  map[*PostgresOpen]struct{}
 }
 
 func NewOwner(s *session.Session) *Owner { return &Owner{session: s} }
@@ -32,6 +34,16 @@ type capability struct {
 	op       *session.Operation
 	provider *catalog.ExternalSQLProviderDefinition
 	request  catalog.ExternalSQLConnectRequest
+}
+
+type contextAuthority interface {
+	ExternalSQLSessionToken() ids.SessionToken
+	ExternalSQLProviderToken() *catalog.ExternalSQLProviderDefinition
+}
+
+func (c *capability) ExternalSQLSessionToken() ids.SessionToken { return c.owner.session.Token() }
+func (c *capability) ExternalSQLProviderToken() *catalog.ExternalSQLProviderDefinition {
+	return c.provider
 }
 
 func (o *Owner) Capability(op *session.Operation, provider *catalog.ExternalSQLProviderDefinition, request catalog.ForeignRequest) catalog.ExternalSQLSession {
@@ -123,7 +135,7 @@ func (o *Owner) check(ctx context.Context) error {
 	if token, ok := ctx.Value(cleanupKey{}).(ids.SessionToken); ok && token != o.session.Token() {
 		return errors.New("stuntgres: foreign external SQL cleanup context")
 	}
-	if active, ok := catalog.ExternalSQLContextCapability(ctx).(*capability); ok && active.owner != o {
+	if active, ok := catalog.ExternalSQLContextCapability(ctx).(contextAuthority); ok && active.ExternalSQLSessionToken() != o.session.Token() {
 		return errors.New("stuntgres: foreign external SQL connection context")
 	}
 	o.session.Mu.Lock()
@@ -148,6 +160,11 @@ func (o *Owner) EndSession(token ids.SessionToken, _ session.EndReason) error {
 	o.mu.Unlock()
 	var failures []error
 	detached := o.DetachDblink()
+	postgres := o.InvalidatePostgres(catalog.Read{}, true)
+	postgres.Cancel()
+	if err := postgres.Close(); err != nil {
+		failures = append(failures, err)
+	}
 	detached.Cancel()
 	for _, pending := range detached.pending {
 		<-pending.done

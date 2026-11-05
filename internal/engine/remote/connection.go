@@ -15,6 +15,7 @@ type connection struct {
 	provider        *catalog.ExternalSQLProviderDefinition
 	raw             catalog.ExternalSQLConnection
 	info            catalog.ExternalSQLConnectionInfo
+	postgres        *postgresEntry // Immutable link; Owner.mu protects entry state.
 	command         sync.Mutex
 	mu              sync.Mutex
 	active, closing bool
@@ -30,7 +31,7 @@ func (c *connection) check(ctx context.Context) error {
 	if err := c.owner.check(ctx); err != nil {
 		return err
 	}
-	if active, ok := catalog.ExternalSQLContextCapability(ctx).(*capability); ok && active.provider != c.provider {
+	if active, ok := catalog.ExternalSQLContextCapability(ctx).(contextAuthority); ok && active.ExternalSQLProviderToken() != c.provider {
 		return errors.New("stuntgres: foreign external SQL provider context")
 	}
 	return nil
@@ -142,7 +143,7 @@ func (c *connection) Close(ctx context.Context) error {
 	if token, ok := ctx.Value(cleanupKey{}).(ids.SessionToken); ok && token != c.owner.session.Token() {
 		return errors.New("stuntgres: foreign external SQL cleanup context")
 	}
-	if active, ok := catalog.ExternalSQLContextCapability(ctx).(*capability); ok && (active.owner != c.owner || active.provider != c.provider) {
+	if active, ok := catalog.ExternalSQLContextCapability(ctx).(contextAuthority); ok && (active.ExternalSQLSessionToken() != c.owner.session.Token() || active.ExternalSQLProviderToken() != c.provider) {
 		return errors.New("stuntgres: foreign external SQL connection context")
 	}
 	c.closeOnce.Do(func() {

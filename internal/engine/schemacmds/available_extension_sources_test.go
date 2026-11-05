@@ -93,6 +93,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"dict_xsyn":          {"dict_xsyn", "1.0", nil, "text search dictionary template for extended synonym processing"},
 			"earthdistance":      {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
 			"file_fdw":           {"file_fdw", "1.0", nil, "foreign-data wrapper for flat file access"},
+			"postgres_fdw":       {"postgres_fdw", "1.2", nil, "foreign-data wrapper for remote PostgreSQL servers"},
 			"hstore":             {"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"},
 			"unaccent":           {"unaccent", "1.1", version, comment},
 			"intarray":           {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
@@ -136,6 +137,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["dict_xsyn"] = []any{"dict_xsyn", "1.0", false, true, false, true, nil, nil, "text search dictionary template for extended synonym processing"}
 			expected["earthdistance"] = []any{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}
 			expected["file_fdw"] = []any{"file_fdw", "1.0", false, true, false, true, nil, nil, "foreign-data wrapper for flat file access"}
+			expected["postgres_fdw"] = []any{"postgres_fdw", "1.2", false, true, false, true, nil, nil, "foreign-data wrapper for remote PostgreSQL servers"}
 			expected["hstore"] = []any{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}

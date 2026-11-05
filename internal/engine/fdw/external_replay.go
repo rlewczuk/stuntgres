@@ -20,12 +20,15 @@ type ExternalRequirement struct {
 	Provider, Version string
 }
 
-func ExternalRequirements(view catalog.Read, dblink *catalog.ExternalSQLProviderDefinition) []ExternalRequirement {
+func ExternalRequirements(view catalog.Read, dblink, postgres *catalog.ExternalSQLProviderDefinition) []ExternalRequirement {
 	var required []ExternalRequirement
-	dblinkRequired := false
+	dblinkRequired, postgresRequired := false, false
 	for _, descriptor := range view.Descriptors() {
 		if installation, ok := catalog.OriginInstallation(descriptor); ok && installation.Provider == "dblink" {
 			dblinkRequired = true
+		}
+		if installation, ok := catalog.OriginInstallation(descriptor); ok && installation.Provider == "postgres_fdw" {
+			postgresRequired = true
 		}
 		p, ok := descriptor.(*catalog.Procedure)
 		if !ok || p.Foreign == nil || p.Foreign.ExternalProvider == nil {
@@ -38,6 +41,13 @@ func ExternalRequirements(view catalog.Read, dblink *catalog.ExternalSQLProvider
 		requirement := ExternalRequirement{Kind: "dblink"}
 		if dblink != nil {
 			requirement.Provider, requirement.Version = dblink.Name, dblink.Version
+		}
+		required = append(required, requirement)
+	}
+	if postgresRequired {
+		requirement := ExternalRequirement{Kind: "postgres_fdw"}
+		if postgres != nil {
+			requirement.Provider, requirement.Version = postgres.Name, postgres.Version
 		}
 		required = append(required, requirement)
 	}
@@ -80,7 +90,8 @@ func DecodeExternalRequirement(comment string) (ExternalRequirement, bool, error
 	var extra any
 	identity := r.Provider != "" && r.Version != ""
 	unbound := r.Provider == "" && r.Version == ""
-	validKind := r.Kind == "handler" && r.Handler.Schema != "" && r.Handler.Name != "" && identity || r.Kind == "dblink" && r.Handler == (catalog.ForeignFunctionName{}) && (identity || unbound)
+	validKind := r.Kind == "handler" && r.Handler.Schema != "" && r.Handler.Name != "" && identity ||
+		(r.Kind == "dblink" || r.Kind == "postgres_fdw") && r.Handler == (catalog.ForeignFunctionName{}) && (identity || unbound)
 	if decoder.Decode(&extra) != io.EOF || !validKind {
 		return r, true, invalid
 	}
@@ -92,14 +103,18 @@ func DecodeExternalRequirement(comment string) (ExternalRequirement, bool, error
 }
 
 func (r *Registry) ValidateExternalRequirement(required ExternalRequirement) error {
-	if required.Kind == "dblink" {
+	if required.Kind == "dblink" || required.Kind == "postgres_fdw" {
 		if required.Provider == "" && required.Version == "" {
 			return nil
 		}
-		if r.dblink != nil && r.dblink.Name == required.Provider && r.dblink.Version == required.Version {
+		provider := r.bindings.Dblink
+		if required.Kind == "postgres_fdw" {
+			provider = r.bindings.PostgresFDW
+		}
+		if provider != nil && provider.Name == required.Provider && provider.Version == required.Version {
 			return nil
 		}
-		return errors.New("stuntgres: missing or incompatible registered dblink external SQL provider binding")
+		return errors.New("stuntgres: missing or incompatible registered " + required.Kind + " external SQL provider binding")
 	}
 	for token := range r.ProcedureTokens() {
 		if token.Name == required.Handler && token.ExternalProvider != nil && token.ExternalProvider.Name == required.Provider && token.ExternalProvider.Version == required.Version {

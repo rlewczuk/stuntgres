@@ -48,6 +48,7 @@ type Driver struct {
 	foreignValidators   []fdw.ValidatorDefinition
 	externalProviders   []ExternalSQLProviderDefinition
 	dblinkProvider      string
+	postgresFDWProvider string
 	hostLanguages       []*host.Runtime
 	textSearchFiles     map[string]string
 	textSearchResources *functions.DictionaryFiles
@@ -88,7 +89,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	}
 	e := d.engines[name]
 	if e == nil {
-		wrappers, binding, err := fdw.BindExternalProviders(d.foreignWrappers, d.externalProviders, d.dblinkProvider)
+		wrappers, binding, err := fdw.BindExternalProviders(d.foreignWrappers, d.externalProviders, d.dblinkProvider, d.postgresFDWProvider)
 		if err != nil {
 			return nil, err
 		}

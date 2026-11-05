@@ -138,6 +138,7 @@ func (s *StatementScope) Finish(err error) (result error) {
 	t := s.Owner
 	e := s.Engine()
 	published := false
+	postgresPrivateChanged := false
 	t.Mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
@@ -198,6 +199,13 @@ func (s *StatementScope) Finish(err error) (result error) {
 				t.Mu.Lock()
 			}
 		} else if !s.sessionCompleted {
+			if s.Catalog != nil {
+				t.Mu.Unlock()
+				e.Mu.Lock()
+				postgresPrivateChanged = postgresFDWJournalChanged(e.PrivateCatalogLocked(t.Catalog), e.PrivateCatalogLocked(s.Catalog), s.Catalog)
+				e.Mu.Unlock()
+				t.Mu.Lock()
+			}
 			err = s.mergeSegmentLocked(catalog)
 		}
 		if err == nil {
@@ -306,6 +314,9 @@ func (s *StatementScope) Finish(err error) (result error) {
 	}
 	if cleanupErr := drainCursorCleanup(t, s.Op.Context(), s); err == nil {
 		err = cleanupErr
+	}
+	if err == nil && !published && postgresPrivateChanged {
+		err = s.invalidatePostgresPrivate()
 	}
 	s.result = err
 	if err == nil {

@@ -26,7 +26,7 @@ type ContribRuntime interface {
 	GenericFileList(functions.GenericFileListKind, string) error
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
 	GenericFileTmpdir(uint32) error
-	FileFDWValidate(plan.FileFDWExpr, [2]sqltype.Value) error
+	StockFDWValidate(plan.StockFDWExpr, [2]sqltype.Value) error
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
 	ValidateDblinkGetPkey(n plan.InstalledDblinkGetPkeyExpr) error

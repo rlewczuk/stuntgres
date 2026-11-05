@@ -58,8 +58,17 @@ type foreignTableScope struct {
 	owner          *exec.ForeignScanOwner
 	cursor         *sqlCursor
 	statements     []*fdw.Participant
+	admissions     []foreignSourceAdmission
 	modifications  []*fdw.Modification
 	holdPromotions []*sqlCursor // Exact new promotions owned by this completion.
+}
+
+// Successful membership is local to this statement, never retained on a source
+// or participant. A distinct captured source/effective caller must still admit.
+type foreignSourceAdmission struct {
+	source      *exec.ForeignQuerySource
+	role        uint32
+	participant *fdw.Participant
 }
 
 // foreignTables returns the statement's foreignTables slot, allocating it on first use.
@@ -92,6 +101,7 @@ func (f *foreignTableScope) takeOwner() *exec.ForeignScanOwner {
 func (f *foreignTableScope) clearStatements() {
 	if f != nil {
 		f.statements = nil
+		f.admissions = nil
 	}
 }
 
@@ -107,7 +117,8 @@ func (f *foreignTableScope) clearHoldPromotions() {
 
 func (s *StatementScope) setForeignStatements(statements []*fdw.Participant) {
 	if statements != nil || s.foreignTablesSlot != nil {
-		s.foreignTables().statements = statements
+		f := s.foreignTables()
+		f.statements, f.admissions = statements, nil
 	}
 }
 

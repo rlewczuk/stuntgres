@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -35,24 +36,36 @@ func (h *statementHost) ForeignCharacteristics() (*catalog.ForeignTransactionCha
 	return h.scope().foreignCharacteristics()
 }
 
-// A live cursor's producer spans requests, but each FETCH/ReScan touches the
-// current statement's participant mark. Do not cache an old request context or
-// allocate another mark for each row in the same eager batch.
+func foreignParticipantKey(handler *catalog.ForeignProcedure, r catalog.ForeignRequest) fdw.ParticipantKey {
+	if extension.StockPostgresFDW.HandlerToken(handler) {
+		return fdw.ParticipantKey{Server: r.ServerOID, Mapping: r.MappingOID}
+	}
+	return fdw.ParticipantKey{Handler: r.HandlerOID, Server: r.ServerOID, Mapping: r.MappingOID, Role: r.RoleOID}
+}
+
+// A live producer spans requests; each current FETCH/ReScan touches its
+// participant without retaining an old context or allocating per-row marks.
 func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.ForeignQuerySource) error {
 	s := h.scope()
 	if _, ok := source.Wrapper.(catalog.ForeignTransactionProvider); !ok {
 		return nil
 	}
-	r := source.Request
-	key := fdw.ParticipantKey{Handler: r.HandlerOID, Server: r.ServerOID, Mapping: r.MappingOID, Role: r.RoleOID}
-	for _, p := range s.foreignTablesOrZero().statements {
-		if p.Key == key {
-			if p.Closed {
+	if f := s.foreignTablesSlot; f != nil {
+		for _, admitted := range f.admissions {
+			if admitted.source != source || admitted.role != source.Request.RoleOID {
+				continue
+			}
+			if admitted.participant.Closed {
 				return errors.New("stuntgres: foreign transaction is already disposed")
 			}
-			return nil
+			if slices.Contains(f.statements, admitted.participant) {
+				s.foreignUnlocked()
+				return nil
+			}
+			break
 		}
 	}
+	r := source.Request
 	_, err := s.enlistForeign(ctx, source, &r, false)
 	return err
 }
@@ -85,7 +98,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, source *exec.Foreign
 		return nil, nil
 	}
 	t := s.Owner
-	key := fdw.ParticipantKey{Handler: request.HandlerOID, Server: request.ServerOID, Mapping: request.MappingOID, Role: request.RoleOID}
+	key := foreignParticipantKey(source.Handler, *request)
 	t.Mu.Lock()
 	if err := t.Validate(s.TxRef); err != nil {
 		t.Mu.Unlock()
@@ -125,6 +138,14 @@ func (s *StatementScope) enlistForeign(ctx context.Context, source *exec.Foreign
 			return nil, exec.ForeignCallbackError(err)
 		}
 	}
+	f := s.foreignTables()
+	for i, admitted := range f.admissions {
+		if admitted.source == source && admitted.role == request.RoleOID {
+			f.admissions[i].participant = participant
+			return participant.Tx, nil
+		}
+	}
+	f.admissions = append(f.admissions, foreignSourceAdmission{source: source, role: request.RoleOID, participant: participant})
 	return participant.Tx, nil
 }
 

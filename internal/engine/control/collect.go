@@ -78,7 +78,7 @@ func Collect(ctx context.Context, source Source) (*Capture, error) {
 			Composites:           make(map[ids.OID]*catalog.Relation),
 			Graph:                make(dump.Graph),
 			OriginProgress:       source.OriginProgress,
-			ExternalRequirements: fdw.ExternalRequirements(source.CatalogView, source.Foreign.DblinkProvider()),
+			ExternalRequirements: fdw.ExternalRequirements(source.CatalogView, source.Foreign.DblinkProvider(), source.Foreign.PostgresFDWProvider()),
 		},
 		source: source,
 	}

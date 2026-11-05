@@ -31,17 +31,20 @@ remain `unknown`. No password, challenge, SASL payload or trace is copied/logged
 `TestExternalSQLProviderAuthObservation` exercises fragmented frames and failure
 states; actual SCRAM/trust tests remain necessary.
 
-`ExternalSQLTrustAuthentication` reuses the auth-file fixture to install a real
-role-scoped trust rule in the disposable oracle, restores the original file and
-reloads it during cleanup. Callers wait for an actual successful no-password
-handshake, not HBA text alone. Explicit application names are preserved.
+`ExternalSQLTrustAuthentication` and `ExternalSQLPasswordAuthentication` reuse
+the auth-file owner for real role-scoped rules in the disposable oracle, restore
+the original file and reload during cleanup. Password setup waits for an actual
+observed SCRAM handshake; trust callers independently witness the no-password
+handshake. HBA text and supplied passwords alone are never evidence. Explicit
+application names and stock startup options/client encoding are preserved.
 `ConninfoPresent` selects the input form: explicit text, including empty, reaches
 pgconn unchanged; absent conninfo uses explicit structured fixture defaults plus
 ordered options. Mixed forms and nonempty text without presence are rejected.
 Actual non-context `ConnectConfig` establishment failures without a SQL response
 carry `ExternalSQLConnectError` (Error/Unwrap, no SQLState). Genuine remote SQL
 responses retain their full fields; callbacks, context and Execute/Close errors
-are not marked. Only the native dblink Open boundary applies its SQL projection.
+are not marked. Native dblink and postgres_fdw stock Open boundaries apply their
+own SQL projection; raw provider errors remain unchanged.
 
 
 ## PostgreSQL oracle policy and provenance

@@ -13,12 +13,12 @@ import (
 )
 
 type Validation struct {
-	procedure   *catalog.Procedure
-	kind        catalog.ForeignObjectKind
-	options     []catalog.ForeignOption
-	Attribute   int32 // Stable configured-column identity; zero is the table phase.
-	raw         []parser.ForeignOption // Immutable statement syntax, resolved only at this column's turn.
-	wrapper     ids.ObjectAddress
+	procedure *catalog.Procedure
+	kind      catalog.ForeignObjectKind
+	options   []catalog.ForeignOption
+	Attribute int32                  // Stable configured-column identity; zero is the table phase.
+	raw       []parser.ForeignOption // Immutable statement syntax, resolved only at this column's turn.
+	wrapper   ids.ObjectAddress
 }
 
 // HasValidator reports an already resolved executable job, not raw column syntax.
@@ -95,7 +95,7 @@ func ValidatorJob(read catalog.Read, wrapper *catalog.ForeignObject, kind catalo
 		return Validation{}, nil, nil
 	}
 	p, ok := read.Procedure(wrapper.Validator)
-	if !ok || p.SQL == nil && !extension.StockFileFDW.SupportsValidator(p) && (p.Foreign == nil || p.Foreign.Validator == nil) {
+	if !ok || p.SQL == nil && !extension.StockFileFDW.SupportsValidator(p) && !extension.StockPostgresFDW.SupportsValidator(p) && (p.Foreign == nil || p.Foreign.Validator == nil) {
 		return Validation{}, nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.Name()))
 	}
 	return Validation{procedure: p, kind: kind, options: append([]catalog.ForeignOption{}, options...)}, p, nil
@@ -116,7 +116,7 @@ func RunValidations(ctx context.Context, runtime ValidationRuntime, jobs []Valid
 		}
 		if job.procedure != nil {
 			var err error
-			if extension.StockFileFDW.SupportsValidator(job.procedure) && runtime != nil {
+			if (extension.StockFileFDW.SupportsValidator(job.procedure) || extension.StockPostgresFDW.SupportsValidator(job.procedure)) && runtime != nil {
 				err = runtime.ValidateForeignOptions(job.procedure, job.kind, job.options)
 			} else if job.procedure.Foreign != nil && job.procedure.Foreign.Validator != nil {
 				err = job.procedure.Foreign.Validator(ctx, job.kind, job.options)

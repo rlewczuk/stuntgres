@@ -21,6 +21,17 @@ type foreignAsyncState struct {
 	buffered, eof bool
 	start         func(context.Context) error
 	importRow     func(context.Context, catalog.ForeignRow) ([]sqltype.Value, error)
+	inputError    func(error) error
+}
+
+func (a *foreignAsyncState) callbackError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if a.inputError != nil {
+		return a.inputError(err)
+	}
+	return ForeignCallbackError(err)
 }
 
 func (e *ForeignExecution) requestAsync(ctx context.Context) error {
@@ -35,7 +46,7 @@ func (e *ForeignExecution) requestAsync(ctx context.Context) error {
 	request, err := provider.RequestForeignScan(ctx)
 	a.request = request // nonnil+error transfers ownership before inspecting error
 	if err != nil {
-		return ForeignCallbackError(err)
+		return a.callbackError(err)
 	}
 	if request == nil {
 		return fmt.Errorf("stuntgres: async provider returned a nil request")
@@ -83,7 +94,7 @@ func (e *ForeignExecution) settleAsync(ctx context.Context, wait bool) error {
 		}
 	}
 	row, present, err := a.request.Complete(ctx)
-	err = ForeignCallbackError(err)
+	err = a.callbackError(err)
 	if err == nil && present {
 		a.values, err = a.importRow(ctx, row)
 	}

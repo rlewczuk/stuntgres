@@ -102,8 +102,15 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 			return control.NotHandled, err
 		}
 		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: s.Name.Parts[0].Text})
-		if wrapper, ok := auth.Catalog.Foreign(address); ok && wrapper.Origin != nil && wrapper.Origin.Installation.Implementation == extension.StockFileFDW {
-			if err := extension.StockFileFDW.ValidateForeign(auth.Catalog, wrapper); err != nil {
+		if wrapper, ok := auth.Catalog.Foreign(address); ok && wrapper.Origin != nil &&
+			(wrapper.Origin.Installation.Implementation == extension.StockFileFDW || wrapper.Origin.Installation.Implementation == extension.StockPostgresFDW) {
+			var err error
+			if wrapper.Origin.Installation.Implementation == extension.StockPostgresFDW {
+				err = extension.StockPostgresFDW.ValidateForeign(auth.Catalog, wrapper)
+			} else {
+				err = extension.StockFileFDW.ValidateForeign(auth.Catalog, wrapper)
+			}
+			if err != nil {
 				return control.NotHandled, err
 			}
 			return control.Admitted, nil

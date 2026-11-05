@@ -76,8 +76,12 @@ func (p *ExternalSQLProvider) Open(ctx context.Context, request stuntgres.Extern
 					config.User = o.Value
 				case "password":
 					config.Password = o.Value
-				case "application_name":
+				case "application_name", "client_encoding", "options":
 					config.RuntimeParams[o.Name] = o.Value
+				case "fallback_application_name":
+					if config.RuntimeParams["application_name"] == "" {
+						config.RuntimeParams["application_name"] = o.Value
+					}
 				default:
 					return nil, &stuntgres.ExternalSQLUnavailableError{Capability: "fixture option " + o.Name}
 				}

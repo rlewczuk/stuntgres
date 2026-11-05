@@ -67,14 +67,17 @@ type Registry struct {
 	namespaces  map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	importValue exec.ForeignValueImporter
 	exportValue exec.ForeignValueExporter
-	dblink      *catalog.ExternalSQLProviderDefinition
+	bindings    catalog.ExternalSQLBindings
 }
 
 // Install records private copies of the definitions and the value codecs.
-func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter, dblink *catalog.ExternalSQLProviderDefinition) {
+func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter, bindings *catalog.ExternalSQLBindings) {
 	r.importValue = importer
 	r.exportValue = exporter
-	r.dblink = dblink
+	r.bindings = catalog.ExternalSQLBindings{}
+	if bindings != nil {
+		r.bindings = *bindings
+	}
 	r.wrappers = append([]WrapperDefinition(nil), wrappers...)
 	r.validators = append([]ValidatorDefinition(nil), validators...)
 	r.procedures = make([]*catalog.ForeignProcedure, 0, len(wrappers)+len(validators))
@@ -88,12 +91,19 @@ func (r *Registry) Install(wrappers []WrapperDefinition, validators []ValidatorD
 
 // Definitions returns the installed definitions in InstallForeignDefinitions'
 // argument order, for re-installing them into a fresh Engine.
-func (r *Registry) Definitions() (*catalog.ExternalSQLProviderDefinition, []WrapperDefinition, []ValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
-	return r.dblink, r.wrappers, r.validators, r.importValue, r.exportValue
+func (r *Registry) Definitions() (*catalog.ExternalSQLBindings, []WrapperDefinition, []ValidatorDefinition, exec.ForeignValueImporter, exec.ForeignValueExporter) {
+	if r.bindings.Dblink == nil && r.bindings.PostgresFDW == nil {
+		return nil, r.wrappers, r.validators, r.importValue, r.exportValue
+	}
+	bindings := r.bindings
+	return &bindings, r.wrappers, r.validators, r.importValue, r.exportValue
 }
 
 // DblinkProvider returns the immutable explicit host binding, never a SQL lookup.
-func (r *Registry) DblinkProvider() *catalog.ExternalSQLProviderDefinition { return r.dblink }
+func (r *Registry) DblinkProvider() *catalog.ExternalSQLProviderDefinition { return r.bindings.Dblink }
+func (r *Registry) PostgresFDWProvider() *catalog.ExternalSQLProviderDefinition {
+	return r.bindings.PostgresFDW
+}
 
 // ProcedureTokens yields the destination installation's immutable capabilities.
 // Catalog DROP retires a SQL declaration, not these driver registrations.
@@ -138,18 +148,27 @@ func (r *Registry) Codecs() (exec.ForeignValueImporter, exec.ForeignValueExporte
 
 // BindExternalProviders resolves definitions before engine publication. The
 // copied immutable token is retained by reset/restore staging definitions.
-func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.ExternalSQLProviderDefinition, dblinkName string) ([]WrapperDefinition, *catalog.ExternalSQLProviderDefinition, error) {
-	var dblink *catalog.ExternalSQLProviderDefinition
-	if dblinkName != "" {
-		for _, provider := range providers {
-			if provider.Name == dblinkName {
-				copy := provider
-				dblink = &copy
-				break
+func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.ExternalSQLProviderDefinition, dblinkName, postgresName string) ([]WrapperDefinition, *catalog.ExternalSQLBindings, error) {
+	var bindings *catalog.ExternalSQLBindings
+	if dblinkName != "" || postgresName != "" {
+		bindings = &catalog.ExternalSQLBindings{}
+		for _, selection := range []struct {
+			name   string
+			target **catalog.ExternalSQLProviderDefinition
+		}{{dblinkName, &bindings.Dblink}, {postgresName, &bindings.PostgresFDW}} {
+			if selection.name == "" {
+				continue
 			}
-		}
-		if dblink == nil {
-			return nil, nil, &catalog.ExternalSQLUnavailableError{Capability: dblinkName}
+			for _, provider := range providers {
+				if provider.Name == selection.name {
+					copy := provider
+					*selection.target = &copy
+					break
+				}
+			}
+			if *selection.target == nil {
+				return nil, nil, &catalog.ExternalSQLUnavailableError{Capability: selection.name}
+			}
 		}
 	}
 	var bound []WrapperDefinition
@@ -174,7 +193,7 @@ func BindExternalProviders(wrappers []WrapperDefinition, providers []catalog.Ext
 		bound[i].external = token
 	}
 	if bound == nil {
-		return wrappers, dblink, nil
+		return wrappers, bindings, nil
 	}
-	return bound, dblink, nil
+	return bound, bindings, nil
 }

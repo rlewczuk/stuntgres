@@ -194,6 +194,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Shared dblink/FDW active-slot refusal selects
   `RUN='^TestReferenceDatabaseDropResourceSlots$'` in both modes, in the existing
   logical-WAL owner package rather than changing table-provider startup.
+- Stock postgres_fdw provider family: `RUN='^TestReferencePostgresFDW'`.
 - External column-option DROP/re-add regressions:
   `RUN='^TestReferenceExternalSQLProviderColumnOptions(DropAddOrdinary|DropAddForeign|SkippedAdd)$'`.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`

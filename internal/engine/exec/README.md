@@ -501,6 +501,11 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   attribute-derived Input Layout to select its original column alias. Physical
   import slots and remote widths remain unchanged; the same actual SourceNode,
   async key and ordinary codec/cleanup path are preserved.
+  Provider-local input failures carry their stable attribute and original cause
+  to that same owner. Synchronous, identity/parallel and async scan boundaries
+  resolve only actual selected attributes through the plan's import slots;
+  invalid attribution is a protocol error. Diagnostic enrichment preserves
+  cause identity and sanitizes reserved callback sentinels as before.
 - **Row locks** (`query_locks.go`, `query_pending_locks.go`, `query_lock_*.go`):
   view-row arbitration, recheck of locked rows, pending marks and locked-order
   refresh.
@@ -1570,7 +1575,8 @@ Async protocol, cleanup, filtered-frontier and cursor-boundary units use
 `RUN='^TestFDWAsync'`; public authentic-transport scenarios live in
 `reference/tables` (`RUN='^TestReferenceFDWAsync'`).
 Typed foreign query contract, layout, request-copy and resource units use
-`RUN='^TestFDWQuery'`, including composed prepared-owner coverage in core.
+`RUN='^(TestFDWQuery|TestForeignColumnInputDiagnostics)'`, including composed
+prepared-owner coverage in core and projected input-error ownership here.
 Mixed hierarchy lineage, alternative-member recheck and rewind ownership use
 `RUN='^TestForeignHierarchy'`, also with `RACE=1`.
 Query source identity units use `RUN='^TestQuery(TableOID|SystemAttribute)'`; virtual recipe

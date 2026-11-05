@@ -695,6 +695,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 	if len(s.logicalChanges) != 0 {
 		logicalChanges = append(logicalChanges[:len(logicalChanges):len(logicalChanges)], s.logicalChanges...)
 	}
+	var postgresCleanup []remote.PostgresCleanup
 	for {
 		e.Mu.Lock()
 		if s.Lifecycle != catalogValidated {
@@ -1039,6 +1040,13 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 				e.Visibility.SerializableCommittedLocked(s.InitialTx, e.Visibility.CommitSeq())
 			}
 			e.Catalog.PublishLocked(next)
+			var locked *session.Session
+			if op != nil {
+				locked = op.Session
+			}
+			if postgresFDWStageChanged(e.Catalog.Read(current), e.Catalog.Read(next), s) {
+				postgresCleanup = e.invalidatePostgresLocked(e.Catalog.Read(next), false, locked)
+			}
 			e.reconcileLogicalBuffersLocked()
 			if scope != nil {
 				scope.advanceSepgsqlPublication(current, next)
@@ -1087,6 +1095,12 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		e.Mu.Unlock()
 		if err != nil {
 			return ChangeSet{}, err
+		}
+		if scope != nil && len(postgresCleanup) != 0 {
+			scope.foreignUnlocked()
+		}
+		if err := closePostgresCleanup(postgresCleanup); err != nil {
+			return changes, err
 		}
 		return changes, nil
 	}
@@ -1150,6 +1164,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation, template bool, controlAuthority *ControlSepgsqlAuthority) (change ChangeSet, resultErr error) {
 	var installed ids.CatalogEpoch
 	var dblinkCleanup []remote.DblinkCleanup
+	var postgresCleanup []remote.PostgresCleanup
 	defer func() {
 		if installed != 0 {
 			e.Locks.Fence(e.Catalog.Domain, installed)
@@ -1161,6 +1176,9 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 			if err := detached.Close(); err != nil {
 				resultErr = errors.Join(resultErr, err)
 			}
+		}
+		if err := closePostgresCleanup(postgresCleanup); err != nil {
+			resultErr = errors.Join(resultErr, err)
 		}
 	}()
 	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != &source.Catalog.Owner {
@@ -1364,6 +1382,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 		}
 		e.installReplacementLocked(next, relations, sequences, metadata, roots, nextRow, nextVersion, nextRevision, oids.Next, progress)
 		dblinkCleanup = e.detachDblinkLocked()
+		postgresCleanup = e.invalidatePostgresLocked(e.Catalog.Current(), true, nil)
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1449,6 +1468,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
 	dblinkCleanup = e.detachDblinkLocked()
+	postgresCleanup = e.invalidatePostgresLocked(e.Catalog.Current(), true, nil)
 	installed = next.Epoch()
 	return ChangeSet{Replacement: true}, nil
 }

@@ -22,6 +22,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 		// relocatable, no fixed schema or prerequisites; availability is not install.
 		fileAvailable := [][]any{{"file_fdw", "1.0", nil, "foreign-data wrapper for flat file access"}}
 		fileVersions := [][]any{{"file_fdw", "1.0", false, true, false, true, nil, nil, "foreign-data wrapper for flat file access"}}
+		postgresAvailable := [][]any{{"postgres_fdw", "1.2", nil, "foreign-data wrapper for remote PostgreSQL servers"}}
+		postgresVersions := [][]any{{"postgres_fdw", "1.2", false, true, false, true, nil, nil, "foreign-data wrapper for remote PostgreSQL servers"}}
 		for _, installed := range []bool{false, true} {
 			var installedVersion any
 			if installed {
@@ -83,6 +85,10 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='file_fdw' AND version='1.0'", true, fileVersions, pg))
 			availableExtensionsHeld(t, p, a, false, pg, fileAvailable, "file_fdw")
 			availableExtensionsHeld(t, p, v, true, pg, fileVersions, "file_fdw", "1.0")
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='postgres_fdw'", false, postgresAvailable, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='postgres_fdw' AND version='1.2'", true, postgresVersions, pg))
+			availableExtensionsHeld(t, p, a, false, pg, postgresAvailable, "postgres_fdw")
+			availableExtensionsHeld(t, p, v, true, pg, postgresVersions, "postgres_fdw", "1.2")
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='dblink'", false, [][]any{{"dblink", "1.2", nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='dblink' AND version='1.2'", true, [][]any{{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_freespacemap'", false, [][]any{{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"}}, pg))
@@ -171,6 +177,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"tsm_system_time", "1.0", false, true, true, true, nil, nil, "TABLESAMPLE method which accepts time in milliseconds as a limit"})
 				wantAvailable = append(wantAvailable, fileAvailable[0])
 				wantVersions = append(wantVersions, fileVersions[0])
+				wantAvailable = append(wantAvailable, postgresAvailable[0])
+				wantVersions = append(wantVersions, postgresVersions[0])
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 			} else {

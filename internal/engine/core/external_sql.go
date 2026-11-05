@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/remote"
 	"stuntgres/internal/engine/session"
 )
@@ -13,6 +14,9 @@ import (
 // the capability. Registry iteration reads immutable installation state.
 func (s *StatementScope) externalSQLCapability(handler *catalog.ForeignProcedure, request *catalog.ForeignRequest) error {
 	request.ExternalSQL = nil
+	if extension.StockPostgresFDW.HandlerToken(handler) {
+		return s.postgresFDWCapability(handler, request)
+	}
 	if handler == nil || handler.ExternalProvider == nil {
 		return nil
 	}

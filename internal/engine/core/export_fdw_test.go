@@ -78,8 +78,10 @@ func ForeignTableScopeStatements(x *foreignTableScope) []*fdw.Participant { retu
 // ForeignTableScopeValueStatements returns x.statements.
 func ForeignTableScopeValueStatements(x foreignTableScope) []*fdw.Participant { return x.statements }
 
-// SetForeignTableScopeStatements sets x.statements.
-func SetForeignTableScopeStatements(x *foreignTableScope, v []*fdw.Participant) { x.statements = v }
+// SetForeignTableScopeStatements replaces participants without transferring source admissions.
+func SetForeignTableScopeStatements(x *foreignTableScope, v []*fdw.Participant) {
+	x.statements, x.admissions = v, nil
+}
 
 var ForeignValidatorFrame = foreignValidatorFrame
 

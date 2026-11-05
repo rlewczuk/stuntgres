@@ -9,6 +9,12 @@ type ExternalSQLProviderDefinition struct {
 	Provider      ExternalSQLProvider
 }
 
+// ExternalSQLBindings is the immutable Driver-selected stock transport set.
+// It is copied through private construction, never selected by SQL names.
+type ExternalSQLBindings struct {
+	Dblink, PostgresFDW *ExternalSQLProviderDefinition
+}
+
 type ExternalSQLProvider interface {
 	Open(context.Context, ExternalSQLConnectRequest) (ExternalSQLConnection, error)
 }
@@ -92,8 +98,8 @@ func (e *ExternalSQLUnavailableError) Error() string {
 
 // ExternalSQLConnectError attests a genuine host transport establishment
 // failure. It is not a PostgreSQL response and deliberately has no SQLState.
-// Only the dblink Open boundary projects it to dblink's connection diagnostic;
-// ordinary FDW callers retain the cause through errors.Is/As.
+// Authentic dblink/postgres_fdw stock Open boundaries project their released
+// connection diagnostics; raw/generic callers retain the ordinary cause.
 type ExternalSQLConnectError struct{ Err error }
 
 func (e *ExternalSQLConnectError) Error() string {

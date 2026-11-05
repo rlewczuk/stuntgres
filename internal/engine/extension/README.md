@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, btree_gin, citext, cube,
 earthdistance, dblink, dict_int, dict_xsyn, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
-moddatetime, pageinspect, pg_buffercache, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+moddatetime, pageinspect, pg_buffercache, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, postgres_fdw, refint, seg, tablefunc, tcn,
 sslinfo, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, xml2 and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -14,7 +14,8 @@ ownership/membership/relocation and Restore owner-import decisions.
 Layer L9 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator), `expr`,
-`functions` (kernels and member tables), `ids`, `parser`, `proc`, `sqlstate`, `sqltype`,
+`functions` (kernels and member tables), `ids`, `parser`, `proc`, `settings`
+(pure numeric option decoding), `sqlstate`, `sqltype`,
 `typedef` (the relation type name check of installed-scalar staging)
 and the standard library; never the engine, `analyze`, `routine` or `plan`.
 
@@ -120,6 +121,23 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
+- **Stock postgres_fdw** owns a sealed two-routine/wrapper installation and real
+  base-scan/transaction callbacks. Execution consumes only the core-authenticated
+  private catalog lease interface; physical caches, credentials, publication and
+  cleanup remain in the existing remote.Owner. Projections quote mapped names by
+  presence and cursors fetch actual source rows. Immutable admitted local
+  stable-attribute/base-type facts select projected BYTEA input attributes once;
+  remote OIDs never select a local decoder. Only local BYTEA/base-domain slots
+  pass through the captured builtin input descriptor before ordinary foreign
+  import; other local types receive remote text unchanged. Decoder failures
+  retain the original cause and stable attribute for exec's existing local
+  column diagnostic owner, never provider-generated aliases or remote context.
+  The shared importer alone applies local domain/typmod checks, preserving NULL
+  and empty octets.
+  Generic path costs use the shared numeric parser and saturate only unbounded estimates to
+  the finite callback domain. No transport, catalog coordinator or optional FDW
+  callback is synthesized by storing an option.
+
 - **Routine identity**: `ProcedureSymbol(view, procedure)` checks the current
   descriptor/address/index, typed capability and immutable installed
   release/declaration origin. Mutable names, schema, owner and SQL membership

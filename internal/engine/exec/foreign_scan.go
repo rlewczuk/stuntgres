@@ -451,6 +451,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 	if execution.async.capable {
 		execution.async.start = start
 		execution.async.importRow = importRow
+		execution.async.inputError = func(err error) error { return f.scanDiagnostic(err, execution, node, occurrence) }
 		state.asyncFrontier.executions = append(state.asyncFrontier.executions, execution)
 	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
@@ -491,7 +492,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 				row, present, err = execution.Scan.IterateForeignScan(ctx)
 			}
 			if err != nil || !present {
-				return false, ForeignCallbackError(err)
+				return false, f.scanDiagnostic(err, execution, node, occurrence)
 			}
 			if execution.request.Identity != nil {
 				if err := validateForeignIdentity(identity, execution.request.Identity); err != nil {
@@ -588,6 +589,34 @@ func FinishForeignSources(ctx context.Context, source *Source) error {
 	return failure
 }
 
+// Local input happens inside some providers before ImportValues. Resolve its
+// stable attribute through this execution's owned projection, then let the same
+// retained alias/layout owner format the diagnostic. Other callbacks are intact.
+func (f *ForeignQuerySource) scanDiagnostic(err error, execution *ForeignExecution, node *plan.SourceNode, source *Source) error {
+	if err == nil {
+		return nil
+	}
+	var input *catalog.ForeignColumnInputError
+	if !errors.As(err, &input) {
+		return ForeignCallbackError(err)
+	}
+	if input != nil && input.Err != nil && node != nil {
+		for i, attribute := range execution.Plan.Attributes {
+			if attribute != input.Attribute {
+				continue
+			}
+			if i < len(execution.Slots) {
+				slot := execution.Slots[i]
+				if slot >= 0 && slot < len(f.Columns) {
+					return ForeignCallbackError(f.columnDiagnostic(err, node, source, slot))
+				}
+			}
+			break
+		}
+	}
+	return errors.New("stuntgres: invalid foreign column input attribute")
+}
+
 func (f *ForeignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, source *Source, slot int) error {
 	var record *sqlstate.Error
 	if !errors.As(err, &record) {
@@ -610,7 +639,7 @@ func (f *ForeignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, 
 		result.Context += "\n"
 	}
 	result.Context += line
-	return &result
+	return sqlstate.WithDiagnostic(err, &result)
 }
 
 func foreignAliasSlot(source *Source, slot int) int {

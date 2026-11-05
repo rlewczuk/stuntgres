@@ -60,3 +60,23 @@ func (d *Driver) BindDblinkExternalSQLProvider(name string) error {
 	}
 	return core.RegistrationError("unregistered dblink external SQL provider")
 }
+
+// BindPostgresFDWExternalSQLProvider selects the genuine host transport used by
+// installed postgres_fdw. Registration and binding perform no external I/O.
+func (d *Driver) BindPostgresFDWExternalSQLProvider(name string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.settingsFrozen {
+		return core.RegistrationError("external SQL registry is frozen")
+	}
+	if d.postgresFDWProvider != "" {
+		return core.RegistrationError("postgres_fdw external SQL provider is already bound")
+	}
+	for _, provider := range d.externalProviders {
+		if name != "" && provider.Name == name {
+			d.postgresFDWProvider = name
+			return nil
+		}
+	}
+	return core.RegistrationError("unregistered postgres_fdw external SQL provider")
+}

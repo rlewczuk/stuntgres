@@ -13,7 +13,8 @@ operation, canceled Open or missing capability cannot publish a connection.
 Nonnil provider returns transfer cleanup even with an error. Publication validates
 under Session.Mu; no provider callback runs under it.
 
-Owner.mu protects membership, dblink indices and generation only; the session lock precedes it at publication.
+Owner.mu protects membership, stock postgres mapping/pending indices and dblink
+indices/generations; the session lock precedes it at publication.
 Connection.command serializes commands, notifications and physical close.
 Connection.mu protects active cancellation and closing state, never application
 I/O. Cancel runs independently of command exclusion. Close first cancels the
@@ -56,6 +57,30 @@ ending it or detaching FDW resources. The replacement caller cancels every
 detached child and joins completion/physical close after all Engine, Session,
 Owner and Replacement locks release. Even cancellation-ignoring late returns
 close before completion. Failed prepublication controls never detach.
+`postgres_fdw.go` uses that same Owner and connection membership for stock
+mapping leases. Keys retain the exact database incarnation, authentic provider
+token and mapping identity, not caller RoleOID or handler spelling. Core admits
+every effective caller, including reuse of an invalidated in-use handle.
+The existing FDW participant key canonicalizes stock mapping participation;
+this package adds no SQL transaction coordinator. Healthy valid leases retain
+idle connections only with keep_connections enabled.
+
+Core registers pending Open under Engine.Mu, executes transport/initialization
+unlocked, then rechecks current authority/revisions before Session.Mu -> Owner.mu
+publication. Metadata invalidation detaches idle entries, marks in-use entries
+unreusable until settlement, and cancels/joins stale pending returns unlocked.
+Successful private statements affect only their issuing owner; commit affects
+peers. Reset/Restore retires the selected database's entries without ending the
+Owner or another database's resources. Failed candidates do not invalidate.
+
+The reusable mapping index intentionally omits already-invalidated in-use
+entries. Forced replacement instead selects matching stock links from the
+authoritative connection membership, including those detached active entries.
+It removes a reusable key only if it still names that exact entry, and returns
+each owned connection once for unlocked physical cleanup. Other databases and
+raw GO/dblink handles are not selected. Sticky connection Close keeps later
+transaction Release/session cleanup idempotent rather than closing the wire twice.
+
 The genuine shared test transport/auth observer lives in `reference/fixture`;
 network/TLS/authentication stays outside this standard-library-only runtime.
 
@@ -66,6 +91,8 @@ Pure registration/shape coverage and genuine network ownership scenarios use:
 ```sh
 make check RUN='^TestExternalSQLProvider'
 make check REFERENCE=1 RUN='^TestExternalSQLProvider'
+make check RUN='^TestPostgresFDW(LocalTypes|Owner|Publication)$'
+make check REFERENCE=1 RUN='^TestReferencePostgresFDW(Connections|Transactions|Controls|InvalidatedControls)$'
 ```
 
 The network ownership phase lives in `reference/tables` and requires the pinned

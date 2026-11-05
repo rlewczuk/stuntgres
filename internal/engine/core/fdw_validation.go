@@ -17,8 +17,17 @@ import (
 func (s *StatementScope) ValidateForeignOptions(d *catalog.Procedure, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) error {
 	if d != nil && d.Implementation == extension.StockFileFDW {
 		privileges, err := s.fileFDWPrivileges(d, kind)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		return fdw.ValidateFileOptions(s.executionContext(), kind, options, privileges)
+	}
+	if d != nil && d.Implementation == extension.StockPostgresFDW {
+		privileges, err := s.postgresFDWPrivileges(d)
+		if err != nil {
+			return err
+		}
+		return fdw.ValidatePostgresOptions(s.executionContext(), kind, options, privileges)
 	}
 	frame, result, err := s.prepareForeignValidator(d, kind, options)
 	if err != nil {

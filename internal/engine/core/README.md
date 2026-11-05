@@ -997,6 +997,44 @@ The table-option branch captures the first `CatalogAuthorityLocked` snapshot
 under the same mutex as membership facts, without replacing an earlier authority.
 The existing Finish preflight therefore fences authorization and published role
 membership changes as well as catalog/procedure changes, without a SQL journal.
+Stock postgres_fdw shares the typed `StockFDWExpr` carrier but captures its own
+current superuser/local-extension facts and warning sink. Its execution gateway
+authenticates installed origins and immutable Driver binding before creating an
+existing remote.Owner lease. Stock participant identity canonicalizes the actual
+mapping across aliases/effective roles; every caller still undergoes credential
+admission. Committed catalog publication invalidates matching peer resources;
+successful private Finish invalidates only the issuer. All physical cancellation,
+close and pending-return joins occur after runtime/replacement locks release.
+The operation capability also owns immutable projected stable-attribute/base-type
+facts from the admitted local relation, including nested domain bases. The stock
+scan consumes those facts without per-row catalog lookup or mutable descriptor
+borrowing; they are semantic input metadata, not authority to reopen an ended
+operation. Remote result OIDs never override local input. BYTEA text is decoded
+once before the sole shared domain/typmod import checks.
+Within a statement, a successfully admitted exact source/effective-role pair
+records only membership in its existing live participant. Repeated row touches
+check that membership and disposal state before metadata locks or request/capability
+construction; they allocate no replacement immutable artifacts. A new source,
+caller or statement constructs its genuine current capability before participant
+reuse. Statement settlement clears these marks; HOLD participant transfers never
+transfer source admission marks or turn them into reusable authority.
+Direct stages and journal commits inspect only their existing sparse mutation
+sets against predecessor/successor revisions before enumerating sessions.
+Only a changed/deleted existing foreign server or user mapping triggers that
+traversal; unrelated classes and newly created identities allocate no physical
+session list and acquire no Session.Mu. Private Finish compares the final
+statement journal to the owner's pre-merge catalog after command-end effects,
+then invalidates only after successful merge. Owner revision filtering remains
+the final per-entry check. Replacement still retires the target incarnation
+unconditionally, independently of these mutation gates.
+Forced retirement traverses the existing authoritative stock connection
+membership, not only the reuse index: previously invalidated active entries
+must close/join before replacement returns. Ordinary in-use invalidation still
+defers close to settlement, and matching-entry removal preserves other
+database/generation resources and sticky exactly-once physical closure.
+Replacement joins a cleanup error only when cleanup actually fails; successful
+or empty cleanup preserves the original operation error's exact identity and
+does not replace its cancellation cause.
 Native replacement carries the owning source catalog view into
 `remapPreparedCatalog`: provider authentication precedes principal remapping,
 so authentic source owners cannot yet be checked in the destination domain.

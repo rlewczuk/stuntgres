@@ -2859,6 +2859,51 @@ not support IMPORT FOREIGN SCHEMA. Native Dump/Restore preserves authentic
 installed identities, renamed helpers/wrapper, owners and ordered foreign
 metadata alongside local data, never foreign rows or live external handles.
 
+Stock `CREATE EXTENSION postgres_fdw` installs authentic C handler/validator
+declarations and the wrapper. Declaration and option validation perform no
+connection I/O. To execute genuine base scans, register a host-owned external
+SQL provider and call `Driver.BindPostgresFDWExternalSQLProvider(name)` before
+the first connector. Binding is Driver-local, immutable after connector creation,
+and independent of SQL names/options or the opaque Driver DSN. An unbound
+demanded scan returns an ordinary `ExternalSQLUnavailableError`, never canned rows.
+
+Scans use presence-aware schema/table/column mappings, actual remote cursors and
+the effective table-over-server fetch size. The host supplies PostgreSQL text
+results. Local declared base types, including BYTEA domains, choose input:
+local BYTEA text passes through the genuine builtin decoder once, then the
+shared importer applies local domain/typmod checks once. Local TEXT preserves
+remote BYTEA's textual representation rather than decoding its remote OID.
+Local input failures retain the selected local column/table aliases (including
+retained stored-query layouts) and original SQL diagnostic fields; they do not
+acquire a synthetic remote query context.
+NULL and non-NULL empty octets remain distinct. Remote initialization sets pg_catalog
+search_path, GMT, ISO date format (preserving startup date order), postgres
+interval format and extra_float_digits 3. Planning estimates are generic base
+estimates, not claims of discovered remote cardinality or optimizer shipping.
+
+The existing physical-session owner caches by database incarnation and selected
+mapping identity. Exact mappings precede PUBLIC; PUBLIC callers share one remote
+transaction through the existing FDW coordinator. `keep_connections=false`
+closes at transaction settlement; otherwise healthy connections remain reusable.
+Successful server/mapping changes invalidate the issuer at its private statement
+boundary and peers at committed publication. Ordinary in-use invalidation defers
+close until settlement. Replacement and physical session end instead cancel/join
+all matching owned stock resources, including active entries already detached
+from the reusable cache; later settlement cannot close the physical wire twice.
+Other databases' resources survive selected-database replacement.
+
+Non-superusers require explicit credentials and genuine host-reported password
+use unless a superuser authorized `password_required=false`. Options alone do
+not prove incoming SCRAM keys or delegated GSS credentials. Stock connection
+errors project only attested host-establishment or genuine authentication
+failures; arbitrary callback, context, Execute and Close errors remain ordinary.
+Native controls preserve installed origins, options, ACLs and local data, with
+canonical destination provider Name/Version requirements, never remote rows or
+live connections. Dump output containing mapping credentials is sensitive.
+Transport networking, TLS and supported remote server versions remain host
+responsibilities; option admission does not install optional FDW callbacks.
+
+
 ### Host-owned external SQL
 
 `Driver.RegisterExternalSQLProvider(ExternalSQLProviderDefinition{Name, Version,

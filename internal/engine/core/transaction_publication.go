@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/remote"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -89,6 +90,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 	}
 	remoteSettled := false
+	var postgresCleanup []remote.PostgresCleanup
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		for {
 			notifications := e.prepareNotificationPublication(op.Session, actions, events)
@@ -790,6 +792,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.Storage.ReplaceRelationsLocked(nextStorage)
 			e.Storage.RelationMetadata = relationMetadata
 			e.Catalog.PublishLocked(nextCatalog)
+			if postgresFDWJournalChanged(e.Catalog.Read(current), e.Catalog.Read(nextCatalog), c) {
+				postgresCleanup = e.invalidatePostgresLocked(e.Catalog.Read(nextCatalog), false, sess)
+			}
 			e.reconcileLogicalBuffersLocked()
 			databasePublication.InstallLocked(e)
 			e.Catalog.InstallRevisionFrontierLocked(nextRevision)
@@ -814,7 +819,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		op.FinishDiscardRoleResetLocked()
 		sess.Mu.Unlock()
 		e.Mu.Unlock()
-		return nil
+		if scope != nil && len(postgresCleanup) != 0 {
+			scope.foreignUnlocked()
+		}
+		return closePostgresCleanup(postgresCleanup)
 	}
 }
 

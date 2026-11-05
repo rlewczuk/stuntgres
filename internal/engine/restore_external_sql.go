@@ -40,8 +40,10 @@ func finishRestoreExternalRequirements(r *restoreRun, ctx context.Context, _ *se
 		return err
 	}
 	for _, d := range r.stage.Catalog.State.Descriptors() {
-		if installation, installed := catalog.OriginInstallation(d); installed && installation.Provider == "dblink" && !r.externalRequirements[externalRequirementKey{kind: "dblink"}] {
-			return errors.New("stuntgres: missing dblink external SQL prerequisite")
+		if installation, installed := catalog.OriginInstallation(d); installed &&
+			(installation.Provider == "dblink" || installation.Provider == "postgres_fdw") &&
+			!r.externalRequirements[externalRequirementKey{kind: installation.Provider}] {
+			return errors.New("stuntgres: missing " + installation.Provider + " external SQL prerequisite")
 		}
 		wrapper, ok := d.(*catalog.ForeignObject)
 		if !ok || wrapper.Address().ClassID != ids.ForeignWrapperClassID || wrapper.Handler == (ids.ObjectAddress{}) {
