@@ -27,6 +27,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "trigger: foreign key mode records", Decode: decodeRestoreForeignKeyMode},
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
+	{Name: "storage: auxiliary fork records", Decode: decodeRestoreAuxiliaryForks},
 	{Name: "partition: pending detach records", Decode: decodeRestorePendingDetach},
 	{Name: "initial privileges inventory", Decode: decodeRestoreInitialPrivileges},
 	{Name: "GIN split records", Decode: decodeRestoreGin},
@@ -134,5 +135,6 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: pending detach membership", Finish: finishRestorePendingDetaches},
 	{Name: "initial privileges replacement", Finish: finishRestoreInitialPrivileges},
 	{Name: "GIN split replacement", Finish: finishRestoreGin},
+	{Name: "storage: auxiliary fork provenance", Finish: finishRestoreAuxiliaryForks},
 	{Name: "sepgsql imported authority", Finish: finishRestoreSepgsql},
 }

@@ -175,7 +175,8 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 					if b.PG && name == "pc18_phys_root_pkey" {
 						tuples = 0
 					}
-					hasStorage := name == "pc18_phys_heap" || name == "pc18_phys_idx" || name == "pc18_phys_mv"
+					// Native sequences have genuine logical storage locators, not files.
+					hasStorage := name == "pc18_phys_heap" || name == "pc18_phys_idx" || name == "pc18_phys_mv" || name == "pc18_phys_seq"
 					s := fixture.Select(q, []string{"has_storage", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relrewrite", "valid_freeze", "relminmxid"}, []string{"BOOL", "INT4", "FLOAT4", "INT4", "INT4", "OID", "OID", "BOOL", "XID"}, [][]any{{hasStorage, pages, tuples, int64(0), int64(0), int64(0), int64(0), true, "0"}}, name)
 					// A real sequence has a physical file. Compare its other fields,
 					// while independently asserting the file is actually present.

@@ -812,6 +812,26 @@ Dump retains installed SQL/data/ACLs, not live cache or cursor state; successful
 target Reset/Restore starts its cache cold while preserving other databases and
 already detached results. Cold NUMA observations still enumerate full capacity.
 
+`CREATE EXTENSION pg_prewarm VERSION '1.2'` installs one invoker-rights,
+non-STRICT volatile `pg_prewarm(regclass, mode text DEFAULT 'buffer',
+fork text DEFAULT 'main', first_block bigint DEFAULT NULL,
+last_block bigint DEFAULT NULL) RETURNS bigint`. Ordinary EXECUTE and full
+relation SELECT apply (index access checks its parent); pg_monitor is not a
+bypass. All three modes explicitly preload the same native logical cache using
+actual fork/block coordinates, immediately releasing their session pins.
+The inclusive independently validated endpoints count already resident blocks;
+NULL endpoints select actual extent defaults, and a reversed valid range is empty.
+Only main sizing consumes checked compact live-row payload, actual index
+allocation or genuine catalog producer data; sequences have one main block.
+Variable text remains native inline storage, not a separate physical TOAST
+relation. Catalog ranges are processed without inventing a shared-cache locator.
+Auxiliary presence/extents use captured successful-maintenance facts, and init
+uses actual unlogged persistence, without scanning main storage. Every fork
+retains currentness and authority checks, including empty/reversed success.
+Dump/Restore preserves scalar fork provenance and installed
+SQL/ACLs, never cache occupancy. No autoprewarm helper or background worker is
+installed.
+
 Installed pg_surgery 1.0 provides genuine freeze and kill routines with independent
 EXECUTE grants and current schema/owner checks. Kill acts on exact heap versions
 without DELETE triggers, FK actions or index maintenance. Completed groups survive

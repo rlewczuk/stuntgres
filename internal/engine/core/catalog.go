@@ -289,6 +289,7 @@ func (s *CatalogStage) AlterRelation(ctx context.Context, ref ids.ObjectRef, d *
 	}
 	beforeRows := original.Versions
 	observedVisibility := original.Visibility
+	observedAuxiliary := original.Auxiliary
 	e.Mu.Unlock()
 	if original != replacement {
 		for i, row := range replacement.Versions {
@@ -310,7 +311,7 @@ func (s *CatalogStage) AlterRelation(ctx context.Context, ref ids.ObjectRef, d *
 	if s.RowShapes == nil {
 		s.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 	}
-	s.RowShapes[ref.Address] = storage.RowShape{Original: original, Root: beforeRows, Replacement: replacement, ObservedLength: observedLength, ObservedEnds: observedEnds, ObservedVisibility: observedVisibility, Generation: observedGeneration}
+	s.RowShapes[ref.Address] = storage.RowShape{Original: original, Root: beforeRows, Replacement: replacement, ObservedLength: observedLength, ObservedEnds: observedEnds, ObservedVisibility: observedVisibility, ObservedAuxiliary: observedAuxiliary, Generation: observedGeneration}
 	return nil
 }
 
@@ -984,6 +985,8 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		}
 		if err == nil {
 			storage.PreserveUnchangedRelations(relations, currentStorage, e.Storage.Relations)
+		}
+		if err == nil {
 			next, err = e.prepareReplacementLocatorsLocked(next, relations, func(address ids.ObjectAddress) bool {
 				return s.RowShapes[address].Rewritten || published.Refresh != nil && published.Refreshed == address
 			})
@@ -1294,7 +1297,7 @@ func (e *Engine) replaceCatalogContents(ctx context.Context, source *Engine, rep
 				versions[i] = selected.VersionAt(selected.RawIndex(i))
 			}
 			selected.Close()
-			relations[a] = &storage.Relation{Versions: versions}
+			relations[a] = &storage.Relation{Versions: versions, Auxiliary: source[a].Auxiliary}
 		}
 		var err error
 		indexes, err = owner.captureIndexSnapshot(ctx, physical, source, owner.Storage.IndexRoots, frontier)

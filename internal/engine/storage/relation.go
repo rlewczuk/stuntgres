@@ -35,6 +35,9 @@ type Relation struct {
 	// Visibility is immutable modeled VM authority for this incarnation.
 	// Physical truncation publishes outside ordinary transaction undo.
 	Visibility *VisibilityRoot
+	// Auxiliary fork provenance is copied by value with metadata-only roots,
+	// retained across DML, and reset by genuine new-incarnation construction.
+	Auxiliary AuxiliaryForks
 }
 
 // IndexIdentity is the storage an index root was built from: the origin for a

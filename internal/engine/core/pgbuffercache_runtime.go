@@ -83,6 +83,8 @@ func nextLogicalBuffer(ctx context.Context, cursor *expr.SourceCursor) (sqltype.
 				continue
 			}
 			value := int64(0)
+			if i == 4 { value = int64(row.fork) }
+			if i == 5 { value = row.block }
 			if i == 7 {
 				value = row.usage
 			}

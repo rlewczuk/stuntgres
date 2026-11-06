@@ -292,6 +292,32 @@ Generic ordinary/shadow source-call contrasts preserve decoration diagnostics
 without granting provider behavior by name. Stored field views and native replay
 retain callable identity and ACLs, never live occupancy or pin ownership.
 
+Prewarm contracts use the public dual-mode selectors
+`RUN='^TestReferencePgPrewarm(Declarations|Ranges|Forks|StorageAdmission|Diagnostics|Permissions|Identity|Cache|Controls|Lifecycle|FeatureSmoke)$'`.
+Run each selected group natively and with `REFERENCE=1`. Expected declaration,
+SQLSTATE and full diagnostic fields are independently specified; only real
+PostgreSQL fork extents come from `pg_relation_size/8192`, while native compact
+heap boundaries (185/186/1000 integer rows → 1/2/6 blocks) are independent facts.
+Only buffer mode asserts PostgreSQL occupancy; all modes assert genuine native
+coordinate preload. The shared fixture has no PostgreSQL-only discovery filter.
+Permissions separate direct/fresh routine-schema denial in `pw_part` from held
+regclass input denial in `pw_target`; the latter leaves the routine namespace
+usable and requires the full ordinary bound-parameter diagnostic.
+Owner/geometry/cache/publication protocols use `RUN='^TestPgPrewarm'`, adding
+`RACE=1` for concurrent ownership checks. Complete available-extension inventories
+include untrusted, superuser-required, relocatable pg_prewarm 1.2.
+
+Storage admission separates PostgreSQL's actual `reltoastrelid` target from
+native inline large-text storage; it never invents a native TOAST descriptor.
+Native text rows independently cross one/two compact blocks at 120/121 rows.
+The genuine `pg_am` producer supplies seven 124-byte rows (868 bytes, one block),
+while its zero locator remains shared-cache-ineligible. Public catalog ACL
+changes are transaction-contained and restore the exact prior state.
+The native StorageAdmission and ForkDirectedCapture owners retain actual
+producer payloads, visible roots and view handles alongside count/cache/error
+assertions. Main requires sizing resources; other forks consume scalar facts
+without acquiring those resources, retaining all-fork currentness and release.
+
 Free-space inquiries use `RUN='^TestReferencePgFreespace'`. The shared fixture
 keeps compact native live-row estimates distinct from PostgreSQL FSM counters,
 while fixing exact declaration, identity, ACL, NULL and diagnostic contracts.
@@ -308,10 +334,13 @@ that borrower before fresh queries, Restore or destination DML. Private writers
 are rolled back and returned before retained-output capture; held statements
 remain available to prove current authority and restored identities.
 
-Genuine partitioned-index and TOAST construction are oracle-only setup phases.
-Native partitioned-index rejection additionally uses real published descriptors
-and the current installed host, preserving kind-before-block diagnostics without
-adding public construction machinery.
+TOAST and default-btree partitioned-index construction remain oracle-only setup.
+Other represented partitioned AM constructors retain their existing support;
+this feature does not expand them. Prewarm's native partitioned-index witness
+publishes genuine copied index/parent descriptors through the existing owner
+pattern and calls the actual installed host, preserving full ACL-before-kind and
+kind-before-fork/range diagnostics. All other public storage-kind routes run in
+both modes.
 
 Dblink delete-construction scenarios use `RUN='^TestReferenceDblinkBuildSQLDelete'`
 in both modes. Shared direct/prepared/held bodies assert independent generated

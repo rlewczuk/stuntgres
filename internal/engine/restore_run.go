@@ -56,6 +56,7 @@ type restoreRun struct {
 	extendedStatistics       []storage.ExtendedStatisticsSnapshot
 	attributeStatistics      []storage.AttributeStatisticsSnapshot
 	relationStatistics       []storage.RelationStatisticsSnapshot
+	auxiliaryForks           []storage.AuxiliaryForkSnapshot
 	initialPrivileges        *control.InitialPrivilegesMetadata
 	ginIndexes               []index.GinDumpIndex
 	ginRows                  []index.PositionedGinRow

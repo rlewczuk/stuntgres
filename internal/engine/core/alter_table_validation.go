@@ -59,6 +59,7 @@ func (e *Engine) TransferAlterStage(scope *StatementScope, stage *CatalogStage) 
 	return e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())
 }
 
+// Record captures the actual staged destinations before final validation.
 func (phase AlterMetadataPhase) Record(stage *CatalogStage) {
 	for address, descriptor := range stage.Descriptors() {
 		phase.final[address] = descriptor

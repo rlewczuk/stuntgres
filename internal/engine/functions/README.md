@@ -1268,6 +1268,12 @@ reviewed decision:
   effective-owner entry. No Open occurs during prepare, describe or replay.
   `AppendSQLLiteral` shares the formatter's PostgreSQL literal escaping directly
   into an invocation-owned builder without an intermediate rendered string.
+  `PgPrewarm` retains five formal slots and the supplied children independently:
+  named arguments map once to their declared slots, omitted values are genuine
+  literal defaults, and rebuild copies child backing. The installed callable is
+  volatile, stage-dependent and non-STRICT; no retained preload result can fold.
+  Invocation admits current routine authority before evaluating children exactly
+  once; no portable relative evaluation order between sibling children is promised.
   `PgFreespace` retains sealed scalar/set operation, written-order operands,
   checked regclass/bigint slots and INT2/record usage. Only wrapper `rel` is named.
   Volatile stage-dependent calls never fold state results; scalar known-NULL

@@ -48,6 +48,15 @@ capture owner into the shared rewrite producer; preserving codec copies do not.
 Destination schema/value evidence survives a later failure independently of the
 successful-effect projection, which installs only with its original stage.
 
+The same first actual copy carries observed immutable auxiliary-fork facts.
+Enum-stage seeding, generation adoption and typed physical producers transport
+that observation with the VM root, never defaulting it to absent after VACUUM.
+Publication fences both facts against the actual predecessor before installation.
+Actual typed row rewrites retain the exact owned heap and attached-index
+definitions through row/constraint evaluation and index construction. Canonical
+publication allocates their locators with locator-only descriptor clones;
+metadata-only and codec-only transport preserve the existing incarnation.
+
 The enum/range command's locked stage-to-journal transfer records the existing
 candidate default-ACL, initial-privilege and security-label bookkeeping before
 descriptor transfer. Generated range constructors therefore retain their actual

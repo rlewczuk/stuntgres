@@ -9,7 +9,7 @@ import (
 )
 
 func summaryLeafKey(domain *ids.Domain, n ids.OID) logicalBufferKey {
-	return logicalBufferKey{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, space: 1663, database: 5}
+	return logicalBufferKey{logicalBufferIncarnation: logicalBufferIncarnation{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, space: 1663, database: 5}}
 }
 func summaryLeafAssert(t *testing.T, got, want functions.PgBuffercacheCounts) {
 	t.Helper()

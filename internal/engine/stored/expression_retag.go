@@ -537,6 +537,16 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.InstalledPgPrewarmExpr:
+		n.Args = children(n.Args)
+		if err != nil { return node, false, err }
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgPrewarmProviderOf(proc) != extension.StockPgPrewarm { return nil, false, fmt.Errorf("stuntgres: missing remapped pg_prewarm function") }
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgPrewarm(n, view); err != nil { return nil, false, err }
+		rebound = n
 	case plan.InstalledPgFreespaceExpr:
 		n.Args = children(n.Args)
 		if err != nil {

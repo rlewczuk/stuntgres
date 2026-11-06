@@ -88,7 +88,7 @@ func (r *logicalBufferRead) openCacheLocked() (valid, resident bool) {
 		return false, false
 	}
 	key, eligible := logicalBufferIdentity(view, relation)
-	if !eligible || key != r.key {
+	if !eligible || key != r.key.logicalBufferIncarnation {
 		return false, false
 	}
 	r.mu.Lock()
@@ -121,19 +121,19 @@ func (e *Engine) logicalBuffersLocked() *logicalBufferCache {
 	}
 	return e.Cluster.buffercache
 }
-func logicalBufferIdentity(view catalog.Read, relation *catalog.Relation) (logicalBufferKey, bool) {
+func logicalBufferIdentity(view catalog.Read, relation *catalog.Relation) (logicalBufferIncarnation, bool) {
 	if relation == nil || view.Owner() == nil {
-		return logicalBufferKey{}, false
+		return logicalBufferIncarnation{}, false
 	}
 	namespace, ok := view.Namespace(relation.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
-		return logicalBufferKey{}, false
+		return logicalBufferIncarnation{}, false
 	}
 	node := relation.EffectiveStorageLocator(view)
 	if node == 0 {
-		return logicalBufferKey{}, false
+		return logicalBufferIncarnation{}, false
 	}
-	key := logicalBufferKey{domain: view.Owner().Domain, epoch: view.Epoch(), relation: relation.Address(), node: node, space: catalog.DefaultTablespaceOID, database: view.Owner().DatabaseAddress().ObjectID}
+	key := logicalBufferIncarnation{domain: view.Owner().Domain, epoch: view.Epoch(), relation: relation.Address(), node: node, space: catalog.DefaultTablespaceOID, database: view.Owner().DatabaseAddress().ObjectID}
 	if catalog.SharedRelation(relation) {
 		key.space, key.database = catalog.GlobalTablespaceOID, 0
 	}
@@ -145,11 +145,17 @@ func (e *Engine) logicalBufferReadKeyLocked(scope *StatementScope, view catalog.
 	if e.Cluster == nil {
 		return logicalBufferKey{}, false
 	}
-	if journal := scope.PendingCatalog(); journal != nil && journal.Storage[address].Rewritten {
-		return logicalBufferKey{}, false
-	}
 	relation, ok := view.Relation(address)
 	if !ok {
+		return logicalBufferKey{}, false
+	}
+	// Private heap rewrites retain committed locators until publication. An
+	// attached index shares its parent's rewrite intent, not its journal key.
+	owner := address
+	if relation.SQLIndex != nil {
+		owner = relation.SQLIndex.Parent
+	}
+	if journal := scope.PendingCatalog(); journal != nil && journal.Storage[owner].Rewritten {
 		return logicalBufferKey{}, false
 	}
 	key, eligible := logicalBufferIdentity(view, relation)
@@ -164,7 +170,7 @@ func (e *Engine) logicalBufferReadKeyLocked(scope *StatementScope, view catalog.
 	if !eligible || incumbent != key {
 		return logicalBufferKey{}, false
 	}
-	return key, true
+	return logicalBufferKey{logicalBufferIncarnation: key}, true
 }
 
 // Successful publication reconciles sparse occupancy only. Descriptor revisions
@@ -195,7 +201,7 @@ func (e *Engine) reconcileLogicalBuffersLocked() {
 		}
 		relation, exists := view.Relation(key.relation)
 		current, eligible := logicalBufferIdentity(view, relation)
-		if !exists || !eligible || current != key {
+		if !exists || !eligible || current != key.logicalBufferIncarnation {
 			cache.retireLocked(key, entry)
 		}
 	}

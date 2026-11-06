@@ -330,6 +330,9 @@ func (h *contribHost) DblinkBuildSQLUpdate(n plan.InstalledDblinkBuildSQLUpdateE
 	return contrib.DblinkBuildSQLUpdate[AuthorizationView](h.host(), n, values)
 }
 
+func (h *contribHost) PgPrewarm(n plan.InstalledPgPrewarmExpr, oid uint32, request storage.PrewarmRequest) (int64, error) {
+	return contrib.PgPrewarm[AuthorizationView](h.host(), n, oid, request)
+}
 func (h *contribHost) PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error) {
 	return contrib.PgFreespace[AuthorizationView](h.host(), n, oid, block)
 }

@@ -940,6 +940,14 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   typed TID array and decoded class OID to the statement host, returning nonnull
   VOID only after successful publication. Prepared recipes retain no permission
   result or heap handle; the host readmits target authority at publication.
+- **Prewarm** (`pgprewarm.go`): one volatile BIGINT scalar authenticates the
+  genuine current installation and EXECUTE authority before exactly-once child
+  evaluation and actual routine entry. Body admission checks NULL relation,
+  NULL/recognized mode, then NULL/recognized fork before target lookup. Endpoint
+  NULLs select defaults, not strict suppression. Namespace access remains with
+  ordinary regclass input and retained-command invalidation; no unconditional
+  second runtime-schema gate is added. A typed request crosses the contrib seam;
+  no execution host or live cache state is retained in the expression.
 - **Buffer cache** (`pgbuffercache.go`): an installed anonymous-record carrier
   retains genuine routine provenance, sealed pages/NUMA operation and caller field
   usages, never OUT aliases. Current EXECUTE/recipe admission precedes row/count/

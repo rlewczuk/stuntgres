@@ -79,6 +79,7 @@ type Capture struct {
 	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
 	AttributeStatistics   []storage.AttributeStatisticsSnapshot
 	RelationStatistics    []storage.RelationStatisticsSnapshot
+	AuxiliaryForks        []storage.AuxiliaryForkSnapshot
 	GinIndexes            []index.GinDumpIndex
 	Providers             []providerReplay
 	Tables                []table.DumpRelation

@@ -11,7 +11,7 @@ import (
 func TestPgBuffercacheCacheLifecycle(t *testing.T) {
 	domain := new(ids.Domain)
 	key := func(n ids.OID) logicalBufferKey {
-		return logicalBufferKey{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, space: 1663, database: 5}
+		return logicalBufferKey{logicalBufferIncarnation: logicalBufferIncarnation{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, space: 1663, database: 5}}
 	}
 	owner := domain.Session(1)
 	cache := &logicalBufferCache{capacity: 2}
@@ -70,7 +70,7 @@ func TestPgBuffercacheCacheLifecycle(t *testing.T) {
 
 func TestPgBuffercacheCacheSessionOwnership(t *testing.T) {
 	cache := &logicalBufferCache{capacity: 1}
-	key := logicalBufferKey{domain: new(ids.Domain), epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}
+	key := logicalBufferKey{logicalBufferIncarnation: logicalBufferIncarnation{domain: new(ids.Domain), epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}}
 	owner, peer := key.domain.Session(1), key.domain.Session(2)
 	first, _ := cache.open(key, owner)
 	second, _ := cache.open(key, owner)

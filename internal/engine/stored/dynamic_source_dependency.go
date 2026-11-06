@@ -58,6 +58,9 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 			if ok && extension.PgBuffercacheProviderOf(procedure) == extension.StockPgBuffercache && procedure.Origin != nil && procedure.Origin.Declaration >= 1 && int(procedure.Origin.Declaration) <= len(extension.PgBuffercacheEvictionMembers) {
 				return true, nil
 			}
+			if ok && extension.PgPrewarmProviderOf(procedure) == extension.StockPgPrewarm {
+				return true, nil
+			}
 			if ok && (extension.PgFreespaceProviderOf(procedure) == extension.StockPgFreespace || extension.PgvisibilityProviderOf(procedure) == extension.StockPgvisibility || extension.PgstattupleProviderOf(procedure) == extension.StockPgstattuple || extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
 				return true, nil
 			}

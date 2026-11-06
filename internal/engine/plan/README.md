@@ -250,6 +250,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   reconstruction and source opening. Generic completion supplies an anonymous
   record usage; fixed wrappers retain their genuine named composite generation.
   Source/group equality includes both selected identity and result shape.
+  `InstalledPgPrewarmExpr` carries the single genuine procedure/reference and
+  five checked formal slots through immutable rebuild, source identity and
+  retained execution. Its BIGINT scalar remains a volatile invocation even when
+  every child is constant; initial source capture does not preload cache entries.
   `InstalledPgFreespaceExpr` preserves genuine procedure/reference, typed usage
   and formal slots through rebuild/substitution and source matching. Scalar INT2
   and SETOF record remain distinct. Shared strict simplification can replace a

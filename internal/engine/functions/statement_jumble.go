@@ -435,6 +435,7 @@ func (PgpArmorHeaders) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgpArmorHeaders")
 }
 func (PgFreespace) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.PgFreespace") }
+func (PgPrewarm) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.PgPrewarm") }
 func (Pgrowlocks) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.Pgrowlocks") }
 func (PgstattupleStats) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgstattupleStats")

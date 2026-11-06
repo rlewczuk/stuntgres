@@ -93,6 +93,8 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		}
 		d := *sequence.Relation
 		d.ObjectRevision, d.SequencePlanStamp = rev, rev
+		d.StorageLocator, err = e.Catalog.AllocateOIDLocked()
+		if err != nil { return nil, err }
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}

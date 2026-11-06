@@ -95,7 +95,7 @@ func (s *StatementScope) stageTruncate() error {
 				err = ids.ErrCatalogReplaced
 				break
 			}
-			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, ObservedVisibility: original.Visibility, Generation: original.Generation}
+			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, ObservedVisibility: original.Visibility, ObservedAuxiliary: original.Auxiliary, Generation: original.Generation}
 		}
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.

@@ -69,10 +69,14 @@ neither owns catalog authority.
   unselected. Adopting an existing child index preserves that child's own bit.
   `Relation.StorageLocator` is an optional logical incarnation, projected by
   `EffectiveStorageLocator`: native heaps/materialized heaps/nonpartitioned
-  indexes initially use object identity; providers and storage-less roots use
+  indexes and genuine sequence-option owners initially use object identity;
+  providers and storage-less roots use
   zero. Actual rewrites replace this field on cloned descriptors; metadata-only
   edits retain it, and foreign import remints destination identity. It grants no
   physical file/path mapping capability.
+  Genuine sequence generator replacements author a new logical locator in their
+  existing DDL owner; name/ACL changes and nextval/setval retain it. This changes
+  neither native sequence page estimates nor ordinary source-read admission.
   `Database` carries immutable owner/ACL, admission/template flags, explicit
   connection limit, logical default-tablespace authority and owned nullable
   recorded collation version. Constructors initialize admission explicitly,

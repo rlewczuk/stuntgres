@@ -268,6 +268,7 @@ func TestInstalledRegistryBindingFamilies(t *testing.T) {
 		{PgvisibilityExtension, "pg_visibility_map pg_visibility pg_visibility_map_summary"},
 		{DblinkExtension, "dblink_get_pkey dblink_build_sql_delete dblink_build_sql_insert dblink_build_sql_update"},
 		{PgFreespaceExtension, "pg_freespace"},
+		{PgPrewarmExtension, "pg_prewarm"},
 		{PgBuffercacheExtension, "pg_buffercache_pages pg_buffercache_evict pg_buffercache_evict_relation pg_buffercache_evict_all pg_buffercache_summary pg_buffercache_usage_counts pg_buffercache_numa_pages"},
 		{PgStatStatementsExtension, "pg_stat_statements pg_stat_statements_info pg_stat_statements_reset"},
 	} {

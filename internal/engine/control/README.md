@@ -1193,6 +1193,16 @@ comparison hooks only forward, run marked statements and capture
 authorization); the composition functions `Reset`, `Dump` and `Restore`
 (`control.go`).
 
+## Auxiliary fork metadata
+
+The existing locked Dump capture copies qualified immutable auxiliary-fork facts,
+then emits strict versioned scalar metadata comments after relation definitions.
+Restore validates every record against real non-TEMP heap/materialized storage
+and applies facts only to private staging after physical snapshot repairs.
+Duplicate, unsupported, malformed or canceled metadata rejects publication;
+failed Restore leaves incumbent facts/cache intact. Successful Restore transports
+fork presence/extents but never occupancy, leases, pins or executable authority.
+
 ## Testing
 
 Text-search parser graph, declaration and canceled/failed capture ownership

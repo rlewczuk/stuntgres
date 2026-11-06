@@ -575,6 +575,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_buffercache", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || p.DeclarationBody != nil || len(p.Body) != 0 {
 			return invalid()
 		}
+	case StockPgPrewarm:
+		count = 1
+		name, signature, result, volatility, strict = "pg_prewarm", PgPrewarmSignature, 20, expr.Volatile, false
+		if ext.Provider != "pg_prewarm" || ext.Version != "1.2" || slot != 0 || p.Installed != pgPrewarmDeclaration || p.InputNames != pgPrewarmInputNames || p.LiteralDefaults != pgPrewarmDefaults || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_prewarm", HasBinary: true}) || p.DeclarationBody != nil || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgFreespace:
 		count = 2
 		if ext.Provider != "pg_freespacemap" || ext.Version != "1.3" || slot >= count {

@@ -47,6 +47,10 @@ match.
   staged against the admitted storage. Successful completion reports the actual
   population query count through `Result.UtilityRows`, before concurrent
   reconciliation; API affected rows and the uncounted REFRESH tag remain zero.
+  The exact owned destination storage and attached-index construction survive
+  canonical publication, which allocates fresh native heap/index locators through
+  locator-only descriptor clones. Concurrent read-history lineage remains
+  independently preserved; private refresh does not publish cache occupancy.
 - Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
   view rows into the private Restore engine in one publication; it admits
   only the trusted bootstrap import authority.

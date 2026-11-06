@@ -140,6 +140,9 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 	if provider := PgstattupleProviderOf(d); provider != nil {
 		return d.Extension, provider.ValidateProcedure(v, d)
 	}
+	if provider := PgPrewarmProviderOf(d); provider != nil {
+		return d.Extension, provider.ValidateProcedure(v, d)
+	}
 	if provider := PgFreespaceProviderOf(d); provider != nil {
 		return d.Extension, provider.ValidateProcedure(v, d)
 	}

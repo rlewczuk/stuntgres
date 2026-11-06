@@ -145,13 +145,14 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			if !shape.Rewritten && shape.Replacement == shape.Original && replacement != shape.Original {
 				shape.PreservesVisibility = true
 				shape.ObservedVisibility = replacement.Visibility
+				shape.ObservedAuxiliary = replacement.Auxiliary
 			}
 			shape.Replacement = replacement
 			stage.RowShapes[address] = shape
 			continue
 		}
 		original := e.StageStorageLocked(stage, address)
-		stage.RowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, ObservedVisibility: original.Visibility, PreservesVisibility: replacement != original, Generation: original.Generation}
+		stage.RowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, ObservedVisibility: original.Visibility, ObservedAuxiliary: original.Auxiliary, PreservesVisibility: replacement != original, Generation: original.Generation}
 	}
 	return nil
 }

@@ -452,6 +452,18 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   This does not change relation_size's retained-version allocation model.
   Physical FSM tree pages, stale update cadence, disk history and index recycling
   are non-engine mechanisms, not fabricated storage or authorities.
+  `pgprewarm.go` defines checked inclusive endpoint admission and immutable
+  `Relation.Auxiliary` fork provenance. Actual successful VACUUM captures and
+  publishes FSM/VM presence and extent together with its physical roots;
+  never-created and created-empty remain distinct. FSM uses one native logical
+  leaf per 8168 main pages; VM one per 32672. Map truncation clears extent, not
+  existing presence. Metadata-only heap codec copies preserve these scalar
+  facts and fence their observation alongside the VM root; destructive rewrites
+  start a fresh incarnation. Prewarm selects auxiliary/init presence and extent
+  from captured scalar facts without main-payload sizing; exact root/currentness
+  fences still apply. `pgprewarm_snapshot.go` transports only validated,
+  qualified scalar facts through the existing strict metadata-comment codec.
+  No cache occupancy, lease, catalog pointer or alternate storage is serialized.
   `pgvisibility.go` consumes detached facts in genuine VersionID order, deduplicates
   only physical identity, and packs checked `RowAllocation+4` weights into
   8168-byte page payloads. Compressed immutable runs supply probes, relation rows

@@ -50,6 +50,7 @@ type ContribRuntime interface {
 	Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error)
 	DblinkBuildSQLDelete(n plan.InstalledDblinkBuildSQLDeleteExpr, values [4]sqltype.Value) (string, error)
 	DblinkConnection(n plan.InstalledDblinkConnectionExpr, values [2]sqltype.Value, caller authorization.PrincipalRef) (sqltype.Value, error)
+	PgPrewarm(n plan.InstalledPgPrewarmExpr, oid uint32, request storage.PrewarmRequest) (int64, error)
 	PgFreespace(n plan.InstalledPgFreespaceExpr, oid uint32, block int64) (storage.FreespaceLayout, error)
 	PgFreespaceExtent(n plan.InstalledPgFreespaceExpr, oid uint32) (storage.FreespaceLayout, bool, error)
 	DblinkBuildSQLInsert(n plan.InstalledDblinkBuildSQLInsertExpr, values [5]sqltype.Value) (string, error)

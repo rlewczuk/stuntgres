@@ -22,6 +22,7 @@ type VacuumCapture struct {
 	Discarded  *storage.HeapPredecessor
 	Headers    *storage.HeapHeaderRoot
 	Visibility *storage.VisibilityRoot
+	Auxiliary storage.AuxiliaryForks
 	KeepDead   bool
 	Generation uint64
 	Frontier   ids.CommitSeq
@@ -97,6 +98,7 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 func (c VacuumCapture) SameLocked(current VacuumCapture, store *storage.Store, rewritesCatalog bool) bool {
 	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Retained == c.Retained && current.Discarded == c.Discarded && current.Headers == c.Headers && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
 	same = same && current.Visibility == c.Visibility
+	same = same && current.Auxiliary == c.Auxiliary
 	if rewritesCatalog && current.Catalog != c.Catalog {
 		same = false
 	}
@@ -111,6 +113,7 @@ type VacuumPass struct {
 	Generation uint64
 	Roots      map[ids.ObjectAddress]*storage.IndexRoot
 	Catalog    *catalog.State
+	Auxiliary storage.AuxiliaryForks
 }
 
 // VacuumProgress is a detached pass snapshot. Prefixes count completed version
@@ -155,7 +158,9 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		return VacuumPass{}, err
 	}
 	changed := !storage.SameVersionRoot(candidate.Versions, c.Rows) || candidate.Ends != c.Ends || candidate.Retained != c.Retained || candidate.Discarded != c.Discarded || candidate.Headers != c.Headers
-	pass := VacuumPass{Candidate: candidate, Generation: c.Generation}
+	auxiliary, err := storage.VacuumForks(ctx, c.Auxiliary, candidate.Versions)
+	if err != nil { return VacuumPass{}, err }
+	pass := VacuumPass{Candidate: candidate, Generation: c.Generation, Auxiliary: auxiliary}
 	if changed {
 		if pass.Generation == ^uint64(0) {
 			return VacuumPass{}, fmt.Errorf("stuntgres: storage generation exhausted")

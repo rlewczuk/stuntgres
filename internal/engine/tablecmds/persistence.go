@@ -53,6 +53,10 @@ func stageTablePersistence(e *core.Engine, scope *core.StatementScope, stage *co
 			options.Persistence = destination
 			changed.Sequence = &options
 			changed.ObjectRevision, changed.SequencePlanStamp = revision, revision
+			if original != nil {
+				changed.StorageLocator, err = e.Catalog.AllocateOIDLocked()
+				if err != nil { return err }
+			}
 			if original == nil { stage.UpdateDescriptor(&changed) } else if err := stage.Replace(&changed); err != nil { return err }
 			stage.SequenceState().CaptureIdentityOriginal(address, e.Catalog.State.Get(address))
 			stage.SequenceState().SetPersistenceGenerator(address, sequence.ReplacementGenerator(*generator, revision, nil))

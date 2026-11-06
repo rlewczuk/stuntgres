@@ -286,6 +286,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.registerExtension("postgres_fdw", extension.StockPostgresFDW); err != nil {
 		return nil, err
 	}
+	if err := e.registerExtension("pg_prewarm", extension.StockPgPrewarm); err != nil {
+		return nil, err
+	}
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer

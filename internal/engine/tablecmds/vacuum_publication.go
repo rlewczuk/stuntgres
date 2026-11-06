@@ -40,6 +40,7 @@ func captureVacuumLocked(e *core.Engine, s *core.StatementScope, target vacuumHe
 		return c, false, err
 	}
 	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Retained: target.store.Retained, Discarded: target.store.Discarded, Headers: target.store.Headers, Visibility: target.store.Visibility, Generation: target.store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
+	c.Auxiliary = target.store.Auxiliary
 	return c, true, nil
 }
 
@@ -90,6 +91,7 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.Ref, d, store}
 	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Retained: store.Retained, Discarded: store.Discarded, Headers: store.Headers, Visibility: store.Visibility, KeepDead: o.SkipIndexCleanup, Generation: store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
+	first.Auxiliary = store.Auxiliary
 	if err := first.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true, s); err != nil {
 		e.Mu.Unlock()
 		return err
@@ -171,6 +173,7 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 		// Even an already-frozen/no-header-change successful pass rebuilds VM.
 		// This non-journaled publication is after every fallible/final fence.
 		target.store.Visibility = nil
+		target.store.Auxiliary = pass.Auxiliary
 		s.RecordStatsMaintenance(target.ref, false, started, completed, target.store.Maintenance.Live, target.store.Maintenance.Dead, false)
 		e.Mu.Unlock()
 		if o.Verbose {

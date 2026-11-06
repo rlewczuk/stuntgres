@@ -276,6 +276,10 @@ A later phase cannot upgrade an already fixed pair with current roots.
   physical cleanup. Trusted isolated Restore preserves explicit/removed labels
   and sequence state without synthesizing default associations; public SQL cannot
   acquire import authority, and destination control consent remains independent.
+  Actual generator replacements (options/restart/persistence, including linked
+  identity and TRUNCATE RESTART producers) allocate their canonical destination
+  locator before descriptor publication. Metadata and counter changes retain
+  the locator; committed replacement retires every prior prewarm coordinate.
 - Restore hooks: `CaptureRestoredForeignKeys`,
   `ResolveRestoredForeignKeyTargets`, `BindRestoredForeignKeys`,
   `RestoreAttributeRank`,
@@ -344,6 +348,12 @@ holds return to lock manager checkpoints outside engine and session locks.
 tokens before atomic installation; peer DML causes recapture, never SQL
 replay. The VACUUM barrier and progress tests park the statement at the
 `vacuumCompletion` frame and at `storage`'s scan frames: keep those names.
+Auxiliary fork provenance participates in the same captured/final publication
+fences. A successful ordinary pass installs its checked scalar facts only after
+the fallible gates, alongside its actual physical roots; observers do not create
+forks. FULL/rewrite starts a fresh storage incarnation rather than transporting
+predecessor fork/cache authority.
+
 The captured VM-root pointer is also a publication fence: an older detached pass
 cannot undo later map truncation. After all fallible/final gates, every successful
 ordinary pass re-enables VM rebuilding, including already-frozen passes with

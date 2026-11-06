@@ -232,6 +232,27 @@ Final identity/authority/cancellation fences precede results;
 every path releases local views and only its own lock contribution. No physical
 TEMP buffer policy is imported into a function that reads no physical buffers.
 
+### pg_prewarm
+
+`pgprewarm.go` captures genuine target/parent descriptors and caller SELECT
+authority, acquiring scoped AccessShare on the parent before an index target.
+Column-only SELECT and pg_monitor are not relation SELECT substitutes. Kind
+rejection precedes fork existence and endpoint validation; index denial names
+the requested index. Every fork captures scalar store/root/auxiliary facts and
+actual generator/index allocation identities under Owner → Engine ownership.
+Only main obtains a sizing visibility view and consumes visible-row payload,
+index Allocation.Forks or the genuine catalog producer, outside those locks;
+sequences use one main block. FSM/VM use captured incarnation-owned facts and
+init uses actual unlogged persistence, without acquiring main sizing resources.
+
+Every admission rechecks cancellation, current installation/EXECUTE, descriptors,
+parent/store/generator/index roots, auxiliary facts and SELECT under Owner →
+Engine ownership before calling the real per-coordinate cache seam. The loop
+streams an inclusive range without range-sized allocation or retained pins;
+resident blocks still count, reversed ranges return zero after final admission,
+and an interrupted prefix remains populated without returning a partial success.
+All three modes perform that same explicit native logical preload.
+
 ### pg_visibility
 
 `pgvisibility_capture.go` validates current sealed identity and ordinary routine

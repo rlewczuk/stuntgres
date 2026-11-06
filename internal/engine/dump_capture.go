@@ -81,6 +81,8 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	if err != nil {
 		return nil, err
 	}
+	capture.AuxiliaryForks, err = storage.CaptureAuxiliaryForkSnapshots(ctx, originalCatalog, e.Storage.Relations)
+	if err != nil { return nil, err }
 	capture.InitialPrivileges, err = control.CaptureInitialPrivileges(ctx, originalCatalog, originalRoles)
 	if err != nil {
 		return nil, err

@@ -117,6 +117,9 @@ type Host[A Authority] interface {
 	// PgvisibilityCatalogBytes enters with no mutex and consumes a real
 	// registered catalog producer, without inheriting SQL projection filters.
 	PgvisibilityCatalogBytes(ref ids.ObjectRef, target *catalog.Relation) (int64, error)
+	// PrewarmBlockLocked admits and releases one actual coordinate through the
+	// existing cluster cache. Caller holds owner -> Engine and current authority.
+	PrewarmBlockLocked(ref ids.ObjectRef, fork int16, block int64) error
 
 	// CheckBtreeAsOwner runs the B-tree checks in parent's restricted
 	// maintenance-owner environment.

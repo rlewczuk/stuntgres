@@ -16,11 +16,16 @@ type logicalBufferCache struct {
 	byKey    map[logicalBufferKey]*logicalBufferEntry
 	bySlot   map[int64]*logicalBufferEntry
 }
-type logicalBufferKey struct {
+type logicalBufferIncarnation struct {
 	domain                *ids.Domain
 	epoch                 ids.CatalogEpoch
 	relation              ids.ObjectAddress
 	node, space, database ids.OID
+}
+type logicalBufferKey struct {
+	logicalBufferIncarnation
+	fork int16
+	block int64
 }
 type logicalBufferEntry struct {
 	key         logicalBufferKey
@@ -29,6 +34,8 @@ type logicalBufferEntry struct {
 }
 type logicalBufferRow struct {
 	node, space, database ids.OID
+	fork int16
+	block int64
 	usage, pins           int64
 }
 
@@ -103,7 +110,7 @@ func (c *logicalBufferCache) snapshot() (int64, map[int64]logicalBufferRow) {
 	}
 	rows := make(map[int64]logicalBufferRow, len(c.bySlot))
 	for slot, entry := range c.bySlot {
-		rows[slot] = logicalBufferRow{node: entry.key.node, space: entry.key.space, database: entry.key.database, usage: entry.usage, pins: int64(len(entry.owners))}
+		rows[slot] = logicalBufferRow{node: entry.key.node, space: entry.key.space, database: entry.key.database, fork: entry.key.fork, block: entry.key.block, usage: entry.usage, pins: int64(len(entry.owners))}
 	}
 	return c.capacity, rows
 }
@@ -138,11 +145,11 @@ func (c *logicalBufferCache) evictSlot(slot int64) bool {
 	return true
 }
 
-func (c *logicalBufferCache) evictMatching(key *logicalBufferKey) (evicted, skipped int64) {
+func (c *logicalBufferCache) evictMatching(key *logicalBufferIncarnation) (evicted, skipped int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for candidate, entry := range c.byKey {
-		if key != nil && candidate != *key {
+		if key != nil && candidate.logicalBufferIncarnation != *key {
 			continue
 		}
 		if len(entry.owners) != 0 {

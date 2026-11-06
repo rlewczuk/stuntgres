@@ -378,6 +378,13 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		return true
 	case plan.InstalledSSLInfoExpr:
 		return !p.StageDependent && ValidInstalledSSLInfoShape(n) && !n.Procedure.Installed.ReturnsSet && closedPgstattupleExpression(n.Arg, view, rowOwner)
+	case plan.InstalledPgPrewarmExpr:
+		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure { return false }
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgPrewarmIdentity(view, current, n.Ref) != nil { return false }
+		call := n.PgPrewarm
+		call.RoutineReference = current
+		if extension.ValidatePgPrewarmCall(view, current, call) != nil { return false }
 	case plan.InstalledPgFreespaceExpr:
 		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

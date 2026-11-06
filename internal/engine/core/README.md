@@ -1757,6 +1757,12 @@ existing publication candidates: journal `StorageChange.Rewritten`, direct
 `RowShape.Rewritten`, or the direct materialized refresh replacement. A changed
 Go store pointer alone is not a new physical incarnation. Metadata-only column
 projections and ordinary descriptor-only edits preserve locators.
+Heap/index locators are allocated only at successful canonical publication from
+the changed storage and admitted rewrite intent. Private destinations can retain
+the committed locator; their exact storage, defining metadata and construction
+backing remain independently owned. Private publication never reconciles the
+shared cache. Rollback/savepoint restores the prior private descriptor/store;
+failed or canceled staging leaves committed storage and occupancy unchanged.
 The descriptor-owned ON COMMIT DELETE clear is likewise in-place: its empty
 heap/index transport preserves locators without claiming physical rewrite or
 uninterrupted TRUNCATE lineage.
@@ -1821,6 +1827,8 @@ and rollback remain identical to other generator replacements.
 `TransferAlterStage` retains ordinary normalization and admission; one fresh
 `FinishAlterValidation` stage demands registered providers after all physical
 work, over exact final descriptors without another revision or resurrection.
+Phase recording retains those actual staged destination pointers. It neither
+recaptures a later catalog snapshot nor rebases captured descriptor fences.
 `BeginAlterPhysical` checks exact descriptor, provider, index-set and private
 storage successors before and after the rewrite callback, separately from the
 journal's original committed storage and publication fences. Only this ALTER's
@@ -2343,6 +2351,20 @@ opens its lease; zero samples leave cold occupancy and warm usage/pins unchanged
 The opened stage retains its read frontier across rewind, while a fresh positive
 invocation increments usage without duplicating its capture-owned session pin.
 
+Explicit pg_prewarm admission addresses real `(fork,block)` coordinates in this
+same cache. Incarnation identity is compared separately from those coordinates:
+rename and ACL publication retain every coordinate, while storage replacement
+retires all coordinates of the old incarnation. Main extents reuse actual
+caller-view compact heap sizing, index allocation, sequence and catalog producers.
+Created-empty auxiliary forks remain distinct from absent forks, with immutable
+provenance published by successful maintenance, preserved through genuine codec
+copies and transported as scalar Dump/Restore metadata. Observation alone never
+creates an auxiliary fork. Physical rewrite/truncate drops predecessor facts.
+Private rewritten heaps and their attached indexes cannot acquire shared leases
+even while their descriptors retain committed locators. Admission uses the actual
+heap's pending `StorageChange.Rewritten` flag for both heap and index targets;
+committed domain, epoch and locator checks remain separate.
+
 CREATE DATABASE replaces its template into a private runtime with no Cluster
 before publishing and attaching the destination. Such metadata publication has
 no shared cache to reconcile, and captures acquire no live read lease. Late lease
@@ -2354,11 +2376,13 @@ reads heat its database identity. Independent Restore staging caches are not
 transplanted.
 
 Each fresh actual source invocation increments usage to five; rewinding the same
-stage does not. One main-fork representative block per relation, clean logical
-read state and distinct source-owning session pins are technical cache metrics,
-not PostgreSQL page occupancy, writeback or backend pins. Lowest vacant slots and
-first unpinned circular victims make allocation deterministic; all-pinned reads
-still succeed without inventing an occupied slot.
+stage does not. Ordinary reads retain one main-fork representative block per
+relation; explicit prewarm can populate nonzero main and auxiliary coordinates.
+Clean logical read state and distinct source-owning session pins are technical
+cache metrics, not PostgreSQL page occupancy, writeback or backend pins. Prewarm
+opens and closes one actual session lease per admitted block. Lowest vacant
+slots and first unpinned circular victims make allocation deterministic;
+all-pinned reads still succeed without inventing an occupied slot.
 
 Summary and usage-count inquiries validate ordinary current perfunction EXECUTE
 and namespace access at the registered owner boundary, without eviction's
@@ -2902,6 +2926,10 @@ on entry. Only successful outer completion publishes those definitions together
 with row effects; standalone utilities retain their ordinary publication boundary.
 
 ## Prepared statements
+
+Reanalysis and result-signature validation precede parameter import. Accepted
+analysis publication does not depend on importer success; immutable typed-fold
+publication retains its separate planning and captured-input fences.
 
 - `Description` is the actual fixed parameter/result and capture carrier used by
   Go handles, SQL definitions, protocol and the binder. Its `Analysis` owns the

@@ -1557,6 +1557,12 @@ descriptor pointer after rename, relocation or ACL changes. Reference domain,
 epoch, overload and scalar/OUT usage authority remain mandatory at both boundaries.
 `pg_relpages` has no scalar OUT declaration: its range alias supplies the column
 label unless an explicit column alias overrides it, including folded NULL calls.
+`InstalledPgPrewarmExpr` participates in reference/literal capture, dynamic-source
+dependency discovery, remap, retag, DEFAULT/CHECK closure, scalar/deparse and
+statistics renderers. Rendered named inputs use genuine formal names; the
+unnamed relation never acquires a fabricated label. Stored consumers retain
+symbolic volatile demand, not a count, cache entry or borrowed host.
+
 `InstalledPgFreespaceExpr` follows the complete reference/literal, dependency,
 remap, retag and renderer protocol. Current names and the wrapper's actual `rel`
 formal render without inventing scalar input names. Scalar DEFAULT/CHECK/statistics

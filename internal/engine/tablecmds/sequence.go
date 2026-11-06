@@ -359,6 +359,10 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 		if effects.PlanStamp {
 			d.SequencePlanStamp = rev
 		}
+		if effects.ReplaceGenerator {
+			d.StorageLocator, err = e.Catalog.AllocateOIDLocked()
+			if err != nil { return core.Result{}, err }
+		}
 		key := catalog.DescriptorNameKey(&d)
 		if a, exists := auth.Catalog.LookupName(key); exists && a != d.Address() {
 			return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))

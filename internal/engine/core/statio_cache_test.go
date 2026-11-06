@@ -11,7 +11,7 @@ func TestStatioAllIndexesCacheOutcomes(t *testing.T) {
 	domain := new(ids.Domain)
 	owner := domain.Session(1)
 	key := func(n ids.OID) logicalBufferKey {
-		return logicalBufferKey{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, database: 5, space: 1663}
+		return logicalBufferKey{logicalBufferIncarnation: logicalBufferIncarnation{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}, node: n, database: 5, space: 1663}}
 	}
 	cache := &logicalBufferCache{capacity: 2}
 	a, hit := cache.open(key(17000), owner)

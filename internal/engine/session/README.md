@@ -52,6 +52,16 @@ separately from the pure-lineage `Truncated` flag. Compatible successors carry
 the actual private heap's post-truncate scan witness; savepoints/prepared owners
 retain that physical maintenance authority without making column facts
 nontransactional.
+Codec-preserving storage changes also carry the first actual copy's observed
+auxiliary-fork facts. Journal transfer and canonical publication fence this
+immutable value alongside the VM root, preventing a late maintenance publication
+from being overwritten by a metadata-only successor.
+
+`StorageChange.Rewritten` carries admitted physical rewrite intent alongside the
+exact private replacement store. Canonical publication combines that intent with
+actual storage replacement to allocate heap/index locators; private journals and
+savepoints do not author or retain separate locator-allocation authority.
+
 `StorageChange.PreservesVisibility` records genuine continuous codec-only heap
 copy provenance, not generation equality. Its VM observation becomes authoritative
 at the first actual preserving copy: an earlier same-store metadata step has no

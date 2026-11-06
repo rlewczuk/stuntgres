@@ -16,12 +16,13 @@ func (c *Journal) RecordRowShapes(shapes map[ids.ObjectAddress]storage.RowShape,
 	for a, rowShape := range shapes {
 		shape, exists := c.Storage[a]
 		if !exists {
-			shape = StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, ObservedVisibility: rowShape.ObservedVisibility, PreservesVisibility: rowShape.PreservesVisibility, Generation: rowShape.Generation}
+			shape = StorageChange{Original: rowShape.Original, Root: rowShape.Root, Ends: rowShape.ObservedEnds, ObservedVisibility: rowShape.ObservedVisibility, ObservedAuxiliary: rowShape.ObservedAuxiliary, PreservesVisibility: rowShape.PreservesVisibility, Generation: rowShape.Generation}
 		} else if shape.Replacement == shape.Original {
 			shape.PreservesVisibility = rowShape.PreservesVisibility
 			if rowShape.PreservesVisibility {
 				// This is the first actual VM copy, not the earlier metadata step.
 				shape.ObservedVisibility = rowShape.ObservedVisibility
+				shape.ObservedAuxiliary = rowShape.ObservedAuxiliary
 			}
 		} else if rowShape.Replacement != rowShape.Original {
 			shape.PreservesVisibility = shape.PreservesVisibility && rowShape.PreservesVisibility

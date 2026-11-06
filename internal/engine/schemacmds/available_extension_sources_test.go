@@ -106,6 +106,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"pageinspect":        {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
 			"pg_buffercache":     {"pg_buffercache", "1.6", nil, "examine the shared buffer cache"},
 			"pg_freespacemap":    {"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"},
+			"pg_prewarm":         {"pg_prewarm", "1.2", nil, "prewarm relation data"},
 			"pg_stat_statements": {"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"},
 			"pg_surgery":         {"pg_surgery", "1.0", nil, "extension to perform surgery on a damaged relation"},
 			"pg_visibility":      {"pg_visibility", "1.2", nil, "examine the visibility map (VM) and page-level visibility info"},
@@ -150,6 +151,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
 			expected["pg_buffercache"] = []any{"pg_buffercache", "1.6", false, true, false, true, nil, nil, "examine the shared buffer cache"}
 			expected["pg_freespacemap"] = []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"}
+			expected["pg_prewarm"] = []any{"pg_prewarm", "1.2", false, true, false, true, nil, nil, "prewarm relation data"}
 			expected["pg_stat_statements"] = []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"}
 			expected["pg_visibility"] = []any{"pg_visibility", "1.2", false, true, false, true, nil, nil, "examine the visibility map (VM) and page-level visibility info"}
 			expected["pg_surgery"] = []any{"pg_surgery", "1.0", false, true, false, true, nil, nil, "extension to perform surgery on a damaged relation"}

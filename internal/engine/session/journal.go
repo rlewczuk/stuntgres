@@ -60,6 +60,7 @@ type StorageChange struct {
 	// First actual preserving-copy VM observation. Earlier same-store metadata
 	// is not a VM snapshot; later copies/savepoints never refresh this authority.
 	ObservedVisibility *storage.VisibilityRoot
+	ObservedAuxiliary storage.AuxiliaryForks
 	// PreservesVisibility records continuous codec-only transport from Original.
 	// A metadata-only same-pointer step keeps continuity; a destructive copy ends it.
 	PreservesVisibility bool

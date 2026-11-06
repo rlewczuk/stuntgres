@@ -71,7 +71,7 @@ func (h *contribHost) PgBuffercacheEviction(n plan.InstalledPgBuffercacheEvictio
 	if err != nil { return }
 	if target != nil && auth.Access().Catalog.Get(target.Address()) != target { err = ids.ErrCatalogReplaced; return }
 	if err = e.registeredLogicalBufferOwnerLocked(); err != nil { return }
-	var key *logicalBufferKey
+	var key *logicalBufferIncarnation
 	if target != nil {
 		namespace, ok := auth.Access().Catalog.Namespace(target.Namespace())
 		if !ok { err = ids.ErrCatalogReplaced; return }

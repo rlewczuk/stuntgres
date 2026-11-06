@@ -82,6 +82,10 @@ func stageIdentitySequenceOptionsLocked(e *core.Engine, scope *core.StatementSco
 	changed.Sequence = &options
 	changed.ObjectRevision = revision
 	changed.SequencePlanStamp = revision
+	if stage.Base.Get(changed.Address()) != nil {
+		changed.StorageLocator, err = e.Catalog.AllocateOIDLocked()
+		if err != nil { return err }
+	}
 	if stage.Base.Get(changed.Address()) == nil {
 		stage.UpdateDescriptor(&changed)
 	} else if err := stage.Replace(&changed); err != nil {

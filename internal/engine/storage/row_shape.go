@@ -15,6 +15,7 @@ type RowShape struct {
 	ObservedLength     int
 	ObservedEnds       *DeletionRoot
 	ObservedVisibility *VisibilityRoot
+	ObservedAuxiliary AuxiliaryForks
 	// PreservesVisibility is minted only by a codec-only copy, never inferred
 	// from equal generations. Destructive replacements break this provenance.
 	PreservesVisibility bool
@@ -28,9 +29,9 @@ type RowShape struct {
 
 // Matches reports whether current is still the observed predecessor: the same
 // store, generation and row count. Only a genuine preserving codec copy also
-// fences its observed VM root. Deletion ends are checked at publication.
+// fences its observed VM root and auxiliary facts. Ends fence publication.
 func (s RowShape) Matches(current *Relation) bool {
-	return current == s.Original && s.Original.Generation == s.Generation && len(s.Original.Versions) == s.ObservedLength && !(s.PreservesVisibility && !s.Rewritten && s.Replacement != nil && s.Replacement != s.Original && s.Replacement.Generation == s.Generation && s.Original.Visibility != s.ObservedVisibility)
+	return current == s.Original && s.Original.Generation == s.Generation && len(s.Original.Versions) == s.ObservedLength && !(s.PreservesVisibility && !s.Rewritten && s.Replacement != nil && s.Replacement != s.Original && s.Replacement.Generation == s.Generation && (s.Original.Visibility != s.ObservedVisibility || s.Original.Auxiliary != s.ObservedAuxiliary))
 }
 
 // MatchesWithEnds is Matches plus the observed deletion ends: the

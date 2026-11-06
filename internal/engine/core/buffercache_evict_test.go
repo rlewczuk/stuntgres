@@ -29,8 +29,43 @@ func TestPgBuffercacheEvictionCache(t *testing.T) {
 		cluster.Targets[database.Name()] = e
 		if err := e.registeredLogicalBufferOwnerLocked(); err != nil { t.Fatal(err) }
 	})
+	t.Run("incarnation_coordinates", func(t *testing.T) {
+		domain, peerDomain := new(ids.Domain), new(ids.Domain)
+		identity := logicalBufferIncarnation{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}
+		owner := domain.Session(1)
+		cache := &logicalBufferCache{capacity: 4}
+		keys := []logicalBufferKey{
+			{logicalBufferIncarnation: identity},
+			{logicalBufferIncarnation: identity, block: 7},
+			{logicalBufferIncarnation: identity, fork: 2, block: 3},
+		}
+		for _, key := range keys[:2] {
+			entry, _ := cache.open(key, owner)
+			if entry == nil { t.Fatal("coordinate fixture failed admission", key) }
+			cache.close(entry, owner)
+		}
+		pinned, _ := cache.open(keys[2], owner)
+		peerKey := keys[2]
+		peerKey.domain = peerDomain // All numeric identity and coordinates match.
+		peer, _ := cache.open(peerKey, peerDomain.Session(1))
+		if pinned == nil || peer == nil { t.Fatal("pinned/peer coordinate fixture failed admission") }
+		cache.close(peer, peerDomain.Session(1))
+		if evicted, skipped := cache.evictMatching(&identity); evicted != 2 || skipped != 1 {
+			t.Fatal("incarnation selector failed nonzero coordinates or counted aliases", evicted, skipped)
+		}
+		if cache.byKey[keys[0]] != nil || cache.byKey[keys[1]] != nil || cache.byKey[keys[2]] != pinned || pinned.owners[owner] != 1 || cache.byKey[peerKey] != peer || len(cache.byKey) != 2 {
+			t.Fatal("incarnation eviction lost coordinate/domain/pin isolation")
+		}
+		cache.close(pinned, owner)
+		if evicted, skipped := cache.evictMatching(&identity); evicted != 1 || skipped != 0 || cache.byKey[peerKey] != peer {
+			t.Fatal("unpinned auxiliary coordinate was not targeted exactly", evicted, skipped)
+		}
+		if !cache.evictSlot(peer.slot) || len(cache.byKey) != 0 || len(cache.bySlot) != 0 {
+			t.Fatal("per-slot eviction changed after incarnation selector migration")
+		}
+	})
 	domain := new(ids.Domain)
-	key := logicalBufferKey{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}
+	key := logicalBufferKey{logicalBufferIncarnation: logicalBufferIncarnation{domain: domain, epoch: 1, relation: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 17000}, node: 17000, space: 1663, database: 5}}
 	owner, peer := domain.Session(1), domain.Session(2)
 	cache := &logicalBufferCache{capacity: 3}
 	if cache.evictSlot(1) { t.Fatal("unused slot reported eviction") }
@@ -40,7 +75,7 @@ func TestPgBuffercacheEvictionCache(t *testing.T) {
 	cache.open(key, peer)
 	_, detached := cache.snapshot()
 	if cache.evictSlot(first.slot) { t.Fatal("pinned entry removed") }
-	if e, s := cache.evictMatching(&key); e != 0 || s != 1 { t.Fatal("one candidate counted as multiple backend/alias skips", e, s) }
+	if e, s := cache.evictMatching(&key.logicalBufferIncarnation); e != 0 || s != 1 { t.Fatal("one candidate counted as multiple backend/alias skips", e, s) }
 	cache.close(first, owner)
 	cache.close(first, peer)
 	if cache.evictSlot(first.slot) { t.Fatal("remaining real alias lost pin") }
@@ -56,9 +91,9 @@ func TestPgBuffercacheEvictionCache(t *testing.T) {
 	otherKey.domain = new(ids.Domain) // Deliberate same numeric storage identity.
 	other, _ := cache.open(otherKey, owner)
 	cache.close(other, owner)
-	if e, s := cache.evictMatching(&key); e != 0 || s != 1 || cache.byKey[otherKey] != other { t.Fatal("selector conflated catalog domains", e, s) }
+	if e, s := cache.evictMatching(&key.logicalBufferIncarnation); e != 0 || s != 1 || cache.byKey[otherKey] != other { t.Fatal("selector conflated catalog domains", e, s) }
 	cache.close(replacement, peer)
-	if e, s := cache.evictMatching(&key); e != 1 || s != 0 || cache.byKey[otherKey] != other { t.Fatal("exact target removal affected peer", e, s) }
+	if e, s := cache.evictMatching(&key.logicalBufferIncarnation); e != 1 || s != 0 || cache.byKey[otherKey] != other { t.Fatal("exact target removal affected peer", e, s) }
 	if e, s := cache.evictMatching(nil); e != 1 || s != 0 || len(cache.byKey) != 0 || len(cache.bySlot) != 0 { t.Fatal("all performed counts/index cleanup", e, s) }
 	if e, s := cache.evictMatching(nil); e != 0 || s != 0 { t.Fatal("unused slots counted as skipped", e, s) }
 

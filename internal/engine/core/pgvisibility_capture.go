@@ -112,6 +112,9 @@ func (h *statementHost) PgvisibilityMapLocked(target *catalog.Relation, store *s
 func (h *statementHost) SetPgvisibilityMapLocked(target *catalog.Relation, store *storage.Relation, root *storage.VisibilityRoot) {
 	if store != nil {
 		store.Visibility = root
+		if root != nil && root.Invalidated && store.Auxiliary.VM {
+			store.Auxiliary.VMBlocks = 0
+		}
 		return
 	}
 	e := h.scope().Engine()

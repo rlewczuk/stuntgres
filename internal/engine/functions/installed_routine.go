@@ -30,6 +30,7 @@ const (
 	PgvisibilityExtension
 	DblinkExtension
 	PgFreespaceExtension
+	PgPrewarmExtension
 	PgStatStatementsExtension
 	XML2Extension
 	PgsurgeryExtension

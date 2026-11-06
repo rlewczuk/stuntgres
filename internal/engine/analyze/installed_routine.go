@@ -131,6 +131,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.AutoincProviderOf(proc) == extension.StockAutoinc
 	case functions.PgstattupleExtension:
 		installed = extension.PgstattupleProviderOf(proc) == extension.StockPgstattuple
+	case functions.PgPrewarmExtension:
+		installed = extension.PgPrewarmProviderOf(proc) == extension.StockPgPrewarm
 	case functions.PgFreespaceExtension:
 		installed = extension.PgFreespaceProviderOf(proc) == extension.StockPgFreespace
 	case functions.PgBuffercacheExtension:
@@ -199,6 +201,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockAutoinc.ValidateProcedure(r.catalog, p)
 	case extension.PgstattupleProviderOf(p) != nil:
 		return extension.StockPgstattuple.ValidateProcedure(r.catalog, p)
+	case extension.PgPrewarmProviderOf(p) != nil:
+		return extension.StockPgPrewarm.ValidateProcedure(r.catalog, p)
 	case extension.PgFreespaceProviderOf(p) != nil:
 		return extension.StockPgFreespace.ValidateProcedure(r.catalog, p)
 	case extension.PgBuffercacheProviderOf(p) != nil:
@@ -451,6 +455,12 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgstattupleExpr{Pgstattuple: c, Procedure: p, Ref: ref}, nil
+	case functions.PgPrewarm:
+		if err := extension.ValidatePgPrewarmIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		c.RoutineReference = p
+		if err := extension.ValidatePgPrewarmCall(r.catalog, p, c); err != nil { return nil, err }
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgPrewarmExpr{PgPrewarm: c, Procedure: p, Ref: ref}, nil
 	case functions.PgFreespace:
 		if err := extension.ValidatePgFreespaceIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

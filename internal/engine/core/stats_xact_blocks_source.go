@@ -255,6 +255,9 @@ func (e *Engine) captureReadLeaseLocked(scope *StatementScope, source *exec.Sour
 	if !exists || !parentExists {
 		return nil
 	}
+	// Sequences now expose a genuine locator for explicit preload, but their
+	// ordinary generator source retains its existing no-read-lease frontier.
+	if relation.RelationKind == catalog.SequenceRelation { return nil }
 	node := relation.EffectiveStorageLocator(read)
 	if node == 0 {
 		return nil

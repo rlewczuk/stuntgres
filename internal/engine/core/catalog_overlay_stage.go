@@ -111,6 +111,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
+	if err == nil { err = scope.Op.Context().Err() }
 	if err == nil {
 		scope.appendLogicalEventLocked(logical.CatalogEvent, nil)
 		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)

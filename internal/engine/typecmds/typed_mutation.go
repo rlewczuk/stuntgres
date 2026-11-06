@@ -183,8 +183,10 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	store := e.StageStorageLocked(stage, old.Address())
 	frontier := e.Visibility.CommitSeq()
 	var observedVisibility *storage.VisibilityRoot
+	var observedAuxiliary storage.AuxiliaryForks
 	if store != nil {
 		observedVisibility = store.Visibility
+		observedAuxiliary = store.Auxiliary
 	}
 	e.Mu.Unlock()
 	if store == nil {
@@ -264,6 +266,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 			owned := *replacement
 			if preservesVisibility {
 				observedVisibility = owned.Visibility
+				observedAuxiliary = owned.Auxiliary
 			}
 			owned.Versions = replacementRows
 			replacement = &owned
@@ -324,7 +327,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		if stage.RowShapes == nil {
 			stage.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 		}
-		stage.RowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, ObservedVisibility: observedVisibility, PreservesVisibility: preservesVisibility, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
+		stage.RowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, ObservedVisibility: observedVisibility, ObservedAuxiliary: observedAuxiliary, PreservesVisibility: preservesVisibility, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
 		if stage.AlterRowSources == nil {
 			stage.AlterRowSources = make(map[ids.ObjectAddress]*catalog.Relation)
 		}

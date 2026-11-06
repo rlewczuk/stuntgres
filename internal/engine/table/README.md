@@ -337,6 +337,9 @@ call live here.
   `VacuumWarning`s, which [`tablecmds`](../tablecmds/README.md#vacuum) emits
   after unlocking, in order. The pass's `phase` callback takes `Engine.Mu`
   once per progress update, so callers hold nothing.
+  Auxiliary fork facts are captured/fenced with those roots and computed from
+  the actual detached maintenance result. Failed or canceled passes publish no
+  provenance; successful publication retains existing zero-length presence.
   Index work remaps current positions after compaction or rebinds hash/BRIN/bloom
   generation when heap roots change, including freeze-only work and retained
   predecessor retirement without current-row compaction. No physical index

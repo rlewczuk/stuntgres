@@ -755,6 +755,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, n.Args[:])
 		}
+		if n, ok := bound.(plan.InstalledPgPrewarmExpr); ok {
+			if err := extension.ValidatePgPrewarmIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil { return err }
+			return children(r.Args, n.Args[:len(r.Args)])
+		}
 		if n, ok := bound.(plan.InstalledPgFreespaceExpr); ok {
 			if err := extension.ValidatePgFreespaceIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err

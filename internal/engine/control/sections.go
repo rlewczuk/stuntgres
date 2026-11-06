@@ -64,6 +64,7 @@ var dumpSections = [...]dumpSection{
 	{"extended statistics snapshots", emitDumpExtendedStatistics},
 	{"attribute statistics snapshots", emitDumpAttributeStatistics},
 	{"relation statistics snapshots", emitDumpRelationStatistics},
+	{"auxiliary fork provenance", emitDumpAuxiliaryForks},
 	{"initial privileges inventory", emitDumpInitialPrivileges},
 	{"security labels", emitDumpSepgsql},
 }

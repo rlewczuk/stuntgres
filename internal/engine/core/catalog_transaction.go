@@ -223,7 +223,7 @@ func (e *Engine) catalogVisibilityPreflightLocked(c *session.Journal) error {
 			continue
 		}
 		current := e.Storage.Relations[address]
-		if current != shape.Original || current.Visibility != shape.ObservedVisibility {
+		if current != shape.Original || current.Visibility != shape.ObservedVisibility || current.Auxiliary != shape.ObservedAuxiliary {
 			return catalog.Conflict{}
 		}
 	}

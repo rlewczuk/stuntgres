@@ -656,6 +656,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   kind precedes result/set and declaration-owned OUT tuple checks, all before
   membership protection. Exact Detail/Hint survive the added 1.5--1.6 script
   Context; the incumbent's identity, body and ACL are never replaced.
+- **pg_prewarm** (`pgprewarm_provider.go`) installs one genuine 1.2 C function,
+  `(regclass, mode text DEFAULT 'buffer', fork text DEFAULT 'main',
+  first_block bigint DEFAULT NULL, last_block bigint DEFAULT NULL)->bigint`.
+  The first input is unnamed. It is volatile, non-STRICT, parallel safe and
+  invoker-rights; ordinary creation/default ACLs apply. Installation does not
+  invent an initial-privilege row. Its sealed provider slot, defaults, names and
+  origin survive ordinary detach/reattach, rename, relocation and remapping.
+  No autoprewarm helper is installed. All modes use the same explicit native
+  coordinate-cache preload, not PostgreSQL shared memory or OS prefetch.
 - **pg_visibility** (`pgvisibility_provider.go`) seals eight declarations: the
   five map/page/summary read recipes, two scalar TID set checks, and a scalar VOID
   map truncator with no OUT declaration. Incumbent slots remain stable. Immutable

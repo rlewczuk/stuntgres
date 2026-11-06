@@ -8,7 +8,7 @@ func (r *Relation) EffectiveStorageLocator(view Read) ids.OID {
 	if r.VirtualView || r.CatalogView || r.Partition != nil || r.Foreign != nil {
 		return 0
 	}
-	if r.RelationKind != TableRelation && r.RelationKind != MaterializedViewRelation && r.SQLIndex == nil {
+	if r.RelationKind != TableRelation && r.RelationKind != MaterializedViewRelation && !(r.RelationKind == SequenceRelation && r.Sequence != nil) && r.SQLIndex == nil {
 		return 0
 	}
 	if r.SQLIndex != nil {
