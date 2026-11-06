@@ -12,6 +12,8 @@
 - Each package's `README.md`: its contract and `## Testing` instructions.
 - `docs/design/`: design notes; `docs/ENGINE-SPLIT*.md`: engine package layering
   (§3 of `ENGINE-SPLIT.md`); `.cswd/`: catalog-part workflow.
+- [docs/GRIND.md](docs/GRIND.md): grind-testing external Go applications against
+  stuntgres (safety review, `docker/grind-sandbox/`, modes, differences, repros).
 
 ## Package map
 
