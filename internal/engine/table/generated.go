@@ -386,6 +386,14 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return err
 		}
 		return args(n.Args[:])
+	case plan.InstalledSegIntervalExpr:
+		if !stored.ReferenceEpochValid(view, d, n.Ref) {
+			return fmt.Errorf("stuntgres: invalid generated seg interval reference")
+		}
+		if err := stored.ValidateInstalledSegInterval(n, view); err != nil {
+			return err
+		}
+		return args(n.Args[:])
 	case plan.InstalledTextExpr:
 		if err := stored.ValidateInstalledText(n, view); err != nil {
 			return err

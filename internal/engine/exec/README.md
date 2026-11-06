@@ -207,7 +207,7 @@ Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-archi
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate`,
 `pgcatalog` (projected relation-kind admission), `util` and the standard library.
-Its `extension` imports validate genuine installed cube-spatial,
+Its `extension` imports validate genuine installed cube-spatial, seg-interval,
 earth-point, autoinc and insert_username scalar calls before kernel evaluation.
 Insert_username authenticates current provider identity and reference domain/epoch
 before reporting scalar misuse; structural native-trigger capability grants no

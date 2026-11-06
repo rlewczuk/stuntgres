@@ -219,7 +219,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.RangeConstructorExpr, plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr, plan.InstalledCubeExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
-	case plan.InstalledCubeSpatialExpr, plan.InstalledEarthExpr, plan.InstalledEarthPointExpr:
+	case plan.InstalledCubeSpatialExpr, plan.InstalledSegIntervalExpr, plan.InstalledEarthExpr, plan.InstalledEarthPointExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledConnectbyExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)

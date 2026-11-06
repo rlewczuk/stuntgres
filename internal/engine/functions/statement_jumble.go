@@ -243,6 +243,7 @@ func (Connectby) JumbleFields(s expr.StatementFields)      { s.JumbleText("funct
 func (ControlData) JumbleFields(s expr.StatementFields)    { s.JumbleText("functions.ControlData") }
 func (Cube) JumbleFields(s expr.StatementFields)           { s.JumbleText("functions.Cube") }
 func (CubeSpatial) JumbleFields(s expr.StatementFields)    { s.JumbleText("functions.CubeSpatial") }
+func (SegInterval) JumbleFields(s expr.StatementFields)    { s.JumbleText("functions.SegInterval") }
 func (CurrentSchemas) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.CurrentSchemas") }
 func (DatabaseFilesInquiry) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.DatabaseFilesInquiry")

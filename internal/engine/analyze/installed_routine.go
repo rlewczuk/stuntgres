@@ -32,6 +32,12 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	spatial := family == functions.CubeExtension && signature == ""
 	crosstab := family == functions.TablefuncExtension && signature == ""
 	buffercache := family == functions.PgBuffercacheExtension && signature == ""
+	interval := family == functions.SegExtension && signature == ""
+	if interval {
+		if _, selected := sqltype.SegIntervalKind(text); !selected {
+			return nil, nil
+		}
+	}
 	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
 			return nil, nil
@@ -42,7 +48,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, nil
 	}
 	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil {
-		if !(string(selected.Signature) == signature || buffercache && extension.PgBuffercacheProviderOf(selected) == extension.StockPgBuffercache || crosstab && extension.TablefuncProviderOf(selected) == extension.StockTablefunc || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
+		if !(string(selected.Signature) == signature || buffercache && extension.PgBuffercacheProviderOf(selected) == extension.StockPgBuffercache || crosstab && extension.TablefuncProviderOf(selected) == extension.StockTablefunc || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || interval && extension.SegProviderOf(selected) == extension.StockSeg || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 			return nil, nil
 		}
 		binding, failure := extension.ProcedureBindingName(auth.ReadCatalog(), selected)
@@ -59,6 +65,21 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		for i := range path.Count() {
 			for candidate := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), text) {
 				if extension.EarthdistanceProviderOf(candidate) != extension.StockEarthdistance {
+					continue
+				}
+				if ProcedureInNamespaces(auth.ReadCatalog(), path, text, candidate.Signature) != candidate {
+					return nil, nil
+				}
+				return installedExtensionRoutine{binder: b, catalog: auth.ReadCatalog(), procedure: candidate}, nil
+			}
+		}
+		return nil, nil
+	}
+	if interval && proc == nil {
+		// Resolve the ordinary path/signature winner, including preceding shadows.
+		for i := range path.Count() {
+			for candidate := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), text) {
+				if extension.SegProviderOf(candidate) != extension.StockSeg {
 					continue
 				}
 				if ProcedureInNamespaces(auth.ReadCatalog(), path, text, candidate.Signature) != candidate {
@@ -165,6 +186,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgStatStatementsProviderOf(proc) == extension.StockPgStatStatements
 	case functions.TablefuncExtension:
 		installed = extension.TablefuncProviderOf(proc) == extension.StockTablefunc
+	case functions.SegExtension:
+		installed = extension.SegProviderOf(proc) == extension.StockSeg
 	case functions.CubeExtension:
 		installed = extension.CubeProviderOf(proc) == extension.StockCube
 	case functions.EarthdistanceExtension:
@@ -233,6 +256,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgStatStatements.ValidateProcedure(r.catalog, p)
 	case extension.TablefuncProviderOf(p) != nil:
 		return extension.StockTablefunc.ValidateProcedure(r.catalog, p)
+	case extension.SegProviderOf(p) != nil:
+		return extension.StockSeg.ValidateProcedure(r.catalog, p)
 	case extension.CubeProviderOf(p) != nil:
 		return extension.StockCube.ValidateProcedure(r.catalog, p)
 	case extension.EarthdistanceProviderOf(p) != nil:
@@ -664,6 +689,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledCryptoExpr{Pgcrypto: c, Procedure: p, Ref: ref}, nil
+	case functions.SegInterval:
+		if extension.SegProviderOf(p) != extension.StockSeg {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledSegIntervalExpr{SegInterval: c, Procedure: p, Ref: ref}, nil
 	case functions.CubeSpatial:
 		if extension.CubeProviderOf(p) != extension.StockCube {
 			break
@@ -788,4 +820,12 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 
 func (r installedExtensionRoutine) CubeType() *sqltype.Descriptor {
 	return r.CubeDescriptor()
+}
+
+func (r installedExtensionRoutine) SegType() *sqltype.Descriptor {
+	base, ok := r.catalog.Type(r.procedure.Origin.Installation.Members[0])
+	if !ok {
+		return nil
+	}
+	return base.SQLType
 }

@@ -50,7 +50,7 @@ func segProviderInstalled(t *testing.T) (*core.Engine, *session.Operation, *cata
 func TestSegProviderIdentity(t *testing.T) {
 	e, _, ext, base := segProviderInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.4" || len(ext.Members) != 4 || len(ext.Installation.Members) != 3 || !base.SQLType.IsSeg() {
+	if ext.Version != "1.4" || len(ext.Members) != extension.SegMemberCount+1 || len(ext.Installation.Members) != extension.SegMemberCount || len(ext.Installation.Declarations) != extension.SegMemberCount || !base.SQLType.IsSeg() {
 		t.Fatal("manifest")
 	}
 	if err := (stored.TypeProvider{}).Validate(view, base); err != nil {
@@ -59,6 +59,29 @@ func TestSegProviderIdentity(t *testing.T) {
 	array, ok := view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() != base.Array {
 		t.Fatal("companion")
+	}
+	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
+	companion := view.MustType(arrayAddress)
+	if companion.Origin != nil || companion.Extension != ext.Address() || companion.Owner != base.Owner || ext.Members[len(ext.Members)-1] != arrayAddress || slices.Contains(ext.Installation.Members, arrayAddress) {
+		t.Fatal("generated companion acquired a recipe role or lost ownership")
+	}
+	if !(base.Address().ObjectID < ext.Installation.Members[1].ObjectID && ext.Installation.Members[1].ObjectID < ext.Installation.Members[2].ObjectID && ext.Installation.Members[2].ObjectID < arrayAddress.ObjectID) {
+		t.Fatal("type/I/O/array construction order")
+	}
+	for i, address := range ext.Installation.Members {
+		origin := catalog.DescriptorOrigin(view.Get(address))
+		class := ids.ProcedureClassID
+		if i == 0 {
+			class = ids.TypeClassID
+		} else if i >= 11 {
+			class = ids.OperatorClassID
+		}
+		if address.ClassID != class || ext.Members[i] != address || origin == nil || !origin.Valid(address) || origin.Installation != ext.Installation || origin.Declaration != i {
+			t.Fatal("logical declaration authority changed", i, address, origin)
+		}
+		if i >= 3 && arrayAddress.ObjectID >= address.ObjectID {
+			t.Fatal("predicate/operator identity precedes generated array", i, address, arrayAddress)
+		}
 	}
 	for i, name := range []string{"seg_in", "seg_out"} {
 		p := view.MustProcedure(ext.Members[i+1])
@@ -80,7 +103,7 @@ func TestSegProviderIdentity(t *testing.T) {
 	}
 	owners, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
 	owners = extensionOwnerRecipeOrder(owners)
-	if err != nil || !found || owners.Version != "1.4" || len(owners.Members) != 4 || owners.Members[2].Signature != "public.seg" {
+	if err != nil || !found || owners.Version != "1.4" || len(owners.Members) != extension.SegMemberCount+1 || owners.Members[2].Signature != "public.seg" {
 		t.Fatal("portable roles", owners, err)
 	}
 	for index, corrupt := range []func(*catalog.State, *catalog.Extension){
@@ -204,6 +227,9 @@ func TestSegProviderRemap(t *testing.T) {
 		mapping[a] = destination.Members[i]
 	}
 	for _, a := range ext.Installation.Members[1:] {
+		if a.ClassID != ids.ProcedureClassID {
+			continue
+		}
 		old := source.CatalogRead().MustProcedure(a)
 		next := extension.RemapDescriptor(old, mapping).(*catalog.Procedure)
 		if next.Implementation != extension.StockSeg || next.Extension != destination.Address() {

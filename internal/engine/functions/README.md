@@ -1753,6 +1753,15 @@ publication and lock-manager tickets stay in the engine.
   to the shared binder; discovery preserves namespace/signature precedence.
   The `plan` wrapper, not the kernel, owns installed callable admission.
 
+- **Seg interval** (`seg_interval.go`, `seg_interval_bind.go`): `SegInterval`
+  owns two coerced installed-seg operands and an allocation-free checked plan.
+  `InstalledSegRoutine.SegType` supplies authentic descriptor authority; the
+  ordinary namespace/signature winner and selected-operator carrier preserve
+  shadowing, reconstruction and runtime admission, including runtime NULLs.
+  Kernel and installed wrapper each own one concrete statement-jumble tag;
+  shared pre-fold traversal retains the selected callable/operator identities
+  and ordered lexical operands, including strict-NULL and parameter calls.
+
 - **ACL**: aclitem algorithms keep their own copy of the `acldefault` masks
   (this package cannot import `authorization`).
 - **Regexp**: `RegexpCall` binds a `sqltype.RegexpPlan` and shares the

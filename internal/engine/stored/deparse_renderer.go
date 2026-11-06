@@ -1202,6 +1202,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing cube spatial function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
+	case plan.InstalledSegIntervalExpr:
+		procedure, err := currentSegIntervalProcedure(n, r.View)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing seg interval function namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args[:], true)
 	case plan.InstalledTextExpr:
 		if err := ValidateInstalledText(n, r.View); err != nil {
 			return "", err

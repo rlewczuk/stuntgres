@@ -338,11 +338,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   template role and callback declarations from the same genuine cohort;
   detached, foreign and absent-origin membership states do not change execution
   capability. Compilation and publication-current checks share this validation.
-- **Seg members** (`seg_provider.go`, `seg_stage.go`): the trusted relocatable
-  1.4 provider owns the twelve-byte scalar and strict immutable C input/output
-  roles. Its reciprocal array is internally dependent and a current direct
-  extension member, without an invented scalar recipe slot. Mutable labels and
-  membership never grant codec execution.
+- **Seg members** (`seg_provider.go`, `seg_stage.go`, `seg_interval.go`): the
+  trusted relocatable 1.4 provider owns nineteen scalar recipe slots: type/I/O,
+  eight strict immutable C predicate procedures and their operators. Its
+  reciprocal array is internally dependent and a current direct member, without
+  an invented recipe slot. Recipe indexes retain logical declaration/origin
+  order. Allocation places the generated array after type/I/O and before
+  predicates/operators; its current membership is appended separately after
+  sealing the nineteen declarations. Immutable origins, signatures and links
+  authenticate calls and symbolic remapping; mutable labels/membership grant
+  neither codec nor predicate authority. Equality retains MERGES metadata without
+  granting ordering, and unrepresented negator/commutator links remain zero.
 - **Intarray members** (`intarray_provider.go`, `intarray_stage.go`, `intarray_set.go`, `intarray_slice.go`, `intarray_sort.go`):
   the trusted relocatable 1.5 provider preserves query_int and bqarr_in/out at
   slots 0–2, intbig_gkey and _intbig_in/out at slots 3–5. Ten strict immutable
@@ -995,6 +1001,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `MemberConflict`, `NameConflict` and `VersionError` (`extension_errors.go`),
   `AuthorityObservation` (its `Current` is the publication fence check) and
   `RemovalRoots`.
+  `RemovalRoots` preserves the deduplicated requested-root prefix for both
+  DROP EXTENSION and DROP OWNED. Each appended authentic member block follows
+  released dependency visitation (OID descending, catalog and unsigned subobject
+  ascending), not recipe slot order: shared consumers retain their first actual
+  dependency parent. Expansion never sorts caller roots or published manifests.
   `RemapDescriptor` is the sole operator-descriptor remap owner, including
   membership and all type/procedure links. Each source maps once; a destination
   that is also a source does not trigger another mapping step.
@@ -1056,7 +1067,11 @@ cross-catalog authority, declaration forgeries and authentic rename/relocation.
 allocated; duplicate, nil, versionless or badly named registrations rejected
 with the registry unchanged). Pure provider identity and owner-codec units use
 unpublished catalog states; composed installation, conflict and owner-import
-witnesses live in `internal/engine/schemacmds`. Public SQL lives in
+witnesses live in `internal/engine/schemacmds`.
+`TestExtensionRemovalRootsTraversalOrder` in core's extension enginetests pins
+mixed requested roots, duplicate suppression, immutable authentic manifests and
+the selected operator parent of a shared type/procedure/operator view consumer.
+Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)

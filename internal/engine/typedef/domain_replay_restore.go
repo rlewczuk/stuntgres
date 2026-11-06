@@ -73,7 +73,9 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 		if err != nil {
 			return sqltype.Value{}, 0, err
 		}
-		if count&DomainReplayTimestampExact != 0 { return bad() }
+		if count&DomainReplayTimestampExact != 0 {
+			return bad()
+		}
 		if base.IsNull() {
 			return bad()
 		}
@@ -117,7 +119,7 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 			return bad()
 		}
 		installation, ok := catalog.OriginInstallation(declared)
-		if !ok || installation.Name() != "seg" || len(installation.Members) != 3 || installation.Members[0] != declared.Address() {
+		if !ok || installation.Name() != "seg" || installation.Members[0] != declared.Address() {
 			return bad()
 		}
 		if env.ValidateType == nil {
@@ -145,7 +147,9 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 			if err != nil {
 				return sqltype.Value{}, 0, err
 			}
-			if found&DomainReplayTimestampExact != 0 { return bad() }
+			if found&DomainReplayTimestampExact != 0 {
+				return bad()
+			}
 			elements[i] = value
 			count |= found
 		}
@@ -176,7 +180,9 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 			if err != nil {
 				return sqltype.Value{}, 0, err
 			}
-			if found&DomainReplayTimestampExact != 0 { return bad() }
+			if found&DomainReplayTimestampExact != 0 {
+				return bad()
+			}
 			members[i] = value
 			count |= found
 		}

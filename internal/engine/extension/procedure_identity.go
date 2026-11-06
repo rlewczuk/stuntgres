@@ -463,7 +463,10 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		if p.Implementation == StockHstore {
 			count = HstoreMemberCount
 		}
-		if slot < 1 || slot >= count || p.Implementation == StockCitext && CitextOperatorSlot(slot) || p.Implementation == StockHstore && hstoreMemberClass(slot) != ids.ProcedureClassID {
+		if p.Implementation == StockSeg {
+			count = SegMemberCount
+		}
+		if slot < 1 || slot >= count || p.Implementation == StockSeg && slot >= segIntervalOperatorStart || p.Implementation == StockCitext && CitextOperatorSlot(slot) || p.Implementation == StockHstore && hstoreMemberClass(slot) != ids.ProcedureClassID {
 			return invalid()
 		}
 		base, ok := v.Type(ext.Members[0])
@@ -494,6 +497,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 			if slot == 2 {
 				name = "seg_out"
 			}
+			if slot >= segIntervalProcedureStart {
+				name = segIntervalMembers[slot-segIntervalProcedureStart].operation.Routine()
+			}
 			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/seg", HasBinary: true}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 				return invalid()
 			}
@@ -505,6 +511,8 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 		}
 		if slot == 2 {
 			signature, result = QueryIntSignature(base.SQLType.ID()), 2275
+		} else if p.Implementation == StockSeg && slot >= segIntervalProcedureStart {
+			signature, result = SegBinarySignature(base.SQLType.ID()), ids.OID(sqltype.Bool)
 		} else if p.Implementation == StockCitext && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			name = CitextComparisonNames[slot-CitextComparisonProcedureStart]
 			signature, result = CitextComparisonSignature(base.SQLType.ID()), ids.OID(sqltype.Bool)

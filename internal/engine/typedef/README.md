@@ -95,6 +95,9 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   `DomainReplayCells` checks each captured cell against its insert slot.
   Seg provenance is separate from domain-NULL provenance: only a checked
   destination-owned seg payload paired with its canonical literal is admitted.
+  It authenticates the sealed type origin and current type through `ValidateType`,
+  without duplicating the extension recipe's member count or requiring surviving
+  sibling declarations. Full recipe admission belongs to extension creation.
   Domain NULL placeholders retain their existing exact-NULL and constraint rules.
   Exact temporal provenance is also separate: a top-level builtin timestamp or
   timestamptz precision 0..5 cell is admitted only when its finite canonical

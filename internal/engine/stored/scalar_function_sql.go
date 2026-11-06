@@ -496,6 +496,20 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args[:])
+	case plan.InstalledSegIntervalExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored seg interval reference")
+		}
+		procedure, err := currentSegIntervalProcedure(n, view)
+		if err != nil {
+			return "", err
+		}
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored seg interval namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args[:])
 	case plan.InstalledTextExpr:
 		if err := ValidateInstalledText(n, view); err != nil {
 			return "", err

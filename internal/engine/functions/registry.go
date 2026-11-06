@@ -196,6 +196,7 @@ var definitions = [...]Definition{
 	{Names: []string{"bt_index_check", "bt_index_parent_check", "gin_index_check"}, Installed: AmcheckExtension, Bind: bindAmcheck, NamedCall: namedAmcheck},
 	{Names: pgcryptoNames[:], Installed: PgcryptoExtension, Bind: bindPgcrypto},
 	{Names: cubeSpatialNames[:], Installed: CubeExtension, Bind: bindCubeSpatial},
+	{Names: segIntervalNames[:], Installed: SegExtension, Bind: bindSegInterval},
 	{Names: fuzzystrmatchNames[:], Installed: FuzzystrmatchExtension, Bind: bindFuzzystrmatch},
 	{Names: cubeFunctionNames[:], Installed: CubeExtension, Bind: bindCube},
 	{Names: earthCoordinateNames[:], Installed: EarthdistanceExtension, Bind: bindEarthCoordinate},

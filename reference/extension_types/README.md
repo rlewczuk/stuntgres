@@ -2,6 +2,15 @@
 
 Dual-mode tests for extension types: `seg`, `query_int`, `intbig_gkey`, `lquery`, `ltree`, `ltxtquery`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
+Seg scenarios include the eight installed BOOL predicates, metadata-sensitive
+equality, normal selected-expression dependencies and drop protection distinct
+from extension membership. Native controls preserve genuine nondefault member
+owners and EXECUTE ACLs, including nullable-column admission, alongside exact
+native replay and canonical emitted-SQL replay of stored consumers.
+DROP diagnostics retain the released first-reached DFS dependency parent: fresh
+installation has operator-after-procedure-after-type identity order; selective
+native remint instead follows current identities through the exhaustive genuine
+provider dependencies, without requiring an order-preserving identity map.
 `hstore` is in [reference/extension_hstore](../extension_hstore/README.md#testing);
 `cube` and `earth` are in [reference/extension_cube](../extension_cube/README.md#testing).
 

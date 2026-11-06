@@ -67,6 +67,9 @@ func (InstalledCubeExpr) JumbleFields(s expr.StatementFields) { s.JumbleText("pl
 func (InstalledCubeSpatialExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledCubeSpatialExpr")
 }
+func (InstalledSegIntervalExpr) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("plan.InstalledSegIntervalExpr")
+}
 func (InstalledDblinkBuildSQLDeleteExpr) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("plan.InstalledDblinkBuildSQLDeleteExpr")
 }

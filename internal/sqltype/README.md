@@ -500,8 +500,11 @@ admission and removes it before nested binding.
   the ordinary type I/O and coercion seams. Representation identity includes all
   six fields even when canonical output collapses equal endpoints to a point.
   `SegValue` validates portable payloads; `RemapSeg` preserves them under
-  source-authorized destination ownership without text reinput. Scalar storage
-  grants no SQL comparison, indexing, executable array or binary-codec authority.
+  source-authorized destination ownership without text reinput. `SegIntervalPlan`
+  evaluates the eight installed predicates directly from these inline fields,
+  without allocation. SQL equality compares numeric endpoints and metadata,
+  distinct from bit-exact representation identity. Selected predicate authority
+  grants no generic ordering, indexing, executable array or binary-codec authority.
 - Lquery owns immutable canonical text validated by the C-locale label grammar,
   item/variant/label limits and aligned level-size checks. Input preserves label
   spelling, alternative order/multiplicity and explicit non-star quantifiers;

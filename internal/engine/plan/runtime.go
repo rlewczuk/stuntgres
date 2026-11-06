@@ -59,6 +59,7 @@ type Runtime interface {
 	EvalInstalledAutoinc(InstalledAutoincExpr) (sqltype.Value, error)
 	EvalInsertUsername(InsertUsernameExpr) (sqltype.Value, error)
 	EvalInstalledCubeSpatial(InstalledCubeSpatialExpr) (sqltype.Value, error)
+	EvalInstalledSegInterval(InstalledSegIntervalExpr) (sqltype.Value, error)
 	EvalInstalledEarthPoint(InstalledEarthPointExpr) (sqltype.Value, error)
 	OpenExtensionPaths(ExtensionPathsExpr) ([]sqltype.Value, error)
 }

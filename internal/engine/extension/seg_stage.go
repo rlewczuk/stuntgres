@@ -12,8 +12,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the seg type, its array and its two I/O functions into
-// stage, owned by owner, allocating identities in member order.
+// Stage installs the seg type, its array, I/O and eight predicate roles into
+// stage, owned by owner. Logical recipe slots remain fixed; the generated
+// array identity follows type/I/O and precedes predicate/operator identities.
 func (p *SegProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "seg")
 	if err != nil {
@@ -22,8 +23,21 @@ func (p *SegProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "seg") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "seg" already exists`, Context: SegTypeContext}
 	}
-	ext.Members = make([]ids.ObjectAddress, 3)
-	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
+	ext.Members = make([]ids.ObjectAddress, SegMemberCount)
+	var arrayOID ids.OID
+	for i := range ext.Members {
+		if i == segIntervalProcedureStart {
+			arrayOID, err = stage.AllocateOID()
+			if err != nil {
+				return err
+			}
+		}
+		class := ids.ProcedureClassID
+		if i == 0 {
+			class = ids.TypeClassID
+		} else if i >= segIntervalOperatorStart {
+			class = ids.OperatorClassID
+		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
@@ -32,10 +46,6 @@ func (p *SegProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 	}
 	ns := stage.Read().Get(ext.TargetNamespace).Name()
 	typ, err := sqltype.Seg(sqltype.ID(ext.Members[0].ObjectID), "seg", catalog.DependencyIdentifier(ns)+".seg")
-	if err != nil {
-		return err
-	}
-	arrayOID, err := stage.AllocateOID()
 	if err != nil {
 		return err
 	}
@@ -75,5 +85,5 @@ func (p *SegProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			return err
 		}
 	}
-	return nil
+	return p.stageInterval(stage, ext, owner, typ)
 }

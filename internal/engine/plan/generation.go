@@ -104,6 +104,8 @@ func GenerationImmutable(node expr.Expr) bool {
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args[:])
 	case InstalledCubeSpatialExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args[:])
+	case InstalledSegIntervalExpr:
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args[:])
 	case InstalledTextExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && (n.Dictionary == nil || GenerationImmutable(n.Dictionary)) && GenerationImmutable(n.Arg)
 	case expr.Composite:

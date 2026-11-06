@@ -273,6 +273,9 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			} else if installed, spatialCall := node.(plan.InstalledCubeSpatialExpr); spatialCall {
 				mapped := retainedType(installed.Args[0].ResultUsage().Type)
 				sameSignature = ok && extension.CubeProviderOf(current) == extension.StockCube && extension.CubeProviderOf(captured) == extension.StockCube && mapped != nil && mapped.IsCube() && current.Signature == extension.CubeBinarySignature(mapped.ID())
+			} else if installed, intervalCall := node.(plan.InstalledSegIntervalExpr); intervalCall {
+				mapped := retainedType(installed.Args[0].ResultUsage().Type)
+				sameSignature = ok && extension.SegProviderOf(current) == extension.StockSeg && extension.SegProviderOf(captured) == extension.StockSeg && mapped != nil && mapped.IsSeg() && current.Signature == extension.SegBinarySignature(mapped.ID())
 			}
 			if !ok || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin || current.Implementation != captured.Implementation || current.AccessMethod != captured.AccessMethod || current.Conversion != captured.Conversion || current.Foreign != captured.Foreign {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
@@ -926,6 +929,25 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.CubeSpatial, err = functions.NewCubeSpatial(info, n.Plan.Operation(), n.Args)
 		if err == nil {
 			err = ValidateInstalledCubeSpatial(n, view)
+		}
+		rebound = n
+	case plan.InstalledSegIntervalExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok || extension.SegProviderOf(proc) != extension.StockSeg {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped seg interval function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
+		n.SegInterval, err = functions.NewSegInterval(info, n.Plan.Operation(), n.Args)
+		if err == nil {
+			err = ValidateInstalledSegInterval(n, view)
 		}
 		rebound = n
 	case plan.InstalledTextExpr:

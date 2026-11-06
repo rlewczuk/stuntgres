@@ -703,6 +703,10 @@ host methods.
   before rendering current qualified labels.
   The current command's preserved-parameter policy combines with that provenance
   at evaluation; remapping does not cache a prepared consumer's last plan mode.
+  Seg predicate carriers preserve ordered operands, checked kernels, original
+  callable/operator references and hidden precision through the same view,
+  CHECK/default remap/retag and qualified rendering seams. Current validation
+  never substitutes newer authority into a captured executable carrier.
   Replacement and type-only refresh bootstrap closed installed-domain CHECK
   recipes before SQL declaration/body/default preparation or other consumers.
   `ReownInstalledDomainChecks` reuses the operation's original-procedure and

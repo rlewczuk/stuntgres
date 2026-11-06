@@ -35,6 +35,7 @@ const (
 	XML2Extension
 	PgsurgeryExtension
 	PgBuffercacheExtension
+	SegExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

@@ -1913,6 +1913,12 @@ yields `1 .. -1`. Negative overflow is spelled `-Infinity`. Stock seg text input
 rejects these canonical outputs; SQL recreation must reinsert the original valid
 spellings. Ordinary SQL replay is a canonical-text round trip only for
 reinputtable values; native records retain all these representations exactly.
+The installed `<<`, `>>`, `&<`, `&>`, `=`, `&&`, `@>` and `<@` roles return
+strict BOOL results through ordinary expressions, including stored views,
+CHECKs and defaults. Geometric predicates compare endpoints; equality also
+compares precision and annotation metadata, but treats signed zeros equally.
+Thus equal canonical text need not imply equality: native replay preserves
+hidden precision that canonical SQL reinput can lose.
 
 After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC columns
 accept textual literals and bound strings or bytes, including NULL. Results

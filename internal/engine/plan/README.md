@@ -206,11 +206,14 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_earth_point.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
   `InstalledUUIDOsspExpr`, `InstalledSSLInfoExpr`, `InstalledXML2Expr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
-  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledPgstattupleExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
+  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledSegIntervalExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledPgstattupleExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
   `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
+  `InstalledSegIntervalExpr` explicitly owns its statement-jumble discriminator,
+  independent of its embedded kernel; common traversal retains original callable
+  identity and lexical child order before constant or strict-NULL folding.
   `InstalledEarthExpr` uses the same carrier for coordinates and surface queries:
   mixed formals and CUBE/FLOAT8 results retain the hidden nominal Earth graph.
   Grouping and reconstruction preserve independent semantic conversion demand
@@ -403,7 +406,7 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   capture operands and inverse child slots contain only written executable
   inputs plus selected hidden defaults. Pure OUT analysis remains with the
   statement binder and cannot enter rebuild/folding/evaluation children.
-- `EvalInstalledText`, `EvalInstalledCubeSpatial` and `EvalInstalledEarthPoint`
+- `EvalInstalledText`, `EvalInstalledCubeSpatial`, `EvalInstalledSegInterval` and `EvalInstalledEarthPoint`
   run the prologue, validate captured provider authority and evaluate the kernel,
   including strict NULL calls. Spatial and point wrappers retain Procedure/Ref
   through reconstruction; stored remap/retag rebuilds their checked plans against

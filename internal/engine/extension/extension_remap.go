@@ -242,7 +242,7 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		}
 		if SegProviderOf(&n) != nil || IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
 			// Provider validation owns these immutable formal signatures.
-			// Comparisons instead remap their citext inputs and retain BOOL.
+			// Binary predicates remap installed inputs while retaining builtin BOOL.
 			citextConversion := CitextProviderOf(d) == StockCitext && (d.Signature == "1042" || d.Signature == "16" || d.Signature == "869")
 			if d.Signature == "2275" || citextConversion {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID

@@ -31,7 +31,7 @@ func (p *SegProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) err
 	if !currentManifest(v, ext) {
 		return invalid()
 	}
-	if p != StockSeg || ext.Name() != "seg" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != StockSeg || ext.Name() != "seg" || ext.Version != p.control.Version || len(ext.Members) != SegMemberCount {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -48,7 +48,7 @@ func (p *SegProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) err
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for _, address := range ext.Members[1:] {
+	for _, address := range ext.Members[1:segIntervalOperatorStart] {
 		proc, ok := v.Procedure(address)
 		if !ok {
 			return invalid()
@@ -57,7 +57,7 @@ func (p *SegProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) err
 			return err
 		}
 	}
-	return nil
+	return p.validateInterval(v, ext, base)
 }
 
 func (p *SegProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
