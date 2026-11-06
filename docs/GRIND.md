@@ -140,7 +140,8 @@ Trusted tools (the stuntgres server binary, repro programs written for the run,
 
 - `run-X.sh OUT` writes `go test -json -count=1` output to `OUT` and stderr to
   `OUT.stderr`.
-- `GRIND_PKGS` (default `./...`) selects packages; `GRIND_RUN` passes `-run`.
+- `GRIND_PKGS` (default `./...`) selects packages; `GRIND_RUN` passes `-run`;
+  `GRIND_BRANCH` overrides the branch, for scratch experiments.
 - It checks out its branch (`stuntgres/reference` or `stuntgres/MODE`) when the
   clone is clean. Uncommitted changes on another branch are a harness failure.
 - It starts and stops every service it needs and runs project code only through
@@ -305,8 +306,14 @@ Root-causing means finding the first statement whose result differs.
   disagree:
 
   ```sh
-  jq -c 'select(.response_diff) | {cycle, query, response_diff}' LOGDIR/query.log | head
+  jq -c 'select(.response_diff) | {cycle, query, response_diff:
+      [.response_diff[] | select(test("table_oid") | not)]}
+    | select(.response_diff | length > 0)' LOGDIR/query.log | head
   ```
+
+  RowDescription `table_oid` values always differ (stuntgres assigns its own
+  OIDs), as do random values and the row order of ties or unordered results; the
+  filter drops the first, the rest need a look at the query.
 
 - **Driver mode** gets a dual connector with `GRIND-INFRA-DUAL-CONNECTOR`. Until
   then, rerun the failing test in server mode with the dual backend, or bisect
@@ -315,7 +322,12 @@ Root-causing means finding the first statement whose result differs.
 ### Repro
 
 A repro is pure SQL (or a short protocol sequence), never project code, so it can
-run on the host:
+run on the host. Start the oracle yourself with `sandbox.sh pg up` (it exists only
+while a run script runs), and give every repro a fresh database on both servers.
+The host's `psql` (16) speaks only the simple protocol in practice; for
+extended-protocol repros (Parse/Bind with NULLs or typed parameters) write a short
+Go program under `.cswd/tmp/GRIND-SLUG/` with `lib/pq` or `pgx` from the module
+cache, run on the host against both servers.
 
 ```sh
 docker exec -i grind-SLUG-postgres psql -X -v ON_ERROR_STOP=0 -U USER -d DB < repro.sql > pg.out 2>&1
