@@ -570,6 +570,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 		if err == nil && pass == 4 {
 			next, err = table.AlterNotNullPass(op, auth.Catalog, core.StageDefinitions(stage), inheritancePlan(scope), definition, next, additions, attachments)
+			if err == nil {
+				for _, raw := range table.AddedUniqueSyntax(additions) {
+					stage = authorizedStage(e, stage, auth, op.Session)
+					next, err = stageAddedUnique(e, op, auth, stage, next, &raw)
+					if err != nil {
+						break
+					}
+					addedIndexes = append(addedIndexes, next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
+				}
+			}
 		}
 		if err == nil && pass == 6 {
 			raw := table.AddedCheckSyntax(s.Actions, additions)
@@ -686,16 +696,13 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if err != nil {
 		return core.Result{}, index.DefaultClassDiagnostic(h, auth, err)
 	}
-	fkIndex := 0
-	for _, action := range s.Actions {
-		if action.Action != parser.AddForeignKey {
-			continue
-		}
-		if fkIndex >= len(foreignKeysOrZero(scope).AlterKeys) {
-			return core.Result{}, ids.ErrCatalogReplaced
-		}
-		capture := foreignKeysOrZero(scope).AlterKeys[fkIndex]
-		next, err = stageAddedForeignKey(e, scope, auth, stage, next, action.ForeignKey, capture.Target.Address, capture.Index, capture.Name)
+	keys := foreignKeysOrZero(scope).AlterKeys
+	if err := table.CheckAlterForeignKeyAdditions(s.Actions, additions, keys); err != nil {
+		return core.Result{}, err
+	}
+	for i := range keys {
+		capture := &keys[i]
+		next, err = stageAddedForeignKey(e, scope, auth, stage, next, &capture.Definition, capture.Target.Address, capture.Index, capture.Name)
 		if err != nil {
 			return core.Result{}, err
 		}
@@ -704,7 +711,6 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if !added.NotValid {
 			foreignKeyHistory = append(foreignKeyHistory, table.AlterForeignKeyScan{ForeignKeyConstraint: added})
 		}
-		fkIndex++
 	}
 	// Misc resolves only after every ADD definition, including deferred FKs.
 	for _, action := range s.Actions {

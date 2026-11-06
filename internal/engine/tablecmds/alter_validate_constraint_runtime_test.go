@@ -212,7 +212,7 @@ func TestAlterValidateConstraintAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored := tablecmds.ForeignKeysOrZero(scope)
-	if len(restored.ValidationKeys) != 1 || restored.ValidationKeys[0] != capture {
+	if len(restored.ValidationKeys) != 1 || !reflect.DeepEqual(restored.ValidationKeys[0], capture) {
 		t.Fatal("checkpoint retained borrowed validation slice", restored.ValidationKeys)
 	}
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {

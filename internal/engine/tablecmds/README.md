@@ -137,6 +137,14 @@ A later phase cannot upgrade an already fixed pair with current roots.
   captured headers after shape and codec transport, including genuine repaired
   additional versions. Validity-only scans use their coherently captured roots;
   neither scan materializes header projections into immutable physical payloads.
+  Successful added-column UNIQUE clauses use ordinary ADD UNIQUE staging after
+  the NOT NULL pass, before explicit index work; their indexes join the same final
+  private-heap build schedule. Column REFERENCES and explicit ADD FOREIGN KEY
+  consume the same captured declaration stream after these supporting keys,
+  before MISC. Successful inline origins must match capture slots; skipped columns
+  consume none. The ordinary FK stage and final private-heap scan own metadata,
+  DEFAULT history validation, triggers and publication, including deferred
+  declarations. Column, key, index and FK effects share one journal and Finish.
   `TestPgvisibilityCheckAlterPhysicalProducer` consumes real collected TYPE work
   and deferred metadata before the actual physical continuation; it distinguishes
   unchanged-heap codec transport from destructive rewrite.

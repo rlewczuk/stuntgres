@@ -512,7 +512,7 @@ func (l *lexer) excludePrimaryAddition(add lexeme) {
 
 func (l *lexer) excludePrimaryColumnAddition(add lexeme, column *Column) {
 	for _, constraint := range column.Constraints {
-		if constraint.Unique != nil && constraint.Unique.Primary || constraint.ForeignKey != nil {
+		if constraint.Unique != nil && constraint.Unique.Primary {
 			l.excludePrimaryAddition(add)
 			return
 		}

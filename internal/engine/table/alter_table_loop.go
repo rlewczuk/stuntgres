@@ -34,6 +34,25 @@ func OnlySetNotNull(view catalog.Read, old *catalog.Relation, s *parser.AlterTab
 	return &command
 }
 
+// AddedUniqueSyntax normalizes only successfully added columns' UNIQUE clauses.
+// The ordinary ADD UNIQUE stage owns binding, naming and index construction.
+func AddedUniqueSyntax(additions []AddedColumn) []parser.UniqueConstraint {
+	var raw []parser.UniqueConstraint
+	for _, added := range additions {
+		if added.Attribute == 0 {
+			continue
+		}
+		for _, constraint := range added.Column.Constraints {
+			if constraint.Unique != nil {
+				definition := *constraint.Unique
+				definition.Columns = []parser.Identifier{{Text: added.Column.Name, Pos: added.Column.Pos}}
+				raw = append(raw, definition)
+			}
+		}
+	}
+	return raw
+}
+
 // AddedCheckSyntax collects the CHECKs that actions and the columns they add
 // declare, in source order.
 func AddedCheckSyntax(actions []parser.AlterTableAction, additions []AddedColumn) []*parser.CheckConstraint {

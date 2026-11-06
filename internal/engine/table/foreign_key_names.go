@@ -42,12 +42,29 @@ func retainNameFacts[T any](facts []T, removed func(T) bool) []T {
 	return slices.DeleteFunc(slices.Clone(facts), removed)
 }
 
-// AlterForeignKeyNames projects names, not definitions. It binds no expression,
-// checks no REFERENCES authority, emits no notices and allocates no object IDs.
-// DROP affects the candidate before ADD. Index/NN names precede other-constraint
-// ADD; CHECK and FK names are assigned in their original other-ADD order, not
-// the kernel's later CHECK cooking / deferred-FK installation order.
-func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []parser.AlterTableAction) []string {
+// AlterForeignKeyDeclaration is an owned command-local definition. ConstraintIndex
+// is -1 for an explicit table FK; otherwise it identifies the inline constraint.
+// Origin indexes remain in the original action list, not installation order.
+type AlterForeignKeyDeclaration struct {
+	Action          int
+	ConstraintIndex int
+	Definition      parser.ForeignKeyConstraint
+	Name            string
+}
+
+func cloneForeignKeyDefinition(raw parser.ForeignKeyConstraint) parser.ForeignKeyConstraint {
+	raw.Columns = slices.Clone(raw.Columns)
+	raw.Target.Parts = slices.Clone(raw.Target.Parts)
+	raw.Referenced = slices.Clone(raw.Referenced)
+	raw.DeleteColumns = slices.Clone(raw.DeleteColumns)
+	return raw
+}
+
+// AlterForeignKeyDeclarations projects admissions and names without binding,
+// notices, OIDs or descriptor/AST mutation. DROP precedes ADD; an existing
+// IF NOT EXISTS column contributes no subsidiary declarations or reservations.
+// Inline CHECK names precede inline FKs, which precede explicit CHECK/FK names.
+func AlterForeignKeyDeclarations(view catalog.Read, child *catalog.Relation, actions []parser.AlterTableAction) []AlterForeignKeyDeclaration {
 	var droppedNames map[string]bool
 	var droppedAttributes map[int32]bool
 	var droppedNotNull map[ids.OID]bool
@@ -57,6 +74,12 @@ func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []
 		switch action.Action {
 		case parser.AddForeignKey:
 			count++
+		case parser.AddColumn:
+			for _, constraint := range action.Definition.Constraints {
+				if constraint.ForeignKey != nil {
+					count++
+				}
+			}
 		case parser.DropConstraint:
 			if droppedNames == nil {
 				droppedNames = make(map[string]bool)
@@ -83,6 +106,10 @@ func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []
 		}
 	}
 	if count == 0 {
+		return nil
+	}
+	admitted, admissible := alterAddedColumnAdmissions(child, actions, droppedAttributes)
+	if !admissible {
 		return nil
 	}
 	projected := *child
@@ -125,7 +152,7 @@ func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []
 	// Replacing just this relation preserves same-name reservations belonging
 	// to other relations/domains in the namespace.
 	used := catalog.ConstraintNames(view, child.Namespace(), &projected)
-	for _, action := range actions {
+	for i, action := range actions {
 		name := ""
 		switch action.Action {
 		case parser.AddNotNull:
@@ -140,6 +167,9 @@ func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []
 				name = action.UsingIndex.Index.Text
 			}
 		case parser.AddColumn:
+			if !admitted[i] {
+				continue
+			}
 			for _, constraint := range action.Definition.Constraints {
 				if constraint.NotNull && constraint.Name.Text != "" {
 					used[constraint.Name.Text] = true
@@ -155,18 +185,51 @@ func AlterForeignKeyNames(view catalog.Read, child *catalog.Relation, actions []
 			used[name] = true
 		}
 	}
-	names := make([]string, 0, count)
-	for _, action := range actions {
+	declarations := make([]AlterForeignKeyDeclaration, 0, count)
+	appendDeclaration := func(action, constraint int, raw parser.ForeignKeyConstraint) {
+		raw = cloneForeignKeyDefinition(raw)
+		if constraint >= 0 {
+			column := actions[action].Definition
+			raw.Columns = []parser.Identifier{{Text: column.Name, Pos: column.Pos}}
+		}
+		name := ForeignKeyConstraintName(child, raw, used)
+		declarations = append(declarations, AlterForeignKeyDeclaration{Action: action, ConstraintIndex: constraint, Definition: raw, Name: name})
+		used[name] = true
+	}
+	// All effective inline CHECK names reserve before any inline generated FK,
+	// independently of the within-column spelling.
+	for i, action := range actions {
+		if action.Action != parser.AddColumn || !admitted[i] {
+			continue
+		}
+		for _, constraint := range action.Definition.Constraints {
+			if constraint.Check != nil && constraint.Check.Name.Text != "" {
+				used[constraint.Check.Name.Text] = true
+			}
+		}
+	}
+	for i, action := range actions {
+		if action.Action != parser.AddColumn || !admitted[i] {
+			continue
+		}
+		for j, constraint := range action.Definition.Constraints {
+			if constraint.ForeignKey != nil {
+				appendDeclaration(i, j, *constraint.ForeignKey)
+			}
+		}
+	}
+	for i, action := range actions {
 		switch action.Action {
 		case parser.AddCheck:
 			if name := action.Check.Name.Text; name != "" {
 				used[name] = true
 			}
 		case parser.AddForeignKey:
-			name := ForeignKeyConstraintName(child, *action.ForeignKey, used)
-			names = append(names, name)
-			used[name] = true
+			appendDeclaration(i, -1, *action.ForeignKey)
 		}
 	}
-	return names
+	if len(declarations) == 0 {
+		return nil
+	}
+	return declarations
 }

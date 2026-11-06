@@ -395,7 +395,7 @@ func TestConstraintEnforcementNameProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statements[0].(*parser.AlterTable)
-	names := table.AlterForeignKeyNames(view, old, raw.Actions)
+	names := alterForeignKeyDeclarationNames(table.AlterForeignKeyDeclarations(view, old, raw.Actions))
 	if !slices.Equal(names, []string{"t_a_fkey1", "t_a_fkey2"}) {
 		t.Fatal("child DROP erased another relation's namespace reservation", names)
 	}
@@ -408,10 +408,10 @@ func TestConstraintEnforcementNameProjection(t *testing.T) {
 		t.Fatal("name projection mutated published state")
 	}
 	sessionSQL(t, s, "ALTER TABLE other DROP CONSTRAINT t_a_fkey")
-	if current := table.AlterForeignKeyNames(e.CatalogRead(), old, raw.Actions); !slices.Equal(current, []string{"t_a_fkey", "t_a_fkey1"}) {
+	if current := alterForeignKeyDeclarationNames(table.AlterForeignKeyDeclarations(e.CatalogRead(), old, raw.Actions)); !slices.Equal(current, []string{"t_a_fkey", "t_a_fkey1"}) {
 		t.Fatal("name schedule failed to observe genuine namespace change", current)
 	}
-	if retained := table.AlterForeignKeyNames(view, old, raw.Actions); !slices.Equal(retained, names) {
+	if retained := alterForeignKeyDeclarationNames(table.AlterForeignKeyDeclarations(view, old, raw.Actions)); !slices.Equal(retained, names) {
 		t.Fatal("retained naming authority followed live catalog", retained, names)
 	}
 }
@@ -464,7 +464,7 @@ func TestConstraintEnforcementDropNotNullProjection(t *testing.T) {
 			if bound != tc.expected {
 				t.Fatal("candidate naming differs from source-grounded expectation", bound, tc.expected)
 			}
-			names := table.AlterForeignKeyNames(view, old, raw.Actions)
+			names := alterForeignKeyDeclarationNames(table.AlterForeignKeyDeclarations(view, old, raw.Actions))
 			if !slices.Equal(names, []string{tc.expected}) {
 				t.Fatal("admission naming diverged from authentic NN candidate", names, tc.expected)
 			}
@@ -478,7 +478,7 @@ func TestConstraintEnforcementDropNotNullProjection(t *testing.T) {
 				if err != nil || !reflect.DeepEqual(namedCandidate, candidate) {
 					t.Fatal("named and column NN removal disagree", namedCandidate, candidate, err)
 				}
-				if namedNames := table.AlterForeignKeyNames(view, old, named.Actions); !slices.Equal(namedNames, names) {
+				if namedNames := alterForeignKeyDeclarationNames(table.AlterForeignKeyDeclarations(view, old, named.Actions)); !slices.Equal(namedNames, names) {
 					t.Fatal("named and column removal naming disagree", namedNames, names)
 				}
 			}

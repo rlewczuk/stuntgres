@@ -1853,6 +1853,14 @@ or request ADD-provider SRE/REFERENCES authority. Selected historical scans use
 the ordinary RI comparison/disclosure and latest private effective rows.
 ADD FK retains its separate name/storage/supporting-key capture and reopens
 current REFERENCES authority after waits during ordinary definition cooking.
+One pure owned declaration projection admits effective column REFERENCES before
+explicit table FKs, excluding skipped columns before target lookup. Capture,
+sorted deduplicated grants, pending MISC names and grant-time origin/definition/name
+rechecks consume that same stream; self references retain the strongest target
+lock and bind supporting keys only against the completed private candidate.
+Only ADD captures own normalized declaration syntax. Exception checkpoints detach
+both their capture slice and definition backing; stored-key validation retains
+its separate provider-only capture slice.
 Stored-key validation's exact descriptor-original fences do not apply to ADD-only
 targets; a queued ADD reports current privilege denial rather than an ACL-pointer
 replacement conflict.

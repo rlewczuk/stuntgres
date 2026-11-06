@@ -21,6 +21,13 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		if action.Action == parser.AddForeignKey || action.Action == parser.ValidateConstraint || parser.IsAlterConstraint(action.Action) && action.EnforcementSet {
 			count++
 		}
+		if action.Action == parser.AddColumn {
+			for _, constraint := range action.Definition.Constraints {
+				if constraint.ForeignKey != nil {
+					count++
+				}
+			}
+		}
 	}
 	if count == 0 {
 		return nil
@@ -48,7 +55,9 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	if err = auth.Check(access.Requirement{Object: childRef, OwnerOnly: true}); err == nil {
 		label := "VALIDATE CONSTRAINT"
-		if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AddForeignKey }) {
+		if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool {
+			return a.Action == parser.AddForeignKey || a.Action == parser.AddColumn
+		}) {
 			label = "ADD CONSTRAINT"
 		} else if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool {
 			return parser.IsAlterConstraint(a.Action) && a.EnforcementSet
@@ -64,12 +73,9 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		e.Mu.Unlock()
 		return err
 	}
-	captures := make([]table.AlterForeignKeyAdmission, 0, count)
+	declarations := table.AlterForeignKeyDeclarations(auth.Catalog, child, raw.Actions)
+	captures := make([]table.AlterForeignKeyAddition, 0, len(declarations))
 	var validations []table.AlterForeignKeyAdmission
-	var names []string
-	if slices.ContainsFunc(raw.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AddForeignKey }) {
-		names = table.AlterForeignKeyNames(auth.Catalog, child, raw.Actions)
-	}
 	// Exact descriptor originals belong to stored-key validation only. ADD
 	// captures names/storage/supporting keys, then reopens current REFERENCES
 	// authority during ordinary definition cooking after its unlocked waits.
@@ -96,105 +102,101 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	refs := []ids.ObjectRef{childRef}
 	stores := map[ids.ObjectAddress]*storage.Relation{childRef.Address: e.PrivateStorageLocked(s.PendingCatalog(), childRef.Address)}
-	i := 0
 	enforcement := make(map[ids.OID]bool)
 	type pendingEnforcement struct {
 		target   ids.ObjectRef
 		negative bool
 	}
 	pending := make(map[string]pendingEnforcement)
-	// ADD-pass definitions exist before MISC even when textually later.
-	for pass := range 2 {
-		for _, action := range raw.Actions {
-			if pass == 0 && action.Action != parser.AddForeignKey || pass == 1 && action.Action == parser.AddForeignKey {
-				continue
-			}
-			alterEnforcement := parser.IsAlterConstraint(action.Action) && action.EnforcementSet
-			if action.Action == parser.ValidateConstraint || alterEnforcement {
-				if declared, ok := pending[action.Constraint.Text]; ok {
-					if alterEnforcement && declared.negative != action.NotEnforced {
-						mode := lock.ShareRowExclusive
-						if action.NotEnforced {
-							mode = lock.AccessExclusive
-						}
-						requireParentMode(declared.target.Address, mode)
-						declared.negative = action.NotEnforced
-						pending[action.Constraint.Text] = declared
-					}
-					continue
-				}
-				// Earlier DROP/ADD may replace the name; only an authentic incumbent
-				// invalid FK contributes existing-key admission here.
-				selected, selectErr := table.SelectAlterConstraintValidation(child, action.Constraint.Text)
-				if selectErr != nil || selected.ForeignKey == nil {
-					continue
-				}
-				mode := lock.RowShare
-				if alterEnforcement {
-					previous, known := enforcement[selected.OID]
-					if !known {
-						previous = selected.ForeignKey.NotEnforced
-					}
-					enforcement[selected.OID] = action.NotEnforced
-					if previous == action.NotEnforced {
-						continue
-					}
-					mode = lock.ShareRowExclusive
+	// Every admitted ADD definition exists before MISC, including textually
+	// later column REFERENCES. Capture exactly the projected declaration order.
+	for _, declaration := range declarations {
+		ref, resolveErr := e.ResolveReference(auth, declaration.Definition.Target)
+		if resolveErr != nil {
+			e.Mu.Unlock()
+			return table.AlterCookingError(resolveErr)
+		}
+		capture := table.AlterForeignKeyAddition{
+			AlterForeignKeyDeclaration: declaration,
+			AlterForeignKeyAdmission: table.AlterForeignKeyAdmission{
+				Target:  ref,
+				Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address),
+			},
+		}
+		if ref != childRef {
+			capture.Index = table.AlterForeignKeyIndex(auth.Catalog, ref.Address, declaration.Definition)
+		}
+		captures = append(captures, capture)
+		if !slices.Contains(refs, ref) {
+			refs = append(refs, ref)
+			stores[ref.Address] = capture.Storage
+		}
+		if ref != childRef {
+			requireParentMode(ref.Address, lock.ShareRowExclusive)
+		}
+		pending[capture.Name] = pendingEnforcement{target: ref, negative: declaration.Definition.NotEnforced}
+	}
+	for _, action := range raw.Actions {
+		alterEnforcement := parser.IsAlterConstraint(action.Action) && action.EnforcementSet
+		if action.Action == parser.ValidateConstraint || alterEnforcement {
+			if declared, ok := pending[action.Constraint.Text]; ok {
+				if alterEnforcement && declared.negative != action.NotEnforced {
+					mode := lock.ShareRowExclusive
 					if action.NotEnforced {
 						mode = lock.AccessExclusive
 					}
-				} else if !selected.Invalid() || selected.ForeignKey.NotEnforced {
+					requireParentMode(declared.target.Address, mode)
+					declared.negative = action.NotEnforced
+					pending[action.Constraint.Text] = declared
+				}
+				continue
+			}
+			// Earlier DROP/ADD may replace the name; only an authentic incumbent
+			// invalid FK contributes existing-key admission here.
+			selected, selectErr := table.SelectAlterConstraintValidation(child, action.Constraint.Text)
+			if selectErr != nil || selected.ForeignKey == nil {
+				continue
+			}
+			mode := lock.RowShare
+			if alterEnforcement {
+				previous, known := enforcement[selected.OID]
+				if !known {
+					previous = selected.ForeignKey.NotEnforced
+				}
+				enforcement[selected.OID] = action.NotEnforced
+				if previous == action.NotEnforced {
 					continue
 				}
-				fk := selected.ForeignKey
-				ref := childRef
-				ref.Address = fk.Target
-				parent, ok := auth.Catalog.Relation(ref.Address)
-				if !ok {
-					e.Mu.Unlock()
-					return ids.ErrCatalogReplaced
+				mode = lock.ShareRowExclusive
+				if action.NotEnforced {
+					mode = lock.AccessExclusive
 				}
-				provider, ok := auth.Catalog.Relation(fk.Index)
-				if !ok {
-					e.Mu.Unlock()
-					return ids.ErrCatalogReplaced
-				}
-				originals[fk.Index] = provider
-				originals[childRef.Address] = child
-				originals[ref.Address] = parent
-				capture := table.AlterForeignKeyAdmission{Target: ref, Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address), Index: fk.Index, Constraint: fk.OID, Parent: parent, Provider: provider}
-				validations = append(validations, capture)
-				if !slices.Contains(refs, ref) {
-					refs = append(refs, ref)
-					stores[ref.Address] = capture.Storage
-				}
-				requireParentMode(ref.Address, mode)
+			} else if !selected.Invalid() || selected.ForeignKey.NotEnforced {
 				continue
 			}
-			if action.Action != parser.AddForeignKey {
-				continue
-			}
-			ref, resolveErr := e.ResolveReference(auth, action.ForeignKey.Target)
-			if resolveErr != nil {
+			fk := selected.ForeignKey
+			ref := childRef
+			ref.Address = fk.Target
+			parent, ok := auth.Catalog.Relation(ref.Address)
+			if !ok {
 				e.Mu.Unlock()
-				return table.AlterCookingError(resolveErr)
+				return ids.ErrCatalogReplaced
 			}
-			captures = append(captures, table.AlterForeignKeyAdmission{})
-			captures[i].Target = ref
-			captures[i].Name = names[i]
-			captures[i].Storage = e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
-			if ref != childRef {
-				captures[i].Index = table.AlterForeignKeyIndex(auth.Catalog, ref.Address, *action.ForeignKey)
+			provider, ok := auth.Catalog.Relation(fk.Index)
+			if !ok {
+				e.Mu.Unlock()
+				return ids.ErrCatalogReplaced
 			}
+			originals[fk.Index] = provider
+			originals[childRef.Address] = child
+			originals[ref.Address] = parent
+			capture := table.AlterForeignKeyAdmission{Target: ref, Storage: e.PrivateStorageLocked(s.PendingCatalog(), ref.Address), Index: fk.Index, Constraint: fk.OID, Parent: parent, Provider: provider}
+			validations = append(validations, capture)
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
-				stores[ref.Address] = captures[i].Storage
+				stores[ref.Address] = capture.Storage
 			}
-			if ref != childRef {
-				requireParentMode(ref.Address, lock.ShareRowExclusive)
-			}
-			pending[captures[i].Name] = pendingEnforcement{target: ref, negative: action.ForeignKey.NotEnforced}
-			i++
+			requireParentMode(ref.Address, mode)
 		}
 	}
 	e.Mu.Unlock()
@@ -230,15 +232,13 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	if err := sameName(raw.Name, childRef); err != nil {
 		return err
 	}
-	if len(captures) != 0 {
-		current := table.AlterForeignKeyNames(auth.Catalog, auth.Catalog.MustRelation(childRef.Address), raw.Actions)
-		if len(current) != len(captures) {
+	current := table.AlterForeignKeyDeclarations(auth.Catalog, auth.Catalog.MustRelation(childRef.Address), raw.Actions)
+	if len(current) != len(captures) {
+		return ids.ErrCatalogReplaced
+	}
+	for i := range captures {
+		if !current[i].Equal(&captures[i].AlterForeignKeyDeclaration) {
 			return ids.ErrCatalogReplaced
-		}
-		for i, capture := range captures {
-			if current[i] != capture.Name {
-				return ids.ErrCatalogReplaced
-			}
 		}
 	}
 	for address, original := range originals {
@@ -251,20 +251,19 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	i = 0
-	for _, action := range raw.Actions {
-		if action.Action != parser.AddForeignKey {
-			continue
-		}
-		if err := sameName(action.ForeignKey.Target, captures[i].Target); err != nil {
+	for i := range captures {
+		capture := &captures[i]
+		if err := sameName(capture.Definition.Target, capture.Target); err != nil {
 			return err
 		}
-		if captures[i].Index != (ids.ObjectAddress{}) {
-			if _, ok := auth.Catalog.Relation(captures[i].Index); !ok {
+		if capture.Target != childRef && table.AlterForeignKeyIndex(auth.Catalog, capture.Target.Address, capture.Definition) != capture.Index {
+			return ids.ErrCatalogReplaced
+		}
+		if capture.Index != (ids.ObjectAddress{}) {
+			if _, ok := auth.Catalog.Relation(capture.Index); !ok {
 				return ids.ErrCatalogReplaced
 			}
 		}
-		i++
 	}
 	s.foreignKeys().AlterKeys = captures
 	s.foreignKeys().ValidationKeys = validations

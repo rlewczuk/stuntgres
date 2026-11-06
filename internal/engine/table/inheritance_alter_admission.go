@@ -22,6 +22,14 @@ func InheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 
 func InheritancePureDefinitionPreparation(actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
+		if action.Action == parser.AddColumn && action.Definition != nil {
+			for _, constraint := range action.Definition.Constraints {
+				if constraint.Unique != nil {
+					// Inline keys need the sole index stage just like ADD UNIQUE.
+					return false
+				}
+			}
+		}
 		switch action.Action {
 		case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.AddColumn, parser.SetNotNull, parser.AddNotNull, parser.AddCheck, parser.AddIdentity, parser.SetIdentity, parser.AddUsingIndex:
 		default:

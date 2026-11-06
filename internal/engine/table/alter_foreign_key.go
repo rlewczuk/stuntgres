@@ -12,19 +12,26 @@ type AlterForeignKeyAdmission struct {
 	Target           ids.ObjectRef
 	Storage          *storage.Relation
 	Index            ids.ObjectAddress
-	Name             string  // Command-local ADD name, selected and rechecked before cooking.
 	Constraint       ids.OID // Nonzero only for an existing selected validation fact.
 	Parent, Provider *catalog.Relation
+}
+
+// Only ADD captures retain syntax and origin order. Existing-key validation
+// captures contain provider authority alone.
+type AlterForeignKeyAddition struct {
+	AlterForeignKeyAdmission
+	AlterForeignKeyDeclaration
 }
 
 // ForeignKeyCreation is the statement's CREATE/ALTER TABLE foreign-key
 // capture: the resolved REFERENCES targets of CREATE TABLE (KeyTargets, one
 // per declaration, zero for a self reference), the admitted ADD FOREIGN KEY
-// captures (AlterKeys, in ADD action order), and existing invalid selected keys
-// (ValidationKeys, carrying exact parent/provider originals). These lists have
-// distinct authority and lock modes; validation never consumes an ADD slot.
+// captures (AlterKeys, in projected inline-then-explicit declaration order), and
+// existing invalid selected keys (ValidationKeys, carrying exact parent/provider
+// originals). These lists have distinct authority and lock modes; validation
+// never consumes an ADD slot.
 type ForeignKeyCreation struct {
 	KeyTargets     []ids.ObjectRef
-	AlterKeys      []AlterForeignKeyAdmission
+	AlterKeys      []AlterForeignKeyAddition
 	ValidationKeys []AlterForeignKeyAdmission
 }

@@ -121,6 +121,12 @@ call live here.
   those conversions.
   This execution-private fill does not become a retained expression fold or
   replace the immutable DEFAULT definition used by future inserts.
+  After the column and NOT NULL passes, `AddedUniqueSyntax` lifts only successful
+  additions' UNIQUE clauses into `StageAddedUnique`, before explicit index work.
+  It supplies the local identifier without mutating syntax; ordinary key binding,
+  naming, catalog/index staging and final physical builds retain ownership.
+  Inline keys, like explicit ADD UNIQUE, require the sole index stage rather than
+  prefix-only inheritance definition preparation.
   `ValidateConstraintCandidate` returns an immutable validity-only successor and
   selected stable scan identities; eligible valid facts return the identical
   predecessor. Misc resolution follows all ADD definitions, including deferred
@@ -173,10 +179,16 @@ call live here.
   historical obligation. Final false/invalid metadata is accepted only with an
   actual later disable of that exact queued identity; never-admitted invalid
   selections, changed definitions/providers and invalid-still-enforced facts
-  remain fenced. `AlterForeignKeyNames` projects command-local naming without
-  cooking definitions or allocating OIDs. It shares `ForeignKeyConstraintName`
-  with binding, preserves namespace reservations outside the candidate, and
-  distinguishes other-constraint assignment order from deferred installation.
+  remain fenced. `AlterForeignKeyDeclarations` projects one owned, normalized
+  declaration stream for naming, capture and installation without cooking or
+  allocating OIDs. DROP precedes column admission; existing IF NOT EXISTS columns
+  reserve nothing and resolve no targets. Inline CHECK reservations precede inline
+  FKs, then explicit CHECK/FK naming follows its existing action order. Generated
+  names share `ForeignKeyConstraintName` and retain other relations' and domains'
+  namespace reservations. Origin indexes fence successful ADDs against captures;
+  columns and supporting keys are complete before the ordinary FK installer runs.
+  ADD captures alone retain owned declaration syntax; existing-key validation
+  captures retain provider authority without an unused declaration.
   DROP NOT NULL uses the same pure stable-attribute/fact selector as
   `NotNullCandidate`. Only an actually selected NN identity is omitted from the
   private naming candidate; absence is a no-op, and relation/domain reservations
