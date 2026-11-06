@@ -61,7 +61,7 @@ in tests.
 
 ## Dependencies
 
-- Library code (`.` and `internal/...`, the first `make deps` list) may depend
+- Library code (`.`, `dual` and `internal/...`, the first `make deps` list) may depend
   only on the standard library and `stuntgres/...` packages. `cmd/stuntgres` may
   also use cobra and viper with their dependencies (the second list); library
   packages never import them. goyacc is a generation tool.

@@ -33,6 +33,8 @@
 - `internal/sqlstate`: shared SQL errors; root `Error` aliases it. Tests assert the
   SQLState interface, not `*pq.Error`.
 - `cmd/stuntgres`: the wire-protocol server.
+- `dual`: `database/sql` connector mirroring every call to a caller-supplied
+  reference connector and logging JSONL differences; stdlib only.
 - `reference/`: public SQL/API tests, one shared body run natively (quick mode) and
   against pinned real PostgreSQL 18. `reference/fixture` is the shared fixture.
 - Root and internal `*_test.go`: non-SQL adapter and package unit tests only.

@@ -7,8 +7,9 @@ LISTEN/NOTIFY session messages, SQL backend cancellation and termination,
 `pg_locks`, `pg_blocking_pids`, transaction status and commit timestamps with
 tracking off, primary-mode recovery inquiries and typed physical-registry and
 WAL-summary source admission, prepared-statement rebind, DISCARD,
-SQL PREPARE/EXECUTE, and the wire-protocol server (`server_*_test.go`) against a
-real `cmd/stuntgres` subprocess. Related families live elsewhere: settings,
+SQL PREPARE/EXECUTE, the `stuntgres/dual` mirroring connector, and the
+wire-protocol server (`server_*_test.go`) against a real `cmd/stuntgres`
+subprocess. Related families live elsewhere: settings,
 timeouts, the physical-session adapter and direct-message batches in
 [session_state](../session_state/README.md); SQL cursors and `pg_cursors` in
 [cursors](../cursors/README.md); transaction control, commit timestamps with
@@ -25,7 +26,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Helpers: `blocking_pids_helpers_test.go`, `discard_helpers_test.go`,
   `namespace_identity_test.go` (`namespaceConn`), `prepared_rebind_helpers_test.go`,
   `session_messages_helpers_test.go`, `sql_prepared_helpers_test.go`,
-  `view_locks_helpers_test.go`; raw wire client `serverWire` in
+  `view_locks_helpers_test.go`, `dual_connector_helpers_test.go`
+  (`newDualPair`: a dual pool over the scenario's native connector and one
+  reference per scenario, a second native engine in quick mode and lib/pq with
+  `REFERENCE=1`) and `dual_connector_fault_test.go` (`dualFault`, which wraps
+  that reference so fault scenarios run in both modes); raw wire client `serverWire` in
   `server_wire_test.go` and message builders in `server_extended_helpers_test.go`.
   Session signaling family: `RUN='^TestReferenceSessionSignal'`.
   Self-signaling Query witnesses use `sessionSignalSelfQuery` to consume all rows
@@ -191,6 +196,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
 - Wire logs (error, server and query logs): `RUN='^TestReferenceServer(Logs|PreparedLogs|QueryLog)$$'`
 - Dual-backend query log: `RUN='^TestReferenceServerDualQueryLog$$'`
+- Dual connector (`stuntgres/dual`): `RUN='^TestReferenceDualConnector'`
 
 - `make check RUN='^TestReferenceStatDatabaseWire$'` and the same with
   `REFERENCE=1` exercise actual server/frontend lifetime, not synthetic session

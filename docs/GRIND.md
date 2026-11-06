@@ -135,8 +135,9 @@ Trusted tools (the stuntgres server binary, repro programs written for the run,
 
 ### Run-script contract
 
-`run-reference.sh`, `run-stuntgres.sh` and, where available,
-`run-stuntgres-dual.sh` live in `.cswd/grind/SLUG/` and share one contract:
+`run-reference.sh`, `run-stuntgres.sh` and, for modes with dual diagnostics
+(server and driver), `run-stuntgres-dual.sh` live in `.cswd/grind/SLUG/` and
+share one contract:
 
 - `run-X.sh OUT` writes `go test -json -count=1` output to `OUT` and stderr to
   `OUT.stderr`.
@@ -161,7 +162,7 @@ available modes qualify.
 
 | Mode | Fits | Availability |
 |---|---|---|
-| `driver` | Tests reach PostgreSQL through `database/sql` (`lib/pq`, `pgx/stdlib`, and sqlx, gorm, bun, ent, goose or golang-migrate over a `*sql.DB`). | Available. |
+| `driver` | Tests reach PostgreSQL through `database/sql` (`lib/pq`, `pgx/stdlib`, and sqlx, gorm, bun, ent, goose or golang-migrate over a `*sql.DB`). | Available, with dual diagnostics ([stuntgres/dual](../dual/README.md)). |
 | `embedded` | Native `pgx`, `pgxpool` or `pgconn`, or a mix with `database/sql`. | Unavailable until `GRIND-INFRA-EMBEDDED-SERVER`. |
 | `server` | Non-Go clients, `LISTEN`/`NOTIFY` listeners, or state shared across test processes through one server. | Available with userfile limitations (see below); cluster semantics after `GRIND-INFRA-SERVER-CLUSTER`. |
 | `container` | Tests that need a real container: `docker exec`, compose files, image-level setup. | Unavailable until `GRIND-INFRA-DOCKER-IMAGE`; needs a user decision on Docker access. |
@@ -209,7 +210,8 @@ available modes qualify.
    that cannot be mapped as a stuntgres gap.
 
 Driver mode needs no network: run the tests with `sandbox.sh exec` and the default
-`-n none`.
+`-n none`. The dual run ([Diagnostics](#diagnostics)) needs `-n internal` and the
+oracle (`sandbox.sh pg up`).
 
 ### Embedded mode
 
@@ -315,9 +317,60 @@ Root-causing means finding the first statement whose result differs.
   OIDs), as do random values and the row order of ties or unordered results; the
   filter drops the first, the rest need a look at the query.
 
-- **Driver mode** gets a dual connector with `GRIND-INFRA-DUAL-CONNECTOR`. Until
-  then, rerun the failing test in server mode with the dual backend, or bisect
-  the test's statements by hand.
+- **Driver mode** has the dual connector [stuntgres/dual](../dual/README.md). It
+  runs every `database/sql` call on stuntgres and on the oracle, returns the
+  stuntgres result and logs one JSON record per call.
+  1. In the project's connection helper, wrap the connector when
+     `GRIND_DUAL_REFERENCE` is set. The reference driver must already be in the
+     project's `go.mod`: the sandbox runs with `GOPROXY=off`. Give the reference
+     DSN the same database and role the helper selects natively
+     (`OpenDatabaseConnector`, `OpenConnectorAs`). Each connector gets its own
+     log file: `connection_id` and `cycle` restart with every connector, and a
+     helper that runs per test would otherwise truncate an open file.
+
+     ```go
+     var dualLogs atomic.Int64 // package level: numbers this process's log files
+
+     func openDB(key string) (*sql.DB, error) {
+         connector, err := stuntgres.NewDriver().OpenConnector(key)
+         if err != nil {
+             return nil, err
+         }
+         if dsn := os.Getenv("GRIND_DUAL_REFERENCE"); dsn != "" {
+             reference, err := pq.NewConnector(dsn) // pgx: stdlib.GetConnector(*config)
+             if err != nil {
+                 return nil, err
+             }
+             dir := os.Getenv("GRIND_DUAL_LOG")
+             if err := os.MkdirAll(dir, 0o755); err != nil {
+                 return nil, err
+             }
+             name := fmt.Sprintf("dual-%d-%d.jsonl", os.Getpid(), dualLogs.Add(1))
+             out, err := os.Create(filepath.Join(dir, name))
+             if err != nil {
+                 return nil, err
+             }
+             connector = dual.NewConnector(connector, reference, dual.Options{Log: out})
+         }
+         return sql.OpenDB(connector), nil
+     }
+     ```
+
+  2. `run-stuntgres-dual.sh OUT LOGDIR` starts the oracle with
+     `REF=$($SB pg up SLUG …)`, creates `RUNDIR` under `SBTMP` like the server
+     script plus `mkdir -p "$RUNDIR/dual"`, and runs
+     `$SB exec SLUG CLONE -n internal -e GRIND_DUAL_REFERENCE=$REF -e GRIND_DUAL_LOG=$RUNDIR/dual -- go test -json …`.
+     Its cleanup trap copies `$RUNDIR/dual/*.jsonl` to `LOGDIR`.
+  3. The oracle is one shared database, so run only the failing package or test
+     (`GRIND_PKGS`, `GRIND_RUN`, `-p 1`) on a freshly started oracle.
+  4. Read the differences:
+
+     ```sh
+     jq -c 'select(.response_diff) | {file: input_filename, connection_id, cycle, call, query, response_diff}' LOGDIR/dual-*.jsonl | head
+     ```
+
+  5. COPY, notifications and native controls go through a separate native pool
+     and are not mirrored; the oracle's state drifts after them.
 
 ### Repro
 
