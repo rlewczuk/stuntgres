@@ -77,17 +77,25 @@ SB=docker/grind-sandbox/sandbox.sh
 $SB deps SLUG CLONE                         # download modules, compile tests (-exec /bin/true)
 $SB gonet SLUG CLONE mod tidy               # networked go mod/get/list/env/work only
 $SB pg up SLUG -u app -w secret -d appdb    # oracle on the internal network; prints its DSN
+$SB svc up SLUG minio IMAGE -e K=V -- ARGS  # another hardened service, reachable as minio
 $SB exec SLUG CLONE -- go test ./...        # no network
 $SB exec SLUG CLONE -n internal -e DATABASE_URL=postgres://app:secret@postgres:5432/appdb?sslmode=disable -- go test ./...
 $SB clean SLUG                              # remove the run's containers and network
 ```
 
 Only `deps` and `gonet` reach the internet, and neither executes project code.
+`deps` may add `go.sum` lines; commit them on the reference branch so the clone
+stays clean and branch switches work.
 `exec` defaults to no network at all; `-n internal` joins the run's internal Docker
 network, which has no route out. Inside it the oracle answers as `postgres:5432`,
 or under the alias given with `pg up -a`. `exec` sets `GOFLAGS=-mod=readonly` and
 `GOPROXY=off`, so a missing module fails fast instead of downloading. Run `deps`
 again after changing `go.mod`.
+
+Other services (object stores, caches, queues) run with `svc up`. They are
+hardened like the sandbox, have no host mounts and sit on the internal network
+only. Use an image the project's own CI or compose files name, and record it in
+`safety.md`; any other image needs the user.
 
 Trusted tools (the stuntgres server binary, repro programs written for the run,
 `psql`) may run on the host.
@@ -112,10 +120,18 @@ Trusted tools (the stuntgres server binary, repro programs written for the run,
 - **Gates.** Integration tests that skip unless a variable or build tag is set
   must be enabled in both runs. A run whose database tests all skip proves
   nothing.
+- **Artifacts from other toolchains.** When packages need files a non-Go build
+  produces (a bundled frontend, generated assets) and the sandbox cannot build
+  them, commit inert stand-ins on the reference branch. List them in `safety.md`
+  and explain the resulting failures in `reference_notes`.
+- **Shared state.** When packages share one database (seeding the same tables, or
+  `TRUNCATE` in `TestMain`), run them one at a time (`-p 1`) in both runs, rather
+  than writing off the resulting deadlocks as flakes.
 - **Repetition.** Run the reference twice and merge the runs with `grind.py
   outcomes`; tests whose status differs become flaky and are not compared. Every
   other non-passing reference test gets an explanation in `project.json`
-  (`reference_notes`).
+  (`reference_notes`), keyed by test key, or by a pattern such as `pkg/...::` for a
+  group.
 
 ### Run-script contract
 
@@ -125,8 +141,13 @@ Trusted tools (the stuntgres server binary, repro programs written for the run,
 - `run-X.sh OUT` writes `go test -json -count=1` output to `OUT` and stderr to
   `OUT.stderr`.
 - `GRIND_PKGS` (default `./...`) selects packages; `GRIND_RUN` passes `-run`.
+- It checks out its branch (`stuntgres/reference` or `stuntgres/MODE`) when the
+  clone is clean. Uncommitted changes on another branch are a harness failure.
 - It starts and stops every service it needs and runs project code only through
   `sandbox.sh exec`.
+- Setup steps (migrations, seeding) that fail on the reference are harness
+  failures. On stuntgres they are logged and the tests still run, so the
+  defect shows up in the outcomes.
 - It exits 0 once the tests ran, whatever their outcomes. A nonzero exit means the
   harness itself failed, for example a service that did not start.
 - The dual script additionally takes `LOGDIR` as its second argument for the dual
@@ -196,17 +217,26 @@ Unavailable. `GRIND-INFRA-EMBEDDED-SERVER` provides an importable in-process ser
 
 ### Server mode
 
-1. **Build on the host** (trusted code): `go build -o .cswd/tmp/GRIND-SLUG/bin/stuntgres ./cmd/stuntgres`.
-2. **Accounts.** `stuntgres passwd -u USERFILE --databases DB1,DB2 USER`, with the
-   password piped twice on stdin. The userfile must be mode 0600.
-3. **Start it inside the run's `sandbox.sh exec` command** (the binary lives under
-   the mounted tmp directory), then run the tests against `127.0.0.1:PORT`:
+Everything the sandboxed run needs from the host lives under
+`SBTMP=.cswd/tmp/GRIND-SLUG/sandbox/`, the only part of `.cswd` the sandbox mounts.
+
+1. **Build on the host** (trusted code, from the main checkout so merged fixes reach
+   every round): `go build -o SBTMP/bin/stuntgres ./cmd/stuntgres`.
+2. **Accounts.** `stuntgres passwd -u SBTMP/run/users --databases DB1,DB2 USER`,
+   with the password piped twice on stdin. The userfile must be mode 0600.
+3. **Start it inside the run's `sandbox.sh exec` command**, with the PID file and
+   logs in the run directory so the clone stays clean, then run the tests against
+   `127.0.0.1:PORT`:
 
    ```sh
    $SB exec SLUG CLONE -e DATABASE_URL=postgres://USER:PASS@127.0.0.1:5434/DB1?sslmode=disable -- sh -c '
-     BIN/stuntgres serve -l 127.0.0.1:5434 -u USERFILE -L LOGDIR &
+     SBTMP/bin/stuntgres serve -l 127.0.0.1:5434 -u SBTMP/run/users -p SBTMP/run/stuntgres.pid -L SBTMP/run/logs &
      go test -json -count=1 ./...'
    ```
+
+   The server is reachable only inside that container. Smoke evidence comes from
+   its `server.log` (sessions on the expected database) and a host-side
+   `SELECT version()` against a second, host-started server.
 
 Current limitations, until `GRIND-INFRA-SERVER-CLUSTER`:
 - every userfile database is a separate engine;

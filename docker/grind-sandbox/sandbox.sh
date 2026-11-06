@@ -4,6 +4,8 @@
 #
 #   sandbox.sh net up|down SLUG
 #   sandbox.sh pg up|down SLUG [-u USER] [-w PASSWORD] [-d DB] [-a ALIAS]
+#   sandbox.sh svc up SLUG NAME IMAGE [-e K=V]... [-- ARG...]
+#   sandbox.sh svc down SLUG NAME
 #   sandbox.sh deps SLUG CLONE
 #   sandbox.sh gonet SLUG CLONE GOARGS...
 #   sandbox.sh exec SLUG CLONE [-n none|internal] [-e K=V]... -- CMD [ARG]...
@@ -85,6 +87,39 @@ cmd_pg() {
 		;;
 	down) docker rm -f "$name" >/dev/null 2>&1 || true ;;
 	*) die "pg up|down" ;;
+	esac
+}
+
+# A hardened auxiliary service (object store, cache, queue) on the internal
+# network, reachable as NAME, with no host mounts.
+cmd_svc() {
+	local action=$1 s=$2 name=$3
+	slug "$s"
+	[[ $name =~ ^[a-z0-9-]+$ && $name != postgres ]] || die "invalid service name '$name'"
+	local cname="grind-$s-$name"
+	case $action in
+	up)
+		local image=${4:-}
+		[[ -n $image ]] || die "svc up SLUG NAME IMAGE"
+		shift 4
+		local envs=()
+		while [[ $# -gt 0 && $1 != -- ]]; do
+			case $1 in
+			-e) envs+=(-e "$2"); shift 2 ;;
+			*) die "svc: unknown option '$1'" ;;
+			esac
+		done
+		[[ ${1:-} == -- ]] && shift
+		cmd_net up "$s"
+		docker rm -f "$cname" >/dev/null 2>&1 || true
+		docker run -d --name "$cname" --label "$(label "$s")" \
+			--network "$(net_name "$s")" --network-alias "$name" \
+			--cap-drop ALL --security-opt no-new-privileges \
+			--memory 2g --pids-limit 1024 --tmpfs /data --tmpfs /tmp \
+			"${envs[@]}" "$image" "$@" >/dev/null
+		;;
+	down) docker rm -f "$cname" >/dev/null 2>&1 || true ;;
+	*) die "svc up|down" ;;
 	esac
 }
 
@@ -178,9 +213,10 @@ cmd_clean() {
 case ${1:-} in
 net) shift; cmd_net "$@" ;;
 pg) shift; cmd_pg "$@" ;;
+svc) shift; cmd_svc "$@" ;;
 deps) shift; cmd_deps "$@" ;;
 gonet) shift; cmd_gonet "$@" ;;
 exec) shift; cmd_exec "$@" ;;
 clean) shift; cmd_clean "$@" ;;
-*) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+*) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
