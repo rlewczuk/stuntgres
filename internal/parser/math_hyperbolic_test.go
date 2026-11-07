@@ -41,8 +41,15 @@ func TestMathHyperbolicProvenance(t *testing.T) {
 }
 
 func TestMathHyperbolicBoundaries(t *testing.T) {
+	statements, err := Parse("INSERT INTO t VALUES(sinh(1))")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("selected INSERT cell rejected", statements, err)
+	}
+	call, ok := statements[0].(*Insert).Rows[0][0].(FunctionExpr)
+	if !ok || call.Name.Parts[0].Text != "sinh" || len(call.Args) != 1 {
+		t.Fatal("selected INSERT cell lost call", call)
+	}
 	for _, query := range []string{
-		"INSERT INTO t VALUES(sinh(1))",
 		"CREATE TABLE t(d DOUBLE PRECISION DEFAULT cosh(0))",
 		"SELECT asinh(1,)",
 		"SELECT acosh(1) garbage garbage",

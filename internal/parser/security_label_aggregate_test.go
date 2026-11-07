@@ -36,14 +36,20 @@ func TestSecurityLabelOrderedSetModifiers(t *testing.T) {
 	} {
 		q := "SECURITY LABEL ON AGGREGATE a(VARIADIC int4(" + pair[0] + ") ORDER BY VARIADIC int4(" + pair[1] + ")) IS NULL"
 		statements, err := Parse(q)
-		if err != nil { t.Fatal(q, err) }
+		if err != nil {
+			t.Fatal(q, err)
+		}
 		label := statements[0].(*SecurityLabel)
 		for _, argument := range label.Routine.Arguments {
 			for _, modifier := range argument.Type.Modifiers {
-				if modifier.syntax != nil { t.Fatal("modifier syntax escaped validation", q) }
+				if modifier.syntax != nil {
+					t.Fatal("modifier syntax escaped validation", q)
+				}
 			}
 		}
-		if err := VisitQueryExpressions(label, func(Expr) error { t.Fatal("utility modifier visited", q); return nil }); err != nil { t.Fatal(err) }
+		if err := VisitQueryExpressions(label, func(Expr) error { t.Fatal("utility modifier visited", q); return nil }); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for _, tc := range []struct{ query, position string }{
 		{"SECURITY LABEL ON AGGREGATE a(VARIADIC int4(1) ORDER BY VARIADIC int4(2)) IS NULL", "57"},
@@ -56,10 +62,12 @@ func TestSecurityLabelOrderedSetModifiers(t *testing.T) {
 		statements, err := Parse(tc.query)
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type", Position: tc.position}
-		if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) { t.Fatalf("%s: statements=%#v error=%#v want=%#v", tc.query, statements, diagnostic, want) }
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+			t.Fatalf("%s: statements=%#v error=%#v want=%#v", tc.query, statements, diagnostic, want)
+		}
 	}
 	for _, tc := range []struct {
-		pair [2]string
+		pair            [2]string
 		same, signature bool
 	}{
 		{pair: [2]string{"CAST(1 AS decimal)", "CAST(1 AS numeric)"}, same: true},
@@ -122,29 +130,37 @@ func TestSecurityLabelOrderedSetModifiers(t *testing.T) {
 	} {
 		for _, pair := range [][2]string{tc.pair, {tc.pair[1], tc.pair[0]}} {
 			left, right := pair[0], pair[1]
-			if !tc.signature { left, right = "int4("+left+")", "int4("+right+")" }
+			if !tc.signature {
+				left, right = "int4("+left+")", "int4("+right+")"
+			}
 			query := "SECURITY LABEL ON AGGREGATE a(VARIADIC " + left + " ORDER BY VARIADIC " + right + ") IS NULL"
 			statements, err := Parse(query)
 			if tc.same {
-				if err != nil || len(statements) != 1 { t.Fatalf("%s: statements=%#v error=%v", query, statements, err) }
+				if err != nil || len(statements) != 1 {
+					t.Fatalf("%s: statements=%#v error=%v", query, statements, err)
+				}
 				label := statements[0].(*SecurityLabel)
 				for _, argument := range label.Routine.Arguments {
 					for _, modifier := range argument.Type.Modifiers {
-						if modifier.syntax != nil { t.Fatal("recursive type syntax escaped validation", query) }
+						if modifier.syntax != nil {
+							t.Fatal("recursive type syntax escaped validation", query)
+						}
 					}
 				}
 			} else {
 				position := strconv.Itoa(len([]rune("SECURITY LABEL ON AGGREGATE a(VARIADIC "+left+" ORDER BY ")) + 1)
 				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type", Position: position}
 				var diagnostic *sqlstate.Error
-				if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) { t.Fatalf("%s: statements=%#v error=%#v want=%#v", query, statements, diagnostic, want) }
+				if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+					t.Fatalf("%s: statements=%#v error=%#v want=%#v", query, statements, diagnostic, want)
+				}
 			}
 		}
 	}
 }
 
 func TestSecurityLabelCallDecorations(t *testing.T) {
-	for _, tc := range []struct { call, message, position string }{
+	for _, tc := range []struct{ call, message, position string }{
 		{`abs(1) WITHIN GROUP (ORDER BY 1) WITHIN GROUP (ORDER BY 1)`, `syntax error at or near "WITHIN"`, "62"},
 		{`abs(1) WITHIN GROUP (ORDER BY 1) FILTER (WHERE true) FILTER (WHERE false)`, `syntax error at or near "FILTER"`, "82"},
 		{`abs(1) OVER () OVER ()`, `syntax error at or near "OVER"`, "44"},
@@ -160,7 +176,9 @@ func TestSecurityLabelCallDecorations(t *testing.T) {
 		statements, err := Parse(query)
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: tc.position}
-		if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) { t.Fatalf("%s: statements=%#v error=%#v want=%#v", query, statements, diagnostic, want) }
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+			t.Fatalf("%s: statements=%#v error=%#v want=%#v", query, statements, diagnostic, want)
+		}
 	}
 	// Cover every subset in PostgreSQL's decoration order across selected,
 	// checked, string, time, ordinary, qualified and aggregate call routes.
@@ -248,8 +266,8 @@ func TestSecurityLabelCallDecorations(t *testing.T) {
 }
 
 func TestSecurityLabelModifierCapabilityIsolation(t *testing.T) {
-	// Selected-call arithmetic and casts are syntax here, not executable
-	// capability. Exercise both guards independently of aggregate equality.
+	// Modifier syntax is erased rather than bound, including ordinary scalar
+	// arithmetic and the label-only ALL/DISTINCT/in-call ORDER BY forms.
 	for _, expression := range []string{
 		"abs(1)+2",
 		"(abs(1)+2)*3",
@@ -290,13 +308,52 @@ func TestSecurityLabelModifierCapabilityIsolation(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			// A fresh parse and the same script must retain the ordinary SQL
-			// frontier; the utility flag must not leak through either path.
+			// Ordinary arithmetic stays executable syntax on either side of the
+			// utility; the syntax-only modifier flag grants no additional forms.
+			for _, expression := range []string{"abs(1)+2", "CAST(abs(1) AS int4)"} {
+				ordinary := "SELECT " + expression
+				base, err := Parse(ordinary)
+				if err != nil || len(base) != 1 {
+					t.Fatal("ordinary selected operand rejected", ordinary, base, err)
+				}
+				target := base[0].(*Select).Targets[0]
+				var child Expr
+				switch node := target.(type) {
+				case OperatorExpr:
+					if len(node.Args) != 2 || node.Name.Parts[0].Text != "+" || node.Args[1].(LiteralExpr).Value.Integer != 2 {
+						t.Fatal("lost ordinary arithmetic tree", node)
+					}
+					child = node.Args[0]
+				case CastExpr:
+					if node.Syntax != StandardCast || node.TypeName.Name != "integer" {
+						t.Fatal("lost ordinary cast tree", node)
+					}
+					child = node.Child
+				default:
+					t.Fatalf("lost ordinary selected operand: %T", target)
+				}
+				call, ok := child.(FunctionExpr)
+				if !ok || call.Name.Parts[0].Text != "abs" || len(call.Args) != 1 || call.Args[0].(LiteralExpr).Value.Integer != 1 {
+					t.Fatal("lost ordinary selected call", child)
+				}
+				for _, script := range []struct {
+					source string
+					index  int
+				}{
+					{query + "; " + ordinary, 1},
+					{ordinary + "; " + query, 0},
+				} {
+					parsed, err := Parse(script.source)
+					if err != nil || len(parsed) != 2 {
+						t.Fatal("utility changed ordinary operand admission", script.source, parsed, err)
+					}
+					got := parsed[script.index].(*Select).Targets[0]
+					if !aggregateUtilitySameSyntax(reflect.ValueOf(target), reflect.ValueOf(got)) {
+						t.Fatal("utility changed ordinary operand syntax", script.source, target, got)
+					}
+				}
+			}
 			for _, ordinary := range []string{
-				"SELECT abs(1)+2",
-				"SELECT CAST(abs(1) AS int4)",
-				query + "; SELECT abs(1)+2",
-				query + "; SELECT CAST(abs(1) AS int4)",
 				"SELECT abs(ALL 1)",
 				"SELECT abs(DISTINCT 1)",
 				"SELECT abs(1 ORDER BY 1)",
@@ -304,7 +361,6 @@ func TestSecurityLabelModifierCapabilityIsolation(t *testing.T) {
 				query + "; SELECT abs(DISTINCT 1)",
 				query + "; SELECT abs(1 ORDER BY 1)",
 				"SELECT abs(ALL 1); " + query,
-				"SELECT abs(1)+2; " + query,
 			} {
 				statements, err := Parse(ordinary)
 				var diagnostic *sqlstate.Error
@@ -336,13 +392,22 @@ func TestSecurityLabelModifierSyntaxProvenance(t *testing.T) {
 	one := int32(1)
 	for _, query := range []string{"SECURITY LABEL ON TYPE numeric[0] IS NULL", "SECURITY LABEL ON AGGREGATE a(VARIADIC numeric[0] ORDER BY VARIADIC numeric[0]) IS NULL"} {
 		statements, err := Parse(query)
-		if err != nil || len(statements) != 1 { t.Fatalf("%s: statements=%#v error=%v", query, statements, err) }
+		if err != nil || len(statements) != 1 {
+			t.Fatalf("%s: statements=%#v error=%v", query, statements, err)
+		}
 		label := statements[0].(*SecurityLabel)
 		raw := label.Type
-		if label.Routine.Arguments != nil { raw = label.Routine.Arguments[0].Type }
-		if !reflect.DeepEqual(raw.ArrayBounds, []int32{0}) { t.Fatalf("private array provenance escaped: %#v", raw) }
+		if label.Routine.Arguments != nil {
+			raw = label.Routine.Arguments[0].Type
+		}
+		if !reflect.DeepEqual(raw.ArrayBounds, []int32{0}) {
+			t.Fatalf("private array provenance escaped: %#v", raw)
+		}
 	}
-	for _, tc := range []struct { left, right TypeName; same bool }{
+	for _, tc := range []struct {
+		left, right TypeName
+		same        bool
+	}{
 		{TypeName{Name: "bit"}, TypeName{Name: "bit", System: true, Modifiers: []TypeModifier{{Integer: &one}}}, true},
 		{TypeName{Name: "char"}, TypeName{Name: "bpchar", System: true, Modifiers: []TypeModifier{{Integer: &one}}}, true},
 		{TypeName{Name: "bit"}, TypeName{Name: "bit", System: true}, false},
@@ -355,7 +420,9 @@ func TestSecurityLabelModifierSyntaxProvenance(t *testing.T) {
 			// Wrap beneath private syntax to exercise recursive, non-Interface access.
 			left := TypeName{Name: "int4", Modifiers: []TypeModifier{{syntax: CastExpr{TypeName: pair[0]}}}}
 			right := TypeName{Name: "int4", Modifiers: []TypeModifier{{syntax: CastExpr{TypeName: pair[1]}}}}
-			if got := aggregateUtilitySameType(left, right); got != tc.same { t.Fatalf("raw type identity: %#v / %#v: got %v want %v", pair[0], pair[1], got, tc.same) }
+			if got := aggregateUtilitySameType(left, right); got != tc.same {
+				t.Fatalf("raw type identity: %#v / %#v: got %v want %v", pair[0], pair[1], got, tc.same)
+			}
 		}
 	}
 	if aggregateUtilitySameSyntax(reflect.ValueOf(TypedLiteralExpr{TypeName: TypeName{Name: "bit"}}), reflect.ValueOf(TypedLiteralExpr{TypeName: TypeName{Name: "bit", System: true, Modifiers: []TypeModifier{{Integer: &one}}}})) {
@@ -366,7 +433,9 @@ func TestSecurityLabelModifierSyntaxProvenance(t *testing.T) {
 	}
 	for _, pair := range [][2]string{{"float(24)", "real"}, {"float(25)", "double precision"}} {
 		query := "SECURITY LABEL ON AGGREGATE a(VARIADIC " + pair[0] + " ORDER BY VARIADIC " + pair[1] + ") IS NULL"
-		if statements, err := Parse(query); err != nil || len(statements) != 1 { t.Fatalf("%s: statements=%#v error=%v", query, statements, err) }
+		if statements, err := Parse(query); err != nil || len(statements) != 1 {
+			t.Fatalf("%s: statements=%#v error=%v", query, statements, err)
+		}
 	}
 	// Exercise native-only fields directly as well as the source-level
 	// regressions above. None of this metadata authorizes utility execution.

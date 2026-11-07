@@ -66,9 +66,8 @@ func TestReferenceQueryParallelSafety(t *testing.T) {
 		run(fixture.Select("SELECT nextval('parallel_draw') AS n FROM parallel_rows ORDER BY id", []string{"n"}, []string{"INT8"}, [][]any{{int64(18)}, {int64(19)}, {int64(20)}, {int64(21)}, {int64(22)}, {int64(23)}}))
 		state(23, true)
 		run(fixture.Select("SELECT setseed(0)", []string{"setseed"}, []string{"VOID"}, [][]any{{""}}))
-		// Selected random calls are standalone projection roots in the existing
-		// grammar. Compare their two per-row draws through named derived slots;
-		// do not widen scalar-call grammar merely for this safety witness.
+		// Named derived slots retain two independent per-row random draws while
+		// the outer comparison checks their range without comparing engines.
 		run(fixture.Select("SELECT (lo>=0 AND hi<1) AS valid FROM (SELECT id,random() AS lo,random() AS hi FROM parallel_rows) sampled ORDER BY id", []string{"valid"}, []string{"BOOL"}, [][]any{{true}, {true}, {true}, {true}, {true}, {true}}))
 		// set_config uses the existing standalone SettingCall statement surface,
 		// not a table projection with AS/FROM. Keep six independently checked

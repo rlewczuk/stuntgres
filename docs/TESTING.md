@@ -25,8 +25,8 @@ package's `README.md` under `## Testing`.
   Semantic dependency fixtures must advance effective `Revision()` stamps,
   not raw zero-default revision fields, and distinguish unchanged-codec
   presentation changes from executable codec replacement. Demanded unary
-  ownership witnesses can use `COALESCE(-(7::integer),0)`: the cast keeps
-  negation as an operator without crossing selected-call arithmetic limits.
+  ownership witnesses can use `COALESCE(-(7::integer),0)`: the explicit cast
+  preserves a real unary operator in the bound expression.
   Structural comparisons across separate bindings must distinguish fold expansion
   ordinals from the semantic contract: assert valid distinct provenance, then
   compare all remaining fields, including original provider authority and logical

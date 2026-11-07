@@ -17,8 +17,9 @@ random-property rules). `TestMain` uses the default `fixture.Main(m)`.
 - **Helpers.** `arithmetic_{error,metadata,migration}_helpers_test.go`,
   `floating_arithmetic_helpers_test.go`, `math_{constants,gcd_lcm,log_power}_helpers_test.go`,
   `math_privileges_test.go`, `numeric_cases_test.go`,
-  `numeric_formatting_fixture_test.go`, `random_read_helpers_test.go`, and
-  `seriesNativeCancel` in `series_lifecycle_test.go`.
+  `numeric_formatting_fixture_test.go`, `random_read_helpers_test.go`,
+  `selected_call_operands_helpers_test.go`, and `seriesNativeCancel` in
+  `series_lifecycle_test.go`.
 - **Client metadata.** Computed NUMERIC has unknown `DecimalSize` natively, while
   pq reports the unconstrained typmod as `(65535, 65531, true)`; FLOAT4 `ScanType`
   is `float32` in pq and `float64` natively. Assert both before normalization.
@@ -55,6 +56,8 @@ Add `REFERENCE=1` for the oracle.
 - Hyperbolic functions: `RUN='^TestReferenceMathHyperbolic'`
 - `gcd`, `lcm`: `RUN='^TestReferenceMathGcdLcm'`
 - Random functions: `RUN='^TestReferenceRandom'`
+- Selected math, random and inquiry operands across query/DML consumers:
+  `RUN='^TestReferenceSelectedCallOperands'`
 - Legacy bitwise/math/random smoke: `RUN='^TestReferenceSmoke'`
 - MONEY: `RUN='^TestReferenceMoney'`
 - Numeric `to_char`, `to_number`: `RUN='^TestReferenceNumericFormatting'`

@@ -1,5 +1,10 @@
 # Changes
 
+- Accept selected built-in calls as ordinary cast, arithmetic and comparison
+  operands, including nested random-based security-stamp UPDATEs, INSERT VALUES
+  and RETURNING expressions. Preserve existing signatures, diagnostics,
+  per-row volatility and DEFAULT/generation provider boundaries.
+
 - Implement both installed XML2 `xslt_process` overloads through native XSLT 1.0
   compilation, transformation and XML/HTML/text serialization with scoped
   parameters, genuine no-I/O resource handling and stage-specific diagnostics.

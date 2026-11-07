@@ -202,21 +202,56 @@ func TestUserOperatorConsumerAdmissionGrammar(t *testing.T) {
 			t.Fatal("admitted operator/grouped/query context rejected", q, statements, err)
 		}
 	}
-	for _, q := range []string{
-		"SELECT num_nulls(NULL)::int FROM t",
-		"SELECT CAST(num_nulls(NULL) AS int) FROM t",
-		"SELECT num_nulls(NULL)+1 FROM t",
-		"INSERT INTO t VALUES(abs(1))",
-		"INSERT INTO t ((VALUES(abs(1)) ORDER BY 1 LIMIT 1))",
-		"INSERT INTO t VALUES(num_nulls(NULL))",
+	for _, tc := range []struct{ query, kind, name string }{
+		{"SELECT num_nulls(NULL)::int FROM t", "cast", "num_nulls"},
+		{"SELECT CAST(num_nulls(NULL) AS int) FROM t", "cast", "num_nulls"},
+		{"SELECT num_nulls(NULL)+1 FROM t", "operator", "num_nulls"},
+		{"INSERT INTO t VALUES(abs(1))", "call", "abs"},
+		{"INSERT INTO t ((VALUES(abs(1)) ORDER BY 1 LIMIT 1))", "call", "abs"},
+		{"INSERT INTO t VALUES(num_nulls(NULL))", "call", "num_nulls"},
 	} {
-		if statements, err := Parse(q); err == nil || len(statements) != 0 {
-			t.Fatal("selected call leaked into scalar consumer", q, statements, err)
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary selected-call consumer rejected", tc.query, statements, err)
+		}
+		var expression Expr
+		switch statement := statements[0].(type) {
+		case *Select:
+			expression = statement.Targets[0]
+		case *Insert:
+			if statement.Source == nil {
+				expression = statement.Rows[0][0]
+			} else {
+				expression = statement.Source.Values.Rows[0][0]
+				if statement.Source.Values.Order == nil || statement.Source.Values.Bounds == nil {
+					t.Fatal("decorated VALUES lost its consumer", statement)
+				}
+			}
+		default:
+			t.Fatalf("unexpected consumer: %T", statement)
+		}
+		switch tc.kind {
+		case "cast":
+			cast, ok := expression.(CastExpr)
+			if !ok || cast.TypeName.Name != "integer" {
+				t.Fatal("lost selected-call cast", tc.query, expression)
+			}
+			expression = cast.Child
+		case "operator":
+			operator, ok := expression.(OperatorExpr)
+			if !ok || operator.Name.Parts[0].Text != "+" || len(operator.Args) != 2 {
+				t.Fatal("lost selected-call arithmetic", tc.query, expression)
+			}
+			expression = operator.Args[0]
+		}
+		call, ok := expression.(FunctionExpr)
+		if !ok || call.Name.Parts[0].Text != tc.name || len(call.Args) != 1 {
+			t.Fatal("lost selected-call child", tc.query, expression)
 		}
 	}
 	// The INSERT replay keeps original, absolute multibyte/script positions.
 	for _, suffix := range []string{"", " LIMIT 1", " ORDER BY 1"} {
-		keywordDiagnostic(t, "CREATE TABLE prefix(v INT); /*é*/ INSERT INTO t VALUES(abs(1))"+suffix,
+		keywordDiagnostic(t, "CREATE TABLE prefix(v INT); /*é*/ INSERT INTO t VALUES(abs(1,))"+suffix,
 			"42601", `syntax error at or near ")"`, "62")
 	}
 }

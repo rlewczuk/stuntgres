@@ -132,7 +132,7 @@ func TestViewDefinitionScalarAdmission(t *testing.T) {
 			t.Fatal("lost explicit inquiry result cast", predicate)
 		}
 		call, ok := cast.Child.(FunctionExpr)
-		if !ok || len(call.Args) != 1 || call.directSelectedCall || call.Pos.Character != 8 {
+		if !ok || len(call.Args) != 1 || call.Pos.Character != 8 {
 			t.Fatal("lost ordinary scalar inquiry", cast.Child)
 		}
 		if len(call.Name.Parts) != len(tc.parts) {
@@ -152,14 +152,28 @@ func TestViewDefinitionScalarAdmission(t *testing.T) {
 	for _, query := range []string{
 		"SELECT CAST(pg_get_viewdef($1::regclass) AS text)",
 		"SELECT COALESCE(pg_catalog.pg_get_viewdef($1::regclass),'missing')",
+		"SELECT abs(1)::text",
+		"SELECT pg_get_indexdef(1)::text",
+		"SELECT pg_get_viewdef_extra(1)::text",
 	} {
 		if statements, err := Parse(query); err != nil || len(statements) != 1 {
 			t.Fatal("rejected scalar inquiry consumer", query, statements, err)
 		}
 	}
-	// Promoting this callable never promotes its bare identifier or adjacent
-	// selected functions, and does not change selectedScalarChild's boundary.
-	statements, err := Parse("SELECT pg_get_viewdef FROM names")
+	statements, err := Parse("SELECT pg_get_indexdef(1)::text")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	cast, ok := statements[0].(*Select).Targets[0].(CastExpr)
+	if !ok || cast.TypeName.Name != "text" {
+		t.Fatal("lost selected index inquiry cast", statements[0])
+	}
+	call, ok := cast.Child.(FunctionExpr)
+	if !ok || call.Name.Parts[0].Text != "pg_get_indexdef" || len(call.Args) != 1 {
+		t.Fatal("lost selected index inquiry", cast.Child)
+	}
+	// Callable admission never steals the same spelling from a bare column.
+	statements, err = Parse("SELECT pg_get_viewdef FROM names")
 	if err != nil || len(statements) != 1 {
 		t.Fatal(statements, err)
 	}
@@ -168,12 +182,10 @@ func TestViewDefinitionScalarAdmission(t *testing.T) {
 		t.Fatal("inquiry spelling stole a column", statements[0])
 	}
 	for _, query := range []string{
-		"SELECT abs(1)::text",
-		"SELECT pg_get_indexdef(1)::text",
-		"SELECT pg_get_viewdef_extra(1)::text",
+		"SELECT pg_get_viewdef_extra(1,)::text",
 	} {
 		if statements, err := Parse(query); err == nil || len(statements) != 0 {
-			t.Fatal("view inquiry widened unrelated scalar admission", query, statements, err)
+			t.Fatal("accepted malformed inquiry call", query, statements, err)
 		}
 	}
 }

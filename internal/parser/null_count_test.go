@@ -84,6 +84,27 @@ func TestNullCountRawCalls(t *testing.T) {
 }
 
 func TestNullCountSyntaxAndBoundaries(t *testing.T) {
+	for _, query := range []string{"INSERT INTO t VALUES(num_nulls(NULL))", "SELECT num_nulls(NULL)::int FROM t"} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary null-count consumer rejected", query, statements, err)
+		}
+		var child Expr
+		switch statement := statements[0].(type) {
+		case *Insert:
+			child = statement.Rows[0][0]
+		case *Select:
+			cast, ok := statement.Targets[0].(CastExpr)
+			if !ok || cast.Syntax != PostfixCast || cast.TypeName.Name != "integer" {
+				t.Fatal("lost ordinary null-count cast", statement)
+			}
+			child = cast.Child
+		}
+		call, ok := child.(FunctionExpr)
+		if !ok || call.Name.Parts[0].Text != "num_nulls" || len(call.Args) != 1 || call.Args[0].(LiteralExpr).Value.Kind != NullValue {
+			t.Fatal("lost ordinary null-count child", child)
+		}
+	}
 	for _, tc := range []struct{ q, message, pos string }{
 		{"SELECT num_nulls(1,)", `syntax error at or near ")"`, "20"},
 		{"SELECT num_nulls(", "syntax error at end of input", "18"},
@@ -102,8 +123,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		}
 	}
 	for _, q := range []string{
-		"INSERT INTO t VALUES(num_nulls(NULL))",
-		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
+		"SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t",
 	} {
 		statements, err := Parse(q)

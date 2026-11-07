@@ -3,6 +3,7 @@ package parser
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -11,12 +12,15 @@ func TestRoutineDeclarationSyntaxBoundary(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			source := "SELECT 2 * " + name + "($1)"
 			ordinary, err := Parse(source)
-			if err == nil || len(ordinary) != 0 {
-				t.Fatal("ordinary execution frontier widened", ordinary, err)
+			if err != nil || len(ordinary) != 1 {
+				t.Fatal("ordinary selected-call operand rejected", ordinary, err)
 			}
 			statements, err := ParseRoutineDeclarationBody(source)
 			if err != nil || len(statements) != 1 {
 				t.Fatal("readonly genuine declaration syntax rejected", statements, err)
+			}
+			if !reflect.DeepEqual(ordinary, statements) {
+				t.Fatal("readonly capture changed ordinary arithmetic syntax", ordinary, statements)
 			}
 			query, ok := statements[0].(*Select)
 			if !ok || len(query.Targets) != 1 {
@@ -38,9 +42,9 @@ func TestRoutineDeclarationSyntaxBoundary(t *testing.T) {
 			if !ok || parameter.Number != 1 {
 				t.Fatal("lost declaration parameter", call.Args[0])
 			}
-			// Readonly mode belongs to this parse, never a global parser switch.
-			if again, err := ParseWithOptions(source, Options{StandardConformingStrings: true}); err == nil || len(again) != 0 {
-				t.Fatal("readonly mode escaped into later ordinary parse", again, err)
+			// Ordinary arithmetic has the same structure before and after capture.
+			if again, err := ParseWithOptions(source, Options{StandardConformingStrings: true}); err != nil || !reflect.DeepEqual(again, ordinary) {
+				t.Fatal("readonly mode changed later ordinary parse", again, err)
 			}
 		})
 	}

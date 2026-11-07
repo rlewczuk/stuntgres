@@ -12,7 +12,6 @@ import (
 var querySetOpsRestrictedCells = []struct {
 	cell, token, code, message string
 }{
-	{"abs(1)", ")", "42601", `syntax error at or near ")"`},
 	{"TRUE AND FALSE", "AND", "42601", `syntax error at or near "AND"`},
 }
 
@@ -38,30 +37,24 @@ func TestReferenceQuerySetOpsParserBoundaries(t *testing.T) {
 				querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
 			}
 		}
+		// Selected calls are ordinary INSERT cells in every VALUES shape.
+		for _, shape := range querySetOpsValuesShapes {
+			querySetOpsRoutes(t, p, b, fixture.Exec("/*é*/ INSERT INTO boundary_dst "+fmt.Sprintf(shape, "abs(1)"), 1))
+		}
 		for _, cell := range querySetOpsRestrictedCells {
 			for _, shape := range querySetOpsValuesShapes {
 				q := "/*é*/ INSERT INTO boundary_dst " + fmt.Sprintf(shape, cell.cell)
 				t.Run(q, func(t *testing.T) {
 					if b.PG {
-						if cell.cell == "TRUE AND FALSE" {
-							position := ""
-							if shape == "VALUES(%s)" {
-								position = "39"
-							}
-							s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42804", Message: `column "v" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: position})
-							querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
-						} else {
-							querySetOpsRoutes(t, p, b, fixture.Exec(q, 1))
+						position := ""
+						if shape == "VALUES(%s)" {
+							position = "39"
 						}
+						s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42804", Message: `column "v" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: position})
+						querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
 						return
 					}
 					offset := strings.Index(q, cell.cell) + strings.Index(cell.cell, cell.token)
-					if cell.cell == "abs(1)" {
-						// The existing restricted path reports the outer row close,
-						// not the call opener (root artifact83). Unit witnesses pin
-						// that same diagnostic for bare and decorated VALUES.
-						offset = strings.Index(q, cell.cell) + len(cell.cell)
-					}
 					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: cell.code, Message: cell.message, Position: fixture.Position(utf8.RuneCountInString(q[:offset]) + 1)})
 					querySetOpsDiagnosticRoutes(t, p, b, s, "prepare")
 				})
@@ -98,9 +91,7 @@ func TestReferenceQuerySetOpsParserBoundaries(t *testing.T) {
 		var written [][]any
 		for range 20 {
 			written = append(written, []any{int64(3)})
-			if b.PG {
-				written = append(written, []any{int64(1)})
-			}
+			written = append(written, []any{int64(1)})
 		}
 		for range 4 {
 			for _, value := range []int64{3, 4, 1, 2, 1, 3, 2} {

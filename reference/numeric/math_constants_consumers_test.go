@@ -24,8 +24,8 @@ func TestReferenceMathConstantsConsumers(t *testing.T) {
 			}
 			referenceMathTrigStep(t, p, backend, fixture.Select(q, []string{"result"}, []string{"FLOAT8"}, [][]any{{want}}))
 		}
-		// Selected calls are projection roots, not WHERE target_or leaves.
-		// Filter/order their computed derived column without broadening grammar.
+		// Filter and order the computed derived slot while retaining the
+		// underlying call's FLOAT8 metadata and STRICT NULL behavior.
 		referenceMathTrigStep(t, p, backend, fixture.Select("SELECT id,c FROM (SELECT id,cbrt(d) AS c FROM constants_source) AS computed WHERE c IS NOT NULL ORDER BY c", []string{"id", "c"}, []string{"INT4", "FLOAT8"}, [][]any{{int64(2), float64(0)}, {int64(1), float64(1)}}))
 		referenceMathTrigStep(t, p, backend, fixture.Select("SELECT pi() AS p,count(*) AS n FROM constants_source GROUP BY pi()", []string{"p", "n"}, []string{"FLOAT8", "INT8"}, [][]any{{3.141592653589793, int64(3)}}))
 		referenceMathTrigStep(t, p, backend, fixture.Select("SELECT cbrt(d) AS c,count(*) AS n FROM constants_source GROUP BY cbrt(d) ORDER BY c NULLS LAST", []string{"c", "n"}, []string{"FLOAT8", "INT8"}, [][]any{{float64(0), int64(1)}, {float64(1), int64(1)}, {nil, int64(1)}}))

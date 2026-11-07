@@ -81,43 +81,23 @@ func TestReferenceNullCountColumns(t *testing.T) {
 	nullCountReferenceStep(t, p, fixture.Prepared(step), 6)
 }
 
-// INSERT VALUES retains its original composed-function exclusion on native;
-// no-FROM SELECT admission does not widen this separate consumer.
 func TestReferenceNullCountInsertConsumerRoutes(t *testing.T) {
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Exec("CREATE TABLE t(id INT,v INT,b BIGINT,s TEXT,f BOOL)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO t VALUES(1,1,2147483648,'x',TRUE),(2,NULL,2,'',NULL),(3,NULL,NULL,NULL,NULL)", 3))
 	const q = "INSERT INTO t VALUES(4,num_nulls(NULL),1,'x',TRUE)"
-	nullCountNativeExcluded(t, p, q)
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Select("SELECT id FROM t WHERE id=4", []string{"id"}, []string{"INT4"}, nil))
-	if p.Postgres != nil {
-		for _, prepared := range []bool{false, true} {
-			step := fixture.Select(q, []string{}, []string{}, nil)
+	for _, prepared := range []bool{false, true} {
+		for _, queryRows := range []bool{false, true} {
+			step := fixture.Exec(q, 1)
+			if queryRows {
+				step = fixture.Select(q, []string{}, []string{}, nil)
+			}
 			step.Prepared = prepared
-			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, step)
-			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Select("SELECT id,v,b,s,f FROM t WHERE id=4", []string{"id", "v", "b", "s", "f"}, []string{"INT4", "INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(4), int64(1), int64(1), "x", true}}))
-			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("DELETE FROM t WHERE id=4", 1))
+			p.Step(t, step)
+			p.Step(t, fixture.Select("SELECT id,v,b,s,f FROM t WHERE id=4", []string{"id", "v", "b", "s", "f"}, []string{"INT4", "INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(4), int64(1), int64(1), "x", true}}))
+			p.Step(t, fixture.Exec("DELETE FROM t WHERE id=4", 1))
+			p.Step(t, fixture.Select("SELECT id FROM t WHERE id=4", []string{"id"}, []string{"INT4"}, nil))
 		}
-	}
-}
-
-func nullCountNativeExcluded(t *testing.T, p *fixture.Pair, q string) {
-	t.Helper()
-	rows, err := p.Memory.QueryContext(p.Ctx, q)
-	if rows != nil {
-		rows.Close()
-		t.Fatal("excluded query exposed cursor", q)
-	}
-	if err == nil {
-		t.Fatal("excluded syntax accepted", q)
-	}
-	stmt, err := p.Memory.PrepareContext(p.Ctx, q)
-	if stmt != nil {
-		stmt.Close()
-		t.Fatal("excluded prepare exposed handle", q)
-	}
-	if err == nil {
-		t.Fatal("excluded prepare accepted", q)
 	}
 }
 
@@ -189,15 +169,7 @@ func TestReferenceNullCountDiagnostics(t *testing.T) {
 	} {
 		nullCountReferenceError(t, p, tc.q, tc.want)
 	}
-	const q = "SELECT id FROM t WHERE num_nulls(v)"
-	nullCountNativeExcluded(t, p, q)
-	if p.Postgres != nil {
-		step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "24"})
-		step.SelectRows, step.ErrorStage = true, "execute"
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, step)
-		step.ErrorStage = "prepare"
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Prepared(step))
-	}
+	nullCountReferenceError(t, p, "SELECT id FROM t WHERE num_nulls(v)", fixture.Diagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "24"})
 }
 
 func TestReferenceNullCountArgumentErrorPrecedence(t *testing.T) {

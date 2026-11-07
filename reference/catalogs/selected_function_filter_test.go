@@ -7,9 +7,9 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Each witness reaches an ordinary provider left on the generic selected-call
-// route. Expected diagnostics precede any provider execution, including STRICT
-// folding and catalog demand. The root observes these candidates on pinned PG.
+// Ordinary calls retain their decoration diagnostics even inside cast and
+// operator operands. Child analysis precedes provider execution, STRICT folding
+// and catalog demand.
 func TestReferenceSelectedFunctionFilterDiagnostics(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
@@ -64,6 +64,28 @@ func TestReferenceSelectedFunctionFilterDiagnostics(t *testing.T) {
 			} {
 				for _, prepared := range []bool{false, true} {
 					step := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "42809", Message: tc.message, Position: "8"})
+					step.SelectRows, step.Prepared, step.ErrorStage = true, prepared, "execute"
+					if prepared {
+						step.ErrorStage = "prepare"
+					}
+					fixture.RunStep(t, p.Ctx, conn, b.Recorder, step)
+					recovery := fixture.Select("SELECT pg_encoding_to_char(6) AS encoding", []string{"encoding"}, []string{"NAME"}, [][]any{{"UTF8"}})
+					recovery.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, conn, b.Recorder, recovery)
+				}
+			}
+			for _, tc := range []struct {
+				query string
+				want  fixture.Diagnostic
+			}{
+				{"SELECT (pi() FILTER (WHERE true))::text", fixture.Diagnostic{Code: "42809", Message: "FILTER specified, but pi is not an aggregate function", Position: "9"}},
+				{"SELECT 1+abs(1) OVER ()", fixture.Diagnostic{Code: "42809", Message: "OVER specified, but abs is not a window function nor an aggregate function", Position: "10"}},
+				{"SELECT (pi() FILTER (WHERE missing))::text", fixture.Diagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: fixture.Position(strings.Index("SELECT (pi() FILTER (WHERE missing))::text", "missing") + 1)}},
+				{"SELECT 1+abs(1) FILTER (WHERE 1)", fixture.Diagnostic{Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: fixture.Position(strings.LastIndex("SELECT 1+abs(1) FILTER (WHERE 1)", "1") + 1)}},
+				{"SELECT pg_get_viewdef_extra(1)::text", fixture.Diagnostic{Code: "42883", Message: "function pg_get_viewdef_extra(integer) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}},
+			} {
+				for _, prepared := range []bool{false, true} {
+					step := fixture.ImplicitError(tc.query, tc.want)
 					step.SelectRows, step.Prepared, step.ErrorStage = true, prepared, "execute"
 					if prepared {
 						step.ErrorStage = "prepare"

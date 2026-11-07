@@ -12,6 +12,7 @@ func TestMathGcdLcmParser(t *testing.T) {
 		"SELECT gcd(gcd,lcm),lcm AS gcd FROM gcd",
 		"SELECT x,gcd(x,x),x,lcm(x,x) FROM t",
 		"SELECT gcd(1,2),1",
+		"INSERT INTO t VALUES(gcd(1,2))",
 	} {
 		statements, err := Parse(query)
 		if err != nil || len(statements) != 1 {
@@ -22,7 +23,6 @@ func TestMathGcdLcmParser(t *testing.T) {
 		"SELECT gcd(1,2) trailing junk",
 		"SELECT gcd(1,2); trailing junk",
 		"SELECT lcm(1,2) FROM",
-		"INSERT INTO t VALUES(gcd(1,2))",
 		"CREATE TABLE t(n INTEGER DEFAULT gcd(1,2))",
 	} {
 		statements, err := Parse(query)

@@ -51,7 +51,19 @@ func TestBooleanCallPredicateGrammar(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
-	for _, q := range []string{"SELECT num_nulls(1)+1", "SELECT num_nulls((v IS NULL)) FROM t", "SELECT 1<2<3"} {
+	statements, err = Parse("SELECT num_nulls(1)+1")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	add, ok := statements[0].(*Select).Targets[0].(OperatorExpr)
+	if !ok || add.Name.Parts[0].Text != "+" || len(add.Args) != 2 {
+		t.Fatal("lost selected-call arithmetic", statements[0])
+	}
+	nulls, ok := add.Args[0].(FunctionExpr)
+	if !ok || nulls.Name.Parts[0].Text != "num_nulls" || len(nulls.Args) != 1 {
+		t.Fatal("lost selected-call operand", add.Args)
+	}
+	for _, q := range []string{"SELECT num_nulls((v IS NULL)) FROM t", "SELECT 1<2<3"} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("expanded scalar/argument language", q, statements, err)
 		}

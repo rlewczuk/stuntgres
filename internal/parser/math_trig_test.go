@@ -87,12 +87,20 @@ func TestMathTrigProvenance(t *testing.T) {
 }
 
 func TestMathTrigBoundaries(t *testing.T) {
+	for _, query := range []string{"INSERT INTO t VALUES(asind(1))", "INSERT INTO t VALUES(sind(30))"} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("selected INSERT cell rejected", query, statements, err)
+		}
+		call, ok := statements[0].(*Insert).Rows[0][0].(FunctionExpr)
+		if !ok || len(call.Args) != 1 {
+			t.Fatal("selected INSERT cell lost call", query, call)
+		}
+	}
 	for _, query := range []string{
-		"INSERT INTO t VALUES(asind(1))",
 		"CREATE TABLE t(n DOUBLE PRECISION DEFAULT asind(1))",
 		"SELECT atan2d(1,)", "SELECT asind(1) garbage garbage",
 		"INSERT INTO t VALUES(1); SELECT atan2d(1,)",
-		"INSERT INTO t VALUES(sind(30))",
 		"CREATE TABLE t(n DOUBLE PRECISION DEFAULT sind(30))",
 		"SELECT sind(30,)", "SELECT sind(30) garbage garbage",
 		"INSERT INTO t VALUES(1); SELECT sind(30,)",

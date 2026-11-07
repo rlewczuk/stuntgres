@@ -111,8 +111,6 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 	// Bare arithmetic and ROW projections are execution-only under ordinary
 	// preflight demand. COALESCE above demands their immutable typed results;
 	// the unary operator has a cast child, not a parser-negated input literal.
-	// Direct selected calls such as -abs(...) cross the parser's existing
-	// selected-call arithmetic frontier; this witness needs no grammar change.
 	// Real immutable composite construction retains exact catalog-owned leaves.
 	enginetest.SessionSQL(t, s, "CREATE TYPE fold_pair AS (i integer,n text)")
 	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(ROW(7,'owned')::fold_pair,NULL::fold_pair) AS v")

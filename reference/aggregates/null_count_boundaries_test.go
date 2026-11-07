@@ -18,6 +18,7 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 		fixture.Select("SELECT num_nulls(NULL) WHERE TRUE", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
 		fixture.Select("SELECT num_nulls(NULL) ORDER BY 1", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
 		fixture.Select("SELECT num_nulls(ARRAY[1,NULL])", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}}),
+		fixture.Select("SELECT num_nulls(NULL)::int FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
 	} {
 		for _, prepared := range []bool{false, true} {
 			step.Prepared = prepared
@@ -33,6 +34,9 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 	}{
 		{"SELECT num_nulls(*) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls() does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
 		{"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", fixture.Diagnostic{Code: "42809", Message: "FILTER specified, but num_nulls is not an aggregate function", Position: "8"}},
+		{"SELECT num_nulls FROM t WHERE num_nulls(NULL)", fixture.Diagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "31"}},
+		{"SELECT num_nulls(a => 1) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls(a => integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+		{"SELECT current_setting(num_nulls(NULL))", fixture.Diagnostic{Code: "42883", Message: "function current_setting(integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
 	} {
 		nullCountReferenceError(t, p, tc.query, tc.want)
 	}
@@ -72,69 +76,41 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 			fixture.TransactionOrdinary(t, err, "sql: expected 1 arguments, got 0")
 		}()
 	}
-	for _, q := range []string{
-		"SELECT num_nulls(NULL)::int FROM t",
-		"SELECT num_nulls FROM t WHERE num_nulls(NULL)",
-		"INSERT INTO t VALUES(num_nulls(NULL),1)",
-		"SELECT num_nulls(DISTINCT 1) FROM t", "SELECT num_nulls(1 ORDER BY 1) FROM t",
-		"SELECT num_nulls(a => 1) FROM t", "SELECT current_setting(num_nulls(NULL))",
-	} {
-		t.Run(q, func(t *testing.T) {
-			rows, err := p.Memory.QueryContext(p.Ctx, q)
-			if rows != nil {
-				rows.Close()
-				t.Fatal("excluded form exposed cursor", q)
+	// DISTINCT and in-call ORDER BY retain their separate native syntax
+	// boundary. PostgreSQL admits the syntax, then rejects the nonaggregate.
+	for _, backend := range p.Backends() {
+		for _, tc := range []struct {
+			query, modifier, position string
+		}{
+			{"SELECT num_nulls(DISTINCT 1) FROM t", "DISTINCT", "18"},
+			{"SELECT num_nulls(1 ORDER BY 1) FROM t", "ORDER BY", "20"},
+		} {
+			want := fixture.Diagnostic{Code: "42809", Message: tc.modifier + " specified, but num_nulls is not an aggregate function", Position: "8"}
+			if !backend.PG {
+				token := tc.modifier
+				if token == "ORDER BY" {
+					token = "ORDER"
+				}
+				want = fixture.Diagnostic{Code: "42601", Message: "syntax error at or near \"" + token + "\"", Position: tc.position}
 			}
-			if err == nil {
-				t.Fatal("excluded form accepted", q)
-			}
-			stmt, err := p.Memory.PrepareContext(p.Ctx, q)
-			if stmt != nil {
-				stmt.Close()
-				t.Fatal("excluded form exposed handle", q)
-			}
-			if err == nil {
-				t.Fatal("excluded prepare accepted", q)
-			}
-		})
-	}
-	if p.Postgres != nil {
-		nullCountPostgresBoundaries(t, p)
-	}
-}
-
-func nullCountPostgresBoundaries(t *testing.T, p *fixture.Pair) {
-	t.Helper()
-	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-	steps := []fixture.Step{
-		fixture.Select("SELECT num_nulls(NULL)::int FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
-		fixture.ImplicitError("SELECT num_nulls FROM t WHERE num_nulls(NULL)", fixture.Diagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "31"}),
-		fixture.ImplicitError("SELECT num_nulls(DISTINCT 1) FROM t", fixture.Diagnostic{Code: "42809", Message: "DISTINCT specified, but num_nulls is not an aggregate function", Position: "8"}),
-		fixture.ImplicitError("SELECT num_nulls(1 ORDER BY 1) FROM t", fixture.Diagnostic{Code: "42809", Message: "ORDER BY specified, but num_nulls is not an aggregate function", Position: "8"}),
-		fixture.ImplicitError("SELECT num_nulls(a => 1) FROM t", fixture.Diagnostic{Code: "42883", Message: "function num_nulls(a => integer) does not exist", Hint: hint, Position: "8"}),
-		fixture.ImplicitError("SELECT current_setting(num_nulls(NULL))", fixture.Diagnostic{Code: "42883", Message: "function current_setting(integer) does not exist", Hint: hint, Position: "8"}),
-	}
-	for _, step := range steps {
-		for _, prepared := range []bool{false, true} {
-			step.Prepared = prepared
-			if step.State != "" {
-				step.SelectRows = true
-				step.ErrorStage = "execute"
+			for _, prepared := range []bool{false, true} {
+				step := fixture.ImplicitError(tc.query, want)
+				step.Prepared, step.SelectRows, step.ErrorStage = prepared, true, "execute"
 				if prepared {
 					step.ErrorStage = "prepare"
 				}
+				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, step)
 			}
-			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, step)
 		}
 	}
 	for _, prepared := range []bool{false, true} {
 		insert := fixture.Exec("INSERT INTO t VALUES(num_nulls(NULL),1)", 1)
 		insert.Prepared = prepared
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, insert)
+		p.Step(t, insert)
 		bag := fixture.Select("SELECT num_nulls,num_nonnulls FROM t", []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}, {int64(1), int64(1)}})
 		bag.Bag = true
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, bag)
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("DELETE FROM t WHERE num_nonnulls=1", 1))
+		p.Step(t, bag)
+		p.Step(t, fixture.Exec("DELETE FROM t WHERE num_nonnulls=1", 1))
 	}
 }
 

@@ -60,10 +60,10 @@ ordinary assignments to an unreserved `security` variable.
   during parsing. Readonly declaration acquisition retains its own initial
   cancellation guard without moving the ordinary admission frontier.
   `ParseRoutineDeclarationBody` uses the same complete-input lexer/grammar with a
-  private per-parse readonly recipe mode. It retains released declaration
-  arithmetic outside the selected-call scalar frontier and ARRAY subqueries in
-  a declaration-only node with the actual inner SELECT. Ordinary SQL rejects
-  that node's syntax. Ordinary `Parse`, `ParseWithOptions`, their options and prewalk
+  private per-parse readonly recipe mode. It shares ordinary selected-call
+  arithmetic and retains ARRAY subqueries in a declaration-only node with the
+  actual inner SELECT. Ordinary SQL rejects that node's syntax. Ordinary
+  `Parse`, `ParseWithOptions`, their options and prewalk
   behavior remain unchanged; this entry grants no executable admission or
   provider authority. The proc owner privately retains its syntax behind an
   immutable structural carrier rather than submitting it for execution.
@@ -140,15 +140,15 @@ ordinary assignments to an unreserved `security` variable.
   without modifiers. Quoted schema heads "national".ty and "nchar".ty remain
   valid, as do NCHAR character constructors and national/nchar object/provider
   identifiers. Contextual tokens do not extend ordinary declarations or binding.
-  Syntax-only modifiers bypass selected-call execution capability guards and
-  reuse the existing full call-argument/decorator grammar, including ALL,
-  DISTINCT and in-call ORDER BY. The selected-call route stages optional
-  WITHIN GROUP, FILTER and OVER in that order; label modifiers admit every
-  subset, without admitting duplicate or out-of-order decorations. WITHIN
+  Syntax-only modifiers reuse the full call-argument/decorator grammar,
+  including label-only ALL, DISTINCT and in-call ORDER BY. The selected-call
+  route stages optional WITHIN GROUP, FILTER and OVER in that order; label
+  modifiers admit every subset, without admitting duplicate or out-of-order
+  decorations. WITHIN
   ordering, FILTER expressions and window structure remain part of modifier
   identity. Compound calls and casts keep their full syntax for validation.
-  Ordinary SQL retains its selected-call grammar and guards after the
-  utility's statement boundary: ordinary calls such as `abs` already parse
+  Ordinary SQL retains its call-argument and decorator boundaries after the
+  utility's statement boundary: ordinary calls such as `abs` parse
   WITHIN/FILTER/OVER for binder diagnostics, whereas the transaction-time/
   array-transform route still rejects FILTER following WITHIN outside labels.
   Both syntax flags reset at semicolons and every parse. Special type keyword
@@ -245,6 +245,12 @@ ordinary assignments to an unreserved `security` variable.
   a following pattern operand instead produces the ordinary operator expression.
   `TestSettingsCallOutputLabelsGrammar` covers this current-owner boundary,
   complete-input rejection and independently retained concurrent parse results.
+  Selected built-ins share ordinary scalar primaries with string calls, so casts,
+  arithmetic, comparisons and nested scalar operands preserve the existing call
+  identity, arguments and positions. Their direct-call marker belongs solely to
+  CREATE DEFAULT; grouping clears it, while providers independently retain
+  DEFAULT and generation restrictions. Operand admission adds no providers or
+  positional Boolean-call argument forms.
   Ordinary selected calls retain star and one complete FILTER decoration for
   signature/decorator diagnostics in the binder. Repeated FILTER and FILTER
   after OVER fail at the new FILTER token; incomplete FILTER reports its natural

@@ -6,13 +6,20 @@ import (
 )
 
 func TestQuerySetInsertScalarBoundaries(t *testing.T) {
-	for _, cell := range []string{"abs(1)", "TRUE AND FALSE"} {
+	for _, cell := range []string{"TRUE AND FALSE"} {
 		for _, shape := range []string{"VALUES(%s) ORDER BY 1", "VALUES(%s) LIMIT 1", "(VALUES(%s) LIMIT 1)", "((VALUES(%s) ORDER BY 1 LIMIT 1))"} {
 			q := "CREATE TABLE prefix(v INT); /*é*/ INSERT INTO t " + fmt.Sprintf(shape, cell)
 			statements, err := Parse(q)
 			if err == nil || len(statements) != 0 {
 				t.Fatalf("restricted INSERT cells widened: %q statements=%#v error=%v", q, statements, err)
 			}
+		}
+	}
+	for _, shape := range []string{"VALUES(%s) ORDER BY 1", "VALUES(%s) LIMIT 1", "(VALUES(%s) LIMIT 1)", "((VALUES(%s) ORDER BY 1 LIMIT 1))"} {
+		q := "CREATE TABLE prefix(v INT); /*é*/ INSERT INTO t " + fmt.Sprintf(shape, "abs(1)")
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 2 {
+			t.Fatal("selected decorated INSERT scalar rejected in script", q, statements, err)
 		}
 	}
 	for _, q := range []string{
@@ -30,14 +37,29 @@ func TestQuerySetInsertScalarBoundaries(t *testing.T) {
 			t.Fatalf("valid scalar/set boundary rejected: %q statements=%#v error=%v", q, statements, err)
 		}
 	}
-	// Keep the same restricted-path row-close diagnostic for bare VALUES and
-	// decorated sources; do not invent a new rejection at the call opener.
+	// Selected calls now remain ordinary scalar cells through plain and
+	// decorated VALUES, without losing the call tree or source decorations.
 	for _, q := range []string{
 		"INSERT INTO t VALUES(abs(1))",
 		"INSERT INTO t VALUES(abs(1)) LIMIT 1",
 		"INSERT INTO t VALUES(abs(1)) ORDER BY 1",
 	} {
-		keywordDiagnostic(t, q, "42601", `syntax error at or near ")"`, "28")
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("selected INSERT scalar rejected", q, statements, err)
+		}
+		insert := statements[0].(*Insert)
+		rows := insert.Rows
+		if insert.Source != nil {
+			rows = insert.Source.Values.Rows
+			if insert.Source.Values.Order == nil && insert.Source.Values.Bounds == nil {
+				t.Fatal("decorated INSERT scalar lost tail", q, insert)
+			}
+		}
+		call, ok := rows[0][0].(FunctionExpr)
+		if !ok || call.Name.Parts[0].Text != "abs" || len(call.Args) != 1 || call.Args[0].(LiteralExpr).Value.Integer != 1 {
+			t.Fatal("selected INSERT scalar lost call", q, rows)
+		}
 	}
 }
 

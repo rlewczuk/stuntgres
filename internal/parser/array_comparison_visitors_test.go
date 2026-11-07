@@ -66,10 +66,6 @@ func TestArrayCompareVisitors(t *testing.T) {
 			if valid, _ := stringSingleton(raw); valid {
 				t.Fatal("qualified child lost")
 			}
-			lexer := &lexer{}
-			if !lexer.scalarInputTree(form.make(literal)) {
-				t.Fatal("scalar predicate rejected")
-			}
 			if scalarCastArgument(raw) {
 				t.Fatal("restricted function-cast predicate boundary widened")
 			}

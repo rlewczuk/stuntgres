@@ -52,15 +52,13 @@ type lexer struct {
 	viewQuery         bool // Actual CREATE VIEW body enables check-option lookahead.
 	ruleDefinition    bool // Rule actions use ordinary query expressions, not standalone VALUES replay.
 	insertScalarEnd   int
-	// Selected calls are arguments only beneath an admitted call/operator.
-	selectedInputDepth int
-	typeInputEntry     bool
-	typeInputMode      bool
-	typeInputResult    TypeName
-	typeInputNotice    func(sqlstate.Error)
-	options            Options
-	routineBodyDepth   int  // SQL-standard body input syntax; never changes outer prewalk policy.
-	readonlyRecipe     bool // Declaration syntax capture only; never executable admission.
+	typeInputEntry    bool
+	typeInputMode     bool
+	typeInputResult   TypeName
+	typeInputNotice   func(sqlstate.Error)
+	options           Options
+	routineBodyDepth  int  // SQL-standard body input syntax; never changes outer prewalk policy.
+	readonlyRecipe    bool // Declaration syntax capture only; never executable admission.
 	// Only declaration-level formal types reinterpret SETOF; defaults remain SQL.
 	routineFormalDepth    int
 	routineFormalBrackets int
