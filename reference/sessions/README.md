@@ -192,6 +192,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Wire transactional rewrite-rule definitions: `RUN='^TestReferenceTransactionalRulesProtocol$'`
 - Wire transactional collation/conversion/cast definitions: `RUN='^TestReferenceTransactionalCollationConversionCastProtocol$'`
 - Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
+- Legacy binary COPY wire/client matrix: `RUN='^TestReferenceServerCopyLegacyBinary(PGX|Prepared|Transactions|Atomicity)?$'`
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
 - Wire logs (error, server and query logs): `RUN='^TestReferenceServer(Logs|PreparedLogs|QueryLog)$$'`

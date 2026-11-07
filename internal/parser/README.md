@@ -465,7 +465,13 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
 - The unreserved `operator` keyword keeps its contextual token after ADD or a
   comma in operator-family member lists.
 - COPY keeps its complete WHERE expression and ordered positioned options;
-  COPY TO WHERE fails at the WHERE token during parsing.
+  legacy bare unquoted BINARY normalizes to the scalar `format=binary` option,
+  retaining its token position and option order. Quoted legacy BINARY is rejected
+  at the identifier; an unquoted BINARY string argument is rejected at the string.
+  Parenthesized `(BINARY)` remains a generic option, not a format shorthand.
+  COPY-local bare option words exclude WITH, reserving it as the optional
+  introducer without changing generic identifier legality. COPY TO WHERE fails
+  at the WHERE token; parsing always consumes the whole input.
 - CREATE DATABASE retains the decoded name and ordered `DatabaseOption`
   occurrences with one-based character positions. DEFAULT differs from quoted
   `'default'`, and numeric values differ from strings. Optional WITH/equals never
@@ -668,7 +674,7 @@ feature prefix.
 - XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal|TableParser|ProduceGrammar|ProduceTraversal|ProduceLexicalOwnership)$'`
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
-- COPY options and WHERE: `RUN='^TestCopyFilterParser$'`
+- COPY options and WHERE: `RUN='^(TestCopyParser.*|TestCopyFilterParser)$'`
 - EXPLAIN wrapper/options, child positions and traversal: `RUN='^TestExplainParser'`
 - Typed literals and operators: `RUN='^Test(GeometryConversionCLiteralSyntax|INETSubnetParser)$'`
 - Database creation: `RUN='^TestCreateDatabase'`

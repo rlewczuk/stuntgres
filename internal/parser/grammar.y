@@ -548,6 +548,7 @@ package parser
 %type <tok> copy_direction
 %type <copyOptions> copy_options copy_option_list copy_legacy_options
 %type <copyOption> copy_option copy_option_value copy_legacy_option
+%type <tok> copy_legacy_bare_word
 %type <tok> copy_option_string
 %type <identifiers> copy_option_strings
 %type <tok> copy_option_name
@@ -1468,11 +1469,23 @@ copy_option_value: copy_option_string { $$=&CopyOption{Argument:CopyArgumentScal
  | DEFAULT { $$=&CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"default"} }
  | '*' { $$=&CopyOption{Argument:CopyArgumentStar,HasValue:true,Value:"*"} }
  | '(' copy_option_strings ')' { $$=&CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
+copy_legacy_bare_word: generic_word_base | EXISTS ;
 copy_legacy_options: copy_legacy_option { $$=[]CopyOption{*$1} }
  | copy_legacy_options copy_legacy_option { $$=append($1,*$2) } ;
-copy_legacy_option: generic_word STRING { $$=&CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
+copy_legacy_option: generic_word STRING {
+ if $1.text=="binary" && !quotedIdentifierLexeme($1) {sqllex.(*lexer).syntax($2);return 1}
+ $$=&CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text}
+ }
  | NULL STRING { $$=&CopyOption{Argument:CopyArgumentScalar,Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
- | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=&CopyOption{Name:"header",Pos:$1.pos}} ;
+ | copy_legacy_bare_word {
+ switch $1.text {
+ case "header":$$=&CopyOption{Name:"header",Pos:$1.pos}
+ case "binary":
+ if quotedIdentifierLexeme($1) {sqllex.(*lexer).syntax($1);return 1}
+ $$=&CopyOption{Name:"format",Value:"binary",HasValue:true,Argument:CopyArgumentScalar,Pos:$1.pos}
+ default:sqllex.(*lexer).syntax($1);return 1
+ }
+} ;
 copy_where: /* empty */ { $$=copyWhereClause{} } | WHERE target_or { $$=copyWhereClause{expression:$2,pos:$1.pos} } ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;

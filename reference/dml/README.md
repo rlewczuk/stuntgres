@@ -110,6 +110,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - <a id="copy-text-selected-proof"></a>COPY text: `RUN='^TestReferenceCopyText'`
 - COPY CSV: `RUN='^TestReferenceCopyCSV'`
 - COPY binary: `RUN='^TestReferenceCopyBinary'`
+- Legacy binary COPY: `RUN='^TestReferenceCopyLegacyBinary(RoundTrip|Columns|Diagnostics|Atomicity)$'`
 - <a id="copy-filtering-and-conversion-error-policy"></a>COPY WHERE and ON_ERROR: `RUN='^TestReferenceCopyFilter'`
 - <a id="installed-uuid-ossp-binary-copy"></a>uuid-ossp binary COPY: `RUN='^TestReferenceUUIDOsspCopyBinary$'`
 
