@@ -1347,7 +1347,8 @@ interface here (`ACLRuntime`, `TransactionInquiryRuntime`,
 `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `AdvisoryRuntime`,
 `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`,
 `PgrowlocksRuntime`, `TablefuncCrosstabRuntime`, `EventTriggerDroppedRuntime`,
-`FTSQueryRuntime`). The node asserts it from `expr.Context`; `*exec.Context`
+`FTSQueryRuntime`, `NotificationRuntime`). The node asserts it from
+`expr.Context`; `*exec.Context`
 implements it with a compile-time assertion and forwards to the root statement
 host, which owns all locking and returns owned values.
 
@@ -1363,6 +1364,11 @@ host, which owns all locking and returns owned values.
   neither snapshots nor authority. Listening opens an invocation-owned typed
   vector (including empty TEXT sources); queue usage is volatile and scalar.
   Both are nonfoldable and reuse ordinary callable identities and source gates.
+  `pg_notify(text, text)` is the side-effecting non-strict VOID member,
+  nonfoldable, evaluates both TEXT children in written order with NULL read as
+  empty, and stages through `NotificationRuntime` into the statement's single
+  notification-effects queue shared with `NOTIFY` and tcn (one 22023
+  implementation, no second queue/publisher).
 - Publication inquiries use the current protected catalog inquiry snapshot:
   `pg_relation_is_publishable` reads genuine relation eligibility;
   `pg_get_publication_tables` opens an invocation-owned typed membership source.

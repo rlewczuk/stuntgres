@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -66,11 +65,10 @@ func (h *statementHost) CurrentUserValue(result *sqltype.Descriptor) (sqltype.Va
 	return (*sessionInquiryHost)(h).IdentityValue(&exec.Context{}, functions.IdentityCurrentUser, result)
 }
 
-// QueueNotification appends a validated event to the statement-local
+// QueueNotification validates and appends an event to the statement-local
 // notification effects.
-func (h *statementHost) QueueNotification(channel, payload string) {
-	s := h.scope()
-	s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.Op.Session.SessionToken.ID()), Channel: channel, Payload: payload})
+func (h *statementHost) QueueNotification(channel, payload string) error {
+	return h.scope().queueNotification(channel, payload)
 }
 
 // SetRoutineAtomic sets the PL atomic invocation barrier and returns the

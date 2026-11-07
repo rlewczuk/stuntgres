@@ -102,6 +102,8 @@ type Host interface {
 	RelationPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, relation functions.AccessRelation, column functions.AccessColumn, privilege string) (bool, bool, error)
 	// functions.SettingRuntime
 	InvokeSetting(string, []sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
+	// functions.NotificationRuntime
+	QueueNotification(channel, payload string) error
 	// Authenticated installed ISN invocation/input lifecycle.
 	InitializeIsn() error
 	InvokeIsnWeak(bool, bool, *sqltype.Descriptor) (sqltype.Value, error)

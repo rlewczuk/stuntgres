@@ -39,9 +39,9 @@ type Host[A tsearch.Authority[A]] interface {
 	LargeObject(request functions.LargeObjectRequest) (functions.LargeObjectResult, error)
 	// CurrentUserValue is current_user as result.
 	CurrentUserValue(result *sqltype.Descriptor) (sqltype.Value, error)
-	// QueueNotification appends a validated tcn event to the statement's
-	// notification effects.
-	QueueNotification(channel, payload string)
+	// QueueNotification validates and appends one tcn event to the
+	// statement's single notification queue, returning its 22023 rejection.
+	QueueNotification(channel, payload string) error
 	// SetRoutineAtomic sets the atomic invocation barrier and returns the
 	// previous one, which the caller restores.
 	SetRoutineAtomic(atomic bool) (previous bool)

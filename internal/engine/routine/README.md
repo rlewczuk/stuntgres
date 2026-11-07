@@ -549,6 +549,10 @@ package or the engine.
   The three type inquiries (1081, 1619, 6315) use `CatalogRoutineProvider`,
   with released formal/result, stable/strict and display facts in the same
   inventories; the ANY formal remains distinct from its concrete invocation.
+  Session notification declares `pg_notify` (3036) as non-strict VOLATILE/
+  parallel-restricted TEXT,TEXT→VOID with released internal display source,
+  beside the zero-provider `pg_listening_channels`/
+  `pg_notification_queue_usage` inquiries; no input names or defaults.
   The trigger/rule deparsers use that same provider and executable inventory:
   `pg_get_ruledef(oid)` / `(oid, boolean)` (1573/2504) and
   `pg_get_triggerdef(oid)` / `(oid, boolean)` (1662/2730), all strict STABLE

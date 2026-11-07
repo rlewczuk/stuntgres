@@ -70,8 +70,9 @@ replacement preserves the destination's owned logical descriptor using the
 binary-compatible carrier, without introducing SQL assignment or fresh domain
 input checks. Ordinary input and subsequent table constraints retain their owners.
 The tcn body reads valid primary-index keys by stable attribute in key order,
-uses ordinary type output with exact payload quoting, and appends only validated
-events to the existing statement-local notification effects. UPDATE and DELETE
+uses ordinary type output with exact payload quoting, and passes its channel and
+composed payload to the statement's single validating notification queue, which
+owns the 22023 empty/length checks. UPDATE and DELETE
 borrow OLD; INSERT borrows NEW. Commit, rollback, deduplication and savepoints
 remain notification-owner responsibilities. Ordinary SQL helper calls retain
 installed routine authority but never borrow an enclosing trigger activation.

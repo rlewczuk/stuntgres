@@ -4411,7 +4411,8 @@ Builtin admission, borrowed payloads, streaming positions and unwind units share
 `RUN='^TestTriggerBuiltins'`; public SQL/control witnesses live in `reference/operators`.
 Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;
 provider-authority units share that family in `schemacmds`, and public SQL,
-notification ordering and controls belong to `reference/sessions`.
+notification ordering and controls belong to `reference/sessions`; the scalar
+`pg_notify` function form belongs to `reference/routine`.
 Installed autoinc tuple ownership, sequence effects and frame-unwind units use
 `RUN='^TestAutoincTriggerFrames$'`.
 Installed trigger authority, borrowed-row and replay units use

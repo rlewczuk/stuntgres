@@ -124,16 +124,29 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 	}
 }
 
+// queueNotification validates and appends one statement-local event.
+func (s *StatementScope) queueNotification(channel, payload string) error {
+	if channel == "" {
+		return SQLError("22023", "channel name cannot be empty")
+	}
+	if len(channel) >= 64 {
+		return SQLError("22023", "channel name too long")
+	}
+	if len(payload) >= 8000 {
+		return SQLError("22023", "payload string too long")
+	}
+	s.notificationEvents = append(s.notificationEvents, session.Notification{
+		PID: uint64(s.Op.Session.SessionToken.ID()), Channel: channel, Payload: payload})
+	return nil
+}
+
 func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	switch raw := stmt.(type) {
 	case *parser.Notify:
-		if len(raw.Payload) >= 8000 {
-			return Result{}, SQLError("22023", "payload string too long")
-		}
-		s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.Op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
+		return Result{}, s.queueNotification(raw.Channel.Text, raw.Payload)
 	case *parser.Listen:
 		s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, Listen: true})
 	case *parser.Unlisten:

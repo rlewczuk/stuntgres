@@ -90,15 +90,5 @@ func notifyTriggerChange[A tsearch.Authority[A]](h Host[A], relation *catalog.Re
 	if len(p.Arguments) == 1 {
 		channel = p.Arguments[0]
 	}
-	if channel == "" {
-		return sqlError("22023", "channel name cannot be empty")
-	}
-	if len(channel) >= 64 {
-		return sqlError("22023", "channel name too long")
-	}
-	if payload.Len() >= 8000 {
-		return sqlError("22023", "payload string too long")
-	}
-	h.QueueNotification(channel, payload.String())
-	return nil
+	return h.QueueNotification(channel, payload.String())
 }

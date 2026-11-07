@@ -119,6 +119,7 @@ var definitions = [...]Definition{
 	{Names: attributeStatisticsNames, ExactSpelling: true, Bind: bindAttributeStatistics, NamedCall: namedAttributeStatistics},
 	{Names: relationStatisticsNames, ExactSpelling: true, Bind: bindRelationStatistics, NamedCall: namedRelationStatistics},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
+	{Names: []string{"pg_notify"}, ExactSpelling: true, SharedGates: true, Bind: bindPgNotify},
 	{Names: []string{"pg_get_backend_memory_contexts"}, ExactSpelling: true, Bind: bindBackendMemory},
 	{Names: backendCurrentNames[:], ExactSpelling: true, Bind: bindBackendCurrent, NamedCall: namedBackendCurrent},
 	{Names: backendIdentityNames[:], ExactSpelling: true, Bind: bindBackendIdentity},

@@ -414,6 +414,7 @@ func (ListeningChannels) JumbleFields(s expr.StatementFields) {
 func (NotificationQueueUsage) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.NotificationQueueUsage")
 }
+func (PgNotify) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.PgNotify") }
 func (NullCount) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.NullCount") }
 func (NumericFormatting) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.NumericFormatting")
@@ -436,7 +437,7 @@ func (PgpArmorHeaders) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgpArmorHeaders")
 }
 func (PgFreespace) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.PgFreespace") }
-func (PgPrewarm) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.PgPrewarm") }
+func (PgPrewarm) JumbleFields(s expr.StatementFields)   { s.JumbleText("functions.PgPrewarm") }
 func (Pgrowlocks) JumbleFields(s expr.StatementFields)  { s.JumbleText("functions.Pgrowlocks") }
 func (PgstattupleStats) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.PgstattupleStats")

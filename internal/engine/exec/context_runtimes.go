@@ -222,6 +222,19 @@ func (c *Context) InvokeSetting(name string, inputs []sqltype.Value, result *sql
 	return host.InvokeSetting(name, inputs, result)
 }
 
+var _ functions.NotificationRuntime = (*Context)(nil)
+
+func (c *Context) QueueNotification(channel, payload string) error {
+	if err := EvaluationContext(c); err != nil {
+		return err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return errors.New("stuntgres: missing notification statement authority")
+	}
+	return host.QueueNotification(channel, payload)
+}
+
 func (c *Context) InvokeIsnWeak(on, set bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

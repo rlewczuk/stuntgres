@@ -1482,6 +1482,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3032: {Language: catalog.InternalRoutineLanguage, Source: "bitgetbit"},
 	3033: {Language: catalog.InternalRoutineLanguage, Source: "bitsetbit"},
 	3035: {Language: catalog.InternalRoutineLanguage, Source: "pg_listening_channels"},
+	3036: {Language: catalog.InternalRoutineLanguage, Source: "pg_notify"},
 	3566: {Language: catalog.InternalRoutineLanguage, Source: "pg_event_trigger_dropped_objects", Cost: 10},
 	4566: {Language: catalog.InternalRoutineLanguage, Source: "pg_event_trigger_table_rewrite_oid"},
 	4567: {Language: catalog.InternalRoutineLanguage, Source: "pg_event_trigger_table_rewrite_reason"},

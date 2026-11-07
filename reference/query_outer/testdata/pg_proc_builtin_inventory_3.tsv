@@ -314,6 +314,7 @@
 3032	get_bit	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	1560 23	\N	\N	\N	false	\N	bitgetbit	\N	false	\N
 3033	set_bit	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1560	1560 23 23	\N	\N	\N	false	\N	bitsetbit	\N	false	\N
 3035	pg_listening_channels	11	12	1	10	0	0	f	false	false	true	true	s	r	0	0	25		\N	\N	\N	false	\N	pg_listening_channels	\N	false	\N
+3036	pg_notify	11	12	1	0	0	0	f	false	false	false	false	v	r	2	0	2278	25 25	\N	\N	\N	false	\N	pg_notify	\N	false	\N
 3058	concat	11	12	1	0	2276	0	f	false	false	false	false	s	s	1	0	25	2276	{2276}	{v}	\N	false	\N	text_concat	\N	false	\N
 3059	concat_ws	11	12	1	0	2276	0	f	false	false	false	false	s	s	2	0	25	25 2276	{25,2276}	{i,v}	\N	false	\N	text_concat_ws	\N	false	\N
 3060	left	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	25	25 23	\N	\N	\N	false	\N	text_left	\N	false	\N
