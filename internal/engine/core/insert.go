@@ -33,7 +33,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			}
 		}()
 	}
-	in := dml.InsertInput{Context: ctx, Catalog: auth.Catalog}
+	in := dml.InsertInput{Context: ctx, Catalog: auth.Catalog, DefaultOccurrence: evaluation.DefaultOccurrence}
 	if b.CommandQuery {
 		source, sourceErr := e.CaptureQuerySourcesLocked(scope, b.QuerySources, len(b.QuerySources) == 0)
 		if sourceErr != nil {

@@ -179,7 +179,7 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			if phase == "sorting" {
 				evaluationContext = &queryCountingContext{Context: ctx, remaining: 16}
 			}
-			rows, err := dml.EvaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+			rows, err := dml.EvaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, exec.DefaultOccurrence{})
 			want := error(context.Canceled)
 			if phase == "late source" {
 				want = sentinel
@@ -223,7 +223,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 			cancel()
 			ctx = cancelled
 		}
-		rows, err := dml.AssembleInsertRows(ctx, b, cursor, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+		rows, err := dml.AssembleInsertRows(ctx, b, cursor, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil, exec.DefaultOccurrence{})
 		want := error(closeErr)
 		if primary {
 			want = context.Canceled
@@ -245,7 +245,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
-	rows, err := dml.AssembleInsertRows(ctx, b, closing, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+	rows, err := dml.AssembleInsertRows(ctx, b, closing, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil, exec.DefaultOccurrence{})
 	if !errors.Is(err, context.Canceled) || rows.Values != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}

@@ -188,7 +188,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 					}
 					return c.Row[1], nil
 				})
-				rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
+				rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil, exec.DefaultOccurrence{})
 				if rows.Values != nil || calls != 2 || cursor.closes != 1 {
 					t.Fatal(rows, calls, cursor.closes)
 				}
@@ -285,7 +285,7 @@ func TestInsertReturningProducerClose(t *testing.T) {
 			if primary {
 				cursor.nextError = nextErr
 			}
-			rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil, exec.DefaultOccurrence{})
 			want, count := closeErr, 2
 			if primary {
 				want, count = nextErr, 1

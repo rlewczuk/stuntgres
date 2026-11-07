@@ -18,7 +18,7 @@ import (
 // EvaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches the write stage.
 // A nil h evaluates without statement authority.
-func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host) (index.WriteBatch, error) {
+func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host, occurrence exec.DefaultOccurrence) (index.WriteBatch, error) {
 	defer source.Close()
 	state := &exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
 	if h != nil {
@@ -26,13 +26,13 @@ func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	}
 	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
-	return evaluateInsertQuery(ctx, b, state, schema, h)
+	return evaluateInsertQuery(ctx, b, state, schema, h, occurrence)
 }
 
 // evaluateInsertQuery assembles against the caller's invocation. Foreign INSERT
 // borrows its live command source through checks and RETURNING; the public
 // evaluator above still consumes its source and owns its memberships.
-func evaluateInsertQuery(ctx context.Context, b analyze.Binding, state *exec.State, schema string, h Host) (index.WriteBatch, error) {
+func evaluateInsertQuery(ctx context.Context, b analyze.Binding, state *exec.State, schema string, h Host, occurrence exec.DefaultOccurrence) (index.WriteBatch, error) {
 	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return index.WriteBatch{}, fmt.Errorf("stuntgres: INSERT query lacks final projection")
@@ -52,13 +52,13 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, state *exec.Sta
 	if err != nil {
 		return index.WriteBatch{}, err
 	}
-	return AssembleInsertRows(ctx, b, &stage, -1, schema, state.Input, state.Output, h, unique, state.Parameters, state)
+	return AssembleInsertRows(ctx, b, &stage, -1, schema, state.Input, state.Output, h, unique, state.Parameters, state, occurrence)
 }
 
 // AssembleInsertRows produces, validates and admits the destination rows of
 // cursor (count rows, or until EOF when count is negative). A nil h
 // assembles without statement authority.
-func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host, unique bool, parameters []sqltype.Value, query *exec.State) (rows index.WriteBatch, err error) {
+func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host, unique bool, parameters []sqltype.Value, query *exec.State, occurrence exec.DefaultOccurrence) (rows index.WriteBatch, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -93,7 +93,7 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		copyInsert = NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: runtime}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: runtime}, EvalAdmission: exec.EvalAdmission{DefaultOccurrence: occurrence}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
 	copyInput := op != nil && op.CopyInput.Active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {

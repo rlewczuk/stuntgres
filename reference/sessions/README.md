@@ -15,8 +15,9 @@ timeouts, the physical-session adapter and direct-message batches in
 [session_state](../session_state/README.md); SQL cursors and `pg_cursors` in
 [cursors](../cursors/README.md); transaction control, commit timestamps with
 tracking on and PREPARE TRANSACTION restrictions in
-[locking_transactions](../locking_transactions/README.md); server CLI, framing
-and process mechanics in [cmd/stuntgres](../../cmd/stuntgres/README.md#testing).
+[locking_transactions](../locking_transactions/README.md); wire framing and
+transport mechanics in [pgserver](../../pgserver/README.md#testing); CLI and
+process mechanics in [cmd/stuntgres](../../cmd/stuntgres/README.md#testing).
 
 ## Testing
 
@@ -70,6 +71,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   through `regtype`; never copy them into byte goldens.
 - Change the effective `search_path` in wire scenarios with named extended SET
   traffic: a simple-Query SET destroys PostgreSQL's unnamed statement.
+- Omitted-default INSERT query witnesses reuse `serverWire` and the extended
+  message builders. Keep Parse/Describe/Sync separate from Bind/Execute/Sync;
+  no simple Query may intervene for an unnamed statement. Bind and Execute share
+  a Sync group, and held statements, rows and physical connections follow the
+  existing session cleanup order.
 - Transactional COMMENT uses the raw named-statement Parse/Describe/Bind/Execute
   helpers for every shipped kind, not adapter Prepare as a Describe substitute.
   Assert quiet analysis, exact COMMENT completion and Ready states, private
@@ -201,6 +207,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RACE=1 RUN='^TestReferenceEmbeddedServer(Cancellation|Isolation|Shutdown)$'`
   in both modes.
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
+- Wire INSERT query defaults and parameter lifetimes: `RUN='^TestReferenceServerInsertSelectDefaultParams'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
 - Wire transactional materialized refresh: `RUN='^TestReferenceTransactionalMaterializedRefreshProtocol$'`

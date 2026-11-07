@@ -145,7 +145,7 @@ func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
 		}
 		return original.Eval(c)
 	})
-	rows, err := dml.EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	rows, err := dml.EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, exec.DefaultOccurrence{})
 	if rows.Values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, source)
 	}

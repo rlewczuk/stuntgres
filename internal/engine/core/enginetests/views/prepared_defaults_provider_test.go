@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -23,7 +24,7 @@ import (
 // admission program and statement host, never through a mode constructor.
 func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 	for _, language := range []string{"sql", "pl"} {
-		for _, kind := range []string{"accepted", "copied-root", "copied-call", "raw-source", "foreign-source", "prepared-arguments", "wrong-occurrence", "retired-owner", "cancelled-operation", "missing-relation-link", "copied-relation", "reversed-relation", "copied-provider", "result", "input-abi", "strictness", "volatility", "security", "configuration", "transforms", "language", "missing-language", "foreign-language", "missing-handler", "foreign-handler", "body-kind"} {
+		for _, kind := range []string{"accepted", "copied-root", "copied-call", "raw-source", "foreign-source", "prepared-arguments", "wrong-occurrence", "wrong-expansion", "retired-owner", "cancelled-operation", "missing-relation-link", "copied-relation", "reversed-relation", "copied-provider", "result", "input-abi", "strictness", "volatility", "security", "configuration", "transforms", "language", "missing-language", "foreign-language", "missing-handler", "foreign-handler", "body-kind"} {
 			t.Run(language+"/"+kind, func(t *testing.T) {
 				e := engine.New()
 				s := enginetest.StartSession(t, e, nil)
@@ -211,6 +212,8 @@ func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 						node = foreignNode
 					case "wrong-occurrence":
 						c.DefaultOccurrence.Statement = enginetest.Statement(t, "INSERT INTO provider_rows DEFAULT VALUES")
+					case "wrong-expansion":
+						c.DefaultOccurrence.Expansion++
 					case "retired-owner":
 						owner.Retire()
 					case "cancelled-operation":
@@ -239,8 +242,13 @@ func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 						if admission == nil {
 							return fmt.Errorf("invalid provider source/mode admitted: %s", kind)
 						}
+						if kind == "wrong-expansion" && !errors.Is(admission, ids.ErrCatalogReplaced) {
+							return fmt.Errorf("wrong expansion admission error=%w, want catalog replacement", admission)
+						}
 						if _, err := node.Eval(&c); err == nil {
 							return fmt.Errorf("invalid provider source/mode executed: %s", kind)
+						} else if kind == "wrong-expansion" && !errors.Is(err, ids.ErrCatalogReplaced) {
+							return fmt.Errorf("wrong expansion execution error=%w, want catalog replacement", err)
 						}
 						return nil
 					}

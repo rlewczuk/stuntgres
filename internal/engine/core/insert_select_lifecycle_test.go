@@ -155,7 +155,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				}
 				return original.Eval(c)
 			})
-			rows, err := dml.EvaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.Input, scope.Output, scope.WriteHost())
+			rows, err := dml.EvaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.Input, scope.Output, scope.WriteHost(), exec.DefaultOccurrence{})
 			if err != nil || len(rows.Values) != 2 || calls != 2 || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
 			}

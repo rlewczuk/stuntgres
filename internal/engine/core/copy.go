@@ -349,7 +349,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 			s.Op.CopyInput.Decoding.Store(true)
 			defer s.Op.StopCopyInput()
 		}
-		rows, err := dml.AssembleInsertRows(s.Op.Context(), b, cursor, -1, schema, s.Input, s.Output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil)
+		rows, err := dml.AssembleInsertRows(s.Op.Context(), b, cursor, -1, schema, s.Input, s.Output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil, exec.DefaultOccurrence{})
 		if err == nil {
 			err = s.Op.PendingCopyInputError()
 		}

@@ -213,7 +213,7 @@ func TestViewCheckAdmission(t *testing.T) {
 		if closeFailure {
 			cursor.closeError = failure
 		}
-		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), false, nil, nil)
+		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), false, nil, nil, exec.DefaultOccurrence{})
 		if closeFailure {
 			if !errors.Is(err, failure) {
 				t.Fatal(err)

@@ -432,7 +432,7 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 					}
 					return closeVeto
 				}
-				_, veto = dml.AssembleInsertRows(ctx, binding, &cursor, -1, "public", state.Input, state.Output, h, false, nil, state)
+				_, veto = dml.AssembleInsertRows(ctx, binding, &cursor, -1, "public", state.Input, state.Output, h, false, nil, state, exec.DefaultOccurrence{})
 				if !errors.Is(veto, closeVeto) {
 					t.Fatal("required Close did not veto accepted trigger row", veto)
 				}

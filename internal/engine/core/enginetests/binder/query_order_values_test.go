@@ -34,7 +34,7 @@ func TestQueryOrderValuesSourceOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := dml.EvaluateInsertQuery(context.Background(), bound, &exec.Source{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+		rows, err := dml.EvaluateInsertQuery(context.Background(), bound, &exec.Source{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, exec.DefaultOccurrence{})
 		if err != nil || len(rows.Values) != 4 {
 			t.Fatal(rows, err)
 		}

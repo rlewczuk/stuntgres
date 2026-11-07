@@ -18,9 +18,10 @@ import (
 // VALUES evaluation.
 type InsertInput struct {
 	// Context is the operation context the caller captured at entry.
-	Context context.Context
-	Binding analyze.Binding
-	Catalog catalog.Read
+	Context           context.Context
+	Binding           analyze.Binding
+	Catalog           catalog.Read
+	DefaultOccurrence exec.DefaultOccurrence // Original preparation ownership, not runtime row identity.
 	// Query is INSERT ... SELECT's selected (and, for view writes, frozen)
 	// source; nil selects VALUES. Parameters are the canonical parameters
 	// and Schema the target's schema name.
@@ -72,7 +73,7 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 	}
 	if in.Query != nil {
 		input, output := h.Environments()
-		rows, err := EvaluateInsertQuery(ctx, b, in.Query, in.Parameters, in.Schema, input, output, h)
+		rows, err := EvaluateInsertQuery(ctx, b, in.Query, in.Parameters, in.Schema, input, output, h, in.DefaultOccurrence)
 		if err != nil {
 			return Outcome{}, err
 		}

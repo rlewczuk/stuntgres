@@ -323,7 +323,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if failure == "primary_and_close" {
 			cursor.closeError = secondary
 		}
-		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
+		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil, exec.DefaultOccurrence{})
 		if !errors.Is(err, injected) || rows.Values != nil || cursor.closes != 1 || len(scope.Stage.Rows[b.Ref.Address]) == 0 {
 			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.Stage.Rows)
 		}

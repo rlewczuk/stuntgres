@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -50,7 +51,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			if failure == "close" {
 				cursor.closeError = injected
 			}
-			rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, count, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, count, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil, exec.DefaultOccurrence{})
 			if failure == "none" {
 				if err != nil || len(rows.Values) != 2 || cursor.position != 3 {
 					t.Fatal("consumed vs admitted", count, len(rows.Values), cursor.position, err)

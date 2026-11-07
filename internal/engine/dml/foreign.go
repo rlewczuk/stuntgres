@@ -115,7 +115,7 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 			borrowed := *state
 			borrowed.SourceMode = exec.SourceBorrowed
 			defer borrowed.ReleaseMemberships()
-			batch, err := evaluateInsertQuery(h.Context(), b, &borrowed, in.Catalog.Get(b.Relation.Namespace()).Name(), h)
+			batch, err := evaluateInsertQuery(h.Context(), b, &borrowed, in.Catalog.Get(b.Relation.Namespace()).Name(), h, evaluation.DefaultOccurrence)
 			if err != nil {
 				return Outcome{}, err
 			}
