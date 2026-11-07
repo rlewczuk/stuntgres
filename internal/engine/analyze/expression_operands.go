@@ -117,8 +117,6 @@ func (b *Binder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequ
 			operand, err = b.comparisonOperand(raw)
 		case functions.CallableArgument:
 			operand, err = b.callableOperand(raw)
-		case functions.ThresholdArrayArgument:
-			operand, err = b.comparisonOperandPolicy(raw, ExpressionPolicy{Context: ProjectionContext, thresholdArrayInput: true})
 		case functions.ZoneArgument:
 			// Only explicit casts read the flag; restoring it keeps nested and
 			// adjacent calls unaffected.
@@ -414,11 +412,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 				return ComparisonOperand{}, err
 			}
 			null := literal.Value.Kind == parser.NullValue
-			if policy.thresholdArrayInput {
-				target, err = b.Host.ResolveAnnotationTypeInput(typeName, null, false, false, true)
-			} else {
-				target, err = b.Host.ResolveAnnotationType(typeName, null)
-			}
+			target, err = b.Host.ResolveAnnotationType(typeName, null)
 			if err != nil {
 				return ComparisonOperand{}, err
 			}

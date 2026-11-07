@@ -7,6 +7,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// StoredArrayElement reports whether typ may be an element of a stored array
+// column. Enum OIDs are user-defined, so they cannot appear in the builtin
+// scalar table that ArrayElementAdmitted classifies; their input, output and
+// comparison behavior is descriptor-owned, so they are admitted here.
 func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	if !typ.Concrete() {
 		return false
@@ -27,6 +31,9 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	}
 	if physical.IsComposite() {
 		return physical.Concrete()
+	}
+	if physical.IsEnum() {
+		return true
 	}
 	if physical.IsLtree() || physical.IsLquery() || physical.IsIntbigGkey() {
 		return true

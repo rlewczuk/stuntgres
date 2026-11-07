@@ -185,10 +185,6 @@ var castImplementedTypes = func() []castImplementedType {
 		types = append(types, v)
 		a := castScalar(name+"[]", name+"[]", "Arrays", 0, "A", "{red,NULL}", "{red,NULL}")
 		a.element = name
-		a.storage = false
-		a.parameter = false
-		a.target = false
-		a.source = "ARRAY['red'::" + name + ",NULL::" + name + "]"
 		types = append(types, a)
 	}
 	for _, name := range []string{"cast_pair", "cast_pair_peer", "cast_row"} {

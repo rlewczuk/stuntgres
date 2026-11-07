@@ -2,26 +2,19 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
 )
 
-// Enum-array storage is not a native provider. Preserve PostgreSQL's actual
-// element-ACL outcome and assert the positioned native admission boundary.
-func dpEnumArray(run func(fixture.Step), b fixture.Backend, query, element string, allowed bool) {
-	if b.PG {
-		if allowed {
-			run(fixture.Exec(query, 0))
-		} else {
-			fixture.RoleGrantPermissionDenied(run, query, "type", element)
-		}
+// Enum-array storage follows PostgreSQL's element-ACL outcome: an array type
+// redirects its USAGE check to the element type.
+func dpEnumArray(run func(fixture.Step), query, element string, allowed bool) {
+	if allowed {
+		run(fixture.Exec(query, 0))
 		return
 	}
-	s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "unsupported array element type", Position: fixture.Position(strings.LastIndex(query, element) + 1)})
-	s.ErrorStage = "execute"
-	run(s)
+	fixture.RoleGrantPermissionDenied(run, query, "type", element)
 }
 
 func TestReferenceRoleDefaultPrivilegesTypes(t *testing.T) {
@@ -44,8 +37,8 @@ func TestReferenceRoleDefaultPrivilegesTypes(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE dp_s.dp_"+name+"_old_use(x dp_s.dp_"+name+"_old)", 0))
 				fixture.RoleGrantPermissionDenied(run, "CREATE TABLE dp_s.dp_"+name+"_new_use(x dp_s.dp_"+name+"_new)", "type", "dp_s.dp_"+name+"_new")
 			}
-			dpEnumArray(run, b, "CREATE TABLE dp_s.dp_array_old_use(x dp_s.dp_enum_old[])", "dp_s.dp_enum_old", true)
-			dpEnumArray(run, b, "CREATE TABLE dp_s.dp_array_new_use(x dp_s.dp_enum_new[])", "dp_s.dp_enum_new", false)
+			dpEnumArray(run, "CREATE TABLE dp_s.dp_array_old_use(x dp_s.dp_enum_old[])", "dp_s.dp_enum_old", true)
+			dpEnumArray(run, "CREATE TABLE dp_s.dp_array_new_use(x dp_s.dp_enum_new[])", "dp_s.dp_enum_new", false)
 		})
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES IN SCHEMA dp_s GRANT USAGE ON TYPES TO dp_reader", 0))
 		run(fixture.Exec("CREATE TYPE dp_s.dp_enum_scoped AS ENUM('b')", 0))
@@ -55,7 +48,7 @@ func TestReferenceRoleDefaultPrivilegesTypes(t *testing.T) {
 			for _, name := range []string{"enum", "domain", "composite"} {
 				run(fixture.Exec("CREATE TABLE dp_s.dp_"+name+"_scoped_use(x dp_s.dp_"+name+"_scoped)", 0))
 			}
-			dpEnumArray(run, b, "CREATE TABLE dp_s.dp_array_scoped_use(x dp_s.dp_enum_scoped[])", "dp_s.dp_enum_scoped", true)
+			dpEnumArray(run, "CREATE TABLE dp_s.dp_array_scoped_use(x dp_s.dp_enum_scoped[])", "dp_s.dp_enum_scoped", true)
 			fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() { run(fixture.Exec("CREATE TABLE dp_typed_scoped_source OF dp_s.dp_composite_scoped", 0)) })
 			run(fixture.Exec("INSERT INTO dp_typed_scoped_source VALUES(13)", 1))
 			dpRead(run, "dp_typed_scoped_source", 13)

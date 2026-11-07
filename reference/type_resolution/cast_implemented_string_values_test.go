@@ -51,9 +51,6 @@ func castFunctionTargetBoundary(cell castMatrixCell, query string, postgres bool
 		return nil
 	}
 	unavailable := target.name == "record[]"
-	if target.element != "" && castInventoryType(target.element).kind == "e" {
-		unavailable = true
-	}
 	if !unavailable {
 		return nil
 	}

@@ -31,7 +31,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 }
 
 // The optional witness belongs only to selected argument analysis. The ordinary
-// cast path remains identical and no lexical flag can escape into sibling calls.
+// cast path remains identical and no policy state escapes into sibling calls.
 func (b *Binder) cast(raw parser.CastExpr, outerPolicy ExpressionPolicy, witness **functions.TypeInquiryUnknownArgument, stringIO **sqltype.Descriptor) (expr.Expr, error) {
 	rawNull, isNull := raw.Child.(parser.LiteralExpr)
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
@@ -52,11 +52,7 @@ func (b *Binder) cast(raw parser.CastExpr, outerPolicy ExpressionPolicy, witness
 	if err != nil {
 		return nil, err
 	}
-	if outerPolicy.thresholdArrayInput {
-		target, err = b.Host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, true)
-	} else {
-		target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
-	}
+	target, err = b.Host.ResolveAnnotationType(annotation, unknownNull)
 	if err != nil {
 		switch raw.Child.(type) {
 		case parser.LiteralExpr:
@@ -234,7 +230,7 @@ func (b *Binder) cast(raw parser.CastExpr, outerPolicy ExpressionPolicy, witness
 			return nil, err
 		}
 	}
-	policy := ExpressionPolicy{Context: ProjectionContext, thresholdArrayInput: outerPolicy.thresholdArrayInput}
+	policy := ExpressionPolicy{Context: ProjectionContext}
 	switch child := raw.Child.(type) {
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {

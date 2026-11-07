@@ -36,13 +36,13 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *session.Operatio
 }
 
 func (e *Engine) ResolveAnnotationTypeMode(raw parser.TypeName, op *session.Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false)
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false)
 }
 
 // resolveAnnotationTypeInput authorizes and runs the namespace lookup, then
 // resolves the name there (analyze.ResolveTypeName). Typmod text reads the
 // operation's context and a typmod warning becomes an operation notice.
-func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Operation, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Operation, unknownNull, domainBase, jsonReturning bool) (sqltype.Usage, error) {
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return sqltype.Usage{}, err
@@ -55,12 +55,12 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 		operation.Context = op.Context
 		operation.Warn = func(warning sqlstate.Error) { op.EmitNotice(session.LevelWarning, warning) }
 	}
-	return e.resolveAnnotationTypeAuthority(raw, auth, unknownNull, domainBase, jsonReturning, thresholdArrayInput, operation)
+	return e.resolveAnnotationTypeAuthority(raw, auth, unknownNull, domainBase, jsonReturning, operation)
 }
 
 // resolveAnnotationTypeAuthority is the common resolver for live operation and
 // captured native-constructor binders. Both use identical lookup/admission.
-func (e *Engine) resolveAnnotationTypeAuthority(raw parser.TypeName, auth AuthorizationView, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool, operation analyze.TypeNameOperation) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeAuthority(raw parser.TypeName, auth AuthorizationView, unknownNull, domainBase, jsonReturning bool, operation analyze.TypeNameOperation) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		name = typedef.CanonicalDeclarationTypeName(name)
@@ -76,7 +76,7 @@ func (e *Engine) resolveAnnotationTypeAuthority(raw parser.TypeName, auth Author
 	in := analyze.TypeNameInput{
 		Catalog: auth.Catalog, Definition: auth.Definition,
 		UnknownNull: unknownNull, DomainBase: domainBase,
-		JSONReturning: jsonReturning, ThresholdArrayInput: thresholdArrayInput,
+		JSONReturning: jsonReturning,
 	}
 	return analyze.ResolveTypeName(raw, name, object, path, in, operation)
 }

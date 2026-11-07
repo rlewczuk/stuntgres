@@ -204,7 +204,7 @@ func TestQueryTableCreateStructuralOutputWrappers(t *testing.T) {
 	}
 }
 
-func TestQueryTableCreateEnumArrayOutputBoundary(t *testing.T) {
+func TestQueryTableCreateEnumArrayOutputAdmission(t *testing.T) {
 	e := engine.New()
 	mood, err := sqltype.Enum(61101, "mood", "public.mood", []string{"z", "a", "m"})
 	if err != nil {
@@ -234,10 +234,7 @@ func TestQueryTableCreateEnumArrayOutputBoundary(t *testing.T) {
 	nested := arrayOf(61104, "_mood_array_domain", arrayDomain)
 	outer := domain(61105, "nested_domain", nested)
 	for _, typ := range []*sqltype.Descriptor{array, arrayDomain, nested, outer} {
-		err := table.ValidateQueryTableOutputType(typ)
-		var got *sqlstate.Error
-		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported array element type"}
-		if !errors.As(err, &got) || *got != *want {
+		if err := table.ValidateQueryTableOutputType(typ); err != nil {
 			t.Fatal("enum array crossed query-derived storage boundary", typ.Name(), err)
 		}
 	}

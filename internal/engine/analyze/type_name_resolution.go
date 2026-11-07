@@ -21,9 +21,8 @@ type TypeNameInput struct {
 	Catalog    catalog.Read
 	Definition catalog.DefinitionReader // Cooking-only sparse reader; nil reads Catalog.
 	// UnknownNull admits unknown and a deferred record; DomainBase checks a
-	// domain base type; JSONReturning rejects SQL/JSON returning pseudo-types;
-	// ThresholdArrayInput admits enum arrays.
-	UnknownNull, DomainBase, JSONReturning, ThresholdArrayInput bool
+	// domain base type; JSONReturning rejects SQL/JSON returning pseudo-types.
+	UnknownNull, DomainBase, JSONReturning bool
 	// CastSource permits input-free identity and generic RECORD passthrough,
 	// never declaration, storage, or a new input provider.
 	CastSource *sqltype.Descriptor
@@ -69,7 +68,7 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 	if in.JSONReturning && functions.JSONReturningPseudoType(d) {
 		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
-	if in.DomainBase && (!d.Concrete() || sqltype.IsPseudo(d.ID()) || d.IsArray() && d.Element().IsEnum()) {
+	if in.DomainBase && (!d.Concrete() || sqltype.IsPseudo(d.ID())) {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
 	}
 	if in.UnknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
@@ -95,7 +94,7 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 			}
 		}
 	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
@@ -164,7 +163,7 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
 		array, ok := catalog.DefinitionArrayAt(in.Catalog, in.Definition, d)
-		if !ok || d.IsEnum() && !in.ThresholdArrayInput {
+		if !ok {
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported array element type")
 		}
 		u.Type = array

@@ -32,9 +32,6 @@ type ExpressionPolicy struct {
 	Mode             sqltype.CoercionContext
 	Column           string
 	booleanConstruct string
-	// Only width_bucket's threshold argument consumes existing enum arrays.
-	// This is not permission for generic casts, storage or domain declarations.
-	thresholdArrayInput bool
 	// Selected string INSERT rows analyze occurrences before target assignment.
 	deferAssignment bool
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.

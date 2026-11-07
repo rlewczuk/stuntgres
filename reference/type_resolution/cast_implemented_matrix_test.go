@@ -44,11 +44,7 @@ func castTargetBoundary(cell castMatrixCell, q string, pg bool) *fixture.Diagnos
 		return nil
 	}
 	declaration := castInventoryIdentity(target)
-	message := "unsupported column type"
-	if target.element != "" && castInventoryType(target.element).kind == "e" {
-		message = "unsupported array element type"
-	}
-	return &fixture.Diagnostic{Code: "0A000", Message: message, Position: fixture.Position(strings.LastIndex(q, declaration) + 1)}
+	return &fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: fixture.Position(strings.LastIndex(q, declaration) + 1)}
 }
 func castMatrixForbidden(source, target castImplementedType, q string) fixture.Diagnostic {
 	if source.name == "record[]" && target.name == "cast_pair[]" {

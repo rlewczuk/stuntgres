@@ -49,9 +49,6 @@ const (
 	StringOtherArgument
 	StringProjectionArgument
 	ProjectionArgument
-	// ThresholdArrayArgument is a comparison operand whose unknown-NULL
-	// annotation may name an enum array, as width_bucket's thresholds may.
-	ThresholdArrayArgument
 	// RecordBaseArgument is a string-other operand that is a populate-record
 	// base: named casts to user-defined composites keep their occurrence
 	// identity.

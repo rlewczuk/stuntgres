@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -77,17 +76,6 @@ func TestReferenceEnumFunctionsStorageBoundaries(t *testing.T) {
 				}
 				q := "CREATE " + kind + " " + name + " AS SELECT enum_range(NULL::mood) AS v" + suffix
 				t.Run(q, func(t *testing.T) {
-					if !b.PG {
-						// Native deliberately does not support enum-array storage;
-						// this is not a PostgreSQL diagnostic expectation.
-						for _, prepared := range []bool{false, true} {
-							s := fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "unsupported array element type"))
-							s.Prepared, s.ErrorStage = prepared, "execute"
-							fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
-						}
-						fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("CREATE TABLE "+name+"(id integer)", 0))
-						return
-					}
 					count := int64(1)
 					if noData {
 						count = 0
@@ -112,70 +100,32 @@ func TestReferenceEnumFunctionsStorageBoundaries(t *testing.T) {
 			}
 		}
 		for _, tc := range []struct {
-			name, typ, state string
+			name, typ string
 		}{
-			{"enum_array_direct", "mood[]", "0A000"},
-			{"enum_array_associated", "_mood", "0A000"},
+			{"enum_array_direct", "mood[]"},
+			{"enum_array_associated", "_mood"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				q := "CREATE TABLE " + tc.name + "(v " + tc.typ + ")"
 				cast := "SELECT '{z,a}'::" + tc.typ + "::text AS v"
-				if b.PG {
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(q, 0))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("INSERT INTO "+tc.name+" VALUES ('{z,a}')", 1))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT v::text AS v FROM "+tc.name, []string{"v"}, []string{"TEXT"}, [][]any{{"{z,a}"}}))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(cast, []string{"v"}, []string{"TEXT"}, [][]any{{"{z,a}"}}))
-				} else {
-					message := "unsupported array element type"
-					if tc.typ == "_mood" {
-						message = "unsupported column type"
-					}
-					for _, query := range []string{q, cast} {
-						for _, prepared := range []bool{false, true} {
-							want := fixture.ControlsReferenceDiagnostic(tc.state, message)
-							want.Position = strconv.Itoa(strings.LastIndex(query, tc.typ) + 1)
-							s := fixture.ErrorDiagnostic(query, want)
-							s.Prepared, s.ErrorStage = prepared, "execute"
-							if query == cast {
-								s.SelectRows = true
-								if prepared {
-									s.ErrorStage = "prepare"
-								}
-							}
-							fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
-						}
-					}
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("CREATE TABLE "+tc.name+"(id integer)", 0))
-				}
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(q, 0))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("INSERT INTO "+tc.name+" VALUES ('{z,a}')", 1))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT v::text AS v FROM "+tc.name, []string{"v"}, []string{"TEXT"}, [][]any{{"{z,a}"}}))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(cast, []string{"v"}, []string{"TEXT"}, [][]any{{"{z,a}"}}))
 			})
 		}
 		for _, tc := range []struct {
-			name, typ, state string
+			name, typ string
 		}{
-			{"enum_array_domain_direct", "mood[]", "0A000"},
-			{"enum_array_domain_associated", "_mood", "42804"},
+			{"enum_array_domain_direct", "mood[]"},
+			{"enum_array_domain_associated", "_mood"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				q := "CREATE DOMAIN " + tc.name + " AS " + tc.typ
-				if b.PG {
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(q, 0))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("CREATE TABLE "+tc.name+"_stored(v "+tc.name+")", 0))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("INSERT INTO "+tc.name+"_stored VALUES ('{a,m}')", 1))
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT v::text AS v FROM "+tc.name+"_stored", []string{"v"}, []string{"TEXT"}, [][]any{{"{a,m}"}}))
-				} else {
-					message := "unsupported array element type"
-					if tc.typ == "_mood" {
-						message = `"_mood" is not a valid base type for a domain`
-					}
-					for _, prepared := range []bool{false, true} {
-						want := fixture.ControlsReferenceDiagnostic(tc.state, message)
-						want.Position = strconv.Itoa(strings.LastIndex(q, tc.typ) + 1)
-						s := fixture.ErrorDiagnostic(q, want)
-						s.Prepared, s.ErrorStage = prepared, "execute"
-						fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
-					}
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("CREATE DOMAIN "+tc.name+" AS integer", 0))
-				}
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(q, 0))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("CREATE TABLE "+tc.name+"_stored(v "+tc.name+")", 0))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("INSERT INTO "+tc.name+"_stored VALUES ('{a,m}')", 1))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select("SELECT v::text AS v FROM "+tc.name+"_stored", []string{"v"}, []string{"TEXT"}, [][]any{{"{a,m}"}}))
 			})
 		}
 		// Computation and ordinary views remain legal, as do the existing

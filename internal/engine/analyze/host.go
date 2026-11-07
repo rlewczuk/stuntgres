@@ -57,7 +57,7 @@ type Host interface {
 	// Types.
 	ResolveType(raw parser.TypeName) (sqltype.Usage, error)
 	ResolveAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error)
-	ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error)
+	ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, jsonReturning bool) (sqltype.Usage, error)
 	ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error)
 
 	// Captures.

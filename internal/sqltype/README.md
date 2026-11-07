@@ -616,8 +616,10 @@ engine, not a codec-level stale-name retry.
 Installed seg/hstore/cube/query_int/intbig_gkey/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
-Neither a logical OID nor lifecycle support introduces a new range provider,
-general enum[] storage or an executable codec for a lookup-only installed array.
+Neither a logical OID nor lifecycle support introduces a new range provider or
+an executable codec for a lookup-only installed array. Enum-element arrays use
+the ordinary descriptor and codec path; whether a column may store one is decided
+by the engine's declaration/storage admission, not by lifecycle support.
 Domains over lookup-only bases retain user ownership, checks, names and immediate
 base identity without gaining storage/input codecs. Builtin lookup provenance
 remains distinct from these user domain declarations.

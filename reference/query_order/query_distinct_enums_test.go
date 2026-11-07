@@ -81,8 +81,8 @@ func TestReferenceQueryDistinctEnums(t *testing.T) {
 func TestReferenceQueryDistinctEnumArrays(t *testing.T) {
 	fixture.QueryDistinctScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
-		// Stored enum arrays remain excluded natively. Existing annotation
-		// codecs still admit projected arrays with domain-over-enum elements.
+		// Stored and projected enum-element arrays share the same array codec;
+		// domain-over-enum elements keep their existing projection behavior.
 		for _, q := range []string{
 			"CREATE TYPE distinct_mood AS ENUM ('z','a','q')",
 			"CREATE DOMAIN distinct_wrapped AS distinct_mood",
@@ -92,11 +92,7 @@ func TestReferenceQueryDistinctEnumArrays(t *testing.T) {
 			run(fixture.Exec(q, 0))
 		}
 		storage := "CREATE TABLE enum_array_storage(v distinct_wrapped[],w distinct_whole)"
-		if b.PG {
-			run(fixture.Exec(storage, 0))
-		} else {
-			run(fixture.ImplicitError(storage, fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: queryDistinctPosition(storage, "distinct_wrapped")}))
-		}
+		run(fixture.Exec(storage, 0))
 		projection := func(typ string) string {
 			return "CASE id WHEN 1 THEN '{z,NULL}'::" + typ + " WHEN 2 THEN '[0:1]={z,NULL}'::" + typ + " WHEN 3 THEN '{a,NULL}'::" + typ + " WHEN 4 THEN '{}'::" + typ + " ELSE NULL::" + typ + " END"
 		}

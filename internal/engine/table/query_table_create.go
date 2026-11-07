@@ -25,11 +25,6 @@ func ValidateQueryTableOutputType(typ *sqltype.Descriptor) error {
 			}
 			return nil
 		}
-		// Reject direct enum elements, not the supported domain-over-enum
-		// element arrays. Outer physical wrappers still reach this boundary.
-		if physical.Element().IsEnum() {
-			return sqlError("0A000", "unsupported array element type")
-		}
 		typ = physical.Element()
 	}
 }

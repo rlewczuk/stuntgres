@@ -76,12 +76,12 @@ func (h *statisticsSnapshotBindingHost) CurrentCatalog() catalog.Read {
 }
 
 func (h *statisticsSnapshotBindingHost) ResolveAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
-	return h.ResolveAnnotationTypeInput(raw, unknownNull, false, false, false)
+	return h.ResolveAnnotationTypeInput(raw, unknownNull, false, false)
 }
 
-func (h *statisticsSnapshotBindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
+func (h *statisticsSnapshotBindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, jsonReturning bool) (sqltype.Usage, error) {
 	operation := analyze.TypeNameOperation{Context: func() context.Context { return h.context }}
-	return h.Engine.resolveAnnotationTypeAuthority(raw, h.auth, unknownNull, domainBase, jsonReturning, thresholdArrayInput, operation)
+	return h.Engine.resolveAnnotationTypeAuthority(raw, h.auth, unknownNull, domainBase, jsonReturning, operation)
 }
 
 func (h *statisticsSnapshotBindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {

@@ -124,11 +124,7 @@ func mathModifiers(raw parser.FunctionExpr, name string) error {
 func bindThresholdBucket(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	operands := make([]Argument, len(raw.Args))
 	for i, child := range raw.Args {
-		intent := ComparisonArgument
-		if i == 1 {
-			intent = ThresholdArrayArgument
-		}
-		operand, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: intent})
+		operand, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
