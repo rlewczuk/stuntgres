@@ -101,6 +101,10 @@ func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, 
 		if !state.Only {
 			events = append(events, InheritanceAlterEvent{Action: a})
 		}
+	case parser.SetColumnDefault, parser.DropColumnDefault:
+		if !state.Only {
+			events = append(events, InheritanceAlterEvent{Action: a, Attribute: after.Attributes[after.Index[a.Column.Text]]})
+		}
 	}
 	if !state.Only {
 		for _, next := range after.Constraints.NotNull {

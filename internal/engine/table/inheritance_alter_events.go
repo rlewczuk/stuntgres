@@ -118,7 +118,7 @@ func InheritancePreparatoryLocks(root *catalog.Relation, actions []parser.AlterT
 		switch a.Action {
 		case parser.SetStorage, parser.SetColumnStatistics:
 			return true
-		case parser.AddCheck, parser.AddNotNull, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
+		case parser.AddCheck, parser.AddNotNull, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AlterColumnType, parser.SetExpression, parser.DropExpression, parser.SetColumnDefault, parser.DropColumnDefault:
 			return true
 		case parser.ValidateConstraint:
 			if InheritanceRecursiveAction(root, a, only) {

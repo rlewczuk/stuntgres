@@ -165,3 +165,21 @@ func TestPublicationDeleteBoundaryOrdering(t *testing.T) {
 		t.Fatal("ordinary table delete was changed", err)
 	}
 }
+
+func TestConsumerBoundaryAlterDefaultList(t *testing.T) {
+	root := &catalog.Relation{RelationKind: catalog.PartitionedRelation, Partition: &catalog.PartitionDefinition{}}
+	leaf := &catalog.Relation{RelationKind: catalog.TableRelation, Membership: &catalog.PartitionMembership{Parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 910201}}}
+	plain := &catalog.Relation{RelationKind: catalog.TableRelation}
+	statement := &parser.AlterTable{Actions: []parser.AlterTableAction{{Action: parser.SetColumnDefault}, {Action: parser.DropColumnDefault}}}
+	replay := func(parser.Statement, *catalog.Relation) bool { return false }
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "altering partition hierarchies is unsupported"}
+	for _, d := range []*catalog.Relation{root, leaf} {
+		diagnostic, ok := ConsumerBoundary(catalog.Read{}, statement, d, replay).(*sqlstate.Error)
+		if !ok || *diagnostic != want {
+			t.Fatalf("boundary on %v = %#v, want %#v", d.RelationKind, diagnostic, want)
+		}
+	}
+	if err := ConsumerBoundary(catalog.Read{}, statement, plain, replay); err != nil {
+		t.Fatalf("ordinary table default list refused: %v", err)
+	}
+}

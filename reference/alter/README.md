@@ -2,7 +2,7 @@
 
 ALTER TABLE actions: ADD/DROP COLUMN (including column REFERENCES), ADD CONSTRAINT
 (including NOT VALID, replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritance
-recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
+recursion and action-list members), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
 (including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE,
 SET ACCESS METHOD, clustering preferences, OID-removal compatibility syntax and
 constraint rename, plus standalone query-compatible CLUSTER simulation and

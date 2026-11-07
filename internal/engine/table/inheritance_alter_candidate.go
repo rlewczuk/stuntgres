@@ -107,6 +107,15 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 			if !state.Only {
 				actions = append(actions, a)
 			}
+		case parser.SetColumnDefault, parser.DropColumnDefault:
+			if !state.Only {
+				actions = append(actions, a)
+				if slot, exists := old.Index[a.Column.Text]; exists {
+					provenance := graph.Columns[old.Attributes[slot]]
+					provenance.ExplicitDefault = true
+					graph.Columns[old.Attributes[slot]] = provenance
+				}
+			}
 		case parser.SetNotNull, parser.AddNotNull:
 			if state.Only || a.NoInherit {
 				continue

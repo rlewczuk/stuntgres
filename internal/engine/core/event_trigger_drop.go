@@ -68,5 +68,13 @@ func (s *StatementScope) RecordAlterDeletion(auth AuthorizationView, before, nex
 				s.RecordRelationDeletion(auth, before, ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID})
 			}
 		}
+	case parser.DropColumnDefault:
+		slot, exists := before.Index[action.Column.Text]
+		if !exists {
+			return
+		}
+		if previous, present := before.ColumnMeta.Defaults[before.Attributes[slot]]; present {
+			s.RecordRelationDeletion(auth, before, ids.ObjectAddress{ClassID: 2604, ObjectID: previous.OID})
+		}
 	}
 }

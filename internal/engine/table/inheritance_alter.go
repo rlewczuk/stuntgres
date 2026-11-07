@@ -113,6 +113,8 @@ func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 		return true
 	case parser.SetExpression, parser.DropExpression:
 		return !only
+	case parser.SetColumnDefault, parser.DropColumnDefault:
+		return !only
 	case parser.SetNotNull, parser.AddNotNull:
 		if a.NoInherit {
 			return false

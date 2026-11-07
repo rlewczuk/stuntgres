@@ -1195,6 +1195,8 @@ const (
 	SetColumnStatistics
 	SetColumnOptions
 	ResetColumnOptions
+	SetColumnDefault
+	DropColumnDefault
 )
 
 // ReplicaIdentityMode is the catalog row-identity configuration, not replication.
@@ -1240,6 +1242,7 @@ type AlterTableAction struct {
 	TypeName         TypeName
 	Collation        *ObjectName
 	Using            Expr
+	Expression       Expr
 	Exclusion        *ExclusionConstraint
 	UsingIndex       *UsingIndexConstraint
 	Generation       *GenerationDefinition

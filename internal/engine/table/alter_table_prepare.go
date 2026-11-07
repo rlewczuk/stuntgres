@@ -110,6 +110,7 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 			parser.AddCheck, parser.DropConstraint, parser.ValidateConstraint,
 			parser.AddIdentity, parser.DropIdentity, parser.SetIdentity,
 			parser.SetExpression, parser.DropExpression,
+			parser.SetColumnDefault, parser.DropColumnDefault,
 			parser.InheritTable, parser.NoInheritTable:
 			return nil
 		}
@@ -248,6 +249,8 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		label = "ADD COLUMN"
 	case parser.SetExpression, parser.DropExpression:
 		label = "ALTER COLUMN"
+	case parser.SetColumnDefault, parser.DropColumnDefault:
+		label = "ALTER COLUMN ... SET DEFAULT"
 	case parser.EnableRowSecurity, parser.DisableRowSecurity, parser.ForceRowSecurity, parser.NoForceRowSecurity:
 		return access.RowSecurityKind(original, action, analyze.TableKindError)
 	default:

@@ -21,35 +21,16 @@ func TestReferenceAlterAddColumnReviewDefaultLists(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%v", tc.name, prepared), func(t *testing.T) {
 				alterAddReferenceScenario(t, func(p *fixture.Pair, b fixture.Backend) {
-					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 					run(fixture.Exec("CREATE TABLE t(id INT,b INT DEFAULT 3)", 0))
 					run(fixture.Exec("INSERT INTO t(id) VALUES(1)", 1))
-					if b.PG {
-						s := fixture.Exec(tc.query, 0)
-						s.Prepared = prepared
-						run(s)
-						run(fixture.Exec("INSERT INTO t(id) VALUES(2)", 1))
-						var future any = int64(9)
-						if tc.drop {
-							future = nil
-						}
-						run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id", "b", "c"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(3), int64(7)}, {int64(2), future, int64(7)}}))
-					} else {
-						index := strings.Index(tc.query, ",")
-						if strings.Contains(tc.name, "add_then") {
-							index = strings.LastIndex(tc.query, "ALTER ")
-						}
-						failure := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE action lists are unsupported", Position: fixture.Position(len([]rune(tc.query[:index])) + 1)})
-						failure.Prepared = prepared
-						failure.ErrorStage = "execute"
-						if prepared {
-							failure.ErrorStage = "prepare"
-						}
-						run(failure)
-						run(fixture.Select("SELECT * FROM t", []string{"id", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(3)}}))
-						run(fixture.Exec("INSERT INTO t(id) VALUES(2)", 1))
-						run(fixture.Select("SELECT b FROM t ORDER BY id", []string{"b"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(3)}}))
+					run(fixture.Exec(tc.query, 0))
+					run(fixture.Exec("INSERT INTO t(id) VALUES(2)", 1))
+					var future any = int64(9)
+					if tc.drop {
+						future = nil
 					}
+					run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id", "b", "c"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(3), int64(7)}, {int64(2), future, int64(7)}}))
 				})
 			})
 		}

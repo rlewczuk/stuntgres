@@ -37,9 +37,17 @@ func TestAlterNullabilitySyntax(t *testing.T) {
 	if !errors.As(err, &got) || *got != want {
 		t.Fatal(got, err, want)
 	}
-	for _, q := range []string{"CREATE TABLE prefix(a INT); ALTER TABLE t ALTER a SET NOT NULL,", "ALTER TABLE t ALTER a SET NOT NULL, RENAME TO other", "ALTER TABLE t DROP b, DROP", "ALTER TABLE t ALTER a SET NOT NULL, ALTER a SET DEFAULT 7"} {
+	for _, q := range []string{"CREATE TABLE prefix(a INT); ALTER TABLE t ALTER a SET NOT NULL,", "ALTER TABLE t ALTER a SET NOT NULL, RENAME TO other", "ALTER TABLE t DROP b, DROP"} {
 		if ast, err := Parse(q); err == nil || ast != nil {
 			t.Fatal("accepted a valid prefix", q, ast, err)
 		}
+	}
+	ast, err := Parse("ALTER TABLE t ALTER a SET NOT NULL, ALTER a SET DEFAULT 7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := ast[0].(*AlterTable)
+	if !ok || len(s.Actions) != 2 || s.Actions[0].Action != SetNotNull || s.Actions[1].Action != SetColumnDefault || s.Actions[1].Expression == nil {
+		t.Fatal(ast)
 	}
 }

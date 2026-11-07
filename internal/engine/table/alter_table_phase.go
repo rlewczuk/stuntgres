@@ -9,10 +9,13 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 	switch action {
 	case parser.SetStorage, parser.SetCompression, parser.SetReplicaIdentity, parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
 		return 10
+	case parser.SetColumnDefault:
+		// Post-loop AT_PASS_ADD_OTHERCONSTR pass, consumed before Finish.
+		return 10
 	case parser.SetTablespace:
 		// Root destination preparation consumes unchanged placement before phases.
 		return -1
-	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression, parser.SetWithoutOIDs:
+	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression, parser.DropColumnDefault, parser.SetWithoutOIDs:
 		return 0
 	case parser.AlterColumnType:
 		return 1
@@ -43,9 +46,9 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 
 func inheritanceActionPass(action parser.AlterTableActionKind) int {
 	switch action {
-	case parser.SetStorage, parser.SetCompression, parser.SetReplicaIdentity, parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
+	case parser.SetStorage, parser.SetCompression, parser.SetReplicaIdentity, parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions, parser.SetColumnDefault:
 		return 10
-	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression:
+	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression, parser.DropColumnDefault:
 		return 0
 	case parser.AlterColumnType:
 		return 1

@@ -33,30 +33,36 @@ func ValidateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 // AlterDefaultColumn is the slot of the column whose DEFAULT s changes, after
 // the relation-kind, system, generated and identity column guards.
 func AlterDefaultColumn(old *catalog.Relation, s *parser.AlterTableDefault) (int, error) {
+	return AlterDefaultSlot(old, s.Column, s.Action)
+}
+
+// AlterDefaultSlot is AlterDefaultColumn's shared body for a standalone
+// statement or one action-list member.
+func AlterDefaultSlot(old *catalog.Relation, column parser.Identifier, action parser.DefaultAction) (int, error) {
 	if old.RelationKind != catalog.ForeignRelation {
 		if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
 			return 0, err
 		}
 	}
-	if catalog.IsSystemColumn(s.Column.Text) {
-		return 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text))
+	if catalog.IsSystemColumn(column.Text) {
+		return 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, column.Text))
 	}
-	slot, exists := old.Index[s.Column.Text]
+	slot, exists := old.Index[column.Text]
 	if !exists {
-		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.Name()))
+		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column.Text, old.Name()))
 	}
 	attr := old.Attributes[slot]
 	if _, generated := old.ColumnMeta.Generations[attr]; generated {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.Name())).(*sqlstate.Error)
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, column.Text, old.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
-		if s.Action == parser.DropDefault {
+		if action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP EXPRESSION instead."
 		}
 		return 0, diagnostic
 	}
 	if _, ok := old.ColumnMeta.Identities[attr]; ok {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.Name())).(*sqlstate.Error)
-		if s.Action == parser.DropDefault {
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, column.Text, old.Name())).(*sqlstate.Error)
+		if action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
 		}
 		return 0, diagnostic

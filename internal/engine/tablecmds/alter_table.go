@@ -80,6 +80,16 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if err := scope.ConstraintPendingPreflight(auth.Catalog, old.Address(), "ALTER TABLE"); err != nil {
 		return fail(err)
 	}
+	// A default action addresses the hierarchy itself, so every list containing
+	// one retains the standalone partition boundary even when its other actions
+	// are individually admitted.
+	if old.RelationKind != catalog.ForeignRelation && catalog.HierarchyRelation(old) {
+		for _, action := range s.Actions {
+			if action.Action == parser.SetColumnDefault || action.Action == parser.DropColumnDefault {
+				return fail(core.SQLError("0A000", "altering partition hierarchies is unsupported"))
+			}
+		}
+	}
 	if s.Only && scope.Inheritance.Alter == nil && !catalog.HierarchyRelation(old) {
 		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
@@ -456,6 +466,8 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				if err == nil {
 					addedIndexes = append(addedIndexes, next.Constraints.Exclusion[len(next.Constraints.Exclusion)-1].Index)
 				}
+			} else if action.Action == parser.DropColumnDefault {
+				next, err = dropColumnDefaultCandidate(scope, next, action)
 			} else {
 				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, inheritancePlan(scope).NotNullMode(action.Column.Text))
 			}
@@ -595,6 +607,26 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		if err != nil {
 			return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
 		}
+	}
+	// SET DEFAULT is PostgreSQL's AT_PASS_ADD_OTHERCONSTR pass: it observes the
+	// columns and final types earlier passes produced, in textual order, and its
+	// change joins the same candidate, Finish and sole publication.
+	for _, action := range s.Actions {
+		if action.Action != parser.SetColumnDefault {
+			continue
+		}
+		if err := op.Context().Err(); err != nil {
+			return core.Result{}, err
+		}
+		before := next
+		e.Mu.Lock()
+		next, err = setColumnDefaultCandidate(e, scope, op, auth, next, action)
+		e.Mu.Unlock()
+		if err != nil {
+			return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
+		}
+		scope.RecordAlterDeletion(auth, before, next, action)
+		inheritancePlan(scope).RecordAction(before, next, action)
 	}
 	next = table.PreserveTriggerModes(stagedModes, next)
 	op.Definition = originalDefinition

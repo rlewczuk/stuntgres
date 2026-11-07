@@ -463,6 +463,7 @@ func (j *StatementJumble) utilitySyntaxFields(node any, anchor *int) bool {
 		j.utilitySyntax(&n.TypeName, anchor)
 		j.utilitySyntax(n.Collation, anchor)
 		j.utilitySyntax(n.Using, anchor)
+		j.utilitySyntax(n.Expression, anchor)
 		j.utilitySyntax(n.Exclusion, anchor)
 		j.utilitySyntax(n.UsingIndex, anchor)
 		j.utilitySyntax(n.Generation, anchor)

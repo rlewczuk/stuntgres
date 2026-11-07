@@ -152,6 +152,14 @@ phases:
 					next = step.Identity.Next()
 					reader.AppendDelta(step.Identity)
 				}
+			case parser.DropColumnDefault:
+				var slot int
+				slot, err = AlterDefaultSlot(next, action.Column, parser.DropDefault)
+				if err == nil {
+					if _, present := next.ColumnMeta.Defaults[next.Attributes[slot]]; present {
+						next, err = InheritanceDefaultCandidate(next, slot, catalog.ColumnDefault{})
+					}
+				}
 			default:
 				// These providers require preparatory all-closure grants and therefore
 				// are cooked once in the ordinary sole-stage path, not in prefix admission.

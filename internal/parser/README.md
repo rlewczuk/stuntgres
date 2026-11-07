@@ -332,6 +332,10 @@ ordinary assignments to an unreserved `security` variable.
   relation-only IF EXISTS does not add a per-rule existence modifier or wildcard.
   Column STORAGE/COMPRESSION actions retain a positioned identifier property,
   including in relation-level IF EXISTS action lists and ONLY targets.
+  Column DEFAULT actions are ordinary list members: SET carries the parsed
+  expression and DROP does not, a one-element default list still reduces to the
+  standalone `AlterTableDefault`, and a lone IF EXISTS default remains a located
+  syntax error.
   DEFAULT is decoded as `default`. Unknown names reach semantic validation,
   while string literals and trailing input remain syntax errors at the offending
   token. SET's unreserved action word shifts its continuation before validation,

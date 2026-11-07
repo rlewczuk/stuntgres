@@ -482,7 +482,7 @@ package parser
 %type <windowFrame> window_frame
 %type <frameBound> frame_bound
 %type <frameExclusion> window_exclusion
-%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> explain explainable
 %type <explainOptions> explain_option_list explain_legacy
 %type <explainOption> explain_option
@@ -740,7 +740,7 @@ package parser
 %type <tok> check_function_head
 %type <tok> extract_field
 %type <alterActions> alter_actions
-%type <alterAction> alter_selected_action ordinary_alter_action alter_constraint
+%type <alterAction> alter_selected_action alter_column_default_action ordinary_alter_action alter_constraint
 %type <tok> alter_type_keyword
 %type <collation> column_collation
 %type <expr> alter_using
@@ -2836,11 +2836,18 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && !(a.Action==AddColumn && a.Definition!=nil && len(a.Definition.ForeignOptions)!=0) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetReplicaIdentity && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression && a.Action!=SetColumnStatistics && a.Action!=SetColumnOptions && a.Action!=ResetColumnOptions {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions {
+  if len($4)==1 && ($4[0].Action==SetColumnDefault || $4[0].Action==DropColumnDefault) {
+    if $3.IfExists { sqllex.(*lexer).failAt("42601","syntax error at or near \"ALTER\"",$4[0].Pos.Offset); return 1 }
+    action:=SetDefault
+    if $4[0].Action==DropColumnDefault { action=DropDefault }
+    $$=&AlterTableDefault{Name:$3.Name,Column:$4[0].Column,Only:$3.Only,Action:action,Expression:$4[0].Expression,Pos:$1.pos}
+  } else {
+  if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && !(a.Action==AddColumn && a.Definition!=nil && len(a.Definition.ForeignOptions)!=0) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetReplicaIdentity && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression && a.Action!=SetColumnStatistics && a.Action!=SetColumnOptions && a.Action!=ResetColumnOptions && a.Action!=SetColumnDefault && a.Action!=DropColumnDefault {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos}
+  }
+ }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | ALTER MATERIALIZED VIEW ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$7.text,Pos:$7.pos},Destination:Identifier{Text:$11.text,Pos:$11.pos},Owners:$8,Nowait:$12,Materialized:true,Pos:$1.pos} }
- | alter_default_single { $$=$1 }
- | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
  | ALTER TABLE rename_target OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"table",Name:$3.Name,IfExists:$3.IfExists,Target:$6,Pos:$1.pos} }
  | alter_schema_single { $$=$1 }
@@ -2872,10 +2879,9 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
  | ALTER TABLE rename_target alter_action { if $4.keyword==nil {sqllex.(*lexer).syntax($4)} else {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset)}; return 1 } ;
 tablespace_owners: /* empty */ { $$=nil } | OWNED BY membership_role_specs { $$=$3 } ;
 alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
- | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) }
- | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
- | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
+ | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) } ;
 ordinary_alter_action: alter_selected_action {$$=$1}
+ | alter_column_default_action {$$=$1}
  | alter_column_add {sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos:$1.Ordinary.Pos},$1.Ordinary.Definition);$$=$1.Ordinary} ;
 alter_column_add: ADD optional_column column {c:=$3;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}}
  | ADD optional_column IF NOT EXISTS column {c:=$6;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}} ;
@@ -2946,14 +2952,14 @@ alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Cons
  | alter_constraint DEFERRABLE {if !sqllex.(*lexer).alterTiming($1,$2,true,true){return 1};$$=$1}
  | alter_constraint INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).alterTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1}
  | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
+alter_column_default_action: ALTER optional_column name SET DEFAULT target_or { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetColumnDefault,Expression:$6,Pos:$1.pos} }
+ | ALTER optional_column name DROP DEFAULT { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropColumnDefault,Pos:$1.pos} } ;
 alter_type_keyword: TYPE { $$=$1 }
  | SET DATA TYPE { $$=$1 } ;
 column_property_value: name {$$=$1} | DEFAULT {$$=$1} ;
 column_collation: /* empty */ {$$=nil}
  | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
 alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;
-alter_default_single: ALTER TABLE rename_target ALTER optional_column name SET DEFAULT target_or { if $3.IfExists {sqllex.(*lexer).syntax($4);return 1};$$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:SetDefault,Expression:$9,Pos:$1.pos} }
- | ALTER TABLE rename_target ALTER optional_column name DROP DEFAULT { if $3.IfExists {sqllex.(*lexer).syntax($4);return 1};$$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:DropDefault,Pos:$1.pos} } ;
 alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME optional_column name TO name { $$=&AlterTableRenameColumn{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { $$=&AlterTableRenameConstraint{Name:$3.Name,Constraint:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos,ConstraintPos:$5.pos} } ;
