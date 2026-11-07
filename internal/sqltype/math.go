@@ -56,7 +56,7 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
 	case "log":
 		valid = (len(args) == 1 && (id == Numeric || id == Float8)) || (len(args) == 2 && id == Numeric && args[1] == args[0])
-	case "power":
+	case "pow", "power":
 		valid = len(args) == 2 && (id == Numeric || id == Float8) && args[1] == args[0]
 	case "lgamma":
 		valid = len(args) == 1 && id == Float8
@@ -136,10 +136,10 @@ func (p MathPlan) Evaluate(ctx context.Context, values []Value, input InputEnvir
 	}
 	id := a.typ.id
 	switch p.name {
-	case "lgamma", "ln", "log", "log10", "power", "sqrt":
+	case "lgamma", "ln", "log", "log10", "pow", "power", "sqrt":
 		if id == Numeric {
 			switch p.name {
-			case "power":
+			case "pow", "power":
 				return numericPower(ctx, a, b)
 			case "sqrt":
 				return numericSqrt(ctx, a)

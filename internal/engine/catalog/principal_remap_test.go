@@ -18,8 +18,10 @@ func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	}
 	body := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90001}, ObjectRevision: 3, Owner: owner, SecurityDefiner: true, Display: RoutineDisplay{Language: SQLRoutineLanguage, Source: " SELECT $1 "},
 		ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.ExecutePrivilege}}}}
+	body.Comment = "retained body description"
 	outer := &Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90002}, ObjectRevision: 4, Owner: owner, Display: RoutineDisplay{Language: CRoutineLanguage, Source: "original_symbol", Binary: "$libdir/original_library", HasBinary: true, Support: 6242, Leakproof: true, TransformTypes: transforms},
 		Body: []RoutineBodyEdge{{Routine: body}, {Routine: body}}}
+	outer.Comment = "retained outer description"
 	// A current COW revision must not replace the original body association.
 	current := *body
 	current.ObjectRevision = 9
@@ -45,6 +47,9 @@ func TestRoutineBodyPrincipalRemap(t *testing.T) {
 	}
 	if mapped.Display.TransformTypes != transforms || mapped.Display.Binary != "$libdir/original_library" || !mapped.Display.HasBinary || mapped.Display.Support != 6242 || !mapped.Display.Leakproof {
 		t.Fatal("immutable readonly metadata backing lost during principal remap")
+	}
+	if mapped.Comment != outer.Comment || captured.Comment != body.Comment {
+		t.Fatal("descriptor-owned comments lost during principal remap")
 	}
 	if mapped.Body[1].Routine != captured || captured.Body[0].Routine != mapped {
 		t.Fatal("shared or cyclic body associations were not preserved")

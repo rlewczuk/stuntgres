@@ -94,6 +94,10 @@ neither owns catalog authority.
   COW identity/principal remaps share that immutable backing. Display is distinct
   from execution `Language` and supplies no capability. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
+  `Procedure.Comment` is descriptor-owned local text; empty means absent.
+  Builtin construction seeds only the released pow/power descriptions. Copies
+  and identity/principal remaps preserve the stored value without regenerating
+  removed text or granting any execution authority.
   `PLHandler.ReleasedProcedure` supplies the single released C declaration for
   both bootstrap and CREATE EXTENSION: explicit `$libdir/plpgsql` binary presence
   and the immutable `Installed` parallel-unsafe default. Handler validation checks

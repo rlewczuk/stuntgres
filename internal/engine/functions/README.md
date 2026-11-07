@@ -8,6 +8,13 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`Math` retains each call's original name and routine provenance, including the
+distinct `pow` and `power` identities, through reconstruction and stored rendering.
+Both names share exact numeric/floating signatures and the same type-owned power
+kernels. Selected logarithm/root/power/bucket calls evaluate demanded operands
+before strict typed NULL handling and use the ordinary scalar-operand and DEFAULT
+routes; aliasing does not widen other providers' admission.
+
 `BackendMemoryContexts` is the volatile, nonfolding zero-input RECORD SRF for
 `pg_get_backend_memory_contexts`. Its named output shape and ordinary routine
 provenance retain no session or permission decision. Source opening borrows

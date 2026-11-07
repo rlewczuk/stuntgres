@@ -69,6 +69,8 @@ The twelve scalar comparison estimators likewise expose genuine strict STABLE,
 parallel-safe INTERNAL metadata without scalar execution providers.
 Release-owned TSV facts preserve exact membership and all 28 projected fields,
 including tmpdir's explicit cost 10 and row estimate 20.
+The two `pow` overloads (1346/1738) retain the same released metadata as their
+`power` counterparts except for OID and name, in that complete inventory.
 The WAL view's metadata-only backing declaration1136 contributes its five ordered
 OUT fields, including NUMERIC bytes, non-strict STABLE/parallel-restricted scalar
 RECORD metadata, zero inputs and rows0 to that same strict full inventory.

@@ -95,7 +95,7 @@ func bindMathProvider(name string, result sqltype.Usage, args []sqltype.Usage, r
 // conditional planner.
 func selectedLogPower(name string) bool {
 	switch name {
-	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
+	case "lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket":
 		return true
 	}
 	return false
@@ -150,7 +150,7 @@ func mathSignatures(name string) []MathSignature {
 		return []MathSignature{unary(sqltype.Float8)}
 	case "log":
 		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8), {[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
-	case "power":
+	case "pow", "power":
 		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}, {[4]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}
 	case "width_bucket":
 		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric, sqltype.Numeric, sqltype.Int4}, 4, sqltype.Int4}, {[4]sqltype.ID{sqltype.Float8, sqltype.Float8, sqltype.Float8, sqltype.Int4}, 4, sqltype.Int4}}

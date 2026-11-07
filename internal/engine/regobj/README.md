@@ -262,8 +262,10 @@ import it.
   arrays resolve against the executing catalog, not a previous prepared reader.
 - **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
   `obj_description`, `col_description` and `shobj_description` over the
-  comment catalog and roles; an empty text is NULL. Local extension lookups use
-  exact `pg_extension` class identity; shared inquiries never consume this text.
+  comment catalog and roles; an empty text is NULL. Local extension and procedure
+  lookups use exact `pg_extension` and `pg_proc` class identities and read the
+  descriptor's current text without a released-description fallback. Shared
+  inquiries never consume this local text.
 
 ## Soft and hard input errors
 

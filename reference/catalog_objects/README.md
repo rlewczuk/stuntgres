@@ -216,6 +216,9 @@ During CREATE/IMPORT validation the private relation shape is visible before its
 foreign-table metadata exists. Capture checks that shell's relation authority
 before excluding it, and applies full server checks once the definition exists.
 
+Description controls restore all 171 native builtin seeds on Reset, including
+the four released `pow`/`power` procedure descriptions.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Namespaces, schemas, `search_path`: `RUN='^TestReferencePGNamespace'`, `RUN='^TestReferenceSchema'`

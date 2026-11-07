@@ -8,7 +8,7 @@ import (
 
 // mathNames are the scalar math functions dispatched by exact spelling.
 var mathNames = [...]string{
-	"lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket",
+	"lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket",
 	"sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
 	"cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm",
 	"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand",

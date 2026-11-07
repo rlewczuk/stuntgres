@@ -75,6 +75,7 @@
 1343	trunc	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dtrunc	\N	false	\N
 1344	sqrt	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dsqrt	\N	false	\N
 1345	cbrt	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dcbrt	\N	false	\N
+1346	pow	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	701 701	\N	\N	\N	false	\N	dpow	\N	false	\N
 1347	exp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dexp	\N	false	\N
 1348	obj_description	11	14	100	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N		\N	true	\N
 1352	timetz_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1266 1266	\N	\N	\N	false	\N	timetz_eq	\N	false	\N
@@ -315,6 +316,7 @@
 1732	exp	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_exp	\N	false	\N
 1734	ln	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	numeric_ln	\N	false	\N
 1736	log	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_log	\N	false	\N
+1738	pow	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_power	\N	false	\N
 1739	numeric_power	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	numeric_power	\N	false	\N
 1740	numeric	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	1700	23	\N	\N	\N	false	\N	int4_numeric	\N	false	\N
 1741	log	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N		\N	true	\N

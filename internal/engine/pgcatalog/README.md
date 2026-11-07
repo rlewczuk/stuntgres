@@ -1647,6 +1647,9 @@ catalog writes or bypass a provider's independent backing-source checks.
   Text-search dictionary text contributes its genuine dictionary OID, class 3600
   and subobject zero; removing text removes the row and class-qualified inquiry
   returns NULL. No template or helper comments are inferred from membership.
+  Procedure text contributes its live routine OID, class 1255 and subobject zero
+  only. Projection and class-qualified inquiry read `Procedure.Comment`; empty
+  text removes the row without an OID/name-based released-description fallback.
 - `pg_am`: live global method descriptors with owned typed cells per capture;
   family→method and method→handler dependencies use shared selectors, and
   references to pinned stock handlers are suppressed, not fabricated.

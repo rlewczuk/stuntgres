@@ -1864,7 +1864,7 @@ func singletonArgument(expr Expr) bool {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "pg_get_userbyid", "pg_get_catalog_foreign_keys", "pg_mcv_list_items", "pg_tablespace_location", "pg_tablespace_databases", "pg_partition_tree", "pg_partition_ancestors", "pg_partition_root":
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
-			case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
+			case "lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket":
 			case "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":
 			case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 			case "pg_collation_actual_version":

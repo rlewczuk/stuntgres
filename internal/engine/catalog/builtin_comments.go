@@ -83,3 +83,13 @@ func BuiltinTypeComment(id sqltype.ID) string {
 	}
 	return ""
 }
+
+// BuiltinProcedureComment is the released REL_18_6 pg_proc.dat description
+// seeded into the represented pow/power descriptors, never an inquiry fallback.
+func BuiltinProcedureComment(oid ids.OID) string {
+	switch oid {
+	case 1346, 1368, 1738, 2169:
+		return "exponentiation"
+	}
+	return ""
+}

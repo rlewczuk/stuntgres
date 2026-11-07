@@ -1689,7 +1689,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
-	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
+	case "lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
@@ -2454,7 +2454,7 @@ func trigFunction(name string) bool {
 }
 
 func mathConstantFunction(name string) bool {
-	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket", "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "exp"} {
+	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket", "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "exp"} {
 		if strings.EqualFold(name, builtin) {
 			return true
 		}
@@ -2463,7 +2463,7 @@ func mathConstantFunction(name string) bool {
 }
 
 func mathLogPowerFunction(name string) bool {
-	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket"} {
+	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "pow", "power", "sqrt", "width_bucket"} {
 		if strings.EqualFold(name, builtin) {
 			return true
 		}

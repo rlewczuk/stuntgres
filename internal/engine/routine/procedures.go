@@ -104,6 +104,7 @@ var builtinProcedureTemplate = sync.OnceValue(func() []catalog.Procedure {
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
 			RoutineKind: declaration.Kind, Builtin: declaration,
 			Display:         builtinRoutineDisplayValue(declaration.Identity.ID, display),
+			Comment:         catalog.BuiltinProcedureComment(declaration.Identity.ID),
 			DeclarationBody: builtinRoutineDeclarationBodies[declaration.Identity.ID],
 			Cost:            BuiltinRoutineCost(declaration),
 			Result:          declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,

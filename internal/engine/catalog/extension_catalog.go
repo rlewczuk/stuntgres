@@ -76,6 +76,7 @@ type Procedure struct {
 	SQL                                       *proc.Definition
 	Language                                  ids.ObjectAddress
 	Display                                   RoutineDisplay
+	Comment                                   string
 	// Transforms owns ordered exact pair identities independently of execution.
 	Transforms       *RoutineTransforms
 	PLHandler        PLHandler

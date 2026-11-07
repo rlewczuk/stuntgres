@@ -4,7 +4,7 @@ import "math"
 
 func logarithmRootPower(name string, x, y float64) (float64, error) {
 	switch name {
-	case "power":
+	case "pow", "power":
 		return floatingPower(x, y)
 	case "ln", "log", "log10":
 		if x == 0 {

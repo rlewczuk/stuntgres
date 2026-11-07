@@ -288,8 +288,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// no OUT/default fields and their exact internal implementation symbols.
 	// Legacy backend state adds six released scalar declarations1940/2094/
 	// 2857/2853/2788/6107; only6107 has named IN/OUT metadata.
-	if len(facts) != 2302 {
-		t.Fatalf("released represented overloads: got %d, want 2302", len(facts))
+	if len(facts) != 2304 {
+		t.Fatalf("released represented overloads: got %d, want 2304", len(facts))
 	}
 	return facts
 }

@@ -13,6 +13,12 @@ catalog-row supplement or identity-ledger lookup manufactures a target descripto
 or callable capability. Estimators retain their exact INTERNAL formals and stable,
 strict, parallel-safe declarations without exposing scalar execution.
 
+The math provider declares pow and power independently at their released OIDs
+and signatures, with shared INTERNAL sources `dpow` and `numeric_power`.
+The once-built builtin template seeds their released descriptions into
+`Procedure.Comment`; fresh engine descriptors copy that text, not an inquiry
+fallback or an additional catalog-row inventory.
+
 `FmgrBuiltin` classifies original generated INTERNAL, nonaggregate fmgr
 declarations only. Original access-method handlers and the intrinsic BRIN/GIN
 support capabilities use their canonical released address/role/ABI associations,
