@@ -23676,6 +23676,11 @@ sqldefault:
 	case 555:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
+			if sqlDollar[2].identityMode != IdentityAlways {
+				l := sqllex.(*lexer)
+				l.failAt("42601", "for a generated column, GENERATED ALWAYS must be specified", l.generationModePos.Offset)
+				return 1
+			}
 			expression := sqlDollar[5].expr
 			if restriction := sqllex.(*lexer).generationCompletedRestriction; restriction != nil {
 				expression = ForbiddenGenerationExpr{*restriction}

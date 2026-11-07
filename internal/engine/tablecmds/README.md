@@ -62,6 +62,11 @@ Return readmission fences the same operation/settings, catalog/roles/actor and
 optional stage structural input; stale work is never rebound or replayed.
 Original source/virtual security precedes simplification, while immutability,
 storage coercion and original/planned dependency capture retain their order.
+ADD and SET EXPRESSION share this binder. Admitted ADD generation attributes
+join the existing replacement lane, including cached inheritance candidates;
+stored filtering alone controls generation rewrite and event reasons.
+Definition/provider and expression-snapshot capture precede physical demand,
+and row, index and catalog publication remain one atomic statement.
 Stored-program preparation and actual row invocation carry that definition's
 original manifest and consumer with one genuine execution owner; ALTER keeps the
 old installed consumer. SQL routine expressions retain their existing FoldNever

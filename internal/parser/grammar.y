@@ -1559,7 +1559,7 @@ sequence_option: AS type { $$=&SequenceOption{Name:"as",Type:$2,Pos:$1.pos} }
  | OWNED BY comment_column_name { $$=&SequenceOption{Name:"owned",Owned:$3,Pos:$1.pos} } ;
 identity_mode: ALWAYS { $$=IdentityAlways } | BY DEFAULT { $$=IdentityByDefault } ;
 identity_definition: GENERATED identity_mode AS IDENTITY identity_options { $$=&IdentityDefinition{Mode:$2,Options:$5,Pos:$1.pos} } ;
-generation_definition: GENERATED identity_mode AS '(' scalar_projection ')' generation_kind { expression:=$5;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&GenerationDefinition{Expression:expression,Mode:$2,Kind:$7.text,Pos:$1.pos,ModePos:sqllex.(*lexer).generationModePos} } ;
+generation_definition: GENERATED identity_mode AS '(' scalar_projection ')' generation_kind { if $2!=IdentityAlways {l:=sqllex.(*lexer);l.failAt("42601","for a generated column, GENERATED ALWAYS must be specified",l.generationModePos.Offset);return 1};expression:=$5;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&GenerationDefinition{Expression:expression,Mode:$2,Kind:$7.text,Pos:$1.pos,ModePos:sqllex.(*lexer).generationModePos} } ;
 generation_kind: /* empty */ { $$=lexeme{} } | KW_U { if $1.text!="stored" && $1.text!="virtual" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 generation_expression_word: KW_U { if $1.text!="expression" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 identity_options: /* empty */ { $$=nil } | '(' identity_option_list ')' { $$=$2 } ;

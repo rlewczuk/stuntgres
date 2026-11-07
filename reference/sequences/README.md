@@ -4,7 +4,8 @@ Sequences and value-producing columns: CREATE/ALTER/DROP SEQUENCE, `nextval`/
 `currval`/`setval` and their REGCLASS inputs, sequence ownership, prepared
 sequence statements, TEMP sequence namespaces; serial and identity columns and
 serial/identity inquiry; column DEFAULT expressions; STORED and VIRTUAL generated
-columns and `ALTER COLUMN ... SET/DROP EXPRESSION`; temporary tables. Related
+columns, including `ADD COLUMN` and `ALTER COLUMN ... SET/DROP EXPRESSION`;
+temporary tables. Related
 families: `random()` in `reference/numeric`; COPY into virtual generated columns
 in `reference/dml`; inheritance row-lock rechecks of generated columns in
 `reference/locking_transactions`.
@@ -13,7 +14,8 @@ in `reference/dml`; inheritance row-lock rechecks of generated columns in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 
-- Helpers: `generatedStoredScenario` (`generated_stored_test.go`),
+- Helpers: `addGeneratedRoutes` (`alter_add_column_generated_helpers_test.go`),
+  `generatedStoredScenario` (`generated_stored_test.go`),
   `newSequencePreparedSession` (`sequence_prepared_helpers_test.go`),
   `sequenceRestartValue`/`sequenceRestartState` (`sequence_restart_helpers_test.go`),
   `serialIdentityScenario` (`serial_identity_inquiry_test.go`),
@@ -37,6 +39,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Column defaults: `RUN='^TestReference(Smoke)?(Insert)?Default'`
 - STORED generated columns: `RUN='^TestReferenceGeneratedStored'`
 - VIRTUAL generated columns (also runs the dml COPY tests): `RUN='^TestReferenceGeneratedVirtual'`
+- Added generated columns: `RUN='^TestReferenceAlterAddColumnGenerated'`
 - `SET/DROP EXPRESSION`: `RUN='^TestReferenceAlterGeneratedExpression'`
 - Temporary tables: `RUN='^TestReferenceTemporaryTable'`
 

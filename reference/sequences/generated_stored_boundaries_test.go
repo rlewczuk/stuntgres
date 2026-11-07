@@ -41,16 +41,16 @@ func TestReferenceGeneratedStoredAdjacentBoundaries(t *testing.T) {
 }
 
 func TestReferenceGeneratedStoredAddBoundary(t *testing.T) {
-	generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, run func(fixture.Step)) {
-		run(fixture.Exec(`CREATE TABLE g(a INT)`, 0))
-		run(fixture.Exec(`INSERT INTO g VALUES(2)`, 1))
-		q := `ALTER TABLE g ADD COLUMN b INT GENERATED ALWAYS AS(a+1) STORED`
-		if backend.PG {
-			run(fixture.Exec(q, 0))
-			run(fixture.Select(`SELECT * FROM g`, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(3)}}))
-		} else {
-			run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "ADD COLUMN generated declarations are unsupported", Position: fixture.GeneratedStoredPosition(q, "GENERATED")}))
-			run(fixture.Select(`SELECT * FROM g`, []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}}))
-		}
-	})
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, run func(fixture.Step)) {
+				run(fixture.Exec(`CREATE TABLE g(a INT)`, 0))
+				run(fixture.Exec(`INSERT INTO g VALUES(2)`, 1))
+				s := fixture.Exec(`ALTER TABLE g ADD COLUMN b INT GENERATED ALWAYS AS(a+1) STORED`, 0)
+				s.Prepared = prepared
+				run(s)
+				run(fixture.Select(`SELECT * FROM g`, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(3)}}))
+			})
+		})
+	}
 }

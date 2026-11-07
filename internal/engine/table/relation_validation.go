@@ -346,15 +346,18 @@ func (p RelationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if err := ValidateGenerationPlan(v, r, definition.Planned); err != nil {
 			return err
 		}
+	}
+	// Check source plans before provider authority, and both before rendering literals.
+	if err := ValidateGenerationProviders(v, r); err != nil {
+		return err
+	}
+	for _, definition := range r.ColumnMeta.Generations {
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
 		_, err := (stored.ScalarRenderer{Validation: true, Owner: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
 		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}
-	}
-	if err := ValidateGenerationProviders(v, r); err != nil {
-		return err
 	}
 	for sub, text := range r.ColumnMeta.Comments {
 		if !r.HasAttribute(sub) || text == "" {

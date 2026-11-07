@@ -140,9 +140,6 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 	if declaration.Identity != nil {
 		return fail(insertError("0A000", "ADD COLUMN identity declarations are unsupported", declaration.Identity.Pos))
 	}
-	if declaration.Generation != nil {
-		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.Generation.Pos))
-	}
 	attribute := old.ColumnMeta.HighWater + 1
 	next := *old
 	next.ColumnMeta.HighWater = attribute
@@ -157,9 +154,28 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
 	added := AddedColumn{Attribute: attribute, Column: column, Declaration: declaration, Value: sqltype.Null(usage.Type)}
-	node, origin := analyze.ColumnDefault(view.Catalog, &next, len(next.Columns)-1)
-	added.Expression = node
-	added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
+	if declaration.Generation != nil {
+		next.ColumnMeta.Generations = maps.Clone(old.ColumnMeta.Generations)
+		kind := catalog.GenerationVirtual
+		if declaration.Generation.Kind == "stored" {
+			kind = catalog.GenerationStored
+		}
+		if next.ColumnMeta.Generations == nil {
+			next.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
+		}
+		// Reserve the kind before binding so self references use the same
+		// generated-column restriction as CREATE and SET EXPRESSION.
+		next.ColumnMeta.Generations[attribute] = catalog.ColumnGeneration{Kind: kind}
+		generation, err := h.BindGeneration(auth, &next, len(next.Columns)-1, declaration.Generation.Expression)
+		if err != nil {
+			return fail(AlterCookingError(err))
+		}
+		next.ColumnMeta.Generations[attribute] = generation
+	} else {
+		node, origin := analyze.ColumnDefault(view.Catalog, &next, len(next.Columns)-1)
+		added.Expression = node
+		added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
+	}
 	if declaration.DefaultExpr != nil {
 		node, err := h.BindDefault(auth, old, definition, declaration.DefaultExpr)
 		if err != nil {

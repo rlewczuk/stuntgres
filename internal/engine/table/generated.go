@@ -29,14 +29,14 @@ func GenerationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 }
 
 // One execution owner uses one fixed generation program for this descriptor.
-// ALTER borrows its existing selected-slot vector; ordinary writes demand all
-// stored slots. Neither path admits unused recipes or checks rights per row.
+// ALTER borrows its selected-slot vector, including newly added virtual recipes
+// demanded by a companion rewrite; ordinary writes demand only stored slots.
 func PrepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
 	program, prepared := c.PreparedGenerations[d]
 	if prepared {
 		return program, nil
 	}
-	stored := false
+	demanded := false
 	count := len(d.Attributes)
 	if selected != nil {
 		count = len(selected)
@@ -47,16 +47,16 @@ func PrepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 			slot = selected[i]
 		}
 		definition, exists := d.ColumnMeta.Generations[d.Attributes[slot]]
-		if !exists || definition.Kind != catalog.GenerationStored {
+		if !exists || selected == nil && definition.Kind != catalog.GenerationStored {
 			continue
 		}
-		if !stored {
-			// The actual execution owner must survive all recipe-local copies,
-			// cached program reuse and later rows. Unused/virtual slots mint none.
+		if !demanded {
+			// The actual execution owner survives every recipe-local copy,
+			// cached program reuse and later row.
 			if err := exec.BeginRoutineInitialization(c); err != nil {
 				return nil, err
 			}
-			stored = true
+			demanded = true
 		}
 		recipe := *c
 		recipe.RoutineRecipe, recipe.RoutineGraft = true, false
@@ -81,7 +81,7 @@ func PrepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 			program[slot] = node
 		}
 	}
-	if stored {
+	if demanded {
 		if c.PreparedGenerations == nil {
 			c.PreparedGenerations = make(map[*catalog.Relation][]expr.Expr)
 		}
@@ -133,6 +133,9 @@ func EvaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 func ValidateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.ColumnMeta.Generations {
 		for _, ref := range definition.Dependencies {
+			if ref.Address.ClassID == ids.TSConfigurationClassID && ref.Address.SubID != 0 {
+				return fmt.Errorf("stuntgres: invalid generation configuration")
+			}
 			address := ref.Address
 			address.SubID = 0
 			if !stored.ReferenceEpochValid(view, d, ref) {
@@ -156,7 +159,7 @@ func ValidateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				rowType, exists := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 				validRelation = exists && stored.CompositeAttributeProvider(rowType, relation, ref.Address.SubID)
 			}
-			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && !validRelation || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.TSConfigurationObject && provider.Kind() != ids.ProcedureObject && !validRelation || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
 			if provider.Kind() == ids.ProcedureObject {
@@ -168,6 +171,15 @@ func ValidateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}
 				if err := (stored.ProcedureProvider{}).Validate(view, procedure); err != nil {
+					return err
+				}
+			}
+			if address.ClassID == ids.TSConfigurationClassID || provider.Kind() == ids.TSConfigurationObject {
+				configuration, ok := provider.(*catalog.TSConfiguration)
+				if !ok || configuration == nil || ref.Address.SubID != 0 || address.ClassID != ids.TSConfigurationClassID || configuration.Address() != address {
+					return fmt.Errorf("stuntgres: invalid generation configuration")
+				}
+				if err := (catalog.TSConfigurationProvider{}).Validate(view, configuration); err != nil {
 					return err
 				}
 			}

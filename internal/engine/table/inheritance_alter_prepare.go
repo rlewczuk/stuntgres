@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
@@ -40,6 +41,7 @@ func PrepareInheritanceRowType(reader *InheritanceDefinitionReader, relation *ca
 
 func DetachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
 	copy := *next
+	copy.ColumnMeta.Generations = maps.Clone(next.ColumnMeta.Generations)
 	copy.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 	copy.Constraints.Check = slices.Clone(next.Constraints.Check)
 	return &copy

@@ -502,6 +502,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			}
 			if added.Column != nil {
 				additions = append(additions, added)
+				if added.Declaration.Generation != nil && !slices.Contains(replacements, added.Attribute) {
+					replacements = append(replacements, added.Attribute)
+				}
 				if admittedAdds != nil {
 					*admittedAdds = append(*admittedAdds, actionIndex)
 				}
@@ -970,7 +973,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 	}
 	for _, added := range additions {
-		if next.ColumnMeta.Defaults[added.Attribute].CatalogSnapshot {
+		if next.ColumnMeta.Defaults[added.Attribute].CatalogSnapshot || next.ColumnMeta.Generations[added.Attribute].CatalogSnapshot {
 			e.Mu.Lock()
 			err = e.CaptureCommentSnapshotLocked(scope)
 			e.Mu.Unlock()

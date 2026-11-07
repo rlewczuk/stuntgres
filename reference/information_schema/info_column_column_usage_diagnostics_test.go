@@ -115,14 +115,14 @@ func TestReferenceInfoColumnColumnUsageDiagnostics(t *testing.T) {
 		}
 		c.exec("CREATE TABLE colcu_add(a integer)")
 		q := "ALTER TABLE colcu_add ADD COLUMN b integer GENERATED ALWAYS AS(a+1) STORED"
-		if c.b.PG {
-			c.exec(q)
+		for _, prepared := range []bool{false, true} {
+			if prepared {
+				c.exec("ALTER TABLE colcu_add DROP b")
+			}
+			s := fixture.Exec(q, 0)
+			s.Prepared = prepared
+			c.run(c.conn, s)
 			c.check(c.conn, "colcu_add", c.pub("colcu_add", "a", "b"))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("0A000", "ADD COLUMN generated declarations are unsupported")
-			d.Position = fixture.GeneratedStoredPosition(q, "GENERATED")
-			c.run(c.conn, fixture.ErrorDiagnostic(q, d))
-			c.check(c.conn, "colcu_add")
 		}
 		if !c.b.PG {
 			ctx, cancel := context.WithCancel(c.p.Ctx)

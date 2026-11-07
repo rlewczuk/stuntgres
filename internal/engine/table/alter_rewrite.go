@@ -32,9 +32,23 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 		index  int
 		perRow bool
 	}, len(additions))
-	generatedSlots := make([]int, len(generations))
+	generatedCount := len(generations)
+	for _, added := range additions {
+		if next.ColumnMeta.Generations[added.Attribute].Kind == catalog.GenerationVirtual {
+			generatedCount++
+		}
+	}
+	generatedSlots := make([]int, len(generations), generatedCount)
 	for i, attribute := range generations {
 		generatedSlots[i] = next.IndexForAttribute(attribute)
+	}
+	// ADD queues both generation kinds for a real rewrite, but virtual-only
+	// ADD never requests that rewrite. Existing virtual columns are not new
+	// values, so an unrelated rewrite does not demand their recipes.
+	for _, added := range additions {
+		if next.ColumnMeta.Generations[added.Attribute].Kind == catalog.GenerationVirtual {
+			generatedSlots = append(generatedSlots, next.IndexForAttribute(added.Attribute))
+		}
 	}
 	for i, added := range additions {
 		addedSlots[i].index = next.Index[added.Column.Name]
@@ -141,7 +155,7 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 				values[addedSlots[i].index] = value
 			}
 			evaluation.Row = values
-			if !preparedGeneration && len(generations) != 0 {
+			if !preparedGeneration && len(generatedSlots) != 0 {
 				var err error
 				generationProgram, err = PrepareGenerationProgram(&evaluation, next, generatedSlots, old)
 				if err != nil {
@@ -149,11 +163,11 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 				}
 				preparedGeneration = true
 			}
-			for i, attribute := range generations {
-				definition := next.ColumnMeta.Generations[attribute]
+			for _, slot := range generatedSlots {
+				definition := next.ColumnMeta.Generations[next.Attributes[slot]]
 				expression := GenerationRecipeExpression(definition)
 				if generationProgram != nil {
-					expression = generationProgram[generatedSlots[i]]
+					expression = generationProgram[slot]
 				}
 				recipe := evaluation
 				recipe.RoutineRecipe, recipe.RoutineGraft = true, false
@@ -165,7 +179,9 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 				if err != nil {
 					return nil, err
 				}
-				values[generatedSlots[i]] = value
+				if definition.Kind == catalog.GenerationStored {
+					values[slot] = value
+				}
 			}
 			if err := validator.Validate(values, &evaluation); err != nil {
 				return nil, err

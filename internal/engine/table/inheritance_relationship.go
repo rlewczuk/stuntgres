@@ -119,13 +119,10 @@ func AttachInheritance(ctx context.Context, view catalog.Read, child, parent *ca
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table %s be a generated column`, column.Name, must))
 		}
 		if parentGenerated && pg.Kind != cg.Kind {
-			kind := func(k catalog.GenerationKind) string {
-				if k == catalog.GenerationStored {
-					return "STORED"
-				}
-				return "VIRTUAL"
-			}
-			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`column "%s" inherits from generated column of different kind`, column.Name), Detail: fmt.Sprintf("Parent column is %s, child column is %s.", kind(pg.Kind), kind(cg.Kind))}
+			// ALTER INHERIT uses datatype_mismatch; CREATE uses invalid_column_definition.
+			err := analyze.GenerationInheritanceError(column.Name, pg.Kind, cg.Kind).(*sqlstate.Error)
+			err.Code = "42804"
+			return nil, err
 		}
 		mapper.TargetSlots[i] = slot
 	}

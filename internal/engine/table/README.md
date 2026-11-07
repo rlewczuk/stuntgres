@@ -97,6 +97,13 @@ call live here.
   accumulates default/generated and checked TYPE causes without collapsing
   combinations or confusing native row copies with semantic events. The command
   owner adds actual persistence/method changes only for stored relation kinds.
+  ADD reserves each generated kind on an owned candidate before the shared
+  binder runs against that source-ordered descriptor. Generation recipes never
+  enter the DEFAULT fill lane. Stored additions join the deduplicated expression
+  replacement list, so even constant or NULL recipes force a real rewrite.
+  Virtual-only additions project typed physical NULLs without demanding recipes.
+  A companion rewrite demands newly added virtual recipes, discards their
+  results, and preserves physical NULLs; existing virtual recipes remain lazy.
   `RewriteTypeRows` hands each validated transformed destination to the actual
   statement/catalog-stage `RewriteCapture` before appending it to the new heap.
   A later row/index failure retains genuine event evidence, never a get-time
@@ -246,8 +253,15 @@ call live here.
   types and selected routine declarations before conditional simplification.
   Non-builtin routine provenance is rejected independently of volatility or
   spelling; stored generation keeps its separate immutability admission.
-  The first demanded stored program initializes its actual parent execution owner
-  before per-definition context copies; unused/virtual-only slots mint nothing.
+  Retained generation REGCONFIG operands keep exact whole-configuration references
+  and epoch/domain fences. Shared provider validation delegates current parser
+  callback signatures and mapped dictionary authority to `TSConfigurationProvider`
+  before generation rendering follows catalog-valued literals. Neither plan pruning
+  nor same-spelled replacement revives a retired reference.
+  The first demanded generation program initializes its actual parent execution
+  owner before per-definition context copies; unused virtual-only additions mint
+  nothing. Ordinary writes select stored slots; ALTER may explicitly select
+  newly added virtual slots only inside an independently required rewrite.
   Its cache retains only expression programs. Each row invokes the same selected
   definition with its original manifest and relation consumer, sharing that
   command owner without reminting or borrowing an enclosing query's manifest.
