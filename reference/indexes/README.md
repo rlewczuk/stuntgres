@@ -209,7 +209,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   has the same independently specified role/grantor projection on both backends.
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`
-- UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`
+- UNIQUE constraints and indexes: `RUN='^TestReferenceUnique'`. Standalone
+  UNIQUE indexes admit expression keys mixed with columns and partial
+  predicates and create no `pg_constraint` row; expression indexes remain
+  ineligible for concurrent refresh and replica identity.
 - PRIMARY KEY: `RUN='^TestReferencePrimaryKey'`
 - Deferred UNIQUE/PK timing and concurrency: `RUN='^TestReferenceDeferredUnique'`
 - Index clauses: `RUN='^TestReferenceIndexClauses'`

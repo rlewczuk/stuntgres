@@ -11,7 +11,10 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -79,6 +82,30 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}
+	}
+}
+
+// A derived key resolves usage from the expression result, so the same provider
+// admission runs for expression and column keys instead of indexing a
+// nonexistent parent slot. The cross-input class boundary still applies.
+func TestUniqueIndexProviderDerivedAdmission(t *testing.T) {
+	parent, _, _, types := indexClausesFixture(t)
+	typ := types[sqltype.Text]
+	usage := typ.Usage()
+	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 2}
+	bound, err := sqltype.BindString("lower", usage, usage, []sqltype.Usage{usage}, [4]bool{true}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := functions.String{Info: column.Info, Plan: bound, Args: []expr.Expr{column}, Textual: [4]bool{true}}
+	class, _ := sqltype.LookupIndexClass("text_ops")
+	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node, Attributes: parent.Attributes}, Class: class, ExplicitClass: true, Collation: 950}}, Unique: true, Ready: true, Valid: true, Live: true}
+	if err := index.ValidateUniqueProviders(operatorFamilyTestRead(), parent, definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	definition.Keys[0].Class, _ = sqltype.LookupIndexClass("bpchar_ops")
+	if err := index.ValidateUniqueProviders(operatorFamilyTestRead(), parent, definition, nil); err == nil {
+		t.Fatal("derived key accepted an inconsistent cross-input class")
 	}
 }
 

@@ -13,14 +13,7 @@ func TestReferenceForeignKeyDefinitionIneligibleKeys(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			foreignKeyScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				run(fixture.Exec("CREATE TABLE p(id INT)", 0))
-				if strings.Contains(index, "(id+1)") && !b.PG {
-					d := fixture.ForeignKeyError("0A000", "unique expression indexes are unsupported", "", "", "")
-					d.Position = fixture.Position(strings.Index(index, "(id+1)") + 1)
-					run(fixture.ForeignKeyFail(index, d, false))
-					run(fixture.Select("SELECT indexname FROM pg_indexes WHERE indexname='candidate'", []string{"indexname"}, []string{"NAME"}, nil))
-				} else {
-					run(fixture.Exec(index, 0))
-				}
+				run(fixture.Exec(index, 0))
 				for _, prepared := range []bool{false, true} {
 					run(fixture.ForeignKeyFail("CREATE TABLE c(pid INT REFERENCES p(id))", fixture.ForeignKeyError("42830", `there is no unique constraint matching given keys for referenced table "p"`, "", "", ""), prepared))
 				}

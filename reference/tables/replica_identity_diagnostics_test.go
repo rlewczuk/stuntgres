@@ -60,14 +60,8 @@ func TestReferenceReplicaIdentityEligibility(t *testing.T) {
 			t.Run(b.Name, func(t *testing.T) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 				run(fixture.Exec("CREATE TABLE ri_t(k INT NOT NULL)", 0))
-				expr := "CREATE UNIQUE INDEX ri_expr ON ri_t((k+1))"
-				if b.PG {
-					run(fixture.Exec(expr, 0))
-					run(fixture.ImplicitError("ALTER TABLE ri_t REPLICA IDENTITY USING INDEX ri_expr", fixture.Diagnostic{Code: "0A000", Message: `cannot use expression index "ri_expr" as replica identity`}))
-				} else {
-					// Unique expressions remain an honest native setup boundary.
-					run(fixture.ImplicitError(expr, fixture.Diagnostic{Code: "0A000", Message: "unique expression indexes are unsupported", Position: fixture.Position(strings.Index(expr, "(k+1)") + 1)}))
-				}
+				run(fixture.Exec("CREATE UNIQUE INDEX ri_expr ON ri_t((k+1))", 0))
+				run(fixture.ImplicitError("ALTER TABLE ri_t REPLICA IDENTITY USING INDEX ri_expr", fixture.Diagnostic{Code: "0A000", Message: `cannot use expression index "ri_expr" as replica identity`}))
 				run(replicaMode("ri_t", "d"))
 			})
 		}

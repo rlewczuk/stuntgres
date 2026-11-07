@@ -32,17 +32,20 @@ func enforcingIndexes(view catalog.Read, parent ids.ObjectAddress) []*catalog.Re
 }
 
 // Index ordering owns comparison; existing column grouping owns normalized
-// claims. Reject only the owned cross-input class whose equality differs.
+// claims. Every key resolves usage through KeyUsage, so derived keys use their
+// expression result usage while opclass, cross-input class, comparator and
+// grouping admission apply identically; reject only the owned cross-input class
+// whose equality differs.
 func ValidateUniqueProviders(view catalog.Read, parent *catalog.Relation, definition *catalog.IndexDefinition, raw []parser.IndexKey) error {
 	for i, key := range definition.Keys {
 		position := parser.Position{}
 		if len(raw) != 0 {
 			position = raw[i].Pos
 		}
-		if key.Derived != nil {
-			return insertError("0A000", "unique expression indexes are unsupported", position)
+		usage, err := KeyUsage(parent, key)
+		if err != nil {
+			return err
 		}
-		usage := parent.Columns[slices.Index(parent.Attributes, key.Attribute)].Usage
 		class, exists := view.OperatorClass(ids.OID(key.Class.OID()))
 		if !exists {
 			return insertError("42704", "index operator class does not exist", position)
@@ -54,12 +57,12 @@ func ValidateUniqueProviders(view catalog.Read, parent *catalog.Relation, defini
 			return insertError("0A000", "unique index operator class is unsupported", position)
 		}
 		if usage.Type.BaseType().ID() == sqltype.Inet || usage.Type.BaseType().ID() == sqltype.Cidr {
-			if _, err := routine.BindIndexOrdering(view, KeyCollation(usage, key), key.Class); err != nil {
+			if _, err := routine.BindIndexOrdering(view, usage, key.Class); err != nil {
 				return err
 			}
 			continue
 		}
-		if _, err := sqltype.BindGrouping(KeyCollation(usage, key)); err != nil {
+		if _, err := sqltype.BindGrouping(usage); err != nil {
 			return err
 		}
 	}

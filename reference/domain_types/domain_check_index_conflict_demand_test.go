@@ -2,8 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strconv"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -43,16 +41,6 @@ func TestReferenceDomainCheckIndexConflictDemand(t *testing.T) {
 						expression := "((" + value + "::" + domain + ")::integer)"
 						definition += "(" + expression + ")"
 						inference = "(" + expression + ")"
-					}
-					if route != "predicate" && !b.PG {
-						d := fixture.ControlsReferenceDiagnostic("0A000", "unique expression indexes are unsupported")
-						d.Position = strconv.Itoa(strings.Index(definition, "((") + 2)
-						s := fixture.ErrorDiagnostic(definition, d)
-						s.ErrorStage = "execute"
-						run(s)
-						run(fixture.Select("SELECT nextval('"+sequence+"') AS n FROM public.one", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
-						run(fixture.Select("SELECT count(*) AS n FROM "+table, []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-						continue
 					}
 					run(fixture.Exec(definition, 0))
 					run(fixture.Select("SELECT nextval('"+sequence+"') AS n FROM public.one", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))

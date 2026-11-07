@@ -69,13 +69,6 @@ func TestReferenceMaterializedRefreshConcurrentEligibility(t *testing.T) {
 				t.Run(b.Name, func(t *testing.T) {
 					_, run := fixture.QueryTableCreateSession(t, p, b)
 					concurrentSeed(run)
-					// Unique-expression creation is an existing native boundary, not new scope.
-					if tc.name == "expression" && !b.PG {
-						d := fixture.ControlsReferenceDiagnostic("0A000", "unique expression indexes are unsupported")
-						d.Position = "51"
-						run(fixture.ErrorDiagnostic(tc.ddl, d))
-						return
-					}
 					if tc.ddl != "" {
 						run(fixture.Exec(tc.ddl, 0))
 					}

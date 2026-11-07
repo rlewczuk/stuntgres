@@ -553,6 +553,11 @@ Entry points:
 - CREATE INDEX: `PrepareCreate` (authority, privilege, method, clauses,
   predicate, name, unique providers, coverage; `CreatePlan.Skip` for IF NOT
   EXISTS), then `StageCreate`.
+  Standalone UNIQUE indexes admit immutable derived keys beside simple columns:
+  `ValidateUniqueProviders` resolves every key's usage through `KeyUsage`
+  (expression result usage), so opclass, bpchar cross-input, Inet/Cidr and
+  grouping admission apply identically, while constraint-backed UNIQUE/PK
+  backing indexes remain simple-attribute only.
   Ordinary creation in explicit transactions uses that same path, including
   UNIQUE and shipped methods/options. The engine captures the owner-private
   parent and current execution authority under its canonical Share grant.

@@ -22,7 +22,7 @@ func TestReferenceUniqueIndexProviderBoundaries(t *testing.T) {
 					run(fixture.Exec("INSERT INTO ui_t VALUES('a')", 1))
 					q := "CREATE UNIQUE INDEX ui_key ON ui_t(" + c.key + ")"
 					s := fixture.Exec(q, 0)
-					if !b.PG {
+					if !b.PG && c.name != "expression" {
 						s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: c.message, Position: fixture.Position(strings.Index(q, c.token) + 1)})
 						s.ErrorStage = "execute"
 					}
@@ -30,7 +30,7 @@ func TestReferenceUniqueIndexProviderBoundaries(t *testing.T) {
 						s = fixture.Prepared(s)
 					}
 					run(s)
-					if b.PG {
+					if b.PG || c.name == "expression" {
 						value, detail := "'A'", "A"
 						if c.name != "expression" {
 							value, detail = "'a '", "a "

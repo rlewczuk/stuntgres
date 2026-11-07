@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -88,13 +87,8 @@ func TestReferenceAlterGeneratedExpressionAtomicity(t *testing.T) {
 					index = `CREATE UNIQUE INDEX ix ON g((b%2)) WHERE b>2`
 					expr = `a*2+2`
 				}
-				if b.PG {
-					run(fixture.Exec(index, 0))
-					run(fixture.ImplicitError(`ALTER TABLE g ALTER b SET EXPRESSION AS(`+expr+`)`, fixture.Diagnostic{Code: "23505", Message: `could not create unique index "ix"`, Detail: detail, Schema: "public", Table: "g", Constraint: "ix"}))
-				} else {
-					run(fixture.ImplicitError(index, fixture.Diagnostic{Code: "0A000", Message: "unique expression indexes are unsupported", Position: fixture.Position(strings.Index(index, "(b%2)") + 1)}))
-					run(fixture.Select(`SELECT indexname FROM pg_indexes WHERE indexname='ix'`, []string{"indexname"}, []string{"NAME"}, nil))
-				}
+				run(fixture.Exec(index, 0))
+				run(fixture.ImplicitError(`ALTER TABLE g ALTER b SET EXPRESSION AS(`+expr+`)`, fixture.Diagnostic{Code: "23505", Message: `could not create unique index "ix"`, Detail: detail, Schema: "public", Table: "g", Constraint: "ix"}))
 				run(alterGeneratedRows(`SELECT * FROM g ORDER BY a`, []any{int64(1), int64(2)}, []any{int64(2), int64(3)}))
 			})
 		})
