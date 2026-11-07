@@ -125,6 +125,10 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   and their current member/element/companion/peer closure must match; incomplete
   or incompatible evidence fails rather than reminting stored TEMP values.
   Unchanged ordinary staged traversal reuses codecs.
+  `ReownAddedColumnFill` is the added-column fill authority: it transports a
+  journal fill onto the surviving declared type of its column, drops it with an
+  absent attribute, and admits an unpayable NULL only onto a concrete
+  non-domain target.
   Builtin type/namespace remaps are rejected while legitimate owning-relation
   mappings update both catalog descriptors. Companion-first traversal delegates
   to the row and cannot overwrite its completed array.

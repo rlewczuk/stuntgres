@@ -83,12 +83,17 @@ func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *
 		shape := changes.Storage[address]
 		if len(shape.Fills) != 0 {
 			shape.Fills = maps.Clone(shape.Fills)
+			relation, _ := next.Relation(address)
 			for attribute, value := range shape.Fills {
-				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.Fills[attribute], err = typedef.ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
+				reowned, present, err := typedef.ReownAddedColumnFill(next, relation, attribute, value)
 				if err != nil {
 					return err
 				}
+				if !present {
+					delete(shape.Fills, attribute)
+					continue
+				}
+				shape.Fills[attribute] = reowned
 			}
 		}
 		if scope.Owner.Isolation.Stable() && !shape.HasSnapshot && !shape.Rewritten {
