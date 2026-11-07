@@ -17,20 +17,6 @@ import (
 	"testing"
 )
 
-// serverQueryLogCycle is one command cycle as the client saw it, with the
-// query.log fields it must produce.
-type serverQueryLogCycle struct {
-	frontend, query, code string
-	params                []any
-	frames                []serverFrame
-	decoded               map[int]any // response index -> readable form
-	steps                 map[int]map[string]any
-}
-
-func serverQueryLogParam(format, value string) map[string]any {
-	return map[string]any{"index": float64(1), "oid": float64(23), "type": "integer", "format": format, "null": false, "encoding": "text", "value": value}
-}
-
 func TestReferenceServerQueryLog(t *testing.T) {
 	f := fixture.NewServerFixture(t, fixture.ServerQueryLog())
 	const (
@@ -136,59 +122,6 @@ func TestReferenceServerQueryLog(t *testing.T) {
 	for _, secret := range append(secrets, fixture.ServerPassword, "$pbkdf2") {
 		if strings.Contains(string(data), secret) {
 			t.Fatal("secret in query log")
-		}
-	}
-}
-
-// serverWantQueryLogRecord checks one record against the cycle the client saw:
-// every backend message must carry exactly the bytes that were received.
-func serverWantQueryLogRecord(t *testing.T, i int, r map[string]any, want serverQueryLogCycle) {
-	t.Helper()
-	params := want.params
-	if params == nil {
-		params = []any{}
-	}
-	if r["cycle"] != float64(i+1) || r["message"] != "query" || r["database"] != fixture.ServerDatabase || r["user"] != fixture.ServerUser ||
-		r["frontend"] != want.frontend || r["query"] != want.query || r["error"] != want.code || r["complete"] != true || !reflect.DeepEqual(r["params"], params) {
-		t.Fatalf("record %d: %v", i, r)
-	}
-	if _, ok := r["duration_us"].(float64); !ok {
-		t.Fatalf("record %d duration: %v", i, r)
-	}
-	steps, _ := r["steps"].([]any)
-	if len(steps) != len(want.frontend) {
-		t.Fatalf("record %d steps %v", i, steps)
-	}
-	for j, step := range steps {
-		entry, _ := step.(map[string]any)
-		if entry["type"] != want.frontend[j:j+1] {
-			t.Fatalf("record %d step %d %v", i, j, entry)
-		}
-		if expected, ok := want.steps[j]; ok && !reflect.DeepEqual(entry, expected) {
-			t.Fatalf("record %d step %d %v want %v", i, j, entry, expected)
-		}
-	}
-	response, _ := r["response"].([]any)
-	if len(response) != len(want.frames) {
-		t.Fatalf("record %d has %d messages, client saw %s", i, len(response), serverTags(want.frames))
-	}
-	for j, message := range response {
-		entry, _ := message.(map[string]any)
-		body, err := base64.StdEncoding.DecodeString(entry["data"].(string))
-		if err != nil || entry["type"] != string(want.frames[j].tag) || !bytes.Equal(body, want.frames[j].body) {
-			t.Fatalf("record %d message %d %v differs from received %c %x", i, j, entry, want.frames[j].tag, want.frames[j].body)
-		}
-		if name, _ := entry["name"].(string); name == "" {
-			t.Fatalf("record %d message %d unnamed", i, j)
-		}
-		if decoded, ok := want.decoded[j]; ok && !reflect.DeepEqual(entry["decoded"], decoded) {
-			t.Fatalf("record %d message %d decoded %v want %v", i, j, entry["decoded"], decoded)
-		}
-	}
-	if want.code != "" {
-		decoded, _ := response[2].(map[string]any)["decoded"].(map[string]any)
-		if decoded["code"] != want.code || decoded["message"] != "division by zero" || decoded["severity"] != "ERROR" {
-			t.Fatalf("record %d error %v", i, decoded)
 		}
 	}
 }

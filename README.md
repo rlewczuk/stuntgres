@@ -16,8 +16,9 @@ restored for every test.
   replication; physical storage details (files, pages, sizes) are simulated.
 - **Small footprint.** The library depends only on the Go standard library and
   requires Go 1.26 or later.
-- **Optional server.** The `cmd/stuntgres` executable serves the same engine over
-  the PostgreSQL wire protocol for `psql` and other clients.
+- **Optional wire server.** [pgserver](pgserver/README.md) serves native pgx,
+  pgxpool and pgconn clients in-process, without TCP if desired.
+  The `cmd/stuntgres` executable serves `psql` and other external clients.
 
 `pg_catalog.pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
 expose the 30 PostgreSQL 18 typed fields through the shared cumulative statistics
@@ -228,9 +229,15 @@ Dump, Restore and Reset work only on native stuntgres pools; see
 - [Native fixture controls](docs/FIXTURES.md): Reset, Dump and Restore.
 - [SQL dialect boundaries](docs/DIALECT.md): where an embedded engine has to
   differ from a PostgreSQL server.
-- [cmd/stuntgres](cmd/stuntgres/README.md): the wire-protocol server.
+- [pgserver](pgserver/README.md): embedded wire server API for native Go clients.
+- [cmd/stuntgres](cmd/stuntgres/README.md): standalone wire-server CLI.
 
 ## Running the server
+
+For native pgx, pgxpool or pgconn clients in the same Go process, use
+[`pgserver.Start`](pgserver/README.md) with programmatic accounts and its
+in-memory `DialFunc`. An ephemeral loopback listener and `Server.DSN` also
+support clients such as lib/pq. No subprocess or userfile is needed.
 
 `cmd/stuntgres` serves the engine to `psql`, lib/pq and other PostgreSQL
 clients. Build it, create an account with access to the databases it may use,

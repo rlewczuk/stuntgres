@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"stuntgres/internal/serverauth"
+	"stuntgres/internal/serverref"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,7 +20,7 @@ import (
 type serveOptions struct {
 	listen, dumpdir, logdir, userfile, pidfile string
 	restore, verbose, background, querylog     bool
-	references                                 map[string]referenceConfig // nil unless dual-backend mode is configured
+	references                                 map[string]serverref.Config // nil unless dual-backend mode is configured
 	referenceTimeout                           time.Duration
 }
 type cliCommand struct {
@@ -121,7 +123,7 @@ func newServeCommand(name string, command *cliCommand, pidfile string) *cobra.Co
 	flags.BoolP(keyBackground, "b", false, "run in background")
 	flags.BoolP(keyQuerylog, "q", false, "log queries with exact responses")
 	flags.StringArray(keyReference, nil, "compare database DB with PostgreSQL at URL (DB=URL, repeatable)")
-	flags.String(keyReferenceTimeout, defaultReferenceTimeout.String(), "longest wait for a reference response")
+	flags.String(keyReferenceTimeout, serverref.DefaultTimeout.String(), "longest wait for a reference response")
 	addConfigFlag(flags)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		options, err := resolveServeOptions(cmd.Flags())
@@ -177,14 +179,14 @@ New accounts require --databases.`,
 		if userfile == "" {
 			return errors.New("passwd requires -u USERFILE")
 		}
-		if err := validName(args[0], false); err != nil {
+		if err := serverauth.ValidName(args[0], false); err != nil {
 			return err
 		}
 		command.grantsSet = cmd.Flags().Changed("databases")
 		if command.grantsSet {
 			list, _ := cmd.Flags().GetString("databases")
 			command.databases = strings.Split(list, ",")
-			if err := validateGrants(command.databases); err != nil {
+			if err := serverauth.ValidateGrants(command.databases); err != nil {
 				return err
 			}
 		}
@@ -236,7 +238,7 @@ func resolveServeOptions(flags *pflag.FlagSet) (serveOptions, error) {
 	if err != nil {
 		return options, err
 	}
-	if options.references, err = parseReferences(specs); err != nil {
+	if options.references, err = serverref.ParseAll(specs); err != nil {
 		return options, err
 	}
 	if options.references != nil && !options.querylog {
@@ -249,7 +251,7 @@ func resolveServeOptions(flags *pflag.FlagSet) (serveOptions, error) {
 	if options.referenceTimeout, err = time.ParseDuration(timeout); err != nil {
 		return options, fmt.Errorf("invalid %s value %q", keyReferenceTimeout, timeout)
 	}
-	if err := validateReferenceTimeout(options.referenceTimeout); err != nil {
+	if err := serverref.ValidateTimeout(options.referenceTimeout); err != nil {
 		return options, err
 	}
 	options.listen, err = normalizeListen(options.listen)
@@ -298,7 +300,7 @@ func serveArguments(options serveOptions) []string {
 	if options.querylog {
 		args = append(args, "--querylog")
 	}
-	for _, spec := range referenceSpecs(options.references) {
+	for _, spec := range serverref.Specs(options.references) {
 		args = append(args, "--reference", spec)
 	}
 	return append(args, "--reference-timeout", options.referenceTimeout.String())
@@ -318,7 +320,7 @@ func runCLI(args []string) error {
 		if err != nil {
 			return err
 		}
-		return updateAccount(command.options.userfile, command.username, password, command.databases, command.grantsSet)
+		return serverauth.UpdateAccount(command.options.userfile, command.username, password, command.databases, command.grantsSet)
 	case "dump", "stop":
 		return controlProcess(command.command, command.options.pidfile)
 	case "serve", "start":

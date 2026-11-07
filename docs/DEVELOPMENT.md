@@ -35,7 +35,7 @@ deadlines: 900 s for `check`, `racecheck` and `bench`; 1800 s for `quickcheck` a
 | `make racecheck` | Full Docker-free suite with `-race`. |
 | `make bench` | `BenchmarkOpenDatabase`: fresh engine, connector, pool, Ping and Close; five runs with allocations. Target: under 1 ms/op. |
 | `make finalcheck` | Generation, the startup benchmark and the dependency list. |
-| `make deps` | Non-standard dependencies of the library (`. ./internal/...`) and third-party ones of `./cmd/...`. |
+| `make deps` | Non-standard dependencies of the libraries (`. ./dual ./pgserver/... ./internal/...`) and third-party ones of `./cmd/...`. |
 | `make race` | Very slow full race suite with `noservertests`. Run only when explicitly asked. |
 | `make refcheck` | Complete real-PostgreSQL suite. **Human-only; agents never run it.** |
 
@@ -61,7 +61,7 @@ in tests.
 
 ## Dependencies
 
-- Library code (`.`, `dual` and `internal/...`, the first `make deps` list) may depend
+- Library code (`.`, `dual`, `pgserver/...` and `internal/...`, the first `make deps` list) may depend
   only on the standard library and `stuntgres/...` packages. `cmd/stuntgres` may
   also use cobra and viper with their dependencies (the second list); library
   packages never import them. goyacc is a generation tool.

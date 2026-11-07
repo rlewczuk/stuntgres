@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const testLiveness = 30 * time.Second
+
 func writeTestPID(t *testing.T, path string, record pidRecord) {
 	t.Helper()
 	data, err := json.Marshal(record)

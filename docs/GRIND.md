@@ -163,7 +163,7 @@ available modes qualify.
 | Mode | Fits | Availability |
 |---|---|---|
 | `driver` | Tests reach PostgreSQL through `database/sql` (`lib/pq`, `pgx/stdlib`, and sqlx, gorm, bun, ent, goose or golang-migrate over a `*sql.DB`). | Available, with dual diagnostics ([stuntgres/dual](../dual/README.md)). |
-| `embedded` | Native `pgx`, `pgxpool` or `pgconn`, or a mix with `database/sql`. | Unavailable until `GRIND-INFRA-EMBEDDED-SERVER`. |
+| `embedded` | Native `pgx`, `pgxpool` or `pgconn`, or a mix with `database/sql`, sharing one Go process. | Available ([pgserver](../pgserver/README.md)). |
 | `server` | Non-Go clients, `LISTEN`/`NOTIFY` listeners, or state shared across test processes through one server. | Available with userfile limitations (see below); cluster semantics after `GRIND-INFRA-SERVER-CLUSTER`. |
 | `container` | Tests that need a real container: `docker exec`, compose files, image-level setup. | Unavailable until `GRIND-INFRA-DOCKER-IMAGE`; needs a user decision on Docker access. |
 
@@ -215,8 +215,56 @@ oracle (`sandbox.sh pg up`).
 
 ### Embedded mode
 
-Unavailable. `GRIND-INFRA-EMBEDDED-SERVER` provides an importable in-process server
-(`stuntgres/pgserver`) for pgx clients; this section gets its recipe with that part.
+Use [`stuntgres/pgserver`](../pgserver/README.md) in the project's connection
+helper. Each Server owns independent databases and accounts; there is no existing
+Driver/cluster injection. Sharing across test processes still requires server mode.
+The default has no TCP listener, files or stdout logs:
+
+```go
+srv, err := pgserver.Start(ctx, pgserver.Config{
+    Accounts: []pgserver.Account{{
+        Username: "app", Password: "test-password", Databases: []string{"app"},
+    }},
+})
+if err != nil { return err }
+defer srv.Close() // abort safety; caller writers are never closed
+defer func() {
+    cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    _ = srv.Shutdown(cleanup) // cancel sessions, roll back, publish final dump
+}()
+
+cfg, err := pgx.ParseConfig("postgres://app:test-password@127.0.0.1:5432/app?sslmode=disable")
+if err != nil { return err }
+cfg.DialFunc = srv.DialFunc()
+conn, err := pgx.ConnectConfig(ctx, cfg)
+if err != nil { return err }
+defer conn.Close(context.Background())
+```
+
+Keep the numeric loopback placeholder and `sslmode=disable`: pgconn may resolve
+hostnames before dialing. The dialer opens no socket and ignores network/address,
+including the `pipe` address used by a second CancelRequest connection.
+`pgx.Connect` accepts a DSN, not a ConnConfig.
+
+For a pool, use `pgxpool.ParseConfig` on the same placeholder URL, set
+`cfg.ConnConfig.DialFunc = srv.DialFunc()`, then
+`pgxpool.NewWithConfig(ctx, cfg)`; close acquired connections/pools before
+Shutdown. For low-level clients use `pgconn.ParseConfig`, set `cfg.DialFunc`,
+then `pgconn.ConnectConfig(ctx, cfg)`.
+
+For TCP-only clients start with `Listen: "127.0.0.1:0"`, obtain
+`dsn, err := srv.DSN("app", "test-password", "app")`, and pass it to
+`pgx.Connect(ctx, dsn)` or lib/pq. `srv.Addr()` is the actual ephemeral address;
+it is nil and DSN returns an error in pipe-only mode.
+
+Dual diagnostics use the same Config: set `QueryLog: true`,
+`QueryLogWriter: capture`, `References: []string{"app="+referenceURL}` and
+`ReferenceTimeout: 30*time.Second`. Alternatively use `LogDir` for `query.log`
+(not together with QueryLogWriter); `LogWriter` receives only operational/SQL
+records and defaults to discard. Reference credentials can use the existing
+passfile rules. See [server diagnostics](../cmd/stuntgres/README.md#operation)
+and the package contract for ownership and failures.
 
 ### Server mode
 

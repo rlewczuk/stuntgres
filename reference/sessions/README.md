@@ -9,7 +9,8 @@ tracking off, primary-mode recovery inquiries and typed physical-registry and
 WAL-summary source admission, prepared-statement rebind, DISCARD,
 SQL PREPARE/EXECUTE, the `stuntgres/dual` mirroring connector, and the
 wire-protocol server (`server_*_test.go`) against a real `cmd/stuntgres`
-subprocess. Related families live elsewhere: settings,
+subprocess, plus the public in-process `pgserver` API
+(`embedded_server_*_test.go`). Related families live elsewhere: settings,
 timeouts, the physical-session adapter and direct-message batches in
 [session_state](../session_state/README.md); SQL cursors and `pg_cursors` in
 [cursors](../cursors/README.md); transaction control, commit timestamps with
@@ -30,8 +31,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   (`newDualPair`: a dual pool over the scenario's native connector and one
   reference per scenario, a second native engine in quick mode and lib/pq with
   `REFERENCE=1`) and `dual_connector_fault_test.go` (`dualFault`, which wraps
-  that reference so fault scenarios run in both modes); raw wire client `serverWire` in
-  `server_wire_test.go` and message builders in `server_extended_helpers_test.go`.
+  that reference so fault scenarios run in both modes); shared raw wire client
+  in `embedded_server_wire_helpers_test.go`, packet/row helpers in
+  `embedded_server_extended_helpers_test.go` and JSONL golden/dump helpers in
+  `embedded_server_log_helpers_test.go`.
   Session signaling family: `RUN='^TestReferenceSessionSignal'`.
   Self-signaling Query witnesses use `sessionSignalSelfQuery` to consume all rows
   and the terminal outcome. Native eager diagnostics and pq streaming/retirement
@@ -52,6 +55,14 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   with `-race`; it always uses the test-only `stuntgres_reduced_kdf` tag (add the
   `productionkdf` test build tag to exercise the production PBKDF2 cost). The
   `server_*_test.go` files carry `!noservertests`, which only `make race` sets.
+- **Embedded wire tests.** `fixture.NewEmbeddedServerFixture` starts public
+  `pgserver` handles with explicit accounts; no CLI transport is substituted.
+  Native pgx/pgxpool/pgconn use its pipe DialFunc, with separate real TCP
+  pgx.Connect/lib/pq routes; oracle clients always use actual TCP. Keep client
+  cleanup before fixture cleanup, cancel and join command workers on failure,
+  and observe `pg_stat_activity`/`pg_locks` admission before cancellation or
+  shutdown. Native-only lifecycle phases remain explicit within dual-mode
+  scenarios; the subprocess families below retain their existing behavior.
 - Capture daemon `start` output in ordinary files, not pipe-backed
   `CombinedOutput`: the daemon inherits stdout/stderr and keeps the pipes open.
 - Wire codec scenarios use explicit Parse OID hints with `SELECT $1`, so codec
@@ -183,6 +194,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
 - Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol|TransactionalRulesProtocol|TransactionalCollationConversionCastProtocol)'`
+- Embedded clients and COPY: `RUN='^TestReferenceEmbeddedServer(Clients|Copy)$'`
+- Embedded notifications and cancellation: `RUN='^TestReferenceEmbeddedServer(Notifications|Cancellation)$'`
+- Embedded isolation, persistence and logs: `RUN='^TestReferenceEmbeddedServer(Isolation|Shutdown|Logging)$'`
+  Run each selector with and without `REFERENCE=1`; lifecycle race coverage uses
+  `RACE=1 RUN='^TestReferenceEmbeddedServer(Cancellation|Isolation|Shutdown)$'`
+  in both modes.
 - Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
 - Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
 - Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`

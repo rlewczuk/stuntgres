@@ -1,27 +1,9 @@
 # cmd/stuntgres
 
-The executable serves the embedded engine over the PostgreSQL wire protocol:
-simple and extended queries, prepared statements, resumable portals, text/binary
-values, streaming COPY, FunctionCall by routine OID and LISTEN/NOTIFY delivery to
-idle listeners. Transport adds no SQL, catalog or type capability of its own.
+The thin command/process adapter for [pgserver](../../pgserver/README.md).
+It owns option resolution, PID/daemon/readiness controls, lifecycle signals and
+terminal password prompts; pgserver owns the wire engine and its lifecycle.
 
-Database monitoring preserves the real client disconnect cause before generic
-cancellation/cleanup. A fully decoded frontend Terminate reserves normal close
-and stops the bounded reader after publishing that message. The passive FIN
-watcher is a provisional transport observation, not an accepted statistics cause;
-generic InvalidConnection teardown joins the reader so decoded normal/protocol
-decisions win before fallback abandonment. If closure prevents decoding a full
-Terminate, the actual server decision is transport retirement. Recognizable
-protocol FATAL reserves fatal before output; native timeout/admin requests already
-own fatal/killed. Failed FATAL output and subsequent EOF cannot overwrite an
-accepted cause. Existing diagnostics, bounded buffers and terminal-write budgets
-are unchanged. Public real-wire proof:
-`make check RUN='^TestReferenceStatDatabaseWire$'`, also with `REFERENCE=1`.
-Each managed database owns its own engine, catalog and roles. Monitoring a
-secondary wire database therefore requires an observer attached to that same
-engine; its catalog is not part of an unrelated managed database's inventory.
-The wire proof checks actual connection/catalog/view identities and accounts for
-the genuine provisioning and observer sessions before exact client deltas.
 
 
 ## Operation
@@ -119,107 +101,32 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   record before the next cycle. Other databases work as
   before.
 
-## Contract
-
 - Command parsing (cobra) and option resolution (viper) build fresh instances per
   invocation; `parseCLI` only resolves and validates, `runCLI` acts.
 
-- Protocol 3.0, 3.1 and 3.2 share one session authority; newer 3.x minors
-  negotiate 3.2. Cancel keys are 4 bytes (3.0/3.1) or 32 opaque bytes (3.2),
-  compared in constant time; a cancel never stays pending for a later command.
-- One dispatcher owns the serialized writer and the normal/extended/COPY/recovery
-  states. The reader keeps two reusable buffers and one queued message; announced
-  lengths never trigger body-sized allocations.
-- Engine operations are fresh per extended command, never held across idle
-  frontend waits. Prepared names, portals, codecs and transaction publication are
-  engine-owned; wire names share SQL PREPARE/EXECUTE/DEALLOCATE authority.
-- COPY streams synchronously through unlocked engine callbacks, with no extra
-  worker or queue; input publication waits for the terminal protocol outcome.
-- Notifications use a nonblocking engine poll/wake and drain only at TxIdle.
-- Session ID 1 is reserved for bootstrap; network session IDs equal wire PIDs
-  and SQL `pg_backend_pid()` (2 through signed-int4 capacity). Exhaustion rejects
-  admission without wrapping or registering a replacement identity.
-- CancelRequest and SQL cancellation share session.UserCancelCause; COPY enriches
-  an owned clone. Physical termination is independent of the first context cause
-  and wakes pending frontend/COPY input before waiting for engine lease cleanup.
-  The end watcher only arms a one-shot socket write deadline, never writes bytes.
-  The serial writer joins that arm before installing a bounded one-second FATAL
-  budget. Failed/partial writes remain terminal; bufio errors are never reset,
-  retried or followed by a fabricated fatal frame.
-- Normal-protocol C-string fields (including case-sensitive statement/portal
-  names) decode through the admitted `client_encoding` pair before later
-  framing, lookup or mutation. Invalid input raises recoverable 22021.
-  Textual output fields convert before message lengths are published.
-  Bind diagnostics add a text-value suffix only after client decoding has
-  succeeded and canonical type input begins; conversion failures retain the
-  parameter location without pretending that type input received a value.
-  Startup/authentication diagnostics remain raw until session admission;
-  startup application names undergo original NAME clipping with the UTF8 database
-  length rule, then sanitize each non-ASCII/control byte as `\xNN`. Their typed
-  captured defaults are never clipped again after ASCII expansion.
-- Client encodings use actual visible bidirectional default conversion
-  providers, not a transport-only whitelist. UTF8 and SQL_ASCII need no
-  provider; MULE_INTERNAL remains an unsupported SET/startup conversion.
-  Native Go APIs remain Unicode. Binary framing, numeric/bytea/internal-CHAR
-  payloads and cancel keys stay opaque; textual binary leaves convert.
-- COPY text/CSV decodes incrementally before record framing and encodes each
-  output attribute before multibyte-aware escaping. Explicit `ENCODING`
-  selects the file encoding independently of the session; COPY TO selecting the
-  active encoding reuses its admitted outgoing capability, while COPY FROM and
-  different output encodings resolve current directional defaults.
-  Binary COPY keeps its framing and uses the session for textual leaves.
-  Failed notifications produce a fatal diagnostic rather than a partial A
-  frame. Idle delivery precedes ParameterStatus and ReadyForQuery.
-  End-of-command notices remain fallible before statement Finish; actual writes
-  use the active unlocked owner reservation, retaining conversion rollback and
-  terminal transport-failure cleanup for simple, extended and FunctionCall
-  commands. A top-level DO block's RAISE notices are sent and flushed as each
-  RAISE completes (`CopyProtocolHooks.Notices`); a socket failure aborts the
-  block. Diagnostics retain the failing command's encoding before unwind;
-  FunctionCall reports recoverable errors at its own ReadyForQuery boundary.
-- Dual-backend forwarding (`reference_forward.go`): the dispatcher owns the
-  reference write side, waiting and record assembly, and forwards each
-  message where the capture records it; one reader goroutine per connection
-  owns decoding. The forwarder mutex is a leaf lock (no I/O, logging or other
-  lock under it). Cancel forwarding reads only the immutable session key
-  after releasing `server.mu`. A failure closes the reference so a late
-  response is never attributed to a later cycle.
-- Prepared SQL errors keep the immutable original source and typed,
-  format-aware parameter context for logging.
-- Simple commands attach their complete frontend SQL to the admitted operation.
-  Extended Bind and every Execute/resume attach the original prepared source;
-  nested SQL EXECUTE and FETCH keep the outer frontend command's source.
-- XML text/binary values use the shared genuine codecs. Actual typed output
-  attaches an ephemeral warning sink while the command is active; all simple
-  result rows are consumed before Finish. Logging/metadata are quiet, and
-  committed warnings precede a later conversion error. Wire text converts once
-  through admitted client authority; XML binary send owns its declaration.
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). Public SQL, wire-client and
-server-lifecycle scenarios live in [reference/sessions](../../reference/sessions/README.md);
-this package keeps command, filesystem, process, framing and log mechanics.
+server-lifecycle scenarios live in [reference/sessions](../../reference/sessions/README.md).
+Core byte/log/persistence units now live in [pgserver](../../pgserver/README.md#testing);
+verifier/security/atomic-userfile units live in `internal/serverauth`, and
+reference URL grammar belongs to `internal/serverref`.
 
-Session activity source transport and identity-capacity mechanics use
-`RUN='^TestSessionActivity'`.
-
-- `process_socket_test.go` (`linux && !noservertests`) holds the real TCP
-  lifecycle (`TestServerPIDSocketLifecycle`) and its subprocess entry
-  `TestServerSocketProcessHelper`; the `noservertests` tag excludes it only from
-  the `race` target. Process launches use a 10-second context and 5-second
-  readiness bound with owned kill/join cleanup.
-- Build tag `stuntgres_reduced_kdf` (`password_cost_reduced.go`) lowers PBKDF2 to
-  4096 iterations so the reference server fixture logs in cheaply. It is
-  test-only; production builds and this package's tests use 600000
-  (`password_cost.go`).
-- Byte- and function-level units (framing, cancellation, prepared log values,
-  startup parameters) supplement the public wire witnesses in `reference/sessions`.
-- Active XML output units use `RUN='^TestXMLServerActiveOutput$'`;
-  they exercise the real codec, ephemeral notice delivery and row framing.
+- `process_socket_test.go` (`linux && !noservertests`) retains the real TCP
+  lifecycle (`TestServerPIDSocketLifecycle`) and subprocess entry
+  `TestServerSocketProcessHelper`; `noservertests` excludes it only from `race`.
+  Process launches use a 10-second context and 5-second readiness bound with
+  owned kill/join cleanup.
+- `TestServerStartupOrdering` exercises actual log/userfile/restore/PID/listener
+  failures and post-start readiness abort, without a mock core.
+- Build tag `stuntgres_reduced_kdf` in `internal/serverauth/password_cost_reduced.go`
+  lowers PBKDF2 to 4096 for the existing subprocess reference fixture build.
+  Production uses 600000 (`internal/serverauth/password_cost.go`); the tag follows
+  imports when the fixture builds `./cmd/stuntgres`.
 
 ```sh
-make check RUN='^TestServer(ProtocolFraming|ProtocolCancellation|PreparedLogValues|StartupParameters)$'
-make check RUN='^TestServer(Framing|Logging|QueryLogDecode|CLI.*|PID|StartupFailure|PIDSocketLifecycle)$'
-make check RUN='^TestServer(Reference.*|QueryLogDiff)$'
+make check RUN='^TestServer(CLI.*|PID|StartupFailure|StartupOrdering|PIDSocketLifecycle)$'
+make check RUN='^TestServerReferenceOptions$'
+make check RUN='^TestServerUsers(PasswordPrompts|TTYSignals)$'
 ```

@@ -4,28 +4,14 @@ package reference_test
 
 import (
 	"bytes"
-	"encoding/base64"
 	"errors"
 	"io"
 	"net"
 	"path/filepath"
-	"reflect"
-	"slices"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
-
-// serverDualCycle is one command cycle on a dual-backend connection and the
-// reference part of its query.log record.
-type serverDualCycle struct {
-	frontend, query string
-	frames          []serverFrame // as the client received them (stuntgres)
-	refTags         string        // reference message types
-	refCode         string
-	diff            []string // exact response_diff; nil means absent
-	diffPrefix      []string // when the reference text is not fully known
-}
 
 func TestReferenceServerDualQueryLog(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -184,63 +170,5 @@ func TestReferenceServerDualQueryLog(t *testing.T) {
 	}
 	if strings.Contains(f.Output(), fixture.ServerPassword) {
 		t.Fatal("reference password in server output")
-	}
-}
-
-// serverWantDualRecord checks one dual-backend record: the stuntgres
-// response holds exactly the bytes the client received, and the reference
-// part matches the expected types, SQLSTATE and differences.
-func serverWantDualRecord(t *testing.T, i int, r map[string]any, want serverDualCycle) {
-	t.Helper()
-	if r["frontend"] != want.frontend || r["query"] != want.query || r["error"] != "" || r["error_ref"] != want.refCode || r["complete"] != true {
-		t.Fatalf("record %d: %v", i, r)
-	}
-	response, _ := r["response"].([]any)
-	reference, _ := r["response_ref"].([]any)
-	if want.frames != nil {
-		if len(response) != len(want.frames) {
-			t.Fatalf("record %d has %d messages, client saw %s", i, len(response), serverTags(want.frames))
-		}
-		for j, message := range response {
-			body, err := base64.StdEncoding.DecodeString(message.(map[string]any)["data"].(string))
-			if err != nil || !bytes.Equal(body, want.frames[j].body) {
-				t.Fatalf("record %d message %d differs from received", i, j)
-			}
-		}
-	}
-	var tags []byte
-	for _, message := range reference {
-		tags = append(tags, message.(map[string]any)["type"].(string)...)
-	}
-	if string(tags) != want.refTags {
-		t.Fatalf("record %d reference %s, want %s: %v", i, tags, want.refTags, reference)
-	}
-	diff, present := r["response_diff"].([]any)
-	var lines []string
-	for _, line := range diff {
-		lines = append(lines, line.(string))
-	}
-	switch {
-	case want.diffPrefix != nil:
-		if len(lines) != len(want.diffPrefix) {
-			t.Fatalf("record %d diff %q, want prefixes %q", i, lines, want.diffPrefix)
-		}
-		for j, prefix := range want.diffPrefix {
-			if !strings.HasPrefix(lines[j], prefix) {
-				t.Fatalf("record %d diff %q, want prefixes %q", i, lines, want.diffPrefix)
-			}
-		}
-	case want.diff == nil:
-		if present {
-			t.Fatalf("record %d unexpected diff %q", i, lines)
-		}
-		// Equal responses: the same messages with the same bytes.
-		for j := range reference {
-			if !reflect.DeepEqual(reference[j], response[j]) {
-				t.Fatalf("record %d message %d: reference %v, stuntgres %v", i, j, reference[j], response[j])
-			}
-		}
-	case !slices.Equal(lines, want.diff):
-		t.Fatalf("record %d diff\n got  %q\n want %q", i, lines, want.diff)
 	}
 }

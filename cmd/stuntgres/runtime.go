@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net"
 	"os"
 	"runtime"
+
+	"stuntgres/internal/serverref"
+	"stuntgres/pgserver"
 )
 
 func runServe(options serveOptions) (err error) {
@@ -16,101 +18,55 @@ func runServe(options serveOptions) (err error) {
 			err = errors.Join(err, notifyReady("", err))
 		}
 	}()
-	logs, err := openLogs(options.logdir, options.verbose, options.querylog)
+	srv, err := pgserver.Open(context.Background(), pgserver.Config{
+		Listen: options.listen, UserFile: options.userfile, DumpDir: options.dumpdir, Restore: options.restore,
+		LogDir: options.logdir, LogWriter: os.Stdout, QueryLog: options.querylog, Verbose: options.verbose,
+		References: serverref.Specs(options.references), ReferenceTimeout: options.referenceTimeout,
+	})
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, logs.Close()) }()
+	defer func() {
+		if closeErr := srv.Close(); closeErr != nil && !errors.Is(err, closeErr) {
+			err = errors.Join(err, closeErr)
+		}
+	}()
 	signals, stopSignals := lifecycleSignals()
 	defer stopSignals()
-	users, err := loadAccounts(options.userfile, true)
-	if err != nil {
+	if err = srv.Prepare(); err != nil {
 		return err
-	}
-	latest := make(map[string]string)
-	if options.dumpdir != "" {
-		if err := os.MkdirAll(options.dumpdir, 0700); err != nil {
-			return err
-		}
-		if options.restore {
-			latest, err = latestDumps(options.dumpdir)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	restored := make([]string, 0, len(latest))
-	for name := range latest {
-		restored = append(restored, name)
-	}
-	databases, err := newDatabases(context.Background(), users, restored)
-	if err != nil {
-		return err
-	}
-	if err := attachReferences(databases, options.references); err != nil {
-		return err
-	}
-	if options.restore {
-		if err := restoreDatabases(context.Background(), databases, latest, logs); err != nil {
-			return err
-		}
 	}
 	if runtime.GOOS == "linux" {
 		pid, pidErr := acquirePID(options.pidfile)
 		if pidErr != nil {
-			return pidErr
+			return errors.Join(pidErr, srv.Close())
 		}
 		defer func() { err = errors.Join(err, pid.Close()) }()
-	} else {
-		if err := logs.operational(context.Background(), slog.LevelWarn, "PID and signal controls are unavailable on this platform"); err != nil {
-			return err
-		}
+	} else if err = srv.Log(context.Background(), slog.LevelWarn, "PID and signal controls are unavailable on this platform"); err != nil {
+		return errors.Join(err, srv.Close())
 	}
-	srv, err := newServer(context.Background(), users, databases, logs)
-	if err != nil {
+	if err = srv.Start(); err != nil {
 		return err
 	}
-	srv.referenceTimeout = options.referenceTimeout
-	defer srv.shutdown()
-	listener, err := net.Listen("tcp", options.listen)
-	if err != nil {
-		return err
-	}
-	srv.listener = listener
-	if address, ok := listener.Addr().(*net.TCPAddr); ok && !address.IP.IsLoopback() {
-		if err := logs.operational(context.Background(), slog.LevelWarn, "WARNING: non-loopback cleartext password authentication without TLS exposes passwords and data", "address", listener.Addr().String()); err != nil {
-			return err
-		}
-	}
-	if err := logs.operational(context.Background(), slog.LevelInfo, "server started", "address", listener.Addr().String(), "databases", databaseNames(databases)); err != nil {
-		return err
-	}
-	serveDone := make(chan error, 1)
-	go func() { serveDone <- srv.serve() }()
-	var serveErr error
-	stopped, joined, pendingDump := false, false, false
-	defer func() {
-		srv.stop()
-		if !joined {
-			err = errors.Join(err, <-serveDone)
-		}
-	}()
-	if err := notifyReady(listener.Addr().String(), nil); err != nil {
-		return err
+	if err = notifyReady(srv.Addr().String(), nil); err != nil {
+		// Readiness failure is startup abort, not a graceful final dump/stopped cycle.
+		return errors.Join(err, srv.Close())
 	}
 	ready = true
-	for !stopped {
+	pendingDump := false
+	for {
 		if pendingDump {
-			pendingDump = false
-			if options.dumpdir != "" {
-				if dumpErr := dumpDatabases(context.Background(), databases, options.dumpdir, logs); dumpErr != nil {
-					if logErr := logs.operational(context.Background(), slog.LevelError, "dump cycle failed", "error", dumpErr.Error()); logErr != nil {
-						srv.fail(logErr)
-					}
-				}
+			select {
+			case <-srv.Done():
+				return srv.Err()
+			default:
 			}
-			// Coalesce all currently pending dump signals into at most one next cycle;
-			// shutdown always wins over another dump. No second lifecycle worker exists.
+			pendingDump = false
+			// The API owns all dump records and persistence. A dump failure alone is
+			// nonfatal; a required-log failure completes Server.Done.
+			_ = srv.Dump(context.Background())
+			// Coalesce currently pending dump signals into at most one next cycle,
+			// draining termination/Done first so shutdown wins over that next cycle.
 		drain:
 			for {
 				select {
@@ -118,12 +74,10 @@ func runServe(options serveOptions) (err error) {
 					if isDumpSignal(signal) {
 						pendingDump = true
 					} else {
-						stopped = true
-						break drain
+						return srv.Shutdown(context.Background())
 					}
-				case <-srv.ctx.Done():
-					stopped = true
-					break drain
+				case <-srv.Done():
+					return srv.Err()
 				default:
 					break drain
 				}
@@ -135,24 +89,10 @@ func runServe(options serveOptions) (err error) {
 			if isDumpSignal(signal) {
 				pendingDump = true
 			} else {
-				stopped = true
+				return srv.Shutdown(context.Background())
 			}
-		case <-srv.ctx.Done():
-			stopped = true
-		case serveErr = <-serveDone:
-			joined = true
-			stopped = true
+		case <-srv.Done():
+			return srv.Err()
 		}
 	}
-	srv.shutdown()
-	if !joined {
-		serveErr = <-serveDone
-		joined = true
-	}
-	err = errors.Join(serveErr, srv.runtimeError())
-	if options.dumpdir != "" {
-		err = errors.Join(err, dumpDatabases(context.Background(), databases, options.dumpdir, logs))
-	}
-	err = errors.Join(err, logs.operational(context.Background(), slog.LevelInfo, "server stopped"))
-	return err
 }

@@ -8,10 +8,6 @@ import (
 	"os"
 )
 
-func userLock(path string) (func() error, error) {
-	return nil, errors.New("password file locking is unsupported on this platform")
-}
-
 func disablePasswordEcho(in *os.File) (io.Reader, func() error, error) {
 	info, err := in.Stat()
 	if err != nil {

@@ -536,12 +536,21 @@ production dependency is involved.
   inspects public native Dump artifacts only and supplies no SQL expectations.
 - **Server.** `NewServerFixture(t)` builds and launches a real `cmd/stuntgres`
   subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
-  for `reference/sessions` wire tests. Embedded scenarios never start a server.
+  for `reference/sessions` subprocess wire tests. Ordinary driver scenarios do
+  not launch it.
   `NewServerFixture(t, fixture.ServerQueryLog())` adds `-q` so the native server
   writes `Logdir/query.log`. `fixture.ServerArgs(...)` appends serve options;
   `fixture.ServerDualReference()` runs `ServerDatabase` in dual-backend mode
   against the pinned PostgreSQL (real mode) or a second native server (quick
   mode), exposed directly as `ReferenceDB`/`ReferenceURL`.
+- **Embedded server.** `NewEmbeddedServerFixture(t, cfg, user, password, database)`
+  starts the public `pgserver` API in-process, without building a binary or
+  writing a userfile. It exposes a bounded `Ctx`, native `Server`, and serial
+  `Backends()` endpoints: each has a DSN and the native server's optional
+  DialFunc; the real PostgreSQL endpoint always uses TCP. Account/listener/log
+  configuration remains explicit. Register clients after construction so their
+  cleanup runs before server shutdown and shared-oracle schema reset. This
+  opt-in helper does not alter `NewServerFixture` or the oracle pin.
 
 ## Testing
 

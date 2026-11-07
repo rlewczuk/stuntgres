@@ -8,45 +8,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
 )
 
-func serverDumpFiles(t *testing.T, dir, db string) []string {
-	t.Helper()
-	entries, e := os.ReadDir(dir)
-	if e != nil {
-		t.Fatal(e)
-	}
-	var out []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasPrefix(name, db+"--") || !strings.HasSuffix(name, ".sql") {
-			continue
-		}
-		suffix := strings.TrimSuffix(strings.TrimPrefix(name, db+"--"), ".sql")
-		if len(suffix) != 14 {
-			t.Fatalf("invalid published dump %s", name)
-		}
-		if _, e = time.Parse("20060102150405", suffix); e != nil {
-			t.Fatal(e)
-		}
-		path := filepath.Join(dir, name)
-		info, e := entry.Info()
-		if e != nil {
-			t.Fatal(e)
-		}
-		if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
-			t.Fatalf("dump mode %v", info.Mode())
-		}
-		out = append(out, path)
-	}
-	sort.Strings(out)
-	return out
-}
 func serverDumpBarrier(t *testing.T, f *fixture.ServerFixture, db string, count int) {
 	t.Helper()
 	f.WaitEvent(t, func(v map[string]any) bool {
@@ -187,39 +154,6 @@ func TestReferenceServerPersistence(t *testing.T) {
 	}
 }
 
-func serverLogRecords(t *testing.T, path string) []map[string]any {
-	t.Helper()
-	data, e := os.ReadFile(path)
-	if e != nil {
-		t.Fatal(e)
-	}
-	var out []map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-		if line == "" {
-			continue
-		}
-		var record map[string]any
-		if e = json.Unmarshal([]byte(line), &record); e != nil {
-			t.Fatalf("invalid JSONL %q: %v", line, e)
-		}
-		stamp, ok := record["tstamp"].(string)
-		if !ok {
-			t.Fatal("missing tstamp", record)
-		}
-		if _, e = time.Parse(time.RFC3339, stamp); e != nil {
-			t.Fatal(e)
-		}
-		severity, ok := record["severity"].(string)
-		if !ok || severity != strings.ToUpper(severity) {
-			t.Fatal(record)
-		}
-		if _, ok := record["message"].(string); !ok {
-			t.Fatal(record)
-		}
-		out = append(out, record)
-	}
-	return out
-}
 func TestReferenceServerLogs(t *testing.T) {
 	f := fixture.NewServerFixture(t)
 	for _, b := range f.Backends() {

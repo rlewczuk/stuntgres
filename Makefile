@@ -1,7 +1,7 @@
 .PHONY: generate build quickcheck racecheck finalcheck refcheck check bench deps
 
-# Library packages may list only stuntgres/... paths; cmd/stuntgres may also use
-# cobra, viper and their dependencies.
+# Library packages (including pgserver) may list only stuntgres/... paths;
+# cmd/stuntgres may also use cobra, viper and their dependencies.
 LIST_DEPS = go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}'
 
 # Only check accepts options. Require a selector to avoid accidental broad runs.
@@ -37,7 +37,7 @@ finalcheck:
 	go generate ./internal/parser
 	go run ./internal/sqltype/unicode16/generate -source ./internal/sqltype/unicode16/data -output ./internal/sqltype/unicode16/tables_generated.go -case-output ./internal/sqltype/unicode16/case_tables_generated.go -assigned-output ./internal/sqltype/unicode16/assigned_tables_generated.go -regex-output ./internal/sqltype/unicode16/regex_tables_generated.go
 	go test -timeout=0 -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
-	$(LIST_DEPS) . ./dual ./internal/...
+	$(LIST_DEPS) . ./dual ./pgserver/... ./internal/...
 	$(LIST_DEPS) ./cmd/... | grep -v '^stuntgres'
 
 # Race check suite. This is very slow test, DO NOT run it unless explicitly instructed to do so.
@@ -69,5 +69,5 @@ bench:
 # List non-standard production dependencies of the library and of cmd/stuntgres,
 # excluding reference test support.
 deps:
-	$(LIST_DEPS) . ./dual ./internal/...
+	$(LIST_DEPS) . ./dual ./pgserver/... ./internal/...
 	$(LIST_DEPS) ./cmd/... | grep -v '^stuntgres'
