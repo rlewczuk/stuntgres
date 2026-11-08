@@ -13,6 +13,7 @@ type QueryTargetComparison struct {
 	Frames                [][2]uint32
 	Occurrences           []QueryTargetOccurrence
 	LeftFrame, RightFrame uint32
+	ctes                  [][2]*plan.CTEDefinition
 }
 type QueryTargetOccurrence struct {
 	leftFrame, rightFrame uint32
@@ -37,7 +38,8 @@ func (b *Binder) SameSubqueryTarget(a, c expr.Expr) bool {
 	}
 	var frames [16][2]uint32
 	var occurrences [16]QueryTargetOccurrence
-	comparison := QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0]}
+	var ctes [16][2]*plan.CTEDefinition
+	comparison := QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0], ctes: ctes[:0]}
 	return b.sameGroupExpressionIn(a, c, &comparison)
 }
 func (c *QueryTargetComparison) SameFrame(a, b uint32) bool {
@@ -67,6 +69,16 @@ func (c *QueryTargetComparison) PairOccurrence(a, b int) bool {
 	}
 	c.Occurrences = append(c.Occurrences, QueryTargetOccurrence{c.LeftFrame, c.RightFrame, a, b})
 	return true
+}
+func (c *QueryTargetComparison) SameOccurrence(leftFrame, rightFrame uint32, left, right int) bool {
+	if c != nil {
+		for _, pair := range c.Occurrences {
+			if pair.leftFrame == leftFrame && pair.rightFrame == rightFrame && (pair.left == left || pair.right == right) {
+				return pair.left == left && pair.right == right
+			}
+		}
+	}
+	return left == right
 }
 func (c *QueryTargetComparison) expressions(b *Binder, a, d []expr.Expr) bool {
 	if len(a) != len(d) {
@@ -231,7 +243,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 	case *plan.DerivedNode:
 		o, ok := d.(*plan.DerivedNode)
-		if !ok || n.Lateral != o.Lateral || !c.correlations(n.Captures, o.Captures) || n.CTE != o.CTE || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) {
+		if !ok || n.Lateral != o.Lateral || !c.correlations(n.Captures, o.Captures) || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) || !c.cte(b, n.CTE, o.CTE, n.Query, o.Query) {
 			return false
 		}
 		if n.Query != nil && (n.Query.RegclassOutput != o.Query.RegclassOutput || n.Query.VisibilitySnapshot != o.Query.VisibilitySnapshot || n.Query.ExportRoots != o.Query.ExportRoots) {
@@ -249,11 +261,17 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 	case *plan.AggregateNode:
 		o, ok := d.(*plan.AggregateNode)
-		if !ok || n.GroupingActive != o.GroupingActive || n.PresenceOnly != o.PresenceOnly || len(n.Grouping) != len(o.Grouping) || len(n.Sets) != len(o.Sets) || len(n.Calls) != len(o.Calls) || !c.expressions(b, n.Keys, o.Keys) {
+		if !ok || n.GroupingActive != o.GroupingActive || n.PresenceOnly != o.PresenceOnly || len(n.Grouping) != len(o.Grouping) || len(n.Sets) != len(o.Sets) || len(n.Calls) != len(o.Calls) || len(n.Dependencies) != len(o.Dependencies) || !c.expressions(b, n.Keys, o.Keys) || !c.expressions(b, n.Dependent, o.Dependent) {
 			return false
 		}
 		for i, set := range n.Sets {
 			if !slices.Equal(set, o.Sets[i]) {
+				return false
+			}
+		}
+		for i, proof := range n.Dependencies {
+			other := o.Dependencies[i]
+			if proof.Parent != other.Parent || proof.Constraint != other.Constraint || !c.SameFrame(proof.Frame, other.Frame) || !c.PairOccurrence(proof.Occurrence, other.Occurrence) || !slices.Equal(proof.Attributes, other.Attributes) {
 				return false
 			}
 		}
@@ -286,6 +304,34 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		return false
 	}
 	return true
+}
+
+// Scans of one materialized definition must still share one definition after
+// remapping. Pointer equality alone rejects a transplanted immutable query;
+// structural equality alone would merge independent producer invocations.
+func (c *QueryTargetComparison) cte(b *Binder, a, d *plan.CTEDefinition, left, right *plan.Query) bool {
+	if a == nil || d == nil {
+		return a == nil && d == nil
+	}
+	for _, pair := range c.ctes {
+		if pair[0] == a || pair[1] == d {
+			return pair[0] == a && pair[1] == d
+		}
+	}
+	// Mutation bodies remain opaque to query-target comparison.
+	if a.Mutation != nil || d.Mutation != nil {
+		return a == d
+	}
+	if !c.SameFrame(a.Owner, d.Owner) || a.References != d.References || a.Hint != d.Hint || a.Volatile != d.Volatile || a.Recursive != d.Recursive || a.Name != d.Name || a.UserWidth != d.UserWidth || a.Search != d.Search || a.Cycle != d.Cycle || !slices.Equal(a.Schema, d.Schema) || (a.Query == nil) != (d.Query == nil) {
+		return false
+	}
+	if a.Query != nil && (a.Query.RegclassOutput != d.Query.RegclassOutput || a.Query.VisibilitySnapshot != d.Query.VisibilitySnapshot || a.Query.ExportRoots != d.Query.ExportRoots) {
+		return false
+	}
+	c.ctes = append(c.ctes, [2]*plan.CTEDefinition{a, d})
+	// Ordinary scans' definition queries were already compared as logical
+	// inputs. Only a distinct retained definition needs another traversal.
+	return a.Query == nil || a.Query == left && d.Query == right || c.SameQuery(b, a.Query.Root, d.Query.Root)
 }
 
 func (c *QueryTargetComparison) correlations(left, right []plan.FunctionCorrelation) bool {

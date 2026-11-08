@@ -190,6 +190,19 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 				keys[i] = folded
 			}
 		}
+		var dependent []expr.Expr
+		for i, expression := range n.Dependent {
+			folded, replacement, err := exec.PreflightCoercions(c, expression)
+			if err != nil {
+				return nil, err
+			}
+			if replacement {
+				if dependent == nil {
+					dependent = append([]expr.Expr(nil), n.Dependent...)
+				}
+				dependent[i] = folded
+			}
+		}
 		var calls []plan.AggregateCall
 		for i, call := range n.Calls {
 			// Ordered-set direct expressions remain group-finalization owned:
@@ -246,11 +259,14 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		if keys != nil || calls != nil || child != n.Child {
+		if keys != nil || dependent != nil || calls != nil || child != n.Child {
 			copy := *n
 			copy.Child = child
 			if keys != nil {
 				copy.Keys = keys
+			}
+			if dependent != nil {
+				copy.Dependent = dependent
 			}
 			if calls != nil {
 				copy.Calls = calls

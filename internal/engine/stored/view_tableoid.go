@@ -65,8 +65,14 @@ func (v *viewLiteralValidator) validateSystemAttributeOccurrence(path analyze.Vi
 		if project, ok := root.(*plan.ProjectNode); ok && project.Frame != column.Frame {
 			return false
 		}
-		if aggregate, ok := root.(*plan.AggregateNode); ok && slot >= 0 && slot < len(aggregate.Keys) {
-			if n, ok := aggregate.Keys[slot].(plan.SystemAttributeExpr); ok && matches(n) {
+		if aggregate, ok := root.(*plan.AggregateNode); ok {
+			var bound expr.Expr
+			if slot >= 0 && slot < len(aggregate.Keys) {
+				bound = aggregate.Keys[slot]
+			} else if dependent := slot - aggregate.DependentStart(); dependent >= 0 && dependent < len(aggregate.Dependent) {
+				bound = aggregate.Dependent[dependent]
+			}
+			if n, ok := bound.(plan.SystemAttributeExpr); ok && matches(n) {
 				return true
 			}
 		}

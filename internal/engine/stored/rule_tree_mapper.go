@@ -239,8 +239,20 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		mapped := original
 		switch node := original.(type) {
 		case *plan.AggregateNode:
+			copyProofs := *node
+			for i, proof := range node.Dependencies {
+				next := frame(proof.Frame)
+				if next != proof.Frame || offset != 0 {
+					if &copyProofs.Dependencies[0] == &node.Dependencies[0] {
+						copyProofs.Dependencies = slices.Clone(node.Dependencies)
+					}
+					copyProofs.Dependencies[i].Frame = next
+					copyProofs.Dependencies[i].Occurrence += offset
+					mapped = &copyProofs
+				}
+			}
 			if mapping.Recipe != nil {
-				copy := *node
+				copy := copyProofs
 				copy.Grouping = groupings(node.Grouping)
 				copy.Calls = slices.Clone(node.Calls)
 				for i, call := range copy.Calls {

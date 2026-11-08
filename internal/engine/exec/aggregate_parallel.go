@@ -139,6 +139,11 @@ func ParallelAggregatePlan(root plan.Node, source *Source) (*plan.AggregateNode,
 			return nil, false
 		}
 	}
+	for _, dependent := range a.Dependent {
+		if !input(dependent) {
+			return nil, false
+		}
+	}
 	for _, call := range a.Calls {
 		partial, ok := call.Provider.(functions.PartialAggregateProvider)
 		if !ok || !partial.PartialCapable() || len(call.Order) != 0 || len(call.Distinct) != 0 || len(call.Direct) != 0 {
@@ -251,7 +256,7 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	runs := make([][]QueryGroup, workers)
 	scanCounts := make([]relationScanCounts, workers)
 	workerStatistics := make([]struct {
-		fact statistics.DatabaseFact
+		fact      statistics.DatabaseFact
 		readLease SourceReadLease
 	}, workers)
 	for i := range workerStatistics {
@@ -428,7 +433,10 @@ func mergeAggregatePartitions(ctx context.Context, n *plan.AggregateNode, runs [
 				return nil, err
 			}
 			if index < 0 {
-				group := QueryGroup{Keys: append([]sqltype.Value(nil), incoming.Keys...), states: make([]any, len(n.Calls))}
+				// Preserve the first incoming representative, including the
+				// occurrence and non-key payload. Only key slots participate
+				// in lookup and only call slots are finalized below.
+				group := QueryGroup{occurrence: incoming.occurrence, Keys: append([]sqltype.Value(nil), incoming.Keys...), states: make([]any, len(n.Calls))}
 				for j, call := range n.Calls {
 					if provider, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
 						group.states[j], err = provider.InitWithContext(ctx, evaluation)

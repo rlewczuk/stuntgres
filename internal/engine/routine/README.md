@@ -791,6 +791,11 @@ package or the engine.
   declaration-only source prerequisites; semantic descriptor projections never
   replace that declaration metadata. Rendering still validates the complete
   original manifest, including support-only captures.
+  Attached constraint prerequisites retain their exact addresses until the
+  `control` resolver authenticates them with `stored.ConstraintParent` and orders
+  replay after the genuine parent creation event. Missing or malformed attached
+  identities fail replay; this ordering projection never changes pg_depend or
+  DROP edges, which continue to target the constraint.
   Supported routine raw ACLs are captured separately by `control` and replayed
   after final identity/owner reconciliation, preserving NULL/empty arrays,
   delegated named grantors and grant options. Declarations do not render GRANT

@@ -96,7 +96,7 @@ func TestPageinspectHeapAttrsDeclarationDependencies(t *testing.T) {
 		routine := view.MustProcedure(installation.Members[descriptor.slot])
 		members := routine.Origin.Installation.Members
 		seen := map[ids.ObjectAddress]int{}
-		catalog.VisitProcedureCapturedDefinitionDependencies(view, routine, func(address ids.ObjectAddress) bool { seen[address]++; return true })
+		catalog.VisitProcedureCapturedDefinitionDependencies(view, view, routine, func(address ids.ObjectAddress) bool { seen[address]++; return true })
 		if len(seen) != len(descriptor.helpers) {
 			t.Fatal("wrapper dependency width", seen)
 		}

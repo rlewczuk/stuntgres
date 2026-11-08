@@ -94,7 +94,7 @@ func TestTransactionalRulesDependencyPreflight(t *testing.T) {
 					candidate = catalog.CloneState(current)
 					candidate.SetDescriptor(sink.Address(), nil)
 				}
-				err = core.CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target}}}, nil)
+				err = core.CatalogDependencyPreflight(auth.Catalog.WithState(current), auth.Catalog.WithState(candidate), []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target}}}, nil)
 				var conflict catalog.Conflict
 				if control == "dependent" {
 					if !errors.As(err, &conflict) {

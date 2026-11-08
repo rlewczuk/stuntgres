@@ -26,8 +26,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// CatalogDependencyPreflight calls catalogDependencyPreflight.
-func CatalogDependencyPreflight(current *catalog.State, candidate *catalog.State, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
+// CatalogDependencyPreflight calls catalogDependencyPreflight with authenticated
+// committed and candidate catalog authority.
+func CatalogDependencyPreflight(current, candidate catalog.Read, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	return catalogDependencyPreflight(current, candidate, observations, originals)
 }
 

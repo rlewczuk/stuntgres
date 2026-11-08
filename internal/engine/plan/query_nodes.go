@@ -2,6 +2,7 @@ package plan
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
@@ -12,10 +13,24 @@ type AggregateNode struct {
 	Keys           []expr.Expr
 	Grouping       []Grouping
 	Calls          []AggregateCall
+	Dependent      []expr.Expr // Representative input values, never grouping keys.
+	Dependencies   []GroupDependency
 	Sets           [][]int // Canonical key IDs; each occurrence has isolated state.
 	GroupingActive bool
 	PresenceOnly   bool // Retain analyzed grouping while discarding eligible EXISTS demand.
 }
+
+// GroupDependency authenticates one base occurrence's complete grouped primary
+// key. Attached constraints have addresses, not standalone descriptors.
+type GroupDependency struct {
+	Parent     ids.ObjectRef
+	Constraint ids.ObjectAddress
+	Frame      uint32
+	Occurrence int
+	Attributes []int32
+}
+
+func (n *AggregateNode) DependentStart() int { return len(n.Keys) + len(n.Calls) + 1 }
 
 func (n *AggregateNode) DiscardableGrouping() bool {
 	if len(n.Calls) != 0 || n.GroupingActive {

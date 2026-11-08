@@ -29,6 +29,26 @@ func (Resolver) Predecessor(view catalog.Read, address, consumer ids.ObjectAddre
 // instead created by its owning table's inline declaration, so dependencies on
 // it must wait for that exact reciprocal owner, even after address remapping.
 func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
+	// Attached constraints have no descriptor. Authenticate their canonical
+	// owner before resolving the event that actually creates the attachment.
+	// Reject invalid constraint SubIDs rather than erasing them.
+	if address.ClassID == 2606 {
+		parent := stored.ConstraintParent(view, address)
+		if parent == nil {
+			return 0, ids.ErrCatalogReplaced
+		}
+		for _, constraint := range parent.Constraints.Unique {
+			if constraint.OID != address.ObjectID {
+				continue
+			}
+			backing, ok := view.Relation(constraint.Index)
+			if !ok || constraint.Index.ClassID != ids.RelationClassID || constraint.Index.SubID != 0 || backing.Address() != constraint.Index || backing.RelationKind != catalog.IndexRelation || backing.SQLIndex == nil || backing.SQLIndex.Parent != parent.Address() || backing.SQLIndex.Constraint == nil || backing.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind || backing.SQLIndex.Constraint.OID != address.ObjectID || !index.BackingConstraintPresent(parent, backing) {
+				return 0, ids.ErrCatalogReplaced
+			}
+			return predecessor(view, backing.Address(), consumer)
+		}
+		return predecessor(view, parent.Address(), consumer)
+	}
 	address.SubID = 0
 	object, exists := view.Descriptor(address)
 	if !exists {

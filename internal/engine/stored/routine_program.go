@@ -133,6 +133,9 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 	if err := validateRoutineActionShape(action); err != nil {
 		return err
 	}
+	if err := validateRoutineGrouping(action, p.actionDependencies[i], view); err != nil {
+		return err
+	}
 	if err := validateRoutineActionScalars(action, view); err != nil {
 		return err
 	}
@@ -145,9 +148,11 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 	if err := p.validateDependencySet(); err != nil {
 		return nil, err
 	}
-	if remap.RefreshDependency!=nil {
-		for _,dependency:=range p.dependencies {
-			if _,err:=remap.RefreshDependency(dependency);err!=nil { return nil,err }
+	if remap.RefreshDependency != nil {
+		for _, dependency := range p.dependencies {
+			if _, err := remap.RefreshDependency(dependency); err != nil {
+				return nil, err
+			}
 		}
 	}
 	var invalidReference bool
@@ -187,6 +192,9 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		var err error
 		if a.presentation == nil {
 			return nil, fmt.Errorf("stuntgres: missing frozen routine formal namespace")
+		}
+		if err := validateRoutineGrouping(*a, p.actionDependencies[i], catalog.Read{}); err != nil {
+			return nil, err
 		}
 		if err := validateRoutineCapture(*a, p.actionDependencies[i], catalog.Read{}); err != nil {
 			return nil, err

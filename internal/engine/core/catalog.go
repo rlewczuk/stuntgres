@@ -817,7 +817,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		next := s.ApplyTo(current)
 		published := s.storagePublication()
 		relations := published.CandidateRelations(currentStorage, &s.Candidate)
-		if err := catalogDependencyPreflight(current, next, s.Sequence.IdentityDependencyList(), s.Sequence.IdentityOriginalMap()); err != nil {
+		if err := catalogDependencyPreflight(e.Catalog.Read(current), e.Catalog.Read(next), s.Sequence.IdentityDependencyList(), s.Sequence.IdentityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
 		build := index.PublicationBuildStores(indexStores, published, &s.Candidate, current, relations, indexPredecessors, stageIndexes.Candidates)
@@ -913,7 +913,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			err = catalogDependencyPreflight(e.Catalog.State, next, s.Sequence.IdentityDependencyList(), s.Sequence.IdentityOriginalMap())
+			err = catalogDependencyPreflight(e.Catalog.Current(), e.Catalog.Read(next), s.Sequence.IdentityDependencyList(), s.Sequence.IdentityOriginalMap())
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.RoleStore.Published)

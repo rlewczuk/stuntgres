@@ -3496,6 +3496,16 @@ grant-time identity checks never retarget a dropped provider. Type codec
 identities use the same authenticated metadata visitor as dependency projection
 and retirement. Type and definition-source reads join ordinary stage/journal
 fences. Quoted bodies do not acquire hard edges by scanning their source.
+Retirement preflight takes authenticated current and candidate catalog reads.
+Only committed owners changed since the captured observation are inspected, and
+the candidate selects the surviving descriptor, including intentional removal or
+rewiring. Providers and defaults use candidate authority. An unchanged retained
+SQL body authenticates its grouping proofs against current metadata, before the
+candidate removes its supporting constraint; a candidate-authored replacement
+body instead uses candidate metadata. The shared visitor's completion result
+distinguishes a matched-edge callback stop from incomplete authentication:
+either a matching edge or an incomplete projection rejects publication with a
+catalog conflict. Retained descriptors, programs and metadata remain immutable.
 Schema DROP carries an ordered namespace/name manifest, including conditional
 absences, across admission. Current bindings and ownership are validated in the
 same Engine.Mu section that constructs its identity-bound stage; any changed

@@ -129,8 +129,17 @@ func afterRestoreHostAbsences(r *restoreRun, op *session.Operation, statement pa
 			break
 		}
 		for _, descriptor := range read.Descriptors() {
-			if procedure, ok := descriptor.(*catalog.Procedure); ok && catalog.ProcedureDefinitionDependsOn(read, procedure, pair.Address()) {
+			procedure, ok := descriptor.(*catalog.Procedure)
+			if !ok {
+				continue
+			}
+			found, complete := catalog.ProcedureDefinitionDependsOn(read, read, procedure, pair.Address())
+			if found {
 				err = fmt.Errorf("stuntgres: host pair absence follows a dependent declaration")
+				break
+			}
+			if !complete {
+				err = ids.ErrCatalogReplaced
 				break
 			}
 		}

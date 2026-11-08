@@ -768,12 +768,28 @@ neither owns catalog authority.
   `VisitProcedureCapturedDefinitionDependencies` exposes the same checked
   body/default projection to catalog consumers after declaration deduplication;
   consumers never project the full execution manifests as semantic edges.
+  Checked bodies also project authenticated grouping constraint proofs through
+  required `RoutineProgram.VisitGroupingConstraintDependencies`, before the
+  separate defaults pass. Attached constraints never enter descriptor manifests.
+  Both shared visitors require explicit provider/default and SQL-body catalog
+  reads, normally the same authenticated read. Retirement selects the surviving
+  candidate descriptor and retains candidate provider/default semantics, but
+  authenticates an unchanged committed SQL body through current metadata before
+  its supporting key is removed. A newly authored candidate body authenticates
+  through candidate metadata instead. Both visitors return completion status:
+  false means callback termination or incomplete authenticated projection.
+  `ProcedureDefinitionDependsOn` takes those same explicit reads and returns
+  `(found, complete)`: a match stops early, complete absence is `(false, true)`,
+  and failed authentication is `(false, false)`. A zero target completes without
+  projection. Every error-returning consumer preserves callback errors or matched
+  targets, otherwise rejecting incomplete projection with `ids.ErrCatalogReplaced`
+  rather than publishing partial rows, graph edges or successful absence.
   Genuine released bodies enter that same visitor through the optional lower
   `ProcedureDependencyProvider` read-aware, early-stop owner contract. The
   implementation resolves prerequisite identities through sealed origins in the
   supplied catalog view and yields only real captured helpers; membership and
-  recipe siblings do not create extra edges. The same view follows definition
-  admission, projection, retirement and dump ordering. Catalog projection does
+  recipe siblings do not create extra edges. The provider/default view follows
+  definition admission, projection, retirement and dump ordering. Catalog projection does
   not import the higher extension package or maintain a second installed-body
   walker.
   Aggregates depend on ordinary and moving supports and their declared input/result

@@ -901,6 +901,12 @@ No physical WAL position or flush guarantee is serialized.
   the matching table position.
 - **Adapters** (`resolver.go`, `presenter.go`): `Resolver` (`dump.Resolver`)
   and `Presenter` (`dump.Presenter`) read only their arguments.
+  Attached constraint dependencies authenticate their canonical parent metadata.
+  Unique/primary-key attachments then resolve through their exact reciprocal
+  backing index and the common index event policy: inline attachments await
+  the table, while separately replayed INCLUDE/partition attachments await
+  their actual index event. Invalid backing identities never fall back to the
+  table; retained SQL dependencies remain true constraint addresses.
   Unmodified builtin scalar declarations use the existing machine-identity
   spelling: SQL keyword aliases remain keywords and other names are qualified.
   Routine overloads and table columns therefore retain builtin identities when
@@ -1214,6 +1220,8 @@ Publication definition preflight, replay and immutable capture units use
 `RUN='^TestPublicationDump'`.
 SQL-free user-constraint identity collision/remint and bounded Restore admission
 units use `RUN='^TestTriggerDeferred'`.
+Attached routine-constraint predecessor mapping, invalid identity rejection and
+parent self-edge handling use `RUN='^TestRoutineDumpConstraintPredecessor$'`.
 Installation scheduling and ordinary scripted-consumer retirement units use
 `RUN='^Test(InstallationReplay|PgStatStatementsInstallationReplay)'`; public
 replacement behavior remains in the shared reference scenarios.

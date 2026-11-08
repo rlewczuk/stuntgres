@@ -23,8 +23,10 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
 		appendPredecessor := func(address ids.ObjectAddress) error {
-			address.SubID = 0
-			if address.ObjectID == 0 || address == d.Address() {
+			if address.ClassID != 2606 {
+				address.SubID = 0
+			}
+			if address.ObjectID == 0 && address.ClassID != 2606 || address == d.Address() {
 				return nil
 			}
 			predecessor, err := r.Predecessor(view, address, d.Address())
@@ -62,7 +64,7 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 			}
 		}
 		var failure error
-		catalog.VisitProcedureDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
+		complete := catalog.VisitProcedureDefinitionDependencies(view, view, d, func(address ids.ObjectAddress) bool {
 			// Typed declaration prerequisites above already cover these types.
 			// Other body/default types still come from the shared visitor.
 			if address.ClassID == ids.TypeClassID && d.RoutineDefinition() != nil {
@@ -80,6 +82,9 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 		})
 		if failure != nil {
 			return failure
+		}
+		if !complete {
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil

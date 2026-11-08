@@ -92,7 +92,9 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 		return false
 	}
 	for i := range d.Transforms.Len() {
-		if !yield(d.Transforms.At(i).Pair) { return false }
+		if !yield(d.Transforms.At(i).Pair) {
+			return false
+		}
 	}
 	if c := d.HostConversion; c != nil {
 		if !yield(c.Handler) || !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Type.ID())}) {
@@ -129,18 +131,22 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 // edges shared by pg_depend, publication admission and retirement preflight.
 // Quoted source and PL replay-order metadata are deliberately not hard edges.
 // Provider-specific generated/extension edges remain with their providers.
-func VisitProcedureDefinitionDependencies(view Read, d *Procedure, yield func(ids.ObjectAddress) bool) {
-	if VisitProcedureDeclarationDependencies(d, yield) {
-		VisitProcedureCapturedDefinitionDependencies(view, d, yield)
-	}
+// view owns provider/default projection; bodyView authenticates the actual
+// retained SQLBody. Both are normally the same catalog read. It returns false
+// when yield stops visitation or a captured projection cannot authenticate.
+func VisitProcedureDefinitionDependencies(view, bodyView Read, d *Procedure, yield func(ids.ObjectAddress) bool) bool {
+	return VisitProcedureDeclarationDependencies(d, yield) &&
+		VisitProcedureCapturedDefinitionDependencies(view, bodyView, d, yield)
 }
 
 // VisitProcedureCapturedDefinitionDependencies projects checked body/default
 // captures onto direct definition edges. Each phase deduplicates independently;
 // execution-only aggregate support captures never become caller edges.
 // Declaration projection is separate so consumers can deduplicate declarations
-// without collapsing independently recorded body/default rows.
-func VisitProcedureCapturedDefinitionDependencies(view Read, d *Procedure, yield func(ids.ObjectAddress) bool) bool {
+// without collapsing independently recorded body/default rows. bodyView owns
+// SQLBody proof authentication independently of provider/default view.
+// False means callback termination or incomplete authenticated projection.
+func VisitProcedureCapturedDefinitionDependencies(view, bodyView Read, d *Procedure, yield func(ids.ObjectAddress) bool) bool {
 	if provider, ok := d.Implementation.(ProcedureDependencyProvider); ok {
 		if !provider.VisitProcedureDependencies(view, d, yield) {
 			return false
@@ -151,6 +157,9 @@ func VisitProcedureCapturedDefinitionDependencies(view Read, d *Procedure, yield
 	}
 	if d.SQLBody != nil {
 		if !visitDirectExpressionDependencies(d.SQLBody.Dependencies(), yield) {
+			return false
+		}
+		if !d.SQLBody.VisitGroupingConstraintDependencies(bodyView, yield) {
 			return false
 		}
 	}
@@ -183,15 +192,15 @@ func visitDirectExpressionDependencies(dependencies []ExpressionDependency, yiel
 	return true
 }
 
-// ProcedureDefinitionDependsOn is allocation-free and stops at the first edge.
-func ProcedureDefinitionDependsOn(view Read, d *Procedure, target ids.ObjectAddress) bool {
+// ProcedureDefinitionDependsOn stops at the first matching edge. complete is
+// false on a match or failed authentication; found distinguishes those cases.
+func ProcedureDefinitionDependsOn(view, bodyView Read, d *Procedure, target ids.ObjectAddress) (found, complete bool) {
 	if target.ObjectID == 0 {
-		return false
+		return false, true
 	}
-	found := false
-	VisitProcedureDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
+	complete = VisitProcedureDefinitionDependencies(view, bodyView, d, func(address ids.ObjectAddress) bool {
 		found = address == target
 		return !found
 	})
-	return found
+	return found, complete
 }

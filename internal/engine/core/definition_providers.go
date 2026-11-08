@@ -108,7 +108,9 @@ func (s *StatementScope) AcquireRoutineDefinitionProviders(stage *CatalogStage) 
 		case *catalog.Procedure:
 			old, _ := stage.Base.Procedure(address)
 			if old == nil || old.Host != d.Host || old.HostConversion != d.HostConversion || old.SQL != d.SQL || old.SQLBody != d.SQLBody || old.SQLDefaults != d.SQLDefaults || old.Aggregate != d.Aggregate {
-				catalog.VisitProcedureDefinitionDependencies(view, d, add)
+				if !catalog.VisitProcedureDefinitionDependencies(view, view, d, add) {
+					return ids.ErrCatalogReplaced
+				}
 			}
 		case *catalog.Operator:
 			old, _ := stage.Base.Operator(address)

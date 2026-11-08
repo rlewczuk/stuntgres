@@ -10,6 +10,69 @@ import (
 	"unicode/utf8"
 )
 
+func TestGroupingClauseOrdinary(t *testing.T) {
+	leaf := GroupItem{Kind: GroupExpression}
+	list := func(items ...GroupItem) GroupItem { return GroupItem{Kind: GroupList, Items: items} }
+	for _, test := range []struct {
+		name   string
+		clause *GroupClause
+		want   bool
+	}{
+		{name: "absent"},
+		{name: "empty_clause", clause: &GroupClause{}},
+		{name: "expression", clause: &GroupClause{Items: []GroupItem{leaf}}, want: true},
+		{name: "expressions", clause: &GroupClause{Items: []GroupItem{leaf, leaf}}, want: true},
+		{name: "list", clause: &GroupClause{Items: []GroupItem{list(leaf, leaf)}}, want: true},
+		{name: "nested_lists", clause: &GroupClause{Items: []GroupItem{leaf, list(list(leaf, list(leaf)), leaf)}}, want: true},
+		{name: "empty_list", clause: &GroupClause{Items: []GroupItem{list()}}},
+		{name: "nested_empty_list", clause: &GroupClause{Items: []GroupItem{list(leaf, list(leaf, list()))}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.clause.Ordinary(); got != test.want {
+				t.Fatalf("Ordinary() = %v, want %v", got, test.want)
+			}
+		})
+	}
+	for _, kind := range []GroupKind{GroupEmpty, GroupSets, GroupRollup, GroupCube, GroupKind(255)} {
+		// Even a construct containing only expression leaves is not ordinary.
+		forbidden := GroupItem{Kind: kind, Items: []GroupItem{leaf}}
+		for _, item := range []GroupItem{forbidden, list(leaf, list(leaf, forbidden))} {
+			clause := &GroupClause{Items: []GroupItem{leaf, item}}
+			if clause.Ordinary() {
+				t.Fatalf("accepted forbidden kind %d in %#v", kind, clause)
+			}
+		}
+	}
+}
+
+func TestGroupingClauseOrdinaryParsedLists(t *testing.T) {
+	for _, test := range []struct {
+		clause string
+		want   bool
+	}{
+		{"a,b", true},
+		{"(a,b)", true},
+		{"(b,a),v", true},
+		{"((a,b),v)", true},
+		{"ALL (a,b)", true},
+		{"DISTINCT (a,b)", true},
+		{"()", false},
+		{"GROUPING SETS((a,b))", false},
+		{"ROLLUP((a,b))", false},
+		{"CUBE((a,b))", false},
+	} {
+		t.Run(test.clause, func(t *testing.T) {
+			statements, err := Parse("SELECT a FROM t GROUP BY " + test.clause)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(statements, err)
+			}
+			if got := statements[0].(*Select).GroupBy.Ordinary(); got != test.want {
+				t.Fatalf("Ordinary() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestGroupingSetsStructure(t *testing.T) {
 	q := "/*é*/ SELECT GROUPING(a,b) FROM t GROUP BY DISTINCT ROLLUP(a,(b,v)),GROUPING SETS((),(a))"
 	statements, err := Parse(q)

@@ -139,10 +139,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				return true
 			}
 			catalog.VisitProcedureDeclarationDependencies(d, declaration)
-			catalog.VisitProcedureCapturedDefinitionDependencies(view, d, func(address ids.ObjectAddress) bool {
+			if !catalog.VisitProcedureCapturedDefinitionDependencies(view, view, d, func(address ids.ObjectAddress) bool {
 				add(d.Address(), address, 'n')
 				return true
-			})
+			}) {
+				return nil, ids.ErrCatalogReplaced
+			}
 			if runtime.InstalledProcedure(d) {
 				if !d.Origin.Valid(d.Address()) || d.Implementation == nil || d.Origin.Installation.Implementation != d.Implementation {
 					return nil, fmt.Errorf("stuntgres: missing installed codec authority")

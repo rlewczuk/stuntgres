@@ -144,6 +144,7 @@ type GroupingState struct {
 	active            bool
 	GroupSets         [][]int
 	groupSubquery     bool
+	dependency        *groupDependencyState
 	windowRaw         []parser.WindowDefinition
 	windowDefinitions map[string]plan.WindowSpec
 	WindowCalls       []plan.WindowCall

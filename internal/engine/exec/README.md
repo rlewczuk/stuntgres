@@ -372,6 +372,13 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   existing lexical `Outer`. Correlated joins own per-left close/open, NULL
   extension and invocation presence/identity; children borrow source authority,
   parameters and pins without retaining runtime state in accepted plans.
+  Aggregation evaluates demanded dependent payload once at first nonempty group
+  creation against its representative input frame, including whole-row presence.
+  Payload follows the unchanged keys/calls/occurrence prefix and never enters
+  key preparation, hashing or equality. Partial workers retain the same complete
+  row; leader merge preserves the first incoming representative while combining
+  only aggregate states. Errors and cancellation publish no partial rowset and
+  release input/group owners through the existing eager stage lifetime.
   `NamedRelationScanNode` opens through `Source.LiveHost().OpenNamedRelation`,
   which validates the retained shape against the current invocation. The live
   authority slot is authoritative, including its detached nil host; no direct
@@ -1500,6 +1507,9 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Representative grouped payload, actual worker retention, merge and cancellation
+owners use `RUN='^TestGroupDependency'`, adding `RACE=1` for worker ownership.
 
 Sampling selection, visibility/layout preservation and lifecycle units use
 `RUN='^TestSystem(Rows|Time)'`, including composed statement-owner coverage in core.

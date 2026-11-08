@@ -386,7 +386,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 				depends := false
-				catalog.VisitProcedureDefinitionDependencies(base, d, func(address ids.ObjectAddress) bool {
+				complete := catalog.VisitProcedureDefinitionDependencies(base, base, d, func(address ids.ObjectAddress) bool {
 					if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 						direct[len(direct)-1].Normal = true
@@ -395,6 +395,9 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					}
 					return true
 				})
+				if !complete && !depends {
+					return ids.ErrCatalogReplaced
+				}
 				// pg_depend also records an installed routine's signature types;
 				// an extension-order walk reaches member routines through them.
 				if extensionOrder && !depends && d.Implementation != nil && target.ClassID == ids.TypeClassID {

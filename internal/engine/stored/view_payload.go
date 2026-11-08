@@ -231,6 +231,15 @@ func (v *View) DependsOn(target ids.ObjectAddress) bool {
 			return true
 		}
 	}
+	if v.query != nil {
+		found := false
+		groupDependencyAddresses(v.query.Root, func(address ids.ObjectAddress) {
+			found = found || address == target
+		})
+		if found {
+			return true
+		}
+	}
 	return false
 }
 

@@ -56,7 +56,11 @@ func routineAggregateCaptureFixture(t *testing.T, mixed, directFirst bool) (cata
 		literal = value
 	}
 	ref := read.Owner().Domain.Ref(read.Epoch(), aggregate.Address())
-	aggregateNode := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{Provider: provider, Procedure: aggregate, Ref: ref, Routine: ref, Operation: functions.AggregateTransition, Arguments: []expr.Expr{literal}, IncludeNulls: true}}}
+	aggregateNode := &plan.AggregateNode{
+		QuerySchema: plan.QuerySchema{{Usage: provider.ResultUsage()}, {Usage: integer.Usage()}},
+		Child:       &plan.SingletonNode{},
+		Calls:       []plan.AggregateCall{{Provider: provider, Procedure: aggregate, Ref: ref, Routine: ref, Operation: functions.AggregateTransition, Arguments: []expr.Expr{literal}, IncludeNulls: true}},
+	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw}}
 	root := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: integer.Usage()}}, Child: aggregateNode, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{StageDependent: true}}, Frame: 1, Slot: 0}}, Frame: 1, Syntax: syntax}
 	presentation.expressionSyntax = nil
@@ -132,13 +136,13 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			}
 			d := &catalog.Procedure{SQL: &proc.Definition{}, SQLBody: p}
 			directEdges := 0
-			catalog.VisitProcedureDefinitionDependencies(read, d, func(address ids.ObjectAddress) bool {
+			complete := catalog.VisitProcedureDefinitionDependencies(read, read, d, func(address ids.ObjectAddress) bool {
 				if address == provider.Support.Address() {
 					directEdges++
 				}
 				return true
 			})
-			if directEdges != wantDirect {
+			if !complete || directEdges != wantDirect {
 				t.Fatal("semantic projection flattened support", directEdges)
 			}
 			duplicated := append(slices.Clone(p.dependencies), p.dependencies...)
@@ -149,13 +153,13 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			if mixed {
 				d.SQLDefaults = &RoutineDefaults{dependencies: []catalog.ExpressionDependency{{Ref: read.Owner().Domain.Ref(read.Epoch(), provider.Support.Address()), Revision: provider.Support.Revision()}}}
 				n := 0
-				catalog.VisitProcedureDefinitionDependencies(read, d, func(a ids.ObjectAddress) bool {
+				complete := catalog.VisitProcedureDefinitionDependencies(read, read, d, func(a ids.ObjectAddress) bool {
 					if a == provider.Support.Address() {
 						n++
 					}
 					return true
 				})
-				if n != 2 {
+				if !complete || n != 2 {
 					t.Fatal("body/default passes collapsed", n)
 				}
 			}
@@ -188,13 +192,13 @@ func TestRoutineAggregateDependencyPurpose(t *testing.T) {
 			p.dependencies = normalized
 			d := &catalog.Procedure{SQL: &proc.Definition{}, SQLBody: p}
 			edges := 0
-			catalog.VisitProcedureDefinitionDependencies(read, d, func(address ids.ObjectAddress) bool {
+			complete := catalog.VisitProcedureDefinitionDependencies(read, read, d, func(address ids.ObjectAddress) bool {
 				if address == provider.Support.Address() {
 					edges++
 				}
 				return true
 			})
-			if edges != 1 {
+			if !complete || edges != 1 {
 				t.Fatal("historical authority variants duplicated semantic edge", edges)
 			}
 		}
@@ -708,8 +712,9 @@ func TestRoutineAggregatePurposeRemap(t *testing.T) {
 					t.Fatal("refresh unexpectedly relies on aggregate SQL bridge")
 				}
 			}
-			if !mixed && catalog.ProcedureDefinitionDependsOn(read, caller, provider.Support.Address()) {
-				t.Fatal("refresh index leaked into semantic graph")
+			found, complete := catalog.ProcedureDefinitionDependsOn(read, read, caller, provider.Support.Address())
+			if found != mixed || complete == mixed {
+				t.Fatal("refresh index semantic graph or projection completion mismatch", found, complete, mixed)
 			}
 		}
 	})

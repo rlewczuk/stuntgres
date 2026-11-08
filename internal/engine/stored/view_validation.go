@@ -371,7 +371,11 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 			if n.Query != nil || n.CTE == nil || !n.CTE.Recursive || len(n.Schema()) != len(n.CTE.OutputSchema()) {
 				return fmt.Errorf("stuntgres: invalid stored worktable identity")
 			}
-		case *plan.ProjectNode, *plan.EvaluationNode, *plan.FilterNode, *plan.SortNode, *plan.AggregateNode, *plan.WindowNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SingletonNode:
+		case *plan.AggregateNode:
+			if err := validateGroupDependencyNode(catalog, definition, n, frame); err != nil {
+				return err
+			}
+		case *plan.ProjectNode, *plan.EvaluationNode, *plan.FilterNode, *plan.SortNode, *plan.WindowNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SingletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}

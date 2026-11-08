@@ -141,19 +141,21 @@ func TestIntaggAggregateHelperDependencies(t *testing.T) {
 			t.Fatal("helper must have a genuine canonical declaration", helper)
 		}
 		want[address] = 0
-		if !catalog.ProcedureDefinitionDependsOn(view, aggregate, address) {
+		if found, complete := catalog.ProcedureDefinitionDependsOn(view, view, aggregate, address); !found || complete {
 			t.Fatal("missing aggregate definition dependency", helper)
 		}
 	}
 	if len(want) != 2 {
 		t.Fatal("state and final identities must be distinct", helpers)
 	}
-	catalog.VisitProcedureDeclarationDependencies(aggregate, func(address ids.ObjectAddress) bool {
+	if !catalog.VisitProcedureDeclarationDependencies(aggregate, func(address ids.ObjectAddress) bool {
 		if _, ok := want[address]; ok {
 			want[address]++
 		}
 		return true
-	})
+	}) {
+		t.Fatal("aggregate declaration projection did not complete")
+	}
 	for address, count := range want {
 		if count != 1 {
 			t.Fatal("helper declaration dependency", address, count)

@@ -36,15 +36,22 @@ func (r *DependRefs) Add(address ids.ObjectAddress) {
 	whole := address
 	whole.SubID = 0
 	d, ok := catalog.DescriptorAt(r.Catalog, r.definition, whole)
-	if !ok {
-		r.Err = fmt.Errorf("stuntgres: missing dependency provider")
-		return
-	}
-	if address.SubID != 0 {
-		relation, ok := d.(*catalog.Relation)
-		if !ok || !relation.HasSupportedAttribute(address.SubID) {
-			r.Err = fmt.Errorf("stuntgres: missing dependency attribute")
+	if address.ClassID == 2606 {
+		if address.SubID != 0 || ConstraintParent(r.Catalog, address) == nil {
+			r.Err = fmt.Errorf("stuntgres: missing dependency constraint")
 			return
+		}
+	} else {
+		if !ok {
+			r.Err = fmt.Errorf("stuntgres: missing dependency provider")
+			return
+		}
+		if address.SubID != 0 {
+			relation, ok := d.(*catalog.Relation)
+			if !ok || !relation.HasSupportedAttribute(address.SubID) {
+				r.Err = fmt.Errorf("stuntgres: missing dependency attribute")
+				return
+			}
 		}
 	}
 	if r.Addresses == nil {
@@ -396,6 +403,13 @@ func (r *DependRefs) Query(node plan.Node) {
 		}
 	}
 	if aggregate, ok := node.(*plan.AggregateNode); ok {
+		for _, proof := range aggregate.Dependencies {
+			if err := validateGroupConstraint(r.Catalog, proof); err != nil {
+				r.Err = err
+				return
+			}
+			r.Add(proof.Constraint)
+		}
 		for _, call := range aggregate.Calls {
 			if call.Procedure != nil {
 				r.Add(call.Ref.Address)

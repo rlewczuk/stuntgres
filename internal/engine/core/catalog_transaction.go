@@ -76,7 +76,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		return nil, err
 	}
 	view := e.PrivateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
+	if err := catalogDependencyPreflight(e.Catalog.Current(), view, c.Dependencies, c.Originals); err != nil {
 		e.Mu.Unlock()
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, FenceExtensionAuthority); err != nil {
 		return err
 	}
-	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
+	if err := catalogDependencyPreflight(e.Catalog.Current(), view, c.Dependencies, c.Originals); err != nil {
 		return err
 	}
 	if err := e.catalogFencesCurrentLocked(c, fenceAlterTypeUse); err != nil {
@@ -248,12 +248,14 @@ func (e *Engine) catalogJournalPredecessorsCurrentLocked(c *session.Journal) err
 
 // Inspect only committed descriptors changed since a captured retirement.
 // Candidate overrides matter: an owner removed or rewired by this transaction
-// must not impersonate a surviving edge into an absent provider.
+// must not impersonate a surviving edge into an absent provider. Both reads
+// retain genuine authority; unchanged SQLBody proofs belong to current metadata,
+// while replacements belong to candidate metadata.
 // Existing expression/ownership observations also fence retained-message
 // admission before removals are overlaid; new type/definition edges require absence.
-func catalogDependencyPreflight(current, candidate *catalog.State, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
+func catalogDependencyPreflight(current, candidate catalog.Read, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
-		if current == observation.Base {
+		if current.State() == observation.Base {
 			continue
 		}
 		for address, descriptor := range current.Descriptors() {
@@ -262,7 +264,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 			}
 			owner := candidate.Get(address)
 			for _, target := range observation.Targets {
-				if err := visitDefinitionProviders(catalog.NewRead(nil, candidate), owner, func(a ids.ObjectAddress) error {
+				if err := visitDefinitionProviders(candidate, owner, func(a ids.ObjectAddress) error {
 					if a == target {
 						return catalog.Conflict{}
 					}
@@ -276,11 +278,25 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						return catalog.Conflict{}
 					}
 				case *catalog.Procedure:
-					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && catalog.ProcedureDefinitionDependsOn(catalog.NewRead(nil, candidate), owner, target) {
+					if target.ClassID == ids.TypeClassID && candidate.Get(target) != nil {
+						continue
+					}
+					bodyView := candidate
+					if committed, ok := descriptor.(*catalog.Procedure); ok && owner.SQLBody == committed.SQLBody {
+						// Retained checked bodies keep their committed proof authority,
+						// even after candidate metadata removes the supporting key.
+						bodyView = current
+					}
+					found := false
+					complete := catalog.VisitProcedureDefinitionDependencies(candidate, bodyView, owner, func(a ids.ObjectAddress) bool {
+						found = a == target
+						return !found
+					})
+					if found || !complete {
 						return catalog.Conflict{}
 					}
 				case *catalog.Operator:
-					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && routine.OperatorDependsOn(catalog.NewRead(nil, current), owner, target) {
+					if (target.ClassID != ids.TypeClassID || candidate.Get(target) == nil) && routine.OperatorDependsOn(current, owner, target) {
 						return catalog.Conflict{}
 					}
 				case *catalog.Type:
@@ -351,7 +367,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						return catalog.Conflict{}
 					}
 					for _, rule := range stored.RulesOf(owner) {
-						if view.RuleDepends(catalog.NewRead(nil, candidate), rule, target) {
+						if view.RuleDepends(candidate, rule, target) {
 							return catalog.Conflict{}
 						}
 					}

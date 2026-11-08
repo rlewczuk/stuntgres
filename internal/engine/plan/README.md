@@ -135,6 +135,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `CycleRecipe`, `CTEDefinition`, `CTEMutation`, `FunctionCorrelation`,
   `SetTemplate`, `SetStep`, `SetStepKind`, `SetSlot`, `RowMark` and
   `SQLJSONArrayQuery`.
+  `AggregateNode` preserves the row prefix keys, call results, grouping occurrence,
+  followed by demanded non-key `Dependent` values. `GroupDependency` retains the
+  admitted parent reference, exact attached primary-key constraint address,
+  lexical frame, source occurrence and immutable stable key attributes. Payload
+  participates in expression traversal/reconstruction, not grouping kernels;
+  proof identities participate in structural comparison and catalog remapping.
   Each declaration-specific aggregate slot retains its original owning declaration,
   reference and opaque defining recipe; windows carry the recipe on their original occurrence's `Info`.
   The token separates graft ancestry, not catalog permission or execution.
@@ -361,7 +367,7 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   | Owner | Additional analyzed facts | Excluded authority/state |
   |---|---|---|
   | Source, project, values, schema | relation/occurrence, frame, ordered output Usage/name, typed operands and analysis expressions, Var frame/slot/origin | source positions, pins, runtime demand |
-  | Aggregate | call/result-slot, selected Routine and installed Ref, operation, support declarations, order/distinct selection and ordered argument/direct roots | provider and aggregate state; syntax retains written clauses |
+  | Aggregate | call/result-slot, selected Routine and installed Ref, operation, support declarations, order/distinct selection and ordered argument/direct roots; representative payload roots and supporting parent/constraint/frame/occurrence/key-attribute proof | provider and aggregate state; syntax retains written clauses |
   | Window | frame/slot/call, selected Routine/Procedure pairing, spec/sort association, all call operands, partition/equality/order/RANGE support and bound frame | overlay/cache values, provider pointers |
   | Sort, grouping, distinct, set | resolved key/output/target/cache-read occurrence and direction/null policy; equality declaration; captured class/family/member/routine; logical grouping/coercion usages and collation; canonical set operation | runtime comparisons/hashes |
   | Join, derived, function FROM | correlation frame/slot/occurrence, source/scan frame, resolved join kind, local CTE owner | ScanOwner and storage, written aliases |
@@ -492,6 +498,9 @@ remap, retag, conditional planning, join legality, aggregate binding, defaults,
 without aliases.
 
 ## Testing
+
+Grouped payload layout, structural identity and immutable transformation owners
+use `RUN='^TestGroupDependency'`, including composed binding tests in core.
 
 Sampling structural identity, immutable rewrites, stored capture and replay units
 use `RUN='^TestSystem(Rows|Time)'`.

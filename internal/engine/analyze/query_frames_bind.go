@@ -47,6 +47,8 @@ func (b *Binder) EnterQuery(disallowParent bool) func() {
 	b.Clause.StringSetGuard, b.Clause.stringFromForbidden = "", false
 	b.Clause.RegexpClause = ""
 	oldNamespace := b.Query.Namespace
+	oldDependency := b.Grouping.dependency
+	b.Grouping.dependency = nil
 	parent := queryBindingScope{namespace: b.Query.Namespace, hidden: b.Query.Hidden, frame: b.FrameID(), allowed: !disallowParent, Clause: b.Clause.AggregateClause, aggregates: b.Grouping.Aggregates, returning: b.Target.returningAliases, nonLateral: b.Query.NonLateral}
 	parent.stringFromForbidden = oldForbidden
 	parent.relation = b.Target.Relation
@@ -82,6 +84,7 @@ func (b *Binder) EnterQuery(disallowParent bool) func() {
 		parent := b.Query.Scopes[index]
 		b.Query.Scopes = b.Query.Scopes[:index]
 		b.Query.Namespace, b.Query.Hidden = oldNamespace, parent.hidden
+		b.Grouping.dependency = oldDependency
 		b.Grouping.Aggregates, b.Clause.AggregateClause = parent.aggregates, parent.Clause
 		b.Grouping.active, b.Grouping.GroupSets = parent.groupingActive, parent.groupSets
 		b.Grouping.windowRaw, b.Grouping.windowDefinitions, b.Grouping.WindowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls

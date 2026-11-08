@@ -459,7 +459,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}
-				err = core.CatalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
+				err = core.CatalogDependencyPreflight(current, current.WithState(candidate), stage.Sequence.IdentityDependencyList(), nil)
 				var conflict catalog.Conflict
 				if control == "still_dependent" {
 					if !errors.As(err, &conflict) {

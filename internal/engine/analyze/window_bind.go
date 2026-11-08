@@ -462,11 +462,15 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 			}
 		}
 		if index < 0 {
-			comparison,capture,err := b.bindSortOrdering(expr.ResultUsage())
-			if d,ok:=err.(*sqlstate.Error);ok{
-				copy:=*d;copy.Position=fmt.Sprint(key.Pos.Character);return spec,&copy
+			comparison, capture, err := b.bindSortOrdering(expr.ResultUsage())
+			if d, ok := err.(*sqlstate.Error); ok {
+				copy := *d
+				copy.Position = fmt.Sprint(key.Pos.Character)
+				return spec, &copy
 			}
-			if err!=nil{return spec,err}
+			if err != nil {
+				return spec, err
+			}
 			usage := expr.ResultUsage()
 			base := usage.Type.BaseType()
 			signature, err := sqltype.ResolveEquality(base, base)
@@ -481,7 +485,7 @@ func (b *Binder) bindWindowSpec(raw parser.WindowSpec, names map[string]plan.Win
 				return spec, err
 			}
 			index = len(spec.Order)
-			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, Ordering:capture, EqualityRoutine: routine, EqualityProcedure: declaration, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+			spec.Order = append(spec.Order, plan.SortKey{Expression: expr, Comparison: comparison, Ordering: capture, EqualityRoutine: routine, EqualityProcedure: declaration, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
 		}
 		spec.OrderMap[i] = index
 	}
@@ -575,7 +579,7 @@ func (b *Binder) SameWindowSort(a, c plan.WindowSpec) bool {
 	}
 	return true
 }
-func (b *Binder) finishWindows(root plan.Node, keys []expr.Expr, grouped bool, projection []expr.Expr, order, on []plan.SortKey, stringCompanions ...[]expr.Expr) (plan.Node, error) {
+func (b *Binder) prepareWindows(keys []expr.Expr, grouped bool) ([]plan.WindowCall, error) {
 	if grouped {
 		for _, definition := range b.Grouping.windowRaw {
 			spec := b.Grouping.windowDefinitions[definition.Name.Text]
@@ -599,7 +603,7 @@ func (b *Binder) finishWindows(root plan.Node, keys []expr.Expr, grouped bool, p
 		}
 	}
 	if len(b.Grouping.WindowCalls) == 0 {
-		return root, nil
+		return nil, nil
 	}
 	preparedCalls := append([]plan.WindowCall(nil), b.Grouping.WindowCalls...)
 	for i, call := range preparedCalls {
@@ -665,6 +669,13 @@ func (b *Binder) finishWindows(root plan.Node, keys []expr.Expr, grouped bool, p
 			}
 		}
 		preparedCalls[i].Spec = spec
+	}
+	return preparedCalls, nil
+}
+
+func (b *Binder) finishWindows(root plan.Node, preparedCalls []plan.WindowCall, projection []expr.Expr, order, on []plan.SortKey, stringCompanions ...[]expr.Expr) (plan.Node, error) {
+	if len(preparedCalls) == 0 {
+		return root, nil
 	}
 	aliases := b.windowValueAliases(preparedCalls, projection, order, on)
 	var err error

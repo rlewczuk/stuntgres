@@ -61,7 +61,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return left == nil && right == nil
 	case plan.SystemAttributeExpr:
 		o, ok := other.(plan.SystemAttributeExpr)
-		return ok && e.SubID == o.SubID && e.Owner == o.Owner && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && e.QueryOccurrence == o.QueryOccurrence && e.Old == o.Old && e.Absent == o.Absent && e.Merge == o.Merge && e.Side == o.Side
+		return ok && e.SubID == o.SubID && e.Owner == o.Owner && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && comparison.SameOccurrence(e.Frame, o.Frame, e.QueryOccurrence-1, o.QueryOccurrence-1) && e.Old == o.Old && e.Absent == o.Absent && e.Merge == o.Merge && e.Side == o.Side
 	case plan.GroupingExpr:
 		o, ok := other.(plan.GroupingExpr)
 		if !ok || !comparison.SameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
@@ -181,7 +181,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return ok && e.Number == o.Number
 	case plan.RowExpr:
 		o, ok := other.(plan.RowExpr)
-		if !ok || len(e.Fields) != len(o.Fields) || (e.WholeNames == nil) != (o.WholeNames == nil) || e.WholeName != o.WholeName || e.WholeSource != o.WholeSource || e.PresenceSlot != o.PresenceSlot || e.PresenceFrame != o.PresenceFrame || e.ReturningWhole != o.ReturningWhole || e.ReturningNull != o.ReturningNull {
+		if !ok || len(e.Fields) != len(o.Fields) || (e.WholeNames == nil) != (o.WholeNames == nil) || e.WholeName != o.WholeName || e.WholeSource.Namespace != o.WholeSource.Namespace || e.WholeSource.Qualifier != o.WholeSource.Qualifier || !comparison.SameFrame(e.WholeSource.Frame, o.WholeSource.Frame) || e.PresenceSlot != o.PresenceSlot || !comparison.SameFrame(e.PresenceFrame, o.PresenceFrame) || e.ReturningWhole != o.ReturningWhole || e.ReturningNull != o.ReturningNull {
 			return false
 		}
 		if !slices.Equal(e.FieldProjection, o.FieldProjection) {
@@ -427,6 +427,9 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		if e.Scope == 0 || e.Frame != b.FrameID() {
 			return e, nil
 		}
+		if dependent, ok := b.dependentGroupExpression(e); ok {
+			return dependent, nil
+		}
 		name := catalog.SystemAttributeName(e.SubID)
 		for _, q := range b.Query.Namespace.Qualifiers {
 			if q.SystemOccurrence == e.QueryOccurrence {
@@ -441,6 +444,9 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 	case plan.ColumnExpr:
 		if e.Frame != b.FrameID() {
 			return e, nil
+		}
+		if dependent, ok := b.dependentGroupExpression(e); ok {
+			return dependent, nil
 		}
 		name := b.Query.Namespace.Frame[e.Slot].Name
 		for _, q := range b.Query.Namespace.Qualifiers {
@@ -461,6 +467,9 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		}
 		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case plan.RowExpr:
+		if dependent, ok := b.dependentGroupExpression(e); ok {
+			return dependent, nil
+		}
 		e, _, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(old)
 			return next, !b.SameGroupExpression(old, next), err
@@ -471,6 +480,14 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		stage(&e.Info)
 		bound = e
 	case plan.FieldExpr:
+		// A named source's selected scalar member is already a direct Var;
+		// the constructor's other members are not executable field demand.
+		if row, ok := e.Base.(plan.RowExpr); ok && b.Grouping.dependency != nil && row.WholeNames != nil && row.PresenceSlot == 0 && e.Index >= 0 && e.Index < len(row.Fields) {
+			if column, ok := row.Fields[e.Index].(plan.ColumnExpr); ok {
+				column.Pos = e.Pos
+				return b.RewriteGroup(column, keys)
+			}
+		}
 		e.Base = rewrite(e.Base)
 		stage(&e.Info)
 		bound = e

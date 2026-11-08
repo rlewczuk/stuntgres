@@ -468,11 +468,15 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			return nil, sqlError("0A000", mode+" is not allowed with "+suffix)
 		}
 	}
+	var preparedWindows []plan.WindowCall
 	if grouped {
 		runtimeKeys := append([]expr.Expr(nil), keys...)
 		root, err = b.LowerQuerySets(root, runtimeKeys, nil, false)
 		if err != nil {
 			return nil, err
+		}
+		if s.GroupBy.Ordinary() {
+			b.Grouping.dependency = &groupDependencyState{keys: keys}
 		}
 		for i, call := range b.Grouping.Aggregates {
 			for j, expr := range call.Direct {
@@ -483,15 +487,6 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 				b.Grouping.Aggregates[i].Direct[j] = direct
 			}
 		}
-		schema := make([]catalog.Column, len(keys)+len(b.Grouping.Aggregates)+1)
-		for i, key := range keys {
-			schema[i] = catalog.Column{Usage: key.ResultUsage()}
-		}
-		for i, call := range b.Grouping.Aggregates {
-			schema[len(keys)+i] = catalog.Column{Usage: call.Provider.ResultUsage()}
-		}
-		schema[len(schema)-1] = catalog.Column{Usage: b.Type(sqltype.Int4).Usage()}
-		root = &plan.AggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.Grouping.active, Calls: append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.RewriteGroup(expr, keys)
@@ -505,7 +500,6 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			if err != nil {
 				return nil, err
 			}
-			root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: having}
 		}
 		for i := range order {
 			order[i].Expression, err = b.RewriteGroup(order[i].Expression, keys)
@@ -519,9 +513,39 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 				return nil, err
 			}
 		}
+		preparedWindows, err = b.prepareWindows(keys, true)
+		if err != nil {
+			return nil, err
+		}
+		schema := make([]catalog.Column, len(keys)+len(b.Grouping.Aggregates)+1)
+		for i, key := range keys {
+			schema[i] = catalog.Column{Usage: key.ResultUsage()}
+		}
+		for i, call := range b.Grouping.Aggregates {
+			schema[len(keys)+i] = catalog.Column{Usage: call.Provider.ResultUsage()}
+		}
+		schema[len(keys)+len(b.Grouping.Aggregates)] = catalog.Column{Usage: b.Type(sqltype.Int4).Usage()}
+		aggregate := &plan.AggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.Grouping.active, Calls: append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)}
+		if dependency := b.Grouping.dependency; dependency != nil {
+			aggregate.Dependent = dependency.dependent
+			aggregate.Dependencies = dependency.proofs
+			for _, expression := range aggregate.Dependent {
+				aggregate.QuerySchema = append(aggregate.QuerySchema, catalog.Column{Usage: expression.ResultUsage()})
+			}
+		}
+		root = aggregate
+		if having != nil {
+			root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: having}
+		}
+	}
+	if !grouped {
+		preparedWindows, err = b.prepareWindows(keys, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 	windowCompanions := append(stringSortExpressions(order), stringSortExpressions(on)...)
-	root, err = b.finishWindows(root, keys, grouped, projection, order, on, projection, windowCompanions)
+	root, err = b.finishWindows(root, preparedWindows, projection, order, on, projection, windowCompanions)
 	replaceStringSortExpressions(order, windowCompanions[:len(order)])
 	replaceStringSortExpressions(on, windowCompanions[len(order):])
 	if err != nil {

@@ -503,6 +503,18 @@ library, and never the root engine or `session`. The engine, the root driver
   recursive CYCLE-mark grouping keys, and window partition/peer equality.
   Equality selection keeps the checked declaration after any existing coercion;
   it does not perform a later lookup by the routine's mutable name.
+  Ordinary grouped queries, including recursively parenthesized expression lists,
+  use the parser's shared `GroupClause.Ordinary` classification and prove complete
+  nondeferrable primary keys per base source occurrence and lexical frame, never
+  through aliases' shared catalog origin, join equality or derived outputs.
+  Admitted dependent columns, system attributes and nullable whole rows become
+  demanded representative payload;
+  projection, HAVING, ordering and window demands settle before the immutable
+  aggregate layout is built. The proof captures the authentic parent definition
+  stamp and exact attached-constraint identity separately from descriptor manifests.
+  Query-target comparison pairs remapped frames, source occurrences and shared
+  CTE definitions bijectively. It compares dependent payload and exact constraint
+  proofs through nested queries without merging independent materialized producers.
   Owned aggregates derive support collation from their admitted direct and row
   inputs, excluding FILTER. Hypothetical ordering keeps independent per-pair
   comparison collations. Selected catalog kind, not name, admits WITHIN GROUP,
@@ -872,6 +884,9 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 `signatureOf`; rule program execution and admission.
 
 ## Testing
+
+Grouped-key proof and composed layout/lifetime owner coverage use
+`RUN='^TestGroupDependency'`; public SQL belongs to `reference/query_order`.
 
 Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
 Held signature owner/epoch fences and anonymous-record member lifetime use

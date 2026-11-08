@@ -420,6 +420,32 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
 		copy.Keys = expressions(n.Keys)
+		for i, old := range n.Dependent {
+			next := expression(old)
+			if !(*analyze.Binder)(nil).SameGroupExpression(old, next) {
+				if len(copy.Dependent) != 0 && &copy.Dependent[0] == &n.Dependent[0] {
+					copy.Dependent = append([]expr.Expr(nil), n.Dependent...)
+				}
+				copy.Dependent[i] = next
+			}
+		}
+		for i, proof := range n.Dependencies {
+			next := proof
+			next.Parent = ref(proof.Parent)
+			next.Constraint = remapAddress(proof.Constraint, ref, m.addressMapper)
+			if err == nil && (next.Parent.Epoch != m.Catalog.Epoch() || next.Parent.Domain() != m.Catalog.Domain()) {
+				err = fmt.Errorf("stuntgres: foreign remapped grouping parent")
+			}
+			if err == nil {
+				err = validateGroupConstraint(m.Catalog, next)
+			}
+			if next.Parent != proof.Parent || next.Constraint != proof.Constraint {
+				if &copy.Dependencies[0] == &n.Dependencies[0] {
+					copy.Dependencies = append([]plan.GroupDependency(nil), n.Dependencies...)
+				}
+				copy.Dependencies[i] = next
+			}
+		}
 		copy.Grouping = make([]plan.Grouping, len(copy.Keys))
 		for i, key := range copy.Keys {
 			copy.Grouping[i] = grouping(n.Grouping[i])

@@ -192,6 +192,35 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 				copy.Captures = captures
 				mapped = &copy
 			}
+		case *plan.AggregateNode:
+			var dependencies []plan.GroupDependency
+			for i, proof := range n.Dependencies {
+				// Scalar-local proofs belong to their recursive graft, just
+				// like scalar-local sources and captured frame identities.
+				if !frames[proof.Frame] {
+					continue
+				}
+				occurrence, err := mapOccurrence(proof.Occurrence)
+				if err != nil {
+					return nil, err
+				}
+				use, err := stored.ViewUseReference(view, consumer, proof.Parent)
+				if err != nil {
+					return nil, err
+				}
+				if occurrence == proof.Occurrence && use == proof.Parent {
+					continue
+				}
+				if dependencies == nil {
+					dependencies = append([]plan.GroupDependency(nil), n.Dependencies...)
+				}
+				dependencies[i].Occurrence, dependencies[i].Parent = occurrence, use
+			}
+			if dependencies != nil {
+				copy := *n
+				copy.Dependencies = dependencies
+				mapped = &copy
+			}
 		case *plan.FunctionFromNode:
 			captures, err := mapCaptures(n.Captures)
 			if err != nil {

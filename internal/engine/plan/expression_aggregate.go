@@ -73,7 +73,7 @@ func (e GroupExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 // Arguments remain analyzed dependencies but are never evaluated by GROUPING.
-// The immutable masks address the execution-local occurrence suffix in its owner.
+// The immutable masks address the execution-local occurrence cell in its owner.
 type GroupingExpr struct {
 	expr.Info
 	Args      []expr.Expr

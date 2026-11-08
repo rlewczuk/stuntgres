@@ -3,7 +3,8 @@
 Window functions and frames (ranking, lead/lag, ntile, value functions,
 ROWS/RANGE/GROUPS and EXCLUDE), ORDER BY, LIMIT/OFFSET/FETCH including WITH
 TIES, DISTINCT and DISTINCT ON, query-level aggregates including
-`COUNT(expr)`, and EXPLAIN TEXT/XML/JSON/YAML plans, options, nonexecution, actual execution and admission.
+`COUNT(expr)` and per-base-occurrence grouped-primary-key dependent expressions,
+and EXPLAIN TEXT/XML/JSON/YAML plans, options, nonexecution, actual execution and admission.
 Related families: set operations in
 [query_core](../query_core/README.md#testing); grouping sets and
 hypothetical-set aggregates in [aggregates](../aggregates/README.md#testing);
@@ -18,6 +19,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Helpers: `query_distinct_on_fixture_test.go` (`queryDistinctOnScenario`,
   `queryDistinctOnHeld`) and `query_limit_view_helpers_test.go`
   (`queryLimitHeldBounds`).
+- Grouped-primary-key lifetime scenarios cover stored views and SQL-standard
+  routine bodies, including nested query and data-modifying CTE roots. Assert
+  the actual supporting constraint edge, replacement/deduplication, complete
+  RESTRICT diagnostics and transitive CASCADE without unrelated data loss.
+  Quoted SQL source is a separate no-hard-body-edge control. Direct/prepared
+  rows and types share independent expectations; native Dump/Restore separately
+  checks remapped routine and view protection.
 - EXPLAIN helpers in `explain_text_test.go` validate owned, one-physical-line-per-row
   `QUERY PLAN`/TEXT results. Literal LF in accepted identifiers crosses SQL row
   boundaries; joining those rows retains the exact represented identifier,
@@ -151,6 +159,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DISTINCT and DISTINCT ON: `RUN='^TestReferenceQueryDistinct'`
 - DISTINCT ON: `RUN='^TestReferenceQueryDistinctOn'`
 - Aggregates and `COUNT(expr)`: `RUN='^TestReference(QueryAggregate|CountExpression)'`
+- Grouped-key dependency, payload and constraint lifetime: `RUN='^TestReferenceQueryGroupDependency'`
 - EXPLAIN: `RUN='^TestReferenceExplain'`
 - LOAD/DEBUG and structured formats: `RUN='^TestReferenceOverexplain'`
 - Automatic explanation: `RUN='^TestReferenceAutoExplain'`

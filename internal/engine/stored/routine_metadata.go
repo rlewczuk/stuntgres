@@ -27,6 +27,9 @@ func (p *RoutineProgram) ValidateMetadata(view catalog.Read) error {
 		if err := validateRoutineActionShape(action); err != nil {
 			return err
 		}
+		if err := validateRoutineGrouping(action, p.actionDependencies[i], view); err != nil {
+			return err
+		}
 		// Empty reads select the existing retained-original validation path,
 		// used by remapping before destination admission. No live callee lookup.
 		if err := validateRoutineScalars(action.presentation, catalog.Read{}); err != nil {

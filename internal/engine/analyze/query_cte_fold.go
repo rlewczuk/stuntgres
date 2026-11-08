@@ -249,6 +249,15 @@ func pushCTEInput(host Host, view catalog.Read, node plan.Node, predicate expr.E
 		if len(n.Keys) == 0 || n.Sets != nil && (len(n.Sets) != 1 || len(n.Sets[0]) != len(n.Keys)) {
 			return node, false, nil
 		}
+		nonKey := false
+		plan.WalkExpression(predicate, func(bound expr.Expr) {
+			if group, ok := bound.(plan.GroupExpr); ok && group.Frame == frame && (group.Slot < 0 || group.Slot >= len(n.Keys)) {
+				nonKey = true
+			}
+		})
+		if nonKey {
+			return node, false, nil
+		}
 		mapped, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if g, ok := expr.(plan.GroupExpr); ok && g.Frame == frame {
 				return n.Keys[g.Slot], true, nil

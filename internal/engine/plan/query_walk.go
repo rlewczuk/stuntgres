@@ -344,7 +344,7 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 			out = &copy
 		}
 	case *AggregateNode:
-		input, keys := child(n.Child), args(n.Keys)
+		input, keys, dependent := child(n.Child), args(n.Keys), args(n.Dependent)
 		var calls []AggregateCall
 		for i, call := range n.Calls {
 			if err != nil {
@@ -421,6 +421,7 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 		if changed && err == nil {
 			copy := *n
 			copy.Child, copy.Keys = input, keys
+			copy.Dependent = dependent
 			if calls != nil {
 				copy.Calls = calls
 			}
@@ -592,6 +593,7 @@ func QueryExpressions(node Node, visit func(expr.Expr)) {
 		}
 	case *AggregateNode:
 		args(n.Keys)
+		args(n.Dependent)
 		for _, call := range n.Calls {
 			call.Expressions(visit)
 		}

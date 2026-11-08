@@ -38,6 +38,16 @@ to copy the configuration without accepted query/CTE roots. The fresh operation
 runs the ordinary source/current provider validation, including exact destination
 generations and reference authority, rather than trusting an earlier accepted
 root. An outermost failure discards partial operation memo state.
+Grouped-query dependency proofs remap their parent reference and attached
+constraint address together and authenticate the destination's canonical
+nondeferrable primary key, stable attributes, actual source occurrence and
+non-key payload layout. Every frozen aggregate authenticates its exact
+key/call/grouping-occurrence prefix plus payload width, including when both
+payload and proof metadata are empty. Attached constraints have no standalone
+descriptors:
+the ordinary manifest retains the parent lifetime stamp, while explicit query
+proofs supply exact constraint edges to both view DROP lifetime discovery and
+the separate SQL `pg_depend` projection, including nested query/CTE roots.
 Invocation-local named-relation scans retain only symbolic names, immutable
 column shape and ordinary range aliases through query remap/type retagging.
 They have no catalog identity or invocation rows to remap. Persistent query
@@ -598,6 +608,13 @@ host methods.
   Catalog capture therefore retains genuine old program/default owners after
   legitimate callee attribute changes or same-signature replacement. Executable
   `Validate`, `ValidateAction` and `DefaultSQL` retain their admission checks.
+  Grouping proofs additionally authenticate the captured parent, exact current
+  nondeferrable primary key and frozen frame/source/payload association, without
+  re-admitting callees. The required grouping-edge visitor uses captured relation
+  identities and every main/modifier presentation's unary query-stage spine;
+  it allocates no dependency set and emits each parent's supporting constraint
+  once across the body. Descriptor manifests retain their original stamps and
+  purposes; rebind remaps parent and attached constraint together.
   The explicit `Deparser.RoutineDeclaration` mode is limited to declaration
   default presentation: SQL routine references retain local provider/ref/principal
   checks and resolve current labels through logical address/signature/kind/result,
@@ -644,8 +661,11 @@ host methods.
   provenance and revision while using checked current labels.
   System attributes use a tagged `ViewColumn` capture with the exact negative
   subID, full source ref, lexical frame and occurrence, never an ordinary slot.
-  Validation closes the capture over the executable source and result type;
-  rendering uses that source's checked current qualifier and attribute name.
+  Validation closes each source-position capture over the executable source and
+  result type. Grouped captures resolve only genuine key or dependent payload
+  slots to that exact system identity; interned payloads preserve distinct
+  occurrence positions without admitting aggregate-call or grouping-occurrence
+  slots. Rendering uses the source's checked current qualifier and attribute name.
   Frozen leaves retain a separate table SELECT requirement. Executable and
   presentation refs remap once together, preserving subIDs -1/-2/-4/-6 without
   weakening foreign-domain or epoch fences.
@@ -1639,6 +1659,9 @@ and transaction/end provenance remain unchanged, including when a later conversi
 
 
 ## Testing
+
+Grouped-query proof authentication, frozen remap and both lifetime/dependency
+projections use `RUN='^TestGroupDependency'` in the composed stored owner tests.
 
 Rewrite definition ownership, range-slot identity and cancellation use
 `make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.

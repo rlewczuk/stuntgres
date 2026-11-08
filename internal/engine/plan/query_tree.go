@@ -71,6 +71,11 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 		}
 		fmt.Fprintf(out, " grouping_sets %v", n.Sets)
 		err = appendTreeGrouping(ctx, out, n.Grouping)
+		for _, proof := range n.Dependencies {
+			appendTreeAddress(out, "group_parent", proof.Parent.Address)
+			appendTreeAddress(out, "group_constraint", proof.Constraint)
+			fmt.Fprintf(out, " group_frame %d group_occurrence %d group_attributes %v", proof.Frame, proof.Occurrence, proof.Attributes)
+		}
 		for i, call := range n.Calls {
 			if err != nil {
 				break

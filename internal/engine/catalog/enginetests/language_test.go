@@ -110,15 +110,15 @@ func TestLanguageDefinitionDependencies(t *testing.T) {
 	routine.PLHandler = catalog.NoPLHandler
 	routine.Language = language.Address()
 	seen := map[ids.ObjectAddress]int{}
-	catalog.VisitProcedureDeclarationDependencies(&routine, func(a ids.ObjectAddress) bool { seen[a]++; return true })
-	if seen[language.Address()] != 1 {
+	complete := catalog.VisitProcedureDeclarationDependencies(&routine, func(a ids.ObjectAddress) bool { seen[a]++; return true })
+	if !complete || seen[language.Address()] != 1 {
 		t.Fatalf("routine language dependency missing/duplicated: %v", seen)
 	}
 	if seen[ids.ObjectAddress{}] != 0 {
 		t.Fatal("zero dependency leaked")
 	}
 	visited := false
-	complete := catalog.VisitProcedureDeclarationDependencies(&routine, func(ids.ObjectAddress) bool { visited = true; return false })
+	complete = catalog.VisitProcedureDeclarationDependencies(&routine, func(ids.ObjectAddress) bool { visited = true; return false })
 	if !visited || complete {
 		t.Fatal("dependency visitor ignored stop")
 	}

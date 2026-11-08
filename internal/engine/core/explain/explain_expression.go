@@ -406,6 +406,9 @@ func (r *Renderer) groupExpression(root plan.Node, frame uint32, slot int) (stri
 }
 
 func (r *Renderer) aggregateSlot(aggregate *plan.AggregateNode, slot int) (string, error) {
+	if dependent := slot - aggregate.DependentStart(); dependent >= 0 && dependent < len(aggregate.Dependent) {
+		return r.expression(aggregate.Child, aggregate.Dependent[dependent])
+	}
 	if slot < len(aggregate.Keys) {
 		return r.expression(aggregate.Child, aggregate.Keys[slot])
 	}

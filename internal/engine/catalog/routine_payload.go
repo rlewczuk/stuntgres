@@ -15,6 +15,7 @@ type RoutineProgram interface {
 	Len() int
 	StatementSQL(context.Context, Read, int) (string, error)
 	Dependencies() []ExpressionDependency
+	VisitGroupingConstraintDependencies(Read, func(ids.ObjectAddress) bool) bool
 	ValidateDefinition(*Procedure) error
 	// ValidateMetadata checks retained shape/provenance, not current execution.
 	ValidateMetadata(Read) error
@@ -49,5 +50,5 @@ type RoutineRemap struct {
 	Declarations func() error
 	// RefreshDependency is installed only by an explicit same-generation
 	// definition refresh. Ordinary type/import remapping retains its old stamps.
-	RefreshDependency func(ExpressionDependency) (ExpressionDependency,error)
+	RefreshDependency func(ExpressionDependency) (ExpressionDependency, error)
 }

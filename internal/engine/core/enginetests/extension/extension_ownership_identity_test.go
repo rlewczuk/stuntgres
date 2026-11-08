@@ -336,7 +336,7 @@ func ownershipEarthScalarDependencies(t *testing.T) {
 			t.Fatal("scalar lost immutable typed declaration", name, symbol, err)
 		}
 		var dependencies []ids.ObjectAddress
-		catalog.VisitProcedureCapturedDefinitionDependencies(view, p, func(address ids.ObjectAddress) bool { dependencies = append(dependencies, address); return true })
+		catalog.VisitProcedureCapturedDefinitionDependencies(view, view, p, func(address ids.ObjectAddress) bool { dependencies = append(dependencies, address); return true })
 		if name == "earth" {
 			if len(dependencies) != 0 {
 				t.Fatal("radius invented helper dependency")
@@ -345,7 +345,7 @@ func ownershipEarthScalarDependencies(t *testing.T) {
 			t.Fatal("released scalar lost real radius dependency", name, dependencies)
 		}
 		calls := 0
-		completed := catalog.VisitProcedureCapturedDefinitionDependencies(view, p, func(ids.ObjectAddress) bool { calls++; return false })
+		completed := catalog.VisitProcedureCapturedDefinitionDependencies(view, view, p, func(ids.ObjectAddress) bool { calls++; return false })
 		if name == "earth" {
 			if !completed || calls != 0 {
 				t.Fatal("radius invented visited dependency")

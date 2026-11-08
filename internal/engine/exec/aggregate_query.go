@@ -203,6 +203,19 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 			}
 			group.Keys[slot] = value
 		}
+		for i, dependent := range n.Dependent {
+			value, err := dependent.Eval(&evaluation)
+			if err != nil {
+				return 0, err
+			}
+			if err := sampleCheckpoint(ctx); err != nil {
+				return 0, err
+			}
+			if value.Type() != dependent.ResultUsage().Type {
+				return 0, fmt.Errorf("stuntgres: invalid dependent group value")
+			}
+			group.Keys[n.DependentStart()+i] = value
+		}
 		for i, call := range n.Calls {
 			if err := sampleCheckpoint(ctx); err != nil {
 				return 0, err

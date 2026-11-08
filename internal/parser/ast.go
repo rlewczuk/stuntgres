@@ -1583,6 +1583,30 @@ type GroupItem struct {
 	Pos   Position
 }
 
+// Ordinary reports a nonempty grouping clause containing only expressions and
+// recursively nonempty parenthesized lists, never grouping-set constructs.
+func (g *GroupClause) Ordinary() bool {
+	return g != nil && ordinaryGroupItems(g.Items)
+}
+
+func ordinaryGroupItems(items []GroupItem) bool {
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		switch item.Kind {
+		case GroupExpression:
+		case GroupList:
+			if !ordinaryGroupItems(item.Items) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func groupExpressionItem(expr Expr) GroupItem {
 	if row, ok := expr.(RowExpr); ok && !row.Explicit {
 		items := make([]GroupItem, len(row.Fields))

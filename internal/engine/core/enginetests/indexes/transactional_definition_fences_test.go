@@ -84,11 +84,11 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 				candidate.RemoveDescriptor(tc.target)
 				observations := []session.DependencyObservation{{Base: &original, Targets: []ids.ObjectAddress{tc.target}}}
 				var conflict catalog.Conflict
-				if err := core.CatalogDependencyPreflight(&current, &candidate, observations, nil); !errors.As(err, &conflict) {
+				if err := core.CatalogDependencyPreflight(base.WithState(&current), base.WithState(&candidate), observations, nil); !errors.As(err, &conflict) {
 					t.Fatal("retirement admitted new dangling incoming edge", err)
 				}
 				candidate.RemoveDescriptor(tc.descriptor.Address())
-				if err := core.CatalogDependencyPreflight(&current, &candidate, observations, nil); err != nil {
+				if err := core.CatalogDependencyPreflight(base.WithState(&current), base.WithState(&candidate), observations, nil); err != nil {
 					t.Fatal("removed candidate edge impersonated survivor", err)
 				}
 			})

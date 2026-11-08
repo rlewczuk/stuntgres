@@ -150,8 +150,12 @@ func StageCreateLanguage(h DDLHost, auth ddl.Authority, s *parser.CreateLanguage
 			if !ok || procedure.Host == nil {
 				continue
 			}
-			if catalog.ProcedureDefinitionDependsOn(h.StageRead(), procedure, previous.Address()) {
+			found, complete := catalog.ProcedureDefinitionDependsOn(h.StageRead(), h.StageRead(), procedure, previous.Address())
+			if found {
 				return fmt.Errorf("stuntgres: incompatible host language replacement has dependent routines")
+			}
+			if !complete {
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}

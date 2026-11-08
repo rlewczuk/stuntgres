@@ -109,20 +109,20 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 					t.Fatal("membership reconstructed immutable body or origin", tc.name)
 				}
 				var got []ids.ObjectAddress
-				if !catalog.VisitProcedureCapturedDefinitionDependencies(view, current, func(address ids.ObjectAddress) bool {
+				if !catalog.VisitProcedureCapturedDefinitionDependencies(view, view, current, func(address ids.ObjectAddress) bool {
 					got = append(got, address)
 					return true
 				}) || !slices.Equal(got, tc.want) {
 					t.Fatal("lost exact released direct callee identities", tc.name, got, tc.want)
 				}
 				for _, address := range tc.want {
-					if !catalog.ProcedureDefinitionDependsOn(view, current, address) {
+					if found, complete := catalog.ProcedureDefinitionDependsOn(view, view, current, address); !found || complete {
 						t.Fatal("definition retirement seam lost callee", tc.name, address)
 					}
 				}
 				for stop := 1; stop <= len(tc.want); stop++ {
 					calls := 0
-					if catalog.VisitProcedureCapturedDefinitionDependencies(view, current, func(ids.ObjectAddress) bool {
+					if catalog.VisitProcedureCapturedDefinitionDependencies(view, view, current, func(ids.ObjectAddress) bool {
 						calls++
 						return calls < stop
 					}) || calls != stop {
@@ -226,7 +226,7 @@ func TestExtensionOwnershipEarthBodyDependencies(t *testing.T) {
 		for _, tc := range cases {
 			current := view.MustProcedure(lookup(tc.name, tc.signature))
 			var got []ids.ObjectAddress
-			catalog.VisitProcedureCapturedDefinitionDependencies(view, current, func(address ids.ObjectAddress) bool {
+			catalog.VisitProcedureCapturedDefinitionDependencies(view, view, current, func(address ids.ObjectAddress) bool {
 				got = append(got, address)
 				return true
 			})
