@@ -19,7 +19,7 @@ import (
 func TestOperatorFamilyProviderInventory(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
-	if sqltype.IndexClassMetadataCount() != 147 {
+	if sqltype.IndexClassMetadataCount() != 149 {
 		t.Fatal("incomplete released class inventory", sqltype.IndexClassMetadataCount())
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
@@ -46,18 +46,36 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 			continue
 		}
 		if fact.Method == 2742 {
-			for slot := 1; slot <= 6; slot++ {
-				expected, required := catalog.GinSupportRoutine(ids.OID(fact.Family), int16(slot))
-				support := selected.Support(slot)
+			profile, ok := routine.LookupGinProfile(ids.OID(fact.Family))
+			if !ok {
+				t.Fatal("missing native GIN profile", fact)
+			}
+			for slot := int16(1); slot <= 6; slot++ {
+				declared, required := profile.SupportFor(slot)
+				support := selected.Support(int(slot))
 				if !required {
 					if support != (sqltype.IndexSupport{}) {
 						t.Fatal("unexpected GIN support", fact, support)
 					}
 					continue
 				}
-				proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: expected})
-				if !ok || catalog.ValidateGinSupport(proc) != nil || support.Routine != uint32(expected) || support.Family != fact.Family || support.Left != fact.Input || support.Right != fact.Input || support.Member == 0 || support.Revision != 1 {
-					t.Fatal("incomplete genuine GIN support", fact, support, proc)
+				if support.Routine != uint32(declared.Routine) || support.Family != fact.Family || support.Left != fact.Input || support.Right != fact.Input || support.Member == 0 || support.Revision != 1 {
+					t.Fatal("incomplete genuine GIN support", fact, support)
+				}
+				proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declared.Routine})
+				if !ok {
+					t.Fatal("missing GIN support procedure", fact, declared.Routine)
+				}
+				if declared.Intrinsic {
+					if proc.GinSupport == 0 || catalog.ValidateGinSupport(proc) != nil {
+						t.Fatal("not genuine intrinsic GIN support", fact, support, proc)
+					}
+					continue
+				}
+				// jsonb_path_ops slot 1 is the ordinary installed btint4cmp.
+				native, ok := sqltype.NativeIndexRoutineByOID(uint32(declared.Routine))
+				if !ok || native.Kind != sqltype.IndexCompareRoutine || native.Signature != string(proc.Signature) || proc.GinSupport != 0 || routine.BuiltinRoutine(ids.OID(support.Routine)) == nil {
+					t.Fatal("not an ordinary installed comparator", fact, support, proc)
 				}
 			}
 			continue
@@ -95,6 +113,58 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 				t.Fatal("not genuinely registered", support, native, declared)
 			}
 		}
+	}
+	// Profiles and declarations must agree exactly for the four native families.
+	for _, family := range []ids.OID{2745, 3659, 4036, 4037} {
+		profile, ok := routine.LookupGinProfile(family)
+		if !ok {
+			t.Fatal("missing native GIN profile", family)
+		}
+		for _, declared := range profile.Supports {
+			expected, native := catalog.GinSupportRoutine(family, declared.Slot)
+			if declared.Intrinsic {
+				if !native || expected != declared.Routine {
+					t.Fatal("profile/declaration mismatch", family, declared, expected)
+				}
+			} else if native {
+				t.Fatal("ordinary comparator acquired an intrinsic declaration", family, declared)
+			}
+		}
+	}
+	// bindGinSupport records callable routines for 3246/4012/4013 but only the
+	// lookup-only released identities for 3247/3248/3249.
+	opsClass, ok := view.IndexClass(10090)
+	if !ok {
+		t.Fatal("missing jsonb_ops class")
+	}
+	opsClass, err := routine.BindClassSupport(view, opsClass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ordinal, want := range []struct {
+		routine  ids.OID
+		revision bool
+	}{{4046, true}, {4047, false}, {4048, false}, {4049, false}, {4010, true}, {4011, true}} {
+		search := opsClass.Search(ordinal + 1)
+		if search.Routine != uint32(want.routine) || (search.RoutineRevision != 0) != want.revision {
+			t.Fatal("4036 strategy routine", ordinal+1, search, want)
+		}
+	}
+	for _, oid := range []ids.OID{4047, 4048, 4049} {
+		if _, installed := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}); installed {
+			t.Fatal("lookup-only identity installed as a procedure", oid)
+		}
+	}
+	pathClass, ok := view.IndexClass(10091)
+	if !ok {
+		t.Fatal("missing jsonb_path_ops class")
+	}
+	pathClass, err = routine.BindClassSupport(view, pathClass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pathClass.Search(1).Routine != 4046 || pathClass.Search(2).Routine != 4010 || pathClass.Search(3).Routine != 4011 || pathClass.Search(4) != (sqltype.IndexSearch{}) || pathClass.Search(5) != (sqltype.IndexSearch{}) || pathClass.Search(6) != (sqltype.IndexSearch{}) {
+		t.Fatal("4037 strategies are 7/15/16 only", pathClass.Search(1), pathClass.Search(2), pathClass.Search(3))
 	}
 	// All comparison members, including mixed-width RI probes, must have a
 	// genuine routine association. Optional physical support is metadata-only.

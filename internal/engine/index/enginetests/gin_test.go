@@ -109,7 +109,12 @@ func TestGINClassInventory(t *testing.T) {
 	for _, fact := range []struct {
 		oid, family, input, key ids.OID
 		slots                   map[int]ids.OID
-	}{{10064, 2745, 2277, 2283, map[int]ids.OID{2: 2743, 3: 2774, 4: 2744, 6: 3920}}, {10073, 3659, 3614, 25, map[int]ids.OID{1: 3724, 2: 3656, 3: 3657, 4: 3658, 5: 2700, 6: 3921}}} {
+	}{
+		{10064, 2745, 2277, 2283, map[int]ids.OID{2: 2743, 3: 2774, 4: 2744, 6: 3920}},
+		{10073, 3659, 3614, 25, map[int]ids.OID{1: 3724, 2: 3656, 3: 3657, 4: 3658, 5: 2700, 6: 3921}},
+		{10090, 4036, 3802, 25, map[int]ids.OID{1: 3480, 2: 3482, 3: 3483, 4: 3484, 6: 3488}},
+		{10091, 4037, 3802, 23, map[int]ids.OID{1: 351, 2: 3485, 3: 3486, 4: 3487, 6: 3489}},
+	} {
 		c := ginClass(t, view, fact.oid)
 		if !c.IsGin() || c.IsHash() || c.IsGiST() || c.FamilyOID() != uint32(fact.family) || c.InputOID() != uint32(fact.input) || c.StorageOID() != uint32(fact.key) {
 			t.Fatal("released class", c)
@@ -142,12 +147,11 @@ func TestGINClassInventory(t *testing.T) {
 			t.Fatal("foreign support role accepted")
 		}
 		state = catalog.CloneState(view.State())
-		strategy, _ := view.FamilyOperator(fact.family, fact.input, func() ids.OID {
-			if fact.input == 3614 {
-				return 3615
-			}
-			return fact.input
-		}(), 1, 's')
+		number, rightType := int16(1), fact.input
+		if profile, ok := routine.LookupGinProfile(fact.family); ok {
+			number, rightType = int16(profile.Strategies[0].Number), profile.Strategies[0].Right
+		}
+		strategy, _ := view.FamilyOperator(fact.family, fact.input, rightType, number, 's')
 		state.RemoveDescriptor(strategy.Address())
 		if _, err := routine.BindClassSupport(catalog.NewRead(view.Owner(), state), c); err == nil {
 			t.Fatal("missing search strategy accepted")

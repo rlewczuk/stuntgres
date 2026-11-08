@@ -72,6 +72,8 @@ func pgOpclassFacts(pgLSNOID int64) [][]any {
 	rows = append(rows,
 		[]any{int64(10064), int64(2742), "array_ops", int64(11), int64(10), int64(2745), int64(2277), true, int64(2283)},
 		[]any{int64(10073), int64(2742), "tsvector_ops", int64(11), int64(10), int64(3659), int64(3614), true, int64(25)},
+		[]any{int64(10090), int64(2742), "jsonb_ops", int64(11), int64(10), int64(4036), int64(3802), true, int64(25)},
+		[]any{int64(10091), int64(2742), "jsonb_path_ops", int64(11), int64(10), int64(4037), int64(3802), false, int64(23)},
 		[]any{int64(10017), int64(783), "inet_ops", int64(11), int64(10), int64(3550), int64(869), false, int64(0)},
 		[]any{int64(10060), int64(783), "box_ops", int64(11), int64(10), int64(2593), int64(603), true, int64(0)},
 		[]any{int64(10061), int64(783), "point_ops", int64(11), int64(10), int64(1029), int64(600), true, int64(603)},
@@ -215,7 +217,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 147 {
+	if len(facts) != 149 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {

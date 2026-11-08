@@ -163,57 +163,104 @@ func retainedGinReplacementClass(before, after catalog.Read, captured sqltype.In
 		return sqltype.IndexClass{}, err
 	}
 	input, familyID := ids.OID(old.InputOID()), ids.OID(old.FamilyOID())
-	providerFamily := ids.OID(2745)
-	if input == 3614 {
-		providerFamily = 3659
+	profile, profiled := routine.LookupGinProfile(familyID)
+	if profiled {
+		input = profile.Input
 	}
 	for slot := int16(1); slot <= 6; slot++ {
+		var declared routine.GinProfileSupport
+		required := false
+		if profiled {
+			declared, required = profile.SupportFor(slot)
+		} else {
+			expected, needed := catalog.GinSupportRoutine(providerFamilyOf(input), slot)
+			required = needed
+			declared = routine.GinProfileSupport{Slot: slot, Routine: expected, Intrinsic: true}
+		}
 		left, leftOK := before.FamilySupport(familyID, input, input, slot)
 		right, rightOK := after.FamilySupport(familyID, input, input, slot)
-		expected, required := catalog.GinSupportRoutine(providerFamily, slot)
-		if leftOK != rightOK || leftOK != required || leftOK && (*left != *right || left.Function != expected) {
+		if leftOK != rightOK || leftOK != required || leftOK && (*left != *right || left.Function != declared.Routine) {
 			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: retained GIN replacement changed support membership")
 		}
-		if required {
-			if err := retainedGinReplacementProcedure(before, after, expected, true); err != nil {
+		if !required {
+			continue
+		}
+		if declared.Intrinsic {
+			if err := retainedGinReplacementProcedure(before, after, declared.Routine, true); err != nil {
 				return sqltype.IndexClass{}, err
+			}
+		} else {
+			// The ordinary jsonb_path_ops slot-1 comparator is installed under an
+			// ordinary routine identity, not a GinSupport declaration capability.
+			if err := retainedGinReplacementProcedure(before, after, declared.Routine, false); err != nil {
+				return sqltype.IndexClass{}, err
+			}
+			proc, ok := before.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declared.Routine})
+			if !ok || proc.GinSupport != 0 {
+				return sqltype.IndexClass{}, fmt.Errorf("stuntgres: retained GIN replacement changed support authority")
 			}
 		}
 	}
-	rightType, strategies := input, int16(4)
-	if input == 3614 {
-		rightType, strategies = 3615, 2
-	}
-	for number := int16(1); number <= strategies; number++ {
-		left, leftOK := before.FamilyOperator(familyID, input, rightType, number, 's')
-		right, rightOK := after.FamilyOperator(familyID, input, rightType, number, 's')
+	checkStrategy := func(leftType, rightType ids.OID, number int16) error {
+		left, leftOK := before.FamilyOperator(familyID, leftType, rightType, number, 's')
+		right, rightOK := after.FamilyOperator(familyID, leftType, rightType, number, 's')
 		if !leftOK || !rightOK || *left != *right {
-			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: retained GIN replacement changed search membership")
+			return fmt.Errorf("stuntgres: retained GIN replacement changed search membership")
 		}
 		address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: left.Operator}
 		oldOperator, oldOK := before.Get(address).(*catalog.Operator)
 		newOperator, newOK := after.Get(address).(*catalog.Operator)
 		if !oldOK || !newOK || *oldOperator != *newOperator {
-			return sqltype.IndexClass{}, fmt.Errorf("stuntgres: retained GIN replacement changed search operator")
+			return fmt.Errorf("stuntgres: retained GIN replacement changed search operator")
 		}
 		if err := (routine.OperatorProvider{}).Validate(before, oldOperator); err != nil {
-			return sqltype.IndexClass{}, err
+			return err
 		}
 		if err := (routine.OperatorProvider{}).Validate(after, newOperator); err != nil {
-			return sqltype.IndexClass{}, err
+			return err
 		}
 		if oldOperator.Function == 0 {
 			// A released seeded search row can be lookup-only (Function and
 			// Result zero). Its strict member/operator certificates above are
 			// authority; it does not claim a callable implementation provider.
 			if oldOperator.Result != 0 || !routine.OperatorSeeded(oldOperator) || !routine.OperatorSeeded(newOperator) {
-				return sqltype.IndexClass{}, fmt.Errorf("stuntgres: retained GIN replacement has unowned lookup-only search metadata")
+				return fmt.Errorf("stuntgres: retained GIN replacement has unowned lookup-only search metadata")
 			}
-		} else if err := retainedGinReplacementProcedure(before, after, oldOperator.Function, false); err != nil {
-			return sqltype.IndexClass{}, err
+			return nil
+		}
+		if routine.GinMetadataOnlyOperator(before, oldOperator) == nil && routine.GinMetadataOnlyOperator(after, newOperator) == nil {
+			// Seeded operators 3247/3248/3249 name lookup-only released
+			// identities 4047/4048/4049 with no installed procedure descriptor.
+			return nil
+		}
+		return retainedGinReplacementProcedure(before, after, oldOperator.Function, false)
+	}
+	if profiled {
+		for _, strategy := range profile.Strategies {
+			if err := checkStrategy(strategy.Left, strategy.Right, int16(strategy.Number)); err != nil {
+				return sqltype.IndexClass{}, err
+			}
+		}
+	} else {
+		rightType, strategies := input, int16(4)
+		if input == 3614 {
+			rightType, strategies = 3615, 2
+		}
+		for number := int16(1); number <= strategies; number++ {
+			if err := checkStrategy(input, rightType, number); err != nil {
+				return sqltype.IndexClass{}, err
+			}
 		}
 	}
 	return current, nil
+}
+
+// providerFamilyOf maps a released GIN input type to its builtin family.
+func providerFamilyOf(input ids.OID) ids.OID {
+	if input == 3614 {
+		return 3659
+	}
+	return 2745
 }
 
 func retainedGinReplacementProcedure(before, after catalog.Read, address ids.OID, support bool) error {

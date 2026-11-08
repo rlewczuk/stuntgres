@@ -12,6 +12,7 @@ type GinExtraction struct {
 	element *Descriptor
 	lexemes TSVectorLexemeView
 	scalar  bool
+	jsonb   ginJSONBProvider
 }
 
 // PrepareExtract runs exactly the selected whole-input value/query callback.
@@ -49,6 +50,13 @@ func (p GinBinding) PrepareExtract(ctx context.Context, v Value, input InputEnvi
 		}
 		return result, nil
 	}
+	if p.jsonb != ginJSONBNone {
+		if v.jsonb == nil {
+			return GinExtraction{}, fmt.Errorf("invalid JSONB GIN payload")
+		}
+		result.jsonb = p.jsonb
+		return result, nil
+	}
 	result.lexemes, err = TSVectorLexemes(v, p.Usage.Type)
 	return result, err
 }
@@ -80,6 +88,11 @@ func (p GinExtraction) Emit(ctx context.Context, emit func(GinToken) error) erro
 				return err
 			}
 		}
+	} else if p.jsonb != ginJSONBNone {
+		if p.value.jsonb == nil {
+			return fmt.Errorf("invalid JSONB GIN payload")
+		}
+		return walkJSONB(ctx, p.jsonb, &p.value.jsonb.root, emit)
 	} else {
 		if p.lexemes.Count() == 0 {
 			return emit(GinToken{Kind: GinEmptyItem})

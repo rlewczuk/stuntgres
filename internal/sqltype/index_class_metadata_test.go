@@ -49,6 +49,8 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 	want[10078] = IndexClassMetadata{10078, 783, 3919, 3831, 0, "range_ops", true}
 	want[10064] = IndexClassMetadata{10064, 2742, 2745, 2277, 2283, "array_ops", true}
 	want[10073] = IndexClassMetadata{10073, 2742, 3659, 3614, 25, "tsvector_ops", true}
+	want[10090] = IndexClassMetadata{10090, 2742, 4036, 3802, 25, "jsonb_ops", true}
+	want[10091] = IndexClassMetadata{10091, 2742, 4037, 3802, 23, "jsonb_path_ops", false}
 	want[10151] = IndexClassMetadata{10151, 3580, 4079, 1560, 1560, "bit_minmax_ops", true}
 	want[10132] = IndexClassMetadata{10132, 3580, 4586, 1042, 1042, "bpchar_bloom_ops", false}
 	want[10131] = IndexClassMetadata{10131, 3580, 4076, 1042, 1042, "bpchar_minmax_ops", true}
@@ -139,7 +141,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 147 || len(want) != 147 {
+	if IndexClassMetadataCount() != 149 || len(want) != 149 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -204,6 +206,8 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 			typ := types[TSVector]
 			if m.Input == 2277 {
 				typ = types[1007] // A concrete owned integer[] generation, not anyarray.
+			} else if m.Input == uint32(JSONB) {
+				typ = types[JSONB]
 			}
 			if typ == nil || !typ.Concrete() || !c.Accepts(typ) {
 				t.Fatal("GIN concrete owner", m, typ)

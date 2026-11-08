@@ -450,7 +450,7 @@ func TestProviderReplayNativeIndexCanonicalMetadata(t *testing.T) {
 	source, _, _, _ := fdwUnitSource()
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
 	seeds := routine.NativeAccessMethodProcedures(source.Bootstrap)
-	if len(seeds) != 21 { // Seven handlers, four BRIN and ten GIN operations.
+	if len(seeds) != 30 { // Seven handlers, four BRIN and nineteen GIN operations.
 		t.Fatal("incomplete native index declarations", len(seeds))
 	}
 	for _, seed := range seeds {

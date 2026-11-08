@@ -27,6 +27,15 @@ var ginSupportDeclarations = [...]struct {
 	{3658, "gin_tsquery_consistent", "2281,21,3614,23,2281,2281,2281,2281", 16, 3659, 4},
 	{2700, "gin_cmp_prefix", "25,25,21,2281", 23, 3659, 5},
 	{3921, "gin_tsquery_triconsistent", "2281,21,3614,23,2281,2281,2281", 18, 3659, 6},
+	{3480, "gin_compare_jsonb", "25,25", 23, 4036, 1},
+	{3482, "gin_extract_jsonb", "3802,2281,2281", 2281, 4036, 2},
+	{3483, "gin_extract_jsonb_query", "3802,2281,21,2281,2281,2281,2281", 2281, 4036, 3},
+	{3484, "gin_consistent_jsonb", "2281,21,3802,23,2281,2281,2281,2281", 16, 4036, 4},
+	{3488, "gin_triconsistent_jsonb", "2281,21,3802,23,2281,2281,2281", 18, 4036, 6},
+	{3485, "gin_extract_jsonb_path", "3802,2281,2281", 2281, 4037, 2},
+	{3486, "gin_extract_jsonb_query_path", "3802,2281,21,2281,2281,2281,2281", 2281, 4037, 3},
+	{3487, "gin_consistent_jsonb_path", "2281,21,3802,23,2281,2281,2281,2281", 16, 4037, 4},
+	{3489, "gin_triconsistent_jsonb_path", "2281,21,3802,23,2281,2281,2281", 18, 4037, 6},
 }
 
 func GinSupportProcedures(owner authorization.PrincipalRef) []Procedure {

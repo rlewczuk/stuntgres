@@ -100,7 +100,14 @@ admission and removes it before nested binding.
   carry their borrowed environment to reached subtype comparison and hashing.
   GIN role 2 value extraction and role 3 whole-array/scalar query extraction
   return an immutable datum-backed result before emitter/dictionary work.
-  Scalar/vector ordinary token comparison enters the actual GIN role 1.
+  jsonb GIN adds lexeme providers for `jsonb_ops` (flag+payload keys/values,
+  `numeric_normalize`d NUM payloads, 125-byte hashed category) and
+  `jsonb_path_ops` (4-byte signed-order path hashes); its dedicated
+  `ExtractJSONBQueryWithEnvironment` serves text/text[] strategies 9/10/11 and
+  conservative jsonpath 15/16 because the column-typed callback cannot.
+  Scalar/vector ordinary token comparison enters the actual GIN role 1;
+  jsonb_ops uses its intrinsic `gin_compare_jsonb`, while jsonb_path_ops slot 1
+  is the ordinary installed `btint4cmp` comparator.
   Array GIN has no role-1 member and directly invokes its captured default
   B-tree element comparator; it never invents a GIN wrapper descriptor or
   substitutes a missing scalar/vector support. NULL marker ordering invokes no
@@ -411,7 +418,10 @@ admission and removes it before nested binding.
   narrowly binary-compatible bit/varbit, CIDR/INET, OID and character inputs.
   Authenticated scalar extraction covers bit/varbit/enum/money, network/UUID/OID,
   integer/float/boolean, temporal, text/varchar/bpchar, internal char, name and
-  bytea. `GinBinding` retains concrete generations and shared typed comparison.
+  bytea. jsonb GIN classes admit jsonb and emit ordinary lexeme tokens only
+  (no element/scalar comparison capture); `jsonb_ops` and `jsonb_path_ops`
+  remain distinct dictionaries with their exact strategy sets.
+  `GinBinding` retains concrete generations and shared typed comparison.
   Selected oid_ops reinterprets admitted INT4 as unsigned. Text and varchar
   inputs admit either class and bpchar_ops; the converse bpchar-to-text/varchar
   conversion is functional and not index admission. Selected bpchar_ops ignores

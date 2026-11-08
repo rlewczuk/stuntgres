@@ -133,8 +133,11 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - GiST classes, exact predicates, options and lifecycle: `RUN='^TestReferenceGiST'`.
   Text-search predicate rows assert scalar match behavior independently of index use.
 - SP-GiST classes, exact predicates, bytewise text providers and lifecycle: `RUN='^TestReferenceSPGiST'`
-- GIN arrays/tsvector, exact released catalogs, diagnostics, typed/lexical options,
-  publication and replay: `RUN='^TestReferenceGIN'`. Public predicates retain the
+- GIN arrays/tsvector/jsonb, exact released catalogs, diagnostics, typed/lexical
+  options, publication and replay: `RUN='^TestReferenceGIN'`. JSONB adds the
+  default jsonb_ops and named jsonb_path_ops predicate bags, catalog metadata,
+  DDL diagnostics, amcheck structure and the coder migration replay under
+  `RUN='^TestReferenceGINJSONB'`. Public predicates retain the
   scalar array/FTS authority independently of index use; internal `TestGIN` units
   prove substantive typed main/pending postings, immutable batch merge,
   destination ownership, every transport, vacuum and cancellation.

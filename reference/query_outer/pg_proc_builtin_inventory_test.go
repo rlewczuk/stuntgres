@@ -234,7 +234,7 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// OIDs4093/4195, callable identities3476/3479/3492/3494 and relation/type
 	// identities3495/4086/3493/6317, with strict/STABLE/parallel-safe metadata
 	// and unnamed inputs.
-	// GIN adds its genuine handler333 and ten internal extraction/consistency
+	// GIN adds its genuine handler333 and nineteen internal extraction/consistency
 	// support declarations, with no scalar C ABI execution.
 	// Selected btree_gin classes add genuine bitcmp/varbitcmp declarations:
 	// both are leakproof and strict IMMUTABLE/parallel-safe INT4 comparators;
@@ -291,8 +291,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Session notification adds the released non-strict VOLATILE/parallel-restricted
 	// TEXT,TEXT→VOID declaration3036, cost1/rows0, unnamed inputs, no defaults,
 	// internal pg_notify source.
-	if len(facts) != 2305 {
-		t.Fatalf("released represented overloads: got %d, want 2305", len(facts))
+	if len(facts) != 2314 {
+		t.Fatalf("released represented overloads: got %d, want 2314", len(facts))
 	}
 	return facts
 }

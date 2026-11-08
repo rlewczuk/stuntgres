@@ -22,7 +22,7 @@ type IndexClass struct {
 	bloom                   bool
 	gin                     bool
 	support                 [6]IndexSupport
-	search                  [5]IndexSearch
+	search                  [6]IndexSearch
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
@@ -64,7 +64,7 @@ func (c IndexClass) IsGin() bool    { return c.gin }
 // members captured for execution or current presentation names.
 func (c IndexClass) SameIdentity(other IndexClass) bool {
 	c.support, other.support = [6]IndexSupport{}, [6]IndexSupport{}
-	c.search, other.search = [5]IndexSearch{}, [5]IndexSearch{}
+	c.search, other.search = [6]IndexSearch{}, [6]IndexSearch{}
 	c.Name, other.Name, c.Family, other.Family = "", "", "", ""
 	return c == other
 }
@@ -404,6 +404,7 @@ type IndexSupport struct {
 }
 
 // IndexSearch captures a selected GIN member and its executable generations.
+// Its ordinal is the declared strategy-list position, not the strategy number.
 // Declared class identity excludes these stamps; a bound class never does.
 type IndexSearch struct {
 	Member, Operator, Routine                         uint32

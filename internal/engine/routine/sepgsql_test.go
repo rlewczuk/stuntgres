@@ -13,7 +13,7 @@ import (
 // Classification is not admission: actual entry must separately prove the
 // selected source lifetime and execute initialization before using this fact.
 func TestSepgsqlSimulationRoutine(t *testing.T) {
-	expected := map[ids.OID]bool{3: true, 330: true, 331: true, 332: true, 333: true, 334: true, 335: true, 3383: true, 3384: true, 3385: true, 3386: true, 2743: true, 2774: true, 2744: true, 3920: true, 3724: true, 3656: true, 3657: true, 3658: true, 2700: true, 3921: true}
+	expected := map[ids.OID]bool{3: true, 330: true, 331: true, 332: true, 333: true, 334: true, 335: true, 3383: true, 3384: true, 3385: true, 3386: true, 2743: true, 2774: true, 2744: true, 3920: true, 3724: true, 3656: true, 3657: true, 3658: true, 2700: true, 3921: true, 3480: true, 3482: true, 3483: true, 3484: true, 3485: true, 3486: true, 3487: true, 3488: true, 3489: true}
 	originals := NativeAccessMethodProcedures(authorization.PrincipalRef{})
 	if len(originals) != len(expected) {
 		t.Fatalf("original special declarations: got %d, want %d", len(originals), len(expected))

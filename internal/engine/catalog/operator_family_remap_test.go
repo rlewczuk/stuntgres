@@ -41,7 +41,7 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if seeded != 118 || ordinary != 1 {
+	if seeded != 120 || ordinary != 1 {
 		t.Fatal("missing owner mapping", seeded, ordinary)
 	}
 	mapped := base.WithState(destination)
@@ -66,7 +66,7 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 	for _, expected := range []struct {
 		oid  ids.OID
 		name string
-	}{{2745, "array_ops"}, {3659, "tsvector_ops"}} {
+	}{{2745, "array_ops"}, {3659, "tsvector_ops"}, {4036, "jsonb_ops"}, {4037, "jsonb_path_ops"}} {
 		address := ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: expected.oid}
 		original, sourceOK := base.OperatorFamily(address)
 		destination, destinationOK := mapped.OperatorFamily(address)

@@ -67,10 +67,10 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 func TestOperatorClassCatalogDefaults(t *testing.T) {
 	state := CloneState(familyCatalogFixture().State())
 	base := NewRead(nil, state)
-	if len(base.OperatorClasses()) != 147 {
+	if len(base.OperatorClasses()) != 149 {
 		t.Fatal("incomplete seeds", len(base.OperatorClasses()))
 	}
-	for _, want := range []struct{ input, class, family, storage ids.OID }{{2277, 10064, 2745, 2283}, {3614, 10073, 3659, 25}} {
+	for _, want := range []struct{ input, class, family, storage ids.OID }{{2277, 10064, 2745, 2283}, {3614, 10073, 3659, 25}, {3802, 10090, 4036, 25}} {
 		got, ok := base.DefaultOperatorClass(2742, want.input)
 		if !ok || got.Address().ObjectID != want.class || got.Family != want.family || got.StorageType != want.storage || got.Method != 2742 {
 			t.Fatal("released GIN default identity", want, got)

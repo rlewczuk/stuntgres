@@ -101,7 +101,7 @@ func TestPGAmopCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	bag := amopUnitBag(t, rows, d)
-	if rows.Ref != ref || len(bag) != 644 {
+	if rows.Ref != ref || len(bag) != 653 {
 		t.Fatal("capture identity/count", rows.Ref, len(bag))
 	}
 	owners := 0
@@ -131,6 +131,8 @@ func TestPGAmopCaptureOwnership(t *testing.T) {
 		{uint32(10352), uint32(2745), uint32(2277), uint32(2277), int64(4), "s", uint32(1070), uint32(2742), uint32(0)},
 		{uint32(10365), uint32(3659), uint32(3614), uint32(3615), int64(1), "s", uint32(3636), uint32(2742), uint32(0)},
 		{uint32(10366), uint32(3659), uint32(3614), uint32(3615), int64(2), "s", uint32(3660), uint32(2742), uint32(0)},
+		{uint32(10456), uint32(4036), uint32(3802), uint32(3802), int64(7), "s", uint32(3246), uint32(2742), uint32(0)},
+		{uint32(10462), uint32(4037), uint32(3802), uint32(3802), int64(7), "s", uint32(3246), uint32(2742), uint32(0)},
 	} {
 		if !reflect.DeepEqual(bag[want[0].(uint32)], want) {
 			t.Fatal("released witness", want)

@@ -96,6 +96,8 @@ var supportedIndexClasses = [...]struct {
 	{"poly_ops", 4000, 5008, 603, false},
 	{"array_ops", 2742, 2745, 2283, false},
 	{"tsvector_ops", 2742, 3659, 25, false},
+	{"jsonb_ops", 2742, 4036, 25, false},
+	{"jsonb_path_ops", 2742, 4037, 23, true},
 }
 
 func IndexClassMetadataCount() int { return len(supportedIndexClasses) + len(brinIndexClasses) }
@@ -153,6 +155,10 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 		name, method = "array_ops", 2742
 	case 3659:
 		name, method = "tsvector_ops", 2742
+	case 4036:
+		name, method = "jsonb_ops", 2742
+	case 4037:
+		name, method = "jsonb_path_ops", 2742
 	case 3794:
 		name, method = "network_ops", 4000
 	case 3474:

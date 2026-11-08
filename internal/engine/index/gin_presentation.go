@@ -79,7 +79,13 @@ func ginPresentationClass(before, after catalog.Read, captured sqltype.IndexClas
 	}
 	// Required search slots and operand types belong to the authenticated
 	// bindings, not the class input (CIDR support and search types differ).
-	for number := 1; number <= 5; number++ {
+	// Native families declare non-contiguous strategy numbers, so iterate
+	// their declared ordinals rather than the strategy numbers.
+	strategies := 5
+	if profile, ok := routine.LookupGinProfile(familyID); ok {
+		strategies = len(profile.Strategies)
+	}
+	for number := 1; number <= strategies; number++ {
 		prior, next := old.Search(number), current.Search(number)
 		if prior == (sqltype.IndexSearch{}) && next == (sqltype.IndexSearch{}) {
 			continue

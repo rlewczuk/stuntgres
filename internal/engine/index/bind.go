@@ -31,12 +31,6 @@ func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, methodOID
 				return c, nil
 			}
 		}
-		// These released adjacent providers exist in PostgreSQL, but have no
-		// native token authority. Do not misreport a real class as missing.
-		name := raw.Parts[len(raw.Parts)-1].Text
-		if method.Native == catalog.GinAccessMethod && namespace.ObjectID == ids.PGCatalogNamespaceOID && (name == "jsonb_ops" || name == "jsonb_path_ops") {
-			return sqltype.IndexClass{}, sqlError("0A000", "GIN JSONB token provider is unsupported")
-		}
 	}
 	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method.Name()))
 }
@@ -126,9 +120,6 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		}
 	}
 	if !exists {
-		if method == catalog.GinMethod && base.ID() == sqltype.JSONB {
-			return key, sqlError("0A000", "GIN JSONB token provider is unsupported")
-		}
 		return key, DefaultClassError(typeName, fact.Name())
 	}
 	var supportErr error

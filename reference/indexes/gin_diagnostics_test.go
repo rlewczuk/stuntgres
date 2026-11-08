@@ -59,18 +59,13 @@ func TestReferenceGINDiagnostics(t *testing.T) {
 		run(fixture.Select("SELECT conname FROM pg_constraint WHERE conrelid='gin_exclusion'::regclass", []string{"conname"}, []string{"NAME"}, nil))
 	})
 	classBackends(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		conn, run := classConn(t, p, b)
+		_, run := classConn(t, p, b)
 		run(fixture.Exec("CREATE TABLE gin_adjacent(id integer,a integer[],j jsonb)", 0))
 		run(fixture.Exec(`INSERT INTO gin_adjacent VALUES(1,'{1}','{"cat":1}')`, 1))
 		for _, key := range []string{"j", "j pg_catalog.jsonb_ops", "j pg_catalog.jsonb_path_ops"} {
-			q := "CREATE INDEX gin_adjacent_i ON gin_adjacent USING gin(" + key + ")"
-			if b.PG {
-				classRoutes(t, p, b, conn, fixture.Select("SELECT id FROM gin_adjacent WHERE j @> '{\"cat\":1}'::jsonb", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
-				run(fixture.Exec(q, 0))
-				run(fixture.Exec("DROP INDEX gin_adjacent_i", 0))
-			} else {
-				ginUtilityError(t, p, b, conn, q, fixture.ControlsReferenceDiagnostic("0A000", "GIN JSONB token provider is unsupported"))
-			}
+			run(fixture.Exec("CREATE INDEX gin_adjacent_i ON gin_adjacent USING gin("+key+")", 0))
+			run(ginIDs(`SELECT id FROM gin_adjacent WHERE j @> '{"cat":1}'::jsonb ORDER BY id`, []int64{1}))
+			run(fixture.Exec("DROP INDEX gin_adjacent_i", 0))
 			run(amCount("SELECT count(*) FROM pg_index WHERE indrelid='gin_adjacent'::regclass", 0))
 		}
 		run(fixture.Exec("CREATE INDEX gin_adjacent_i ON gin_adjacent USING gin(a)", 0))

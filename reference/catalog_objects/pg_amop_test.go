@@ -141,9 +141,10 @@ func pgAmopInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		}
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*),count(DISTINCT oid) FROM pg_amop WHERE oid<>0", []string{"count", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(644), int64(644)}}))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*),count(DISTINCT oid) FROM pg_amop WHERE oid<>0", []string{"count", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(653), int64(653)}}))
 	}
-	// Bound to the selected builtins; adjacent JSONB families remain out of scope.
+	// Bound to the array/vector builtins; the jsonb families 4036/4037 are
+	// covered by reference/indexes/gin_metadata_test.go.
 	for _, prepared := range []bool{false, true} {
 		pgAmopRows(t, p, b, b.DB, "SELECT * FROM pg_amop WHERE amopfamily IN (2745,3659) ORDER BY oid", [][]any{
 			{int64(10349), int64(2745), int64(2277), int64(2277), int64(1), "s", int64(2750), int64(2742), int64(0)},

@@ -670,10 +670,13 @@ neither owns catalog authority.
   but changed INTERNAL source/language, strictness, volatility or unsupported
   execution environments do not. Original fmgr exemption alone is neither a
   current descriptor/header check nor invocation authority.
-  GIN has genuine method2742/handler333, array_ops10064/family2745 and
-  tsvector_ops10073/family3659. All selected released search/support rows retain
-  pinned18.6 identities, including metadata-only deprecated @@@. Ten `GinSupport`
-  declarations are internal capabilities, not scalar ABI emulation. Anyarray2277
+  GIN has genuine method2742/handler333, array_ops10064/family2745,
+  tsvector_ops10073/family3659, jsonb_ops10090/family4036 (default) and
+  jsonb_path_ops10091/family4037. All selected released search/support rows
+  retain pinned18.6 identities, including metadata-only deprecated @@@.
+  Nineteen `GinSupport` declarations are internal capabilities, not scalar ABI
+  emulation; jsonb_path_ops slot 1 is the ordinary installed btint4cmp351.
+  Anyarray2277
   defaults adapt concrete/domain arrays consistently in binding and deparse.
   Native handlers and GIN support seeds leave `Procedure.Parallel` at its zero
   override sentinel: their intrinsic projected safety is SAFE. Explicit ALTER

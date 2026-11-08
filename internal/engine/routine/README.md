@@ -666,9 +666,17 @@ package or the engine.
   dispatch. Live class/family members remain authority for both supported minmax
   and explicit excluded-algorithm diagnostics.
   GIN validates the selected class/method/family and exact required strategies.
-  Builtin array/vector support uses ten genuine `catalog.ValidateGinSupport`
-  operations; installed scalar support authenticates the original btree_gin
-  recipe, signatures, mapped helpers and exact per-slot dependency owners.
+  `routine.GinProfile` describes the four native families: array/vector plus
+  `jsonb_ops`4036 and `jsonb_path_ops`4037. Nineteen genuine
+  `catalog.ValidateGinSupport` operations cover the intrinsic extraction and
+  consistency callbacks; jsonb_path_ops slot 1 is the ordinary installed
+  `btint4cmp`351 (no GinSupport marker), and strategy ordinals follow the
+  declared list (jsonb_ops 7/9/10/11/15/16, path_ops 7/15/16). Strategies
+  9/10/11 name operators 3247/3248/3249 whose backing identities 4047/4048/4049
+  are lookup-only released metadata with no installed pg_proc descriptor;
+  `GinMetadataOnlyOperator` accepts exactly that seeded case. Installed scalar
+  support authenticates the original btree_gin recipe, signatures, mapped
+  helpers and exact per-slot dependency owners.
   Support associations, routine formals and search operands remain distinct:
   CIDR associates650 with search/comparator869; varchar associates1043 while
   sharing text's actual helper IDs, text formals and search operands25.

@@ -15,7 +15,7 @@ func TestOperatorFamilySupportVisibility(t *testing.T) {
 		implemented[oid] = true
 	}
 	// These are real bounded GIN callback declarations, not scalar call grants.
-	for _, oid := range []ids.OID{2743, 2774, 2744, 3920, 3724, 3656, 3657, 3658, 2700, 3921} {
+	for _, oid := range []ids.OID{2743, 2774, 2744, 3920, 3724, 3656, 3657, 3658, 2700, 3921, 3480, 3482, 3483, 3484, 3485, 3486, 3487, 3488, 3489} {
 		implemented[oid] = true
 	}
 	view := familyCatalogFixture()
@@ -32,7 +32,7 @@ func TestOperatorFamilySupportVisibility(t *testing.T) {
 			}
 		}
 	}
-	if count != 386 {
+	if count != 396 {
 		t.Fatal("internal inventory", count)
 	}
 	for _, key := range []struct {

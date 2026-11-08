@@ -20,7 +20,7 @@ func familyCatalogFixture() Read {
 func TestOperatorFamilyCatalog(t *testing.T) {
 	view := familyCatalogFixture()
 	t.Run("dependency classification", func(t *testing.T) { operatorFamilyDependencyCases(t, view) })
-	if view.DescriptorCount() != 1+7+118+644+386+147 {
+	if view.DescriptorCount() != 1+7+120+653+396+149 {
 		t.Fatal("incomplete released family inventory", view.DescriptorCount())
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}
@@ -32,7 +32,7 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 	for _, want := range []struct {
 		oid  ids.OID
 		name string
-	}{{2745, "array_ops"}, {3659, "tsvector_ops"}} {
+	}{{2745, "array_ops"}, {3659, "tsvector_ops"}, {4036, "jsonb_ops"}, {4037, "jsonb_path_ops"}} {
 		got := view.NameAddress(FamilyNameKey(ns, 2742, want.name))
 		if got != (ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: want.oid}) {
 			t.Fatal("released GIN family identity", want, got)

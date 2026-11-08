@@ -132,9 +132,12 @@ builds a binder.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
-  GIN (`gin.go`, `gin_scalar.go`, `delta.go`) binds actual array/vector or
-  authenticated installed scalar family support, then builds per-column typed
-  dictionaries and exact row/version/slot postings from already-produced keys.
+  GIN (`gin.go`, `gin_scalar.go`, `gin_jsonb.go`, `delta.go`) binds actual
+  array/vector or authenticated installed scalar family support and the jsonb
+  lexeme providers (default `jsonb_ops`, named `jsonb_path_ops`), then builds
+  per-column typed dictionaries and exact row/version/slot postings from
+  already-produced keys. `gin_jsonb.go` exposes the jsonb strategy candidate
+  probe over those postings with mandatory SQL recheck.
   `GinRoot.Columns` is main inversion; `Pending` is genuine deferred DML
   inversion, not a mirror or counter. Bulk builds/REINDEX populate main.
   Accepted INSERT/UPDATE outputs capture effective fastupdate placement once;
@@ -273,7 +276,12 @@ builds a binder.
   Repaired exports absent from source membership acquire ordinary rebuilt main
   placement, never fabricated pending work. Capture leaves source roots/backing
   unchanged; destination split reconstruction consumes destination-produced keys.
-  JSONB token providers remain unavailable, not nonexistent PostgreSQL classes.
+  JSONB GIN classes 10090 `jsonb_ops` (flag+payload key/value lexemes) and
+  10091 `jsonb_path_ops` (4-byte path hashes) are lexeme providers: role 2
+  extraction walks the immutable jsonb tree, and the dedicated strategy entry
+  point serves `@>`, `?`, `?|`, `?&` plus conservative `@?`/`@@`. The scalar
+  jsonb/jsonpath matcher remains the only SQL authority; `GinJSONBCandidates`
+  exposes posting probes with mandatory recheck and no planner path.
   `pgstattuple.go` estimates tuple/page metrics from current logical roots and
   already-produced private outputs. Published logical removal stops contributing
   at once; pgstattuple dead index count is zero because roots have no killed-item
@@ -870,7 +878,7 @@ make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFenc
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport
 make check RUN='^TestSPGiST'   # genuine method, membership, publication and destination transport
-make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot)$'
+make check RUN='^(TestGINClassInventory|TestGINTypedTokens|TestGINInvertedRoot|TestGINJSONBTokens|TestGINJSONBQueries|TestGINJSONBCompare|TestGINJSONBDictionary|TestGINJSONBMaintenance)$'
 make check RACE=1 RUN='^(TestGINPublication|TestGINTransport|TestGINVacuum|TestGINCancellation)$'
 make check RUN='^TestBtreeGINCompound' # installed scalar bindings, postings and immutable lifecycle
 make check RUN='^TestBtreeGINNetwork' # network class authority, exact postings and transport

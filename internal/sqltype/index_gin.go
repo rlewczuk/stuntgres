@@ -2,6 +2,7 @@ package sqltype
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"strings"
 )
@@ -15,6 +16,10 @@ func LookupGinIndexClass(name string) (IndexClass, bool) {
 		d.OID, d.Family, d.Input, d.Storage = 10064, 2745, 2277, 2283
 	case "tsvector_ops":
 		d.OID, d.Family, d.Input, d.Storage = 10073, 3659, uint32(TSVector), uint32(Text)
+	case "jsonb_ops":
+		d.OID, d.Family, d.Input, d.Storage = 10090, 4036, uint32(JSONB), uint32(Text)
+	case "jsonb_path_ops":
+		d.OID, d.Family, d.Input, d.Storage = 10091, 4037, uint32(JSONB), uint32(Int4)
 	default:
 		return IndexClass{}, false
 	}
@@ -45,6 +50,7 @@ type GinBinding struct {
 	element    *Descriptor
 	comparison Comparison
 	scalar     bool
+	jsonb      ginJSONBProvider
 }
 
 func BindGinTokens(u Usage, class IndexClass) (GinBinding, error) {
@@ -78,16 +84,34 @@ func BindGinTokens(u Usage, class IndexClass) (GinBinding, error) {
 		p.comparison, err = BindComparison(base, base, u.Collation, false)
 		return p, err
 	}
+	if class.InputOID() == uint32(JSONB) {
+		switch class.FamilyOID() {
+		case 4036:
+			p.jsonb = ginJSONBOps
+		case 4037:
+			p.jsonb = ginJSONBPathOps
+		default:
+			return p, failure("0A000", "GIN JSONB token provider is unsupported")
+		}
+		return p, nil
+	}
 	if class.InputOID() != uint32(TSVector) {
 		return p, failure("0A000", "GIN token provider is unsupported")
 	}
 	return p, nil
 }
 func (p GinBinding) Same(other GinBinding) bool {
-	return p.Usage == other.Usage && p.Class == other.Class && p.element == other.element && p.scalar == other.scalar && p.comparison.Equal(other.comparison)
+	return p.Usage == other.Usage && p.Class == other.Class && p.element == other.element && p.scalar == other.scalar && p.jsonb == other.jsonb && p.comparison.Equal(other.comparison)
 }
 
 func (p GinBinding) IsScalar() bool { return p.scalar }
+
+// IsJSONB reports the lexeme-provider discriminator. It grants no ordering or
+// SQL predicate authority; the scalar jsonb matcher remains the sole authority.
+func (p GinBinding) IsJSONB() bool { return p.jsonb != ginJSONBNone }
+
+// JSONBPathOps selects the path-hash dictionary rather than flag+payload keys.
+func (p GinBinding) JSONBPathOps() bool { return p.jsonb == ginJSONBPathOps }
 
 // WithElementComparison captures the default B-tree comparator selected for
 // array keys, whose GIN class has no explicit comparison support member.
@@ -152,6 +176,26 @@ func (p GinBinding) Compare(ctx context.Context, a, b GinToken, input InputEnvir
 		defer body.Leave()
 	}
 	if p.element == nil {
+		switch p.jsonb {
+		case ginJSONBOps:
+			if a.Lexeme == "" || b.Lexeme == "" {
+				return 0, fmt.Errorf("empty JSONB GIN token")
+			}
+			return strings.Compare(a.Lexeme, b.Lexeme), nil
+		case ginJSONBPathOps:
+			if len(a.Lexeme) != 4 || len(b.Lexeme) != 4 {
+				return 0, fmt.Errorf("invalid JSONB path GIN token")
+			}
+			left := int32(binary.BigEndian.Uint32([]byte(a.Lexeme)))
+			right := int32(binary.BigEndian.Uint32([]byte(b.Lexeme)))
+			switch {
+			case left < right:
+				return -1, nil
+			case left > right:
+				return 1, nil
+			}
+			return 0, nil
+		}
 		return strings.Compare(a.Lexeme, b.Lexeme), nil
 	}
 	if a.Element.typ != p.element || b.Element.typ != p.element {

@@ -126,6 +126,15 @@
 3789	gin_clean_pending_list	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	gin_clean_pending_list	\N	false	\N
 3920	ginarraytriconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 2277 23 2281 2281 2281	\N	\N	\N	false	\N	ginarraytriconsistent	\N	false	\N
 3921	gin_tsquery_triconsistent	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 3614 23 2281 2281 2281	\N	\N	\N	false	\N	gin_tsquery_triconsistent	\N	false	\N
+3480	gin_compare_jsonb	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	25 25	\N	\N	\N	false	\N	gin_compare_jsonb	\N	false	\N
+3482	gin_extract_jsonb	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	2281	3802 2281 2281	\N	\N	\N	false	\N	gin_extract_jsonb	\N	false	\N
+3483	gin_extract_jsonb_query	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	2281	3802 2281 21 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_extract_jsonb_query	\N	false	\N
+3484	gin_consistent_jsonb	11	12	1	0	0	0	f	false	false	true	false	i	s	8	0	16	2281 21 3802 23 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_consistent_jsonb	\N	false	\N
+3485	gin_extract_jsonb_path	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	2281	3802 2281 2281	\N	\N	\N	false	\N	gin_extract_jsonb_path	\N	false	\N
+3486	gin_extract_jsonb_query_path	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	2281	3802 2281 21 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_extract_jsonb_query_path	\N	false	\N
+3487	gin_consistent_jsonb_path	11	12	1	0	0	0	f	false	false	true	false	i	s	8	0	16	2281 21 3802 23 2281 2281 2281 2281	\N	\N	\N	false	\N	gin_consistent_jsonb_path	\N	false	\N
+3488	gin_triconsistent_jsonb	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 3802 23 2281 2281 2281	\N	\N	\N	false	\N	gin_triconsistent_jsonb	\N	false	\N
+3489	gin_triconsistent_jsonb_path	11	12	1	0	0	0	f	false	false	true	false	i	s	7	0	18	2281 21 3802 23 2281 2281 2281	\N	\N	\N	false	\N	gin_triconsistent_jsonb_path	\N	false	\N
 4086	to_regnamespace	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	4089	25	\N	\N	\N	false	\N	to_regnamespace	\N	false	\N
 6317	to_regtypemod	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	23	25	\N	\N	\N	false	\N	to_regtypemod	\N	false	\N
 1596	bitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1560 1560	\N	\N	\N	false	\N	bitcmp	\N	false	\N

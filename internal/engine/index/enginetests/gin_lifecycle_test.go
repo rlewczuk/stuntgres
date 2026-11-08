@@ -31,6 +31,27 @@ func ginInstalledRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relat
 	ginAssertOwners(t, root, store)
 	return idx, root
 }
+func ginTemporaryIndex(t *testing.T, e *core.Engine, s *session.Session, relation string) *catalog.Relation {
+	t.Helper()
+	parent, ok := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.TemporaryNamespace, Name: relation})
+	if !ok {
+		t.Fatal("missing temporary relation", relation)
+	}
+	var found *catalog.Relation
+	for _, descriptor := range e.CatalogRead().Descriptors() {
+		idx, ok := descriptor.(*catalog.Relation)
+		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == parent {
+			if found != nil {
+				t.Fatal("ambiguous temporary index", relation)
+			}
+			found = idx
+		}
+	}
+	if found == nil {
+		t.Fatal("missing temporary index", relation)
+	}
+	return found
+}
 func ginAssertOwners(t *testing.T, root *storage.IndexRoot, store *storage.Relation) {
 	t.Helper()
 	members := map[storage.GinPosting]bool{}
@@ -297,7 +318,7 @@ func ginStructuralTransports(t *testing.T) {
 
 func ginDestinationRemint(t *testing.T) {
 	source := engine.New()
-	for _, q := range []string{"CREATE SCHEMA gin_padding", "CREATE SCHEMA gin_toast_padding", "CREATE TABLE gin_restore(id integer,v tsvector)", "CREATE DOMAIN gin_restore_key AS tsvector", "ALTER TABLE gin_restore ALTER COLUMN v TYPE gin_restore_key", "INSERT INTO gin_restore VALUES(1,'cat:1'),(2,'removed:1'),(3,NULL)", "CREATE INDEX gin_restore_i ON gin_restore USING gin(v) WITH(fastupdate=off,gin_pending_list_limit=64)", "DELETE FROM gin_restore WHERE id=2"} {
+	for _, q := range []string{"CREATE SCHEMA gin_padding", "CREATE SCHEMA gin_toast_padding", "CREATE TABLE gin_restore(id integer,v tsvector)", "CREATE DOMAIN gin_restore_key AS tsvector", "ALTER TABLE gin_restore ALTER COLUMN v TYPE gin_restore_key", "INSERT INTO gin_restore VALUES(1,'cat:1'),(2,'removed:1'),(3,NULL)", "CREATE INDEX gin_restore_i ON gin_restore USING gin(v) WITH(fastupdate=off,gin_pending_list_limit=64)", "DELETE FROM gin_restore WHERE id=2", "CREATE TABLE gin_restore_jsonb(id integer,j jsonb)", "INSERT INTO gin_restore_jsonb VALUES(1,'{\"a\":\"b\",\"n\":1}')", "CREATE INDEX gin_restore_jsonb_i ON gin_restore_jsonb USING gin(j)", "CREATE INDEX gin_restore_jsonb_p ON gin_restore_jsonb USING gin(j jsonb_path_ops)"} {
 		enginetest.Run(t, source, q)
 	}
 	parent := gistCopyRelation(t, source, "gin_restore")
@@ -316,6 +337,12 @@ func ginDestinationRemint(t *testing.T) {
 	}
 	enginetest.SessionSQL(t, temporary, "CREATE INDEX gin_retained_i ON gin_retained USING gin(v)")
 	enginetest.SessionSQL(t, temporary, "INSERT INTO gin_retained VALUES(73,'retained:1')")
+	enginetest.SessionSQL(t, temporary, "CREATE TEMP TABLE gin_retained_jsonb(id integer,j jsonb)")
+	enginetest.SessionSQL(t, temporary, "CREATE INDEX gin_retained_jsonb_i ON gin_retained_jsonb USING gin(j)")
+	enginetest.SessionSQL(t, temporary, "INSERT INTO gin_retained_jsonb VALUES(73,'{\"a\":\"b\"}')")
+	enginetest.SessionSQL(t, temporary, "CREATE TEMP TABLE gin_retained_path(id integer,j jsonb)")
+	enginetest.SessionSQL(t, temporary, "CREATE INDEX gin_retained_path_i ON gin_retained_path USING gin(j jsonb_path_ops)")
+	enginetest.SessionSQL(t, temporary, "INSERT INTO gin_retained_path VALUES(73,'{\"a\":\"b\"}')")
 	var retainedIndex *catalog.Relation
 	for _, d := range target.CatalogRead().Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.SQLIndex != nil && r.SQLIndex.Parent == retained {
@@ -327,6 +354,18 @@ func ginDestinationRemint(t *testing.T) {
 	}
 	retainedRoot := target.Storage.IndexRoots[retainedIndex.Address()]
 	retainedCopy := ginCopyPayload(retainedRoot.Gin)
+	opsIndex := ginTemporaryIndex(t, target, temporary, "gin_retained_jsonb")
+	pathIndex := ginTemporaryIndex(t, target, temporary, "gin_retained_path")
+	opsRoot := target.Storage.IndexRoots[opsIndex.Address()]
+	pathRoot := target.Storage.IndexRoots[pathIndex.Address()]
+	if opsRoot == nil || opsRoot.Gin == nil || pathRoot == nil || pathRoot.Gin == nil {
+		t.Fatal("missing retained jsonb GIN roots")
+	}
+	opsBinding, pathBinding := opsRoot.Gin.Columns[0].Binding, pathRoot.Gin.Columns[0].Binding
+	if !opsBinding.IsJSONB() || opsBinding.JSONBPathOps() || !pathBinding.IsJSONB() || !pathBinding.JSONBPathOps() {
+		t.Fatal("retained jsonb GIN bindings", opsBinding, pathBinding)
+	}
+	opsCopy, pathCopy := ginCopyPayload(opsRoot.Gin), ginCopyPayload(pathRoot.Gin)
 	if err := engine.Restore(context.Background(), target, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
@@ -343,12 +382,73 @@ func ginDestinationRemint(t *testing.T) {
 	if target.Storage.IndexRoots[retainedIndex.Address()] != retainedRoot || !reflect.DeepEqual(retainedRoot.Gin, retainedCopy) {
 		t.Fatal("TEMP policy changed retained root")
 	}
+	if ginTemporaryIndex(t, target, temporary, "gin_retained_jsonb").Address() != opsIndex.Address() || ginTemporaryIndex(t, target, temporary, "gin_retained_path").Address() != pathIndex.Address() {
+		t.Fatal("replacement replaced retained jsonb descriptors")
+	}
+	if target.Storage.IndexRoots[opsIndex.Address()] != opsRoot || !reflect.DeepEqual(opsRoot.Gin, opsCopy) || target.Storage.IndexRoots[pathIndex.Address()] != pathRoot || !reflect.DeepEqual(pathRoot.Gin, pathCopy) {
+		t.Fatal("replacement changed retained jsonb roots")
+	}
+	if binding := opsRoot.Gin.Columns[0].Binding; !binding.IsJSONB() || binding.JSONBPathOps() {
+		t.Fatal("replacement changed retained jsonb_ops binding", binding)
+	}
+	if binding := pathRoot.Gin.Columns[0].Binding; !binding.IsJSONB() || !binding.JSONBPathOps() {
+		t.Fatal("replacement changed retained jsonb_path_ops binding", binding)
+	}
+	// Deferred placement is genuine, so probe both portions for the maintained
+	// row rather than assuming the repaired destination flushed to main.
+	enginetest.SessionSQL(t, temporary, "INSERT INTO gin_retained_jsonb VALUES(74,'{\"a\":\"z\"}')")
+	maintainedIndex := ginTemporaryIndex(t, target, temporary, "gin_retained_jsonb")
+	maintainedJSONB := target.Storage.IndexRoots[maintainedIndex.Address()]
+	if maintainedJSONB == nil || maintainedJSONB.Gin == nil {
+		t.Fatal("retained jsonb GIN lost its installed root")
+	}
+	jsonbRows := ginPostingID(t, target, maintainedIndex, ginLookup(t, maintainedJSONB.Gin.Columns[0], sqltype.GinToken{Lexeme: "\x01a"}))
+	if len(maintainedJSONB.Gin.Pending) != 0 {
+		jsonbRows = append(jsonbRows, ginPostingID(t, target, maintainedIndex, ginLookup(t, maintainedJSONB.Gin.Pending[0], sqltype.GinToken{Lexeme: "\x01a"}))...)
+	}
+	slices.Sort(jsonbRows)
+	if !slices.Equal(jsonbRows, []int64{73, 74}) {
+		t.Fatal("post-restore maintenance lost retained jsonb postings", jsonbRows)
+	}
 	prior := ginCopyPayload(next.Gin)
 	enginetest.Run(t, target, "INSERT INTO gin_restore VALUES(4,'cat:1')")
 	enginetest.Run(t, target, "UPDATE gin_restore SET v='dog:1' WHERE id=1")
 	idx, maintained := ginInstalledRoot(t, target, "gin_restore_i")
 	if got := ginPostingID(t, target, idx, ginLookup(t, maintained.Gin.Columns[0], sqltype.GinToken{Lexeme: "cat"})); !slices.Equal(got, []int64{4}) {
 		t.Fatal("destination postings not maintained", got)
+	}
+	jsonbParent := gistCopyRelation(t, target, "gin_restore_jsonb")
+	opsRestoredIndex, opsRestored := ginInstalledRoot(t, target, "gin_restore_jsonb_i")
+	if opsRestoredIndex.SQLIndex.Parent != jsonbParent.Address() {
+		t.Fatal("restored jsonb_ops index bound to a foreign parent")
+	}
+	opsColumn := opsRestored.Gin.Columns[0]
+	if !opsColumn.Binding.IsJSONB() || opsColumn.Binding.JSONBPathOps() || opsColumn.Binding.Usage.Type != jsonbParent.Columns[1].Usage.Type {
+		t.Fatal("restored jsonb_ops binding", opsColumn.Binding)
+	}
+	if got := ginPostingID(t, target, opsRestoredIndex, ginLookup(t, opsColumn, sqltype.GinToken{Lexeme: "\x01a"})); !slices.Equal(got, []int64{1}) {
+		t.Fatal("restored jsonb_ops postings", got)
+	}
+	pathRestoredIndex, pathRestored := ginInstalledRoot(t, target, "gin_restore_jsonb_p")
+	if pathRestoredIndex.SQLIndex.Parent != jsonbParent.Address() {
+		t.Fatal("restored jsonb_path_ops index bound to a foreign parent")
+	}
+	pathColumn := pathRestored.Gin.Columns[0]
+	if !pathColumn.Binding.IsJSONB() || !pathColumn.Binding.JSONBPathOps() || pathColumn.Binding.Usage.Type != jsonbParent.Columns[1].Usage.Type {
+		t.Fatal("restored jsonb_path_ops binding", pathColumn.Binding)
+	}
+	pathTokens := 0
+	for _, list := range pathColumn.Tokens {
+		if list.Token.Kind != sqltype.GinOrdinary {
+			continue
+		}
+		if len(list.Token.Lexeme) != 4 {
+			t.Fatal("restored jsonb_path_ops token width", list.Token.Lexeme)
+		}
+		pathTokens++
+	}
+	if pathTokens == 0 {
+		t.Fatal("restored jsonb_path_ops index has no path dictionary")
 	}
 	if !reflect.DeepEqual(original.Gin, before) || !reflect.DeepEqual(next.Gin, prior) || !reflect.DeepEqual(retainedRoot.Gin, retainedCopy) {
 		t.Fatal("destination writes mutated source/predecessor/TEMP postings")
