@@ -114,6 +114,11 @@ func InheritancePreparatoryLocks(root *catalog.Relation, actions []parser.AlterT
 	if only {
 		return false
 	}
+	// An inline key stages its index in the sole pipeline; take the ADD UNIQUE
+	// route so no node is cooked before that stage.
+	if inlineUniqueAddition(actions) {
+		return true
+	}
 	for _, a := range actions {
 		switch a.Action {
 		case parser.SetStorage, parser.SetColumnStatistics:

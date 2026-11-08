@@ -1,8 +1,9 @@
 # reference/ddl
 
 Dual-mode tests for catalog-publication contracts that span multiple DDL
-statements in one transaction: journal fills, catalog-overlay reowning and type
-identity replacement interacting with column metadata.
+statements in one transaction: journal fills, catalog-overlay reowning, type
+identity replacement interacting with column metadata, and inline `PRIMARY KEY`
+column constraints added by `ALTER TABLE ... ADD COLUMN`.
 
 Related families: enum values and `ALTER TYPE` coverage stay in
 [reference/types](../types/README.md#testing); `ALTER TABLE` action coverage in
@@ -25,6 +26,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 - `TestReferenceEnumAlterFillReownFeatureSmoke` is the new-behavior smoke: the
   exact replacement repro, one `ADD VALUE` variant and the enum-array variant,
   direct route.
+- `TestReferenceAlterAddColumnPrimaryKey` runs both backends and both execution
+  routes from one body: catalog publication, same-column UNIQUE/PRIMARY KEY
+  dedup and name transfer, skipped declarations, the coder migration forms,
+  boundaries, inheritance, atomicity and the feature smoke.
 
 Family selector: `make check RUN='^TestReferenceEnumAlterFillReown'` (add
+`REFERENCE=1` for the oracle).
+
+Family selector: `make check RUN='^TestReferenceAlterAddColumnPrimaryKey'` (add
 `REFERENCE=1` for the oracle).

@@ -108,20 +108,10 @@ func TestReferenceAlterAddColumnReferencesBoundaries(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
 		run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 		q := "ALTER TABLE t ADD COLUMN key INT PRIMARY KEY"
-		if b.PG {
-			run(fixture.Exec(q, 0))
-			run(fixture.Exec("INSERT INTO t VALUES(1,1)", 1))
-			run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(2,1)", fixture.UniqueReferenceDuplicate("t", "t_pkey", "Key (key)=(1) already exists.")))
-			run(fixture.Exec("ALTER TABLE t DROP key", 0))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("0A000", "ALTER TABLE action is unsupported")
-			d.Position = enforcementPosition(q, "ADD", false)
-			phase := "execute"
-			if prepared {
-				phase = "prepare"
-			}
-			addConstraintError(t, p, c, q, d, prepared, phase)
-		}
+		run(fixture.Exec(q, 0))
+		run(fixture.Exec("INSERT INTO t VALUES(1,1)", 1))
+		run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(2,1)", fixture.UniqueReferenceDuplicate("t", "t_pkey", "Key (key)=(1) already exists.")))
+		run(fixture.Exec("ALTER TABLE t DROP key", 0))
 		for _, tc := range []struct{ clause, code, message, token string }{
 			{"REFERENCES p MATCH PARTIAL", "0A000", "MATCH PARTIAL not yet implemented", "MATCH"},
 			{"REFERENCES p ON UPDATE SET NULL (pid)", "0A000", "a column list with SET NULL is only supported for ON DELETE actions", "ON UPDATE"},

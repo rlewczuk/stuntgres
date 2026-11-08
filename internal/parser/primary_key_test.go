@@ -73,14 +73,60 @@ func TestPrimaryKeyCapabilityRecords(t *testing.T) {
 		{"CREATE TABLE t(a INT,b TEXT,PRIMARY KEY(a) INCLUDE(b))", "INCLUDE", "PRIMARY KEY index parameters are unsupported"},
 		{"CREATE TABLE t(a INT PRIMARY KEY WITH(fillfactor=90))", "WITH", "PRIMARY KEY index parameters are unsupported"},
 		{"CREATE TABLE t(a INT,PRIMARY KEY(a) USING INDEX TABLESPACE pg_default)", "USING", "PRIMARY KEY index parameters are unsupported"},
-		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY", "ADD", "ALTER TABLE action is unsupported"},
-		{"ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT PRIMARY KEY DEFERRABLE", "ADD", "ALTER TABLE action is unsupported"},
+		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY INCLUDE(b)", "INCLUDE", "PRIMARY KEY index parameters are unsupported"},
+		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY WITH(fillfactor=90)", "WITH", "PRIMARY KEY index parameters are unsupported"},
+		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY USING INDEX TABLESPACE pg_default", "USING", "PRIMARY KEY index parameters are unsupported"},
 	} {
 		statements, err := Parse(tc.query)
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: strconv.Itoa(utf8.RuneCountInString(tc.query[:strings.Index(tc.query, tc.token)]) + 1)}
 		var diagnostic *sqlstate.Error
 		if statements != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
 			t.Fatalf("%s: statements=%#v diagnostic=%#v error=%v want=%#v", tc.query, statements, diagnostic, err, want)
+		}
+	}
+	for _, tc := range []struct{ query, token string }{
+		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY NULLS NOT DISTINCT", "NULLS"},
+		{"ALTER TABLE t ADD COLUMN a INT PRIMARY KEY WITHOUT OVERLAPS", "WITHOUT"},
+	} {
+		statements, err := Parse(tc.query)
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "` + tc.token + `"`, Position: strconv.Itoa(utf8.RuneCountInString(tc.query[:strings.Index(tc.query, tc.token)]) + 1)}
+		var diagnostic *sqlstate.Error
+		if statements != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
+			t.Fatalf("%s: statements=%#v diagnostic=%#v error=%v want=%#v", tc.query, statements, diagnostic, err, want)
+		}
+	}
+}
+
+func TestPrimaryKeyColumnAdditionAttachments(t *testing.T) {
+	for _, tc := range []struct {
+		query             string
+		ifNotExists       bool
+		name              string
+		deferrable        bool
+		initiallyDeferred bool
+		token             string
+	}{
+		{`ALTER TABLE t ADD COLUMN a INT PRIMARY KEY`, false, "", false, false, "PRIMARY"},
+		{`ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT CONSTRAINT named PRIMARY KEY DEFERRABLE INITIALLY DEFERRED`, true, "named", true, true, "CONSTRAINT"},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		alter := statements[0].(*AlterTable)
+		if len(alter.Actions) != 1 {
+			t.Fatal(tc.query, alter.Actions)
+		}
+		action := alter.Actions[0]
+		if action.Action != AddColumn || action.IfNotExists != tc.ifNotExists || action.Definition == nil || len(action.Definition.Constraints) != 1 {
+			t.Fatal(tc.query, action)
+		}
+		unique := action.Definition.Constraints[0].Unique
+		if unique == nil || !unique.Primary || unique.Name.Text != tc.name || unique.Deferrable != tc.deferrable || unique.InitiallyDeferred != tc.initiallyDeferred || action.Definition.Constraints[0].TimingError != "" {
+			t.Fatal(tc.query, unique)
+		}
+		if unique.Pos.Character != utf8.RuneCountInString(tc.query[:strings.Index(tc.query, tc.token)])+1 {
+			t.Fatal("declaration lost start position", tc.query, unique.Pos)
 		}
 	}
 }

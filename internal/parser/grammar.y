@@ -2882,7 +2882,7 @@ alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) } ;
 ordinary_alter_action: alter_selected_action {$$=$1}
  | alter_column_default_action {$$=$1}
- | alter_column_add {sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos:$1.Ordinary.Pos},$1.Ordinary.Definition);$$=$1.Ordinary} ;
+ | alter_column_add {$$=$1.Ordinary} ;
 alter_column_add: ADD optional_column column {c:=$3;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}}
  | ADD optional_column IF NOT EXISTS column {c:=$6;$$=&ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos},ColumnOptions:c.ForeignOptions}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }

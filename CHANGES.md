@@ -1,5 +1,11 @@
 # Changes
 
+- Accept `PRIMARY KEY` as an inline `ALTER TABLE ... ADD COLUMN` column
+  constraint: the column becomes the table key with implicit NOT NULL, the
+  generated or spelled constraint/index name, the same-column UNIQUE/PRIMARY KEY
+  dedup and name transfer, and PostgreSQL's multiple-primary-key diagnostic with
+  unchanged statement atomicity.
+
 - Accept selected built-in calls as ordinary cast, arithmetic and comparison
   operands, including nested random-based security-stamp UPDATEs, INSERT VALUES
   and RETURNING expressions. Preserve existing signatures, diagnostics,

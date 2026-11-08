@@ -39,41 +39,49 @@ func TestReferenceAlterAddColumnReviewDefaultLists(t *testing.T) {
 
 func TestReferenceAlterAddColumnReviewSerialIdentityBoundary(t *testing.T) {
 	for _, identity := range []bool{false, true} {
-		for _, prepared := range []bool{false, true} {
-			t.Run(fmt.Sprintf("identity=%v/prepared=%v", identity, prepared), func(t *testing.T) {
-				alterAddReferenceScenario(t, func(p *fixture.Pair, b fixture.Backend) {
-					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
-					run(fixture.Exec("CREATE TABLE t(id INT)", 0))
-					run(fixture.Exec("INSERT INTO t VALUES(1),(2)", 2))
-					query := "ALTER TABLE t ADD b SERIAL"
-					message := "ADD COLUMN serial declarations are unsupported"
-					token := "b SERIAL"
-					if identity {
-						query = "ALTER TABLE t ADD b INT GENERATED ALWAYS AS IDENTITY"
-						message = "ADD COLUMN identity declarations are unsupported"
-						token = "GENERATED"
-					}
-					if b.PG {
-						s := fixture.Exec(query, 0)
-						s.Prepared = prepared
-						run(s)
-						bag := fixture.Select("SELECT b FROM t", []string{"b"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
-						bag.Bag = true
-						run(bag)
-						run(fixture.Exec("INSERT INTO t(id) VALUES(3)", 1))
-						run(fixture.Select("SELECT b FROM t WHERE id=3", []string{"b"}, []string{"INT4"}, [][]any{{int64(3)}}))
-						fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, prepared, "SELECT * FROM t", []string{"id", "b"}, []string{"INT4", "INT4"}, []bool{true, false}, 3)
-					} else {
-						failure := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: message, Position: fixture.Position(len([]rune(query[:strings.Index(query, token)])) + 1)})
-						failure.Prepared = prepared
-						failure.ErrorStage = "execute"
-						run(failure)
-						run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
-						run(fixture.Exec("ALTER TABLE t ADD b INT DEFAULT 7", 0))
-						run(fixture.Select("SELECT b FROM t ORDER BY id", []string{"b"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}}))
-					}
+		for _, primary := range []bool{false, true} {
+			for _, prepared := range []bool{false, true} {
+				t.Run(fmt.Sprintf("identity=%v/primary=%v/prepared=%v", identity, primary, prepared), func(t *testing.T) {
+					alterAddReferenceScenario(t, func(p *fixture.Pair, b fixture.Backend) {
+						run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+						run(fixture.Exec("CREATE TABLE t(id INT)", 0))
+						run(fixture.Exec("INSERT INTO t VALUES(1),(2)", 2))
+						query := "ALTER TABLE t ADD b SERIAL"
+						message := "ADD COLUMN serial declarations are unsupported"
+						token := "b SERIAL"
+						if identity {
+							query = "ALTER TABLE t ADD b INT GENERATED ALWAYS AS IDENTITY"
+							message = "ADD COLUMN identity declarations are unsupported"
+							token = "GENERATED"
+						}
+						if primary {
+							query += " PRIMARY KEY"
+						}
+						if b.PG {
+							s := fixture.Exec(query, 0)
+							s.Prepared = prepared
+							run(s)
+							bag := fixture.Select("SELECT b FROM t", []string{"b"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
+							bag.Bag = true
+							run(bag)
+							run(fixture.Exec("INSERT INTO t(id) VALUES(3)", 1))
+							run(fixture.Select("SELECT b FROM t WHERE id=3", []string{"b"}, []string{"INT4"}, [][]any{{int64(3)}}))
+							fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, prepared, "SELECT * FROM t", []string{"id", "b"}, []string{"INT4", "INT4"}, []bool{true, false}, 3)
+							if primary {
+								run(fixture.Select("SELECT conname,contype FROM pg_constraint WHERE conrelid=$1::regclass AND contype='p'", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"t_pkey", "p"}}, "t"))
+							}
+						} else {
+							failure := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: message, Position: fixture.Position(len([]rune(query[:strings.Index(query, token)])) + 1)})
+							failure.Prepared = prepared
+							failure.ErrorStage = "execute"
+							run(failure)
+							run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
+							run(fixture.Exec("ALTER TABLE t ADD b INT DEFAULT 7", 0))
+							run(fixture.Select("SELECT b FROM t ORDER BY id", []string{"b"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}}))
+						}
+					})
 				})
-			})
+			}
 		}
 	}
 }

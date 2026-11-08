@@ -31114,7 +31114,6 @@ sqldefault:
 	case 1927:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqllex.(*lexer).excludePrimaryColumnAddition(lexeme{pos: sqlDollar[1].foreignTableAction.Ordinary.Pos}, sqlDollar[1].foreignTableAction.Ordinary.Definition)
 			sqlVAL.alterAction = sqlDollar[1].foreignTableAction.Ordinary
 		}
 	case 1928:

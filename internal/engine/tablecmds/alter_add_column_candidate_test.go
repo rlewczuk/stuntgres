@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -78,6 +80,27 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	value, err := fills[4].Integer()
 	if err != nil || value != 7 {
 		t.Fatal(value, err)
+	}
+	// The inline PRIMARY KEY reaches the candidate: the declaration implies
+	// NOT NULL, its raw constraint stays for index staging, and the source
+	// relation is never mutated.
+	primary := alterAddUnitAction(t, "ALTER TABLE t ADD b INT PRIMARY KEY")
+	nextPK, addedPK, err := tablecmds.AddColumnCandidate(e, scope, scope.Op, auth, old, primary, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextPK.ColumnMeta.HighWater != 4 || addedPK.Attribute != 4 || !addedPK.Declaration.ColumnNotNull || addedPK.Declaration.ColumnName != "" || addedPK.Column == nil || len(addedPK.Column.Constraints) != 1 || addedPK.Column.Constraints[0].Unique == nil || !addedPK.Column.Constraints[0].Unique.Primary {
+		t.Fatal("inline PRIMARY KEY candidate shape", nextPK, addedPK)
+	}
+	if len(old.Columns) != 1 || old.ColumnMeta.HighWater != 3 || len(old.Index) != 1 {
+		t.Fatal("inline PRIMARY KEY mutated the source relation", old)
+	}
+	conflictQuery := "ALTER TABLE t ADD b INT NULL PRIMARY KEY"
+	conflict := alterAddUnitAction(t, conflictQuery)
+	_, _, err = tablecmds.AddColumnCandidate(e, scope, scope.Op, auth, old, conflict, nil)
+	var conflictErr *sqlstate.Error
+	if !errors.As(err, &conflictErr) || conflictErr.Code != "42601" || conflictErr.Message != `conflicting NULL/NOT NULL declarations for column "b" of table "t"` || conflictErr.Position != strconv.Itoa(strings.Index(conflictQuery, "PRIMARY")+1) {
+		t.Fatal(err)
 	}
 	// A syntactically valid skipped declaration never resolves its unknown type.
 	skip := alterAddUnitAction(t, "ALTER TABLE t ADD IF NOT EXISTS a nonexistent_type DEFAULT 'oops'")

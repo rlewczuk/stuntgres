@@ -380,6 +380,54 @@ func TestAlterAddColumnReferencesUniqueSyntax(t *testing.T) {
 	if retained[0].Columns[0].Text != "n" || !reflect.DeepEqual(raw, snapshot[0]) {
 		t.Fatal("UNIQUE normalization borrowed parser backing", retained, raw)
 	}
+	dedupQuery := "ALTER TABLE t ADD COLUMN k INT UNIQUE PRIMARY KEY, ADD COLUMN n INT CONSTRAINT u UNIQUE PRIMARY KEY, ADD COLUMN m INT UNIQUE NULLS NOT DISTINCT PRIMARY KEY, ADD COLUMN o INT UNIQUE DEFERRABLE PRIMARY KEY"
+	statements, err = parser.Parse(dedupQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = parser.Parse(dedupQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = statements[0].(*parser.AlterTable)
+	additions = []table.AddedColumn{
+		{Attribute: 5, Column: raw.Actions[0].Definition},
+		{Attribute: 6, Column: raw.Actions[1].Definition},
+		{Attribute: 7, Column: raw.Actions[2].Definition},
+		{Attribute: 8, Column: raw.Actions[3].Definition},
+	}
+	uniques = table.AddedUniqueSyntax(additions)
+	owners := []int{0, 1, 2, 2, 3, 3}
+	names := []string{"", "u", "", "", "", ""}
+	primary := []bool{true, true, true, false, true, false}
+	nulls := []bool{false, false, false, true, false, false}
+	deferrable := []bool{false, false, false, false, false, true}
+	deferred := []bool{false, false, false, false, false, false}
+	if len(uniques) != len(owners) {
+		t.Fatal("same-column dedup kept", uniques)
+	}
+	for i, unique := range uniques {
+		column := additions[owners[i]].Column
+		if unique.Primary != primary[i] || unique.NullsNotDistinct != nulls[i] || unique.Deferrable != deferrable[i] || unique.InitiallyDeferred != deferred[i] || unique.Name.Text != names[i] || !slices.Equal(unique.Columns, []parser.Identifier{{Text: column.Name, Pos: column.Pos}}) {
+			t.Fatal("same-column dedup lost order/name/flags/identifier", i, unique, column)
+		}
+	}
+	uniques[0].Columns[0].Text = "changed"
+	dedupRetained := table.AddedUniqueSyntax(additions)
+	if dedupRetained[0].Columns[0].Text != "k" || !reflect.DeepEqual(raw, snapshot[0]) {
+		t.Fatal("same-column dedup borrowed parser backing", dedupRetained, raw)
+	}
+	// Two inline primary keys are kept so staging still raises 42P16.
+	duplicateQuery := "ALTER TABLE t ADD COLUMN k INT CONSTRAINT first PRIMARY KEY CONSTRAINT second PRIMARY KEY"
+	statements, err = parser.Parse(duplicateQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicateRaw := statements[0].(*parser.AlterTable)
+	duplicate := table.AddedUniqueSyntax([]table.AddedColumn{{Attribute: 5, Column: duplicateRaw.Actions[0].Definition}})
+	if len(duplicate) != 2 || !duplicate[0].Primary || !duplicate[1].Primary || duplicate[0].Name.Text != "first" || duplicate[1].Name.Text != "second" {
+		t.Fatal("duplicate primary keys were deduplicated", duplicate)
+	}
 }
 
 func TestAlterAddColumnReferencesUniquePublication(t *testing.T) {

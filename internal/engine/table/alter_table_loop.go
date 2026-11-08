@@ -34,23 +34,70 @@ func OnlySetNotNull(view catalog.Read, old *catalog.Relation, s *parser.AlterTab
 	return &command
 }
 
-// AddedUniqueSyntax normalizes only successfully added columns' UNIQUE clauses.
-// The ordinary ADD UNIQUE stage owns binding, naming and index construction.
+// AddedUniqueSyntax normalizes the successfully added columns' UNIQUE and
+// PRIMARY KEY clauses into one list. Declarations that build the same index
+// collapse as PostgreSQL's transformIndexConstraints reduces them: the primary
+// key is retained first, and an unnamed retained declaration takes a dropped
+// declaration's name.
 func AddedUniqueSyntax(additions []AddedColumn) []parser.UniqueConstraint {
 	var raw []parser.UniqueConstraint
 	for _, added := range additions {
 		if added.Attribute == 0 {
 			continue
 		}
-		for _, constraint := range added.Column.Constraints {
-			if constraint.Unique != nil {
-				definition := *constraint.Unique
-				definition.Columns = []parser.Identifier{{Text: added.Column.Name, Pos: added.Column.Pos}}
-				raw = append(raw, definition)
-			}
-		}
+		raw = append(raw, retainAddedColumnIndexes(addedColumnIndexes(added))...)
 	}
 	return raw
+}
+
+func addedColumnIndexes(added AddedColumn) []parser.UniqueConstraint {
+	var declarations []parser.UniqueConstraint
+	for _, constraint := range added.Column.Constraints {
+		if constraint.Unique == nil {
+			continue
+		}
+		definition := *constraint.Unique // value copy; never borrow the parser AST
+		definition.Columns = []parser.Identifier{{Text: added.Column.Name, Pos: added.Column.Pos}}
+		declarations = append(declarations, definition)
+	}
+	return declarations
+}
+
+// retainAddedColumnIndexes is transformIndexConstraints for one added column.
+// Every inline declaration indexes exactly this column through the default
+// btree access method with no INCLUDE, WHERE or exclusion operators, so the
+// index shapes compare by NullsNotDistinct/Deferrable/InitiallyDeferred alone.
+// A primary key is never dropped, so a second one still reaches staging as
+// 42P16 instead of being deduplicated away.
+func retainAddedColumnIndexes(declarations []parser.UniqueConstraint) []parser.UniqueConstraint {
+	if primary := slices.IndexFunc(declarations, func(d parser.UniqueConstraint) bool { return d.Primary }); primary > 0 {
+		first := declarations[primary]
+		copy(declarations[1:primary+1], declarations[:primary])
+		declarations[0] = first
+	}
+	retained := declarations[:0]
+	for _, declaration := range declarations {
+		keep := true
+		if !declaration.Primary {
+			for i := range retained {
+				prior := &retained[i]
+				if prior.NullsNotDistinct != declaration.NullsNotDistinct ||
+					prior.Deferrable != declaration.Deferrable ||
+					prior.InitiallyDeferred != declaration.InitiallyDeferred {
+					continue
+				}
+				if prior.Name.Text == "" {
+					prior.Name = declaration.Name
+				}
+				keep = false
+				break
+			}
+		}
+		if keep {
+			retained = append(retained, declaration)
+		}
+	}
+	return retained
 }
 
 // AddedCheckSyntax collects the CHECKs that actions and the columns they add
