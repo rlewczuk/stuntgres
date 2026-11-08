@@ -996,6 +996,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			databasePublication, err = e.PrepareDatabasePublicationLocked(next)
 		}
 		if err == nil {
+			err = e.validateCatalogStageGrantsLocked(scope, s, e.Catalog.Read(current), e.Catalog.Read(next))
+		}
+		if err == nil {
 			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
@@ -1060,6 +1063,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			e.Storage.RelationMetadata = relationMetadata
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
 			e.Storage.ReplaceIndexRootsLocked(indexRoots)
+			e.commitCatalogStageGrantsLocked(scope, s, e.Catalog.Read(next), nil)
 			for a := range s.Removals() {
 				e.Storage.RemoveSequenceLocked(a)
 				if category, tracked := statsObjectCategory(a); tracked {

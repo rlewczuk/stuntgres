@@ -3695,6 +3695,14 @@ Producers, the OID registry and descriptor specs live in
   definition-retirement locks belong only to an execution scope's real ticket.
   Direct validated publication still enforces captured identity, epoch and
   incoming-dependency fences without manufacturing a transaction for preparation.
+  Successful ordinary publication advances existing statement relation captures
+  only from that validated stage's exact base predecessors to its installed
+  successors, including rewritten partition descendants. A complete proof pass
+  precedes installation; capture transfer is nonfailing under the same engine
+  and session locks. Unchanged, created and removed relations gain no grants.
+  ALTER shares the capture traversal but retains its target-specific transfer;
+  physical source facts and original journal fences remain unchanged. Notice
+  I/O resumes against these exact captures, never a blanket current recapture.
   Detached relation-map candidates own only their new or replacement heaps.
   After all publication fences succeed, the locked install reconciles unchanged
   heaps with the current storage map, just as it preserves unchanged index roots.

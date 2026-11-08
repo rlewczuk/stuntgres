@@ -111,7 +111,14 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
-	if err == nil { err = scope.Op.Context().Err() }
+	if err == nil {
+		err = scope.Op.Context().Err()
+	}
+	var installed catalog.Read
+	if err == nil {
+		installed = e.PrivateCatalogLocked(changes)
+		err = e.validateCatalogStageGrantsLocked(scope, stage, e.PrivateCatalogLocked(scope.PendingCatalog()), installed)
+	}
 	if err == nil {
 		scope.appendLogicalEventLocked(logical.CatalogEvent, nil)
 		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)
@@ -122,6 +129,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.transferReplicationOriginsLocked(stage, scope.TxRef)
 		scope.absorbStatsPopulation()
 		scope.Catalog = changes
+		e.commitCatalogStageGrantsLocked(scope, stage, installed, changes)
 		if scope.CatalogAuthority == nil {
 			scope.CatalogAuthority = stage.FinishAuthority
 		}

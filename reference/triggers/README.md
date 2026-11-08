@@ -156,4 +156,6 @@ Event-trigger family selector: `RUN='^TestReference(EventTrigger|PGEventTriggerC
 utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.
 The live nesting cross-family witness uses `RUN='^TestReferenceTriggerDepthEvent$'`.
+Trigger-DDL family selector: `RUN='^TestReferenceTriggerDDL'`; add `REFERENCE=1`
+for the pinned PostgreSQL oracle.
 
