@@ -70,9 +70,6 @@ func TestReferenceQueryFromValuesPhysicalReplacement(t *testing.T) {
 							}
 							outcome := fixture.LockResult(t, done)
 							tokens, sequence := []int64{1, 2}, int64(3)
-							if backend.PG {
-								tokens, sequence = []int64{4, 7}, 9
-							}
 							if rejected {
 								tokens, sequence = nil, 3
 							}
@@ -83,9 +80,6 @@ func TestReferenceQueryFromValuesPhysicalReplacement(t *testing.T) {
 							checkSequence(sequence)
 							if prepared {
 								tokens, sequence = []int64{4, 5}, 6
-								if backend.PG {
-									tokens, sequence = []int64{10, 11}, 12
-								}
 								if rejected {
 									tokens = nil
 									if backend.PG {
@@ -104,8 +98,8 @@ func TestReferenceQueryFromValuesPhysicalReplacement(t *testing.T) {
 	}
 }
 
-// PostgreSQL EPQ replays this volatile operand; native rechecks retain its
-// eagerly captured occurrence. Both outcomes are prescribed independently.
+// PostgreSQL 18.6 and native retain the first captured VALUES occurrence across
+// EPQ. A later rejected execution preserves each backend's independent demand.
 func referenceValuesReplacementRows(t *testing.T, outcome fixture.RelationOutcome, tokens ...int64) {
 	t.Helper()
 	if outcome.Stmt != nil {

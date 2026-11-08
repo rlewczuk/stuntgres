@@ -344,6 +344,9 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 			}
 			marked[frame] = true
 		case *plan.DerivedNode:
+			if err := validateDerivedCaptures(n); err != nil {
+				return err
+			}
 			if n.Query != nil {
 				if n.Query.Root == nil || n.CTE != nil && n.CTE.Mutation != nil || len(n.Schema()) != len(n.Query.Root.Schema()) {
 					return fmt.Errorf("stuntgres: invalid stored derived frame")
@@ -545,6 +548,64 @@ func ValidateSetNode(n *plan.SetNode, cycle *plan.CycleRecipe, search *plan.Sear
 			i < leftWidth && (n.LeftExpressions[i] == nil || n.LeftExpressions[i].ResultUsage() != column.Usage) {
 			return fmt.Errorf("stuntgres: invalid stored set coercion")
 		}
+	}
+	return nil
+}
+
+// The runtime bridge and its frozen source metadata must describe exactly the
+// same free reads, including repeated leaves and zero-width source identities.
+func validateDerivedCaptures(derived *plan.DerivedNode) error {
+	if !derived.Lateral {
+		if len(derived.Captures) != 0 {
+			return fmt.Errorf("stuntgres: nonlateral stored derived captures")
+		}
+		return nil
+	}
+	if derived.Query == nil || derived.Query.Root == nil || derived.CTE != nil || derived.ScanFrame == 0 {
+		return fmt.Errorf("stuntgres: invalid stored lateral source")
+	}
+	captures := make(map[plan.FunctionCorrelation]int, len(derived.Captures))
+	for _, capture := range derived.Captures {
+		if capture.Frame != derived.ScanFrame || capture.Slot < 0 || capture.QueryOccurrence < 0 || capture.PresenceSlot < 0 ||
+			capture.QueryOccurrence != 0 && (capture.Slot != 0 || capture.PresenceSlot != 0) ||
+			capture.PresenceSlot != 0 && capture.Slot != 0 {
+			return fmt.Errorf("stuntgres: invalid frozen derived capture")
+		}
+		capture.Name = ""
+		captures[capture]++
+	}
+	actual := 0
+	valid := true
+	analyze.WalkQueryArgumentNode(derived.Query.Root, func(bound expr.Expr) {
+		var capture plan.FunctionCorrelation
+		switch node := bound.(type) {
+		case plan.ColumnExpr:
+			if node.Scope != 1 || node.Frame != derived.ScanFrame {
+				return
+			}
+			capture = plan.FunctionCorrelation{Frame: node.Frame, Slot: node.Slot, Pos: node.Pos}
+		case plan.SystemAttributeExpr:
+			if node.Scope != 1 || node.Frame != derived.ScanFrame || node.QueryOccurrence <= 0 {
+				return
+			}
+			capture = plan.FunctionCorrelation{Frame: node.Frame, QueryOccurrence: node.QueryOccurrence, Pos: node.Pos}
+		case plan.RowExpr:
+			if node.PresenceFrame != derived.ScanFrame || node.PresenceSlot == 0 {
+				return
+			}
+			capture = plan.FunctionCorrelation{Frame: node.PresenceFrame, PresenceSlot: node.PresenceSlot, Pos: node.Pos}
+		default:
+			return
+		}
+		actual++
+		if captures[capture] == 0 {
+			valid = false
+		} else {
+			captures[capture]--
+		}
+	})
+	if !valid || actual != len(derived.Captures) {
+		return fmt.Errorf("stuntgres: incomplete frozen derived captures")
 	}
 	return nil
 }

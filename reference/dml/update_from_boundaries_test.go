@@ -36,37 +36,19 @@ func TestReferenceUpdateFromBoundaries(t *testing.T) {
 						run(fixture.Exec("INSERT INTO r VALUES(3,30)", 1))
 					}
 					expected := [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}, {int64(3), int64(30)}}
-					shared := tc.name == "left" || tc.name == "right" || tc.name == "full" || tc.name == "scalar_correlation" || tc.name == "target_derived"
-					if b.PG || shared {
-						if tc.code != "" {
-							want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-							want.Position = updateFromPosition(tc.q, tc.token)
-							want.Detail = tc.detail
-							want.Hint = tc.hint
-							updateFromDiagnostic(t, p.Ctx, c, tc.q, want, prepared)
-						} else {
-							step := fixture.Exec(tc.q, tc.count)
-							if prepared {
-								step = fixture.Prepared(step)
-							}
-							run(step)
-							expected = tc.rows
-						}
+					if tc.code != "" {
+						want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+						want.Position = updateFromPosition(tc.q, tc.token)
+						want.Detail = tc.detail
+						want.Hint = tc.hint
+						updateFromDiagnostic(t, p.Ctx, c, tc.q, want, prepared)
 					} else {
-						// Intentional native capability boundary, not successful no-op/parity.
-						var err error
+						step := fixture.Exec(tc.q, tc.count)
 						if prepared {
-							var stmt *sql.Stmt
-							stmt, err = c.PrepareContext(p.Ctx, tc.q)
-							if stmt != nil {
-								stmt.Close()
-							}
-						} else {
-							_, err = c.ExecContext(p.Ctx, tc.q)
+							step = fixture.Prepared(step)
 						}
-						if err == nil {
-							t.Fatal("excluded LATERAL mechanism succeeded")
-						}
+						run(step)
+						expected = tc.rows
 					}
 					run(fixture.Select("SELECT id,v FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, expected))
 				})

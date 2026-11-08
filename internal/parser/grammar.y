@@ -3660,7 +3660,8 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
     }
     if selected {$$=&FunctionFrom{Calls:n.Calls,Ordinality:n.Ordinality,Lateral:n.Lateral,RowsFrom:n.RowsFrom,Pos:n.Pos}} else {$$=n}
    }
- | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
+ | select_with_parens %prec NAME_LIST { $$=queryFromSource($1.Query,$1.Pos,false) }
+ | LATERAL select_with_parens %prec NAME_LIST { $$=queryFromSource($2.Query,$2.Pos,true) }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
        if _,values:=alias.Input.(*ValuesQuery);values {sqllex.(*lexer).syntax($<tok>3);return 1}

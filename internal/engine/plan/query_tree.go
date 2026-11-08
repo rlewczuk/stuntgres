@@ -192,6 +192,8 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 			return fmt.Errorf("stuntgres: nil structural query node %T", root)
 		}
 		fmt.Fprintf(out, " occurrence %d frame %d", n.Ordinal, n.ScanFrame)
+		fmt.Fprintf(out, " lateral %t", n.Lateral)
+		appendTreeCaptures(out, n.Captures)
 		appendTreeCTE(out, n.CTE)
 		// A materialized/nonnested CTE scan owns a definition rather than a
 		// QueryInputs child. Its body is finite: recursive self references
@@ -421,7 +423,7 @@ func appendTreeCTE(out *strings.Builder, definition *CTEDefinition) {
 
 func appendTreeCaptures(out *strings.Builder, captures []FunctionCorrelation) {
 	for _, capture := range captures {
-		fmt.Fprintf(out, " {capture frame %d slot %d occurrence %d}", capture.Frame, capture.Slot, capture.QueryOccurrence)
+		fmt.Fprintf(out, " {capture frame %d slot %d occurrence %d presence %d}", capture.Frame, capture.Slot, capture.QueryOccurrence, capture.PresenceSlot)
 	}
 }
 

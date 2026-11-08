@@ -507,11 +507,11 @@ func SameQuerySourceAliases(a, b parser.FromItem) bool {
 		_, ok := b.(*parser.TableReference)
 		return ok
 	case *parser.DerivedQuery:
-		_, ok := b.(*parser.DerivedQuery)
-		return ok
+		o, ok := b.(*parser.DerivedQuery)
+		return ok && n.Lateral == o.Lateral
 	case *parser.ValuesQuery:
-		_, ok := b.(*parser.ValuesQuery)
-		return ok
+		o, ok := b.(*parser.ValuesQuery)
+		return ok && n.Lateral == o.Lateral
 	case *parser.FunctionFrom:
 		o, ok := b.(*parser.FunctionFrom)
 		return ok && n.Ordinality == o.Ordinality && n.Lateral == o.Lateral && len(n.Calls) == len(o.Calls)

@@ -143,13 +143,13 @@ func TestQueryTableOIDFunctionCorrelation(t *testing.T) {
 		t.Fatal("zero-column membership used tuple width")
 	}
 	root := &plan.FunctionFromNode{Calls: []expr.Expr{call}, Frame: 1, Correlated: true, Captures: captures}
-	rebased, err := RebaseFunctionCorrelation(b.Host, b.BindingCatalog(), root, 1, 9)
+	rebased, err := RebaseFromCorrelation(b.Host, b.BindingCatalog(), root, 1, 9)
 	function, ok := rebased.(*plan.FunctionFromNode)
 	if err != nil || !ok || function.Captures[0].QueryOccurrence != 2 || function.Captures[0].Slot != 0 {
 		t.Fatal("identity-only arguments rebased as ordinary slots", rebased, err)
 	}
 	nested := &plan.JoinNode{Left: &plan.SingletonNode{}, Right: root, Frame: 1, CorrelatedRight: true, CorrelationPrefix: 9, CorrelationIdentityPrefix: true, Captures: captures}
-	rebased, err = RebaseFunctionCorrelation(b.Host, b.BindingCatalog(), nested, 1, 9)
+	rebased, err = RebaseFromCorrelation(b.Host, b.BindingCatalog(), nested, 1, 9)
 	join, ok := rebased.(*plan.JoinNode)
 	if err != nil || !ok || join.CorrelationPrefix != 0 || !join.CorrelationIdentityPrefix || join.Captures[0].QueryOccurrence != 2 {
 		t.Fatal("identity-only exported capture prevented nested prefix normalization", rebased, err)

@@ -158,6 +158,12 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   Event producers union the caller's column demand with typed OLD/NEW references
   introduced by rule qualifications and actions before opening view sources.
   Assigned NEW fields retain RHS demand rather than demanding their old value.
+  Prepending an UPDATE/DELETE event target uses the stored rule-tree mapper for
+  FROM, NEW recipes and selection predicates, including their nested queries.
+  Physical source ordinals, system-attribute reads and derived/join/function
+  free-capture occurrences move together exactly once; lexical frames,
+  ordinary slots, whole-row presence identities and virtual recipes retain their
+  original ownership. The retained source graph is never modified.
   Runtime selection uses the operation-effective replication role before any
   expansion, recursion, residual predicate, RETURNING or view/CTE routing.
   Rule-owner authority never changes that session setting. UPDATE-rule presence
@@ -171,7 +177,13 @@ postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
   `RuleCTEsOf`, ...). `StoredQueryImporter` and `Write.GraftQuery` share one
   frozen-occurrence graft: it translates frozen read attributes to live uses once
   per occurrence, keeps required view keys demanded after renames, and still
-  prunes unrequested projections.
+  prunes unrequested projections. Each graft owns its structural query frames:
+  their free expression reads and capture metadata are translated even inside
+  nested scalar queries. Scalar-local sources, reads and captures belong only to
+  that scalar's recursive graft, so live occurrence identities never map twice.
+  Lexical frames, ordinary slots, presence identities and virtual-owner recipes
+  retain their ownership; changed paths and capture slices are copied, while
+  unchanged backing and source authority remain shared.
   `Write.Instead` / `ViewWriteSlot.LogicalTrigger` identify a logical view
   endpoint, including one reached through automatic outer layers. Matching
   rules retain precedence; matching row triggers stop structural lowering before

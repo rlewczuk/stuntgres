@@ -228,7 +228,7 @@ func (v *View) namespaceRoot(ns analyze.ViewNamespace) plan.Node {
 	case analyze.ViewJoinNamespace:
 		return viewJoinAt(from, ns.Ordinal)
 	case analyze.ViewValuesNamespace:
-		return viewValuesAt(from, ns.Ordinal)
+		return viewValuesSourceAt(from, ns.Ordinal)
 	case analyze.ViewFunctionNamespace:
 		return viewFunctionFromAt(from, ns.Ordinal, false)
 	case analyze.ViewRegexpNamespace:

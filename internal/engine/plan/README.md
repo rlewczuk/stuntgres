@@ -48,6 +48,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   retain immutable accepted range names and final column aliases for presentation.
   Structural copies and stored remaps share that immutable label backing;
   labels never change schemas, expression slots, provenance or execution authority.
+  `DerivedNode` retains written LATERAL and free caller-frame captures alongside
+  its ordinary child query. A lateral VALUES child remains a real FrozenValues
+  project in a distinct frame. These immutable nodes retain no invocation rows,
+  contexts, cursors or captured relation pins.
   A source's optional sampling descriptor retains the authenticated handler
   reference/declaration, typed Argument (bigint row count or float8 milliseconds)
   and free correlation captures. Expression walks, structural identity,
@@ -59,7 +63,8 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   never stored in the immutable recipe or used to override context cancellation.
   `JoinNode.Comma` retains written FROM-list versus explicit join structure for
   statement fingerprinting. Rebuild/remap preserve it; it supplies no execution
-  policy or semantic-equality/EXPLAIN/deparse distinction.
+  policy or semantic-equality/EXPLAIN distinction. Source display follows the
+  independently retained frozen syntax.
   Invocation-local named relations retain only symbolic name, typed schema and
   normal presentation/presence labels. They never retain rows, frame identity,
   catalog references or authority; execution resolves their current backing.
@@ -140,10 +145,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   beside the typed comparison. This retains source support provenance separately
   from the executable datum projection and requires no per-comparison allocation.
   Private semantic-tree groupings retain no callable declaration or recipe.
-  Function-source captures distinguish ordinary row slots from one-based system
-  source occurrences. Correlated joins retain inherited identity explicitly when
-  their ordinary prefix has zero width; slot rebasing never changes occurrence
-  coordinates.
+  Free FROM-source captures distinguish ordinary row slots, one-based system
+  source occurrences and one-based whole-row presence identities. Zero means
+  absent for both identity modes; neither identity uses tuple-slot arithmetic.
+  Joins consume local-left dependencies and export ancestor captures, retaining
+  inherited occurrence/presence even with a zero-width ordinary prefix. Rebasing
+  changes only ordinary capture slots, never presence or child-local frames.
 - **Expression nodes** (`expression*.go`, `assignment_value.go`, the `series_*`,
   `subscripts_*` and `unnest_*` files): the `XxxExpr` types (`LiteralExpr`,
   `ColumnExpr`, `ParameterExpr`, `CoercionExpr`, `CaseExpr`, `RowExpr`,

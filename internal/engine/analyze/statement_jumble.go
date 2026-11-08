@@ -168,6 +168,7 @@ func (j *StatementJumble) query(node plan.Node) {
 	case *plan.DerivedNode:
 		j.text("*plan.DerivedNode")
 		j.text(n.RangeName)
+		j.flag(n.Lateral)
 		if n.Query != nil {
 			j.query(n.Query.Root)
 		}

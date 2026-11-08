@@ -473,6 +473,8 @@ func TestSecurityLabelModifierSyntaxProvenance(t *testing.T) {
 		{RowExpr{}, RowExpr{Explicit: true}},
 		{WindowSpec{}, WindowSpec{Bare: true}},
 		{JoinReference{}, JoinReference{Comma: true}},
+		{DerivedQuery{}, DerivedQuery{Lateral: true}},
+		{ValuesQuery{}, ValuesQuery{Lateral: true}},
 		{TypeName{Name: "ty"}, TypeName{Name: "ty", System: true}},
 		{GroupClause{}, GroupClause{Distinct: true}},
 		{ParameterExpr{Number: 1}, ParameterExpr{Number: 2}},

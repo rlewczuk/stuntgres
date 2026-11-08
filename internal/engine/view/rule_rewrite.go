@@ -176,24 +176,23 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			from = b.Delete.Using
 			condition = b.Predicate
 		}
-		mapper := func(bound expr.Expr) (expr.Expr, bool, error) {
-			return stored.RewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
-				column, ok := expr.(plan.ColumnExpr)
-				if !ok {
-					return expr, false, nil
+		// The producer adds one physical source ahead of every query source.
+		// Use one mapper for executable recipes and their free-read manifests,
+		// including queries nested in NEW and the selection predicate.
+		tree := stored.NewRuleTreeMapper(catalog, nil, 1, b.CTEs, stored.RuleTreeMapping{
+			Leaf: func(bound expr.Expr) (expr.Expr, bool, error) {
+				column, ok := bound.(plan.ColumnExpr)
+				if !ok || column.Scope != 0 || column.Frame != 0 {
+					return bound, false, nil
 				}
-				changed := false
-				if column.Scope == 0 && column.Frame == 0 {
-					column.Scope, column.Frame = 1, 1
-					changed = true
-				}
+				column.Scope, column.Frame = 1, 1
 				if column.QueryOccurrence != 0 {
 					column.QueryOccurrence++
-					changed = true
 				}
-				return column, changed, nil
-			})
-		}
+				return column, true, nil
+			},
+		})
+		mapper := tree.Expression
 		for i, expr := range p.New {
 			var err error
 			p.New[i], _, err = mapper(expr)
@@ -203,36 +202,7 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 		}
 		if from != nil {
 			var err error
-			from, err = plan.RewriteQueryExpressions(from, mapper, func(node plan.Node) (plan.Node, error) {
-				if source, ok := node.(*plan.SourceNode); ok {
-					copy := *source
-					copy.Occurrence++
-					if source.Sample != nil {
-						sample := *source.Sample
-						var err error
-						sample.Argument, _, err = mapper(sample.Argument)
-						if err != nil {
-							return nil, err
-						}
-						var captures []plan.FunctionCorrelation
-						for i, capture := range sample.Captures {
-							if capture.QueryOccurrence == 0 {
-								continue
-							}
-							if captures == nil {
-								captures = append([]plan.FunctionCorrelation(nil), sample.Captures...)
-							}
-							captures[i].QueryOccurrence++
-						}
-						if captures != nil {
-							sample.Captures = captures
-						}
-						copy.Sample = &sample
-					}
-					return &copy, nil
-				}
-				return node, nil
-			})
+			from, err = tree.Query(from)
 			if err != nil {
 				return p, err
 			}

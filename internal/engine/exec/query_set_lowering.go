@@ -441,7 +441,8 @@ func ValidateFunctionFromLayout(n *plan.FunctionFromNode) error {
 		return fmt.Errorf("stuntgres: empty function source")
 	}
 	for _, capture := range n.Captures {
-		if capture.Frame == 0 || capture.QueryOccurrence < 0 || capture.QueryOccurrence == 0 && capture.Slot < 0 || capture.QueryOccurrence > 0 && capture.Slot != 0 {
+		identity := capture.QueryOccurrence > 0 || capture.PresenceSlot > 0
+		if capture.Frame == 0 || capture.QueryOccurrence < 0 || capture.PresenceSlot < 0 || capture.Slot < 0 || identity && capture.Slot != 0 || capture.QueryOccurrence > 0 && capture.PresenceSlot > 0 {
 			return fmt.Errorf("stuntgres: invalid function source capture coordinates")
 		}
 	}

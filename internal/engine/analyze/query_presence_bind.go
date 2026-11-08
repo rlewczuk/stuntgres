@@ -11,8 +11,21 @@ func (b *Binder) WholeRowPresence(q *QueryQualifier, frame uint32) (int, error) 
 	if !q.NullExtended {
 		return 0, nil
 	}
-	var slot *int
-	root := q.SourceRoot
+	slot := queryPresenceSlot(q.SourceRoot)
+	if slot == nil {
+		return 0, fmt.Errorf("stuntgres: missing whole-row source occurrence")
+	}
+	if *slot == 0 {
+		if b.Query.presenceFrames == nil {
+			b.Query.presenceFrames = make(map[uint32]int)
+		}
+		b.Query.presenceFrames[frame]++
+		*slot = b.Query.presenceFrames[frame]
+	}
+	return *slot, nil
+}
+
+func queryPresenceSlot(root plan.Node) *int {
 unwrap:
 	for {
 		switch n := root.(type) {
@@ -30,28 +43,20 @@ unwrap:
 	}
 	switch n := root.(type) {
 	case *plan.SourceNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.NamedRelationScanNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.ValuesNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.DerivedNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.WorktableScanNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.JoinNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	case *plan.FunctionFromNode:
-		slot = &n.PresenceSlot
+		return &n.PresenceSlot
 	default:
-		return 0, fmt.Errorf("stuntgres: missing whole-row source occurrence")
+		return nil
 	}
-	if *slot == 0 {
-		if b.Query.presenceFrames == nil {
-			b.Query.presenceFrames = make(map[uint32]int)
-		}
-		b.Query.presenceFrames[frame]++
-		*slot = b.Query.presenceFrames[frame]
-	}
-	return *slot, nil
 }

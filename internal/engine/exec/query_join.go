@@ -79,7 +79,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	if n.CorrelatedRight && (n.CorrelationPrefix > 0 || n.CorrelationIdentityPrefix) && (state.Invocation == nil || state.Invocation.Scope != 1 || state.Invocation.Frame != n.Frame || len(state.Invocation.Row) < n.CorrelationPrefix) {
 		left.Close()
 		right.Close()
-		return Stage{}, fmt.Errorf("stuntgres: missing inherited function invocation frame")
+		return Stage{}, fmt.Errorf("stuntgres: missing inherited FROM invocation frame")
 	}
 	var correlationRow []sqltype.Value
 	var correlationMoves []presenceCopy
@@ -91,7 +91,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		correlation.Frame = n.Frame
 		correlation.Row = correlationRow
 		correlation.PresenceSlots = left.Source.PresenceSlots
-		if n.CorrelationPrefix > 0 {
+		if n.CorrelationPrefix > 0 || n.CorrelationIdentityPrefix {
 			// Prefix and local-left slots share the bound query frame but
 			// may have different packed indices. Compile their union once.
 			prefix := Source{PresenceSlots: state.Invocation.PresenceSlots}
@@ -241,7 +241,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 							copy(correlationRow, state.Invocation.Row[:n.CorrelationPrefix])
 						}
 						copy(correlationRow[n.CorrelationPrefix:], row)
-						if n.CorrelationPrefix > 0 {
+						if n.CorrelationPrefix > 0 || n.CorrelationIdentityPrefix {
 							fillJoinPresence(correlationPresence, correlationMoves, state.Invocation.Presence, left.Source.PresenceRow(left.Index(i)))
 						} else {
 							correlation.Presence = left.Source.PresenceRow(left.Index(i))

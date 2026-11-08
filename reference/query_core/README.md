@@ -3,9 +3,9 @@
 Core query and routine behavior: SQL routines (CREATE FUNCTION/PROCEDURE with
 quoted and SQL-standard bodies, overload resolution against builtins, ALTER/DROP),
 WITH queries including recursive CTEs, CYCLE and SEARCH, subqueries, row
-comparison, joins, FROM VALUES, aliases, set operations, CREATE TABLE AS,
-expression indexes, parallel SELECT scans, and scalar expressions (BETWEEN,
-CASE/COALESCE/NULLIF, logical operators). Related families: routine parameter
+comparison, joins, FROM VALUES, LATERAL queries and VALUES, aliases, set
+operations, CREATE TABLE AS, expression indexes, parallel SELECT scans, and scalar
+expressions (BETWEEN, CASE/COALESCE/NULLIF, logical operators). Related families: routine parameter
 modes, defaults, named/variadic calls and OUT/INOUT
 (`^TestReferenceRoutineParameters`) in [operators](../operators/README.md);
 explicit casts in [type_resolution](../type_resolution/README.md); comparison and
@@ -21,6 +21,14 @@ Column qualification selects visible relation identities, including eligible
 outer frames. Schema-qualified names do not add FROM sources, and a matched
 inner qualifier owns its missing-column diagnostic rather than retrying outer
 relations. Source column descriptors and origins survive expression composition.
+
+Lateral query and VALUES sources use earlier FROM namespaces without exposing
+later or non-lateral sibling namespaces. Stored definitions retain written
+LATERAL independently of correlation, with real query ordering/bounds, column
+dependencies and aliases surviving rename, view copy and exact dump replay.
+SELECT-policy import preserves lateral source identities through nested scalar
+queries, distinguishing enclosing captures from scalar-local sources under an
+applicable non-superuser policy across direct and retained prepared execution.
 
 Logical setting-call operands use ordinary function applicability diagnostics
 through direct execution and preparation, not a setting-specific syntax gate.
@@ -137,6 +145,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Row comparison: `RUN='^TestReferenceRowCompare'`
 - Joins: `RUN='^TestReferenceQueryJoins'`
 - FROM VALUES: `RUN='^TestReferenceQueryFromValues'`
+- LATERAL query/VALUES sources, scope, views, policy import and literal coder migrations:
+  `RUN='^TestReferenceQueryLateral'`
 - Aliases: `RUN='^TestReferenceQueryAliases'`
 - Set operations: `RUN='^TestReferenceQuerySetOps'`
 - CREATE TABLE AS: `RUN='^TestReference(QueryTableCreate|TransactionalSchemaQueryCreate)'`

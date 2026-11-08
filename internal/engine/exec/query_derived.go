@@ -16,6 +16,11 @@ func OpenDerivedNode(ctx context.Context, state *State, n *plan.DerivedNode) (St
 		return Stage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
 	innerState := &State{Source: state.Source, SourceMode: state.subquerySourceMode(), Parameters: state.Parameters, Input: state.Input, Output: state.Output, Locking: state.Locking, IdentityReads: state.IdentityReads, Outer: state.Outer, Invocation: state.Invocation, foreignOwner: state.foreignOwner, Ctes: state.Ctes, Retain: state.Retain, hashOwner: state.membershipOwner()}
+	if n.Lateral && state.Invocation != nil {
+		// The borrowed caller frame already links to its lexical ancestors.
+		// Keep it outside the child's distinct frame, without duplicating it.
+		innerState.Outer = state.Invocation
+	}
 	innerState.inheritAsyncAdmission(state)
 	inner, err := OpenQueryProjectStage(ctx, innerState, project)
 	if err != nil {

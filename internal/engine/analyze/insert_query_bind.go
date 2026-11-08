@@ -160,6 +160,16 @@ func CommonValuesUsage(view catalog.Read, nodes [][]expr.Expr, raw [][]parser.Ex
 }
 
 func (b *Binder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*plan.Query, error) {
+	return b.bindValues(source, identityDiscard, false)
+}
+
+func (b *Binder) bindLateralValues(source *parser.ValuesQuery) (*plan.Query, error) {
+	restore := b.EnterQuery(false)
+	defer restore()
+	return b.bindValues(source, false, true)
+}
+
+func (b *Binder) bindValues(source *parser.ValuesQuery, identityDiscard, lateral bool) (*plan.Query, error) {
 	oldFrame := b.Query.Frame
 	if oldFrame == 0 {
 		b.Query.Frame = 1
@@ -170,7 +180,7 @@ func (b *Binder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*
 	defer func() { b.Query.Frame = oldFrame }()
 	oldNamespace, oldRelation, oldClause, oldNonLateral := b.Query.Namespace, b.Target.Relation, b.Clause.AggregateClause, b.Query.NonLateral
 	b.Query.Namespace, b.Target.Relation = &QueryNamespace{}, nil
-	b.Clause.AggregateClause, b.Query.NonLateral = "VALUES", true
+	b.Clause.AggregateClause, b.Query.NonLateral = "VALUES", !lateral
 	defer func() {
 		b.Query.Namespace, b.Target.Relation, b.Clause.AggregateClause, b.Query.NonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()

@@ -11,7 +11,10 @@ func (p Presentation) line(offset int) string {
 }
 
 func (v *QueryRenderer) ruleDerivedSource(from viewRenderFrom, name ruleRangeName) viewRenderFrom {
-	relation := "(" + from.text + ")"
+	relation := from.relation
+	if relation == "" {
+		relation = "(" + from.text + ")"
+	}
 	from.relation = relation
 	from = v.sourceAlias(from, name.name, name.columns, true)
 	from.relation = relation

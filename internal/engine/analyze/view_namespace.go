@@ -33,6 +33,9 @@ func FrozenNamespaceNode(root plan.Node) (uint8, int) {
 		if node.CTE != nil {
 			return ViewDerivedNamespace, node.Ordinal
 		}
+		if project, ok := node.Query.Root.(*plan.ProjectNode); ok && project.FrozenValues && project.Syntax == nil {
+			return FrozenNamespaceNode(project.Child)
+		}
 		return ViewDerivedNamespace, int(node.Query.Root.(*plan.ProjectNode).Frame)
 	case *plan.WorktableScanNode:
 		return ViewDerivedNamespace, node.Ordinal

@@ -366,6 +366,12 @@ SPI authority, XML tree or conversion callback on the prepared node or cursor.
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
   recursive unions, windows, aggregates, DISTINCT, LIMIT/WITH TIES and subqueries
   live here.
+  A lateral derived child (including a VALUES adapter) bridges an available
+  borrowed `Invocation` into its distinct frame's `Outer`; that context already
+  retains lexical ancestors. Independent and non-lateral children retain the
+  existing lexical `Outer`. Correlated joins own per-left close/open, NULL
+  extension and invocation presence/identity; children borrow source authority,
+  parameters and pins without retaining runtime state in accepted plans.
   `NamedRelationScanNode` opens through `Source.LiveHost().OpenNamedRelation`,
   which validates the retained shape against the current invocation. The live
   authority slot is authoritative, including its detached nil host; no direct

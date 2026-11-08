@@ -851,6 +851,7 @@ func (j *StatementJumble) utilitySyntaxFields(node any, anchor *int) bool {
 		utilitySlice(j, n.Rows, anchor)
 		j.utilitySyntax(n.Order, anchor)
 		j.utilitySyntax(n.Bounds, anchor)
+		j.flag(n.Lateral)
 	case parser.ValuesQuery:
 		return j.utilitySyntaxFields(&n, anchor)
 	case *parser.JoinReference:
@@ -901,6 +902,7 @@ func (j *StatementJumble) utilitySyntaxFields(node any, anchor *int) bool {
 		j.text("DerivedQuery")
 		j.utilityPosition(n.Pos, anchor)
 		j.utilitySyntax(n.Query, anchor)
+		j.flag(n.Lateral)
 	case parser.DerivedQuery:
 		return j.utilitySyntaxFields(&n, anchor)
 	case *parser.CallExpr:

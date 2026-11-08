@@ -59,6 +59,9 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action rul
 	case *plan.FunctionFromNode:
 		return action.policy.identifier("_rule_function_"+strconv.Itoa(node.ViewOrdinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	case *plan.DerivedNode:
+		if values, _ := viewValuesSource(node); values != nil {
+			return action.policy.identifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
+		}
 		return action.policy.identifier("_rule_source_"+strconv.Itoa(node.Ordinal)) + "." + action.policy.identifier(node.Schema()[slot].Name), nil
 	case *plan.ProjectNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
 		values, ok := analyze.ViewFromRoot(node).(*plan.ValuesNode)
@@ -75,8 +78,8 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action rul
 // VALUES FROM binding retains projection/order/bounds wrappers. Render its
 // checked presentation instead of flattening those semantically real clauses.
 func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action ruleRendering) (string, error) {
-	values, ok := analyze.ViewFromRoot(root).(*plan.ValuesNode)
-	if !ok || action.presentation == nil {
+	values, _ := viewValuesSource(root)
+	if values == nil || action.presentation == nil {
 		return "", fmt.Errorf("stuntgres: missing checked rule VALUES presentation")
 	}
 	presentation := action.presentation
@@ -102,9 +105,15 @@ func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, a
 				return source
 			}
 			return find(syntax.Right, join.Right)
+		case *parser.DerivedQuery:
+			derived, ok := analyze.ViewFromRoot(bound).(*plan.DerivedNode)
+			if !ok || derived.Query == nil {
+				return nil
+			}
+			return find(syntax.Query.From, analyze.ViewFromRoot(derived.Query.Root))
 		case *parser.ValuesQuery:
-			captured, ok := analyze.ViewFromRoot(bound).(*plan.ValuesNode)
-			if ok && captured.ViewOrdinal == values.ViewOrdinal {
+			captured, _ := viewValuesSource(bound)
+			if captured != nil && captured.ViewOrdinal == values.ViewOrdinal {
 				return syntax
 			}
 		}
@@ -128,5 +137,9 @@ func ruleValuesFromSQL(ctx context.Context, view catalog.Read, root plan.Node, a
 	for i, column := range root.Schema() {
 		names[i] = action.policy.identifier(column.Name)
 	}
-	return "(" + text + ") AS " + action.policy.identifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
+	prefix := ""
+	if syntax.Lateral {
+		prefix = "LATERAL "
+	}
+	return prefix + "(" + text + ") AS " + action.policy.identifier("_rule_values_"+strconv.Itoa(values.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
 }

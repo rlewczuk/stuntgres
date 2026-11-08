@@ -68,6 +68,8 @@ Raw generic and regexp function-table children keep their written calls and
 ordered per-member column definitions, LATERAL, WITH ORDINALITY and ROWS FROM
 selection; they never invoke the analyzed FROM-only UNNEST rewrite. Explicit
 ROWS FROM remains selected even with one regexp member and equal view values.
+Derived-query and VALUES sources likewise retain written LATERAL in raw utility
+identity, independently of whether their analyzed child reads an earlier source.
 Optional typed-nil expression and source children have explicit empty
 projections. The closed raw source inventory is independent of statically typed
 statement-child coverage.
@@ -770,10 +772,23 @@ library, and never the root engine or `session`. The engine, the root driver
   system-attribute access; same-named derived columns remain ordinary columns.
   The WHEN restriction belongs to its lexical expression frame, not a nested
   SELECT's local or correlated reads.
-  Function-source arguments capture system source occurrences separately from
-  ordinary slots. Local-left occurrence membership determines dependency and
-  RIGHT/FULL rejection even for zero-column sources; ancestor captures remain
-  exported without slot arithmetic.
+  FROM sources capture system occurrences and whole-row presence independently
+  of ordinary slots, including zero-column null-extended producers.
+  Lateral queries bind in a fresh child frame with only earlier FROM items
+  visible; lateral VALUES uses the real frozen VALUES project in that frame.
+  Ordinary VALUES and non-lateral derived sources keep sibling scopes hidden.
+  Free captures include nested sublinks but exclude child-local and virtual-owner
+  recipe frames. Local-left membership alone determines dependency and RIGHT/FULL
+  rejection; inherited slot/identity captures remain exported to enclosing joins.
+  `RebaseFromCorrelation` removes only unused invocation prefixes, preserving
+  output layouts, occurrence/presence identities and immutable child ownership.
+  `QueryExecutionSourceReads` translates each executable row owner's slots back
+  to physical source spans: a correlated join's retained prefix uses its inherited
+  invocation owner, and its local-left suffix uses the join's subtree offset.
+  Derived and scalar child frames retain those lexical owners without confusing
+  their local slots or virtual-owner recipes. Attribute demand stays partitioned
+  by real source occurrence; ignored presence-only projections and analysis-only
+  CTE edges add no execution reads.
 
 ## Binding rules
 

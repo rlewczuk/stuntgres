@@ -44,14 +44,25 @@ func (*FunctionFrom) fromItem() {}
 
 // ValuesQuery is a finite query source, not destination-context INSERT input.
 type ValuesQuery struct {
-	Rows   [][]Expr
-	Order  *Order
-	Bounds *QueryBounds
-	Pos    Position
-	rowEnd int // Closing row token, independent of parser lookahead.
+	Rows    [][]Expr
+	Order   *Order
+	Bounds  *QueryBounds
+	Pos     Position
+	Lateral bool
+	rowEnd  int // Closing row token, independent of parser lookahead.
 }
 
 func (*ValuesQuery) fromItem() {}
+
+// queryFromSource retains the parenthesized query boundary and written
+// LATERAL state, including VALUES queries with their own ordering and bounds.
+func queryFromSource(query *Select, pos Position, lateral bool) FromItem {
+	if query.Values != nil && len(query.Locking) == 0 && len(query.With) == 0 {
+		query.Values.Lateral = lateral
+		return query.Values
+	}
+	return &DerivedQuery{Query: query, Pos: pos, Lateral: lateral}
+}
 
 // JoinKind preserves SQL operand order; zero is the ordinary inner join.
 type JoinKind uint8

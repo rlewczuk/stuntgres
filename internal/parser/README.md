@@ -242,6 +242,10 @@ ordinary assignments to an unreserved `security` variable.
   FROM-list commas retain explicit `JoinReference.Comma` provenance, separate
   from CROSS JOIN despite identical cross-product execution. Binding consumes
   this syntax fact for namespace visibility, never source-text inspection.
+  Parenthesized query and VALUES sources share the ordinary query grammar and
+  retain written `Lateral` independently of their eventual dependency. WITH,
+  set operations, ordering/bounds and aliases keep their original boundaries;
+  LATERAL never admits a parenthesized table-join expression.
 - Setting calls use ordinary SELECT/function expression syntax, including aliases,
   concatenation, FROM and logical, NULL-predicate or nested-call arguments.
   Binding owns signatures and implicit function applicability before assignment

@@ -900,6 +900,9 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				separator := " CROSS JOIN "
 				if v.Presentation.Deparse {
 					separator = v.Presentation.line(5) + "CROSS JOIN "
+					if n.Comma {
+						separator = "," + v.Presentation.line(4)
+					}
 				}
 				from.text = left.text + separator + rightText
 			} else {
@@ -912,7 +915,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				}
 				from.text = left.text + joinText + rightText + " ON " + condition
 			}
-			if !pretty {
+			if !pretty && !(v.Presentation.Deparse && n.Comma) {
 				from.text = "(" + from.text + ")"
 			}
 		}

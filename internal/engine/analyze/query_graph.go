@@ -20,11 +20,17 @@ func CollectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*pars
 		if node == nil {
 			return
 		}
-		if n, ok := node.(*plan.ProjectNode); ok && n.Syntax != nil {
+		if n, ok := node.(*plan.ProjectNode); ok && (n.Syntax != nil || n.FrozenValues) {
 			if frames[n.Frame] != nil {
-				return
+				if n.Syntax != nil {
+					return
+				}
+			} else {
+				frames[n.Frame] = n
+				if n.Syntax != nil {
+					queries[n.Syntax] = n
+				}
 			}
-			frames[n.Frame], queries[n.Syntax] = n, n
 		}
 		left, right := plan.QueryInputs(node)
 		walk(left)
@@ -140,23 +146,50 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node, declarations
 }
 
 // Runtime reads belong to an occurrence's physical input span in its lexical
-// frame, not to a relation OID. Analysis-only CTE edges remain frozen metadata.
+// frame, not to a relation OID. Invocation owners translate normalized slots
+// back to that span; analysis-only CTE edges remain frozen metadata.
 func QueryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode) map[int][]int32 {
 	type span struct {
 		source *plan.SourceNode
 		offset int
 	}
+	// Each owner maps a runtime row to physical frame coordinates. A join's
+	// invocation consists of an inherited prefix followed by its local left
+	// row; only the prefix uses the previous owner of the same lexical frame.
+	type owner struct {
+		frame                 uint32
+		offset, prefix, outer int
+	}
+	var owners []owner
+	physicalSlot := func(frame uint32, slot, at int) int {
+		for at >= 0 {
+			current := owners[at]
+			at = current.outer
+			if current.frame != frame {
+				continue
+			}
+			if slot >= current.prefix {
+				return current.offset + slot - current.prefix
+			}
+		}
+		return slot
+	}
 	var frames map[uint32][]span
 	var reads map[int][]int32
-	var walk func(plan.Node, uint32, int, *plan.ProjectNode, bool)
-	walk = func(node plan.Node, frame uint32, offset int, ignored *plan.ProjectNode, collect bool) {
+	var walk func(plan.Node, uint32, int, int, *plan.ProjectNode, bool)
+	walk = func(node plan.Node, frame uint32, offset, enclosing int, ignored *plan.ProjectNode, collect bool) {
 		if node == nil {
 			return
 		}
+		base := len(owners)
 		if project, ok := node.(*plan.ProjectNode); ok {
 			frame, offset = project.Frame, 0
 			if frame == 0 {
 				frame = 1
+			}
+			if collect {
+				owners = append(owners, owner{frame: frame, outer: enclosing})
+				enclosing = len(owners) - 1
 			}
 		}
 		if source, ok := node.(*plan.SourceNode); ok && !collect {
@@ -168,46 +201,68 @@ func QueryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 			reads[source.Occurrence] = []int32{}
 		}
 		left, right := plan.QueryInputs(node)
-		walk(left, frame, offset, ignored, collect)
-		rightOffset := offset
+		walk(left, frame, offset, enclosing, ignored, collect)
+		rightOffset, rightOwner := offset, enclosing
 		if join, ok := node.(*plan.JoinNode); ok {
 			rightOffset += join.LeftWidth
+			if collect && join.CorrelatedRight {
+				owners = append(owners, owner{frame: join.Frame, offset: offset, prefix: join.CorrelationPrefix, outer: enclosing})
+				rightOwner = len(owners) - 1
+			}
 		}
-		walk(right, frame, rightOffset, ignored, collect)
+		walk(right, frame, rightOffset, rightOwner, ignored, collect)
+		if rightOwner != enclosing {
+			owners = owners[:rightOwner]
+		}
 		if node == ignored || QueryIgnoresOwnExpressions(node) {
+			owners = owners[:base]
 			return
 		}
-		visit := func(expression expr.Expr) {
-			plan.WalkExpression(expression, func(expression expr.Expr) {
-				switch e := expression.(type) {
-				case plan.SubqueryExpr:
-					if e.CTEEdge {
-						return
-					}
+		// FROM arguments read the invocation, not their own output row.
+		// Other producers (notably JOIN predicates and scalar sublinks in
+		// them) read their local row at this physical subtree offset.
+		if collect {
+			switch node.(type) {
+			case *plan.SourceNode, *plan.FunctionFromNode, *plan.ProjectNode:
+			default:
+				owners = append(owners, owner{frame: frame, offset: offset, outer: enclosing})
+				enclosing = len(owners) - 1
+			}
+		}
+		var visit func(expr.Expr)
+		visit = func(expression expr.Expr) {
+			switch e := expression.(type) {
+			case plan.SubqueryExpr:
+				if !e.CTEEdge {
 					var ignoredChild *plan.ProjectNode
 					if e.PresenceOnly {
 						ignoredChild = e.QueryPlan.Root.(*plan.ProjectNode)
 					}
-					walk(e.QueryPlan.Root, frame, 0, ignoredChild, collect)
-				case plan.ColumnExpr:
-					if !collect || e.Scope != 1 || e.Origin.Address.SubID <= 0 {
-						return
-					}
-					for _, input := range frames[e.Frame] {
-						if e.Slot < input.offset || e.Slot >= input.offset+len(input.source.Schema()) || e.Origin.Address.ClassID != input.source.Ref.Address.ClassID || e.Origin.Address.ObjectID != input.source.Ref.Address.ObjectID {
-							continue
-						}
-						items := reads[input.source.Occurrence]
-						for _, attribute := range items {
-							if attribute == e.Origin.Address.SubID {
-								return
-							}
-						}
-						reads[input.source.Occurrence] = append(items, e.Origin.Address.SubID)
-						return
-					}
+					walk(e.QueryPlan.Root, frame, 0, enclosing, ignoredChild, collect)
 				}
-			})
+			case plan.ColumnExpr:
+				if !collect || e.Scope != 1 || e.Origin.Address.SubID <= 0 {
+					return
+				}
+				slot := physicalSlot(e.Frame, e.Slot, enclosing)
+				for _, input := range frames[e.Frame] {
+					if slot < input.offset || slot >= input.offset+len(input.source.Schema()) || e.Origin.Address.ClassID != input.source.Ref.Address.ClassID || e.Origin.Address.ObjectID != input.source.Ref.Address.ObjectID {
+						continue
+					}
+					items := reads[input.source.Occurrence]
+					for _, attribute := range items {
+						if attribute == e.Origin.Address.SubID {
+							return
+						}
+					}
+					reads[input.source.Occurrence] = append(items, e.Origin.Address.SubID)
+					return
+				}
+				// A virtual column's recipe has its own owner, even if it
+				// privately reuses this numeric frame.
+				return
+			}
+			plan.ExpressionChildren(expression, visit)
 		}
 		if project, ok := node.(*plan.ProjectNode); ok {
 			for _, expression := range project.Expressions {
@@ -216,12 +271,13 @@ func QueryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 		} else {
 			plan.QueryExpressions(node, visit)
 		}
+		owners = owners[:base]
 	}
 	// Register all spans first, including outer frames referenced by correlated
 	// expressions inside other inputs. Then collect only executable producers.
-	walk(root, 1, 0, ignoredProject, false)
+	walk(root, 1, 0, -1, ignoredProject, false)
 	if reads != nil {
-		walk(root, 1, 0, ignoredProject, true)
+		walk(root, 1, 0, -1, ignoredProject, true)
 	}
 	return reads
 }

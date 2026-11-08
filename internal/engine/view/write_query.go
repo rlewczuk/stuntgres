@@ -87,8 +87,8 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		}
 		return slot, nil
 	}
-	// Structural derived inputs belong to this transplant. Scalar child queries
-	// are lowered by rewrite's explicit query callback and must not map twice.
+	// Own structural frames, including their free reads inside scalar queries.
+	// Each scalar's recursive graft still owns its local sources and frames.
 	frames := make(map[uint32]bool)
 	var ownFrames func(plan.Node)
 	ownFrames = func(node plan.Node) {
@@ -147,6 +147,9 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 			if err != nil {
 				return nil, err
 			}
+			if slot+1 == capture.QueryOccurrence {
+				continue
+			}
 			if mapped == nil {
 				mapped = append([]plan.FunctionCorrelation(nil), captures...)
 			}
@@ -157,62 +160,99 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		}
 		return mapped, nil
 	}
+	var mapNode func(plan.Node, bool) (plan.Node, error)
+	var translateExpression func(expr.Expr) (expr.Expr, bool, error)
+	translateExpression = func(n expr.Expr) (expr.Expr, bool, error) {
+		// Cross scalar boundaries only for this graft's frames. Leave local
+		// sources and lowering to rewrite's normal recursive query callback.
+		return stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
+			return plan.RewriteQueryExpressions(root, translateExpression, func(node plan.Node) (plan.Node, error) {
+				return mapNode(node, false)
+			})
+		}, nil, translate)
+	}
 	mapExpression := func(n expr.Expr) (expr.Expr, bool, error) {
-		next, translated, err := stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
+		next, translated, err := translateExpression(n)
 		if err != nil {
 			return nil, false, err
 		}
 		lowered, changed, err := rewrite(next)
 		return lowered, translated || changed, err
 	}
-	return plan.RewriteQueryExpressions(root, mapExpression, func(node plan.Node) (plan.Node, error) {
+	mapNode = func(node plan.Node, importSources bool) (plan.Node, error) {
+		mapped := node
 		switch n := node.(type) {
+		case *plan.DerivedNode:
+			captures, err := mapCaptures(n.Captures)
+			if err != nil {
+				return nil, err
+			}
+			if len(captures) != 0 && &captures[0] != &n.Captures[0] {
+				copy := *n
+				copy.Captures = captures
+				mapped = &copy
+			}
 		case *plan.FunctionFromNode:
 			captures, err := mapCaptures(n.Captures)
 			if err != nil {
 				return nil, err
 			}
-			if len(captures) == 0 || &captures[0] == &n.Captures[0] {
-				return node, nil
+			if len(captures) != 0 && &captures[0] != &n.Captures[0] {
+				copy := *n
+				copy.Captures = captures
+				mapped = &copy
 			}
-			copy := *n
-			copy.Captures = captures
-			return &copy, nil
 		case *plan.JoinNode:
 			captures, err := mapCaptures(n.Captures)
 			if err != nil {
 				return nil, err
 			}
-			if len(captures) == 0 || &captures[0] == &n.Captures[0] {
-				return node, nil
+			if len(captures) != 0 && &captures[0] != &n.Captures[0] {
+				copy := *n
+				copy.Captures = captures
+				mapped = &copy
 			}
+		case *plan.SourceNode:
 			copy := *n
-			copy.Captures = captures
-			return &copy, nil
+			if importSources {
+				slot, err := mapOccurrence(n.Occurrence)
+				if err != nil {
+					return nil, err
+				}
+				copy.Occurrence, copy.Ref = slot, b.QuerySources[slot].Ref
+			}
+			if n.Sample != nil {
+				captures, err := mapCaptures(n.Sample.Captures)
+				if err != nil {
+					return nil, err
+				}
+				if len(captures) != 0 && &captures[0] != &n.Sample.Captures[0] {
+					sample := *n.Sample
+					sample.Captures = captures
+					copy.Sample = &sample
+				}
+			}
+			if copy.Occurrence != n.Occurrence || copy.Ref != n.Ref || copy.Sample != n.Sample {
+				mapped = &copy
+			}
 		}
-		source, ok := node.(*plan.SourceNode)
-		if !ok {
+		if mapped == node {
 			return node, nil
 		}
-		slot, err := mapOccurrence(source.Occurrence)
-		if err != nil {
-			return nil, err
+		expressions := translateExpression
+		if importSources {
+			expressions = mapExpression
 		}
-		copy := *source
-		copy.Occurrence = slot
-		copy.Ref = b.QuerySources[slot].Ref
-		if source.Sample != nil {
-			sample := *source.Sample
-			sample.Argument, _, err = mapExpression(sample.Argument)
-			if err != nil {
-				return nil, err
+		// A node replacement is a complete leaf to RewriteQueryExpressions.
+		// Descend its executable inputs once, bypassing only this mapped root.
+		return plan.RewriteQueryExpressions(mapped, expressions, func(child plan.Node) (plan.Node, error) {
+			if child == mapped {
+				return child, nil
 			}
-			sample.Captures, err = mapCaptures(sample.Captures)
-			if err != nil {
-				return nil, err
-			}
-			copy.Sample = &sample
-		}
-		return &copy, nil
+			return mapNode(child, importSources)
+		})
+	}
+	return plan.RewriteQueryExpressions(root, mapExpression, func(node plan.Node) (plan.Node, error) {
+		return mapNode(node, true)
 	})
 }

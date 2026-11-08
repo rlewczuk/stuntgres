@@ -381,8 +381,22 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		case *plan.DerivedNode:
 			copy := *node
 			copy.ScanFrame = frame(node.ScanFrame)
+			capturesChanged := false
+			for i, capture := range node.Captures {
+				next, occurrence := frame(capture.Frame), capture.QueryOccurrence
+				if occurrence != 0 {
+					occurrence += offset
+				}
+				if next != capture.Frame || occurrence != capture.QueryOccurrence {
+					if !capturesChanged {
+						copy.Captures = slices.Clone(node.Captures)
+						capturesChanged = true
+					}
+					copy.Captures[i].Frame, copy.Captures[i].QueryOccurrence = next, occurrence
+				}
+			}
 			if protected(node.CTE) {
-				if copy.ScanFrame == node.ScanFrame && node.Query == nil {
+				if copy.ScanFrame == node.ScanFrame && !capturesChanged && node.Query == nil {
 					return node, nil
 				}
 				return &copy, nil
@@ -408,7 +422,7 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 					copy.Query = &query
 				}
 			}
-			if copy.ScanFrame == node.ScanFrame && copy.CTE == node.CTE && copy.Query == node.Query && node.Query == nil {
+			if copy.ScanFrame == node.ScanFrame && !capturesChanged && copy.CTE == node.CTE && copy.Query == node.Query && node.Query == nil {
 				return node, nil
 			}
 			if nodes == nil {

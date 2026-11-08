@@ -47,8 +47,9 @@ func (SubqueryExpr) expression()                {}
 func (s SubqueryExpr) SourcePosition() Position { return s.Pos }
 
 type DerivedQuery struct {
-	Query *Select
-	Pos   Position
+	Query   *Select
+	Pos     Position
+	Lateral bool
 }
 
 func (*DerivedQuery) fromItem() {}

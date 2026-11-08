@@ -36,6 +36,8 @@ type DerivedNode struct {
 	Table         *parser.TableReference
 	Ordinal       int
 	ScanFrame     uint32
+	Lateral       bool
+	Captures      []FunctionCorrelation // Free reads in the caller's immutable frame.
 	Demand        []bool
 	PresenceSlot  int
 	RangeName     string
@@ -66,9 +68,9 @@ type JoinNode struct {
 	ViewOrdinal  int
 	PresenceSlot int
 	QuerySchema
-	RangeName                 string
-	ColumnAliases             []string // Immutable final accepted namespace labels.
-	Kind                      parser.JoinKind
+	RangeName     string
+	ColumnAliases []string // Immutable final accepted namespace labels.
+	Kind          parser.JoinKind
 	// Comma preserves the analyzed FROM-list versus explicit JoinExpr layout
 	// for selected statement identity; it is not join execution policy.
 	Comma                     bool
@@ -79,7 +81,7 @@ type JoinNode struct {
 	CorrelatedRight           bool
 	Frame                     uint32
 	CorrelationPrefix         int
-	CorrelationIdentityPrefix bool // Inherited occurrence lineage, even with a zero-width row prefix.
+	CorrelationIdentityPrefix bool // Inherited occurrence/presence lineage, even with a zero-width row prefix.
 	Captures                  []FunctionCorrelation
 	// ScanOwner is the canonical join of an execution-private copy, so foreign
 	// scans below the copy keep the canonical owner identity. Nil otherwise.
@@ -92,7 +94,8 @@ type JoinNode struct {
 type FunctionCorrelation struct {
 	Frame           uint32
 	Slot            int
-	QueryOccurrence int // One-based tableoid source capture; zero retains ordinary Slot mode.
+	QueryOccurrence int // Positive one-based system occurrence; zero absent.
+	PresenceSlot    int // Positive one-based whole-row presence; zero absent.
 	Name            string
 	Pos             parser.Position
 }

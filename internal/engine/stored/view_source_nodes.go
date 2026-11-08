@@ -30,7 +30,7 @@ func viewDerivedAt(node plan.Node, syntax *parser.Select) *plan.DerivedNode {
 	if node == nil {
 		return nil
 	}
-	if derived, ok := node.(*plan.DerivedNode); ok {
+	if derived, ok := node.(*plan.DerivedNode); ok && derived.Query != nil {
 		if project, ok := derived.Query.Root.(*plan.ProjectNode); ok && project.Syntax == syntax {
 			return derived
 		}
@@ -54,7 +54,11 @@ func (v *QueryRenderer) renderDerivedQuerySQL(ctx context.Context, catalogView c
 	if err != nil {
 		return viewRenderFrom{}, err
 	}
-	from := viewRenderFrom{text: text, root: root}
+	relation := "(" + text + ")"
+	if n.Lateral {
+		relation = "LATERAL " + relation
+	}
+	from := viewRenderFrom{text: relation, relation: relation, root: root}
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
@@ -63,10 +67,14 @@ func (v *QueryRenderer) renderDerivedQuerySQL(ctx context.Context, catalogView c
 	}
 	if v.Presentation.Deparse {
 		from.relation = "(" + strings.ReplaceAll(text, "\n", "\n        ") + ")"
+		if n.Lateral {
+			from.relation = "LATERAL " + from.relation
+		}
+		from.text = from.relation
 		return from, nil
 	}
 	aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
-	aliased.relation = "(" + text + ")"
+	aliased.relation = relation
 	return aliased, nil
 }
 
@@ -76,20 +84,30 @@ func (v *QueryRenderer) renderValuesSourceSQL(ctx context.Context, catalogView c
 	if err != nil {
 		return viewRenderFrom{}, err
 	}
-	root := viewValuesAt(v.query.Root, ordinal)
-	from := viewRenderFrom{text: text, root: root}
+	root := viewValuesSourceAt(v.query.Root, ordinal)
+	if root == nil {
+		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen VALUES source")
+	}
+	if v.Presentation.Deparse && !v.Presentation.Rule {
+		text = " " + text
+	}
+	relation := "(" + text + ")"
+	if n.Lateral {
+		relation = "LATERAL " + relation
+	}
+	from := viewRenderFrom{text: relation, relation: relation, root: root}
 	from.rowSource = true
 	for i, column := range root.Schema() {
 		from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 	}
 	if v.logicalSourceNames() {
-		from.relation = "(" + text + ")"
+		from.relation = relation
 		aliased := v.sourceAlias(from, rangeName.name, rangeName.columns, true)
 		aliased.relation = from.relation
 		return aliased, nil
 	}
 	aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))
 	// An explicit VALUES alias replaces the renderer's generated alias.
-	aliased.relation = "(" + text + ")"
+	aliased.relation = relation
 	return aliased, nil
 }

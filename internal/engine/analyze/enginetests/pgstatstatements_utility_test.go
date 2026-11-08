@@ -179,6 +179,16 @@ func TestPgStatStatementsFingerprintUtilityExpressions(t *testing.T) {
 			}
 		})
 	}
+	for _, pair := range [][2]parser.FromItem{
+		{&parser.DerivedQuery{}, &parser.DerivedQuery{Lateral: true}},
+		{&parser.ValuesQuery{}, &parser.ValuesQuery{Lateral: true}},
+	} {
+		plain, _ := analyze.JumbleUtility(&parser.Select{From: pair[0]})
+		lateral, _ := analyze.JumbleUtility(&parser.Select{From: pair[1]})
+		if plain.QueryID() == lateral.QueryID() {
+			t.Fatal("written LATERAL source identity erased", reflect.TypeOf(pair[0]))
+		}
+	}
 }
 
 func TestPgStatStatementsFingerprintUtilityArraySubquery(t *testing.T) {

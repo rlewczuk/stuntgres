@@ -204,9 +204,15 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 			return fmt.Errorf("stuntgres: mismatched frozen root syntax")
 		}
 	}
+	valuesFrames := make(map[uint32]bool)
 	for frame, project := range v.frames {
 		s := project.Syntax
 		if s == nil {
+			if project.FrozenValues {
+				// The containing FROM item's real VALUES syntax owns this
+				// frame's literals, including its ORDER BY and bounds.
+				continue
+			}
 			if frame != 1 || v.expressionSyntax == nil {
 				return fmt.Errorf("stuntgres: missing stored query syntax")
 			}
@@ -386,12 +392,31 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 					return err
 				}
 				return from(raw.Right, join.Right)
+			case *parser.DerivedQuery:
+				derived, ok := analyze.ViewFromRoot(node).(*plan.DerivedNode)
+				if !ok || derived.Query == nil || derived.Lateral != raw.Lateral {
+					return fmt.Errorf("stuntgres: invalid stored derived source")
+				}
+				child, ok := derived.Query.Root.(*plan.ProjectNode)
+				if !ok || child.Syntax != raw.Query || v.queries[raw.Query] != child {
+					return fmt.Errorf("stuntgres: mismatched stored derived syntax")
+				}
 			case *parser.ValuesQuery:
-				values, ok := analyze.ViewFromRoot(node).(*plan.ValuesNode)
-				if !ok {
+				values, child := viewValuesSource(node)
+				if values == nil {
 					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
 				}
-				return walkValuesLiteralRoots(raw, frame, values.ViewOrdinal, visit)
+				literalFrame := frame
+				if derived, ok := analyze.ViewFromRoot(node).(*plan.DerivedNode); ok {
+					if !raw.Lateral || !derived.Lateral || child == nil || child.Frame == frame || v.frames[child.Frame] != child || child.Syntax != nil {
+						return fmt.Errorf("stuntgres: invalid stored lateral VALUES frame")
+					}
+					literalFrame = child.Frame
+					valuesFrames[child.Frame] = true
+				} else if raw.Lateral {
+					return fmt.Errorf("stuntgres: missing stored lateral VALUES frame")
+				}
+				return walkValuesLiteralRoots(raw, literalFrame, values.ViewOrdinal, visit)
 			case *parser.FunctionFrom:
 				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok {
@@ -417,6 +442,11 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 			}
 		} else if err := from(s.From, fromRoot); err != nil {
 			return err
+		}
+	}
+	for frame, project := range v.frames {
+		if project.Syntax == nil && project.FrozenValues && !valuesFrames[frame] {
+			return fmt.Errorf("stuntgres: missing stored VALUES source syntax")
 		}
 	}
 	return nil

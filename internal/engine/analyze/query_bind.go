@@ -97,7 +97,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		})
 	}
 	if s.Values != nil {
-		query, err := b.BindValues(s.Values, false)
+		query, err := b.bindValues(s.Values, false, !disallowParent && b.stringFromContext())
 		if err != nil {
 			return nil, err
 		}

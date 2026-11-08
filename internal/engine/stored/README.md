@@ -1034,6 +1034,16 @@ host methods.
   the actual emitted alias, never a relation name hidden by it. Ordinary view
   dumps retain executable positional bridge aliases and unique column labels;
   policy replay's logical naming is not an ordinary-view replay authority.
+  Derived query and VALUES sources retain written LATERAL at the complete
+  parenthesized source boundary in display, logical naming and executable
+  replay, even when no free reads make the source runtime-dependent. Lateral
+  VALUES keeps its distinct FrozenValues child frame and actual projection,
+  ORDER BY and bounds; parent namespace slots name the derived source, while
+  literals and local order slots belong to the child frame. Validation pairs
+  that frame with the retained VALUES syntax rather than inventing a SELECT.
+  Source display preserves frozen FROM-list commas separately from explicit
+  CROSS JOIN and uses canonical parenthesized VALUES punctuation; executable
+  replay retains its ordinary positional bridge contract.
   Rule introspection reconstructs the current stored SELECT using the same
   authority as view display. Native Restore retains canonical executable
   definitions and metadata, not original source alias spellings; subsequent
@@ -1098,6 +1108,13 @@ host methods.
   `view_rule_presentation.go` owns structural continuation indentation and the
   derived/CTE source-alias helpers shared by rule display and policy
   logical-source rendering.
+  Frame/occurrence transplantation remaps derived free-source captures with
+  the same copy-on-write coordinates as join and function captures, preserving
+  source identities independently of output width and lexical ancestor frames.
+  Whole-row presence uses its original one-based producer identity, not an
+  output slot: transplant its frame without offsetting or rebasing that identity.
+  Stored validation authenticates the full multiset of derived free reads;
+  rule VALUES replay uses the real wrapped source and its retained decorations.
   Finalized parent name facts also cross modifying-CTE renderer boundaries,
   independently of each frozen view's frame numbering. Targets, event OLD/NEW
   and EXCLUDED use their allocated namespace facts without changing executable
@@ -1347,6 +1364,8 @@ host methods.
   or reparses its SQL. A presentation keeps the binder's full execution
   manifest, including pinned callable providers; `pg_depend` edges are a
   filtered subset (validation requires inclusion, not equal size).
+  Relation-provider attributes use the shared live-ordinary/executable-system
+  attribute authority; system identities are not dense ordinary-column slots.
 - **TEMP replacement.** Full runtime manifests differ from catalog edges: exact
   retained builtin type generations, equal seeded collation capabilities and
   unchanged seeded procedure declarations may bridge reconstructed wrappers.

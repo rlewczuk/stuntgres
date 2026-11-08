@@ -74,7 +74,7 @@ func ValidatePolicy(view catalog.Read, owner *catalog.Relation, expression *Poli
 		}
 		if a.SubID != 0 {
 			relation, ok := provider.(*catalog.Relation)
-			if !ok || !relation.HasAttribute(a.SubID) {
+			if !ok || !relation.HasSupportedAttribute(a.SubID) {
 				return fmt.Errorf("stuntgres: missing policy provider attribute")
 			}
 		}

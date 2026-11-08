@@ -231,7 +231,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 	case *plan.DerivedNode:
 		o, ok := d.(*plan.DerivedNode)
-		if !ok || n.CTE != o.CTE || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) {
+		if !ok || n.Lateral != o.Lateral || !c.correlations(n.Captures, o.Captures) || n.CTE != o.CTE || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) {
 			return false
 		}
 		if n.Query != nil && (n.Query.RegclassOutput != o.Query.RegclassOutput || n.Query.VisibilitySnapshot != o.Query.VisibilitySnapshot || n.Query.ExportRoots != o.Query.ExportRoots) {
@@ -294,7 +294,7 @@ func (c *QueryTargetComparison) correlations(left, right []plan.FunctionCorrelat
 	}
 	for i, a := range left {
 		b := right[i]
-		if !c.SameFrame(a.Frame, b.Frame) || a.Slot != b.Slot || a.QueryOccurrence != b.QueryOccurrence {
+		if !c.SameFrame(a.Frame, b.Frame) || a.Slot != b.Slot || a.QueryOccurrence != b.QueryOccurrence || a.PresenceSlot != b.PresenceSlot {
 			return false
 		}
 	}

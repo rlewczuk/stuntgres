@@ -10,12 +10,43 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// viewValuesSource recognizes the real VALUES query boundary without flattening
+// its projection, ordering or bounds. A lateral source owns a separate frame.
+func viewValuesSource(node plan.Node) (*plan.ValuesNode, *plan.ProjectNode) {
+	root := analyze.ViewFromRoot(node)
+	var project *plan.ProjectNode
+	if derived, ok := root.(*plan.DerivedNode); ok {
+		if derived.Query == nil {
+			return nil, nil
+		}
+		project, ok = derived.Query.Root.(*plan.ProjectNode)
+		if !ok || !project.FrozenValues || project.Syntax != nil {
+			return nil, nil
+		}
+		root = analyze.ViewFromRoot(project)
+	}
+	values, _ := root.(*plan.ValuesNode)
+	return values, project
+}
+
 func viewValuesAt(node plan.Node, ordinal int) *plan.ValuesNode {
-	var visit func(plan.Node) *plan.ValuesNode
-	visit = func(node plan.Node) *plan.ValuesNode {
+	source := viewValuesSourceAt(node, ordinal)
+	values, _ := viewValuesSource(source)
+	return values
+}
+
+// Keep the caller-frame source node for namespace slots; the VALUES leaf owns
+// only child-frame ORDER BY slots when the source is wrapped.
+func viewValuesSourceAt(node plan.Node, ordinal int) plan.Node {
+	var visit func(plan.Node) plan.Node
+	visit = func(node plan.Node) plan.Node {
 		switch n := node.(type) {
 		case *plan.ValuesNode:
 			if ordinal == n.ViewOrdinal {
+				return n
+			}
+		case *plan.DerivedNode:
+			if values, _ := viewValuesSource(n); values != nil && values.ViewOrdinal == ordinal {
 				return n
 			}
 		case *plan.SetNode:
@@ -59,6 +90,11 @@ func (v *QueryRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read,
 	if root == nil {
 		return "", fmt.Errorf("stuntgres: missing view VALUES occurrence")
 	}
+	previousFrame := v.Frame
+	if _, project := viewValuesSource(viewValuesSourceAt(v.query.Root, occurrence)); project != nil {
+		v.Frame = project.Frame
+	}
+	defer func() { v.Frame = previousFrame }()
 	slots := make(map[int]string, len(root.Schema()))
 	for i, column := range root.Schema() {
 		slots[i] = catalog.QuoteIdentifier(column.Name)
@@ -66,7 +102,7 @@ func (v *QueryRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read,
 	v.Slots[root] = slots
 	rows := make([]string, len(source.Rows))
 	separator := ", "
-	if v.Presentation.Rule {
+	if v.Presentation.Deparse || v.Presentation.Rule {
 		separator = ","
 	}
 	for i, row := range source.Rows {

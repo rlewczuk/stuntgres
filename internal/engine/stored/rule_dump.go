@@ -337,6 +337,12 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if n.CTE != nil {
 			return action.policy.identifier(n.CTE.Name) + " AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
 		}
+		if values, _ := viewValuesSource(n); values != nil {
+			return ruleValuesFromSQL(ctx, view, n, action)
+		}
+		if n.Query == nil {
+			return "", fmt.Errorf("stuntgres: missing rule derived query")
+		}
 		project, ok := n.Query.Root.(*plan.ProjectNode)
 		if !ok || project.Syntax == nil || action.presentation == nil {
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
@@ -355,7 +361,11 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + ") AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
+		prefix := ""
+		if n.Lateral {
+			prefix = "LATERAL "
+		}
+		return prefix + "(" + text + ") AS " + action.policy.identifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
 	case *plan.FunctionFromNode:
 		parts := make([]string, len(n.Calls))
 		for i, call := range n.Calls {

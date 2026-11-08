@@ -365,7 +365,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 	case *parser.FunctionFrom:
 		return b.BindMixedFunctionTable(n.Calls, n.Ordinality, ordinal, definitions, false)
 	case *parser.DerivedQuery:
-		query, err := b.bindSelectScoped(n.Query, false, true)
+		query, err := b.bindFromQuery(n)
 		if err != nil {
 			return nil, QueryNamespace{}, err
 		}
@@ -375,9 +375,22 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			columns[i] = QueryColumn{Descriptor: column, Slot: i, Leaf: -1}
 		}
 		b.Query.Hidden = append(b.Query.Hidden, QueryQualifier{Name: "unnamed_subquery", Columns: columns})
-		return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.FrameID()}, QueryNamespace{Columns: columns, Frame: schema}, nil
+		root := &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.FrameID(), Lateral: n.Lateral}
+		if n.Lateral {
+			root.Captures = b.derivedCaptures(query.Root)
+		}
+		return root, QueryNamespace{Columns: columns, Frame: schema}, nil
 	case *parser.ValuesQuery:
-		query, err := b.BindValues(n, false)
+		var query *plan.Query
+		var err error
+		if n.Lateral {
+			oldClause, oldForbidden := b.Clause.AggregateClause, b.Clause.stringFromForbidden
+			b.Clause.AggregateClause, b.Clause.stringFromForbidden = "FROM", false
+			query, err = b.bindLateralValues(n)
+			b.Clause.AggregateClause, b.Clause.stringFromForbidden = oldClause, oldForbidden
+		} else {
+			query, err = b.BindValues(n, false)
+		}
 		if err != nil {
 			return nil, QueryNamespace{}, err
 		}
@@ -387,6 +400,9 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			columns[i] = QueryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1}
 		}
 		b.Query.Hidden = append(b.Query.Hidden, QueryQualifier{Name: "unnamed_subquery", Columns: columns})
+		if n.Lateral {
+			return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.FrameID(), Lateral: true, Captures: b.derivedCaptures(query.Root)}, QueryNamespace{Columns: columns, Frame: schema}, nil
+		}
 		return query.Root, QueryNamespace{Columns: columns, Frame: schema}, nil
 	case *parser.TableReference:
 		if len(n.Name.Parts) == 1 {
@@ -603,12 +619,12 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		// descendant's internally satisfied correlation is not exported here.
 		dependent, inheritedDemand, inheritedIdentity := false, false, false
 		var forbidden plan.FunctionCorrelation
-		captures := append([]plan.FunctionCorrelation(nil), functionFromCaptures(left)...)
-		for _, capture := range functionFromCaptures(right) {
-			if capture.QueryOccurrence != 0 && capture.Frame == b.FrameID() {
-				if !queryNamespaceHasSystemAttribute(&lns, capture.QueryOccurrence) {
-					if !queryNamespaceHasSystemAttribute(inherited, capture.QueryOccurrence) {
-						return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function correlation occurrence")
+		captures := append([]plan.FunctionCorrelation(nil), fromCaptures(left)...)
+		for _, capture := range fromCaptures(right) {
+			if (capture.QueryOccurrence != 0 || capture.PresenceSlot != 0) && capture.Frame == b.FrameID() {
+				if !fromCaptureInNamespace(&lns, capture) {
+					if !fromCaptureInNamespace(inherited, capture) {
+						return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid FROM correlation occurrence")
 					}
 					captures = append(captures, capture)
 					inheritedDemand, inheritedIdentity = true, true
@@ -626,7 +642,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 				continue
 			}
 			if capture.Slot >= prefix+len(lns.Frame) {
-				return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function correlation slot")
+				return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid FROM correlation slot")
 			}
 			if !dependent || capture.Pos.Offset < forbidden.Pos.Offset {
 				forbidden = capture
@@ -639,10 +655,12 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			return nil, QueryNamespace{}, e
 		}
 		if prefix != 0 && !inheritedDemand {
-			right, err = RebaseFunctionCorrelation(b.Host, b.BindingCatalog(), right, b.FrameID(), prefix)
+			previous := right
+			right, err = RebaseFromCorrelation(b.Host, b.BindingCatalog(), right, b.FrameID(), prefix)
 			if err != nil {
 				return nil, QueryNamespace{}, err
 			}
+			rebindFromNamespace(&ns, previous, right)
 			prefix = 0
 		}
 		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Comma: n.Comma, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, CorrelationIdentityPrefix: inheritedIdentity, Captures: captures}
@@ -891,155 +909,18 @@ func (b *Binder) queryQualifierNeedsLateral(q QueryQualifier) bool {
 	return false
 }
 
-// These are only the references still free at a FROM subtree boundary. A
-// join's consumed local captures never escape into its enclosing join.
-func functionFromCaptures(root plan.Node) []plan.FunctionCorrelation {
-	switch n := root.(type) {
-	case *plan.SourceNode:
-		if n.Sample != nil {
-			return n.Sample.Captures
-		}
-	case *plan.FunctionFromNode:
-		return n.Captures
-	case *plan.JoinNode:
-		return n.Captures
+func (b *Binder) bindFromQuery(source *parser.DerivedQuery) (*plan.Query, error) {
+	if !source.Lateral {
+		return b.bindSelectScoped(source.Query, false, true)
 	}
-	return nil
-}
-
-// Strip an unused ancestor prefix from function invocation layouts only.
-// Descendants with no free captures have already satisfied/normalized their
-// own dependencies and must not be rebased again. Ordinary join expressions
-// retain their independent output-row layout.
-func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
-	captures := functionFromCaptures(root)
-	needed := false
-	for _, capture := range captures {
-		if capture.Frame == frame {
-			if capture.QueryOccurrence == 0 && capture.Slot < prefix {
-				return nil, fmt.Errorf("stuntgres: captured function prefix cannot be removed")
-			}
-			needed = true
-		}
-	}
-	if !needed {
-		return root, nil
-	}
-	rebased := append([]plan.FunctionCorrelation(nil), captures...)
-	for i := range rebased {
-		if rebased[i].Frame == frame && rebased[i].QueryOccurrence == 0 {
-			rebased[i].Slot -= prefix
-		}
-	}
-	switch n := root.(type) {
-	case *plan.SourceNode:
-		if n.Sample == nil {
-			return root, nil
-		}
-		count, _, err := host.MapBoundQueryExpression(view, n.Sample.Argument, nil, func(node expr.Expr) (expr.Expr, bool, error) {
-			column, ok := node.(plan.ColumnExpr)
-			if !ok || column.Frame != frame {
-				return node, false, nil
-			}
-			if column.Slot < prefix {
-				return nil, false, fmt.Errorf("stuntgres: invalid rebased sample argument slot")
-			}
-			column.Slot -= prefix
-			return column, true, nil
-		})
-		if err != nil {
-			return nil, err
-		}
-		copy, sample := *n, *n.Sample
-		sample.Argument, sample.Captures = count, rebased
-		copy.Sample = &sample
-		return &copy, nil
-	case *plan.JoinNode:
-		left, err := RebaseFunctionCorrelation(host, view, n.Left, frame, prefix)
-		if err != nil {
-			return nil, err
-		}
-		right, correlationPrefix := n.Right, n.CorrelationPrefix
-		// A zero prefix means this right operand has already been normalized
-		// to local-left slots. Only the left operand may still export captures.
-		if n.Frame == frame && correlationPrefix != 0 {
-			if correlationPrefix < prefix {
-				return nil, fmt.Errorf("stuntgres: invalid nested function correlation prefix")
-			}
-			right, err = RebaseFunctionCorrelation(host, view, right, frame, prefix)
-			if err != nil {
-				return nil, err
-			}
-			correlationPrefix -= prefix
-		}
-		copy := *n
-		copy.Left, copy.Right, copy.Captures = left, right, rebased
-		copy.CorrelationPrefix = correlationPrefix
-		return &copy, nil
-	case *plan.FunctionFromNode:
-		var rewrite func(expr.Expr) (expr.Expr, bool, error)
-		rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
-			// Virtual owner recipes have their own frame. The lexical walker
-			// stops at their column, so only actual argument captures enter.
-			used := false
-			WalkQueryArgumentExpression(bound, func(node expr.Expr) {
-				if column, ok := node.(plan.ColumnExpr); ok && column.Frame == frame {
-					used = true
-				}
-			})
-			if !used {
-				return bound, false, nil
-			}
-			return host.MapBoundQueryExpression(view, bound, func(query plan.Node) (plan.Node, error) {
-				return plan.RewriteQueryExpressions(query, rewrite)
-			}, func(node expr.Expr) (expr.Expr, bool, error) {
-				column, ok := node.(plan.ColumnExpr)
-				if !ok {
-					return node, false, nil
-				}
-				if column.Frame != frame {
-					// Do not enter an unrelated virtual owner recipe whose
-					// private frame number can coincide with this lexical one.
-					return node, column.Virtual != nil, nil
-				}
-				if column.Slot < prefix || column.Virtual != nil && column.RowStart < prefix {
-					return nil, false, fmt.Errorf("stuntgres: invalid rebased function argument slot")
-				}
-				column.Slot -= prefix
-				if column.Virtual != nil {
-					column.RowStart -= prefix
-				}
-				return column, true, nil
-			})
-		}
-		copy := *n
-		copy.Captures = rebased
-		copy.Calls = append([]expr.Expr(nil), n.Calls...)
-		for i := range copy.Calls {
-			var args []expr.Expr
-			for j, arg := range copy.Calls[i].(expr.Composite).Children() {
-				next, changed, err := rewrite(arg)
-				if err != nil {
-					return nil, err
-				}
-				if changed {
-					if args == nil {
-						args = append([]expr.Expr(nil), copy.Calls[i].(expr.Composite).Children()...)
-					}
-					args[j] = next
-				}
-			}
-			if args != nil {
-				var err error
-				copy.Calls[i], err = expr.Substitute(copy.Calls[i].(expr.Composite), expr.InfoOf(copy.Calls[i]), args)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		return &copy, nil
-	}
-	return nil, fmt.Errorf("stuntgres: invalid function correlation owner")
+	// Actual free captures, not a blanket namespace guard, decide whether a
+	// RIGHT/FULL boundary consumes forbidden local-left references.
+	oldClause, oldForbidden := b.Clause.AggregateClause, b.Clause.stringFromForbidden
+	b.Clause.AggregateClause, b.Clause.stringFromForbidden = "FROM", false
+	defer func() {
+		b.Clause.AggregateClause, b.Clause.stringFromForbidden = oldClause, oldForbidden
+	}()
+	return b.bindSelectScoped(source.Query, false, false)
 }
 
 func (b *Binder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, QueryNamespace, error) {
