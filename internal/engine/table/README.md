@@ -128,6 +128,11 @@ call live here.
   those conversions.
   This execution-private fill does not become a retained expression fold or
   replace the immutable DEFAULT definition used by future inserts.
+  `ADD COLUMN` serial (`smallserial`/`serial`/`bigserial`) expands through the
+  sole statement stage's `StageCreateSerials` naming and persistence, binds the
+  staged nextval DEFAULT through the ordinary added-default lane so populated
+  relations fill the column per effective live row, and copies the parent's
+  staged default to inheritance descendants without creating a second sequence.
   After the column and NOT NULL passes, `AddedUniqueSyntax` lifts only successful
   additions' UNIQUE clauses into `StageAddedUnique`, before explicit index work.
   It supplies the local identifier without mutating syntax; ordinary key binding,

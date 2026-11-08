@@ -106,18 +106,21 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 	if old.ColumnMeta.HighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
 	}
-	if sequence.SerialTypeName(column.TypeName) != "" {
-		return fail(insertError("0A000", "ADD COLUMN serial declarations are unsupported", column.Pos))
-	}
 	if view.Catalog.Epoch() != h.LiveEpoch() {
 		return fail(ids.ErrCatalogReplaced)
+	}
+	// SERIAL is declaration syntax: resolve the local copy as CREATE does and
+	// keep column untouched so the declaration binder owns every diagnostic.
+	typeName := column.TypeName
+	if lowered := sequence.SerialTypeName(typeName); lowered != "" {
+		typeName.Name = lowered
 	}
 	var usage sqltype.Usage
 	var err error
 	if captured != nil {
 		usage = *captured
 	} else {
-		usage, err = h.ResolveType(column.TypeName)
+		usage, err = h.ResolveType(typeName)
 		if err == nil {
 			usage, err = h.ResolveColumnCollation(usage, column.Collation)
 		}
@@ -145,7 +148,7 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
 	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	next.Index[column.Name] = len(next.Columns)
-	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
+	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
 	added := AddedColumn{Attribute: attribute, Column: column, Declaration: declaration, Value: sqltype.Null(usage.Type)}
@@ -172,21 +175,8 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 		added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
 	}
 	if declaration.DefaultExpr != nil {
-		node, err := h.BindDefault(auth, old, definition, declaration.DefaultExpr)
-		if err != nil {
-			return fail(AlterCookingError(err))
-		}
-		if !stored.OmitColumnDefault(view.Catalog, node, usage) {
-			persisted := catalog.ColumnDefault{Expression: node}
-			if _, err := (stored.ScalarRenderer{Definition: h.OperationDefinition(), ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(h.Context(), view.Catalog, node); err != nil {
-				return fail(AlterCookingError(err))
-			}
-			if next.ColumnMeta.Defaults == nil {
-				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
-			}
-			next.ColumnMeta.Defaults[attribute] = persisted
-			added.Expression = node
-			added.Dependencies, added.Consumer = persisted.Dependencies, old
+		if err := BindAddedDefault(h, auth, old, &next, definition, attribute, declaration.DefaultExpr, &added); err != nil {
+			return fail(err)
 		}
 	}
 	if h.Input().TypeDiagnosticName == nil && (sqltype.ContainsDomainConstraints(usage.Type) || added.Expression != nil && added.Expression.Properties().RuntimeDomainConversion) {
@@ -198,4 +188,28 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 		return fail(err)
 	}
 	return &next, added, nil
+}
+
+// BindAddedDefault binds the DEFAULT of one ADD COLUMN, persists its rendered
+// definition in next, and installs the row-fill recipe on added.
+func BindAddedDefault(h AlterHost, auth ddl.Authority, old, next *catalog.Relation, definition catalog.Column, attribute int32, raw parser.Expr, added *AddedColumn) error {
+	view := h.AccessView(auth)
+	node, err := h.BindDefault(auth, old, definition, raw)
+	if err != nil {
+		return AlterCookingError(err)
+	}
+	if stored.OmitColumnDefault(view.Catalog, node, definition.Usage) {
+		return nil
+	}
+	persisted := catalog.ColumnDefault{Expression: node}
+	if _, err := (stored.ScalarRenderer{Definition: h.OperationDefinition(), ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(h.Context(), view.Catalog, node); err != nil {
+		return AlterCookingError(err)
+	}
+	if next.ColumnMeta.Defaults == nil {
+		next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
+	}
+	next.ColumnMeta.Defaults[attribute] = persisted
+	added.Expression = node
+	added.Dependencies, added.Consumer = persisted.Dependencies, old
+	return nil
 }

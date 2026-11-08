@@ -303,3 +303,43 @@ func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operatio
 		}
 	}
 }
+
+func TestAlterAddColumnSerialCandidate(t *testing.T) {
+	e, scope, auth, old := alterAddUnitScope(t)
+	for _, name := range []string{"serial", "bigserial"} {
+		query := "ALTER TABLE t ADD b " + name
+		action := alterAddUnitAction(t, query)
+		next, added, err := tablecmds.AddColumnCandidate(e, scope, scope.Op, auth, old, action, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := sqltype.Int4
+		if name == "bigserial" {
+			want = sqltype.Int8
+		}
+		if len(next.Columns) != 2 || next.Columns[1].Usage.Type.ID() != want || added.Attribute != 4 || added.Column == nil || !added.Declaration.Serial || !added.Declaration.ColumnNotNull || added.Declaration.DefaultExpr != nil {
+			t.Fatal("serial candidate shape", next, added)
+		}
+		if _, exists := next.ColumnMeta.Defaults[added.Attribute]; exists {
+			t.Fatal("candidate bound a serial default", next.ColumnMeta.Defaults)
+		}
+		if action.Definition.TypeName.Name != name || added.Column.TypeName.Name != name || len(action.Definition.TypeName.ArrayBounds) != 0 {
+			t.Fatal("candidate lowered the parsed declaration", action.Definition.TypeName)
+		}
+	}
+	for _, tc := range []struct{ query, message, position string }{
+		{"ALTER TABLE t ADD b SERIAL NULL", `conflicting NULL/NOT NULL declarations for column "b" of table "t"`, strconv.Itoa(strings.Index("ALTER TABLE t ADD b SERIAL NULL", "NULL") + 1)},
+		{"ALTER TABLE t ADD b SERIAL DEFAULT 7", `multiple default values specified for column "b" of table "t"`, ""},
+		{"ALTER TABLE t ADD b SERIAL GENERATED ALWAYS AS IDENTITY", `both default and identity specified for column "b" of table "t"`, ""},
+	} {
+		action := alterAddUnitAction(t, tc.query)
+		_, _, err := tablecmds.AddColumnCandidate(e, scope, scope.Op, auth, old, action, nil)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != tc.message || diagnostic.Position != tc.position {
+			t.Fatal(err)
+		}
+	}
+	if len(old.Columns) != 1 || old.ColumnMeta.HighWater != 3 {
+		t.Fatal("serial candidate mutated the source relation", old)
+	}
+}

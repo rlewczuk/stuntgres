@@ -608,6 +608,14 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
 		}
 	}
+	// ADD COLUMN serials stage their owned sequences after the ADD pass so the
+	// SET DEFAULT pass below still observes the completed ADD definitions.
+	if slices.ContainsFunc(additions, func(added table.AddedColumn) bool { return added.Declaration.Serial }) {
+		stage = authorizedStage(e, stage, auth, op.Session)
+		if err := stageAddedSerials(e, scope, op, auth, stage, old, next, additions); err != nil {
+			return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
+		}
+	}
 	// SET DEFAULT is PostgreSQL's AT_PASS_ADD_OTHERCONSTR pass: it observes the
 	// columns and final types earlier passes produced, in textual order, and its
 	// change joins the same candidate, Finish and sole publication.

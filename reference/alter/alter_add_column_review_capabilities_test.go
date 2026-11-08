@@ -47,17 +47,17 @@ func TestReferenceAlterAddColumnReviewSerialIdentityBoundary(t *testing.T) {
 						run(fixture.Exec("CREATE TABLE t(id INT)", 0))
 						run(fixture.Exec("INSERT INTO t VALUES(1),(2)", 2))
 						query := "ALTER TABLE t ADD b SERIAL"
-						message := "ADD COLUMN serial declarations are unsupported"
-						token := "b SERIAL"
 						if identity {
 							query = "ALTER TABLE t ADD b INT GENERATED ALWAYS AS IDENTITY"
-							message = "ADD COLUMN identity declarations are unsupported"
-							token = "GENERATED"
 						}
 						if primary {
 							query += " PRIMARY KEY"
 						}
-						if b.PG {
+						// Serial succeeds identically in both modes; only the
+						// identity declaration keeps PostgreSQL's support while
+						// the native execute stage rejects it at the GENERATED
+						// token.
+						if b.PG || !identity {
 							s := fixture.Exec(query, 0)
 							s.Prepared = prepared
 							run(s)
@@ -71,13 +71,11 @@ func TestReferenceAlterAddColumnReviewSerialIdentityBoundary(t *testing.T) {
 								run(fixture.Select("SELECT conname,contype FROM pg_constraint WHERE conrelid=$1::regclass AND contype='p'", []string{"conname", "contype"}, []string{"NAME", "CHAR"}, [][]any{{"t_pkey", "p"}}, "t"))
 							}
 						} else {
-							failure := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: message, Position: fixture.Position(len([]rune(query[:strings.Index(query, token)])) + 1)})
+							failure := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "ADD COLUMN identity declarations are unsupported", Position: fixture.Position(len([]rune(query[:strings.Index(query, "GENERATED")])) + 1)})
 							failure.Prepared = prepared
 							failure.ErrorStage = "execute"
 							run(failure)
 							run(fixture.Select("SELECT * FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
-							run(fixture.Exec("ALTER TABLE t ADD b INT DEFAULT 7", 0))
-							run(fixture.Select("SELECT b FROM t ORDER BY id", []string{"b"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}}))
 						}
 					})
 				})

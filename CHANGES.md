@@ -1,5 +1,9 @@
 # Changes
 
+- Accept `smallserial`/`serial`/`bigserial` in `ALTER TABLE ... ADD COLUMN`
+  with an owned sequence, nextval default, existing-row fill and statement
+  atomicity.
+
 - Accept `PRIMARY KEY` as an inline `ALTER TABLE ... ADD COLUMN` column
   constraint: the column becomes the table key with implicit NOT NULL, the
   generated or spelled constraint/index name, the same-column UNIQUE/PRIMARY KEY
