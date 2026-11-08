@@ -409,7 +409,7 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 						expressionError = fmt.Errorf("stuntgres: invalid stored subquery")
 						return
 					}
-					if child.Kind != parser.SubqueryScalar && child.Kind != parser.SubqueryExists && len(child.Comparisons) != len(child.QueryPlan.Root.Schema()) {
+					if child.Kind != parser.SubqueryScalar && child.Kind != parser.SubqueryExists && child.Kind != parser.SubqueryArray && len(child.Comparisons) != len(child.QueryPlan.Root.Schema()) {
 						expressionError = fmt.Errorf("stuntgres: invalid stored comparison width")
 						return
 					}

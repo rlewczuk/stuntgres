@@ -33591,12 +33591,7 @@ sqldefault:
 	case 2339:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			l := sqllex.(*lexer)
-			if !l.readonlyRecipe {
-				l.failAt("42601", "syntax error at or near \"(\"", sqlDollar[2].parenthesizedQuery.Pos.Offset)
-				return 1
-			}
-			sqlVAL.expr = DeclarationArraySubqueryExpr{Query: sqlDollar[2].parenthesizedQuery.Query, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.expr = SubqueryExpr{Kind: SubqueryArray, Query: sqlDollar[2].parenthesizedQuery.Query, Pos: sqlDollar[1].tok.pos}
 		}
 	case 2340:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]

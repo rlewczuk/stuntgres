@@ -103,6 +103,12 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		if e.JSONArray != nil && !same(e.JSONArray.Input, o.JSONArray.Input) {
 			return false
 		}
+		if (e.Array == nil) != (o.Array == nil) {
+			return false
+		}
+		if e.Array != nil && (e.Array.Plan.Arrays() != o.Array.Plan.Arrays() || e.Array.Plan.ArgumentType() != o.Array.Plan.ArgumentType() || e.Array.Plan.ResultUsage() != o.Array.Plan.ResultUsage()) {
+			return false
+		}
 		if comparison == nil {
 			if e.QueryPlan.Root.(*plan.ProjectNode).Frame != o.QueryPlan.Root.(*plan.ProjectNode).Frame {
 				return false

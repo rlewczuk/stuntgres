@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
@@ -24,11 +25,12 @@ type SubqueryExpr struct {
 	PresenceOnly    bool
 	CTEEdge         bool // Analysis-only graph edge, never expression demand.
 	JSONArray       *SQLJSONArrayQuery
+	Array           *ArraySubqueryQuery
 	LeftExpansions  map[int]CompositeExpansionBinding // Analysis-only source associations.
 	LeftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
 	ErasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
 	UpdateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
-	InitPlan        bool                              // Scalar/EXISTS value fixed for one execution; see analyze.initPlanQuery.
+	InitPlan        bool                              // Scalar/EXISTS/ARRAY value fixed for one execution; see analyze.initPlanQuery.
 }
 
 func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -37,6 +39,21 @@ func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	return runtime.EvalSubquery(e)
+}
+
+// RebindArrayProvider rebuilds the immutable accumulator over the current
+// QueryPlan projection slot and usage. It is a no-op for non-ARRAY nodes.
+func (n SubqueryExpr) RebindArrayProvider(usage sqltype.Usage) (SubqueryExpr, error) {
+	if n.Array == nil {
+		return n, nil
+	}
+	project, ok := n.QueryPlan.Root.(*ProjectNode)
+	if !ok || project == nil || len(project.Schema()) != 1 {
+		return n, fmt.Errorf("stuntgres: invalid array subquery projection")
+	}
+	copy := n
+	copy.Array = &ArraySubqueryQuery{Plan: functions.NewArrayAggregateProvider(project.Schema()[0].Usage.Type, usage, n.Array.Plan.Arrays())}
+	return copy, nil
 }
 
 type SQLRoutineExpr struct {

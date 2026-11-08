@@ -31,6 +31,7 @@ const (
 	SubqueryAny
 	SubqueryAll
 	SubqueryRow
+	SubqueryArray // append last: preserve existing numeric identities
 )
 
 type SubqueryExpr struct {

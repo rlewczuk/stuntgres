@@ -64,8 +64,10 @@ ordinary assignments to an unreserved `security` variable.
   cancellation guard without moving the ordinary admission frontier.
   `ParseRoutineDeclarationBody` uses the same complete-input lexer/grammar with a
   private per-parse readonly recipe mode. It shares ordinary selected-call
-  arithmetic and retains ARRAY subqueries in a declaration-only node with the
-  actual inner SELECT. Ordinary SQL rejects that node's syntax. Ordinary
+  arithmetic. ARRAY subqueries are ordinary syntax in every parse mode; the
+  node is `SubqueryExpr{Kind: SubqueryArray}` with the real inner SELECT, and
+  the readonly entry retains the same node only for structural capture, so the
+  readonly mode no longer has a grammar effect. Ordinary
   `Parse`, `ParseWithOptions`, their options and prewalk
   behavior remain unchanged; this entry grants no executable admission or
   provider authority. The proc owner privately retains its syntax behind an

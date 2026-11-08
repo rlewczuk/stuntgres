@@ -284,6 +284,48 @@ func (c *Context) EvalReturningWholeRow(e plan.ReturningWholeRowExpr) (sqltype.V
 	return sqltype.OwnedCompositeValue(e.Usage.Type, fields)
 }
 
+func (c *Context) subqueryArray(e plan.SubqueryExpr, state *State, stage *Stage) (sqltype.Value, error) {
+	p := e.Array.Plan
+	if len(stage.Schema()) != 1 {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid array subquery width")
+	}
+	aggregate, err := p.Init(c.Context)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := sampleCheckpoint(c.Context); err != nil {
+		return sqltype.Value{}, err
+	}
+	var row [1]sqltype.Value
+	for {
+		present, err := stage.Next(c.Context, row[:])
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if !present {
+			value, err := p.Finalize(c.Context, aggregate)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if value.IsNull() {
+				// Zero accumulated rows: PostgreSQL constructs an empty array of
+				// the element type. A NULL element row is {NULL}, not empty.
+				value, err = sqltype.OwnedArrayValue(e.Usage.Type, nil, nil)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+			}
+			return value, sampleCheckpoint(c.Context)
+		}
+		if err := p.Advance(c.Context, aggregate, row[:], c); err != nil {
+			return sqltype.Value{}, err
+		}
+		if err := sampleCheckpoint(c.Context); err != nil {
+			return sqltype.Value{}, err
+		}
+	}
+}
+
 func (c *Context) subqueryJSONArray(e plan.SubqueryExpr, state *State, stage *Stage) (sqltype.Value, error) {
 	p := e.JSONArray
 	aggregate, err := p.Plan.Init(c.Context, c.FunctionJSONOutput())

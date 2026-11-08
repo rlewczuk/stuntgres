@@ -1235,6 +1235,16 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			}
 			n.JSONArray = &copy
 		}
+		if n.Array != nil {
+			rebuilt, failure := n.RebindArrayProvider(info.Usage)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if rebuilt.Array.Plan.ArgumentType() != n.Array.Plan.ArgumentType() || rebuilt.Array.Plan.ResultUsage() != n.Array.Plan.ResultUsage() {
+				changed = true
+				n = rebuilt
+			}
+		}
 		if !changed {
 			return node, false, nil
 		}

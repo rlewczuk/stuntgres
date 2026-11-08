@@ -303,6 +303,13 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if n.LeftConstructor != nil {
 			n.LeftConstructor = child(n.LeftConstructor)
 		}
+		if n.Array != nil {
+			rebuilt, failure := n.RebindArrayProvider(n.ResultUsage())
+			if failure != nil {
+				return nil, failure
+			}
+			n = rebuilt
+		}
 		next = n
 	case plan.UpdateOutputExpr:
 		next = n

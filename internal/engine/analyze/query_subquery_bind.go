@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
@@ -69,6 +70,47 @@ func (b *Binder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 	project := query.Root.(*plan.ProjectNode)
 	width := len(project.Schema())
 	usage := b.Type(sqltype.Bool).Usage()
+	if raw.Kind == parser.SubqueryArray {
+		if width != 1 {
+			return nil, expr.ErrorAt("42601", "subquery must return only one column", raw.Pos)
+		}
+		element := project.Schema()[0].Usage
+		arrays := false
+		if element.Type.IsArray() && !element.Type.IsCatalogVector() {
+			// A true array output promotes to the same array type one dimension
+			// higher (PostgreSQL get_promoted_array_type).
+			usage = element
+			arrays = true
+		} else {
+			array, ok := b.definitionArray(element.Type)
+			if element.Type.ID() == 2249 && element.Type.IsComposite() {
+				var failure error
+				array, failure = sqltype.Array(2287, "_record", element.Type)
+				if failure != nil {
+					return nil, failure
+				}
+				ok = true
+			}
+			if !ok {
+				return nil, expr.ErrorAt("42704", "could not find array type for data type "+b.DiagnosticTypeName(element.Type), parser.Position{})
+			}
+			if !array.Concrete() {
+				return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
+			}
+			usage = element
+			usage.Type = array
+		}
+		properties := QueryDemandProperties(project, false)
+		properties.StageDependent = true
+		e := plan.SubqueryExpr{
+			Info:      b.Info(usage, raw.Pos, properties),
+			Kind:      parser.SubqueryArray,
+			QueryPlan: query,
+			Array:     &plan.ArraySubqueryQuery{Plan: functions.NewArrayAggregateProvider(element.Type, usage, arrays)},
+		}
+		e.InitPlan = initPlanQuery(query, properties)
+		return e, nil
+	}
 	if raw.Kind == parser.SubqueryScalar {
 		if width != 1 {
 			return nil, expr.ErrorAt("42601", "subquery must return only one column", raw.Pos)

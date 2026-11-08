@@ -80,6 +80,8 @@ func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, err
 			text = "(" + label + ")"
 			if n.Kind == parser.SubqueryExists {
 				text = "EXISTS (" + label + ")"
+			} else if n.Kind == parser.SubqueryArray {
+				text = "ARRAY(" + label + ")"
 			} else if n.JSONArray != nil {
 				text = "JSON_ARRAY(" + label + ")"
 			} else if n.UpdateWidth != 0 {

@@ -18,9 +18,10 @@ func Parse(query string) ([]Statement, error) {
 	return ParseWithOptions(query, Options{StandardConformingStrings: true})
 }
 
-// ParseRoutineDeclarationBody retains readonly released declaration syntax,
-// including declaration-only ARRAY subqueries. It uses the ordinary lexer and
-// grammar; the resulting syntax grants no execution rights.
+// ParseRoutineDeclarationBody retains readonly released declaration syntax;
+// ARRAY subqueries keep their ordinary SubqueryExpr node for structural
+// capture. It uses the ordinary lexer and grammar; the resulting syntax grants
+// no execution rights.
 func ParseRoutineDeclarationBody(query string) ([]Statement, error) {
 	return parseWithOptions(query, Options{StandardConformingStrings: true}, true)
 }
@@ -54,7 +55,7 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 }
 
 func parseWithOptions(query string, options Options, readonlyRecipe bool) ([]Statement, error) {
-	l := &lexer{input: query, options: options, backslashEscapes: !options.StandardConformingStrings, readonlyRecipe: readonlyRecipe}
+	l := &lexer{input: query, options: options, backslashEscapes: !options.StandardConformingStrings}
 	if readonlyRecipe && options.Context != nil {
 		if err := options.Context.Err(); err != nil {
 			return nil, err

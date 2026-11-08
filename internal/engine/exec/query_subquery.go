@@ -243,6 +243,9 @@ func (c *Context) evalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err er
 	if e.JSONArray != nil {
 		return c.subqueryJSONArray(e, &state, &stage)
 	}
+	if e.Array != nil {
+		return c.subqueryArray(e, &state, &stage)
+	}
 	if e.Kind == parser.SubqueryExists && e.PresenceOnly {
 		_, present, failure := stage.NextOccurrence(c.Context)
 		if failure != nil {

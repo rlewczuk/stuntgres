@@ -177,12 +177,15 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if err != nil {
 			return "", true, err
 		}
-		if subquery.Kind == parser.SubqueryExists || subquery.Kind == parser.SubqueryScalar || subquery.Kind == parser.SubqueryRow && len(subquery.Comparisons) == 0 {
+		if subquery.Kind == parser.SubqueryExists || subquery.Kind == parser.SubqueryScalar || subquery.Kind == parser.SubqueryArray || subquery.Kind == parser.SubqueryRow && len(subquery.Comparisons) == 0 {
 			if action.policy.Rule {
 				return ruleSublinkSQL(subquery.Kind, "", "", text, subquery.Negate), true, nil
 			}
 			if subquery.Kind == parser.SubqueryExists {
 				return "EXISTS (" + text + ")", true, nil
+			}
+			if subquery.Kind == parser.SubqueryArray {
+				return "ARRAY(" + text + ")", true, nil
 			}
 			return "(" + text + ")", true, nil
 		}

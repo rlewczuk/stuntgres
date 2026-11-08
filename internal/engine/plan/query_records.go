@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -277,4 +278,10 @@ type SQLJSONArrayQuery struct {
 	Raw   parser.SQLJSONExpr
 	Input expr.Expr
 	Plan  sqltype.JSONArrayAggregatePlan
+}
+
+// ArraySubqueryQuery owns ARRAY(SELECT ...) accumulation. The provider belongs
+// to the immutable plan; its state belongs to one execution group.
+type ArraySubqueryQuery struct {
+	Plan *functions.ArrayAggregateProvider
 }

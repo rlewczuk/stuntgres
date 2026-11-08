@@ -181,14 +181,23 @@ func TestPgStatStatementsFingerprintUtilityExpressions(t *testing.T) {
 	}
 }
 
-func TestPgStatStatementsFingerprintUtilityRejectsDeclarationSyntax(t *testing.T) {
-	// Readonly declaration ARRAY(SELECT) cannot acquire executable utility
-	// identity by falling back to raw hashing an unfamiliar node.
-	defer func() {
-		got, ok := recover().(string)
-		if !ok || got != "stuntgres: unclassified utility syntax parser.DeclarationArraySubqueryExpr" {
-			t.Fatalf("unexpected unsupported syntax signal: %q", got)
+func TestPgStatStatementsFingerprintUtilityArraySubquery(t *testing.T) {
+	// ARRAY(SELECT ...) is ordinary parsed syntax; its utility identity is the
+	// SubqueryExpr projection, distinct from a scalar subquery's identity.
+	seen := make(map[int64]string, 2)
+	for _, source := range []string{"SELECT ARRAY(SELECT 1)", "SELECT (SELECT 1)"} {
+		statements, err := parser.Parse(source)
+		if err != nil || len(statements) != 1 {
+			t.Fatalf("parse %q: %v", source, err)
 		}
-	}()
-	analyze.JumbleUtility(&parser.Select{Targets: []parser.Expr{parser.DeclarationArraySubqueryExpr{}}})
+		jumble, _ := analyze.JumbleUtility(statements[0])
+		id := jumble.QueryID()
+		if id == 0 {
+			t.Fatalf("%q lost open utility identity", source)
+		}
+		if other, ok := seen[id]; ok {
+			t.Fatalf("%q shares identity with %q", source, other)
+		}
+		seen[id] = source
+	}
 }

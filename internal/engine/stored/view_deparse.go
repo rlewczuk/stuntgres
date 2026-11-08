@@ -1005,6 +1005,9 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if e.Kind == parser.SubqueryScalar {
 			return "(" + query + ")", nil
 		}
+		if e.Kind == parser.SubqueryArray {
+			return "ARRAY(" + query + ")", nil
+		}
 		if e.Kind == parser.SubqueryExists {
 			return "EXISTS (" + query + ")", nil
 		}

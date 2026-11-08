@@ -46,6 +46,10 @@ func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		if r.Kind == parser.SubqueryExists {
 			return "exists", true
 		}
+		if r.Kind == parser.SubqueryArray {
+			// A strong name: PostgreSQL's ARRAY_SUBLINK keeps "array" through a cast.
+			return "array", true
+		}
 		if r.Kind == parser.SubqueryScalar {
 			if child, ok := bound.(plan.SubqueryExpr); ok && len(child.QueryPlan.Root.Schema()) == 1 {
 				name := child.QueryPlan.Root.Schema()[0].Name

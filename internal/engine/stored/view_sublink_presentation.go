@@ -27,6 +27,8 @@ func ruleSublinkSQL(kind parser.SubqueryKind, operator, left, query string, nega
 		text = "(" + query + ")"
 	case kind == parser.SubqueryExists:
 		text = "(EXISTS (" + query + "))"
+	case kind == parser.SubqueryArray:
+		text = "ARRAY(" + query + ")"
 	default:
 		switch kind {
 		case parser.SubqueryAll:

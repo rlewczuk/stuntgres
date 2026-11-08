@@ -112,7 +112,7 @@ END
 			if err != nil || !strings.HasPrefix(tree, "{RoutineDeclarationBody {parser.Select ") {
 				t.Fatalf("lost parsed structural owner: %q, %v", tree, err)
 			}
-			if d.Address().ObjectID == 6183 && !strings.Contains(tree, "parser.DeclarationArraySubqueryExpr") {
+			if d.Address().ObjectID == 6183 && !strings.Contains(tree, "parser.SubqueryExpr Kind 5") {
 				t.Fatal("debug display replaced genuine parsed array query")
 			}
 			if d.Address().ObjectID == 6184 && !strings.Contains(tree, "parser.StarExpr") {
