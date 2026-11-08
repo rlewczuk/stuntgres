@@ -200,7 +200,7 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 		t.Run(map[bool]string{false: "unique", true: "primary"}[primary], func(t *testing.T) {
 			e, s, _, idx := usingIndexUnitFixture(t)
 			// Existing NN and descriptor comment are created through their existing real
-			// providers. COMMENT ON INDEX is intentionally not a native SQL capability.
+			// providers; the public COMMENT ON INDEX witness lives in reference/admin.
 			usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}})
 			copyIndex := *idx
 			copyIndex.ObjectRevision++

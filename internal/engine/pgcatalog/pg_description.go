@@ -96,6 +96,16 @@ func capturePGDescription(in Input) ([][]sqltype.Value, error) {
 			}
 		}
 	}
+	// Triggers are relation-owned metadata, not descriptors: their comments
+	// project as pg_trigger (2620) rows through the liveness-filtered walk.
+	if err := catalog.VisitTriggerComments(view, func(oid ids.OID, text string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return appendDescription(ids.ObjectAddress{ClassID: ids.TriggerClassID, ObjectID: oid}, 0, text)
+	}); err != nil {
+		return nil, err
+	}
 	return rows, nil
 }
 

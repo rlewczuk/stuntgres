@@ -9,11 +9,7 @@ func TestReferencePrimaryKeyLike(t *testing.T) {
 	fixture.PrimaryKeyReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 		run(fixture.Exec("CREATE TABLE source(a INT,b TEXT,CONSTRAINT source_pk PRIMARY KEY(a,b))", 0))
-		// SQL index comments are an external capability; native descriptor
-		// comment/copy preservation has a package-function counterpart.
-		if b.PG {
-			run(fixture.Exec("COMMENT ON INDEX source_pk IS 'source primary key'", 0))
-		}
+		run(fixture.Exec("COMMENT ON INDEX source_pk IS 'source primary key'", 0))
 		run(fixture.Exec("INSERT INTO source VALUES(1,'x')", 1))
 		source := fixture.PrimaryKeyReferenceIDs(t, p, b, "source_pk")
 		run(fixture.Exec("CREATE TABLE plain(LIKE source)", 0))
@@ -35,11 +31,7 @@ func TestReferencePrimaryKeyLike(t *testing.T) {
 			fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, true, "SELECT * FROM "+name, []string{"a", "b"}, []string{"INT4", "TEXT"}, []bool{false, false}, 1)
 		}
 		run(fixture.Select("SELECT obj_description('copied_pkey'::regclass,'pg_class') AS comment", []string{"comment"}, []string{"TEXT"}, [][]any{{nil}}))
-		var copiedComment any
-		if b.PG {
-			copiedComment = "source primary key"
-		}
-		run(fixture.Select("SELECT obj_description('allcopy_pkey'::regclass,'pg_class') AS comment", []string{"comment"}, []string{"TEXT"}, [][]any{{copiedComment}}))
+		run(fixture.Select("SELECT obj_description('allcopy_pkey'::regclass,'pg_class') AS comment", []string{"comment"}, []string{"TEXT"}, [][]any{{"source primary key"}}))
 		for _, c := range []struct{ table, ddl, unique string }{
 			{"equivalent", "CREATE TABLE equivalent(LIKE source INCLUDING INDEXES,CONSTRAINT chosen UNIQUE(a,b))", "chosen"},
 			{"reversecopy", "CREATE TABLE reversecopy(CONSTRAINT chosen_reverse UNIQUE(a,b),LIKE source INCLUDING INDEXES)", "chosen_reverse"},

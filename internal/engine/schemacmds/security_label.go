@@ -17,7 +17,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func labelError(code, message string) error {
+// utilityError is the positionless SQL error shared by COMMENT and SECURITY
+// LABEL: target resolution is a runtime decision with no expression position.
+func utilityError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 
@@ -70,7 +72,7 @@ func ExecuteSecurityLabel(e *core.Engine, op *session.Operation, stmt *parser.Se
 		err = checkSecurityLabelColumn(current.Catalog, current.Catalog.MustRelation(object))
 	}
 	if err == nil && catalog.SepgsqlClass(current.Catalog.Get(object), target.SubID) == "" {
-		err = labelError("0A000", "SELinux: security labels are not supported for this type of object")
+		err = utilityError("0A000", "SELinux: security labels are not supported for this type of object")
 	}
 	var stage *core.CatalogStage
 	if err == nil {
@@ -99,7 +101,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 		generic = true
 	}
 	if !generic {
-		return ids.ObjectAddress{}, labelError("42809", "security labels are not supported for this type of object")
+		return ids.ObjectAddress{}, utilityError("42809", "security labels are not supported for this type of object")
 	}
 	host := core.DDLHost{E: e, Op: op}
 	var target ids.ObjectAddress
@@ -127,7 +129,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 			expected = catalog.ForeignRelation
 		}
 		if expected != 0 && relation.RelationKind != expected && !(expected == catalog.ViewRelation && relation.RelationKind == catalog.CatalogRelation && relation.CatalogView) {
-			return target, labelError("42809", fmt.Sprintf(`"%s" is not a %s`, relation.Name(), s.Kind))
+			return target, utilityError("42809", fmt.Sprintf(`"%s" is not a %s`, relation.Name(), s.Kind))
 		}
 		if s.Kind == "column" {
 			column := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -141,7 +143,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 					}
 				}
 				if target.SubID == 0 {
-					return target, labelError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
+					return target, utilityError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
 				}
 			}
 		}
@@ -167,7 +169,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 			if s.Kind == "schema" {
 				code = "3F000"
 			}
-			return target, labelError(code, fmt.Sprintf(`%s "%s" does not exist`, s.Kind, s.Name.Parts[0].Text))
+			return target, utilityError(code, fmt.Sprintf(`%s "%s" does not exist`, s.Kind, s.Name.Parts[0].Text))
 		}
 	case "publication", "event trigger", "subscription":
 		class := ids.PublicationClassID
@@ -182,7 +184,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 		}
 		target = auth.Catalog.NameAddress(key)
 		if target.ObjectID == 0 {
-			return target, labelError("42704", fmt.Sprintf(`%s "%s" does not exist`, s.Kind, s.Name.Parts[0].Text))
+			return target, utilityError("42704", fmt.Sprintf(`%s "%s" does not exist`, s.Kind, s.Name.Parts[0].Text))
 		}
 	case "large object":
 		oidType, _ := auth.Catalog.LookupType(sqltype.Oid)
@@ -201,7 +203,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 	case "role":
 		principal, ok := auth.Roles.Lookup(s.Name.Parts[0].Text)
 		if !ok {
-			return target, labelError("42704", fmt.Sprintf(`role "%s" does not exist`, s.Name.Parts[0].Text))
+			return target, utilityError("42704", fmt.Sprintf(`role "%s" does not exist`, s.Name.Parts[0].Text))
 		}
 		actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
@@ -222,7 +224,7 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 				return target, role.Diagnostic("42501", "permission denied", fmt.Sprintf(`The current user must have the ADMIN option on role "%s".`, principal.Name))
 			}
 		}
-		return target, labelError("0A000", "SELinux: security labels are not supported for this type of object")
+		return target, utilityError("0A000", "SELinux: security labels are not supported for this type of object")
 	case "type", "domain":
 		id, err := (RoutineHost{host}).ResolveRegtype(auth, s.Type)
 		if err != nil {
@@ -231,10 +233,10 @@ func resolveSecurityLabel(e *core.Engine, op *session.Operation, auth core.Autho
 		target = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}
 		typ := auth.Catalog.MustType(target)
 		if s.Kind == "domain" && !typ.SQLType.IsDomain() {
-			return target, labelError("42809", fmt.Sprintf(`"%s" is not a domain`, securityLabelTypeName(s.Type)))
+			return target, utilityError("42809", fmt.Sprintf(`"%s" is not a domain`, utilityTypeName(s.Type)))
 		}
 	default:
-		return target, labelError("0A000", "SELinux: security labels are not supported for this type of object")
+		return target, utilityError("0A000", "SELinux: security labels are not supported for this type of object")
 	}
 	return target, checkSecurityLabelOwnership(op, auth, target)
 }
@@ -249,9 +251,10 @@ func checkSecurityLabelOwnership(op *session.Operation, auth core.AuthorizationV
 	return auth.Check(access.Requirement{Object: auth.View.Ref(target), OwnerOnly: true})
 }
 
-// TypeNameToString uses decoded written qualification, not a selected regtype's
-// display name. This is diagnostic spelling only; ResolveRegtype owns lookup.
-func securityLabelTypeName(raw parser.TypeName) string {
+// utilityTypeName returns a written type spelling for utility diagnostics:
+// decoded qualification, not a selected regtype's display name. ResolveRegtype
+// owns lookup.
+func utilityTypeName(raw parser.TypeName) string {
 	raw = parser.UtilityTypeName(raw)
 	var name strings.Builder
 	if raw.System {

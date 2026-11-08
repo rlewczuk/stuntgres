@@ -43,7 +43,8 @@ Lifecycle checks independently assert exact created-relation membership,
 kinds/persistence, index association/definition, sequence defaults, materialized-view
 definition/unpopulated state and table column definitions before replay and after
 both native Restore/redump cycles. They also retain function ACL/cost/parallel
-metadata and supported table comments; `COMMENT ON FUNCTION` is not native syntax.
+metadata and supported table comments; function comments are covered by
+[reference/admin](../admin/README.md).
 Configure routine cost/parallel attributes before binding stored callers: those
 callers retain their selected declaration, and changing it afterwards correctly
 triggers the stale-carrier fence. The rollback witness checks absence in

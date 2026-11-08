@@ -63,6 +63,7 @@ func TestTrustedRestoreCommentAdmission(t *testing.T) {
 		stmt parser.Statement
 	}{
 		{"role", &parser.Comment{Kind: parser.CommentRole}},
+		{"type", &parser.Comment{Kind: parser.CommentType}},
 		{"zero-kind", &parser.Comment{}},
 		{"unknown-kind", &parser.Comment{Kind: parser.CommentKind(255)}},
 		{"non-comment", &parser.CreateTable{}},

@@ -28,7 +28,7 @@ func ReplacementRead(stmt parser.Statement) bool {
 	case *parser.Analyze, *parser.Explain, *parser.Call, *parser.Copy, *parser.Insert, *parser.Update, *parser.Select, *parser.Delete, *parser.Merge, *parser.Discard, *parser.Truncate:
 		return true
 	case *parser.Comment:
-		return s.Kind == parser.CommentTable || s.Kind == parser.CommentView || s.Kind == parser.CommentForeignTable || s.Kind == parser.CommentColumn
+		return s.Kind == parser.CommentTable || s.Kind == parser.CommentView || s.Kind == parser.CommentForeignTable || s.Kind == parser.CommentColumn || s.Kind == parser.CommentIndex || s.Kind == parser.CommentTrigger
 	}
 	return false
 }

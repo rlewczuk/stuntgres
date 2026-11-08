@@ -1953,14 +1953,33 @@ const (
 	CommentExtension
 	CommentView
 	CommentTextSearchDictionary
+	CommentType
+	CommentDomain
+	CommentIndex
+	CommentTrigger
+	CommentFunction
+	CommentProcedure
+	CommentRoutine
 )
 
 type Comment struct {
 	Kind CommentKind
+	// Name is the object name for every kind that addresses one by name: the
+	// relation/column, schema, role, extension and dictionary targets, the
+	// trigger name for COMMENT ON TRIGGER, and the index name for
+	// COMMENT ON INDEX. TYPE, DOMAIN and the routine kinds use Type or
+	// Routine instead.
 	Name ObjectName
-	Text string
-	Null bool
-	Pos  Position
+	// Type is the standalone type grammar's target for TYPE and DOMAIN.
+	Type TypeName
+	// Routine is the GRANT routine signature target for FUNCTION, PROCEDURE
+	// and ROUTINE.
+	Routine GrantRoutineTarget
+	// Table is the relation a commented trigger belongs to.
+	Table ObjectName
+	Text  string
+	Null  bool
+	Pos   Position
 }
 
 func (*Comment) statement() {}

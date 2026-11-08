@@ -7,7 +7,7 @@ import (
 )
 
 func TestCommentExplicitUtilityAdmission(t *testing.T) {
-	for _, kind := range []parser.CommentKind{parser.CommentTable, parser.CommentView, parser.CommentColumn, parser.CommentForeignTable, parser.CommentSchema, parser.CommentRole, parser.CommentSequence, parser.CommentExtension, parser.CommentTextSearchDictionary} {
+	for _, kind := range []parser.CommentKind{parser.CommentTable, parser.CommentView, parser.CommentColumn, parser.CommentForeignTable, parser.CommentSchema, parser.CommentRole, parser.CommentSequence, parser.CommentExtension, parser.CommentTextSearchDictionary, parser.CommentType, parser.CommentDomain, parser.CommentIndex, parser.CommentTrigger, parser.CommentFunction, parser.CommentProcedure, parser.CommentRoutine} {
 		if ExplicitUtility(&parser.Comment{Kind: kind}) {
 			t.Errorf("shipped comment kind %d remains excluded", kind)
 		}

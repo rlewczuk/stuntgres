@@ -32,8 +32,8 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			}
 			idx := e.Catalog.State.MustRelation(indexAddress)
 			store, root := e.Storage.Relations[ref.Address], e.Storage.IndexRoots[indexAddress]
-			// Populate representable descriptor comment through the existing stage provider;
-			// public COMMENT ON INDEX is intentionally absent.
+			// Seed the descriptor comment through the stage provider; the public
+			// COMMENT ON INDEX witness lives in reference/admin.
 			copied := *idx
 			copied.Comment = "backing comment"
 			stage := e.BeginCatalogStage(e.CatalogRead())

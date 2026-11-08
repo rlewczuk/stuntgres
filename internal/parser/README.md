@@ -36,7 +36,10 @@ shared source/expression/parameter traversal. Method capability, argument types
 and REPEATABLE support are analysis decisions, not keyword/name dispatch.
 
 COMMENT retains a distinct ordinary VIEW target alongside the other shipped
-comment kinds. Its qualified name and string/NULL metadata use the shared
+comment kinds, and adds TYPE/DOMAIN (the standalone type grammar's aliases,
+arrays and modifiers), INDEX, TRIGGER (`name ON relation`) and
+FUNCTION/PROCEDURE/ROUTINE (the GRANT routine signature grammar, with an
+optional argument list). Every target's string/NULL metadata uses the shared
 comment grammar; target resolution, kind and ownership checks remain runtime
 decisions rather than parser authority.
 

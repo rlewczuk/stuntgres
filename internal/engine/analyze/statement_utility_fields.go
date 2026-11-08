@@ -985,6 +985,9 @@ func (j *StatementJumble) utilityStatementFields(node any, anchor *int) bool {
 		j.utilityPosition(n.Pos, anchor)
 		j.number(uint64(n.Kind))
 		j.utilitySyntax(&n.Name, anchor)
+		j.utilitySyntax(&n.Type, anchor)
+		j.utilitySyntax(&n.Routine, anchor)
+		j.utilitySyntax(&n.Table, anchor)
 		j.text(n.Text)
 		j.flag(n.Null)
 	case parser.Comment:

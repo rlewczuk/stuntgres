@@ -41,9 +41,9 @@ func AdmitTarget(entries []TargetEntry, stmt parser.Statement, execute bool) (Ta
 }
 
 // TargetAdmission is the TargetEntry of the table statements: CREATE TABLE
-// ... PARTITION OF, the ALTER TABLE family, COMMENT ON TABLE, VIEW or COLUMN, and
-// the relation targets of CREATE INDEX and ALTER ... OWNER TO, whose packages
-// sit below table.
+// ... PARTITION OF, the ALTER TABLE family, COMMENT ON TABLE, VIEW, COLUMN,
+// INDEX or TRIGGER, and the relation targets of CREATE INDEX and ALTER ...
+// OWNER TO, whose packages sit below table.
 func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) {
 	if !execute {
 		return Target{}, false, nil
@@ -78,17 +78,26 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		}
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.Comment:
-		if v.Kind != parser.CommentTable && v.Kind != parser.CommentView && v.Kind != parser.CommentForeignTable && v.Kind != parser.CommentColumn {
-			return Target{}, false, nil
-		}
-		name := v.Name
-		if v.Kind == parser.CommentColumn {
-			if len(name.Parts) < 2 {
-				return Target{}, false, sqlError("42601", "column name must be qualified")
+		switch v.Kind {
+		case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn:
+			name := v.Name
+			if v.Kind == parser.CommentColumn {
+				if len(name.Parts) < 2 {
+					return Target{}, false, sqlError("42601", "column name must be qualified")
+				}
+				name.Parts = name.Parts[:len(name.Parts)-1]
 			}
-			name.Parts = name.Parts[:len(name.Parts)-1]
+			return Target{Name: name, Mode: lock.ShareUpdateExclusive}, true, nil
+		case parser.CommentIndex:
+			// The comment is stored on the index's relation descriptor, so the
+			// admitted target is the index itself at the descriptor write lock.
+			return Target{Name: v.Name, Mode: lock.ShareUpdateExclusive}, true, nil
+		case parser.CommentTrigger:
+			// pg_trigger is relation-owned metadata in this engine: the table's
+			// descriptor replacement takes the same lock as COMMENT ON TABLE.
+			return Target{Name: v.Table, Mode: lock.ShareUpdateExclusive}, true, nil
 		}
-		return Target{Name: name, Mode: lock.ShareUpdateExclusive}, true, nil
+		return Target{}, false, nil
 	case *parser.AlterTable:
 		return Target{Name: v.Name, Mode: AlterTableLockMode(v), OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.AlterTableAttachPartition:

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -86,6 +87,31 @@ func stageCommentLocked(e *core.Engine, scope *core.StatementScope, s *parser.Co
 		if resolved.Domain() == nil {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf(`text search dictionary "%s" does not exist`, catalog.ObjectNameText(s.Name))}
 		}
+	}
+	host := RoutineHost{core.DDLHost{E: e, Op: op}}
+	switch s.Kind {
+	case parser.CommentType, parser.CommentDomain:
+		// REG_18_6 COMMENT resolves the type through LookupTypeName without an
+		// expression position; the shared regtype seam owns 42704/3F000/USAGE.
+		id, err := host.ResolveRegtype(auth, s.Type)
+		if err != nil {
+			return nil, err
+		}
+		if s.Kind == parser.CommentDomain {
+			typ := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+			if !typ.SQLType.IsDomain() {
+				return nil, utilityError("42809", fmt.Sprintf(`"%s" is not a domain`, utilityTypeName(s.Type)))
+			}
+		}
+		resolved = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+	case parser.CommentFunction, parser.CommentProcedure, parser.CommentRoutine:
+		// Shared GRANT routine identity owns bare-name/args/wrong-kind and
+		// ambiguity texts; ROUTINE selects both routine kinds.
+		proc, _, err := routine.ResolveUtilityRoutine(host, auth, role.CommentRoutineKind(s.Kind), s.Routine)
+		if err != nil {
+			return nil, err
+		}
+		resolved = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), proc.Address())
 	}
 	var target ids.ObjectAddress
 	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, resolved, text, e.Catalog.RevisionLocked, &target)

@@ -42,12 +42,27 @@ func PlanRoleComment(view access.View, name, text string) (*access.RoleRecord, e
 	return view.RoleRecord.WithRoot(next), nil
 }
 
+// CommentRoutineKind names the routine kind a COMMENT statement wrote.
+// PostgreSQL's utility identity always uses the "function" noun for missing
+// targets; PROCEDURE and ROUTINE only change wrong-kind and ownership texts.
+func CommentRoutineKind(k parser.CommentKind) string {
+	switch k {
+	case parser.CommentProcedure:
+		return "procedure"
+	case parser.CommentRoutine:
+		return "routine"
+	}
+	return "function"
+}
+
 // PlanObjectComment decides COMMENT ON a supported local object: it resolves
-// the target (relations and dictionaries through resolved), checks schema USAGE
-// where applicable and ownership, and returns an immutable replacement with a
-// new revision. domain mints references; the engine stages and publishes it.
+// the target (relations, dictionaries, types, routines and triggers through
+// resolved), checks schema USAGE where applicable and ownership, and returns an
+// immutable replacement with a new revision. domain mints references; the
+// engine stages and publishes it.
 func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, resolved ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error), target *ids.ObjectAddress) (catalog.Descriptor, error) {
 	var ref ids.ObjectRef
+	var triggerOID ids.OID
 	switch s.Kind {
 	case parser.CommentSchema:
 		a, ok := view.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
@@ -70,6 +85,36 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		if err := view.CanUse(env, domain.Ref(ref.Epoch, dictionary.Namespace())); err != nil {
 			return nil, err
 		}
+	case parser.CommentType, parser.CommentDomain:
+		ref = resolved
+		if ref.Domain() == nil {
+			return nil, fmt.Errorf("stuntgres: COMMENT type reference is missing")
+		}
+	case parser.CommentFunction, parser.CommentProcedure, parser.CommentRoutine:
+		ref = resolved
+		if ref.Domain() == nil {
+			return nil, fmt.Errorf("stuntgres: COMMENT routine reference is missing")
+		}
+	case parser.CommentIndex:
+		ref = resolved
+		if ref.Domain() == nil {
+			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
+		}
+		if relation := view.Catalog.MustRelation(ref.Address); relation.RelationKind != catalog.IndexRelation {
+			return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, relation.Name()))
+		}
+	case parser.CommentTrigger:
+		ref = resolved
+		if ref.Domain() == nil {
+			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
+		}
+		relation := view.Catalog.MustRelation(ref.Address)
+		name := s.Name.Parts[0].Text
+		oid, ok := catalog.TriggerOIDByName(view.Catalog, relation, name)
+		if !ok {
+			return nil, sqlError("42704", fmt.Sprintf(`trigger "%s" for table "%s" does not exist`, name, relation.Name()))
+		}
+		triggerOID = oid
 	case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn:
 		ref = resolved
 		if ref.Domain() == nil {
@@ -113,10 +158,19 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		return nil, sqlError("0A000", "COMMENT object kind is unsupported")
 	}
 	requirement := access.Requirement{Object: ref, OwnerOnly: true}
-	if s.Kind == parser.CommentTextSearchDictionary {
+	switch s.Kind {
+	case parser.CommentTextSearchDictionary:
 		// Released object-address ownership reports the supplied name list,
 		// independently of the resolved descriptor's canonical local name.
 		requirement.OwnerName = &s.Name
+	case parser.CommentTrigger:
+		// pg_trigger ownership is the table's; PG names the relation.
+		requirement.OwnerNoun = "relation"
+	case parser.CommentFunction, parser.CommentProcedure, parser.CommentRoutine:
+		// PG distinguishes the written routine kind in the denial text while
+		// the target remains the selected procedure.
+		requirement.OwnerNoun = CommentRoutineKind(s.Kind)
+		requirement.OwnerName = &s.Routine.Name
 	}
 	if err := view.Check(env, requirement); err != nil {
 		return nil, err
@@ -139,6 +193,16 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		n.Comment = text
 		n.ObjectRevision = stamp
 		updated = &n
+	case *catalog.Type:
+		n := *d
+		n.Comment = text
+		n.ObjectRevision = stamp
+		updated = &n
+	case *catalog.Procedure:
+		n := *d
+		n.Comment = text
+		n.ObjectRevision = stamp
+		updated = &n
 	case *catalog.TSDictionary:
 		n := *d
 		n.Comment = text
@@ -147,7 +211,21 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 	case *catalog.Relation:
 		n := *d
 		n.ObjectRevision = stamp
-		if ref.Address.SubID == 0 {
+		if s.Kind == parser.CommentTrigger {
+			comments := make(map[ids.OID]string, len(d.TriggerComments)+1)
+			for oid, value := range d.TriggerComments {
+				comments[oid] = value
+			}
+			if text == "" {
+				delete(comments, triggerOID)
+			} else {
+				comments[triggerOID] = text
+			}
+			if len(comments) == 0 {
+				comments = nil
+			}
+			n.TriggerComments = comments
+		} else if ref.Address.SubID == 0 {
 			n.Comment = text
 		} else {
 			n.ColumnMeta.Comments = make(map[int32]string, len(d.ColumnMeta.Comments)+1)
@@ -162,6 +240,11 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		}
 		updated = &n
 	}
-	*target = ref.Address
+	if s.Kind == parser.CommentTrigger {
+		// The DDL command addresses the pg_trigger row, as ALTER TRIGGER does.
+		*target = ids.ObjectAddress{ClassID: ids.TriggerClassID, ObjectID: triggerOID}
+	} else {
+		*target = ref.Address
+	}
 	return updated, nil
 }

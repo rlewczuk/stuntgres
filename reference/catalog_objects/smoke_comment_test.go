@@ -320,39 +320,37 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 					t.Fatal("rolled-back private comment changed committed text")
 				}
 				comment("SELECT obj_description('locked'::regclass,'pg_class')", "obj_description", "new")
-				for _, q := range []string{"COMMENT ON TYPE integer IS 'x'", "COMMENT ON DATABASE d IS 'x'"} {
-					var err error
-					if backend.PG && strings.Contains(q, "TYPE") {
-						tx, beginErr := a.BeginTx(ctx, nil)
-						if beginErr != nil {
-							t.Fatal(beginErr)
-						}
-						_, err = tx.ExecContext(ctx, q)
-						if rollbackErr := tx.Rollback(); rollbackErr != nil {
-							t.Fatal(rollbackErr)
-						}
-					} else if backend.PG {
-						// PostgreSQL treats a missing database comment as a WARNING
-						// so pg_restore can consume comments naming an old database.
-						var notices []fixture.Diagnostic
-						_, session, recorder := fixture.NoticeReferencePool(t, p, true, &notices)
-						fixture.RunStep(t, ctx, session, recorder, fixture.Exec(q, 0))
-						want := []fixture.Diagnostic{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "3D000", Message: `database "d" does not exist`}}
-						if !reflect.DeepEqual(notices, want) {
-							t.Fatalf("%s warnings %#v want %#v", q, notices, want)
-						}
-					} else {
-						_, err = a.ExecContext(ctx, q)
+				// PostgreSQL treats a missing database comment as a WARNING
+				// so pg_restore can consume comments naming an old database.
+				if backend.PG {
+					var notices []fixture.Diagnostic
+					_, session, recorder := fixture.NoticeReferencePool(t, p, true, &notices)
+					fixture.RunStep(t, ctx, session, recorder, fixture.Exec("COMMENT ON DATABASE d IS 'x'", 0))
+					want := []fixture.Diagnostic{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "3D000", Message: `database "d" does not exist`}}
+					if !reflect.DeepEqual(notices, want) {
+						t.Fatalf("COMMENT ON DATABASE warnings %#v want %#v", notices, want)
 					}
-					if !backend.PG {
-						var d *stuntgres.Error
-						if !errors.As(err, &d) || d.Code != "0A000" {
-							t.Fatal(q, err)
-						}
-					} else if err != nil {
-						t.Fatal(q, err)
+				} else {
+					_, err := a.ExecContext(ctx, "COMMENT ON DATABASE d IS 'x'")
+					var d *stuntgres.Error
+					if !errors.As(err, &d) || d.Code != "0A000" {
+						t.Fatal("COMMENT ON DATABASE", err)
 					}
 				}
+				// COMMENT ON TYPE is a supported object kind now. The builtin
+				// integer description is part of the shared oracle seed, so the
+				// write and the removal both live in one rolled-back transaction.
+				if _, err := a.ExecContext(ctx, "BEGIN"); err != nil {
+					t.Fatal(err)
+				}
+				exec(a, "COMMENT ON TYPE integer IS 'x'", false)
+				comment("SELECT obj_description('integer'::regtype,'pg_type')", "obj_description", "x")
+				exec(a, "COMMENT ON TYPE integer IS NULL", false)
+				comment("SELECT obj_description('integer'::regtype,'pg_type')", "obj_description", nil)
+				if _, err := a.ExecContext(ctx, "ROLLBACK"); err != nil {
+					t.Fatal(err)
+				}
+				comment("SELECT obj_description('integer'::regtype,'pg_type')", "obj_description", "-2 billion to 2 billion integer, 4-byte storage")
 			})
 		})
 	}

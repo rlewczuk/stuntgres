@@ -29,6 +29,16 @@ func CommentText(view catalog.Read, roles authorization.Read, kind functions.Com
 				}
 			}
 		}
+		// Trigger comments are relation-owned, so they are not descriptors;
+		// their candidates carry pg_trigger (2620) in the same tie-break.
+		if err := catalog.VisitTriggerComments(view, func(triggerOID ids.OID, candidate string) error {
+			if ids.OID(oid) == triggerOID && (text == "" || ids.TriggerClassID < class) {
+				text, class = candidate, ids.TriggerClassID
+			}
+			return nil
+		}); err != nil {
+			return "", err
+		}
 	case functions.ColumnDescription:
 		sub, err := values[1].Integer()
 		if err != nil {
@@ -60,8 +70,12 @@ func CommentText(view catalog.Read, roles authorization.Read, kind functions.Com
 				class = ids.TSDictionaryClassID
 			case "pg_proc":
 				class = ids.ProcedureClassID
+			case "pg_trigger":
+				class = ids.TriggerClassID
 			}
-			if class != 0 {
+			if class == ids.TriggerClassID {
+				text, _ = catalog.TriggerCommentText(view, ids.OID(oid))
+			} else if class != 0 {
 				text = pgcatalog.DescriptorComment(view.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}), 0)
 			}
 		}

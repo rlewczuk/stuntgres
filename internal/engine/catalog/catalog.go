@@ -89,8 +89,13 @@ type Relation struct {
 	Populated         bool    // Independent of stored row count, including populated-empty MVs.
 	Rules             RulesPayload
 	Triggers          TriggersPayload
-	Foreign           *ForeignTableDefinition
-	OnCommit          parser.OnCommitAction
+	// TriggerComments is relation-owned COMMENT ON TRIGGER metadata keyed by
+	// the live pg_trigger OID. Writers copy the map before mutating; a key is
+	// meaningful only while a payload or foreign-key trigger fact still owns
+	// the OID, so a dropped trigger's entry is inert and never reused.
+	TriggerComments map[ids.OID]string
+	Foreign         *ForeignTableDefinition
+	OnCommit        parser.OnCommitAction
 }
 
 // ColumnMetadata holds per-attribute metadata keyed by attribute number,

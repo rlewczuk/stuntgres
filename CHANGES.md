@@ -1,5 +1,17 @@
 # Changes
 
+- Accept `COMMENT ON TYPE` (enum, composite, range, table row type, array and
+  builtin), `DOMAIN`, `INDEX`, `TRIGGER` and `FUNCTION`/`PROCEDURE`/`ROUTINE`
+  (with or without an argument list) in addition to the existing comment
+  targets. Store the text on the existing object metadata — types, routines,
+  the relation descriptor and relation-owned trigger metadata — and expose it
+  through `pg_description`/`obj_description` with classoids 1247/1255/1259/2620.
+  `NULL` and the empty string remove the comment; a trigger comment is keyed by
+  the live `pg_trigger` oid, so it is inert after a drop and never inherited by
+  a re-created trigger. Apply PostgreSQL's owner-only authorization, missing
+  and wrong-kind SQLSTATEs/messages, and no `Position` on runtime diagnostics.
+  Native `Dump`/`Reset`/`Restore` emission stays unchanged for these kinds.
+
 - Accept ordinary `ALTER TABLE ... IF EXISTS` action lists and the standalone
   one-default form: every implemented action keeps its plain-form effect on an
   existing relation, and a missing relation is skipped with the single NOTICE

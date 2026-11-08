@@ -435,7 +435,7 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 var unsupportedCommands = wordSet("truncate drop alter with execute deallocate refresh reset")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index unique function procedure")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning group having window for using primary unique check references default constraint collate in")
-var unsupportedCommentKinds = wordSet("type database index collation conversion language publication subscription tablespace trigger policy rule statistics")
+var unsupportedCommentKinds = wordSet("database collation conversion language publication subscription tablespace policy rule statistics")
 
 // Initial membership clauses are supported; legacy role options remain excluded.
 var unsupportedRoleOptions = wordSet("group granted by sysid")
