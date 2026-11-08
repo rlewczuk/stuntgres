@@ -39,6 +39,7 @@ func (c *Journal) RecordRowShapes(shapes map[ids.ObjectAddress]storage.RowShape,
 		if rowShape.Rewritten {
 			shape.PreservesVisibility = false
 			shape.Rewritten, shape.Frontier = true, rowShape.Frontier
+			shape.Fills = nil
 			shape.Snapshot, shape.HasSnapshot = nil, false
 		}
 		shape.Relation, _ = staged.Get(a).(*catalog.Relation)

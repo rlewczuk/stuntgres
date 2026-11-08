@@ -163,7 +163,9 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 			continue
 		}
 		shape := changes.Storage[address]
-		shape.MergeFills(rowShape.Fills, next)
+		if !rowShape.Rewritten {
+			shape.MergeFills(rowShape.Fills, next)
+		}
 		if !rowShape.OwnProjected {
 			projection, err := session.NewColumnProjection(old, next, shape.Fills)
 			if err != nil {

@@ -671,6 +671,10 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   record a staged catalog change's heap replacements and materialized refresh
   as storage changes, keeping the first predecessor; the root supplies the
   committed-store check and the commit sequence.
+  An actual incoming row-shape rewrite retires all materialized added-column
+  fills and the stable snapshot on the new journal without mutating predecessor
+  roots. Later non-rewrite additions can establish fresh fills even when the
+  journal already records an earlier rewrite.
 - **Catalog authority** (`catalog_authority.go`): `CatalogAuthority`, a
   statement's entry authority (authorization and role revisions, resolved
   object, database predecessor, consulted providers), and its
