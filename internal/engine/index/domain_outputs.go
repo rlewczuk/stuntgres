@@ -12,10 +12,12 @@ import (
 	"stuntgres/internal/engine/typedef"
 )
 
-func ReownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
+// ReownIndexOutputs preserves produced predicate/expression results across a
+// certified type-generation transport, including private predecessor history.
+func ReownIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
 	var versions []storage.RowVersion
 	for i, row := range original.Versions {
-		mapped, changed, err := reownDomainIndexOutputVersion(ctx, base, next, row, store.Versions[i])
+		mapped, changed, err := reownIndexOutputVersion(ctx, base, next, row, store.Versions[i])
 		if err != nil {
 			return nil, err
 		}
@@ -26,7 +28,7 @@ func ReownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 			}
 			source := prior.Version
 			prior = prior.Next
-			return reownDomainIndexOutputVersion(ctx, base, next, source, target)
+			return reownIndexOutputVersion(ctx, base, next, source, target)
 		})
 		if err != nil {
 			return nil, err
@@ -47,7 +49,7 @@ func ReownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 	return &nextStore, nil
 }
 
-func reownDomainIndexOutputVersion(ctx context.Context, base, next *catalog.State, row, target storage.RowVersion) (storage.RowVersion, bool, error) {
+func reownIndexOutputVersion(ctx context.Context, base, next *catalog.State, row, target storage.RowVersion) (storage.RowVersion, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return storage.RowVersion{}, false, err
 	}

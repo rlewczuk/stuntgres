@@ -65,6 +65,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
+- Enum generation plus private-index column evolution:
+  `RUN='^TestReferenceEnumIndexLayoutGeneration'`.
 - Installed heap/B-tree/GIN verification: `RUN='^TestReferenceAmcheck'`; corrupt actual
   roots/private outputs and invocation internals use `RUN='^TestAmcheck'` in the
   owning engine packages. Public witnesses use real maintained indexes, exact

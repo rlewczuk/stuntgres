@@ -218,7 +218,13 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 		pending = pending || captured.Lineage.Target.SQLIndex.HasRuntimeDomainConversion()
 	}
 	for _, row := range sourceWrites {
-		pending = pending || len(row.IndexOutputs) != 0
+		if pending {
+			break
+		}
+		pending = len(row.IndexOutputs) != 0
+		for prior := row.PrivateHistory; !pending && prior != nil; prior = prior.Next {
+			pending = len(prior.Version.IndexOutputs) != 0
+		}
 	}
 	if !pending {
 		return writes, false, nil
@@ -236,34 +242,76 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 		if !ok {
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		var outputs map[ids.ObjectAddress]storage.IndexOutput
-		for _, captured := range captures {
-			lineage := captured.Lineage
-			output, ok := sourceWrites[position].IndexOutputs[lineage.Source.Address()]
-			if !ok && !lineage.Target.SQLIndex.HasRuntimeDomainConversion() {
-				continue
-			}
-			if !ok || (!OutputMatches(output, lineage.Source) && !OutputMatches(output, lineage.Target)) {
-				return nil, false, fmt.Errorf("stuntgres: layout projection is missing produced private index data")
-			}
-			if outputs == nil {
-				outputs = maps.Clone(row.IndexOutputs)
-				if outputs == nil {
-					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
-				}
-			}
-			output.Index = lineage.Target
-			outputs[lineage.Target.Address()] = output
+		source := sourceWrites[position]
+		mapped, changed, err := transportIndexLayoutOutputVersion(evaluation.Context, captures, source, row, true)
+		if err != nil {
+			return nil, false, err
 		}
-		if outputs != nil {
+		prior := source.PrivateHistory
+		history, err := storage.MapHeapPredecessors(mapped.PrivateHistory, func(target storage.RowVersion) (storage.RowVersion, bool, error) {
+			if prior == nil {
+				return storage.RowVersion{}, false, ids.ErrCatalogReplaced
+			}
+			original := prior.Version
+			prior = prior.Next
+			return transportIndexLayoutOutputVersion(evaluation.Context, captures, original, target, false)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		if prior != nil {
+			return nil, false, ids.ErrCatalogReplaced
+		}
+		if changed || history != mapped.PrivateHistory {
 			if !copied {
 				writes = slices.Clone(writes)
 				copied = true
 			}
-			writes[i].IndexOutputs = outputs
+			mapped.PrivateHistory = history
+			writes[i] = mapped
 		}
 	}
 	return writes, copied, nil
+}
+
+// Heads and genuine predecessors share the captured descriptor transport.
+// Historical outputs may predate this recipe; retain those records as stale,
+// while keeping the ordinary live-head required-output checks strict.
+func transportIndexLayoutOutputVersion(ctx context.Context, captures []LayoutCapture, source, target storage.RowVersion, liveHead bool) (storage.RowVersion, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return storage.RowVersion{}, false, err
+	}
+	if source.Row != target.Row || source.Version != target.Version {
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
+	}
+	var outputs map[ids.ObjectAddress]storage.IndexOutput
+	for _, captured := range captures {
+		lineage := captured.Lineage
+		output, ok := source.IndexOutputs[lineage.Source.Address()]
+		if !ok {
+			if liveHead && lineage.Target.SQLIndex.HasRuntimeDomainConversion() {
+				return storage.RowVersion{}, false, fmt.Errorf("stuntgres: layout projection is missing produced private index data")
+			}
+			continue
+		}
+		if OutputMatches(output, lineage.Source) || OutputMatches(output, lineage.Target) {
+			output.Index = lineage.Target
+		} else if liveHead {
+			return storage.RowVersion{}, false, fmt.Errorf("stuntgres: layout projection is missing produced private index data")
+		}
+		if outputs == nil {
+			outputs = maps.Clone(target.IndexOutputs)
+			if outputs == nil {
+				outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
+			}
+		}
+		outputs[lineage.Target.Address()] = output
+	}
+	if outputs == nil {
+		return target, false, nil
+	}
+	target.IndexOutputs = outputs
+	return target, true, nil
 }
 
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty

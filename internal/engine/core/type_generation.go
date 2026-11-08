@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
@@ -16,6 +17,19 @@ import (
 func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.StageRead(stage)
 	next := view.State()
+	// Only a genuine catalog-owned same-identity enum successor enters the
+	// enum transport path; ordinary layout capture keeps exact Usage equality.
+	enumGeneration := false
+	for address, descriptor := range next.Descriptors() {
+		typ, ok := descriptor.(*catalog.Type)
+		if !ok || !typ.SQLType.IsEnum() {
+			continue
+		}
+		old, exists := stage.Base.Type(address)
+		if exists && old.SQLType.IsEnum() && old.SQLType != typ.SQLType && old.SQLType.ID() == typ.SQLType.ID() {
+			enumGeneration = true
+		}
+	}
 	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil), nil); err != nil {
 		return err
 	}
@@ -101,7 +115,7 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 			}
 		}
-		if stage.domainAlter.AlterContext() != nil {
+		if stage.domainAlter.AlterContext() != nil || enumGeneration {
 			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
@@ -132,6 +146,14 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	}
 	if stage.domainAlter.AlterContext() != nil {
 		if err := e.stageDomainIndexGenerationsLocked(stage, next, stores); err != nil {
+			return err
+		}
+	} else if enumGeneration {
+		ctx := context.Background()
+		if stage.statement != nil {
+			ctx = stage.statement.Op.Context()
+		}
+		if err := e.stageIndexGenerationsLocked(ctx, stage, next, stores, false); err != nil {
 			return err
 		}
 	}

@@ -6,7 +6,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
@@ -73,13 +75,32 @@ func adoptEnumGenerationsLocked(e *core.Engine, scope *core.StatementScope, chan
 			}
 		}
 		writes, deletes := scope.ColumnProjectionRoots(a)
+		originalWrites := writes
 		writes, err := stored.ReownVersions(next, writes)
 		if err != nil {
 			return err
 		}
+		original, target := storage.Relation{Versions: originalWrites}, storage.Relation{Versions: writes}
+		reboundWrites, err := index.ReownIndexOutputs(scope.Op.Context(), stage.Base.State(), next, &original, &target)
+		if err != nil {
+			return err
+		}
+		writes = reboundWrites.Versions
 		deletes = session.ProjectDeletions(deletes, shape.Replacement)
 		scope.StageProjectedColumnRoots(a, writes, deletes)
 		changes.Storage[a] = shape
+	}
+	// Enum DDL records descriptors manually, so it must also adopt the real
+	// transported candidate and root into its cloned pending journal.
+	for address, candidate := range stage.IndexesOrZero().Candidates {
+		owned := index.JournalIndexes(changes)
+		if owned.Candidates == nil {
+			owned.Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
+		}
+		if owned.UniqueRoots == nil {
+			owned.UniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		}
+		owned.Candidates[address], owned.UniqueRoots[address] = candidate, candidate.Root
 	}
 	return nil
 }

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -11,8 +13,32 @@ import (
 // every version and every produced predicate/expression result. ALTER must not
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation) error {
+	return e.stageIndexGenerationsLocked(stage.domainAlter.AlterContext(), stage, next, stores, true)
+}
+
+// stageIndexGenerationsLocked transports genuine predecessor roots and produced
+// outputs. Enum metadata transitions share this mechanism, not domain receipts.
+func (e *Engine) stageIndexGenerationsLocked(ctx context.Context, stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation, domainAlter bool) error {
+	private := stageJournalLocked(stage)
+	var privateIndexes index.Journal
+	if private != nil {
+		privateIndexes = index.JournalIndexesOrZero(private)
+	}
+	for address, descriptor := range stage.Base.Descriptors() {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || stores[idx.SQLIndex.Parent] == nil {
+			continue
+		}
+		root, present := privateIndexes.UniqueRoots[address]
+		candidate, exists := privateIndexes.Candidates[address]
+		if present || exists {
+			if !present || !exists || root == nil || candidate.Root != root || !candidate.MatchesIndex(idx, e.StageStorageLocked(stage, idx.SQLIndex.Parent)) {
+				return ids.ErrCatalogReplaced
+			}
+		}
+	}
 	for address, store := range stores {
-		rebound, err := index.ReownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.StageStorageLocked(stage, address), store)
+		rebound, err := index.ReownIndexOutputs(ctx, stage.Base.State(), next, e.StageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}
@@ -28,8 +54,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
 	}
-	private := stageJournalLocked(stage)
-	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.Visibility.CommitSeq(), stores, private)
+	snapshot, err := e.captureIndexSnapshotParents(ctx, stage.Base, sources, sourceRoots, e.Visibility.CommitSeq(), stores, private)
 	if err != nil {
 		return err
 	}
@@ -49,22 +74,23 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 		positions[address] = selected
 	}
-	roots, err := snapshot.TransportRows(stage.domainAlter.AlterContext(), stage.Base.WithState(next), stores, positions, true)
+	roots, err := snapshot.TransportRows(ctx, stage.Base.WithState(next), stores, positions, true)
 	if err != nil {
 		return err
 	}
 	if stage.IndexesOrZero().Candidates == nil {
 		stage.Indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate, len(roots))
 	}
-	domain := stage.DomainAlterState()
-	if domain.IndexRoots == nil {
-		domain.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
+	if domainAlter && stage.DomainAlterState().IndexRoots == nil {
+		stage.DomainAlterState().IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
 	}
 	for address, root := range roots {
 		idx := next.MustRelation(address)
 		store := stores[idx.SQLIndex.Parent]
 		stage.Indexes().Candidates[address] = index.RootCandidate{Index: idx, Root: root, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends, Length: len(store.Versions)}
-		domain.IndexRoots[address] = snapshot.Sources[address].Root
+		if domainAlter {
+			stage.DomainAlterState().IndexRoots[address] = snapshot.Sources[address].Root
+		}
 	}
 	return nil
 }

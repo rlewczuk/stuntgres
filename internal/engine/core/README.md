@@ -97,6 +97,12 @@ boundaries into final publication, so a stale preserving copy cannot erase a
 later physical truncation. This is not a blanket VM revision conflict:
 metadata-only same-pointer commits remain legal after truncate, fresh destructive
 heaps own a new model, and publication retains a private replacement's own VM.
+The type-generation coordinator transports enum-dependent index keys and exact
+private root candidates alongside preserving heap copies. It authenticates the
+predecessor receipt under the existing owner/epoch/frontier capture fences before
+deriving destination storage pins; domain ALTER receipts remain domain-owned.
+This gives later column-layout evolution current-generation inputs without
+weakening referenced Usage equality or Finish/publication admission.
 Generated restore's TEMP preservation grafts the current live TEMP heap pointers
 under `Engine.Mu`; it does not publish an earlier copied TEMP VM snapshot.
 The shared routine-cardinality classifier recognizes the genuine visibility
@@ -130,7 +136,10 @@ in `WriteStage.DiscardedHeaps` and then the validated catalog journal. This keep
 surviving storage-generation fences intact across repeated refresh, savepoints
 and PREPARE. Final disposal materializes debris only in a still-installed exact
 heap; destructive replacement retires inaccessible slots without rebinding by
-address. Canonical cohort capture includes deferred batches, and exact repair
+address. Savepoint rewind likewise retires a private replacement's slots rather
+than transferring them into its restored predecessor, even when their enum or
+layout transport was compatible. Canonical cohort capture includes deferred
+batches, and exact repair
 headers remain independent of owner rollback. Old roots and payload backing
 remain immutable; private-only relation definitions are never installed by
 retention.

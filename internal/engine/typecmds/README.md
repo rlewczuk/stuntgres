@@ -43,6 +43,12 @@ only when codec reowning copies the unchanged observed heap; the copied root and
 VM observation are sampled in the same `Engine.Mu` window. A projected/rewrite
 candidate starts its own modeled VM and cannot regain committed-predecessor
 continuity merely because a later enum generation transports its datums.
+Enum's manual descriptor transfer also adopts transported index candidates and
+their private roots into the cloned journal. Baseline and private-write produced
+keys are reowned from the original rows before projected writes replace them;
+older journals, key backing and construction history remain immutable for
+savepoint rollback. This uses ordinary snapshot/output transport, not domain
+ALTER semantics or a new index build.
 Destructive typed row conversion passes the real statement/catalog-stage logical
 capture owner into the shared rewrite producer; preserving codec copies do not.
 Destination schema/value evidence survives a later failure independently of the

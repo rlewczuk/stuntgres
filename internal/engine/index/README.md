@@ -410,6 +410,20 @@ builds a binder.
   transaction's private root, else the committed one), `AlterIndexBuild` and
   `RebindExclusionOperators`. The engine fills capture inputs under `Engine.Mu`
   after its epoch checks and holds the lock across the call.
+  Same-identity enum generations reuse snapshot key transport, including empty
+  private roots, without rebuilding or replaying predicates/expressions. Before
+  deriving destination pins, the source private candidate must match the actual
+  old descriptor/storage window and own the selected private root.
+  `ReownIndexOutputs` carries produced baseline/private keys and predecessor
+  history copy-on-change; stale outputs remain stale. Transport retains physical
+  construction provenance and old backing. Later slot-only layout transport also
+  carries actually produced predecessor outputs, even when the live head has
+  none, matching exact row/version identity and copying changed history only.
+  Current outputs follow captured source/target descriptors; stale historical
+  records stay stale, and missing historical output is never fabricated.
+  Live-head required-output checks remain strict. Layout capture and final
+  publication still require exact referenced Usage and candidate pins; enum
+  compatibility is not a global same-OID exception.
   Current captured headers filter killed versions in builds, probes, statistics
   and logical transport. Final row publication retains exact slot death while
   allowing already-admitted writers to finish; only death is ignored during
