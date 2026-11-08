@@ -335,6 +335,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
+	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
+		if err = checkQueryTableOnCommit(creation, creationDescriptor); err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+	}
 	if prepared == nil {
 		scope.statementStatsPlanBuilt()
 	}

@@ -29,6 +29,11 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			e := engine.New()
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(nil)
 			statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.captured AS " + query + " WITH NO DATA")
 			if err != nil {
 				t.Fatal(err)
@@ -46,7 +51,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, s, b)
+			stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, scope, auth, s, b)
 			e.Mu.Unlock()
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)

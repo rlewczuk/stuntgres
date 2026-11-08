@@ -11,7 +11,8 @@ modes, defaults, named/variadic calls and OUT/INOUT
 explicit casts in [type_resolution](../type_resolution/README.md); comparison and
 NULL predicates in [types](../types/README.md); windows, ordering, LIMIT and
 DISTINCT in [query_order](../query_order/README.md); grouping sets in
-[aggregates](../aggregates/README.md).
+[aggregates](../aggregates/README.md). Session-owned CTAS lifecycle belongs in
+[ddl](../ddl/README.md#testing); common permanent CTAS remains here.
 
 Routine declarations share creation and identity-preserving replacement contracts,
 including STRICT attributes, named/mode signatures and SQL bodies.

@@ -3407,6 +3407,21 @@ a pending replacement. Completed metadata-only index maintenance owns neither
 producer state and does not retain this role-read fence. Savepoints restore
 producer fences with the same journal as their rows and storage predecessors.
 
+Query-created TEMP namespaces, table descriptors, associated types and initial
+rows share that statement journal, including the first TEMP namespace. Finish
+retains them in explicit transactions or publishes them through the existing
+outer-commit DELETE/DROP and physical-session cleanup owners. Namespace identity
+is not installed on the session before successful publication. CTAS DATA enables
+the existing closed-immutable-operator preflight for its auxiliary/main program,
+then checks explicit ON COMMIT before runtime or CTE producers. NO DATA checks
+without planning or a demanded producer. Existing-target IF NOT EXISTS skips
+bypass both planning and this destination semantic check.
+DATA and NO DATA share resolved-destination admission after that existing-target
+skip: temporary destinations inherit the existing security-restricted-operation
+prohibition and shared transaction/assignment TEMP tablespace policy. Persistent
+and materialized destinations retain default-tablespace admission. These checks
+do not move the later ON COMMIT planning frontier.
+
 Refresh replacements retain the first committed predecessor and only the latest
 private row/index candidates. Savepoints restore those roots and population with
 the owner's source writes; combined publication installs them once. Refresh takes

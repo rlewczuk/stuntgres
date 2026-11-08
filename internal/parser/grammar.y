@@ -568,7 +568,7 @@ package parser
 %type <search> search_clause
 %type <identifiers> cte_keys
 %type <expr> cycle_constant
-%type <queryTable> query_table_target
+%type <queryTable> query_table_target materialized_query_table_target
 %type <stmt> create_query_table
 %type <stmt> refresh_materialized_view
 %type <selectStmt> query_table_body
@@ -1010,7 +1010,7 @@ package parser
 %type <sequenceOption> sequence_option
 %type <integer> sequence_integer
 %type <persistence> sequence_persistence
-%type <onCommit> table_on_commit
+%type <onCommit> table_on_commit query_table_options
 %type <tok> table_preserve table_rows
 %type <tok> sequence_name_word
 %type <identity> identity_definition identity_alter_options
@@ -1917,23 +1917,24 @@ typed_element: name {c:=Column{Name:$1.text,Pos:$1.pos};$$=&TableElement{Column:
  | typed_element DEFERRABLE {if !sqllex.(*lexer).elementTiming($1,$2,true,true){return 1};$$=$1}
  | typed_element INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !sqllex.(*lexer).elementTiming($1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 options_word: FDW_OPTIONS {$$=$1} ;
-query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos}}
- | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos}}
- | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true}}
- | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true}}
- | CREATE MATERIALIZED VIEW relation_name {$$=&CreateQueryTable{Name:$4,Pos:$1.pos,Form:CreateMaterializedView}}
+query_table_target: CREATE TABLE relation_name {$$=&CreateQueryTable{Name:$3,Pos:$1.pos,Persistence:"logged"}}
+ | CREATE TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$3,Columns:$5,Pos:$1.pos,Persistence:"logged"}}
+ | CREATE TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$6,Pos:$1.pos,IfNotExists:true,Persistence:"logged"}}
+ | CREATE TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$6,Columns:$8,Pos:$1.pos,IfNotExists:true,Persistence:"logged"}}
+ | CREATE UNLOGGED TABLE relation_name {$$=&CreateQueryTable{Name:$4,Pos:$1.pos,Persistence:"unlogged"}}
+ | CREATE UNLOGGED TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos,Persistence:"unlogged"}}
+ | CREATE UNLOGGED TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true,Persistence:"unlogged"}}
+ | CREATE UNLOGGED TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true,Persistence:"unlogged"}}
+ | CREATE TEMP TABLE relation_name {$$=&CreateQueryTable{Name:$4,Pos:$1.pos,Persistence:"temporary"}}
+ | CREATE TEMP TABLE relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos,Persistence:"temporary"}}
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true,Persistence:"temporary"}}
+ | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true,Persistence:"temporary"}} ;
+materialized_query_table_target: CREATE MATERIALIZED VIEW relation_name {$$=&CreateQueryTable{Name:$4,Pos:$1.pos,Form:CreateMaterializedView}}
  | CREATE MATERIALIZED VIEW relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos,Form:CreateMaterializedView}}
  | CREATE MATERIALIZED VIEW IF NOT EXISTS relation_name {$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true,Form:CreateMaterializedView}}
- | CREATE MATERIALIZED VIEW IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true,Form:CreateMaterializedView}}
- | CREATE UNLOGGED TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Pos:$1.pos}}
- | CREATE UNLOGGED TABLE relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos}}
- | CREATE UNLOGGED TABLE IF NOT EXISTS relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true}}
- | CREATE UNLOGGED TABLE IF NOT EXISTS relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true}}
- | CREATE TEMP TABLE relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Pos:$1.pos}}
- | CREATE TEMP TABLE relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$4,Columns:$6,Pos:$1.pos}}
- | CREATE TEMP TABLE IF NOT EXISTS relation_name {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Pos:$1.pos,IfNotExists:true}}
- | CREATE TEMP TABLE IF NOT EXISTS relation_name '(' view_names ')' {sqllex.(*lexer).deferUnsupported($2,"CREATE syntax is unsupported");$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true}} ;
-create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$$=$1} ;
+ | CREATE MATERIALIZED VIEW IF NOT EXISTS relation_name '(' view_names ')' {$$=&CreateQueryTable{Name:$7,Columns:$9,Pos:$1.pos,IfNotExists:true,Form:CreateMaterializedView}} ;
+create_query_table: query_table_target query_table_options AS query_table_body query_table_data {$1.Query=$4;$1.NoData=$5;$1.OnCommit=$2.action;$1.OnCommitPos=$2.pos;$$=$1}
+ | materialized_query_table_target query_table_using query_table_storage query_table_tablespace AS query_table_body query_table_data {$1.Query=$6;$1.NoData=$7;$$=$1} ;
 query_table_body: query_select {$$=$1}
  | TABLE relation_name {sqllex.(*lexer).deferUnsupported($1,"TABLE queries are unsupported");$$=nil}
  | EXECUTE name {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil}
@@ -1941,13 +1942,13 @@ query_table_body: query_select {$$=$1}
 query_table_data: /* empty */ {$$=false} | WITH data_word {$$=false} | WITH NO data_word {$$=true} ;
 refresh_materialized_view: REFRESH MATERIALIZED VIEW maintenance_concurrent relation_name query_table_data {$$=&RefreshMaterializedView{Name:$5,NoData:$6,Concurrent:$4.pos,Pos:$1.pos}} ;
 data_word: DATA {$$=$1} ;
-query_table_options: /* empty */
- | query_table_options USING name {sqllex.(*lexer).deferUnsupported($2,"table access methods are unsupported")}
- | query_table_options WITH '(' view_option_list ')' {sqllex.(*lexer).deferUnsupported($2,"table storage parameters are unsupported")}
- | query_table_options TABLESPACE name {sqllex.(*lexer).deferUnsupported($2,"table tablespaces are unsupported")}
- | query_table_options ON COMMIT KW_U FRAME_UNIT {if $4.text!="preserve" || $5.text!="rows" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
- | query_table_options ON COMMIT DELETE FRAME_UNIT {if $5.text!="rows" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")}
- | query_table_options ON COMMIT DROP {sqllex.(*lexer).deferUnsupported($2,"ON COMMIT is unsupported")} ;
+query_table_options: query_table_using query_table_storage table_on_commit query_table_tablespace {$$=$3} ;
+query_table_using: /* empty */
+ | USING name {sqllex.(*lexer).deferUnsupported($1,"table access methods are unsupported")} ;
+query_table_storage: /* empty */
+ | WITH '(' view_option_list ')' {sqllex.(*lexer).deferUnsupported($1,"table storage parameters are unsupported")} ;
+query_table_tablespace: /* empty */
+ | TABLESPACE name {sqllex.(*lexer).deferUnsupported($1,"table tablespaces are unsupported")} ;
 /* WITH before a check option is contextual, leaving query suffix diagnostics
  * and ordinary unreserved LOCAL/CASCADED identifiers unchanged. */
 view_as: AS {sqllex.(*lexer).viewQuery=true} ;

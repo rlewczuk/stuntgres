@@ -558,7 +558,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			e.Mu.Lock()
 		}
 		var skipped bool
-		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(op, auth, creation, b)
+		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(scope, auth, creation, b)
 		if err != nil || skipped {
 			e.Mu.Unlock()
 			if err == nil {
@@ -585,9 +585,19 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		if creation.NoData {
+			if err = checkQueryTableOnCommit(creation, creationDescriptor); err != nil {
+				e.Mu.Unlock()
+				return Result{}, err
+			}
 			e.Mu.Unlock()
 			err = e.publishQueryTable(scope, creationStage)
 			return Result{}, err
+		}
+		if creation.Form == parser.CreateTableAs {
+			// CTAS DATA plans closed immutable operators in the existing
+			// auxiliary/main preflight before destination semantics or effects.
+			// NO DATA and existing-target skips must never enter that planning.
+			evaluation.PlanStaticOperators = true
 		}
 		if creation.Form == parser.CreateMaterializedView {
 			OperationReplay(op).MaterializedPopulation = true

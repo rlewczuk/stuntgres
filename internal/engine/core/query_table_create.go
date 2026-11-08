@@ -26,15 +26,35 @@ import (
 
 // Source analysis and parameter import precede this destination-only phase.
 // Engine.mu is held. A skipped destination never enters executor admission.
-func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
-	ns, err := e.CreationNamespace(auth, s.Name)
-	if err != nil {
+func (e *Engine) prepareQueryTableLocked(scope *StatementScope, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
+	op := scope.Op
+	persistence := s.Persistence
+	if persistence == "" {
+		persistence = "logged"
+	}
+	var changes *session.Journal
+	var ns ids.ObjectRef
+	var err error
+	if s.Form == parser.CreateTableAs {
+		changes = scope.PendingCatalog().Clone()
+		ns, err = e.RelationCreationNamespaceLocked(auth, s.Name, persistence, changes)
+		if err == nil {
+			auth.Catalog = e.PrivateCatalogLocked(changes)
+			auth.Recapture(auth.Catalog)
+			if namespace, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !namespace.TemporaryToast && namespace.Temporary == op.Session.SessionToken {
+				auth.StagedTemporary = namespace.Address()
+			}
+		}
+	} else {
+		ns, err = e.CreationNamespace(auth, s.Name)
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
 			err = ddl.CreationError(err, s.Name)
 		}
-		return nil, nil, false, err
+		if err == nil {
+			err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address)
+		}
 	}
-	if err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err != nil {
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -49,7 +69,16 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
-	if err := ddl.CheckDefaultTablespaceCreation(auth.View, auth, (DDLHost{E: e, Op: op}).DefaultTablespace(), "", false); err != nil {
+	if s.Form == parser.CreateTableAs {
+		persistence, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, persistence)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		if op.Restricted != nil && persistence == "temporary" {
+			return nil, nil, false, SQLError("42501", "cannot create temporary table within security-restricted operation")
+		}
+	}
+	if err := (DDLHost{E: e, Op: op}).CheckCreationTablespace(auth, persistence, false); err != nil {
 		return nil, nil, false, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
@@ -87,6 +116,9 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err != nil {
 		return nil, nil, false, err
 	}
+	if s.Form == parser.CreateTableAs {
+		d.Persistence, d.OnCommit = persistence, s.OnCommit
+	}
 	d.TableMethod, err = table.ResolveTableMethod(auth.Catalog, (DDLHost{E: e, Op: op}).DefaultTableAccessMethod())
 	if err != nil {
 		return nil, nil, false, err
@@ -112,7 +144,22 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		d = stage.Get(d.Address()).(*catalog.Relation)
 	}
 	stage.RecordDDLCommand(session.ModifyingTag(s), d.Address())
+	if s.Form == parser.CreateTableAs && persistence == "temporary" {
+		// Even an existing TEMP namespace must follow the statement journal:
+		// CompleteUtility cannot bypass its rows or outer-commit actions.
+		scope.Catalog = changes
+		scope.Owner.AccessedTemporary = true
+	}
 	return stage, d, false, nil
+}
+
+// Destination-only semantics run after DATA planning and before any producer,
+// or without planning for NO DATA. Existing-target skips never reach this check.
+func checkQueryTableOnCommit(s *parser.CreateQueryTable, d *catalog.Relation) error {
+	if s.Form == parser.CreateTableAs && s.OnCommit != parser.OnCommitUnspecified && d.Persistence != "temporary" {
+		return SQLError("42P16", "ON COMMIT can only be used on temporary tables")
+	}
+	return nil
 }
 
 // Rows have already been finalized, typed and detached from query scratch. Only

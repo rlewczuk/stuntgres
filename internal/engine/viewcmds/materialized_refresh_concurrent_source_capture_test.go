@@ -23,6 +23,11 @@ func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(nil)
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW source_outer AS SELECT a.i FROM unit_mv a JOIN unit_mv b ON a.i=b.i CROSS JOIN source_gate g WITH NO DATA")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +45,7 @@ func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, stmt, bound)
+	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, scope, auth, stmt, bound)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("source outer stage", skipped, err)

@@ -26,6 +26,13 @@ import (
 func materializedUnitStage(t *testing.T, e *core.Engine) (*session.Operation, func(), *core.CatalogStage, *catalog.Relation) {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Only the operation escapes; callers may admit another statement on it.
+	defer scope.Finish(nil)
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.unit_mv AS SELECT 1::int AS i WITH NO DATA")
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +50,7 @@ func materializedUnitStage(t *testing.T, e *core.Engine) (*session.Operation, fu
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, descriptor, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, s, b)
+	stage, descriptor, skipped, err := core.EnginePrepareQueryTableLocked(e, scope, auth, s, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatalf("private stage: %v, skipped %v", err, skipped)

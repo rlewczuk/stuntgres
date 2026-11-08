@@ -30,6 +30,11 @@ func concurrentUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(nil)
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW unit_mv AS SELECT 1::int AS i,NULL::int AS p WITH NO DATA")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +52,7 @@ func concurrentUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, stmt, b)
+	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, scope, auth, stmt, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("materialized stage", err, skipped)

@@ -145,8 +145,8 @@ func StageValidateIndexMaintenance(x *CatalogStage, current *catalog.State) erro
 }
 
 // EnginePrepareQueryTableLocked calls x.prepareQueryTableLocked.
-func EnginePrepareQueryTableLocked(x *Engine, op *session.Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
-	return x.prepareQueryTableLocked(op, auth, s, b)
+func EnginePrepareQueryTableLocked(x *Engine, scope *StatementScope, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
+	return x.prepareQueryTableLocked(scope, auth, s, b)
 }
 
 // StageTableOrZero calls x.tableOrZero.

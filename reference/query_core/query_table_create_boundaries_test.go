@@ -8,16 +8,10 @@ import (
 
 func TestReferenceQueryTableCreateBoundaries(t *testing.T) {
 	cases := []struct{ name, query, token, message string }{
-		{"temp", "CREATE TEMP TABLE qc_boundary AS SELECT 1 AS i", "TEMP", "CREATE syntax is unsupported"},
-		{"temporary", "CREATE TEMPORARY TABLE qc_boundary AS SELECT 1 AS i", "TEMPORARY", "CREATE syntax is unsupported"},
-		{"unlogged", "CREATE UNLOGGED TABLE qc_boundary AS SELECT 1 AS i", "UNLOGGED", "CREATE syntax is unsupported"},
-		{"temp_schema", "CREATE TABLE pg_temp.qc_boundary AS SELECT 1 AS i", "pg_temp", "temporary schema creation is unsupported"},
 		{"access_method", "CREATE TABLE qc_boundary USING heap AS SELECT 1 AS i", "USING", "table access methods are unsupported"},
 		{"external_method", "CREATE TABLE qc_boundary USING qc_external AS SELECT 1 AS i", "USING", "table access methods are unsupported"},
 		{"storage", "CREATE TABLE qc_boundary WITH(fillfactor=70) AS SELECT 1 AS i", "WITH", "table storage parameters are unsupported"},
 		{"tablespace", "CREATE TABLE qc_boundary TABLESPACE pg_default AS SELECT 1 AS i", "TABLESPACE", "table tablespaces are unsupported"},
-		{"on_commit", "CREATE TEMP TABLE qc_boundary ON COMMIT PRESERVE ROWS AS SELECT 1 AS i", "TEMP", "CREATE syntax is unsupported"},
-		{"on_commit_regular", "CREATE TABLE qc_boundary ON COMMIT PRESERVE ROWS AS SELECT 1 AS i", "ON", "ON COMMIT is unsupported"},
 		{"execute", "CREATE TABLE qc_boundary AS EXECUTE qc_prepared", "EXECUTE", "CREATE TABLE AS EXECUTE is unsupported"},
 		{"table", "CREATE TABLE qc_boundary AS TABLE qc_source", "TABLE", "TABLE queries are unsupported"},
 		{"into_temp", "SELECT 1 AS i INTO TEMP qc_boundary", "TEMP", "temporary tables are unsupported"},
@@ -39,9 +33,6 @@ func TestReferenceQueryTableCreateBoundaries(t *testing.T) {
 						}
 						if tc.name == "external_method" {
 							run(fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "42704", Message: `access method "qc_external" does not exist`}))
-							fixture.QueryTableCreateAbsent(t, run, "qc_boundary")
-						} else if tc.name == "on_commit_regular" {
-							run(fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "42P16", Message: "ON COMMIT can only be used on temporary tables"}))
 							fixture.QueryTableCreateAbsent(t, run, "qc_boundary")
 						} else {
 							run(fixture.Exec(tc.query, count))

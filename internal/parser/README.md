@@ -115,8 +115,8 @@ ordinary assignments to an unreserved `security` variable.
   relation before examining any action.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
-  Ordinary UNLOGGED table declarations remain distinct from query-derived
-  creation; recognizing persistence does not grant query-table capability.
+  Query-derived table creation retains immutable persistence and positioned
+  ON COMMIT metadata; statement execution owns namespace and lifetime policy.
 - SECURITY LABEL retains positioned provider presence/text, complete target
   syntax and string/NULL distinction in an expression-free leaf. Provider
   lookup, object resolution and permissions are execution policy; protocol

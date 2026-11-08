@@ -51,6 +51,11 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(nil)
 	sized := enginetest.Usage(e, sqltype.VarChar)
 	sized.Typmod = 8
 	sized.Collation.ID = 950
@@ -68,7 +73,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
-		stage, d, skipped, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: query})
+		stage, d, skipped, err = core.EnginePrepareQueryTableLocked(e, scope, auth, syntax, analyze.Binding{Query: query})
 	}
 	e.Mu.Unlock()
 	if err != nil || skipped {
@@ -120,6 +125,11 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(nil)
 			usage := enginetest.Usage(e, sqltype.Text)
 			info := expr.Info{Usage: usage, CollationConflict: tc.conflict}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, Expressions: []expr.Expr{plan.LiteralExpr{Info: info, Value: sqltype.Null(usage.Type)}, plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Null(usage.Type)}}}
@@ -129,7 +139,7 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			auth, authErr := e.AuthorizationLocked(op)
 			var stage *core.CatalogStage
 			if authErr == nil {
-				stage, _, _, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+				stage, _, _, err = core.EnginePrepareQueryTableLocked(e, scope, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 			} else {
 				err = authErr
 			}
@@ -256,6 +266,13 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		scope, err := e.StartStatement(op)
+		if err != nil {
+			done()
+			t.Fatal(err)
+		}
+		release := done
+		done = func() { scope.Finish(nil); release() }
 		t.Cleanup(done)
 		usage := enginetest.Usage(e, sqltype.PgNodeTree)
 		calls := 0
@@ -271,7 +288,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err := e.AuthorizationLocked(op)
 		var stage *core.CatalogStage
 		if err == nil {
-			stage, _, _, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, _, err = core.EnginePrepareQueryTableLocked(e, scope, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		var got *sqlstate.Error
@@ -292,7 +309,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err = e.AuthorizationLocked(op)
 		var skipped bool
 		if err == nil {
-			stage, _, skipped, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, skipped, err = core.EnginePrepareQueryTableLocked(e, scope, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {

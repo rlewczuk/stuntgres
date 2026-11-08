@@ -1,10 +1,6 @@
 package parser
 
-import (
-	"testing"
-
-	"stuntgres/internal/sqlstate"
-)
+import "testing"
 
 func TestAlterPersistenceGrammar(t *testing.T) {
 	for _,q:=range []string{
@@ -27,9 +23,10 @@ func TestAlterPersistenceGrammar(t *testing.T) {
 		"CREATE UNLOGGED TABLE IF NOT EXISTS t(i) AS SELECT 1 AS i",
 	} {
 		statements,err:=Parse(q)
-		diagnostic,ok:=err.(*sqlstate.Error)
-		if len(statements)!=0 || !ok || diagnostic.Code!="0A000" || diagnostic.Message!="CREATE syntax is unsupported" || diagnostic.Position!="8" {
-			t.Fatal("query-derived persistence boundary",q,statements,err)
+		if err!=nil || len(statements)!=1 {t.Fatal(q,statements,err)}
+		create,ok:=statements[0].(*CreateQueryTable)
+		if !ok || create.Persistence!="unlogged" || create.Form!=CreateTableAs || create.Pos.Offset!=0 {
+			t.Fatal("query-derived persistence",q,statements,err)
 		}
 	}
 	for _,q:=range []string{"ALTER TABLE t SET LOGGED, SET UNLOGGED","ALTER TABLE ONLY(t) SET LOGGED, SET UNLOGGED","ALTER TABLE IF EXISTS t SET LOGGED, SET UNLOGGED"} {

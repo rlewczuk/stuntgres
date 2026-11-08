@@ -835,6 +835,9 @@ type CreateQueryTable struct {
 	Form        QueryTableForm
 	IfNotExists bool
 	NoData      bool
+	Persistence string
+	OnCommit    OnCommitAction
+	OnCommitPos Position
 }
 
 func (*CreateQueryTable) statement() {}
