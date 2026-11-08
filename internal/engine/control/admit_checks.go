@@ -169,7 +169,7 @@ func CheckCreateSequence(s *parser.CreateSequence) error {
 // CheckAlterTableDefault admits a deferred SET DEFAULT or an inherited ONLY
 // DROP DEFAULT.
 func CheckAlterTableDefault(s *parser.AlterTableDefault) error {
-	if !(s.Action == parser.SetDefault && s.Expression != nil) && !(s.Action == parser.DropDefault && s.Only && len(s.Name.Parts) == 2) {
+	if s.IfExists || !(s.Action == parser.SetDefault && s.Expression != nil) && !(s.Action == parser.DropDefault && s.Only && len(s.Name.Parts) == 2) {
 		return sqlError("0A000", "restore accepts only deferred SET DEFAULT or inherited ONLY DEFAULT alterations")
 	}
 	return nil

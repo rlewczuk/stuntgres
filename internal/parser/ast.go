@@ -1308,6 +1308,7 @@ type AlterTableDefault struct {
 	Name       ObjectName
 	Column     Identifier
 	Only       bool
+	IfExists   bool
 	Action     DefaultAction
 	Expression Expr
 	Pos        Position

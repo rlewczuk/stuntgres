@@ -809,6 +809,7 @@ func (j *StatementJumble) utilityStatementFields(node any, anchor *int) bool {
 		j.utilitySyntax(&n.Name, anchor)
 		j.utilitySyntax(&n.Column, anchor)
 		j.flag(n.Only)
+		j.flag(n.IfExists)
 		j.number(uint64(n.Action))
 		j.utilitySyntax(n.Expression, anchor)
 	case parser.AlterTableDefault:

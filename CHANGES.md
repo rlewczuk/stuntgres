@@ -1,5 +1,10 @@
 # Changes
 
+- Accept ordinary `ALTER TABLE ... IF EXISTS` action lists and the standalone
+  one-default form: every implemented action keeps its plain-form effect on an
+  existing relation, and a missing relation is skipped with the single NOTICE
+  `relation "name" does not exist, skipping`.
+
 - Accept `smallserial`/`serial`/`bigserial` in `ALTER TABLE ... ADD COLUMN`
   with an owned sequence, nextval default, existing-row fill and statement
   atomicity.

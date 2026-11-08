@@ -102,7 +102,7 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 	case *parser.AlterTableOf:
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true}, true, nil
 	case *parser.AlterTableDefault:
-		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true}, true, nil
+		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: v.IfExists, IfExists: v.IfExists}, true, nil
 	case *parser.AlterTableRenameConstraint:
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.AlterTableRenameColumn:

@@ -1,9 +1,11 @@
 package control
 
 import (
+	"errors"
 	"testing"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // A field step in an INSERT target is not a subscript; it neither consumes
@@ -90,6 +92,41 @@ func TestPgStatStatementsInstallationReplayViewAdmission(t *testing.T) {
 				}
 			} else if err == nil || answer != NotHandled {
 				t.Fatal("consumer retirement widened restore admission", answer, err)
+			}
+		})
+	}
+}
+
+// The standalone default AST carries the relation-level IF EXISTS marker, but
+// restore keeps admitting only the plain shapes the engine's dump emits.
+func TestRestoreAlterTableDefaultAdmission(t *testing.T) {
+	hooks := []Hook[struct{}]{{Name: "ALTER TABLE DEFAULT", Admit: AdmitStatement[struct{}](CheckAlterTableDefault)}}
+	for _, tc := range []struct {
+		sql      string
+		admitted bool
+	}{
+		{"ALTER TABLE s.t ALTER i SET DEFAULT 7", true},
+		{"ALTER TABLE ONLY s.t ALTER i DROP DEFAULT", true},
+		{"ALTER TABLE IF EXISTS s.t ALTER i SET DEFAULT 7", false},
+		{"ALTER TABLE IF EXISTS s.t ALTER i DROP DEFAULT", false},
+		{"ALTER TABLE s.t ALTER i DROP DEFAULT", false},
+		{"ALTER TABLE ONLY t ALTER i DROP DEFAULT", false},
+	} {
+		t.Run(tc.sql, func(t *testing.T) {
+			statements, err := parser.Parse(tc.sql)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(statements, err)
+			}
+			answer, err := runAdmit(hooks, struct{}{}, nil, statements[0])
+			if tc.admitted {
+				if err != nil || answer != Admitted {
+					t.Fatal("plain default alteration rejected by restore admission", answer, err)
+				}
+				return
+			}
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || answer != NotHandled {
+				t.Fatal("restore admission widened to a shape the engine never dumps", answer, err)
 			}
 		})
 	}

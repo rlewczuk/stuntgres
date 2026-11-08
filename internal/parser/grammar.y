@@ -2838,12 +2838,11 @@ drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASC
  * some paths and rename_target on others steals action lookahead from peers. */
 alter_drop_column: ALTER TABLE rename_target alter_actions {
   if len($4)==1 && ($4[0].Action==SetColumnDefault || $4[0].Action==DropColumnDefault) {
-    if $3.IfExists { sqllex.(*lexer).failAt("42601","syntax error at or near \"ALTER\"",$4[0].Pos.Offset); return 1 }
     action:=SetDefault
     if $4[0].Action==DropColumnDefault { action=DropDefault }
-    $$=&AlterTableDefault{Name:$3.Name,Column:$4[0].Column,Only:$3.Only,Action:action,Expression:$4[0].Expression,Pos:$1.pos}
+    $$=&AlterTableDefault{Name:$3.Name,Column:$4[0].Column,Only:$3.Only,IfExists:$3.IfExists,Action:action,Expression:$4[0].Expression,Pos:$1.pos}
   } else {
-  if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && !(a.Action==AddColumn && a.Definition!=nil && len(a.Definition.ForeignOptions)!=0) && a.Action!=SetLogged && a.Action!=SetUnlogged && a.Action!=SetAccessMethod && a.Action!=ClusterOn && a.Action!=SetWithoutCluster && a.Action!=SetWithoutOIDs && a.Action!=SetReplicaIdentity && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace && a.Action!=InheritTable && a.Action!=NoInheritTable && a.Action!=SetRelationOptions && a.Action!=ResetRelationOptions && a.Action!=ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action!=EnableRule && a.Action!=DisableRule && a.Action!=EnableReplicaRule && a.Action!=EnableAlwaysRule && (a.Action<EnableTrigger || a.Action>EnableAlwaysTrigger) && a.Action!=SetStorage && a.Action!=SetCompression && a.Action!=SetColumnStatistics && a.Action!=SetColumnOptions && a.Action!=ResetColumnOptions && a.Action!=SetColumnDefault && a.Action!=DropColumnDefault {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos}
+  $$=&AlterTable{Name:$3.Name,Only:$3.Only,Star:$3.Star,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos}
   }
  }
  | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }

@@ -30978,24 +30978,12 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			if len(sqlDollar[4].alterActions) == 1 && (sqlDollar[4].alterActions[0].Action == SetColumnDefault || sqlDollar[4].alterActions[0].Action == DropColumnDefault) {
-				if sqlDollar[3].alterTarget.IfExists {
-					sqllex.(*lexer).failAt("42601", "syntax error at or near \"ALTER\"", sqlDollar[4].alterActions[0].Pos.Offset)
-					return 1
-				}
 				action := SetDefault
 				if sqlDollar[4].alterActions[0].Action == DropColumnDefault {
 					action = DropDefault
 				}
-				sqlVAL.stmt = &AlterTableDefault{Name: sqlDollar[3].alterTarget.Name, Column: sqlDollar[4].alterActions[0].Column, Only: sqlDollar[3].alterTarget.Only, Action: action, Expression: sqlDollar[4].alterActions[0].Expression, Pos: sqlDollar[1].tok.pos}
+				sqlVAL.stmt = &AlterTableDefault{Name: sqlDollar[3].alterTarget.Name, Column: sqlDollar[4].alterActions[0].Column, Only: sqlDollar[3].alterTarget.Only, IfExists: sqlDollar[3].alterTarget.IfExists, Action: action, Expression: sqlDollar[4].alterActions[0].Expression, Pos: sqlDollar[1].tok.pos}
 			} else {
-				if sqlDollar[3].alterTarget.IfExists {
-					for _, a := range sqlDollar[4].alterActions {
-						if (a.Action < EnableRowSecurity || a.Action > NoForceRowSecurity) && !(a.Action == AddColumn && a.Definition != nil && len(a.Definition.ForeignOptions) != 0) && a.Action != SetLogged && a.Action != SetUnlogged && a.Action != SetAccessMethod && a.Action != ClusterOn && a.Action != SetWithoutCluster && a.Action != SetWithoutOIDs && a.Action != SetReplicaIdentity && a.Action != SetExpression && a.Action != DropExpression && a.Action != SetTablespace && a.Action != InheritTable && a.Action != NoInheritTable && a.Action != SetRelationOptions && a.Action != ResetRelationOptions && a.Action != ValidateConstraint && !IsAlterConstraint(a.Action) && a.Action != EnableRule && a.Action != DisableRule && a.Action != EnableReplicaRule && a.Action != EnableAlwaysRule && (a.Action < EnableTrigger || a.Action > EnableAlwaysTrigger) && a.Action != SetStorage && a.Action != SetCompression && a.Action != SetColumnStatistics && a.Action != SetColumnOptions && a.Action != ResetColumnOptions && a.Action != SetColumnDefault && a.Action != DropColumnDefault {
-							sqllex.(*lexer).failAt("0A000", "ALTER TABLE action is unsupported", a.Pos.Offset)
-							return 1
-						}
-					}
-				}
 				sqlVAL.stmt = &AlterTable{Name: sqlDollar[3].alterTarget.Name, Only: sqlDollar[3].alterTarget.Only, Star: sqlDollar[3].alterTarget.Star, IfExists: sqlDollar[3].alterTarget.IfExists, Actions: sqlDollar[4].alterActions, Pos: sqlDollar[1].tok.pos}
 			}
 		}

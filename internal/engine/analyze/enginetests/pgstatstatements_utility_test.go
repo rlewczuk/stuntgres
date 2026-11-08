@@ -109,6 +109,7 @@ func TestPgStatStatementsFingerprintUtilityFields(t *testing.T) {
 		{"CREATE INDEX i ON t(k)", "CREATE UNIQUE INDEX i ON t(k)", false},
 		{"DROP TABLE t", "DROP TABLE IF EXISTS t", false},
 		{"DROP TABLE t", "DROP TABLE t CASCADE", false},
+		{"ALTER TABLE t ALTER i SET DEFAULT 7", "ALTER TABLE IF EXISTS t ALTER i SET DEFAULT 7", false},
 		{"BEGIN", "START TRANSACTION", false},
 		{"BEGIN", "BEGIN TRANSACTION", true},
 		{"SAVEPOINT first_name", "SAVEPOINT other_name", true},

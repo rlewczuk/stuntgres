@@ -24,6 +24,9 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		return fail(fmt.Errorf("stuntgres: invalid default alteration"))
 	}
 	ref, err := e.ResolveReference(auth, s.Name)
+	if s.IfExists && table.RenameMissing(err) {
+		return SkipMissingRelationLocked(e, scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+	}
 	if err == nil && ref != scope.LockedRef {
 		err = ids.ErrCatalogReplaced
 	}

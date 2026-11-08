@@ -45,6 +45,8 @@ func TestTableTargetAdmission(t *testing.T) {
 		{"ALTER TABLE t ATTACH PARTITION c DEFAULT", Target{Mode: lock.ShareUpdateExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},
 		{"ALTER TABLE t DETACH PARTITION c", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},
 		{"ALTER TABLE t OF ty", Target{Mode: lock.AccessExclusive, OwnerOnly: true}, []string{"t"}},
+		{"ALTER TABLE t ALTER i SET DEFAULT 7", Target{Mode: lock.AccessExclusive, OwnerOnly: true}, []string{"t"}},
+		{"ALTER TABLE IF EXISTS t ALTER i SET DEFAULT 7", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: true}, []string{"t"}},
 		{"ALTER TABLE IF EXISTS t RENAME CONSTRAINT a TO b", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: true}, []string{"t"}},
 		{"ALTER TABLE t RENAME COLUMN a TO b", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},
 		{"ALTER TABLE t SET SCHEMA s", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},

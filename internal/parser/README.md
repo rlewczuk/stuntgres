@@ -103,8 +103,11 @@ ordinary assignments to an unreserved `security` variable.
   without resolving relation kind. Ordinary CREATE/ALTER reach execution-time
   kind admission; foreign declarations derive their existing option maps/actions
   from the same positioned column rather than discarding or reparsing options.
-  The existing ALTER IF EXISTS action guard admits option-bearing ADD COLUMN
-  through that same semantic path without broadening unrelated action guards.
+  Relation-level `ALTER IF EXISTS` adds no action guard: the parser records
+  `IfExists` on the statement itself; every ordinary action (including
+  option-bearing `ADD COLUMN` and the standalone one-default form) follows the
+  same semantic path as its plain spelling, and execution skips a missing
+  relation before examining any action.
 - The entire input is consumed: a valid prefix followed by junk is an error,
   never a partial parse.
   Ordinary UNLOGGED table declarations remain distinct from query-derived
@@ -333,9 +336,10 @@ ordinary assignments to an unreserved `security` variable.
   Column STORAGE/COMPRESSION actions retain a positioned identifier property,
   including in relation-level IF EXISTS action lists and ONLY targets.
   Column DEFAULT actions are ordinary list members: SET carries the parsed
-  expression and DROP does not, a one-element default list still reduces to the
-  standalone `AlterTableDefault`, and a lone IF EXISTS default remains a located
-  syntax error.
+  expression and DROP does not, and a one-element default list still reduces to
+  the standalone `AlterTableDefault`, which now carries the relation-level
+  `IfExists` marker and therefore skips a missing relation with the same NOTICE
+  as a multi-action list.
   DEFAULT is decoded as `default`. Unknown names reach semantic validation,
   while string literals and trailing input remain syntax errors at the offending
   token. SET's unreserved action word shifts its continuation before validation,

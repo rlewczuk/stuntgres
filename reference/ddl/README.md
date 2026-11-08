@@ -2,8 +2,9 @@
 
 Dual-mode tests for catalog-publication contracts that span multiple DDL
 statements in one transaction: journal fills, catalog-overlay reowning, type
-identity replacement interacting with column metadata, and inline `PRIMARY KEY`
-column constraints added by `ALTER TABLE ... ADD COLUMN`.
+identity replacement interacting with column metadata, inline `PRIMARY KEY`
+column constraints added by `ALTER TABLE ... ADD COLUMN`, and ordinary
+`ALTER TABLE ... IF EXISTS` actions.
 
 Related families: enum values and `ALTER TYPE` coverage stay in
 [reference/types](../types/README.md#testing); `ALTER TABLE` action coverage in
@@ -30,9 +31,19 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   routes from one body: catalog publication, same-column UNIQUE/PRIMARY KEY
   dedup and name transfer, skipped declarations, the coder migration forms,
   boundaries, inheritance, atomicity and the feature smoke.
+- `TestReferenceAlterTableIfExists` runs both backends and both execution
+  routes from one body: every implemented ordinary action under relation-level
+  `IF EXISTS`, the standalone one-default and inheritance forms, the single
+  missing-relation NOTICE (including absent schemas and execute-time prepared
+  skips), a multi-action list compared against its plain spelling, existing
+  relation renames and the round-2 feature smoke with the coder 000245 ALTER
+  forms.
 
 Family selector: `make check RUN='^TestReferenceEnumAlterFillReown'` (add
 `REFERENCE=1` for the oracle).
 
 Family selector: `make check RUN='^TestReferenceAlterAddColumnPrimaryKey'` (add
+`REFERENCE=1` for the oracle).
+
+Family selector: `make check RUN='^TestReferenceAlterTableIfExists'` (add
 `REFERENCE=1` for the oracle).

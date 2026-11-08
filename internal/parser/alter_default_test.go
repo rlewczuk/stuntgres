@@ -10,23 +10,35 @@ import (
 )
 
 func TestAlterDefaultGrammar(t *testing.T) {
-	for _, target := range []string{"t", "t*", "ONLY t", "ONLY(t)", `"s"."t"`} {
+	for _, tc := range []struct {
+		target   string
+		only, ie bool
+	}{
+		{"t", false, false},
+		{"t*", false, false},
+		{"ONLY t", true, false},
+		{"ONLY(t)", true, false},
+		{`"s"."t"`, false, false},
+		{"IF EXISTS t", false, true},
+		{"IF EXISTS t*", false, true},
+		{"IF EXISTS ONLY t", true, true},
+	} {
 		for _, expression := range []string{"7", "TRUE OR FALSE", "NOT FALSE", "NULL IS NULL", "CASE WHEN TRUE THEN 7 ELSE 9 END", "CAST(7 AS INT)"} {
-			statements, err := Parse("ALTER TABLE " + target + " ALTER COLUMN i SET DEFAULT " + expression)
+			statements, err := Parse("ALTER TABLE " + tc.target + " ALTER COLUMN i SET DEFAULT " + expression)
 			if err != nil {
-				t.Fatal(target, expression, err)
+				t.Fatal(tc.target, expression, err)
 			}
 			s, ok := statements[0].(*AlterTableDefault)
-			if !ok || s.Action != SetDefault || s.Expression == nil || s.Column.Text != "i" || s.Only != strings.HasPrefix(target, "ONLY") || s.Pos.Character != 1 {
+			if !ok || s.Action != SetDefault || s.Expression == nil || s.Column.Text != "i" || s.Only != tc.only || s.IfExists != tc.ie || s.Pos.Character != 1 {
 				t.Fatal(s)
 			}
 		}
-		statements, err := Parse("ALTER TABLE " + target + " ALTER i DROP DEFAULT")
+		statements, err := Parse("ALTER TABLE " + tc.target + " ALTER i DROP DEFAULT")
 		if err != nil {
 			t.Fatal(err)
 		}
 		s := statements[0].(*AlterTableDefault)
-		if s.Action != DropDefault || s.Expression != nil {
+		if s.Action != DropDefault || s.Expression != nil || s.IfExists != tc.ie {
 			t.Fatal(s)
 		}
 	}
@@ -58,13 +70,16 @@ func TestAlterDefaultBoundaries(t *testing.T) {
 			t.Fatal(tc.q, statements, err, got, want)
 		}
 	}
-	// A lone default remains the standalone AST, which has no IF EXISTS form.
+	// A lone default stays the standalone AST, which carries the relation-level
+	// IF EXISTS marker.
 	{
 		statements, err := Parse("ALTER TABLE IF EXISTS t ALTER i SET DEFAULT 7")
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "ALTER"`, Position: "25"}
-		if statements != nil || !errors.As(err, &got) || *got != want {
-			t.Fatal(statements, err, got, want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, ok := statements[0].(*AlterTableDefault)
+		if !ok || !s.IfExists || s.Action != SetDefault || s.Expression == nil || s.Column.Text != "i" {
+			t.Fatal(statements, s)
 		}
 	}
 	for _, q := range []string{"ALTER TABLE t ALTER i SET DEFAULT *", "ALTER TABLE t ALTER i DROP DEFAULT 7"} {
