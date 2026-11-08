@@ -1,7 +1,9 @@
 package sqltype
 
 import (
+	"errors"
 	"reflect"
+	"stuntgres/internal/sqlstate"
 	"strings"
 	"testing"
 )
@@ -48,6 +50,8 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 	want[10017] = IndexClassMetadata{10017, 783, 3550, 869, 0, "inet_ops", false}
 	want[10078] = IndexClassMetadata{10078, 783, 3919, 3831, 0, "range_ops", true}
 	want[10064] = IndexClassMetadata{10064, 2742, 2745, 2277, 2283, "array_ops", true}
+	want[10000] = IndexClassMetadata{10000, 403, 397, 2277, 0, "array_ops", true}
+	want[10001] = IndexClassMetadata{10001, 405, 627, 2277, 0, "array_ops", true}
 	want[10073] = IndexClassMetadata{10073, 2742, 3659, 3614, 25, "tsvector_ops", true}
 	want[10090] = IndexClassMetadata{10090, 2742, 4036, 3802, 25, "jsonb_ops", true}
 	want[10091] = IndexClassMetadata{10091, 2742, 4037, 3802, 23, "jsonb_path_ops", false}
@@ -141,7 +145,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 149 || len(want) != 149 {
+	if IndexClassMetadataCount() != 151 || len(want) != 151 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -183,9 +187,10 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	}
 	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "bit_ops", "varbit_ops", "network_ops"} {
 		for _, m := range got {
-			if m.Name == name && !(name == "array_ops" && m.Method == 2742 && m.OID == 10064) {
-				t.Fatal("diagnostic-only class advertised", m)
+			if m.Name != name || name == "array_ops" && (m.Method == 403 && m.OID == 10000 || m.Method == 405 && m.OID == 10001 || m.Method == 2742 && m.OID == 10064) {
+				continue
 			}
+			t.Fatal("diagnostic-only class advertised", m)
 		}
 	}
 }
@@ -254,6 +259,52 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 				t.Fatal("GiST identity", m, c)
 			}
 			continue // Concrete predicate behavior is covered by TestExclusionGiSTOperators.
+		}
+		if m.Input == 2277 {
+			// Released anyarray classes: btree binds the native array comparator
+			// (routine 382) while hash remains a documented catalog-only
+			// identity whose native hashing is rejected with 0A000.
+			array := types[1007] // concrete owned integer[] generation
+			var c IndexClass
+			if m.Method == 403 {
+				c, _ = LookupIndexClass(m.Name)
+			} else {
+				c, _ = LookupHashIndexClass(m.Name)
+			}
+			if !c.Accepts(array) || c.OID() != m.OID || c.MethodOID() != m.Method || c.FamilyOID() != m.Family || c.InputOID() != m.Input || c.StorageOID() != m.KeyType || c.IsHash() != (m.Method == 405) {
+				t.Fatal("array_ops identity", m, c)
+			}
+			domain, err := Domain(49000+ID(i), "array_class_domain", "public.array_class_domain", array.Usage())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !c.Accepts(domain) {
+				t.Fatal("array_ops domain input", m)
+			}
+			if m.Method == 403 {
+				if _, err := bindTestIndexOrdering(array.Usage(), c); err != nil {
+					t.Fatal("advertised array ordering", m, err)
+				}
+				if _, err := bindTestIndexOrdering(domain.Usage(), c); err != nil {
+					t.Fatal("advertised array domain ordering", m, err)
+				}
+				if def, ok := DefaultIndexClass(array); !ok || def.OID() != m.OID {
+					t.Fatal("array default disagreement", m, def)
+				}
+				continue
+			}
+			if !c.IsHash() {
+				t.Fatal("hash array_ops identity", m, c)
+			}
+			_, err = bindTestIndexHash(array.Usage(), c)
+			var d *sqlstate.Error
+			if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "index operator class is unsupported" {
+				t.Fatal("catalog-only hash array class became executable", m, err)
+			}
+			if def, ok := DefaultHashIndexClass(array); !ok || def.OID() != m.OID {
+				t.Fatal("hash array default disagreement", m, def)
+			}
+			continue
 		}
 		typ := types[ID(m.Input)]
 		if m.Input == 3500 {
@@ -361,7 +412,12 @@ func TestIndexFamilyMetadataAuthority(t *testing.T) {
 			t.Fatal("released family", got, want)
 		}
 	}
-	for _, id := range []uint32{0, 397, 627, 999999} {
+	for _, want := range []IndexFamilyMetadata{{397, 403, "array_ops"}, {627, 405, "array_ops"}} {
+		if got := seen[want.OID]; got != want {
+			t.Fatal("released array family", got, want)
+		}
+	}
+	for _, id := range []uint32{0, 999999} {
 		if got, ok := IndexFamilyMetadataByOID(id); ok || got != (IndexFamilyMetadata{}) {
 			t.Fatal("unowned family advertised", id, got, ok)
 		}

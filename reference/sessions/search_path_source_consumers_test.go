@@ -1,8 +1,6 @@
 package reference_test
 
 import (
-	"strconv"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -27,26 +25,16 @@ func TestReferenceSearchPathArraySourceConsumerRoutes(t *testing.T) {
 				{"SELECT current_schemas(false) AS paths FROM public.path_array_order ORDER BY paths", "paths", "_NAME", "{public}"},
 				{"SELECT current_schemas(flag) FROM public.path_array_order ORDER BY 1", "current_schemas", "_NAME", nil},
 			} {
-				var s fixture.Step
-				if backend.PG {
-					want := [][]any{}
-					if populated {
-						want = [][]any{{tc.value}}
-					}
-					s = fixture.Select(tc.q, []string{tc.label}, []string{tc.typ}, want)
-				} else {
-					want := fixture.ControlsReferenceDiagnostic("42883", "could not identify an ordering operator for type name[]")
-					want.Hint = "Use an explicit ordering operator or modify the query."
-					want.Position = strconv.Itoa(strings.LastIndex(tc.q, "ORDER BY ") + len("ORDER BY ") + 1)
-					s = fixture.ErrorDiagnostic(tc.q, want)
-					s.SelectRows = true
+				// Released array_ops orders name[] through the element type's
+				// default btree comparison in both backends.
+				want := [][]any{}
+				if populated {
+					want = [][]any{{tc.value}}
 				}
+				s := fixture.Select(tc.q, []string{tc.label}, []string{tc.typ}, want)
 				s.NonContext = true
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 				s.Prepared = true
-				if !backend.PG {
-					s.ErrorStage = "prepare"
-				}
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 			}
 		}

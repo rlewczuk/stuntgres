@@ -96,7 +96,7 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		}
 	}
 	base := u.Type.BaseType()
-	if method == catalog.HashMethod && base.IsArray() || method == catalog.BtreeMethod && base.ID() == sqltype.NameArray {
+	if method == catalog.HashMethod && base.IsArray() {
 		return key, sqlError("0A000", "index operator class is unsupported")
 	}
 	var c sqltype.IndexClass

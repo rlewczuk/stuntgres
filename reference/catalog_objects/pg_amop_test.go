@@ -141,7 +141,7 @@ func pgAmopInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		}
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*),count(DISTINCT oid) FROM pg_amop WHERE oid<>0", []string{"count", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(653), int64(653)}}))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT count(*),count(DISTINCT oid) FROM pg_amop WHERE oid<>0", []string{"count", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(659), int64(659)}}))
 	}
 	// Bound to the array/vector builtins; the jsonb families 4036/4037 are
 	// covered by reference/indexes/gin_metadata_test.go.

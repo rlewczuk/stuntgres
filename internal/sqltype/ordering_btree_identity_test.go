@@ -106,6 +106,14 @@ func TestOrderingBtreeIdentityRejectedProviders(t *testing.T) {
 		}
 		t.Run(fmt.Sprint(typ.ID()), func(t *testing.T) {
 			p, err := BindOrdering(typ.Usage())
+			if typ.IsArray() && !typ.IsCatalogVector() && typ.Concrete() {
+				// Released array_ops is the default for every concrete array;
+				// a missing element comparator is a demand-time 42883.
+				if err != nil || !p.OrderingBound() || p.DefaultBtreeOpclass() != 10000 {
+					t.Fatal("array provider-only ordering identity", p, err)
+				}
+				return
+			}
 			if typ.IsCatalogVector() {
 				if err!=nil || !p.OrderingBound() || p.DefaultBtreeOpclass()!=0 {t.Fatal("vector provider-only ordering identity",p,err)}
 				return

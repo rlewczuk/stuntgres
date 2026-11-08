@@ -674,6 +674,11 @@ neither owns catalog authority.
   tsvector_ops10073/family3659, jsonb_ops10090/family4036 (default) and
   jsonb_path_ops10091/family4037. All selected released search/support rows
   retain pinned18.6 identities, including metadata-only deprecated @@@.
+  Btree and hash also carry released `array_ops` identities: classes
+  10000/family397 and 10001/family627, both anyarray2277 with key type0, amop
+  10230-10234/10298 and amproc10000/10138/10139. Btree executes `btarraycmp`382;
+  hash hashing is not implemented, so its class stays catalog-only. Slot 2 of
+  family627 remains family-owned instead of acquiring class10001.
   Nineteen `GinSupport` declarations are internal capabilities, not scalar ABI
   emulation; jsonb_path_ops slot 1 is the ordinary installed btint4cmp351.
   Anyarray2277

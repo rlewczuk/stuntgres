@@ -93,8 +93,8 @@ func TestSearchOccurrenceOrdering(t *testing.T) {
 	if _, ok := DefaultIndexClass(record); ok {
 		t.Fatal("record acquired physical index capability")
 	}
-	if _, err := BindOrdering(types[1007].Usage()); err == nil {
-		t.Fatal("general array ordering widened")
+	if ordering, err := BindOrdering(types[1007].Usage()); err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+		t.Fatal("general array ordering identity", ordering, err)
 	}
 	named, err := Composite(48000, "named", "public.named", 48001, []CompositeMember{{Attribute: 1, Name: "n", Usage: types[Int4].Usage()}})
 	if err != nil {

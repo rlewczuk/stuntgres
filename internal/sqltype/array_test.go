@@ -227,8 +227,9 @@ func TestArrayDelegatedDelimiterAndNestedDomain(t *testing.T) {
 	if err != nil || unchanged != rebound || unchanged.array != rebound.array || unchanged.ArrayElement(0).array != rebound.ArrayElement(0).array {
 		t.Fatal("unchanged value or nested payload rebuilt", err)
 	}
-	if _, err := BindOrdering(nested.Usage()); err == nil {
-		t.Fatal("array ordering admitted")
+	ordering, err := BindOrdering(nested.Usage())
+	if err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+		t.Fatal("array ordering identity", ordering, err)
 	}
 	comparison, err := BindComparison(nested, nested, nested.Usage().Collation, false)
 	if err != nil {

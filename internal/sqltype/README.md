@@ -414,6 +414,14 @@ admission and removes it before nested binding.
   multirange and text-search datums without a B-tree comparator. Logical
   exclusion predicates reuse their scalar owners; catalog class membership
   does not supply an otherwise missing scalar operation.
+  Released `array_ops` identities exist for btree (class10000/family397) and
+  hash (class10001/family627), both with anyarray input2277 and key type0. Btree
+  execution goes through native `btarraycmp`382 and the element type's default
+  btree comparator; NULL elements, length, rank, dimensions and lower bounds
+  follow `compareArrays`, and a missing element comparator stays a demand-time
+ 42883. Hash array hashing is not implemented, so its identity is catalog-only
+  and binding still fails 0A000. GIN array_ops10064/2745 stays the separate
+  tokenizing admission and grants no B-tree authority.
   GIN classes retain a separate capability, actual anyarray admission and
   narrowly binary-compatible bit/varbit, CIDR/INET, OID and character inputs.
   Authenticated scalar extraction covers bit/varbit/enum/money, network/UUID/OID,

@@ -49,6 +49,10 @@ builds a binder.
   BRIN uses `BindBrinIndex`, `BuildBrinIndexRoot`, `MergeBrinIndexRoot` and
   `BrinConsistent`; `BuildRelationIndexRoot` carries descriptor reloption intent
   into method dispatch. Summary support is not B-tree comparator support.
+  B-tree array keys (including domains over arrays) resolve the released default
+  `array_ops` and compare through the element type's default btree comparison;
+  hash array keys keep the pre-class admission 0A000 because native array
+  hashing is not implemented.
   Bloom uses the descriptor-aware builder, typed registered support1 hashes and
   immutable per-version signatures over the shared produced-key memberships.
   `length` and `col1`…`col32` retain lexical reloptions separately from effective
@@ -111,7 +115,10 @@ builds a binder.
   routine generations, including family-owned members. `Ordering.BorrowSupport`
   attaches only the actual operation's `FunctionInput`, before comparisons in
   builds, publication, uniqueness checks, amcheck and concurrent materialized
-  refresh. Captures contain no subject, session or permission decision.
+  refresh. The btree array class owns slot1 `btarraycmp`382 and delegates to the
+  element comparison; family627's `hash_array`626/`hash_array_extended`782 are
+  captured metadata only and never reach a native hasher.
+  Captures contain no subject, session or permission decision.
   Hash-index equality retains its real strategy-1 operator function separately
   from unseeded/extended hash support; it is a direct callback, not a synthetic
   SQL execute check or a comparator support slot. Supported native hash-join

@@ -291,8 +291,13 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Session notification adds the released non-strict VOLATILE/parallel-restricted
 	// TEXT,TEXT→VOID declaration3036, cost1/rows0, unnamed inputs, no defaults,
 	// internal pg_notify source.
-	if len(facts) != 2314 {
-		t.Fatalf("released represented overloads: got %d, want 2314", len(facts))
+	// The btree/hash array_ops support declarations add strict IMMUTABLE/
+	// parallel-safe metadata: btarraycmp(anyarray,anyarray)->integer OID382,
+	// hash_array(anyarray)->integer OID626 and
+	// hash_array_extended(anyarray,bigint)->bigint OID782. The hash pair is
+	// catalog identity only; native array hashing is not implemented.
+	if len(facts) != 2317 {
+		t.Fatalf("released represented overloads: got %d, want 2317", len(facts))
 	}
 	return facts
 }

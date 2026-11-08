@@ -297,9 +297,10 @@ func TestReferenceIndexClausesUnownedBoundaries(t *testing.T) {
 				run(fixture.Exec("CREATE DOMAIN payload AS name[]", 0))
 				run(fixture.Exec("CREATE TABLE t(n INT,s TEXT,a payload)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1,'one','{alpha,NULL}')", 1))
+				arrays := tc.name == "array-default" || tc.name == "array-explicit"
 				for _, prepared := range []bool{false, true} {
 					s := fixture.Exec(tc.q, 0)
-					if !b.PG {
+					if !arrays && !b.PG {
 						s = fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: tc.message})
 						s.ErrorStage = "execute"
 					}
@@ -307,8 +308,13 @@ func TestReferenceIndexClausesUnownedBoundaries(t *testing.T) {
 						s = fixture.Prepared(s)
 					}
 					run(s)
-					if b.PG {
+					if arrays || b.PG {
 						run(fixture.Select("SELECT relkind FROM pg_class WHERE relname='boundary'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"i"}}))
+					}
+					if arrays {
+						run(fixture.Select("SELECT indclass::text FROM pg_index WHERE indexrelid='boundary'::regclass", []string{"indclass"}, []string{"TEXT"}, [][]any{{"10000"}}))
+					}
+					if arrays || b.PG {
 						run(fixture.Exec("DROP INDEX boundary", 0))
 					} else {
 						run(fixture.Select("SELECT relname FROM pg_class WHERE relname='boundary'", []string{"relname"}, []string{"NAME"}, nil))

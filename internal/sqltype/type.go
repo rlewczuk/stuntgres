@@ -2646,7 +2646,22 @@ func BindOrdering(u Usage) (Comparison, error) {
 		p.orderingBound = true
 		return p, nil
 	}
-	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == Box || u.Type.BaseType().id == Point || u.Type.BaseType().id == Line || u.Type.BaseType().id == Lseg || u.Type.BaseType().id == Path || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
+	if u.Type.BaseType().IsArray() {
+		// Every array orders through the element type's default btree
+		// comparison, so the released default array_ops class carries the
+		// authority. A missing element comparator stays a demand-time 42883.
+		class, ok := DefaultIndexClass(u.Type)
+		if !ok || class.OID() == 0 {
+			return Comparison{}, fmt.Errorf("invalid ordering class identity")
+		}
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return Comparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, class.OID()
+		return p, nil
+	}
+	if u.Type.BaseType().id == Box || u.Type.BaseType().id == Point || u.Type.BaseType().id == Line || u.Type.BaseType().id == Lseg || u.Type.BaseType().id == Path || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
 	if !u.Type.BaseType().IsEnum() {

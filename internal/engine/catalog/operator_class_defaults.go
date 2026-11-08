@@ -132,7 +132,7 @@ func (r Read) UniqueDefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sq
 	if t.IsEnum() && r.defaultClassCount(method, ids.OID(input)) == 0 {
 		input = 3500
 	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GinAccessMethod && t.IsArray() && r.defaultClassCount(method, ids.OID(input)) == 0 {
+	if m, ok := r.AccessMethod(method); ok && (m.Native == BtreeAccessMethod || m.Native == HashAccessMethod || m.Native == GinAccessMethod) && t.IsArray() && r.defaultClassCount(method, ids.OID(input)) == 0 {
 		input = 2277
 	}
 	if m, ok := r.AccessMethod(method); ok && (m.Native == GistAccessMethod || m.Native == SpgistAccessMethod) && r.defaultClassCount(method, ids.OID(input)) == 0 {

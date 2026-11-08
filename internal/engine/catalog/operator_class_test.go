@@ -67,7 +67,7 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 func TestOperatorClassCatalogDefaults(t *testing.T) {
 	state := CloneState(familyCatalogFixture().State())
 	base := NewRead(nil, state)
-	if len(base.OperatorClasses()) != 149 {
+	if len(base.OperatorClasses()) != 151 {
 		t.Fatal("incomplete seeds", len(base.OperatorClasses()))
 	}
 	for _, want := range []struct{ input, class, family, storage ids.OID }{{2277, 10064, 2745, 2283}, {3614, 10073, 3659, 25}, {3802, 10090, 4036, 25}} {

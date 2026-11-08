@@ -73,10 +73,11 @@ func TestIndexClausesProviders(t *testing.T) {
 		}
 	}
 	c, _ := LookupIndexClass("array_ops")
-	_, err := bindTestIndexOrdering(types[NameArray].Usage(), c)
-	var d *sqlstate.Error
-	if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "index operator class is unsupported" {
-		t.Fatal(err)
+	if c.OID() != 10000 || c.FamilyOID() != 397 || c.InputOID() != 2277 {
+		t.Fatal("released btree array_ops identity", c)
+	}
+	if _, err := bindTestIndexOrdering(types[NameArray].Usage(), c); err != nil {
+		t.Fatal("released btree array ordering", err)
 	}
 	if _, ok := LookupIndexClass("missing_ops"); ok {
 		t.Fatal("invented class")
@@ -192,4 +193,55 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Rebound array kernels carry a fresh element comparison pointer, so equality
+// of operations must be structural; collation and selected class still split
+// distinct orderings of the same array type.
+func TestIndexComparisonSameOperationArrays(t *testing.T) {
+	types := testTypes()
+	class, ok := LookupIndexClass("array_ops")
+	if !ok {
+		t.Fatal("missing released array class")
+	}
+	array := types[1007]
+	first, err := bindTestIndexOrdering(array.Usage(), class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := bindTestIndexOrdering(array.Usage(), class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.SameOperation(first) || !first.SameOperation(second) || !second.SameOperation(first) {
+		t.Fatal("independently bound array operations differ")
+	}
+	scalar, err := bindTestIndexOrdering(types[Int4].Usage(), mustIndexClass(t, "int4_ops"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.SameOperation(scalar) {
+		t.Fatal("differing operation identity compared equal")
+	}
+	texts := types[1009]
+	collated, err := bindTestIndexOrdering(Usage{Type: texts, Typmod: -1, Collation: CollationRef{ID: 100, Derivation: Default}}, class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := bindTestIndexOrdering(Usage{Type: texts, Typmod: -1, Collation: CollationRef{ID: 950, Derivation: Default}}, class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if collated.SameOperation(other) {
+		t.Fatal("collation did not distinguish array orderings")
+	}
+}
+
+func mustIndexClass(t *testing.T, name string) IndexClass {
+	t.Helper()
+	class, ok := LookupIndexClass(name)
+	if !ok {
+		t.Fatal("missing class", name)
+	}
+	return class
 }

@@ -65,18 +65,9 @@ func TestReferencePGAttributeDeclarations(t *testing.T) {
 			"CREATE TABLE pa18_rank_merged(b integer[][]) INHERITS(pa18_rank)",
 			"CREATE TABLE pa18_rank_typed OF pa18_rank_composite")
 		indexDDL := "CREATE INDEX pa18_rank_index ON pa18_rank(b) INCLUDE(c)"
-		if b.PG {
-			fixture.PGClassExec(t, p, b, b.DB, indexDDL)
-		} else {
-			for _, prepared := range []bool{false, true} {
-				boundary := fixture.ImplicitError(indexDDL, fixture.Diagnostic{Code: "42704", Message: "data type integer[] has no default operator class for access method \"btree\"", Hint: "You must specify an operator class for the index or define a default operator class for the data type."})
-				boundary.Prepared, boundary.ErrorStage = prepared, "execute"
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, boundary)
-				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname,a.attname FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid WHERE c.relname='pa18_rank_index'", []string{"relname", "attname"}, []string{"NAME", "NAME"}, nil))
-			}
-		}
-		// An admitted scalar key independently proves native INCLUDE rank without
-		// implementing the adjacent array btree operator-class provider.
+		fixture.PGClassExec(t, p, b, b.DB, indexDDL)
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT c.relname FROM pg_class c WHERE c.relname='pa18_rank_index'", []string{"relname"}, []string{"NAME"}, [][]any{{"pa18_rank_index"}}))
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT indclass::text FROM pg_index WHERE indexrelid='pa18_rank_index'::regclass", []string{"indclass"}, []string{"TEXT"}, [][]any{{"10000"}}))
 		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pa18_rank_include_heap(id integer,matrix integer[][])", "CREATE INDEX pa18_rank_include ON pa18_rank_include_heap(id) INCLUDE(matrix)")
 		includeID := pgAttributeID(t, p, b.DB, "pa18_rank_include")
 		pgAttributeRead(t, p, b, b.DB, includeID, "", [][]any{pgAttributeRow(includeID, "id", 23, 4, 1, -1, 0, true, "i", "p", false, 0), pgAttributeRow(includeID, "matrix", 1007, -1, 2, -1, 2, false, "i", "x", false, 0)})
@@ -94,11 +85,6 @@ func TestReferencePGAttributeDeclarations(t *testing.T) {
 			{"pa18_rank_view", "b", 0}, {"pa18_rank_ctas", "b", 0}, {"pa18_rank_mv", "b", 0}, {"pa18_rank_like", "b", 0}, {"pa18_rank_child", "b", 0}, {"pa18_rank_merged", "b", 0}, {"pa18_rank_composite", "a", 2}, {"pa18_rank_typed", "a", 0}, {"pa18_rank_index", "b", 2}, {"pa18_rank_index", "c", 2},
 		} {
 			t.Run(tc.relation+"/"+tc.column, func(t *testing.T) {
-				if !b.PG && tc.relation == "pa18_rank_index" {
-					// Exact rejection/absence already asserted above; preserve the
-					// full released array-key witnesses on PostgreSQL below.
-					return
-				}
 				q := "SELECT atttypid,atttypmod,attndims FROM pg_attribute WHERE attrelid='" + tc.relation + "'::regclass::oid AND attname='" + tc.column + "'"
 				fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select(q, []string{"atttypid", "atttypmod", "attndims"}, []string{"OID", "INT4", "INT2"}, [][]any{{int64(1007), int64(-1), tc.rank}}))
 			})

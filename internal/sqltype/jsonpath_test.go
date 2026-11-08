@@ -291,18 +291,28 @@ func TestJSONPathSQLCapabilitiesRejected(t *testing.T) {
 			} else if err == nil {
 				t.Fatal("scalar SQL comparison admitted")
 			}
-			_, err = BindOrdering(d.Usage())
-			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "could not identify an ordering operator for type "+d.DiagnosticName() || diagnostic.Hint != "Use an explicit ordering operator or modify the query." || diagnostic.Position != "" {
-				t.Fatalf("ordering diagnostic: %#v (%v)", diagnostic, err)
+			if d.IsArray() {
+				ordering, err := BindOrdering(d.Usage())
+				if err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+					t.Fatal("array ordering identity", ordering, err)
+				}
+				if class, ok := DefaultIndexClass(d); !ok || class.OID() != 10000 {
+					t.Fatal("array default btree class", class, ok)
+				}
+			} else {
+				_, err = BindOrdering(d.Usage())
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "could not identify an ordering operator for type "+d.DiagnosticName() || diagnostic.Hint != "Use an explicit ordering operator or modify the query." || diagnostic.Position != "" {
+					t.Fatalf("ordering diagnostic: %#v (%v)", diagnostic, err)
+				}
+				if _, ok := DefaultIndexClass(d); ok {
+					t.Fatal("default B-tree class admitted")
+				}
 			}
 			_, err = BindGrouping(d.Usage())
-			diagnostic = nil
+			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "could not identify an equality operator for type "+d.DiagnosticName() || diagnostic.Hint != "" || diagnostic.Position != "" {
 				t.Fatalf("grouping diagnostic: %#v (%v)", diagnostic, err)
-			}
-			if _, ok := DefaultIndexClass(d); ok {
-				t.Fatal("default B-tree class admitted")
 			}
 			if class, ok := DefaultHashIndexClass(d); ok {
 				// Generic array class identity is not an executable provider.

@@ -30,14 +30,7 @@ func regexpStoredOverloads(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			run(fixture.Exec(fmt.Sprintf("CREATE TABLE %s(s TEXT,d %s DEFAULT %s,g %s GENERATED ALWAYS AS (%s) STORED,CHECK(%s IS NOT NULL))", name, resultType, positional, resultType, expr, expr), 0))
 			run(fixture.Exec(fmt.Sprintf("INSERT INTO %s(s) VALUES(%s)", name, c.values[0]), 1))
 			indexSQL := fmt.Sprintf("CREATE INDEX %s_idx ON %s((%s)) WHERE %s IS NOT NULL", name, name, expr, expr)
-			index := fixture.Exec(indexSQL, 0)
-			if !b.PG && c.typ == "_TEXT" {
-				// Array opclasses are an existing type/index capability limit,
-				// not a regexp function exclusion. Keep the real PG index proof.
-				index = similarReferenceError(indexSQL, fixture.Diagnostic{Code: "42704", Message: `data type text[] has no default operator class for access method "btree"`, Hint: "You must specify an operator class for the index or define a default operator class for the data type."})
-				index.SelectRows = false
-			}
-			run(index)
+			run(fixture.Exec(indexSQL, 0))
 			if c.typ == "_TEXT" {
 				// The selected array function still participates in real
 				// stored index predicates over an admitted scalar key.

@@ -27,8 +27,8 @@ func TestDeparsePartitionPresenterArrayEquality(t *testing.T) {
 	if !ok || equality.Name() != "=" || equality.Left != 2277 || equality.Right != 2277 || equality.Function != 744 {
 		t.Fatal("missing released array equality authority")
 	}
-	// Presentation-only catalog: no executable array ordering provider or new
-	// production array_ops admission is manufactured by this fixture.
+	// Presentation-only fixture: it manufactures no provider of its own; the
+	// released btree array_ops ordering is owned by production separately.
 	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 190010}, ObjectNamespace: f.parent.Namespace(), ObjectName: "deparse_array_family", ObjectRevision: 1, Method: 403}
 	class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: 190011}, ObjectNamespace: f.parent.Namespace(), ObjectName: "deparse_array_class", ObjectRevision: 1, Method: 403, Family: family.Address().ObjectID, InputType: 2277}
 	member := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 190012}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 2277, Right: 2277, Operator: equality.Address().ObjectID, Method: 403, Number: 3, Purpose: 's'}

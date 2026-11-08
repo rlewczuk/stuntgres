@@ -101,6 +101,9 @@ var indexSupportUnitRows = [...]struct {
 	{10052, 2, IndexSupport{Family: 5032, Member: 10181, Routine: 6422, Left: 5069, Right: 5069, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 	{10053, 1, IndexSupport{Family: 5067, Member: 10130, Routine: 5096, Left: 5069, Right: 5069, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 	{10067, 1, IndexSupport{Family: 3253, Member: 10118, Routine: 3251, Left: 3220, Right: 3220, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
+	{10000, 1, IndexSupport{Family: 397, Member: 10000, Routine: 382, Left: 2277, Right: 2277, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
+	{10001, 1, IndexSupport{Family: 627, Member: 10138, Routine: 626, Left: 2277, Right: 2277, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
+	{10001, 2, IndexSupport{Family: 627, Member: 10139, Routine: 782, Left: 2277, Right: 2277, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 }
 
 func selectedTestIndexClass(class IndexClass) IndexClass {

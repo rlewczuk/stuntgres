@@ -48,6 +48,7 @@ var supportedIndexClasses = [...]struct {
 	{"varchar_pattern_ops", 403, 2095, 0, true},
 	{"bpchar_pattern_ops", 403, 2097, 0, true},
 	{"enum_ops", 403, 3522, 0, false},
+	{"array_ops", 403, 397, 0, false},
 	{"bool_ops", 405, 2222, 0, false},
 	{"bytea_ops", 405, 2223, 0, false},
 	{"char_ops", 405, 431, 0, false},
@@ -78,6 +79,7 @@ var supportedIndexClasses = [...]struct {
 	{"varchar_pattern_ops", 405, 2229, 0, true},
 	{"bpchar_pattern_ops", 405, 2231, 0, true},
 	{"enum_ops", 405, 3523, 0, false},
+	{"array_ops", 405, 627, 0, false},
 	{"inet_ops", 783, 3550, 0, true},
 	{"box_ops", 783, 2593, 0, false},
 	{"point_ops", 783, 1029, 603, false},
@@ -287,6 +289,10 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 		name, method = "bpchar_pattern_ops", 405
 	case 3523:
 		name, method = "enum_ops", 405
+	case 397:
+		name, method = "array_ops", 403
+	case 627:
+		name, method = "array_ops", 405
 	default:
 		return IndexFamilyMetadata{}, false
 	}

@@ -214,9 +214,11 @@ pg_index vector projection. Existing supported btree/hash/bounded GiST provider
 limits remain in force.
 
 The existing bounded unsupported-input validation remains explicit: after
-collation validation, hash array inputs and btree NAME[] inputs (including
-domains) report native0A000 before class lookup. Other btree arrays do not gain
-this capability branch. This uses type/provider facts, never an `array_ops`
-name fallback or a fabricated live class, and preserves the existing
-`TestReferenceHashIndexDiagnostics` and
-`TestReferenceIndexClausesUnownedBoundaries` contracts.
+collation validation, hash array inputs still report native0A000 before class
+lookup. Btree arrays and domains over arrays instead gain the released
+default `array_ops` class10000/family397 through the element type's default
+comparison (`btarraycmp`382); a missing element comparator is a demand-time
+42883, not a CREATE rejection. Unknown class names still get42704 and
+incompatible existing classes get42804. This uses type/provider facts, never an
+`array_ops` name fallback or a fabricated live class, and preserves the
+existing `TestReferenceHashIndexDiagnostics` contract.

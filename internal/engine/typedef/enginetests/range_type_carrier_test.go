@@ -57,9 +57,15 @@ func rangeTypeUnitCarriers(t *testing.T, r, m *sqltype.Descriptor) {
 			}
 		}
 	}
-	for _, typ := range []*sqltype.Descriptor{r, m, domain, array} {
+	for _, typ := range []*sqltype.Descriptor{r, m, domain} {
 		if _, err := sqltype.BindOrdering(typ.Usage()); err == nil {
 			t.Fatal("carrier fixture granted unsupported SQL ordering", typ.Name())
 		}
+	}
+	// Array carriers resolve the released array_ops default and compare
+	// elements through the range type's own comparison.
+	ordering, err := sqltype.BindOrdering(array.Usage())
+	if err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+		t.Fatal("array carrier ordering", ordering, err)
 	}
 }

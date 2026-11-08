@@ -17,6 +17,14 @@ func AttributeStatisticsHasLessThan(read catalog.Read, usage sqltype.Usage) (boo
 		return false, err
 	}
 	if found {
+		// The released array class resolves for every array, but its ordering
+		// authority is the element type's default comparison: json[]/point[]
+		// own a class yet must keep empty MCV/histogram rows like PostgreSQL.
+		if base := usage.Type.BaseType(); base.IsArray() && class.InputOID() == 2277 {
+			if available, err := AttributeStatisticsHasLessThan(read, base.Element().Usage()); err != nil || !available {
+				return false, err
+			}
+		}
 		member, found := read.FamilyOperator(ids.OID(class.FamilyOID()), ids.OID(class.InputOID()), ids.OID(class.InputOID()), 1, 's')
 		if !found {
 			return false, nil

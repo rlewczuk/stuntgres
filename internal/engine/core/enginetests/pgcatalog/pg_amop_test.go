@@ -101,7 +101,7 @@ func TestPGAmopCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	bag := amopUnitBag(t, rows, d)
-	if rows.Ref != ref || len(bag) != 653 {
+	if rows.Ref != ref || len(bag) != 659 {
 		t.Fatal("capture identity/count", rows.Ref, len(bag))
 	}
 	owners := 0

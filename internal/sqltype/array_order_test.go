@@ -92,8 +92,18 @@ func TestArrayOrderProvider(t *testing.T) {
 	if _, err := BindComparison(d, types[1016], CollationRef{}, false); err == nil {
 		t.Fatal("cross-width array signature bound")
 	}
-	if _, err := BindOrdering(d.Usage()); err == nil {
-		t.Fatal("array-key ordering expanded")
+	ordering, err := BindOrdering(d.Usage())
+	if err != nil {
+		t.Fatal("array-key ordering", err)
+	}
+	if !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+		t.Fatal("array-key ordering identity", ordering.DefaultBtreeOpclass(), ordering.OrderingBound())
+	}
+	if sign, err := ordering.Compare(ctx, arrayOrderInput(t, d, "{1}"), arrayOrderInput(t, d, "{2}"), InputEnvironment{}); err != nil || sign != -1 {
+		t.Fatal("array-key ordering compare", sign, err)
+	}
+	if sign, err := ordering.Compare(ctx, arrayOrderInput(t, d, "{1,NULL}"), arrayOrderInput(t, d, "{1,2}"), InputEnvironment{}); err != nil || sign != 1 {
+		t.Fatal("array-key NULL element ordering", sign, err)
 	}
 }
 

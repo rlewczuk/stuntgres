@@ -201,7 +201,9 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 		c.oid = 10069
 		c.enum = true
 	case "array_ops":
-		c.input = NameArray
+		// Released btree array_ops takes polymorphic anyarray 2277, not the
+		// diagnostic name[] identity; family 397 arrives from the seed table.
+		c.input, c.oid = 2277, 10000
 	case "tid_ops":
 		c.input, c.oid = Tid, 10050
 	case "macaddr_ops":
@@ -231,6 +233,11 @@ func (c IndexClass) withSeedIdentity(method uint32) IndexClass {
 func DefaultIndexClass(t *Descriptor) (IndexClass, bool) {
 	if !t.Concrete() {
 		return IndexClass{}, false
+	}
+	// Every true array type is binary-coercible to anyarray, so the released
+	// default is the polymorphic array_ops class rather than a concrete name[].
+	if t.BaseType().IsArray() {
+		return LookupIndexClass("array_ops")
 	}
 	if t.BaseType().IsEnum() {
 		return LookupIndexClass("enum_ops")
@@ -312,10 +319,10 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if !t.Concrete() {
 		return false
 	}
-	if c.gin && c.input == 2277 {
-		return t.BaseType().IsArray()
-	}
-	if c.hash && c.input == NameArray {
+	// anyarray is the released input of btree, hash and GIN array_ops alike.
+	// Domains flatten; execution authority still comes from the method's own
+	// provider, so a catalog-only identity never implies a native hash.
+	if c.input == 2277 {
 		return t.BaseType().IsArray()
 	}
 	if c.enum {
@@ -456,9 +463,6 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 	if isBitString(u.Type.BaseType().ID()) {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
-	if c.input == NameArray {
-		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
-	}
 	s := c.Support(1)
 	if u.Type.BaseType().IsISN() {
 		if s.Provider != IsnIndexSupport || c.input != u.Type.BaseType().ID() || c.method != 403 || s.Family != c.family || s.Left != uint32(c.input) || s.Right != s.Left || s.Member == 0 || s.Routine == 0 || s.Revision == 0 || s.ClassRevision == 0 || s.FamilyRevision == 0 || s.RoutineRevision == 0 || !u.validCollation() {
@@ -517,6 +521,18 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 	if !u.validCollation() {
 		return IndexComparison{}, fmt.Errorf("invalid ordering collation")
 	}
+	if c.input == 2277 {
+		// The array kernel is the element type's default btree comparison
+		// (btarraycmp 382), with NULL elements, length, rank, dimensions and
+		// lower bounds handled by compareArrays. A missing element comparator
+		// stays a demand-time 42883, never a CREATE INDEX rejection.
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return IndexComparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, c.OID()
+		return IndexComparison{comparison: p, input: c.input, routine: n.OID, support: s}, nil
+	}
 	// The selected operation owns admission. Comparison supplies only typed
 	// datum primitives and retained collation, not another class lookup.
 	p := Comparison{left: u.Type, right: u.Type, inputCollation: u.Collation, orderingBound: true, defaultBtreeOpclass: c.OID()}
@@ -543,7 +559,11 @@ func (p IndexComparison) SameOperation(other IndexComparison) bool {
 	other.support.Revision, other.support.FamilyRevision, other.support.RoutineRevision = 0, 0, 0
 	p.support.ClassRevision, other.support.ClassRevision = 0, 0
 	p.comparison.defaultBtreeOpclass, other.comparison.defaultBtreeOpclass = 0, 0
-	return p == other
+	// A rebound array kernel owns a fresh element comparison pointer, so the
+	// operation identity must compare that child structurally rather than by
+	// pointer like the flat scalar struct does. Collation is part of the
+	// comparison authority and still distinguishes text[] orderings.
+	return p.input == other.input && p.routine == other.routine && p.support == other.support && p.comparison.Equal(other.comparison)
 }
 
 func bindIndexPair(left, right Usage, support IndexSupport) (IndexComparison, error) {

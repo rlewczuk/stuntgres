@@ -100,12 +100,6 @@ func partitionAttachTypedValues(t *testing.T) {
 					if c.setup != "" {
 						run(fixture.Exec(c.setup, 0))
 					}
-					if c.name == "array" && !b.PG {
-						// DEFINE has no native integer[] btree provider. Retain the
-						// genuine PostgreSQL ATTACH values below without adding one.
-						run(fixture.ImplicitError("CREATE TABLE pa_typed_parent(k "+c.typ+") PARTITION BY RANGE("+c.key+")", fixture.Diagnostic{Code: "42704", Message: `data type integer[] has no default operator class for access method "btree"`, Hint: "You must specify an operator class for the index or define a default operator class for the data type."}))
-						return
-					}
 					run(fixture.Exec("CREATE TABLE pa_typed_parent(k "+c.typ+") PARTITION BY RANGE("+c.key+")", 0))
 					run(fixture.Exec("CREATE TABLE pa_typed_child(k "+c.typ+")", 0))
 					run(fixture.Exec("INSERT INTO pa_typed_child VALUES("+c.value+")", 1))

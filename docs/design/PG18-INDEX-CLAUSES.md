@@ -94,12 +94,14 @@ not a promise of pattern-family inequality/search acceleration. Source evidence:
 [padding comparator](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/varchar.c),
 [builtin locale](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/pg_locale_builtin.c).
 
-NAME[]/domain NAME[] payload needs no comparator; using it as a key with its
-PostgreSQL-valid default/array_ops is a truthful native0A000 `index operator class
-is unsupported`. Valid unowned collation/method controls likewise succeed on
-PostgreSQL beside native capability diagnostics. Unknown names get42704 and
-incompatible existing classes/types get42804; no new owning type/locale domain
-or generic cast graph is added.
+NAME[]/domain NAME[] payload needs no scalar comparator, but it is an array like
+any other: btree keys (including domain over array) resolve the released
+default/`array_ops` class10000/family397 and order through`btarraycmp`382 with the
+element type's default comparison. Only hash array keys keep the truthful native
+0A000 `index operator class is unsupported`. Valid unowned collation/method
+controls likewise succeed on PostgreSQL beside native capability diagnostics.
+Unknown names get42704 and incompatible existing classes/types get42804; no new
+owning type/locale domain or generic cast graph is added.
 
 ## Diagnostic phases and atomic execution
 

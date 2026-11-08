@@ -117,8 +117,8 @@ func TestGroupingEnumMemberDomainsAndRecursiveArrays(t *testing.T) {
 	if _, err := BindComparison(array, array, CollationRef{}, false); err != nil {
 		t.Fatal("ordinary enum-array comparison absent", err)
 	}
-	if _, err := BindOrdering(array.Usage()); err == nil {
-		t.Fatal("ordinary enum-array ordering widened")
+	if ordering, err := BindOrdering(array.Usage()); err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+		t.Fatal("ordinary enum-array ordering identity", ordering, err)
 	}
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()

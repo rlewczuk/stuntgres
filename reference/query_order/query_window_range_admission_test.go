@@ -12,7 +12,7 @@ func TestReferenceQueryWindowRangeOrderingAdmission(t *testing.T) {
 				queryWindowRun(t, p, b, fixture.Exec("CREATE TABLE unsortable(k "+tc.typ+")", 0))
 				queryWindowRun(t, p, b, fixture.Exec("INSERT INTO unsortable VALUES("+tc.value+")", 1))
 				q := "SELECT count(*) OVER(ORDER BY k RANGE 1 PRECEDING) FROM unsortable"
-				if b.PG && tc.typ == "integer[]" {
+				if tc.typ == "integer[]" {
 					queryWindowRangeAnalysis(t, p, b, q, "0A000", "RANGE with offset PRECEDING/FOLLOWING is not supported for column type anyarray", "1 PRECEDING", "")
 				} else {
 					queryWindowRangeAnalysis(t, p, b, q, "42883", "could not identify an ordering operator for type "+tc.typ, "k RANGE", "Use an explicit ordering operator or modify the query.")

@@ -20,7 +20,7 @@ func familyCatalogFixture() Read {
 func TestOperatorFamilyCatalog(t *testing.T) {
 	view := familyCatalogFixture()
 	t.Run("dependency classification", func(t *testing.T) { operatorFamilyDependencyCases(t, view) })
-	if view.DescriptorCount() != 1+7+120+653+396+149 {
+	if view.DescriptorCount() != 1+7+122+659+399+151 {
 		t.Fatal("incomplete released family inventory", view.DescriptorCount())
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}

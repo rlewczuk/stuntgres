@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"reflect"
-	"strconv"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -381,7 +380,7 @@ func TestReferenceSearchPathQualifiedTemporalPrecision(t *testing.T) {
 	}
 }
 
-func TestReferenceSearchPathNameArrayOrderingBoundary(t *testing.T) {
+func TestReferenceSearchPathNameArrayOrdering(t *testing.T) {
 	p := fixture.NewScenario(t)
 	fixture.SchemaReferenceCleanup(t, "path_order")
 	p.Step(t, fixture.Exec("CREATE SCHEMA path_order", 0))
@@ -409,33 +408,19 @@ func TestReferenceSearchPathNameArrayOrderingBoundary(t *testing.T) {
 					{"SELECT current_schemas(false) AS paths FROM path_order.source ORDER BY paths", "paths", "{path_order}"},
 					{"SELECT current_schemas(flag) FROM path_order.source ORDER BY 1", "current_schemas", nil},
 				} {
-					var step fixture.Step
-					if !backend.PG {
-						step = fixture.ErrorDiagnostic(tc.q, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type name[]", Hint: "Use an explicit ordering operator or modify the query.", Position: strconv.Itoa(strings.LastIndex(tc.q, "ORDER BY ") + len("ORDER BY ") + 1)})
-					} else {
-						// Released PostgreSQL array comparison is deliberately oracle-only,
-						// not an engine comparator or a same-error parity assertion.
-						want := [][]any{}
-						if populated {
-							want = [][]any{{tc.value}}
-						}
-						typ := "_NAME"
-						if tc.label == "id" {
-							typ = "INT4"
-						}
-						step = fixture.Select(tc.q, []string{tc.label}, []string{typ}, want)
+					// Released array_ops orders name[] through the element type's
+					// default btree comparison, so both backends return the same rows.
+					want := [][]any{}
+					if populated {
+						want = [][]any{{tc.value}}
 					}
+					typ := "_NAME"
+					if tc.label == "id" {
+						typ = "INT4"
+					}
+					step := fixture.Select(tc.q, []string{tc.label}, []string{typ}, want)
 					run(step)
-					if !backend.PG {
-						query := step
-						query.SelectRows = true
-						run(query)
-					}
-					step = fixture.Prepared(step)
-					if !backend.PG {
-						step.ErrorStage = "prepare"
-					}
-					run(step)
+					run(fixture.Prepared(step))
 				}
 				run(fixture.Select("SELECT current_schemas(false)", []string{"current_schemas"}, []string{"_NAME"}, [][]any{{"{path_order}"}}))
 				if populated {

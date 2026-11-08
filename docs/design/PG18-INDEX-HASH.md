@@ -65,12 +65,16 @@ time10039, timestamp10046, timestamptz10040, timetz10042, uuid10066,
 varchar10045, varchar_pattern10057 and xid10051. System identities support
 released diagnostics only; no tid/xid/cid codec/storage implementation is added.
 
-ARRAY default/explicit array_ops and compatibility are recognized, then native
-Execute returns unpositioned ERROR/ERROR0A000 `index operator class is unsupported`.
-PG really succeeds. Native ordinary array `=` is not owned, so grouping's array
-support alone does not authorize an index. JSON has no default hash class and
-returns42704 with the complete PostgreSQL Hint; unowned classes/types remain
-exclusions or type incompatibilities, never invented defaults.
+ARRAY default/explicit array_ops is a released catalog identity only: class10001,
+family627, anyarray input2277 and members626/782 (slot2 stays family-owned) are
+seeded for pg_opclass/pg_amproc/pg_amop parity. Native array hashing is not
+implemented, so Execute still returns the unpositioned ERROR/ERROR0A000
+`index operator class is unsupported` before class binding. PG really succeeds.
+Native ordinary array `=` is not owned, so grouping's array support alone does
+not authorize an index; btree arrays are the separate ordering capability
+(see PG18-INDEX-CLAUSES). JSON has no default hash class and returns42704 with
+the complete PostgreSQL Hint; unowned classes/types remain exclusions or type
+incompatibilities, never invented defaults.
 
 ## Real immutable buckets and one publication owner
 

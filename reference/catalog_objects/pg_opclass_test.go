@@ -70,6 +70,8 @@ func pgOpclassFacts(pgLSNOID int64) [][]any {
 		}
 	}
 	rows = append(rows,
+		[]any{int64(10000), int64(403), "array_ops", int64(11), int64(10), int64(397), int64(2277), true, int64(0)},
+		[]any{int64(10001), int64(405), "array_ops", int64(11), int64(10), int64(627), int64(2277), true, int64(0)},
 		[]any{int64(10064), int64(2742), "array_ops", int64(11), int64(10), int64(2745), int64(2277), true, int64(2283)},
 		[]any{int64(10073), int64(2742), "tsvector_ops", int64(11), int64(10), int64(3659), int64(3614), true, int64(25)},
 		[]any{int64(10090), int64(2742), "jsonb_ops", int64(11), int64(10), int64(4036), int64(3802), true, int64(25)},
@@ -217,13 +219,13 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 149 {
+	if len(facts) != 151 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
 		q := "SELECT opcname FROM pg_catalog.pg_opclass WHERE opcname='" + name + "' AND opcmethod=403"
 		want := [][]any{}
-		if b.PG {
+		if b.PG || name == "array_ops" {
 			want = [][]any{{name}}
 		}
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"opcname"}, []string{"NAME"}, want))

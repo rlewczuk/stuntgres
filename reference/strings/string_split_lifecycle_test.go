@@ -27,26 +27,15 @@ func stringSplitStoredSetup(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			t.FailNow()
 		}
 	}
-	if !b.PG {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(stringSplitArrayIndexStep(b)))
-	}
-	var indexes [][]any
-	if b.PG {
-		indexes = [][]any{{"ss_array_index"}}
-	}
+	// The prepared CREATE INDEX already published ss_array_index in both modes;
+	// repeating the same DDL directly would be a duplicate name.
+	indexes := [][]any{{"ss_array_index"}}
 	stringReplaceBoth(t, p, b, c, fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='ss_array_index'", []string{"relname"}, []string{"NAME"}, indexes))
 }
 
-func stringSplitArrayIndexStep(b fixture.Backend) fixture.Step {
+func stringSplitArrayIndexStep(_ fixture.Backend) fixture.Step {
 	const query = "CREATE INDEX ss_array_index ON ss_stored((string_to_array(s,',')))"
-	if b.PG {
-		return fixture.Exec(query, 0)
-	}
-	d := fixture.ControlsReferenceDiagnostic("42704", `data type text[] has no default operator class for access method "btree"`)
-	d.Hint = "You must specify an operator class for the index or define a default operator class for the data type."
-	s := fixture.ErrorDiagnostic(query, d)
-	s.ErrorStage = "execute"
-	return s
+	return fixture.Prepared(fixture.Exec(query, 0))
 }
 
 func stringSplitStoredWants() []fixture.Step {
@@ -153,8 +142,8 @@ func TestReferenceStringSplitLifecycle(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(dump.String(), "ss_array_index") {
-			t.Fatal("failed array index appeared in native dump")
+		if !strings.Contains(dump.String(), "ss_array_index") {
+			t.Fatal("Dump omitted the array index")
 		}
 		want := stringSplitStoredWants()[0]
 		old, err := c.QueryContext(p.Ctx, want.Query)
@@ -172,7 +161,7 @@ func TestReferenceStringSplitLifecycle(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String())); err != nil {
 			t.Fatal(err)
 		}
-		stringReplaceBoth(t, p, b, c, fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='ss_array_index'", []string{"relname"}, []string{"NAME"}, nil))
+		stringReplaceBoth(t, p, b, c, fixture.Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='ss_array_index'", []string{"relname"}, []string{"NAME"}, [][]any{{"ss_array_index"}}))
 		fixture.StringCoreRetainedRows(t, old, nil, want.Columns, want.Types, want.Rows, false)
 		for i, typ := range want.Types {
 			if meta[i].DatabaseTypeName() != typ {

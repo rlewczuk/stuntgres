@@ -108,6 +108,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - <a id="operator-class-definitions"></a>Operator classes: `RUN='^TestReferenceOperatorClass'`
 - Operator families and support routines: `RUN='^TestReferenceOperatorFamily'`
 - B-tree indexes and build timeouts: `RUN='^TestReferenceBtreeIndex'`
+- B-tree array operator classes: `RUN='^TestReferenceBtreeArray'` covers the
+  default btree `array_ops` class, ordering rows, multicolumn metadata, the
+  coder migration replay and native Dump/Reset/Restore, where ORDER BY results
+  are row-sort witnesses rather than index-scan proof.
 - Transactional ordinary creation (select small groups, add `REFERENCE=1`):
   `RUN='^(TestReferenceTransactionalIndexFlyway|TestReferenceTransactionalIndexLifecycle)$'`,
   `RUN='^(TestReferenceTransactionalIndexUnique|TestReferenceTransactionalIndexSavepoints)$'`,

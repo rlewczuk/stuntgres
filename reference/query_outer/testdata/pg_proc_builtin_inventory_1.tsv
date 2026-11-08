@@ -216,6 +216,7 @@
 379	array_prepend	11	12	1	0	0	6379	f	false	false	false	false	i	s	2	0	5078	5077 5078	\N	\N	\N	false	\N	array_prepend	\N	false	\N
 380	dist_sp	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	601 600	\N	\N	\N	false	\N	dist_sp	\N	false	\N
 381	dist_bs	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	603 601	\N	\N	\N	false	\N	dist_bs	\N	false	\N
+382	btarraycmp	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	2277 2277	\N	\N	\N	false	\N	btarraycmp	\N	false	\N
 383	array_cat	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	5078	5078 5078	\N	\N	\N	false	\N	array_cat	\N	false	\N
 384	array_to_string	11	12	1	0	0	0	f	false	false	false	false	s	s	3	0	25	2277 25 25	\N	\N	\N	false	\N	array_to_text_null	\N	false	\N
 386	scalarlejoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	scalarlejoinsel	\N	false	\N
@@ -278,6 +279,7 @@
 599	abbrev	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	650	\N	\N	\N	false	\N	cidr_abbrev	\N	false	\N
 605	set_masklen	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	869	869 23	\N	\N	\N	false	\N	inet_set_masklen	\N	false	\N
 619	oidvectorne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	30 30	\N	\N	\N	false	\N	oidvectorne	\N	false	\N
+626	hash_array	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	2277	\N	\N	\N	false	\N	hash_array	\N	false	\N
 635	set_masklen	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	650	650 23	\N	\N	\N	false	\N	cidr_set_masklen	\N	false	\N
 636	pg_indexam_has_property	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	26 25	\N	\N	\N	false	\N	pg_indexam_has_property	\N	false	\N
 637	pg_index_has_property	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	2205 25	\N	\N	\N	false	\N	pg_index_has_property	\N	false	\N
@@ -333,6 +335,7 @@
 754	int8	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	20	21	\N	\N	\N	false	\N	int28	\N	false	\N
 768	int4larger	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	23	23 23	\N	\N	\N	false	\N	int4larger	\N	false	\N
 780	hash_numeric_extended	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	1700 20	\N	\N	\N	false	\N	hash_numeric_extended	\N	false	\N
+782	hash_array_extended	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	2277 20	\N	\N	\N	false	\N	hash_array_extended	\N	false	\N
 785	dist_polyc	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	604 718	\N	\N	\N	false	\N	dist_polyc	\N	false	\N
 810	pg_client_encoding	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	19		\N	\N	\N	false	\N	pg_client_encoding	\N	false	\N
 830	macaddr_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	829 829	\N	\N	\N	false	\N	macaddr_eq	\N	false	\N

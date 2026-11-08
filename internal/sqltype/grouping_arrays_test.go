@@ -66,8 +66,9 @@ func TestGroupingArrayStructureAndScalarClasses(t *testing.T) {
 			if equal, err := comparison.EqualValues(ctx, a, b, InputEnvironment{}); err != nil || equal != tc.equal {
 				t.Fatal("ordinary array equality", equal, err)
 			}
-			if _, err := BindOrdering(d.Usage()); err == nil {
-				t.Fatal("ordinary array ordering expanded")
+			ordering, err := BindOrdering(d.Usage())
+			if err != nil || !ordering.OrderingBound() || ordering.DefaultBtreeOpclass() != 10000 {
+				t.Fatal("array ordering identity", ordering, err)
 			}
 		})
 	}

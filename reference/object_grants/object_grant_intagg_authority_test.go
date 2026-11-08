@@ -216,8 +216,9 @@ func TestReferenceObjectGrantIntaggAuthority(t *testing.T) {
 							}
 							q := "SELECT v FROM og_intagg_sink ORDER BY v NULLS LAST"
 							if aggregate {
-								// The atomicity witness needs a stable row order, not
-								// an unavailable native ARRAY ordering operator.
+								// The atomicity witness needs a stable row order;
+								// concat keeps a text ordering independent of the
+								// array comparator.
 								q = "SELECT v FROM og_intagg_sink ORDER BY concat(v)"
 							}
 							check := enum(q, want)

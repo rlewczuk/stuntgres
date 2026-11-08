@@ -64,6 +64,9 @@ func LookupHashIndexClass(name string) (IndexClass, bool) {
 	case "bpchar_pattern_ops":
 		c.oid = 10058
 	case "array_ops":
+		// Released hash array_ops identity (family 627, input anyarray 2277
+		// inherited from the btree lookup) is catalog-only: native array hashing
+		// is not implemented and validateHashClass rejects it with 0A000.
 		c.oid = 10001
 	case "tid_ops":
 		c.oid = 10055

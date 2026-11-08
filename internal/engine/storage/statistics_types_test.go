@@ -43,7 +43,7 @@ func TestAnalyzeStatisticsCollectionTypedCapabilities(t *testing.T) {
 			t.Fatalf("enum declaration order lost: %q/%q", first, last)
 		}
 	}
-	t.Run("unordered array retains grouping", func(t *testing.T) {
+	t.Run("ordered array retains grouping", func(t *testing.T) {
 		array := types[1007]
 		if array == nil {
 			t.Fatal("missing int4 array")
@@ -57,8 +57,12 @@ func TestAnalyzeStatisticsCollectionTypedCapabilities(t *testing.T) {
 			values = append(values, v)
 		}
 		s := collectStatisticsValues(t, array.Usage(), values)
-		if !s.DistinctKnown || s.DistinctCount != 2 || len(s.MCV) != 1 || s.MCV[0].Count != 2 || len(s.Histogram) != 0 {
-			t.Fatalf("unordered array: %#v", s)
+		if !s.DistinctKnown || s.DistinctCount != 2 || len(s.MCV) != 1 || s.MCV[0].Count != 2 || len(s.Histogram) != 1 {
+			t.Fatalf("ordered array: %#v", s)
+		}
+		boundary, err := array.Output(ctx, s.Histogram[0])
+		if err != nil || boundary != "{3}" {
+			t.Fatalf("array histogram boundary: %q (%v)", boundary, err)
 		}
 	})
 	t.Run("collated text retains real authority", func(t *testing.T) {

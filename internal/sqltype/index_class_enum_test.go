@@ -89,10 +89,15 @@ func TestOrderingBtreeIdentityExplicitClassIdentities(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range []string{"array_ops", "record_ops"} {
-		class, ok := LookupIndexClass(name)
-		if !ok || class.OID() != 0 {
-			t.Fatal("unsupported diagnostic class advertised ordering identity", class, ok)
-		}
+	array, ok := LookupIndexClass("array_ops")
+	if !ok || array.OID() != 10000 || array.FamilyOID() != 397 || array.InputOID() != 2277 {
+		t.Fatal("released array_ops identity", array, ok)
+	}
+	if _, err := bindTestIndexOrdering(testTypes()[NameArray].Usage(), array); err != nil {
+		t.Fatal("released array_ops ordering", err)
+	}
+	record, ok := LookupIndexClass("record_ops")
+	if !ok || record.OID() != 0 {
+		t.Fatal("unsupported diagnostic class advertised ordering identity", record, ok)
 	}
 }

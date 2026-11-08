@@ -40,7 +40,15 @@ func TestOrderingUsage(t *testing.T) {
 				}
 				return
 			}
-			if d.ID() == Refcursor || d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || d.ID() == Macaddr8 || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.IsArray() && !d.IsCatalogVector() || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || d.IsRange() || d.IsMultirange() {
+			if d.IsArray() && !d.IsCatalogVector() {
+				// Released array_ops binds for every concrete array; a missing
+				// element comparator stays a demand-time 42883.
+				if err != nil || !provider.OrderingBound() || provider.DefaultBtreeOpclass() != 10000 {
+					t.Fatalf("%s array ordering %v", d.Name(), err)
+				}
+				return
+			}
+			if d.ID() == Refcursor || d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || d.ID() == Macaddr8 || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || d.IsRange() || d.IsMultirange() {
 				if err == nil {
 					t.Fatalf("%s ordering admitted", d.Name())
 				}

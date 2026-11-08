@@ -122,8 +122,8 @@ func TestReferenceQueryDistinctEnumArrays(t *testing.T) {
 		s := fixture.ArrayReferenceSelect("SELECT v FROM enum_array_dv", []string{"v"}, types, []string{"_ENUM"}, want, b.PG)
 		s.Bag = true
 		fixture.QueryDistinctBoth(run, s)
-		// Do not add ordinary array ordering: the held filter only changes the
-		// demanded source bag while recursive keys remain unordered.
+		// DISTINCT uses array equality rather than ordering, so the held
+		// filter only changes the demanded source bag.
 		q := "SELECT DISTINCT " + projection("distinct_wrapped[]") + " AS v FROM enum_array_keys WHERE $1"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {

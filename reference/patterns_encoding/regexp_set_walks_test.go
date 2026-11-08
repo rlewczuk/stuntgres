@@ -25,14 +25,10 @@ func regexpSetWalks(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	} {
 		regexpRoutes(t, p, b, regexpRows(b, c.q, c.names, c.types, c.rows, c.args...))
 	}
-	// Array ordering is an existing non-regexp capability boundary. The
-	// unordered witness above retains both complete capture-array results.
+	// Array ordering is accepted in both modes; the unordered witness above
+	// retains both complete capture-array results.
 	q := `SELECT regexp_match(regexp_split_to_table('ab cd',' '),'(.)') AS m ORDER BY m`
-	s := regexpRows(b, q, []string{"m"}, []string{"_TEXT"}, [][]any{{"{a}"}, {"{c}"}})
-	if !b.PG {
-		s = similarReferenceBindingError(q, fixture.Diagnostic{Code: "42883", Message: "could not identify an ordering operator for type text[]", Hint: "Use an explicit ordering operator or modify the query.", Position: fixture.Position(len(q))})
-	}
-	regexpRoutes(t, p, b, s)
+	regexpRoutes(t, p, b, regexpRows(b, q, []string{"m"}, []string{"_TEXT"}, [][]any{{"{a}"}, {"{c}"}}))
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE walker_source(id INT,s TEXT)`, 0))
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO walker_source VALUES(1,'a b')`, 1))
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE VIEW walker_view AS SELECT r.s FROM regexp_split_to_table((SELECT s FROM walker_source WHERE id=1),' ') r(s)`, 0))

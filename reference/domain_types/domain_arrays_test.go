@@ -108,12 +108,10 @@ func TestReferenceDomainArrays(t *testing.T) {
 		constructor := fixture.ArrayReferenceSelect("SELECT ARRAY['a'::name,'b'::name]::domain_s.da AS made,('{a,b}'::domain_s.da)[1] AS first", []string{"made", "first"}, []string{"_NAME", "NAME"}, []string{"_NAME", "NAME"}, [][]any{{"{a,b}", "a"}}, backend.PG)
 		run(constructor)
 		run(fixture.Prepared(constructor))
-		if backend.PG {
-			// Array ordering remains a separately owned comparator boundary.
-			run(fixture.Select("SELECT a FROM domain_s.arr WHERE id IN (1,3) ORDER BY a", []string{"a"}, []string{"_NAME"}, [][]any{{"{}"}, {`{NULL,"NULL","",alpha}`}}))
-		} else {
-			run(fixture.Error("SELECT a FROM domain_s.arr ORDER BY a", "42883"))
-			run(fixture.Error("SELECT a FROM domain_s.arr WHERE id=999 ORDER BY a", "42883"))
-		}
+		// Array ordering uses the released domain-over-array default class.
+		ordered := fixture.Select("SELECT a FROM domain_s.arr WHERE id IN (1,3) ORDER BY a", []string{"a"}, []string{"_NAME"}, [][]any{{"{}"}, {`{NULL,"NULL","",alpha}`}})
+		run(ordered)
+		run(fixture.Prepared(ordered))
+		run(fixture.Select("SELECT a FROM domain_s.arr WHERE id=999 ORDER BY a", []string{"a"}, []string{"_NAME"}, [][]any{}))
 	})
 }

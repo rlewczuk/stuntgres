@@ -94,7 +94,10 @@ func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.
 	if r.defaultClassCount(method, ids.OID(t.ID())) != 0 {
 		return r.DefaultIndexClassID(method, t.ID())
 	}
-	if m, ok := r.AccessMethod(method); ok && m.Native == GinAccessMethod && t.IsArray() {
+	if m, ok := r.AccessMethod(method); ok && (m.Native == BtreeAccessMethod || m.Native == HashAccessMethod || m.Native == GinAccessMethod) && t.IsArray() {
+		// Every true array type is binary-coercible to anyarray 2277, the
+		// released input of the btree, hash and GIN array_ops defaults. Exact
+		// concrete-input defaults were already preferred above.
 		c, ok := r.uniqueDefaultIndexClassID(method, 2277)
 		return c, ok, nil
 	}

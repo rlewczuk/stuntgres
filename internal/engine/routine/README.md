@@ -680,6 +680,10 @@ package or the engine.
   Support associations, routine formals and search operands remain distinct:
   CIDR associates650 with search/comparator869; varchar associates1043 while
   sharing text's actual helper IDs, text formals and search operands25.
+  The btree/hash array classes also register their released support routines:
+  `btarraycmp`382 (anyarray,anyarray -> int4) executes the btree array kernel,
+  while `hash_array`626 and `hash_array_extended`782 are identity/metadata
+  support only because native array hashing is not implemented.
   Captures include effective class,
   family, support, search-member, operator and backing-routine revisions plus
   the original installation's opaque index authority. The array family has no
