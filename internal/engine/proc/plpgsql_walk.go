@@ -180,6 +180,8 @@ func (r *PLRun) Statements(statements []PLInstruction) (sqltype.Value, PLFlow, e
 		var flow PLFlow
 		var err error
 		switch {
+		case instruction.ReturnNext != nil:
+			err = r.returnNext(instruction)
 		case instruction.Transaction != nil:
 			err = r.Host.Transaction(instruction)
 		case instruction.Diagnostics != nil:

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -68,6 +69,10 @@ func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
 	defer e.Mu.Unlock()
 	binder := NewExpressionBinder(h.s.executionContext(), e, h.s.Input, h.s.Op, nil)
 	return binder.DiagnosticTypeName(typ)
+}
+
+func (h *plHost) ResultUsageName(usage sqltype.Usage) string {
+	return exec.ResultUsageName(usage, h.TypeName)
 }
 
 func (h *plHost) Evaluate(f *proc.PLFrame, q *parser.Select, at proc.PLOrigin) (sqltype.Value, sqltype.Usage, error) {

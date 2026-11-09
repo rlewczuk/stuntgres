@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql"
 	"net"
 	"runtime"
 	"sync"
@@ -42,13 +43,18 @@ func embeddedWaitActivity(t *testing.T, ctx context.Context, observer *pgx.Conn,
 	wait, stop := context.WithTimeout(ctx, fixture.Liveness)
 	defer stop()
 	for {
-		var state, gotQuery, gotEvent, gotKind string
+		var state, gotEvent, gotKind string
+		var gotQuery sql.NullString
 		err := observer.QueryRow(wait, "SELECT state, query, COALESCE(wait_event, ''), COALESCE(wait_event_type, '') FROM pg_stat_activity WHERE pid = $1::integer", int32(pid)).Scan(&state, &gotQuery, &gotEvent, &gotKind)
-		if err == nil && state == "active" && gotQuery == query && gotEvent == event && gotKind == kind {
+		// Visibility before the first command is not execution admission.
+		if err == nil && state == "active" && (!gotQuery.Valid || gotQuery.String != query) {
+			t.Fatalf("active backend pid %d has query %q(valid=%t), want %q", pid, gotQuery.String, gotQuery.Valid, query)
+		}
+		if err == nil && state == "active" && gotQuery.Valid && gotQuery.String == query && gotEvent == event && gotKind == kind {
 			return
 		}
 		if wait.Err() != nil {
-			t.Fatalf("activity pid %d: %q %q %q %q: %v", pid, state, gotQuery, gotEvent, gotKind, err)
+			t.Fatalf("activity pid %d: %q query=%q(valid=%t) %q %q: %v", pid, state, gotQuery.String, gotQuery.Valid, gotEvent, gotKind, err)
 		}
 		if err != nil && err != pgx.ErrNoRows {
 			t.Fatal(err)

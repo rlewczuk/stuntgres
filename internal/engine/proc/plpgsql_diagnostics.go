@@ -29,6 +29,10 @@ func (d *plDiagnosticDatums) expression(program *PLProgram, source string, start
 // RHS. Lexical accounting therefore sees recursive field/subscript targets and
 // index expressions without depending on their SQL AST classification.
 func (d *plDiagnosticDatums) target(program *PLProgram, source string, statement *parser.PLStatement, scopes []*PLBlock) error {
+	if statement.ReturnNext != nil {
+		value := statement.ReturnNext
+		return d.expression(program, source, value.Start, value.End, scopes)
+	}
 	if statement.Target == nil {
 		return nil
 	}

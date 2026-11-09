@@ -44,6 +44,7 @@ type PLStatement struct {
 	Target              Expr
 	Expression          Expr
 	Return              bool
+	ReturnNext          *PLExpression
 	Rethrow             bool
 	ExpressionStart     Position
 	ExpressionEnd       Position
@@ -367,6 +368,12 @@ func (l *lexer) plBoundExpression(raw PLExpression, predecessor lexeme) PLExpres
 	}
 	raw.Start = l.plSourceStart(raw.End, raw.Delimiter, predecessor)
 	return raw
+}
+
+func (l *lexer) plReturnNextExpression(raw PLExpression, token lexeme) *PLExpression {
+	token.pos = token.plOperandEnd
+	value := l.plBoundExpression(raw, token)
+	return &value
 }
 
 func (l *lexer) plDelimitedExpression(raw PLExpression, predecessor, delimiter lexeme) PLExpression {

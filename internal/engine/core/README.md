@@ -2097,6 +2097,10 @@ RETURN QUERY EXECUTE uses the existing SQL-routine set sink, validates exact
 tuple structure even for empty producers, appends detached values, and publishes
 the instruction-local sink delta as ROW_COUNT and its presence as FOUND after
 successful completion. The sink never enters definitions or session specializations.
+RETURN NEXT shares that invocation-private sink through a checked direct slot
+read. The host supplies catalog-aware result-usage names only on mismatch; no
+SQL evaluation or assignment conversion may overwrite status during an append.
+Uncaught failure publishes no set cursor, and later invocations own fresh sinks.
 The balanced outer PL action spans command/USING operands, execution, cleanup and
 postexecution assignment. Each executing command borrows the complete computed
 SQL in an operation-local live node through all producer/command/activation cleanup;

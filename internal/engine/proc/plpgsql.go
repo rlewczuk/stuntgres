@@ -94,6 +94,12 @@ type PLInstruction struct {
 	Dynamic     *PLDynamic
 	Transaction *parser.PLTransaction
 	Diagnostics *PLDiagnostics
+	ReturnNext  *PLReturnNext
+}
+
+// PLReturnNext is a checked whole-variable read, never an assignment target.
+type PLReturnNext struct {
+	Slot int
 }
 type PLWhile struct {
 	Condition *parser.Select
@@ -491,6 +497,14 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 			case statement.Case != nil:
 				instruction.Case, err = compileConditional(statement.Case, statement.Case.Search.Expression != nil, scopes)
 			case statement.Rethrow:
+			case statement.ReturnNext != nil:
+				if !definition.ReturnsSet {
+					return nil, parser.PLPositionError("42804", "cannot use RETURN NEXT in a non-SETOF function", statement.Pos)
+				}
+				if len(definition.OutputFormals) != 0 {
+					return nil, parser.PLPositionError("42804", "RETURN NEXT cannot have a parameter in function with OUT parameters", statement.ReturnNext.Expression.SourcePosition())
+				}
+				instruction.ReturnNext, err = p.compileReturnNext(statement.ReturnNext.Expression, scopes)
 			case statement.Return:
 				message, code := "", ""
 				if statement.Expression != nil {
@@ -505,6 +519,9 @@ func CompilePL(definition *Definition, syntax *parser.PLBlock, procedure bool, c
 					} else {
 						pos.Offset += 6
 						pos.Character += 6
+					}
+					if definition.ReturnsSet && statement.Expression != nil {
+						return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Hint: "Use RETURN NEXT or RETURN QUERY.", Position: strconv.Itoa(pos.Character)}
 					}
 					return nil, parser.PLPositionError(code, message, pos)
 				}
@@ -679,6 +696,17 @@ func (p *PLProgram) ResolveTarget(raw parser.Expr, scopes []*PLBlock) (PLTarget,
 	return PLTarget{}, parser.PLPositionError("42704", fmt.Sprintf("variable %q does not exist", names[0]), raw.SourcePosition())
 }
 
+func (p *PLProgram) compileReturnNext(raw parser.Expr, scopes []*PLBlock) (*PLReturnNext, error) {
+	target, err := p.ResolveTarget(raw, scopes)
+	if err != nil {
+		return nil, err
+	}
+	variable := p.Variables[target.Slot]
+	if len(target.Steps) != 0 || (!variable.Record && !variable.Usage.Type.BaseType().IsComposite()) {
+		return nil, parser.PLPositionError("42804", "RETURN NEXT requires a row variable", raw.SourcePosition())
+	}
+	return &PLReturnNext{Slot: target.Slot}, nil
+}
 func plTargetPath(raw parser.Expr) (parser.Expr, []parser.TargetStep, bool) {
 	switch raw := raw.(type) {
 	case parser.ColumnExpr:

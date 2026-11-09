@@ -43,6 +43,45 @@ func TestReferencePLpgSQLCoreReturns(t *testing.T) {
 	}
 }
 
+func TestReferencePLpgSQLCoreReturnNextLiterals(t *testing.T) {
+	for _, tc := range []struct{ name, literal string }{
+		{"ordinary", "'next'"},
+		{"escape", "E'next'"},
+		{"dollar", "$literal$next$literal$"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plpgsqlScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				userOperatorExec(t, p, b, c,
+					"CREATE FUNCTION pl_return_next_literal() RETURNS text LANGUAGE plpgsql AS $function$BEGIN RETURN "+tc.literal+"; END$function$")
+				plpgsqlValue(t, p, b, c, "SELECT pl_return_next_literal() AS v", "TEXT", "next")
+			})
+		})
+	}
+}
+
+func TestReferencePLpgSQLCoreReturnNextCompoundNames(t *testing.T) {
+	for _, tc := range []struct {
+		name, setup, body string
+		want              int64
+	}{
+		{"block", "", `<<"next">> DECLARE x integer := 1; BEGIN RETURN next.x; END "next"`, 1},
+		{"block_trivia", "", "<<\"next\">> DECLARE x integer := 1; BEGIN RETURN next /* α /* β */ */ -- γ\n . x; END \"next\"", 1},
+		{"record_field", "CREATE TYPE pl_return_next_row AS (id integer)", `DECLARE "next" pl_return_next_row; BEGIN SELECT 7 INTO "next"; RETURN next /* α */ . id; END`, 7},
+		{"record_arithmetic", "CREATE TYPE pl_return_next_row AS (id integer)", "DECLARE \"next\" pl_return_next_row; BEGIN SELECT 7 INTO \"next\"; RETURN next -- α\n . id + 1; END", 8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plpgsqlScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				if tc.setup != "" {
+					userOperatorExec(t, p, b, c, tc.setup)
+				}
+				userOperatorExec(t, p, b, c,
+					"CREATE FUNCTION pl_return_next_compound() RETURNS integer LANGUAGE plpgsql AS $function$"+tc.body+"$function$")
+				plpgsqlValue(t, p, b, c, "SELECT pl_return_next_compound() AS v", "INT4", tc.want)
+			})
+		})
+	}
+}
+
 func TestReferencePLpgSQLCoreLazyBinding(t *testing.T) {
 	plpgsqlExpressionCases(t)
 	for _, tc := range []struct{ name, expression, code, message string }{

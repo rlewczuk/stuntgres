@@ -986,8 +986,24 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			case "return":
 				if l.previousToken != END {
 					next := l.nextRaw()
+					returnNext := (next.lexeme.keyword != nil || next.code == IDENT) && !quotedIdentifierLexeme(next.lexeme) && next.lexeme.text == "next"
+					if returnNext {
+						l.skip(true)
+						if l.err != nil {
+							return 0
+						}
+						// A punctuation dot starts a compound name; .5 and .. do not.
+						if l.offset < len(l.input) && l.input[l.offset] == '.' &&
+							(l.offset+1 == len(l.input) || !digit(l.input[l.offset+1]) && l.input[l.offset+1] != '.') {
+							returnNext = false
+						}
+					}
 					if !quotedIdentifierLexeme(next.lexeme) && next.lexeme.text == "query" {
 						token.code = PL_RETURN_QUERY
+					} else if returnNext {
+						token.code = PL_RETURN_NEXT
+						token.lexeme.plOperandEnd = next.lexeme.pos
+						l.plExpression = true
 					} else {
 						l.lookahead, l.hasLookahead = next, true
 						token.code = PL_RETURN

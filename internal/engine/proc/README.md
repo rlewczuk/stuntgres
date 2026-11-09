@@ -462,6 +462,16 @@ result consumption before ordinary INTO cardinality/assignment, preserving
 FOUND except for explicit assignment to it. Dynamic RETURN QUERY appends to the
 existing invocation-private `Values` sink and then continues the walk; bare
 RETURN and fallthrough finish set invocations without a scalar result.
+RETURN NEXT retains one checked whole-variable read slot, including aliases and
+block qualification, without assignment's CONSTANT restriction. Explicit operands
+require a set-returning function without output parameters. Compilation and
+validation enforce this even for unreachable operands and account for their
+diagnostic namespace.
+The walk reads immutable frame values directly, never evaluating SQL or applying
+assignment conversion. Positional OID and constrained typmod checks precede width
+checks; named NULL rows materialize NULL fields and indeterminate RECORD fails.
+Each append continues normally and preserves FOUND and ROW_COUNT. Only the
+invocation owns the sink; published instructions retain no values or descriptors.
 
 RETURN/EXIT/CONTINUE use compact non-error flow, so successful protected
 transfers release checkpoints rather than invoking handlers. Blocks and loops
@@ -493,6 +503,8 @@ PL cursor units use `RUN='^TestPLpgSQLCursor'`; public scenarios live in
 Static query-loop validation units use `RUN='^TestPLpgSQLQueryLoopValidation$'`.
 Static capture compiler/validation units use `RUN='^TestPLpgSQLSelectIntoValidation$'`.
 Dynamic compiler/validation units use `RUN='^TestPLpgSQLDynamicSQLValidation$'`.
+Checked set-row reads and direct immutable append units use
+`RUN='^Test(PLpgSQLReturnNext|PLRunReturnNext)'`.
 Runtime diagnostic units use `RUN='^TestPL(FormatError|AssignmentErrorPhase|CaseExpressionError|pgSQLCursorCurrentDiagnostic)'`.
 Message/assertion compilation and validation use `RUN='^TestPLpgSQL(Raise|Assert)'`.
 Diagnostics syntax/program/frame ownership uses `RUN='^TestPLpgSQLDiagnostics'`.

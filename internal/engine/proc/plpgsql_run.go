@@ -53,6 +53,8 @@ type PLHost interface {
 	LookupType(id sqltype.ID) (*sqltype.Descriptor, bool)
 	// TypeName uses the current catalog visibility for an error-only type name.
 	TypeName(typ *sqltype.Descriptor) string
+	// ResultUsageName renders an exact result usage, including typmod, on error.
+	ResultUsageName(usage sqltype.Usage) string
 	// Evaluate runs a single-target expression query and returns its value and
 	// usage; no row yields a typed NULL.
 	Evaluate(f *PLFrame, q *parser.Select, at PLOrigin) (sqltype.Value, sqltype.Usage, error)

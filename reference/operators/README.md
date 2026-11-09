@@ -420,6 +420,9 @@ FOUND, instruction-local RETURN QUERY counts, and no success publication after
 execution failure. Exact live stacks distinguish command/USING operand calls from
 computed SQL execution's SQL statement frame and retain the suspended PL action;
 actual cancellation checks recovery through direct and original-held handles.
+
+Row-valued set appends, diagnostics and held-invocation lifecycle reuse the
+shared PL helpers with `RUN='^TestReferencePLpgSQLReturnNext'`.
 Run `make check RUN='^TestReferencePLpgSQLDiagnostics(Status|Context|Lifecycle)$'`
 in both native and `REFERENCE=1` modes.
 

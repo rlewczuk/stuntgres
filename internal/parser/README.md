@@ -517,6 +517,11 @@ comments and raw tokens. The caller supplies RETURN legality so it precedes
 scalar syntax errors.
 Expression-origin probes inherit the predecessor's byte/character coordinates,
 so their two-token scan does not recount the preceding body.
+RETURN NEXT has a distinct contextual statement payload: its action position is
+RETURN, while the operand starts after NEXT and intervening trivia. NEXT must be
+an unquoted simple identifier/keyword token: string literals and compound names
+such as `next.id` remain ordinary RETURN expressions. Quoted NEXT remains an
+identifier and cursor NEXT retains its motion token.
 Contextual PL keywords do not change SQL parsing or configured prewalk behavior.
 Unreserved FIRST and SECOND are also positioned PL target names; FETCH FIRST
 retains its separate cursor-motion production, and SECOND remains a temporal field.
@@ -642,6 +647,7 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 
 Sampling AST, alias placement, source positions and expression walks use
 `RUN='^TestSystemRows'`.
+Positioned set-row append syntax uses `RUN='^TestPLpgSQLReturnNext'`.
 
 Concrete structural serialization (ordered nodes, fields/literals, omitted source
 positions and cancellation) uses `make check RUN='^TestParserStructuralOutput$'`.

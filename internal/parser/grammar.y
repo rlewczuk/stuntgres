@@ -290,6 +290,7 @@ package parser
 %token <tok> PL_FOREACH PL_SLICE
 %token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
 %token <tok> PL_EXECUTE PL_RETURN_QUERY PL_DYNAMIC_INTO PL_DYNAMIC_USING PL_DYNAMIC_COMMA PL_STRICT
+%token <tok> PL_RETURN_NEXT
 %token <tok> SETOF_TYPE
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
@@ -2335,6 +2336,7 @@ pl_statement: pl_block {$$=&PLStatement{Block:$1,Pos:$1.Pos}}
  | pl_target '=' pl_expression {value:=sqllex.(*lexer).plBoundExpression($3,$2);$$=&PLStatement{Target:$1,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.SourcePosition()}}
  | pl_target {sqllex.(*lexer).plBareTarget($1);return 1}
  | PL_RETURN pl_return_value {value:=sqllex.(*lexer).plBoundExpression($2,$1);$$=&PLStatement{Return:true,Expression:value.Expression,ExpressionStart:value.Start,ExpressionEnd:value.End,ExpressionDelimiter:value.Delimiter,Pos:$1.pos}}
+ | PL_RETURN_NEXT pl_expression {$$=&PLStatement{ReturnNext:sqllex.(*lexer).plReturnNextExpression($2,$1),Pos:$1.pos}}
  | pl_if_head pl_if_condition pl_statements pl_elsif_arms pl_else END IF {condition:=sqllex.(*lexer).plBoundExpression($2,$1);arms:=append([]PLArm{{Conditions:[]PLExpression{condition},Statements:$3}},$4...);$$=&PLStatement{If:&PLConditional{Arms:arms,HasElse:$5.HasElse,Else:$5.Else},Pos:$1.pos}}
  | PL_OPEN pl_target pl_open_tail {$3.Action=PLOpenCursor;$3.Variable=$2;$$=&PLStatement{Cursor:$3,Pos:$1.pos}}
  | FETCH pl_cursor_motion pl_cursor_from pl_target INTO pl_cursor_targets {cursor:=sqllex.(*lexer).plCursorTargets(&PLCursorStatement{Action:PLFetchCursor,Variable:$4,Motion:*$2,Targets:$6},$5);$$=&PLStatement{Cursor:cursor,Pos:$1.pos}}

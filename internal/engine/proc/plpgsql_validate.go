@@ -204,6 +204,9 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 			if instruction.Syntax != raw || raw.Pos.Offset < 0 || raw.Pos.Offset >= len(d.Source) || raw.Pos.Character <= 0 || !plSourceSpan(d.Source, raw.Expression, raw.ExpressionStart, raw.ExpressionEnd, raw.ExpressionDelimiter) {
 				return invalid()
 			}
+			if (instruction.ReturnNext != nil) != (raw.ReturnNext != nil) {
+				return invalid()
+			}
 			if (instruction.Transaction != nil) != (raw.Transaction != nil) {
 				return invalid()
 			}
@@ -238,7 +241,7 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			variants := 0
-			for _, present := range []bool{raw.Transaction != nil, raw.Dynamic != nil, raw.Diagnostics != nil, raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.While != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.Rethrow, raw.Target != nil} {
+			for _, present := range []bool{raw.Transaction != nil, raw.Dynamic != nil, raw.Diagnostics != nil, raw.SQL != nil, raw.Into != nil, raw.IntegerFor != nil, raw.Foreach != nil, raw.Raise != nil, raw.Assert != nil, raw.QueryLoop != nil, raw.Block != nil, raw.Loop != nil, raw.While != nil, raw.Transfer != nil, raw.If != nil, raw.Case != nil, raw.Cursor != nil, raw.Return, raw.ReturnNext != nil, raw.Rethrow, raw.Target != nil} {
 				if present {
 					variants++
 				}
@@ -247,6 +250,17 @@ func (p *PLProgram) ValidateDefinition(d *Definition) error {
 				return invalid()
 			}
 			switch {
+			case raw.ReturnNext != nil:
+				value := raw.ReturnNext
+				empty := instruction
+				empty.ReturnNext = nil
+				if !d.ReturnsSet || len(d.OutputFormals) != 0 || instruction.Block != nil || raw.Expression != nil || !emptyPLInstructionPayload(empty) || value.Expression == nil || !plSourceSpan(d.Source, value.Expression, value.Start, value.End, value.Delimiter) {
+					return invalid()
+				}
+				checked, err := p.compileReturnNext(value.Expression, scopes)
+				if err != nil || checked.Slot != instruction.ReturnNext.Slot {
+					return invalid()
+				}
 			case raw.Transaction != nil:
 				empty := instruction
 				empty.Transaction = nil
@@ -847,5 +861,5 @@ func (p *PLProgram) validCursorInstruction(raw *parser.PLCursorStatement, in *PL
 }
 
 func emptyPLInstructionPayload(in PLInstruction) bool {
-	return in.Transaction == nil && in.Dynamic == nil && in.Diagnostics == nil && in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.While == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
+	return in.ReturnNext == nil && in.Transaction == nil && in.Dynamic == nil && in.Diagnostics == nil && in.SQL == nil && in.Into == nil && in.IntegerFor == nil && in.Foreach == nil && in.Raise == nil && in.Assert == nil && in.QueryLoop == nil && in.Query == nil && in.Cursor == nil && in.If == nil && in.Case == nil && in.Loop == nil && in.While == nil && in.Transfer == nil && in.Target.Slot == 0 && len(in.Target.Steps) == 0
 }

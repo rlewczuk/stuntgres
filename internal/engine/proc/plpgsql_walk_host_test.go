@@ -42,7 +42,8 @@ func (h *walkHost) Diagnostics(*PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no diagnostic source")
 }
 
-func (h *walkHost) TypeName(typ *sqltype.Descriptor) string { return typ.DiagnosticName() }
+func (h *walkHost) TypeName(typ *sqltype.Descriptor) string    { return typ.DiagnosticName() }
+func (h *walkHost) ResultUsageName(usage sqltype.Usage) string { return usage.Type.DiagnosticName() }
 
 func (h *walkHost) Capture(*PLRun, *PLFrame, PLInstruction) error {
 	return fmt.Errorf("walk unit has no SQL capture producer")
