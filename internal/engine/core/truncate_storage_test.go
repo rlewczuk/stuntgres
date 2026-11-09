@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -163,17 +164,69 @@ func TestTruncateSavepoints(t *testing.T) {
 	tx := enginetest.TransactionBegin(t, s)
 	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(3)")
 	enginetest.SessionSQL(t, s, "SAVEPOINT before")
-	beforeWrites := s.Transactions.Writes[p.Address]
-	beforeCatalog := s.Transactions.Catalog
+	beforeMark := s.Transactions.Savepoints[s.Transactions.FindSavepoint("before")]
+	beforeWrites, beforeCatalog := beforeMark.Writes[p.Address], beforeMark.Catalog
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	first := s.Transactions.Catalog.Storage[p.Address].Replacement
+	firstJournal := s.Transactions.Catalog
+	firstFences := len(firstJournal.Fences)
+	firstDiscards := len(firstJournal.DiscardedHeaps)
 	enginetest.SessionSQL(t, s, "SAVEPOINT empty")
-	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(4)")
-	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	enginetest.SessionSQL(t, s, "ROLLBACK TO empty")
-	if s.Transactions.Catalog.Storage[p.Address].Replacement != first || len(s.Transactions.Writes[p.Address]) != 0 {
-		t.Fatal("private empty incarnation not restored")
+	emptyMark := s.Transactions.Savepoints[s.Transactions.FindSavepoint("empty")]
+	emptyCatalog := emptyMark.Catalog
+	emptyFences, emptyDiscards := len(emptyCatalog.Fences), len(emptyCatalog.DiscardedHeaps)
+	if emptyCatalog.Storage[p.Address].Replacement != first || len(emptyMark.Writes[p.Address]) != 0 {
+		t.Fatal("savepoint did not capture actual empty journal/write authority")
 	}
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(4)")
+	childWrites := s.Transactions.Writes[p.Address]
+	if len(childWrites) != 1 {
+		t.Fatal("child did not own a real pending write")
+	}
+	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
+	enginetest.SessionSQL(t, s, "CREATE TABLE child_private(id INT)")
+	truncateReplayRetain(t, e, s, false, "p")
+	discarded := s.Transactions.Catalog
+	discardedRoot := discarded.Storage[p.Address].Replacement
+	discardedFences := len(discarded.Fences)
+	var childBatch session.HeapDiscard
+	for _, batch := range discarded.DiscardedHeaps {
+		if batch.Address == p.Address && batch.Storage == first {
+			for prior := batch.Versions; prior != nil; prior = prior.Next {
+				if prior.Version.Version == childWrites[0].Version && &prior.Version.Values[0] == &childWrites[0].Values[0] {
+					childBatch = batch
+				}
+			}
+		}
+	}
+	if childBatch.Versions == nil {
+		t.Fatal("child truncate did not retain its genuine saved-heap tuple/backing")
+	}
+	assertEmpty := func() *session.Journal {
+		t.Helper()
+		restored := s.Transactions.Catalog
+		// Rollback retains the child's discarded tuple against this surviving
+		// heap in a fresh header. Every saved authority field must stay exact.
+		authority := *restored
+		authority.DiscardedHeaps = emptyCatalog.DiscardedHeaps
+		if restored == emptyCatalog || !reflect.DeepEqual(authority, *emptyCatalog) || !slices.Contains(restored.DiscardedHeaps, childBatch) || len(s.Transactions.Writes[p.Address]) != 0 {
+			t.Fatal("rollback did not restore exact saved authority with genuine tuple retention")
+		}
+		if s.Transactions.Savepoints[s.Transactions.FindSavepoint("empty")].Catalog != emptyCatalog || len(emptyCatalog.Fences) != emptyFences || len(emptyCatalog.DiscardedHeaps) != emptyDiscards || emptyCatalog.Storage[p.Address].Replacement != first || len(firstJournal.Fences) != firstFences || len(firstJournal.DiscardedHeaps) != firstDiscards || firstJournal.Storage[p.Address].Replacement != first {
+			t.Fatal("rollback changed saved/original parent journal, roots or fence slice")
+		}
+		return restored
+	}
+	enginetest.SessionSQL(t, s, "ROLLBACK TO empty")
+	restored := assertEmpty()
+	restoredDiscards := len(restored.DiscardedHeaps)
+	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
+	if discarded.Storage[p.Address].Replacement != discardedRoot || len(discarded.Fences) != discardedFences || !slices.Contains(discarded.DiscardedHeaps, childBatch) || restored.Storage[p.Address].Replacement != first || len(restored.Fences) != emptyFences || len(restored.DiscardedHeaps) != restoredDiscards {
+		t.Fatal("reappend changed discarded child journal/root/fences")
+	}
+	enginetest.SessionSQL(t, s, "ROLLBACK TO empty")
+	assertEmpty()
+	enginetest.SessionSQL(t, s, "RELEASE empty")
 	enginetest.SessionSQL(t, s, "ROLLBACK TO before")
 	if s.Transactions.Catalog != beforeCatalog || !storage.SameVersionRoot(s.Transactions.Writes[p.Address], beforeWrites) {
 		t.Fatal("savepoint did not restore exact prior catalog/write roots")

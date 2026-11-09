@@ -1,8 +1,8 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
+	"stuntgres/internal/engine/core"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -251,6 +251,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 	t.Run("OwnSubsequentDDL", func(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		tx := enginetest.TransactionBegin(t, s)
+		truncateReplayRetain(t, e, s, true, "p")
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 		replacement := s.Transactions.Catalog.Generators[ps.Address]
 		enginetest.SessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")

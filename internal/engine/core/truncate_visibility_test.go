@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	"stuntgres/internal/engine/core"
@@ -102,6 +103,38 @@ func TestTruncateBuffers(t *testing.T) {
 	rows := result.Rows.(*exec.FinalRows)
 	schema := rows.Schema()
 	count := rows.Count
+	computed := enginetest.SessionSQL(t, s, "SELECT id+0 AS id FROM p ORDER BY id")
+	computedRows := computed.Rows.(*exec.FinalRows)
+	payload := slices.Clone(computedRows.Values)
+	if len(payload) != 2 {
+		t.Fatal("computed eager Rows did not retain a genuine typed payload")
+	}
+	versions := slices.Clone(root)
+	generation := old.Generation
+	tx := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "SAVEPOINT original")
+	for marker := 1; marker <= 256; marker++ {
+		truncateUnitExecute(t, e, s, truncateUnitAST("p"))
+		if marker == 64 {
+			enginetest.SessionSQL(t, s, "SAVEPOINT repeated")
+		}
+		if marker == 128 {
+			enginetest.SessionSQL(t, s, "ROLLBACK TO repeated")
+		}
+		if marker == 192 {
+			enginetest.SessionSQL(t, s, "RELEASE repeated")
+		}
+	}
+	enginetest.SessionSQL(t, s, "ROLLBACK TO original")
+	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
+	enginetest.SessionSQL(t, s, "RELEASE original")
+	enginetest.TransactionEnd(t, s, tx, true)
+	if !reflect.DeepEqual(computedRows.Values, payload) || computedRows.Closed || computedRows.Count != 2 || old.Generation != generation || !reflect.DeepEqual(old.Versions, versions) {
+		t.Fatal("replay/savepoint/reappend mutated live typed buffer or predecessor stamps")
+	}
+	if got := enginetest.Tuples(computed); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}}) {
+		t.Fatal("retained computed typed rows changed", got)
+	}
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	if e.Storage.Relations[p.Address] == old || !storage.SameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal("generation swap damaged retained eager buffer/codec")

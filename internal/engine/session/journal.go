@@ -2,6 +2,7 @@ package session
 
 import (
 	"maps"
+	"sync"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -39,17 +40,25 @@ type Journal struct {
 	// owner disposal, without invalidating this journal's own storage fences.
 	DiscardedHeaps []HeapDiscard
 	Dependencies   []DependencyObservation
-	CachedBase     *catalog.State
-	Cached         catalog.Read
-	Enum           EnumSlot
-	RolesBase      *access.RoleRecord
-	Roles          *access.RoleRecord
-	RetiredRoles   map[authorization.PrincipalRef]struct{}
-	Fences         []Fence // Feature commit preconditions, in recording order.
-	Domain         DomainSlot
-	DomainChanged  bool
-	Indexes        IndexSlot
-	Statistics     map[ids.ObjectAddress]StatisticsChange
+	// Engine.mu protects direct cache access. cacheMu also serializes cache
+	// updates with detached Clone, without covering any slot Clone callback.
+	CachedBase    *catalog.State
+	Cached        catalog.Read
+	cacheMu       *sync.Mutex
+	Enum          EnumSlot
+	RolesBase     *access.RoleRecord
+	Roles         *access.RoleRecord
+	RetiredRoles  map[authorization.PrincipalRef]struct{}
+	Fences        []Fence // Feature commit preconditions, in recording order.
+	Domain        DomainSlot
+	DomainChanged bool
+	Indexes       IndexSlot
+	Statistics    map[ids.ObjectAddress]StatisticsChange
+
+	// Immutable descriptor-edit history: one shared node per RecordDescriptor
+	// write and the number of distinct descriptor addresses it covers.
+	descriptorEdits    *descriptorEdit
+	descriptorEditKeys int
 }
 
 // StorageChange is a relation's private storage in the journal.
@@ -60,7 +69,7 @@ type StorageChange struct {
 	// First actual preserving-copy VM observation. Earlier same-store metadata
 	// is not a VM snapshot; later copies/savepoints never refresh this authority.
 	ObservedVisibility *storage.VisibilityRoot
-	ObservedAuxiliary storage.AuxiliaryForks
+	ObservedAuxiliary  storage.AuxiliaryForks
 	// PreservesVisibility records continuous codec-only transport from Original.
 	// A metadata-only same-pointer step keeps continuity; a destructive copy ends it.
 	PreservesVisibility bool
@@ -113,13 +122,24 @@ type DependencyObservation struct {
 	Targets []ids.ObjectAddress
 }
 
-// NewJournal returns an empty journal.
+// NewJournal returns an empty shareable journal. Its leaf cache mutex shares
+// the journal's allocation; header-only copies retain that same mutex pointer.
+// A zero-value journal is only for unshared, externally serialized scratch use.
 func NewJournal() *Journal {
-	return &Journal{Originals: map[ids.ObjectAddress]catalog.Descriptor{}, Descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, Names: map[ids.NameKey]ids.ObjectAddress{}, Generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, Storage: map[ids.ObjectAddress]StorageChange{}}
+	n := &struct {
+		Journal
+		cache sync.Mutex
+	}{Journal: Journal{Originals: map[ids.ObjectAddress]catalog.Descriptor{}, Descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, Names: map[ids.NameKey]ids.ObjectAddress{}, Generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, Storage: map[ids.ObjectAddress]StorageChange{}}}
+	n.Journal.cacheMu = &n.cache
+	return &n.Journal
 }
 
 // Clone copies c for a new statement candidate; a nil journal clones to an
-// empty one. Maps are copied, slots are cloned, and fences are shared.
+// empty one. Maps and the fence slice are copied, slots are cloned, and immutable
+// fence payloads and the cached private catalog State are shared.
+// The source's maps and slots must be stable under their existing owner
+// contract. Cache capture alone uses its leaf mutex: foreign catalog readers
+// may refresh the cache under Engine.mu while this clone runs detached.
 func (c *Journal) Clone() *Journal {
 	n := NewJournal()
 	if c == nil {
@@ -171,7 +191,26 @@ func (c *Journal) Clone() *Journal {
 	if c.Domain != nil {
 		n.Domain = c.Domain.Clone()
 	}
+	c.lockPrivateRead()
+	n.CachedBase, n.Cached = c.CachedBase, c.Cached
+	c.unlockPrivateRead()
+	n.descriptorEdits, n.descriptorEditKeys = c.descriptorEdits, c.descriptorEditKeys
 	return n
+}
+
+// The cache lock is a leaf: never acquire an owner/engine lock or invoke a
+// journal slot callback while holding it. Scratch zero-value journals remain
+// externally serialized; every published journal is constructed by NewJournal.
+func (c *Journal) lockPrivateRead() {
+	if c.cacheMu != nil {
+		c.cacheMu.Lock()
+	}
+}
+
+func (c *Journal) unlockPrivateRead() {
+	if c.cacheMu != nil {
+		c.cacheMu.Unlock()
+	}
 }
 
 func cloneDefaults(source *Journal, next *Journal) {

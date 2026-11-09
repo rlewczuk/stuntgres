@@ -30,7 +30,7 @@ func enumIndexGenerationReaders(t *testing.T, receipt enumIndexGenerationReceipt
 		go func() {
 			started <- struct{}{}
 			for {
-				if !reflect.DeepEqual(receipt.root.Entries, receipt.entries) || !reflect.DeepEqual(receipt.writes, receipt.writeCopy) || !reflect.DeepEqual(receipt.versions, receipt.versionCopy) || !reflect.DeepEqual(receipt.codec.EnumMembers(), receipt.members) || !reflect.DeepEqual(receipt.journal.Clone(), receipt.journalCopy) || !reflect.DeepEqual(*receipt.parent, receipt.parentCopy) || !reflect.DeepEqual(*receipt.descriptor, receipt.indexCopy) {
+				if !reflect.DeepEqual(receipt.root.Entries, receipt.entries) || !reflect.DeepEqual(receipt.writes, receipt.writeCopy) || !reflect.DeepEqual(receipt.versions, receipt.versionCopy) || !reflect.DeepEqual(receipt.codec.EnumMembers(), receipt.members) || !reflect.DeepEqual(enumIndexGenerationJournalSnapshot(receipt.engine, receipt.journal), receipt.journalCopy) || receipt.private.CaptureDescriptorVersion() != receipt.descriptorVersion || !reflect.DeepEqual(*receipt.parent, receipt.parentCopy) || !reflect.DeepEqual(*receipt.descriptor, receipt.indexCopy) {
 					finished <- fmt.Errorf("concurrent reader observed mutation of retained enum/index backing")
 					return
 				}
@@ -87,7 +87,9 @@ func TestEnumIndexLayoutGenerationAtomicPublication(t *testing.T) {
 				join := enumIndexGenerationReaders(t, before)
 				unrelated, unrelatedRoot := btreeRoot(t, e, "enum_generation_unrelated_idx")
 				unrelatedEntries := transactionalIndexSnapshot(unrelatedRoot)
+				e.Mu.Lock()
 				view := e.PrivateCatalogLocked(before.journal)
+				e.Mu.Unlock()
 				sibling := enginetest.CatalogRef(t, e, view, "enum_generation_private_sibling_idx").Address
 				siblingState := index.JournalIndexesOrZero(before.journal)
 				siblingRoot, siblingCandidate := siblingState.UniqueRoots[sibling], siblingState.Candidates[sibling]

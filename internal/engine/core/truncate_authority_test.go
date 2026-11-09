@@ -133,36 +133,55 @@ func TestTruncateClosure(t *testing.T) {
 }
 func TestTruncateGraph(t *testing.T) {
 	for _, kind := range []string{"foreign-key", "inheritance"} {
-		t.Run(kind, func(t *testing.T) {
-			e, s, p, _ := truncateUnitFixture(t)
-			var inheritance *catalog.TableInheritance
-			if kind == "inheritance" {
-				enginetest.SessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
-				c := roleTableRef(t, e, "c")
-				inheritance = e.Catalog.State.MustRelation(c.Address).Inheritance
-				truncateUnitReplace(t, e, c, func(d *catalog.Relation) { d.Inheritance = nil })
-			} else {
-				enginetest.SessionSQL(t, s, "CREATE TABLE c(id INT)")
-			}
-			child := roleTableRef(t, e, "c")
-			scope := truncateUnitStage(t, e, s, "p")
-			old := e.Storage.Relations[p.Address]
-			if kind == "foreign-key" {
-				truncateUnitFK(t, e, p, child)
-			} else {
-				truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
-			}
-			if err := scope.Finish(nil); err != (catalog.Conflict{}) {
-				t.Fatalf("late host graph: %v", err)
-			}
-			scope.Op.Done()
-			if e.Storage.Relations[p.Address] != old || old.TruncateLineage != nil || len(old.Versions) != 2 {
-				t.Fatal("late graph veto changed rows")
-			}
-		})
+		for _, retained := range []bool{false, true} {
+			t.Run(kind+"/"+map[bool]string{false: "original", true: "retained"}[retained], func(t *testing.T) {
+				e, s, p, _ := truncateUnitFixture(t)
+				var inheritance *catalog.TableInheritance
+				if kind == "inheritance" {
+					enginetest.SessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
+					c := roleTableRef(t, e, "c")
+					inheritance = e.Catalog.State.MustRelation(c.Address).Inheritance
+					truncateUnitReplace(t, e, c, func(d *catalog.Relation) { d.Inheritance = nil })
+				} else {
+					enginetest.SessionSQL(t, s, "CREATE TABLE c(id INT)")
+				}
+				child := roleTableRef(t, e, "c")
+				var tx ids.TxRef
+				if retained {
+					tx = enginetest.TransactionBegin(t, s)
+					truncateReplayRetain(t, e, s, false, "p")
+				}
+				scope := truncateUnitStage(t, e, s, "p")
+				old := e.Storage.Relations[p.Address]
+				if kind == "foreign-key" {
+					truncateUnitFK(t, e, p, child)
+				} else {
+					truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
+				}
+				if err := scope.Finish(nil); err != (catalog.Conflict{}) {
+					t.Fatalf("late host graph: %v", err)
+				}
+				scope.Op.Done()
+				if e.Storage.Relations[p.Address] != old || old.TruncateLineage != nil || len(old.Versions) != 2 {
+					t.Fatal("late graph veto changed rows")
+				}
+				if retained {
+					enginetest.TransactionEnd(t, s, tx, false)
+				}
+			})
+		}
 	}
 }
 func TestTruncateGraphTemporarySessions(t *testing.T) {
+	for _, retained := range []bool{false, true} {
+		t.Run(map[bool]string{false: "original", true: "retained"}[retained], func(t *testing.T) {
+			truncateGraphTemporarySessions(t, retained)
+		})
+	}
+}
+
+func truncateGraphTemporarySessions(t *testing.T, retained bool) {
+	t.Helper()
 	e, owner, parent, _ := truncateUnitFixture(t)
 	peer := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE own_child() INHERITS(p)")
@@ -181,6 +200,11 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	peerRef := e.Catalog.Domain.Ref(view.Epoch(), peerAddress)
 	oldPeer := e.Storage.Relations[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.Versions, oldPeer.Ends, oldPeer.Generation
+	var tx ids.TxRef
+	if retained {
+		tx = enginetest.TransactionBegin(t, owner)
+		truncateReplayRetain(t, e, owner, false, "p")
+	}
 	scope := truncateUnitStage(t, e, owner, "p")
 	_, stagedPeer := scope.Catalog.Storage[peerAddress]
 	excluded := core.ScopeTruncateOrZero(scope).Selected[peerAddress] == 0 && !stagedPeer && len(core.ScopeTruncateOrZero(scope).Relations) == 3
@@ -208,6 +232,9 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.Op.Done()
+	if retained {
+		enginetest.TransactionEnd(t, owner, tx, true)
+	}
 	if e.Storage.Relations[peerAddress] != oldPeer || !storage.SameVersionRoot(oldPeer.Versions, oldVersions) || oldPeer.Ends != oldEnds || oldPeer.Generation != oldGeneration || oldPeer.TruncateLineage != nil {
 		t.Fatal("foreign-session temporary storage was replaced or stamped")
 	}
@@ -394,6 +421,9 @@ func TestTruncateFinalVeto(t *testing.T) {
 				enginetest.SessionSQL(t, s, "SAVEPOINT recover")
 			}
 			priorWrites := s.Transactions.Writes[p.Address]
+			if explicit {
+				truncateReplayRetain(t, e, s, false, "p", "q")
+			}
 			oldP, oldQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			scope, op := truncateUnitScope(t, e, s, ctx)
@@ -416,5 +446,22 @@ func TestTruncateFinalVeto(t *testing.T) {
 				enginetest.TransactionEnd(t, s, tx, false)
 			}
 		})
+	}
+}
+
+// Retain several actual graph fences and exercise complete successful current
+// preflights before changing any final authority in the negative matrix.
+func truncateReplayRetain(t *testing.T, e *core.Engine, s *session.Session, restart bool, names ...string) {
+	t.Helper()
+	stmt := truncateUnitAST(names...)
+	stmt.RestartIdentity = restart
+	for range 4 {
+		truncateUnitExecute(t, e, s, stmt)
+		e.Mu.Lock()
+		err := e.CatalogPreflightLocked(s.Transactions.Catalog)
+		e.Mu.Unlock()
+		if err != nil {
+			t.Fatal("prior complete retained preflight", err)
+		}
 	}
 }

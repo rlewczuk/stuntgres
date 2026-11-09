@@ -95,7 +95,7 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	enginetest.LockEmpty(t, e)
 }
 func TestTruncateFinalVetoAdditional(t *testing.T) {
-	for _, kind := range []string{"storage", "ACL", "epoch"} {
+	for _, kind := range []string{"descriptor", "generation", "index", "storage", "ACL", "epoch"} {
 		t.Run(kind, func(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
 			tx := enginetest.TransactionBegin(t, s)
@@ -103,8 +103,18 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			enginetest.SessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
 			writes := s.Transactions.Writes[p.Address]
+			truncateReplayRetain(t, e, s, false, "p", "q")
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			switch kind {
+			case "generation":
+				e.Mu.Lock()
+				oldP.Generation++
+				e.Mu.Unlock()
+			case "index":
+				idx := roleTableRef(t, e, "p_pkey")
+				truncateUnitReplace(t, e, idx, func(d *catalog.Relation) { d.Comment = "late index descriptor" })
+			case "descriptor":
+				truncateUnitReplace(t, e, p, func(d *catalog.Relation) { d.Comment = "late descriptor revision" })
 			case "storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)

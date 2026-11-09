@@ -54,6 +54,9 @@ func enumIndexGenerationRelation(relation *catalog.Relation) catalog.Relation {
 }
 
 type enumIndexGenerationReceipt struct {
+	engine                 *core.Engine
+	private                catalog.Read
+	descriptorVersion      catalog.DescriptorVersion
 	journal, journalCopy   *session.Journal
 	parent, descriptor     *catalog.Relation
 	parentCopy, indexCopy  catalog.Relation
@@ -72,13 +75,26 @@ type enumIndexGenerationReceipt struct {
 	deleteCopy             *visibility.PrivateDeletes
 }
 
+// The projection cache may be replaced under Engine.mu as the published base
+// changes. Snapshot every journal authority field under that same lock; retain
+// the actual immutable cached inventory separately rather than its mutable slot.
+func enumIndexGenerationJournalSnapshot(e *core.Engine, journal *session.Journal) *session.Journal {
+	e.Mu.Lock()
+	snapshot := journal.Clone()
+	e.Mu.Unlock()
+	snapshot.InvalidatePrivateRead()
+	return snapshot
+}
+
 func enumIndexGenerationCapture(t *testing.T, e *core.Engine, s *session.Session) enumIndexGenerationReceipt {
 	t.Helper()
 	journal := s.Transactions.Catalog
 	if journal == nil {
 		t.Fatal("fixture has no admitted private catalog owner")
 	}
+	e.Mu.Lock()
 	view := e.PrivateCatalogLocked(journal)
+	e.Mu.Unlock()
 	ref := enginetest.CatalogRef(t, e, view, "enum_generation_idx")
 	descriptor := view.MustRelation(ref.Address)
 	parent := view.MustRelation(descriptor.SQLIndex.Parent)
@@ -93,7 +109,8 @@ func enumIndexGenerationCapture(t *testing.T, e *core.Engine, s *session.Session
 	writes := s.Transactions.Writes[parent.Address()]
 	codec := parent.Columns[0].Usage.Type
 	return enumIndexGenerationReceipt{
-		journal: journal, journalCopy: journal.Clone(), parent: parent, descriptor: descriptor,
+		engine: e, private: view, descriptorVersion: view.CaptureDescriptorVersion(),
+		journal: journal, journalCopy: enumIndexGenerationJournalSnapshot(e, journal), parent: parent, descriptor: descriptor,
 		parentCopy: enumIndexGenerationRelation(parent), indexCopy: enumIndexGenerationRelation(descriptor),
 		store: store, versions: store.Versions, versionCopy: enumIndexGenerationRows(store.Versions),
 		writes: writes, writeCopy: enumIndexGenerationRows(writes), root: root,
@@ -106,7 +123,7 @@ func enumIndexGenerationCapture(t *testing.T, e *core.Engine, s *session.Session
 
 func (r enumIndexGenerationReceipt) immutable(t *testing.T) {
 	t.Helper()
-	if !reflect.DeepEqual(r.journal.Clone(), r.journalCopy) || !reflect.DeepEqual(*r.parent, r.parentCopy) || !reflect.DeepEqual(*r.descriptor, r.indexCopy) {
+	if !reflect.DeepEqual(enumIndexGenerationJournalSnapshot(r.engine, r.journal), r.journalCopy) || r.private.CaptureDescriptorVersion() != r.descriptorVersion || !reflect.DeepEqual(*r.parent, r.parentCopy) || !reflect.DeepEqual(*r.descriptor, r.indexCopy) {
 		t.Fatal("transport mutated retained journal or descriptor backing")
 	}
 	if !reflect.DeepEqual(r.root.Entries, r.entries) || r.root.Construction != r.construction || !reflect.DeepEqual(r.writes, r.writeCopy) || !reflect.DeepEqual(r.versions, r.versionCopy) {

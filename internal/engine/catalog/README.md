@@ -367,6 +367,18 @@ neither owns catalog authority.
   `RemapPrincipals`, replacement remap) bracket the work with
   `BeginBulkLoad`/`EndBulkLoad`; a state in a bulk load is private to its writer
   and copying it panics.
+  `Read.CaptureDescriptorVersion` retains typed immutable descriptor backing
+  with its exact owner, domain and epoch, independent of later source-State
+  writes. Capture rejects bulk loading. `DescriptorVersion.Get` reads the frozen
+  baseline. `DescriptorVersion.Matches` is the one exact predicate: true only
+  for a valid capture of non-bulk backing whose owner, domain, epoch and typed
+  generation are identical, never for an independently rebuilt equivalent root.
+  `SameAuthority` checks only the valid owner/domain/epoch prerequisite for an
+  independently authenticated journal delta; it never establishes equivalence.
+  `DescriptorsToReconcile` yields no entries exactly when `Matches` holds, or
+  when the current read is stateless and therefore has no descriptors; otherwise
+  it returns the whole current inventory captured at invocation. A bulk-loading
+  current never matches.
 - **Unseeded descriptors** (`unseeded_index.go`). A state also tracks the
   entries that are not as the builtin seed installed them: the same writes add
   or delete them, and any bulk load other than the seed marks every entry

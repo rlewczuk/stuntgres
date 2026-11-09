@@ -645,6 +645,25 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   private-read caching, savepoint clones and publication even without descriptor
   changes. `RecordCandidateInitialPrivileges` retains the first committed
   predecessor; `JournalCapture` also observes the represented object's descriptor.
+  `Clone` copies every private-read input map and parameter flag before sharing
+  the existing immutable cached catalog State; cache hits rebind `Read` to the
+  actual passed owner. A different committed base rebuilds the projection.
+  `RecordDescriptor` also appends one immutable node (address, diagnostic
+  serial, predecessor) to the journal's descriptor-edit history and counts the
+  address only when it was absent, so nil tombstones keep their key. `Clone`
+  shares that tail and count in O(1); savepoint rollback restores the whole
+  older journal and chain, and RELEASE retains the active successor.
+  `DescriptorEditMark` is an opaque comparable position, `DescriptorEditSerial`
+  the diagnostic tail serial (zero when empty), and `DescriptorEditsSince`
+  visits the addresses after a mark newest-first without allocating a result
+  slice, reporting false when the mark is not an ancestor or the descriptor map
+  and history disagree on their distinct-key count. Serials never authenticate
+  ancestry, and a manual same-key replacement that bypasses `RecordDescriptor`
+  is a documented test-only residual; production never deletes a descriptor key.
+  Every descriptor/tombstone, default ACL, initial privilege, security label or
+  parameter-input writer calls `InvalidatePrivateRead`; predecessor/read
+  observations alone do not invalidate it. Saved journals retain their cached
+  backing and independent fence slices; only immutable fence payloads are shared.
   Object/default ACLs, role mutations and comments share the immutable role
   overlay. The first actual role delta captures its committed predecessor as
   `RolesBase`; later private deltas preserve that base until a successful immutable
@@ -776,8 +795,20 @@ incarnation resets it. No parallel registry or row-visibility override exists.
   [`lock` README](../lock/README.md#mutex-ownership-and-lock-order). Code here
   never takes `Engine.Mu`; it reaches the engine only through `Host`.
 - **No orchestration.** The transaction owner holds the journal; statement
-  admission serializes writers, and the root validates and publishes it under
-  `Engine.Mu`. The journal itself takes no lock.
+  admission serializes input writers, and the root validates and publishes it
+  under `Engine.Mu`. Every shared journal comes from `NewJournal` (including
+  `Clone`), which coallocates its leaf projection-cache mutex with the journal.
+  `PrivateRead` and `InvalidatePrivateRead` serialize the mutable
+  `CachedBase/Cached` pair with the final cache capture in `Clone`. The source's
+  maps/slots still require their existing stable-owner contract; the leaf lock
+  does not authorize concurrent input mutation. Slot Clone callbacks execute
+  before the cache lock, and no callback or owner/engine lock acquisition runs
+  while it is held. Direct cache-field access and shallow publication-header
+  copies remain under `Engine.Mu`; those copies preserve the mutex pointer,
+  never copy a mutex value. A zero-value journal supports only unshared,
+  externally serialized scratch work (the nonescaping collation namespace
+  staging scratch), not detached cloning of a published owner. Immutable
+  captured catalog backing survives later replacement of any cache slot.
 - **Copy-on-write.** A statement writes a `Clone` and installs it; savepoint
   marks keep older journals. `Clone` copies the maps, clones each non-nil slot
   and shares fences (immutable once recorded) in recording order.
@@ -878,6 +909,13 @@ XML diagnostic ownership and real protocol output codec units use
 for detached collector/cancellation ownership.
 Passwordcheck definition/placeholder admission and parameter-reset ownership use
 `RUN='^TestPasswordCheckRegistration'`.
+`RUN='^TestJournalCloneConcurrentGINOwner$'` (also `RACE=1`) is the composed core
+owner regression: a detached clone runs concurrently with genuine foreign GIN
+authority capture and candidate cleanup, including cache hits, committed-base
+replacement and invalidation. It checks exact cached backing/pair authority,
+immutable history, source-receipt transport, physical generation and ordinary
+commit lifetime, without sleeps or execution-count expectations.
+
 
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'

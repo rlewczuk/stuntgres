@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -128,6 +129,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			enginetest.SessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ, oldPS, oldQS := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address], e.Storage.Sequences[ps.Address], e.Storage.Sequences[qs.Address]
 			oldPD, oldQD := e.Catalog.State.Get(ps.Address), e.Catalog.State.Get(qs.Address)
+			truncateReplayRetain(t, e, s, true, "p", "q")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			scope, _ := truncateUnitScope(t, e, s, ctx)
@@ -151,11 +153,27 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "GeneratorBinding":
+				e.Mu.Lock()
+				exact := e.PrivateCatalogLocked(scope.Catalog)
+				e.Mu.Unlock()
+				graph := dml.TruncateGraph{Base: exact.CaptureDescriptorVersion(), Targets: core.ScopeTruncateOrZero(scope).Selected, Restart: true, Sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{ps.Address: oldPS, qs.Address: oldQS}}
+				for address := range graph.Base.DescriptorsToReconcile(exact) {
+					t.Fatal("generator witness did not establish exact backing", address)
+				}
+				if err := graph.CheckCurrent(exact, e.Catalog.Current(), scope.Catalog, e.Storage.Sequences); err != nil {
+					t.Fatal("unchanged generator binding", err)
+				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				replacement := *oldPS
 				stage.SequenceState().ResetGenerators(1)
 				stage.SequenceState().SetGenerator(ps.Address, &replacement)
 				truncateUnitPublish(t, e, stage)
+				for address := range graph.Base.DescriptorsToReconcile(exact) {
+					t.Fatal("generator-only replacement altered captured descriptor backing", address)
+				}
+				if err := graph.CheckCurrent(exact, e.Catalog.Current(), scope.Catalog, e.Storage.Sequences); err != (catalog.Conflict{}) {
+					t.Fatal("generator binding escaped exact descriptor shortcut", err)
+				}
 			case "Storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
@@ -226,6 +244,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			enginetest.SessionSQL(t, s, "CREATE SEQUENCE incoming START 90")
 			incoming := roleTableRef(t, e, "incoming")
 			tx := enginetest.TransactionBegin(t, s)
+			truncateReplayRetain(t, e, s, true, "p")
 			scope := truncateRestartUnitStage(t, e, s, "p")
 			oldStore, oldGenerator := e.Storage.Relations[p.Address], e.Storage.Sequences[ps.Address]
 			if change == "Incoming" {

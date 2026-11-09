@@ -49,6 +49,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	delete(cloned.DefaultACLs, key)
 	delete(cloned.DefaultOriginals, key)
 	delete(cloned.DefaultReads, key)
+	cloned.InvalidatePrivateRead()
 	if _, ok := changes.DefaultACLs[key]; !ok || changes.DefaultOriginals[key] != record || changes.DefaultReads[key] != record {
 		t.Fatal("cloned sparse maps aliased source")
 	}

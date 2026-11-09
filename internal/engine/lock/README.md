@@ -344,6 +344,10 @@ mutex. Distinct owners are locked in ascending session-token order, including
 the caller, then `Engine.Mu` is taken. Cohort changes require releasing all
 locks before rediscovery. This never takes peer Admission, awaits transaction
 completion, or acquires a lock-manager mutex under `Engine.Mu`.
+Shared session journals coallocate a leaf projection-cache mutex. Engine-locked
+`PrivateRead`/invalidation and detached `Journal.Clone` cache capture take that
+leaf last; while held, they acquire no owner/engine mutex and invoke no slot or
+provider callback. Direct cache-field access remains engine-serialized.
 
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are

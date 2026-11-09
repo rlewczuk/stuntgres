@@ -245,6 +245,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 					r.Rows.Close()
 					done, _ = truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p"))
 				} else {
+					truncateReplayRetain(t, e, holder, true, "p")
 					truncateUnitExecute(t, e, holder, truncateRestartUnitAST("p"))
 					done, _ = truncateRestartUnitAsyncSQL(t, e, waiter, "SELECT nextval('p_id_seq')")
 				}
@@ -297,6 +298,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			ast, description := enginetest.PreparedDescription(t, e, s, "SELECT nextval('local_t_id_seq')")
 			ref := description.Sequences.Constants[0].Ref
 			tx := enginetest.TransactionBegin(t, s)
+			truncateReplayRetain(t, e, s, true, "local_t")
 			truncateUnitExecute(t, e, s, truncateRestartUnitAST("local_t"))
 			enginetest.TransactionEnd(t, s, tx, false)
 			memory := core.PayloadOf(s).Sequences.Memory(ref.Address)

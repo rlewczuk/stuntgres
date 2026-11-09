@@ -3726,6 +3726,20 @@ Producers, the OID registry and descriptor specs live in
   `EndMaintenance` calls `endTemporaryCollations`. Its namespace/dependency
   candidate uses the ordinary detached publication path, even for an empty
   table-only namespace. Cleanup keeps the same fences and publication semantics.
+  `stageTruncate` captures the admitted graph baseline together with the
+  committed-base receipt version and the journal descriptor-edit mark under the
+  same `Engine.mu` interval when it appends its fence.
+  `StageCatalogOverlay` requires a fresh cloned journal with its own fence slice.
+  Under the same `Engine.Mu`, after the entire `CatalogPreflightLocked` succeeds
+  it captures the journal descriptor-edit mark first, then the private descriptor
+  version, then the committed base version. Only after remaining admission,
+  authorization, context and grant checks succeed does it replace truncate fence
+  values in the fresh slice with those checked receipts when the receipt
+  differs; an identical receipt is left untouched and never reboxed. The
+  original admitted graph baseline never advances. Merge, final and prepared
+  preflights remain read-only for receipts; no failed stage can refresh installed
+  or saved fences. Descriptor equality never discharges storage, generator, ACL,
+  epoch or operation guards.
 - Every engine seeds the same built-in catalog in one bulk load (`NewEngine`'s
   `BeginBulkLoad` … `FinishSeedLocked`) through the
   [`catalog`](../catalog/README.md) seed steps. Core keeps their order, the
@@ -3749,6 +3763,11 @@ and installation. Active, implicit, savepoint and same-database detached prepare
 roots participate; foreign active lexical StatementScopes are never mutated.
 The index owner authenticates actual current owner bindings and presentation or
 routine-source transitions before COW token/output transport outside Engine.Mu.
+Detached journal clones capture the mutable projection-cache pair through the
+journal's leaf mutex, shared with `PrivateRead`/invalidation. This covers both
+DDL's `PublishCatalogOperation` clone and the reverse GIN preparation clone;
+neither adds Engine.Mu around slot cloning, provider callbacks or index
+preparation. Existing owner/cohort authority still stabilizes maps and slots.
 Accepted older outputs use their actual `IndexAdmission` catalog as key
 provenance, not ACL authority. Exact descriptor, physical parent and strict
 two-catalog presentation certificates permit COW descriptor transport while
@@ -3785,6 +3804,12 @@ old split rather than retaining obsolete persistent class metadata.
 The released recovery diagnostic/precedence helper is retained, but the embedded
 runtime supplies false consistently with `pg_is_in_recovery`; there is no native
 recovery mode or invented public setup control.
+The composed retained-owner concurrency regression is
+`make check RUN='^TestJournalCloneConcurrentGINOwner$'` (also `RACE=1`). A channel
+orders only worker startup and final join around genuine foreign cleanup; it
+does not serialize the cache accesses. Retained immutable descriptors/history,
+exact cached base/backing, source receipt, heap/candidate generations and
+private-to-committed lifetime are asserted independently of race detection.
 
 
 `xml_map_rows_*` borrows ordinary nested SQL execution, relation locks and

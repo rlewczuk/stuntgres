@@ -421,6 +421,24 @@ Package-internal helpers keep lower-case names.
   same-RowID siblings outside those chains remain independent candidates, with
   canonical grants and latest-row snapshot checks before predicate/mutation.
   `ActingAs` copies authority once per job/action, never per row.
+- `TruncateGraph.Base` is the original admitted frozen descriptor version, never
+  promoted to a later baseline. `Checked` separately records a complete successful
+  catalog preflight on a fresh fence value; `ReceiptBase` freezes the committed
+  base version that projected it and `ReceiptMark` the journal descriptor-edit
+  position at certification. All three are replaced together only on a fresh
+  fence value after a complete successful preflight. `ReconcileDescriptors`
+  chooses `ReconcileExact` only within the committed catalog lineage, when the
+  effective receipt matches current, or `ReconcileDelta` over the journal edits
+  after `ReceiptMark` when the
+  receipt, committed base and current read have the same valid owner/domain/epoch,
+  the base backing, cached projection and edit history authenticate, and no edit
+  changes or removes a namespace's `Temporary` authority, and otherwise the
+  whole-inventory `ReconcileFull` fallback. A namespace addition or a replacement
+  preserving `Temporary` stays in the delta. `CheckCurrent` always checks
+  committed RESTART generator bindings first, then runs the RESTART own-change
+  loop and the ordinary graph loop over that one reconciliation source. Original
+  `Base.Get` exemptions, the journal-own sequence exception and private
+  sequence-ownership rules remain independent.
 
 ## What stays in the engine
 

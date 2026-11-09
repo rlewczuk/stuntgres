@@ -268,6 +268,9 @@ builds a binder.
   `GinMaintenance` prepares COW owner/savepoint/history/prepared output placement
   and candidate/receipt transports. Core owns cohort locks, readmission and the
   single callback-free installation; private rows never enter shared membership.
+  Its detached journal clone uses the journal-owned leaf cache capture; cache
+  refresh by another owner cannot tear its base/read pair. The leaf lock never
+  covers slot cloning, token/provider work or final cohort readmission.
   Output admission uses exact enrolled descriptor/receipt pointers or strict
   actual `IndexAdmission` certification, never semantic `OutputMatches` alone.
   `fastupdate` defaults on. Off routes later writes to main but never flushes old

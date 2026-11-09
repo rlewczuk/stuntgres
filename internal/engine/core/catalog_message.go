@@ -87,6 +87,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	if s.WritesParameters() && !c.ParameterWritten {
 		c.ParameterWritten = true
 		c.ParameterIncarnation = s.Base.State().ParameterIncarnation()
+		c.InvalidatePrivateRead()
 	}
 	// Cleanup candidates derive from the operation's exact private predecessor,
 	// while the journal keeps the original committed root as its commit fence.

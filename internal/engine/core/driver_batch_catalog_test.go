@@ -246,6 +246,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	changed.ObjectRevision++
 	replaced := candidate.Clone()
 	replaced.Descriptors[ns.Address] = &changed
+	replaced.InvalidatePrivateRead()
 	if err := core.EngineCaptureCatalogStageLocked(e, stage, replaced, before, nil); err == nil {
 		t.Fatal("changed namespace intent admitted")
 	}

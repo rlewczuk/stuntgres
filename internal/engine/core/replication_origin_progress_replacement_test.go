@@ -59,6 +59,7 @@ func TestReplicationOriginStateReplacementPendingPeers(t *testing.T) {
 		owner.Savepoints = []session.SavepointMark{{Catalog: journal}}
 		owner.Catalog = journal.Clone()
 		owner.Catalog.Descriptors[address] = nil
+		owner.Catalog.InvalidatePrivateRead()
 		e.reconcileReplicationOriginsLocked(owner)
 		check(true)
 		// Immediate DROP clears even while the descriptor is revivable.

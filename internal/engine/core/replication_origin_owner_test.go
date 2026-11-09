@@ -67,6 +67,7 @@ func TestReplicationOriginReservationLifecycle(t *testing.T) {
 	owner.Savepoints = []session.SavepointMark{mark}
 	owner.Catalog = journal.Clone()
 	owner.Catalog.Descriptors[address] = nil
+	owner.Catalog.InvalidatePrivateRead()
 	e.reconcileReplicationOriginsLocked(owner)
 	if len(e.Cluster.replicationOrigins) != 1 {
 		t.Fatal("revivable create/drop lost exclusion")
@@ -79,6 +80,7 @@ func TestReplicationOriginReservationLifecycle(t *testing.T) {
 	}
 	owner.Catalog = journal.Clone()
 	owner.Catalog.Descriptors[address] = nil
+	owner.Catalog.InvalidatePrivateRead()
 	// A procedural mark retains the actual outer statement journal separately.
 	owner.Savepoints = []session.SavepointMark{{StatementCatalog: journal}}
 	e.reconcileReplicationOriginsLocked(owner)

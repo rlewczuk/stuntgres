@@ -28,7 +28,6 @@ func (c *Journal) RecordCandidateInitialPrivileges(base *catalog.State, candidat
 			c.InitialOriginals[address] = base.InitialPrivilege(address)
 		}
 		c.InitialPrivileges[address] = record
-		c.CachedBase = nil
-		c.Cached = catalog.Read{}
+		c.InvalidatePrivateRead()
 	}
 }

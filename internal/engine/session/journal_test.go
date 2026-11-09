@@ -66,3 +66,122 @@ func TestJournalCloneCopiesMapsAndSlotsAndSharesFences(t *testing.T) {
 		t.Fatalf("fence added to the clone reached the source: %v", c.Fences)
 	}
 }
+
+func TestJournalDescriptorEditHistory(t *testing.T) {
+	a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 101}
+	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 102}
+	c := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 103}
+	base := catalog.NewState(1)
+	first, second := &catalog.Namespace{}, &catalog.Namespace{}
+	journal := NewJournal()
+	empty := journal.DescriptorEditMark()
+	if empty != (DescriptorEditMark{}) || journal.DescriptorEditSerial() != 0 {
+		t.Fatal("new journal has descriptor history")
+	}
+	// Compare each actual visit in place: no materialized replay slice.
+	wantHistory := func(j *Journal, mark DescriptorEditMark, want ...ids.ObjectAddress) {
+		t.Helper()
+		n := 0
+		trusted := j.DescriptorEditsSince(mark, func(address ids.ObjectAddress) bool {
+			if n >= len(want) || address != want[n] {
+				t.Fatalf("history visit %d = %v, want %v", n, address, want)
+			}
+			n++
+			return true
+		})
+		if !trusted || n != len(want) {
+			t.Fatalf("history trusted=%v, visits=%d, want %d", trusted, n, len(want))
+		}
+	}
+	journal.RecordDescriptor(base, a, first)
+	if journal.DescriptorEditSerial() != 1 {
+		t.Fatal("first write did not advance serial once")
+	}
+	one := journal.DescriptorEditMark()
+	wantHistory(journal, empty, a)
+	journal.RecordDescriptor(base, b, second)
+	if journal.DescriptorEditSerial() != 2 {
+		t.Fatal("second write did not advance serial once")
+	}
+	journal.RecordDescriptor(base, a, nil)
+	if journal.DescriptorEditSerial() != 3 || journal.Descriptors[a] != nil {
+		t.Fatal("duplicate tombstone write did not advance history")
+	}
+	if _, present := journal.Descriptors[a]; !present {
+		t.Fatal("tombstone lost its descriptor key")
+	}
+	wantHistory(journal, empty, a, b, a)
+	wantHistory(journal, one, a, b)
+	wantHistory(journal, journal.DescriptorEditMark())
+
+	parentMark := journal.DescriptorEditMark()
+	child, divergent := journal.Clone(), journal.Clone()
+	if child.descriptorEdits != journal.descriptorEdits || child.DescriptorEditMark() != parentMark {
+		t.Fatal("clone rebuilt rather than shared immutable history")
+	}
+	child.RecordDescriptor(base, c, first)
+	divergent.RecordDescriptor(base, b, nil)
+	if child.DescriptorEditSerial() != 4 || divergent.DescriptorEditSerial() != 4 ||
+		child.DescriptorEditMark() == divergent.DescriptorEditMark() {
+		t.Fatal("divergent equal-serial writes did not retain distinct ancestry")
+	}
+	for _, pair := range [][2]*Journal{{journal, child}, {child, divergent}, {divergent, child}} {
+		if pair[0].DescriptorEditsSince(pair[1].DescriptorEditMark(), func(ids.ObjectAddress) bool {
+			t.Fatal("unreachable mark yielded authenticated edits")
+			return false
+		}) {
+			t.Fatal("unreachable child/divergent mark authenticated by serial")
+		}
+	}
+	if journal.DescriptorEditSerial() != 3 || journal.Descriptors[b] != second {
+		t.Fatal("child write mutated parent history or descriptor")
+	}
+	if _, present := journal.Descriptors[c]; present {
+		t.Fatal("child descriptor escaped into parent")
+	}
+	wantHistory(journal, one, a, b)
+	wantHistory(child, parentMark, c)
+	wantHistory(divergent, parentMark, b)
+
+	// Exercise the actual savepoint journal capture/restore seam without a
+	// composed engine import (which would cycle through session).
+	owner := &TransactionOwner{Session: &Session{Settings: &SettingsStore{}}, Catalog: journal}
+	mark := owner.CaptureSavepoint(SavepointMark{Name: "descriptor_history"})
+	owner.Catalog = child
+	owner.Session.Settings.Mu.Lock()
+	owner.Session.Mu.Lock()
+	owner.RollbackToLocked(mark, mark.Settings)
+	owner.Session.Mu.Unlock()
+	owner.Session.Settings.Mu.Unlock()
+	if owner.Catalog != journal || owner.Catalog.DescriptorEditMark() != parentMark {
+		t.Fatal("savepoint rollback failed to restore older journal history")
+	}
+	wantHistory(owner.Catalog, one, a, b)
+	reappend := owner.Catalog.Clone()
+	reappend.RecordDescriptor(base, c, second)
+	if reappend.DescriptorEditsSince(child.DescriptorEditMark(), func(ids.ObjectAddress) bool { return true }) {
+		t.Fatal("rollback/reappend authenticated discarded child with equal serial")
+	}
+	wantHistory(child, parentMark, c)
+	wantHistory(journal, parentMark)
+
+	for _, mutation := range []struct {
+		name string
+		edit func(*Journal)
+	}{
+		{"new_key", func(j *Journal) { j.Descriptors[c] = first }},
+		{"delete", func(j *Journal) { delete(j.Descriptors, a) }},
+	} {
+		t.Run(mutation.name, func(t *testing.T) {
+			forged := journal.Clone()
+			mutation.edit(forged)
+			if forged.DescriptorEditsSince(parentMark, func(ids.ObjectAddress) bool { return true }) {
+				t.Fatal("manual descriptor key mutation retained history trust")
+			}
+			wantHistory(journal, empty, a, b, a)
+		})
+	}
+	// Direct same-key replacement without RecordDescriptor is deliberately
+	// not treated as safe: key counts cannot detect it. Production writers
+	// must record edits; this test makes no authority claim for that residual.
+}

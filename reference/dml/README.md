@@ -54,6 +54,14 @@ retain their ordinary no-row behavior.
   (`delete_using_helpers_test.go`), `resultNullabilityPairs`
   (`result_nullability_helpers_test.go`) and `referenceInsertShortMetadata`
   (`insert_implicit_short_helpers_test.go`).
+- Marker replay reuses `truncateRestartScenario` for Direct/Held routes.
+  `truncateMarkerRoutes` holds both prepared handles across repetitions and
+  savepoint recovery; `truncateMarkerPairs` executes separate TRUNCATE/INSERT
+  commands with counts 0/1. `truncateMarkerRow` fully consumes exact cardinality
+  and independently checks INT8/BOOL transport and backend-specific nullability.
+  Private-DDL replay retains CREATE/ALTER changes before/between markers.
+  Lifetime cases release PostgreSQL's reader transaction before AX admission;
+  native-only retained eager Rows remain genuinely live across publication.
 - Raw cells differ by client: pq returns NUMERIC and UUID as bytes (native:
   strings); pgx returns DATE as `time.Time` (native: string), XID as `int64`,
   an unregistered enum's type name as its decimal OID, and binary TIMESTAMPTZ in
@@ -107,6 +115,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - MERGE DO NOTHING: `RUN='^TestReferenceMergeNothing'`
 - MERGE RETURNING: `RUN='^TestReferenceMergeReturning'`
 - TRUNCATE (including RESTART IDENTITY): `RUN='^TestReferenceTruncate'`
+- Marker replay/rollback/savepoints/Rows lifetime:
+  `RUN='^TestReferenceTruncateMarker(Replay|Rollback|Savepoints|RowsLifetime)$'`.
 - <a id="copy-text-selected-proof"></a>COPY text: `RUN='^TestReferenceCopyText'`
 - COPY CSV: `RUN='^TestReferenceCopyCSV'`
 - COPY binary: `RUN='^TestReferenceCopyBinary'`

@@ -81,10 +81,12 @@ func TestJournalCaptureObserve(t *testing.T) {
 				case "descriptor_copy":
 					copy := *ns
 					journal.Descriptors[ns.Address()] = &copy
+					journal.InvalidatePrivateRead()
 				case "descriptor_type":
 					wrong := journalTestRelation(ns.Address().ObjectID, ns.Name(), ids.ObjectAddress{})
 					wrong.ObjectAddress = ns.Address()
 					journal.Descriptors[ns.Address()] = wrong
+					journal.InvalidatePrivateRead()
 				case "base_copy":
 					copy := *ns
 					candidate.Base = catalog.NewRead(owner, journalTestState(&copy))
@@ -132,6 +134,7 @@ func TestJournalCaptureObserve(t *testing.T) {
 				case "pending_copy":
 					copy := *journal.SecurityLabels[key]
 					journal.SecurityLabels[key] = &copy
+					journal.InvalidatePrivateRead()
 				case "base_label_copy":
 					state := catalog.CloneState(base.State())
 					copy := *state.SecurityLabel(key)
@@ -139,6 +142,7 @@ func TestJournalCaptureObserve(t *testing.T) {
 					candidate.Base = catalog.NewRead(owner, state)
 				case "missing_pending":
 					delete(journal.SecurityLabels, key)
+					journal.InvalidatePrivateRead()
 				case "missing_label_original":
 					delete(journal.LabelOriginals, key)
 				case "nonnil_label_original":

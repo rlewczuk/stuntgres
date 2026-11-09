@@ -12,7 +12,9 @@ import (
 )
 
 // Convert an already validated ordinary catalog stage into the transaction's
-// immutable overlay. New stores use committed absence as their honest fence.
+// immutable overlay. changes must be an independently owned Clone, including
+// its fence slice; installed, saved and prepared journals remain immutable.
+// New stores use committed absence as their honest fence.
 func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *session.Journal) error {
 	e.Mu.Lock()
 	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
@@ -99,8 +101,18 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	// Descriptor predecessors retain conflict precedence when an ACL update
 	// also advances role authority. Both proofs remain required for transfer.
+	var checked catalog.DescriptorVersion
+	var checkedBase catalog.DescriptorVersion
+	var checkedMark session.DescriptorEditMark
 	if err == nil {
 		err = e.CatalogPreflightLocked(changes)
+		if err == nil {
+			// Capture the journal position first, then the private and committed
+			// versions it certifies. No fence receipt may outrun its mark.
+			checkedMark = changes.DescriptorEditMark()
+			checked = e.PrivateCatalogLocked(changes).CaptureDescriptorVersion()
+			checkedBase = e.Catalog.Current().CaptureDescriptorVersion()
+		}
 	}
 	if err == nil && stage.AuthSession != nil && (stage.AuthSession != scope.Op.Session || scope.Op.Session.Authorization.Revision != stage.AuthRevision || e.OperationRolesLocked(scope.Op).Revision != stage.RoleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
@@ -120,6 +132,20 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		err = e.validateCatalogStageGrantsLocked(scope, stage, e.PrivateCatalogLocked(scope.PendingCatalog()), installed)
 	}
 	if err == nil {
+		// Only complete admission certifies this exact checked private inventory
+		// over the committed base at that journal position. Replace values in the
+		// fresh slice, never parent/savepoint fence payloads; an identical receipt
+		// needs no reboxing because its delta is empty by mark.
+		for i, fence := range changes.Fences {
+			truncate, ok := fence.(truncateGraphFence)
+			if !ok || (truncate.ReceiptMark == checkedMark && truncate.ReceiptBase == checkedBase) {
+				continue
+			}
+			truncate.Checked = checked
+			truncate.ReceiptBase = checkedBase
+			truncate.ReceiptMark = checkedMark
+			changes.Fences[i] = truncate
+		}
 		scope.appendLogicalEventLocked(logical.CatalogEvent, nil)
 		scope.logicalChanges = append(scope.logicalChanges, stage.logicalChanges...)
 		for _, batch := range scope.Stage.DiscardedHeaps {

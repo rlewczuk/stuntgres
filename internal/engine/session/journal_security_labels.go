@@ -34,8 +34,7 @@ func (c *Journal) RecordSecurityLabel(committed *catalog.State, key catalog.Secu
 		c.LabelOriginals[key] = committed.SecurityLabel(key)
 	}
 	c.SecurityLabels[key] = record
-	c.CachedBase = nil
-	c.Cached = catalog.Read{}
+	c.InvalidatePrivateRead()
 }
 func (c *Journal) mergeSecurityLabels(base, observed *catalog.State, candidate *catalog.Candidate) error {
 	for key, record := range candidate.SecurityLabelReads() {

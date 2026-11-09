@@ -23,7 +23,7 @@ func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 // CurrentLocked checks the admitted graph against the private catalog and the
 // published sequence generators. Caller holds Engine.mu.
 func (fence truncateGraphFence) CurrentLocked(e *Engine, c *session.Journal) error {
-	return fence.CheckCurrent(e.PrivateCatalogLocked(c), c, e.Storage.Sequences)
+	return fence.CheckCurrent(e.PrivateCatalogLocked(c), e.Catalog.Current(), c, e.Storage.Sequences)
 }
 
 // stageTruncate replaces roots, never scans/discards individual row values.
@@ -132,7 +132,15 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{dml.TruncateGraph{Base: auth.Catalog.State(), Targets: s.truncateOrZero().Selected, Token: s.Op.Session.SessionToken, Restart: s.truncateOrZero().Restart, Sequences: sequences}})
+		changes.AddFence(truncateGraphFence{dml.TruncateGraph{
+			Base:        auth.Catalog.CaptureDescriptorVersion(),
+			ReceiptBase: e.Catalog.Current().CaptureDescriptorVersion(),
+			ReceiptMark: changes.DescriptorEditMark(),
+			Targets:     s.truncateOrZero().Selected,
+			Token:       s.Op.Session.SessionToken,
+			Restart:     s.truncateOrZero().Restart,
+			Sequences:   sequences,
+		}})
 	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

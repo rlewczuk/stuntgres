@@ -185,6 +185,7 @@ func TestReplicationOriginStageOwnership(t *testing.T) {
 	forgedCommit := *committedCandidate
 	forgedCommit.ObjectRevision = 0
 	owner.Catalog.Descriptors[forgedCommit.Address()] = &forgedCommit
+	owner.Catalog.InvalidatePrivateRead()
 	owner.Mu.Unlock()
 	owner.Admission.Unlock()
 	beforeCommit := e.CatalogRead().State()

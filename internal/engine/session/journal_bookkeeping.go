@@ -13,16 +13,19 @@ import (
 
 // PrivateRead returns the transaction's private catalog: base overlaid with
 // c's default ACLs and descriptors and their name bindings, read through
-// owner. The read is cached against base until c records another change. A
-// nil journal reads base.
+// owner. The immutable State is cached against base until a private-read input
+// changes; each read is rebound to its caller's owner. A nil journal reads base.
 func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog.Read {
 	if c == nil {
 		return catalog.NewRead(owner, base)
 	}
+	c.lockPrivateRead()
+	defer c.unlockPrivateRead()
 	if c.CachedBase == base && c.Cached.State() != nil {
+		c.Cached = catalog.NewRead(owner, c.Cached.State())
 		return c.Cached
 	}
-	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 && len(c.InitialPrivileges) == 0 && len(c.SecurityLabels) == 0 {
+	if !c.ParameterWritten && len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 && len(c.InitialPrivileges) == 0 && len(c.SecurityLabels) == 0 {
 		c.CachedBase = base
 		c.Cached = catalog.NewRead(owner, base)
 		return c.Cached
@@ -60,6 +63,16 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 	return c.Cached
 }
 
+// InvalidatePrivateRead forgets the cached projection after a descriptor,
+// default ACL, initial privilege, security label or parameter input changes.
+// It never modifies the immutable State retained by earlier clones/readers.
+func (c *Journal) InvalidatePrivateRead() {
+	c.lockPrivateRead()
+	defer c.unlockPrivateRead()
+	c.CachedBase = nil
+	c.Cached = catalog.Read{}
+}
+
 // RecordDescriptor records d (nil for a removal) as the private descriptor of
 // a, first remembering base's descriptor of a and the base bindings of the
 // old and new names. A removal forgets a's private index state.
@@ -83,12 +96,20 @@ func (c *Journal) RecordDescriptor(base *catalog.State, a ids.ObjectAddress, d c
 			c.Names[k] = base.NameAddress(k)
 		}
 	}
+	_, present := c.Descriptors[a]
 	c.Descriptors[a] = d
 	if d == nil && c.Indexes != nil {
 		c.Indexes.Forget(a)
 	}
-	c.CachedBase = nil
-	c.Cached = catalog.Read{}
+	serial := uint64(1)
+	if c.descriptorEdits != nil {
+		serial = c.descriptorEdits.serial + 1
+	}
+	c.descriptorEdits = &descriptorEdit{address: a, serial: serial, prev: c.descriptorEdits}
+	if !present {
+		c.descriptorEditKeys++
+	}
+	c.InvalidatePrivateRead()
 }
 
 // RecordDefaultACL records record (nil for a removal) as the private default
@@ -102,8 +123,7 @@ func (c *Journal) RecordDefaultACL(base *catalog.State, key catalog.DefaultACLKe
 		c.DefaultOriginals[key] = base.DefaultACL(key)
 	}
 	c.DefaultACLs[key] = record
-	c.CachedBase = nil
-	c.Cached = catalog.Read{}
+	c.InvalidatePrivateRead()
 }
 
 // ObserveCreationACL returns the default ACL that an object of class created
