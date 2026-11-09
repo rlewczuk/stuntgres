@@ -18,6 +18,10 @@ func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 }
 
 func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper, refresh dependencyRefresh) (*View, error) {
+	return remapViewWithUnreadLayout(view, original, mapping, ref, typ, collation, addressMapper, procedure, refresh, nil)
+}
+
+func remapViewWithUnreadLayout(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper, refresh dependencyRefresh, unreadLayout unreadViewLayout) (*View, error) {
 	if refresh != nil {
 		// The frozen query supplies the actual retained executable manifest.
 		// Check its original lanes/stamps before any authorized stamp change;
@@ -133,7 +137,7 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	if err := refresh.apply(definition.dependencies); err != nil {
 		return nil, err
 	}
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper, refreshDependency: refresh}
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper, refreshDependency: refresh, unreadLayout: unreadLayout}
 	var root plan.Node
 	var err error
 	if _, project := original.query.Root.(*plan.ProjectNode); project {

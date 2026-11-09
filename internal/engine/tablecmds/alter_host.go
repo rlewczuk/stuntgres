@@ -81,8 +81,12 @@ func (h AlterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relatio
 	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
 	node, err := binder.Bind(using, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
-	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
-		err = h.E.CaptureCommentSnapshotLocked(h.Scope)
+	if err == nil {
+		// Row execution uses the same demanded codec and diagnostic captures.
+		h.Scope.Input = binder.Input
+		if binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot {
+			err = h.E.CaptureCommentSnapshotLocked(h.Scope)
+		}
 	}
 	return node, binder.Dependencies, err
 }

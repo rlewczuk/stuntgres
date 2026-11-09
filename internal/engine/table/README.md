@@ -499,6 +499,8 @@ binders `BindDefault`, `BindGeneration`, `RebindCheck`, `BindAlterTypeUsing`,
 `TypeChangeDependents` and `StageIdentitySequenceOptions`.
 `tablecmds.AlterHost{TableHost; Scope}` (`alter_host.go`) implements it, one
 per call, because the ALTER loop begins its stage lazily.
+Successful USING binding transfers its demanded input-codec and diagnostic-name
+captures to that statement's live input for the later row rewrite.
 
 **Every `Host` and `AlterHost` method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** The authority is an opaque `ddl.Authority`, so

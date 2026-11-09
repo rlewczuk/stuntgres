@@ -58,6 +58,7 @@ type ViewQueryRemapper struct {
 	routineFormals    int // Private provenance from a frozen routine presentation.
 	addressMapper     func(ids.ObjectAddress) ids.ObjectAddress
 	refreshDependency dependencyRefresh // Exact stamps only for explicit transform refresh.
+	unreadLayout      unreadViewLayout  // Private pre-retag authority for original copied slots.
 }
 
 // Fresh copies the mapping policy into a new operation without accepted roots.
@@ -66,6 +67,7 @@ type ViewQueryRemapper struct {
 func (m *ViewQueryRemapper) Fresh() ViewQueryRemapper {
 	next := *m
 	next.queries, next.ctes, next.queryDepth = nil, nil, 0
+	next.unreadLayout = nil
 	return next
 }
 
@@ -76,6 +78,7 @@ func (m *ViewQueryRemapper) Nested(node plan.Node) (result plan.Node, err error)
 		if m.queryDepth == 0 && err != nil {
 			m.queries = nil
 			m.ctes = nil
+			m.unreadLayout = nil
 		}
 	}()
 	project, ok := node.(*plan.ProjectNode)
@@ -108,11 +111,16 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		if m.queryDepth == 0 && err != nil {
 			m.queries = nil
 			m.ctes = nil
+			m.unreadLayout = nil
 		}
 	}()
 	ref, typ := m.Ref, m.Type
 	schema := append(plan.QuerySchema(nil), node.Schema()...)
+	unread := m.unreadLayout[node]
 	for i := range schema {
+		if usage, ok := unread[i]; ok {
+			schema[i].Usage = usage
+		}
 		schema[i].Usage.Type = typ(schema[i].Usage.Type)
 		if m.Collation != nil {
 			capability, err := m.Collation(schema[i].Usage.Collation)

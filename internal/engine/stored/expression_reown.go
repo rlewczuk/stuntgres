@@ -199,7 +199,15 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if typesOnly && next.ACLItemImport() == nil && !ExpressionDescriptorsChanged(view, d, typ) {
+		var unreadLayout unreadViewLayout
+		if typesOnly && createdRemap && refreshRoutines && original.State() == nil && len(mapping) == 0 && next.ACLItemImport() == nil && d.View != nil {
+			var err error
+			unreadLayout, err = analyzeUnreadViewLayout(view, d)
+			if err != nil {
+				return err
+			}
+		}
+		if typesOnly && next.ACLItemImport() == nil && len(unreadLayout) == 0 && !ExpressionDescriptorsChanged(view, d, typ) {
 			continue
 		}
 		if len(d.ColumnMeta.Defaults) != 0 {
@@ -373,7 +381,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if d.View == nil {
 			continue
 		}
-		definition, err := remapView(view, ViewOf(d), mapping, ref, typ, collation, nil, procedure, refresh)
+		definition, err := remapViewWithUnreadLayout(view, ViewOf(d), mapping, ref, typ, collation, nil, procedure, refresh, unreadLayout)
 		if err != nil {
 			return err
 		}

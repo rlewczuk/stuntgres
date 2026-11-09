@@ -34,10 +34,11 @@ including all query, CTE and mutation roots reached by that operation. Its accep
 roots retain canonical graph identity across those traversals; distinct self-join
 occurrences remain distinct. Keep the source graph and mapping policy fixed.
 Before changing the destination catalog or any mapping callback, use `Fresh()`
-to copy the configuration without accepted query/CTE roots. The fresh operation
-runs the ordinary source/current provider validation, including exact destination
-generations and reference authority, rather than trusting an earlier accepted
-root. An outermost failure discards partial operation memo state.
+to copy the configuration without accepted query/CTE roots or private unread-slot
+authority. The fresh operation runs the ordinary source/current provider
+validation, including exact destination generations and reference authority,
+rather than trusting an earlier accepted root. An outermost failure discards
+partial operation memo and unread-slot state.
 Grouped-query dependency proofs remap their parent reference and attached
 constraint address together and authenticate the destination's canonical
 nondeferrable primary key, stable attributes, actual source occurrence and
@@ -1224,9 +1225,27 @@ host methods.
   grants no provenance exemption.
   `ReownExpressions` consumes a supplied prebound replacement context, or
   creates and binds one for a standalone full-remap entry. Type-only entries
-  retain their selective affected-payload rewrite. Independent exported view,
-  rule and policy remap entries initialize their own occurrence boundary, while
-  the internal operation seams reuse the complete mapper. Retained TEMP rules
+  retain their selective affected-payload rewrite.
+  For ordinary permanent views, the standalone types-only owner also selects
+  authenticated cross-type-ID unread source-layout changes, even when the generic
+  descriptor detector is unchanged. One private analysis authenticates the original
+  hidden Usage and collation before any type substitution, then follows the exact
+  source occurrence/reference and frozen stable attribute to its current canonical
+  Usage. Actual reads, whole rows, system demands and executable captures are not
+  repairable. Same-ID generations retain the existing generic remapper policy.
+  The same analysis transports only copied child positions through wrapper and
+  join layouts, requiring original parent/child Usage equality before overwrite.
+  Expression-owned projection, plain DISTINCT, aggregate, merged-join, derived
+  and CTE outputs receive no source-layout override. Plain DISTINCT materializes
+  its target expressions even when output and input widths coincide; DISTINCT ON
+  instead retains input positions and their copied-carrier checks.
+  Changes copy immutable predecessor backing;
+  frozen widths, metadata, grouping/lateral contracts and actual dependencies
+  remain intact. Independent remappers, imports, routine refresh and TEMP
+  preservation acquire no source-layout permission.
+  Independent exported view, rule and policy remap entries initialize their own
+  occurrence boundary, while the internal operation seams reuse the complete
+  mapper. Retained TEMP rules
   keep their separate target-container policy; import mappings never enter it.
   `RangeIdentityConstraints` captures actual finite alias relationships from
   rows and known stored/default/generation recipes through range-bearing
@@ -1662,6 +1681,8 @@ and transaction/end provenance remain unchanged, including when a later conversi
 
 Grouped-query proof authentication, frozen remap and both lifetime/dependency
 projections use `RUN='^TestGroupDependency'` in the composed stored owner tests.
+Unread source-layout authority, copied carriers and immutable operation boundaries
+use `RUN='^TestUnreadViewSourceRefresh'` in the composed stored owner tests.
 
 Rewrite definition ownership, range-slot identity and cancellation use
 `make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.

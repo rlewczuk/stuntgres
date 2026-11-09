@@ -40,6 +40,10 @@ query-derived table creation in `reference/query_core`; wire-protocol routes in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 
+The `unreadview` child package owns the shared direct/held transaction family for
+replacement types beneath frozen unread ordinary-view source layouts. Run it with
+`make check RUN='^TestReferenceAlterTypeUnreadView'` (and `REFERENCE=1` for the oracle).
+
 - Scenario helpers: `addConstraintScenario` and the catalog/backing/Dump
   snapshot helpers (`alter_add_constraint_helpers_test.go`),
   reused by column REFERENCES and validation scenarios with held commands, full
