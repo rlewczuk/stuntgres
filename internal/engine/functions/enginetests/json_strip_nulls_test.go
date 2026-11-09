@@ -29,11 +29,19 @@ func jsonStripUnitBind(t *testing.T, b *analyze.Binder, q string) expr.Expr {
 }
 
 func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
+	testStripBindingInference(t, sqltype.JSON, "json_strip_nulls")
+}
+
+func TestJSONBStripNullsBindingInferenceAndProperties(t *testing.T) {
+	testStripBindingInference(t, sqltype.JSONB, "jsonb_strip_nulls")
+}
+
+func testStripBindingInference(t *testing.T, id sqltype.ID, name string) {
 	ctx := context.Background()
 	b := enginetest.ExpressionBinder(t, ctx, engine.New(), sqltype.InputEnvironment{}, nil)
-	node := jsonStripUnitBind(t, b, "SELECT json_strip_nulls(strip_in_arrays => $2,target => $1)")
+	node := jsonStripUnitBind(t, b, "SELECT "+name+"(strip_in_arrays => $2,target => $1)")
 	e := node.(functions.JSONStripNulls)
-	for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
+	for i, id := range []sqltype.ID{id, sqltype.Bool} {
 		if b.Params.Parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
 			t.Fatal("formal inference", i)
 		}
@@ -43,6 +51,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
 		binder := enginetest.ExpressionBinder(t, ctx, engine.New(), sqltype.InputEnvironment{}, nil)
+		q = strings.ReplaceAll(q, "json_strip_nulls", name)
 		if _, err := binder.Bind(enginetest.Statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 			t.Fatal("strict NULL hid binding error", q)
 		}
@@ -54,9 +63,19 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 		{`SELECT json_strip_nulls('{}')`, expr.Immutable}, {`SELECT json_strip_nulls(NULL,NULL)`, expr.Immutable},
 	} {
 		binder := enginetest.ExpressionBinder(t, ctx, engine.New(), sqltype.InputEnvironment{}, nil)
-		n := jsonStripUnitBind(t, binder, tc.q)
+		n := jsonStripUnitBind(t, binder, strings.ReplaceAll(tc.q, "json_strip_nulls", name))
 		if n.Properties().Volatility != tc.volatility || exec.PlannedVolatility(n) != tc.volatility || stored.PlannedIntrinsicVolatility(n) != expr.Immutable {
 			t.Fatal(tc.q, n.Properties(), exec.PlannedVolatility(n))
+		}
+		call := n.(functions.JSONStripNulls)
+		if n.ResultUsage().Type.ID() != id || call.Plan.Name() != name {
+			t.Fatal("lost strip-family result identity")
+		}
+		if call.WrittenCount == 1 {
+			flag, err := call.Args[1].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+			if err != nil || flag != sqltype.Boolean(binder.Type(sqltype.Bool), false) {
+				t.Fatal("default is not an owning typed false", flag, err)
+			}
 		}
 	}
 	// Use the existing typed binder witness for a volatile Boolean child,
@@ -64,7 +83,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	binder := enginetest.ExpressionBinder(t, ctx, engine.New(), sqltype.InputEnvironment{}, nil)
 	randomText := parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}
 	randomBool := parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
-	volatile, err := binder.BindFunctionProvider(datetimeMakeRaw("json_strip_nulls", datetimeMakeString("{}"), randomBool))
+	volatile, err := binder.BindFunctionProvider(datetimeMakeRaw(name, datetimeMakeString("{}"), randomBool))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +93,19 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 }
 
 func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
+	testStripBindingRetag(t, sqltype.JSON, "json_strip_nulls", `{"b":[1]}`)
+}
+
+func TestJSONBStripNullsBindingRetagRemap(t *testing.T) {
+	testStripBindingRetag(t, sqltype.JSONB, "jsonb_strip_nulls", `{"b": [1]}`)
+}
+
+func testStripBindingRetag(t *testing.T, id sqltype.ID, name, want string) {
 	ctx := context.Background()
 	eng := engine.New()
 	view := eng.CatalogRead()
 	b := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
-	e := jsonStripUnitBind(t, b, `SELECT json_strip_nulls(strip_in_arrays => true,target => '{"a":null,"b":[null,1]}')`).(functions.JSONStripNulls)
+	e := jsonStripUnitBind(t, b, `SELECT `+name+`(strip_in_arrays => true,target => '{"a":null,"b":[null,1]}')`).(functions.JSONStripNulls)
 	fresh := jsonObjectUnitTypes()
 	next, changed, err := stored.RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
@@ -97,8 +124,8 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := fresh[sqltype.JSON].Output(ctx, got)
-	if err != nil || out != `{"b":[1]}` {
+	out, err := fresh[id].Output(ctx, got)
+	if err != nil || out != want || n.Plan.Name() != name {
 		t.Fatal(out, err)
 	}
 	mapped, err := stored.RemapExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
@@ -118,6 +145,14 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 }
 
 func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
+	testStripBindingStored(t, sqltype.JSON, "json_strip_nulls")
+}
+
+func TestJSONBStripNullsBindingStoredPresentation(t *testing.T) {
+	testStripBindingStored(t, sqltype.JSONB, "jsonb_strip_nulls")
+}
+
+func testStripBindingStored(t *testing.T, id sqltype.ID, name string) {
 	ctx := context.Background()
 	for _, tc := range []struct{ q, want string }{
 		{`SELECT json_strip_nulls(' {"a":null,"b":[null]} ')`, `{"b":[null]}`},
@@ -128,7 +163,11 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 		{`SELECT json_strip_nulls(target => '{"b":[null]}'::json,VARIADIC strip_in_arrays => true)`, `{"b":[]}`},
 	} {
 		eng := engine.New()
-		query := tc.q
+		query := strings.ReplaceAll(tc.q, "json_strip_nulls", name)
+		if id == sqltype.JSONB {
+			query = strings.ReplaceAll(query, "::json", "::jsonb")
+			tc.want = strings.ReplaceAll(tc.want, `":[`, `": [`)
+		}
 		previous := ""
 		for round := range 3 {
 			b := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
@@ -152,6 +191,9 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			emitted, err := renderer.ExpressionSQL(ctx, eng.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || round > 0 && emitted != previous {
 				t.Fatal(emitted, previous, err)
+			}
+			if !strings.Contains(emitted, name+"(") {
+				t.Fatal("lost strip-family serialized identity", emitted)
 			}
 			if strings.Contains(tc.q, "strip_in_arrays") && !strings.Contains(emitted, "strip_in_arrays") {
 				t.Fatal("lost label", emitted)

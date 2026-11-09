@@ -29,6 +29,14 @@ func TestStoredProviderCallShape(t *testing.T) {
 		{"json_strip_nulls", 1, nil, true, true},
 		{"json_strip_nulls", 1, []string{"strip_in_arrays"}, false, false},
 		{"json_strip_nulls", 2, []string{"strip_in_arrays", "target"}, true, false},
+		{"jsonb_strip_nulls", 1, nil, true, true},
+		{"jsonb_strip_nulls", 1, []string{"strip_in_arrays"}, false, false},
+		{"jsonb_strip_nulls", 2, []string{"strip_in_arrays", "target"}, true, false},
+		{"jsonb_strip_nulls", 2, []string{"strip_in_arrays", "target"}, false, true},
+		{"jsonb_strip_nulls", 2, []string{"target", "strip_in_arrays"}, true, true},
+		{"jsonb_strip_nulls", 0, nil, false, false},
+		{"jsonb_strip_nulls", 3, nil, false, false},
+		{"jsonb_strip_nulls", 2, []string{"target", "target"}, false, false},
 		{"json_array_elements", 1, []string{"from_json"}, false, true},
 		{"json_array_elements_text", 1, nil, true, true},
 		{"json_array_elements", 1, []string{"target"}, false, false},
@@ -76,7 +84,9 @@ func TestTablefuncNormalTransform(t *testing.T) {
 	} {
 		got := tablefuncNormalTransform(tc.mean, tc.deviation, tc.z)
 		if math.IsNaN(tc.want) {
-			if !math.IsNaN(got) { t.Fatal(tc, got) }
+			if !math.IsNaN(got) {
+				t.Fatal(tc, got)
+			}
 		} else if got != tc.want {
 			t.Fatal(tc, got)
 		}

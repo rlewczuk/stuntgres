@@ -40,8 +40,11 @@ memory or time units, or complete query accounting. Cached work need not consume
 credit. Provider owners preserve cancellation and lazy/error/NULL precedence.
 
 - Pattern normalize/match: at most 4096 character/matcher loop iterations.
-- JSON array count, object expand, strip nulls and record expand: scanner token
-  steps; strip-null copying additionally uses bounded byte chunks.
+- JSON array count, object expand, text strip nulls and record expand: scanner
+  token steps; text strip copying additionally uses at most 4096 source bytes.
+- The same strip class covers one JSONB decoded node/container traversal frame
+  step, including examining/skipping children and closing/unwinding containers,
+  or a prefix-copy chunk of at most `jsonbWorkChunk` existing entries.
 - JSONB containment: traversal frame steps; object/array expansion: one present
   member/element; existence: search candidates; path delete: path/copy steps;
   pretty: structural node and bounded copy steps; record populate: field/frame

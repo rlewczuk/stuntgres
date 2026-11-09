@@ -1893,7 +1893,7 @@ func singletonArgument(expr Expr) bool {
 			case "gen_random_uuid", "uuidv4", "uuidv7":
 			case "macaddr8_set7bit":
 			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
-			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls":
+			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls", "jsonb_strip_nulls":
 			case "generate_series", "generate_subscripts", "unnest":
 			case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":

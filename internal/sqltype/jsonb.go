@@ -420,10 +420,10 @@ func jsonbOutput(ctx context.Context, root *jsonbNode) (string, error) {
 			return "", fmt.Errorf("invalid JSONB node")
 		}
 		for {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
 			if len(stack) == 0 {
-				if err := ctx.Err(); err != nil {
-					return "", err
-				}
 				return b.String(), nil
 			}
 			f := &stack[len(stack)-1]

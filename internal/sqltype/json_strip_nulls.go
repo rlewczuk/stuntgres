@@ -14,13 +14,25 @@ type JSONStripNullsPlan struct{ result, target, arrays Usage }
 
 func BindJSONStripNulls(result, target, arrays Usage) (JSONStripNullsPlan, error) {
 	p := JSONStripNullsPlan{result: result, target: target, arrays: arrays}
-	if !result.Valid() || !target.Valid() || !arrays.Valid() || result.Typmod != -1 || target.Typmod != -1 || arrays.Typmod != -1 || result.Type.ID() != JSON || target.Type != result.Type || arrays.Type.ID() != Bool {
+	if !result.Valid() || !target.Valid() || !arrays.Valid() || result.Typmod != -1 || target.Typmod != -1 || arrays.Typmod != -1 || (result.Type.ID() != JSON && result.Type.ID() != JSONB) || target.Type != result.Type || arrays.Type.ID() != Bool {
 		return p, fmt.Errorf("invalid JSON stripping signature")
 	}
 	return p, nil
 }
 
 func (p JSONStripNullsPlan) ResultUsage() Usage { return p.result }
+
+func (p JSONStripNullsPlan) Name() string {
+	if p.result.Type != nil {
+		switch p.result.Type.ID() {
+		case JSONB:
+			return "jsonb_strip_nulls"
+		case JSON:
+			return "json_strip_nulls"
+		}
+	}
+	return ""
+}
 
 func (p JSONStripNullsPlan) Evaluate(ctx context.Context, target, arrays Value) (Value, error) {
 	if p.result.Type == nil || target.typ != p.target.Type || arrays.typ != p.arrays.Type {
@@ -31,6 +43,9 @@ func (p JSONStripNullsPlan) Evaluate(ctx context.Context, target, arrays Value) 
 	}
 	if target.null || arrays.null {
 		return Null(p.result.Type), nil
+	}
+	if p.result.Type.ID() == JSONB {
+		return jsonbStripNullsValue(ctx, target, arrays.boolean)
 	}
 	text, err := jsonStripNulls(ctx, target.text, arrays.boolean)
 	if err != nil {

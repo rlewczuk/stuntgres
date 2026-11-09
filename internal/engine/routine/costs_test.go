@@ -47,7 +47,7 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 		2325: 1,
 		// The pinned18.6 oracle confirms the INTERNAL-language default1
 		// after these replacements; SQL's default100 does not apply.
-		1268: 1, 3261: 1, 3305: 1, 3464: 1, 3579: 1,
+		1268: 1, 3261: 1, 3262: 1, 3305: 1, 3464: 1, 3579: 1,
 		3960: 1, 3961: 1, 4005: 1, 4006: 1, 4007: 1,
 		4008: 1, 4009: 1, 4350: 1, 4351: 1, 5054: 1,
 	}

@@ -49,6 +49,7 @@ var builtinRoutineInputNames = map[ids.OID]*catalog.RoutineInputNames{
 	3216: catalog.NewRoutineInputNames("from_json", "element_index"),                                // jsonb_array_element_text
 	3217: catalog.NewRoutineInputNames("from_json", "path_elems"),                                   // jsonb_extract_path
 	3261: catalog.NewRoutineInputNames("target", "strip_in_arrays"),                                 // json_strip_nulls
+	3262: catalog.NewRoutineInputNames("target", "strip_in_arrays"),                                 // jsonb_strip_nulls
 	3270: catalog.NewRoutineInputNames("key", "value"),                                              // jsonb_object_agg
 	3305: catalog.NewRoutineInputNames("jsonb_in", "path", "replacement", "create_if_missing"),      // jsonb_set
 	3396: catalog.NewRoutineInputNames("string", "pattern"),                                         // regexp_match

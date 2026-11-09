@@ -1,8 +1,19 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestJSONStripNullsCallSyntax(t *testing.T) {
+	testStripCallSyntax(t, false)
+}
+
+func TestJSONBStripNullsCallSyntax(t *testing.T) {
+	testStripCallSyntax(t, true)
+}
+
+func testStripCallSyntax(t *testing.T, binary bool) {
 	for _, tc := range []struct {
 		call, name string
 		arity      int
@@ -10,6 +21,10 @@ func TestJSONStripNullsCallSyntax(t *testing.T) {
 		{`json_strip_nulls($1)`, "json_strip_nulls", 1}, {`JSON_STRIP_NULLS($1,$2)`, "json_strip_nulls", 2},
 		{`pg_catalog.json_strip_nulls($1,$2)`, "json_strip_nulls", 2}, {`"JSON_STRIP_NULLS"($1)`, "JSON_STRIP_NULLS", 1},
 	} {
+		if binary {
+			tc.call = strings.ReplaceAll(strings.ReplaceAll(tc.call, "json_strip_nulls", "jsonb_strip_nulls"), "JSON_STRIP_NULLS", "JSONB_STRIP_NULLS")
+			tc.name = strings.ReplaceAll(strings.ReplaceAll(tc.name, "json_strip_nulls", "jsonb_strip_nulls"), "JSON_STRIP_NULLS", "JSONB_STRIP_NULLS")
+		}
 		statements, err := Parse("/*é*/ SELECT " + tc.call)
 		if err != nil || len(statements) != 1 {
 			t.Fatal(tc, err)
@@ -20,7 +35,11 @@ func TestJSONStripNullsCallSyntax(t *testing.T) {
 		}
 	}
 	for _, op := range []string{"=>", ":="} {
-		statements, err := Parse("SELECT json_strip_nulls(strip_in_arrays " + op + " $1,target " + op + " $2)")
+		name := "json_strip_nulls"
+		if binary {
+			name = "jsonb_strip_nulls"
+		}
+		statements, err := Parse("SELECT " + name + "(strip_in_arrays " + op + " $1,target " + op + " $2)")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -40,11 +59,16 @@ func TestJSONStripNullsCallSyntax(t *testing.T) {
 		`CREATE TABLE t(v json DEFAULT json_strip_nulls('{}'),CHECK(json_strip_nulls(v)::text='{}'))`,
 		`CREATE VIEW v AS SELECT json_strip_nulls(strip_in_arrays => true,target => '{}')`,
 	} {
+		if binary {
+			q = strings.ReplaceAll(q, "json_strip_nulls", "jsonb_strip_nulls")
+			q = strings.ReplaceAll(q, "::json", "::jsonb")
+			q = strings.ReplaceAll(q, "v json ", "v jsonb ")
+		}
 		if _, err := Parse(q); err != nil {
 			t.Fatal(q, err)
 		}
 	}
-	if JSONFunctionName("jsonb_strip_nulls") {
-		t.Fatal("adjacent JSONB function admitted")
+	if !JSONFunctionName("jsonb_strip_nulls") {
+		t.Fatal("JSONB sibling not admitted")
 	}
 }

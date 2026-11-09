@@ -283,7 +283,7 @@ func bindJSONBPathQueryArray(b Binder, raw parser.FunctionExpr, visible bool) (e
 func bindJSONStripNulls(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	spec, _ := jsonSlotSpecification(name)
-	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && name == "json_strip_nulls", spec)
+	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && (name == "json_strip_nulls" || name == "jsonb_strip_nulls"), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func bindJSONStripNulls(b Binder, raw parser.FunctionExpr, visible bool) (expr.E
 		typ := b.Type(sqltype.Bool)
 		e.Args[1] = b.Literal(sqltype.Boolean(typ, false), raw.Pos)
 	}
-	e.Info, err = b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.JSON).Usage(), raw.Pos, call.properties), JSONRoutineProvider, name, sqltype.JSON, sqltype.Bool)
+	e.Info, err = b.BuiltinRoutineInfo(b.Info(b.Type(spec.formals[0]).Usage(), raw.Pos, call.properties), JSONRoutineProvider, name, spec.formals...)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +419,7 @@ var jsonInsertLabels = [4]string{"jsonb_in", "path", "replacement", "insert_afte
 var jsonSetFormals = [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 var jsonStripLabels = [2]string{"target", "strip_in_arrays"}
 var jsonStripFormals = [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
+var jsonbStripFormals = [2]sqltype.ID{sqltype.JSONB, sqltype.Bool}
 
 func jsonSlotSpecification(name string) (slotSpec, bool) {
 	spec := slotSpec{volatility: expr.Immutable}
@@ -431,6 +432,8 @@ func jsonSlotSpecification(name string) (slotSpec, bool) {
 		spec.labels, spec.formals, spec.required = jsonInsertLabels[:], jsonSetFormals[:4], 3
 	case "json_strip_nulls":
 		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonStripLabels[:], jsonStripFormals[:], 1, true
+	case "jsonb_strip_nulls":
+		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonStripLabels[:], jsonbStripFormals[:], 1, true
 	case "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_array", "jsonb_path_query_first", "jsonb_path_query":
 		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonPathLabels[:], jsonPathFormals[:], 2, true
 	case "jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_array_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz":

@@ -1558,6 +1558,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3259: {Language: catalog.InternalRoutineLanguage, Source: "generate_series_step_numeric"},
 	3260: {Language: catalog.InternalRoutineLanguage, Source: "generate_series_numeric"},
 	3261: {Language: catalog.InternalRoutineLanguage, Source: "json_strip_nulls"},
+	3262: {Language: catalog.InternalRoutineLanguage, Source: "jsonb_strip_nulls"},
 	3263: {Language: catalog.InternalRoutineLanguage, Source: "jsonb_object"},
 	3264: {Language: catalog.InternalRoutineLanguage, Source: "jsonb_object_two_arg"},
 	3267: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"},

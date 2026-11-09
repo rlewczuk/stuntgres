@@ -4497,6 +4497,11 @@ producer frames and immutable fold generations rather than SQL equality.
 XML retained-description and accepted-binding generation/backing proofs use
 `RUN='^TestXML(SQLPrepared(Portal)?Ownership|Produce(PreparedFoldOwnership|UnknownParameterAdmission))$'`, also with `RACE=1`.
 
+JSONB stripping accepted-definition and parameterized-binding ownership use
+`RUN='^TestJSONBStripNulls(AcceptedOwner|ParameterizedOwnership)$'`, also with
+`RACE=1`. They retain real private graph roots and accepted fold backing across
+rejected publication; public SQL behavior remains in `reference/binary_json_arrays`.
+
 Type-path backing and COPY predicate/retained-recipe demand units use
 `RUN='^TestTypeDescribe(CapturedTypePath|CopySnapshotDemand|RetainedSnapshotDemand)$'`.
 These inspect the real authorized capture and preflight boundary; public SQL

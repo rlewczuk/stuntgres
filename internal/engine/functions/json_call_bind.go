@@ -15,7 +15,7 @@ var jsonCallNames = [...]string{
 	"json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object",
 	"jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query",
 	"jsonb_path_query_array_tz", "jsonb_path_exists_tz", "jsonb_path_match_tz", "jsonb_path_query_first_tz", "jsonb_path_query_tz",
-	"jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls",
+	"jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls", "jsonb_strip_nulls",
 	"json_extract_path", "json_extract_path_text", "jsonb_extract_path", "jsonb_extract_path_text",
 	"jsonb_populate_record", "jsonb_populate_recordset", "jsonb_to_record", "jsonb_to_recordset", "jsonb_populate_record_valid",
 	"json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length",
@@ -51,7 +51,7 @@ func bindJSONCall(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return bindJSONBPathQuery(b, raw, visible)
 	case parser.JSONBSetFunctionName(name):
 		return bindJSONBSet(b, raw, visible)
-	case strings.EqualFold(name, "json_strip_nulls"):
+	case strings.EqualFold(name, "json_strip_nulls") || strings.EqualFold(name, "jsonb_strip_nulls"):
 		return bindJSONStripNulls(b, raw, visible)
 	case name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text":
 		return bindJSONExtract(b, raw, visible)

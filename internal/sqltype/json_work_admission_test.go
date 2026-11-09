@@ -3,6 +3,7 @@ package sqltype
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/workadmission"
@@ -42,6 +43,17 @@ func TestJSONWorkAdmissionRefusalAndClassPrecision(t *testing.T) {
 			text, err := jsonStripNulls(ctx, `{"a":null,"b":1}`, false)
 			if err != nil && text != "" {
 				t.Fatal("partial stripped output")
+			}
+			return err
+		}},
+		{workadmission.WorkJSONStripNulls, func(ctx context.Context) error {
+			p, err := BindJSONStripNulls(types[JSONB].Usage(), types[JSONB].Usage(), types[Bool].Usage())
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, err := p.Evaluate(ctx, document, Boolean(types[Bool], true))
+			if err != nil && v != (Value{}) {
+				t.Fatal("published refused JSONB payload", v)
 			}
 			return err
 		}},
@@ -124,6 +136,9 @@ func TestJSONWorkAdmissionProcessingIsolation(t *testing.T) {
 		if _, err := types[id].Input(ctx, `{"a":[1,2]}`, -1); err != nil {
 			t.Fatal("input consumed processing credit", err)
 		}
+		if _, err := BindJSONStripNulls(types[id].Usage(), types[id].Usage(), types[Bool].Usage()); err != nil {
+			t.Fatal("binding consumed processing credit", err)
+		}
 	}
 	scan := jsonScanResult{classify: true}
 	if _, err := types[JSON].scanJSON(ctx, `{"a":1}`, &scan); err != nil {
@@ -161,5 +176,99 @@ func TestJSONWorkAdmissionCancellationAndCursorOwnership(t *testing.T) {
 	c.Close()
 	if text, err := types[JSONB].Output(context.Background(), v); err != nil || text != `{"a": 1}` {
 		t.Fatal("owned output lost after close", text, err)
+	}
+}
+
+func TestJSONWorkAdmissionJSONBStripTraversalAndCopy(t *testing.T) {
+	types := testTypes()
+	background := context.Background()
+	p, err := BindJSONStripNulls(types[JSONB].Usage(), types[JSONB].Usage(), types[Bool].Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{
+		"[" + strings.Repeat("null,", 64) + "1]",
+		"[" + strings.Repeat("0,", 2*jsonbWorkChunk) + "null]",
+		strings.Repeat("[", 64) + "null" + strings.Repeat("]", 64),
+	} {
+		input := jsonFunctionUnitInput(t, types[JSONB], source)
+		original := input
+		grants := 0
+		ctx := workadmission.Activate(workadmission.With(background, func(_ context.Context, class workadmission.Class) error {
+			if class != workadmission.WorkJSONStripNulls {
+				t.Fatal("strip borrowed another operation's class", class)
+			}
+			grants++
+			return nil
+		}))
+		owned, err := p.Evaluate(ctx, input, Boolean(types[Bool], true))
+		if err != nil || grants == 0 || owned.jsonb == nil {
+			t.Fatal("actual traversal was not admitted", grants, err)
+		}
+		// Locate every actual grant dynamically: callback counts are not a
+		// quantum contract. Both refusal and cancellation after a successful
+		// grant must fence publication, including the final grant.
+		for at := 1; at <= grants; at++ {
+			for _, canceled := range []bool{false, true} {
+				parent, cancel := context.WithCancel(background)
+				refused := errors.New("strip traversal/copy refused")
+				want := refused
+				if canceled {
+					want = context.Canceled
+				}
+				reached := 0
+				active := workadmission.Activate(workadmission.With(parent, func(_ context.Context, class workadmission.Class) error {
+					if class != workadmission.WorkJSONStripNulls {
+						t.Fatal("wrong strip class", class)
+					}
+					reached++
+					if reached == at {
+						if canceled {
+							cancel()
+							return nil
+						}
+						return refused
+					}
+					return nil
+				}))
+				got, err := p.Evaluate(active, input, Boolean(types[Bool], true))
+				cancel()
+				if err != want || got != (Value{}) || input != original {
+					t.Fatal("grant published partial payload or lost refusal identity", at, canceled, got, err)
+				}
+			}
+		}
+		if text, err := jsonbOutput(background, &input.jsonb.root); err != nil || text != original.text {
+			t.Fatal("admission mutated published input", text, err)
+		}
+		if text, err := jsonbOutput(background, &owned.jsonb.root); err != nil || text != owned.text {
+			t.Fatal("later refusals damaged accepted output", text, err)
+		}
+		// Attaching a policy without runtime activation is inert.
+		inactive := workadmission.With(background, func(context.Context, workadmission.Class) error {
+			return errors.New("inactive strip policy called")
+		})
+		if got, err := p.Evaluate(inactive, input, Boolean(types[Bool], true)); err != nil || got.text != owned.text {
+			t.Fatal("inactive policy changed stripping", got, err)
+		}
+	}
+	// Exercise the real chunked prefix copier with the strip identity rather
+	// than inferring its credit from a traversal's callback count.
+	src := make([]jsonbNode, 2*jsonbWorkChunk+1)
+	dst := make([]jsonbNode, len(src))
+	refused := errors.New("strip prefix copy refused")
+	grants := 0
+	ctx := workadmission.Activate(workadmission.With(background, func(_ context.Context, class workadmission.Class) error {
+		if class != workadmission.WorkJSONStripNulls {
+			t.Fatal("prefix copy charged another class", class)
+		}
+		grants++
+		if grants == 2 {
+			return refused
+		}
+		return nil
+	}))
+	if err := jsonbSetCopy(ctx, dst, src, workadmission.WorkJSONStripNulls); err != refused {
+		t.Fatal("prefix copy lost actual refusal", err)
 	}
 }

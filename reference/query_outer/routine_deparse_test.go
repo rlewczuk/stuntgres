@@ -155,6 +155,11 @@ func TestReferenceRoutineDeparseBuiltins(t *testing.T) {
 			"jsonb_in jsonb, path text[], replacement jsonb, create_if_missing boolean DEFAULT true",
 			"jsonb_in jsonb, path text[], replacement jsonb, create_if_missing boolean", "jsonb",
 		})
+		routineDeparseFour(t, p, b, c, "jsonb_strip_nulls(jsonb,boolean)", [4]any{
+			"CREATE OR REPLACE FUNCTION pg_catalog.jsonb_strip_nulls(target jsonb, strip_in_arrays boolean DEFAULT false)\n RETURNS jsonb\n LANGUAGE internal\n IMMUTABLE PARALLEL SAFE STRICT\nAS $function$jsonb_strip_nulls$function$\n",
+			"target jsonb, strip_in_arrays boolean DEFAULT false",
+			"target jsonb, strip_in_arrays boolean", "jsonb",
+		})
 		// Every represented nonaggregate descriptor must be presentable, including
 		// metadata-only providers; ledger-only aliases cannot enlarge this set.
 		facts := pgProcInventoryFacts(t)

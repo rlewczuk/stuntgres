@@ -32,8 +32,11 @@ writes, not variable-cost rounds. Other digest/HMAC/MD5 writes remain uncharged.
 
 JSON processing scanners carry an explicit ephemeral class, so initial input,
 classification and extraction cannot satisfy object/record processing admission.
-Array counting starts after root validation; stripping charges token and bounded
-copy work. JSONB containment, existence, pretty formatting and record population
+Array counting starts after root validation; text stripping charges token and
+bounded source-byte copy work. JSONB stripping uses the same `WorkJSONStripNulls`
+class for each decoded traversal frame step, including skips and unwinds, and
+prefix copies of at most `jsonbWorkChunk` existing entries.
+JSONB containment, existence, pretty formatting and record population
 charge actual frame/candidate/conversion steps. Object/array expansion charges
 only present members, not NULL or EOF. Path deletion propagates its identity
 through chunked copying and ancestor rebuilding without charging set/insert.
@@ -54,6 +57,13 @@ binding or metadata evaluation: checkpoints require internal detached-execution
 admission, and wait on the effective child context, not its source parent.
 No kernel acquires an engine/session mutex; the invoking runtime owns detached
 admission and removes it before nested binding.
+
+`JSONStripNullsPlan` validates occurrence-owned JSON/JSONB and Boolean descriptors
+before strictness. JSONB stripping walks the decoded immutable payload iteratively,
+allocates survivor slices only on changed paths, shares unchanged subtrees and
+returns the original value when unchanged. Changed roots render once through the
+canonical cancellation-aware writer; no cached-text decoding or partial result
+publication is permitted.
 
 
 ## Descriptors, values and codecs
@@ -1135,6 +1145,8 @@ Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;
 add `RACE=1` for cancellation and cursor-lifetime proof.
 JSON text-search filter/traversal ownership uses `RUN='^TestJSONTextSearch'`.
+Shared strip plans, immutable JSONB traversal and writer cancellation use
+`RUN='^TestJSONB?StripNulls'`.
 
 Native physical datum and BRIN/B-tree/FSM/heap/header/checksum byte-reader units use `RUN='^TestPageinspect'`;
 GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.

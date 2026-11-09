@@ -15,6 +15,12 @@ kernels. Selected logarithm/root/power/bucket calls evaluate demanded operands
 before strict typed NULL handling and use the ordinary scalar-operand and DEFAULT
 routes; aliasing does not widen other providers' admission.
 
+`JSONStripNulls` shares the JSON and JSONB two-formal slot binder and retains
+the selected routine authority, typed false default and written argument order.
+Its intrinsic volatility is immutable and merges child properties. Both children
+remain demanded before strictness; reconstruction and rendering use the
+type-owned plan and preserve the selected result family.
+
 `BackendMemoryContexts` is the volatile, nonfolding zero-input RECORD SRF for
 `pg_get_backend_memory_contexts`. Its named output shape and ordinary routine
 provenance retain no session or permission decision. Source opening borrows
@@ -1944,6 +1950,9 @@ publication and lock-manager tickets stay in the engine.
   logical replay.
 
 ## Testing
+
+Shared strip binding, reconstruction and engine consumers use
+`RUN='^TestJSONB?StripNulls'`; public SQL belongs in `reference/binary_json_arrays`.
 
 FTS provider protocols and real-analyzer collation/replay units use
 `RUN='^TestFTS(Rank|Headline)'`; public SQL remains in `reference/ranges_text_search`.

@@ -281,6 +281,7 @@ func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 		{"array_sort", "2277,16", []string{"descending", "array"}, []sqltype.ID{sqltype.Bool, 1007}, []sqltype.ID{sqltype.Bool, 2277}, []sqltype.ID{sqltype.Bool, 1007}},
 		{"parse_ident", "25,16", []string{"strict", "str"}, []sqltype.ID{sqltype.Bool, sqltype.Text}, []sqltype.ID{sqltype.Bool, sqltype.Text}, []sqltype.ID{sqltype.Bool, sqltype.Text}},
 		{"json_strip_nulls", "114,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSON}, []sqltype.ID{sqltype.Bool, sqltype.JSON}, []sqltype.ID{sqltype.Bool, sqltype.JSON}},
+		{"jsonb_strip_nulls", "3802,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSONB}, []sqltype.ID{sqltype.Bool, sqltype.JSONB}, []sqltype.ID{sqltype.Bool, sqltype.JSONB}},
 		{"json_populate_record", "2283,114,16", []string{"from_json", "base"}, []sqltype.ID{sqltype.JSON, sqltype.Int4}, []sqltype.ID{sqltype.JSON, 2283}, []sqltype.ID{sqltype.JSON, sqltype.Int4}},
 		{"pg_get_acl", "26,26,23", []string{"objsubid", "classid", "objid"}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}},
 		{"uuidv7", "1186", []string{"shift"}, []sqltype.ID{sqltype.Interval}, []sqltype.ID{sqltype.Interval}, []sqltype.ID{sqltype.Interval}},
@@ -328,7 +329,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 	for _, mode := range []string{"e", "a", "i"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			for i, target := range []sqltype.ID{sqltype.Int4, sqltype.Float8, sqltype.Text, sqltype.Bool, sqltype.JSON, sqltype.Interval} {
+			for i, target := range []sqltype.ID{sqltype.Int4, sqltype.Float8, sqltype.Text, sqltype.Bool, sqltype.JSON, sqltype.JSONB, sqltype.Interval} {
 				cast := &catalog.Cast{OID: ids.OID(90000 + i), ObjectRevision: 1, Source: sqltype.Xid, Target: target, Context: mode, Method: "i"}
 				e.Catalog.State.SetDescriptor(cast.Address(), cast)
 			}
@@ -344,6 +345,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 				{"make_time", "23,23,701", []string{"sec", "hour", "min"}, []sqltype.ID{sqltype.Float8, sqltype.Int4, sqltype.Int4}},
 				{"parse_ident", "25,16", []string{"strict", "str"}, []sqltype.ID{sqltype.Bool, sqltype.Text}},
 				{"json_strip_nulls", "114,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSON}},
+				{"jsonb_strip_nulls", "3802,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSONB}},
 				{"uuidv7", "1186", []string{"shift"}, []sqltype.ID{sqltype.Interval}},
 			} {
 				raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: make([]parser.Expr, len(tc.labels)), ArgNames: make([]parser.Identifier, len(tc.labels))}

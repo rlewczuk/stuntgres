@@ -1541,6 +1541,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3551, ids.PGCatalogNamespaceOID, "network_overlap", "869,869"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3579, ids.PGCatalogNamespaceOID, "jsonb_insert", "3802,1009,3802,16"}, catalog.FunctionRoutine, 3802, true, expr.Immutable, 's', false, 0, 1, functions.JSONRoutineProvider, nil},
 	{catalog.RoutineIdentity{3261, ids.PGCatalogNamespaceOID, "json_strip_nulls", "114,16"}, catalog.FunctionRoutine, 114, true, expr.Immutable, 's', false, 0, 1, functions.JSONRoutineProvider, nil},
+	{catalog.RoutineIdentity{3262, ids.PGCatalogNamespaceOID, "jsonb_strip_nulls", "3802,16"}, catalog.FunctionRoutine, 3802, true, expr.Immutable, 's', false, 0, 1, functions.JSONRoutineProvider, nil},
 	{catalog.RoutineIdentity{3696, ids.PGCatalogNamespaceOID, "starts_with", "25,25"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider | functions.StringRoutineProvider, nil},
 	{catalog.RoutineIdentity{3787, ids.PGCatalogNamespaceOID, "to_jsonb", "2283"}, catalog.FunctionRoutine, 3802, true, expr.Stable, 's', false, 0, 0, functions.JSONRoutineProvider, nil},
 	{catalog.RoutineIdentity{3815, ids.PGCatalogNamespaceOID, "pg_collation_is_visible", "26"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},

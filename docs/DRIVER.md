@@ -1990,7 +1990,7 @@ Supported `WorkClass` quanta:
 | `WorkJSONArrayCount` | One token-state step after validation of the array root. |
 | `WorkJSONObjectExpand` | One JSON object-expansion token-state step. |
 | `WorkJSONRecordExpand` | One JSON record-expansion token-state step. |
-| `WorkJSONStripNulls` | One token-state step or at most 4096 copied bytes. |
+| `WorkJSONStripNulls` | One JSON token-state step or at most 4096 copied source bytes; for JSONB, one decoded node/container traversal frame step (including child skips and container unwind), or a prefix-copy chunk of at most the kernel's `jsonbWorkChunk` existing entries. |
 | `WorkJSONBContainment` | One containment traversal frame step. |
 | `WorkJSONBObjectExpand` | One present object member, not NULL or EOF. |
 | `WorkJSONBArrayExpand` | One present array element, not NULL or EOF. |

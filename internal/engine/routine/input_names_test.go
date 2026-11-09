@@ -67,6 +67,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		3217: {"from_json", "path_elems"},
 		3219: {"from_json", "value"},
 		3261: {"target", "strip_in_arrays"},
+		3262: {"target", "strip_in_arrays"},
 		3270: {"key", "value"},
 		3305: {"jsonb_in", "path", "replacement", "create_if_missing"},
 		3307: {"filename", "missing_ok", "size", "access", "modification", "change", "creation", "isdir"},

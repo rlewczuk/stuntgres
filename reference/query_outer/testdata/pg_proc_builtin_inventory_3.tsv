@@ -399,6 +399,7 @@
 3259	generate_series	11	12	1	1000	0	6357	f	false	false	true	true	i	s	3	0	1700	1700 1700 1700	\N	\N	\N	false	\N	generate_series_step_numeric	\N	false	\N
 3260	generate_series	11	12	1	1000	0	6357	f	false	false	true	true	i	s	2	0	1700	1700 1700	\N	\N	\N	false	\N	generate_series_numeric	\N	false	\N
 3261	json_strip_nulls	11	12	1	0	0	0	f	false	false	true	false	i	s	2	1	114	114 16	\N	\N	{target,strip_in_arrays}	true	\N	json_strip_nulls	\N	false	\N
+3262	jsonb_strip_nulls	11	12	1	0	0	0	f	false	false	true	false	i	s	2	1	3802	3802 16	\N	\N	{target,strip_in_arrays}	true	\N	jsonb_strip_nulls	\N	false	\N
 3263	jsonb_object	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	3802	1009	\N	\N	\N	false	\N	jsonb_object	\N	false	\N
 3264	jsonb_object	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	3802	1009 1009	\N	\N	\N	false	\N	jsonb_object_two_arg	\N	false	\N
 3267	jsonb_agg	11	12	1	0	0	0	a	false	false	false	false	s	s	1	0	3802	2283	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N

@@ -85,6 +85,7 @@ Add `REFERENCE=1` for the oracle.
 - `json[b]_typeof`, array length and object keys: `RUN='^TestReferenceJSONType'`
 - `json_array_length`, `jsonb_array_length`: `RUN='^TestReferenceJSONArrayLength'`
 - `json_strip_nulls`: `RUN='^TestReferenceJSONStripNulls'`
+- `jsonb_strip_nulls`: `RUN='^TestReferenceJSONBStripNulls'`
 - `to_json[b]`, `array_to_json`, `row_to_json`, `json[b]_build_*`: `RUN='^TestReferenceJSONCreate'`
 - `json_object`, `jsonb_object` over text arrays: `RUN='^TestReferenceJSONB?Object'`
 - SQL/JSON constructors, `IS JSON`, `JSON_SERIALIZE` (also selects `SQLJSONQuery`): `RUN='^TestReferenceSQLJSON'`

@@ -13,7 +13,15 @@ import (
 )
 
 func TestJSONStripNullsJoinDependencies(t *testing.T) {
-	// Four child-frame slots: left JSON/BOOL then right JSON/BOOL. Physical
+	testStripJoinDependencies(t, "json_strip_nulls")
+}
+
+func TestJSONBStripNullsJoinDependencies(t *testing.T) {
+	testStripJoinDependencies(t, "jsonb_strip_nulls")
+}
+
+func testStripJoinDependencies(t *testing.T, functionName string) {
+	// Four child-frame slots: left document/BOOL then right document/BOOL. Physical
 	// origins are irrelevant: dependency masks follow executable formal slots.
 	for _, tc := range []struct {
 		name         string
@@ -35,9 +43,9 @@ func TestJSONStripNullsJoinDependencies(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
-				q := `SELECT json_strip_nulls('{}',false)`
+				q := `SELECT ` + functionName + `('{}',false)`
 				if reordered {
-					q = `SELECT json_strip_nulls(strip_in_arrays => false,target => '{}')`
+					q = `SELECT ` + functionName + `(strip_in_arrays => false,target => '{}')`
 				}
 				e := jsonStripUnitBind(t, b, q).(functions.JSONStripNulls)
 				if tc.nullTarget {
