@@ -1,13 +1,10 @@
 # reference/numeric
 
-Numeric types and functions: integer, SMALLINT, bitwise, floating-point and
-NUMERIC arithmetic and literals; math functions (rounding/sign, logarithms,
-powers and `width_bucket`, constants, `erf`/`gamma`, trigonometric, hyperbolic,
-`gcd`/`lcm`); random functions; MONEY; numeric `to_char`/`to_number`; SUM and AVG
-over numeric types; `generate_series` (integer, NUMERIC, TIMESTAMP, TIMESTAMPTZ),
-`generate_subscripts` and set-returning functions in FROM. SUM over MONEY and
-INTERVAL lives in `reference/aggregates`; INTERVAL AVG in `reference/temporal_types`;
-temporal formatting in `reference/datetime_formatting`.
+Dual-mode scenarios for numeric scalar types, arithmetic, formatting, random
+functions and series sources. General aggregate declarations belong to
+[aggregates](../aggregates/README.md#testing), interval values/AVG to
+[temporal_types](../temporal_types/README.md#testing), and temporal formatting to
+[datetime_formatting](../datetime_formatting/README.md#testing).
 
 ## Testing
 
@@ -23,12 +20,9 @@ random-property rules). `TestMain` uses the default `fixture.Main(m)`.
 - **Client metadata.** Computed NUMERIC has unknown `DecimalSize` natively, while
   pq reports the unconstrained typmod as `(65535, 65531, true)`; FLOAT4 `ScanType`
   is `float32` in pq and `float64` natively. Assert both before normalization.
-- **Parameter-typing errors.** A direct query with `$n` and no arguments runs
-  through pq's simple-query protocol (42P02), while native reports 42P08. Assert
-  parameter-typing diagnostics with supplied arguments or Prepare (42P08 on both).
-- **Series demand.** Huge target-list series with `LIMIT` must stop early natively.
-  In FROM, PostgreSQL materializes the demanded function output, so FROM
-  witnesses stay bounded.
+- Parameter-typing diagnostic tests supply arguments or use Prepare, keeping
+  adapter inference separate from PostgreSQL simple-query behavior.
+- Keep FROM-series workloads bounded: PostgreSQL materializes demanded function output.
 - **Series cancellation.** `seriesNativeCancel` admits only when the provider
   frame and the named worker are in the same goroutine stack. Frame names
   matched by tests: `SourceCursor).Next` (`expr.SourceCursor`),
@@ -58,12 +52,11 @@ Add `REFERENCE=1` for the oracle.
 - Random functions: `RUN='^TestReferenceRandom'`
 - Selected math, random and inquiry operands across query/DML consumers:
   `RUN='^TestReferenceSelectedCallOperands'`
-- Legacy bitwise/math/random smoke: `RUN='^TestReferenceSmoke'`
 - MONEY: `RUN='^TestReferenceMoney'`
 - Numeric `to_char`, `to_number`: `RUN='^TestReferenceNumericFormatting'`
 - SUM and AVG over numeric types: `RUN='^TestReferenceNumeric(Sum|Avg)'`
 - Integer `generate_series`: `RUN='^TestReferenceSeries'`
 - NUMERIC `generate_series`: `RUN='^TestReferenceNumericSeries'`
-- <a id="timezone-aware-series-selected-proof"></a>TIMESTAMP and TIMESTAMPTZ `generate_series`: `RUN='^TestReferenceTimestamp(tz)?Series'`
+- TIMESTAMP and TIMESTAMPTZ series: `RUN='^TestReferenceTimestamp(tz)?Series'`
 - `generate_subscripts`: `RUN='^TestReferenceSubscripts'`
 - Set-returning functions in FROM: `RUN='^TestReferenceSRFFrom'`

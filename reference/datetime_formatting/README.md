@@ -27,18 +27,6 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses `fixture.Main(m
   `fixture.BinaryConversionActiveCancel`/`BinaryConversionActiveCancelAfter`
   require actual provider admission. `fixture.OutputGateCancel` proves
   cancellation after completed output, not entry inside a provider.
-- Arithmetic asserts exact decimal JSON text and scale, never float-normalized
-  parity. Unary materialization/prefix cases remain distinct from binary shape
-  and ordered-demand cases. Typed arithmetic cancellation workloads stay below
-  32MiB and gate completed output.
-- Integer/bigint and decimal item-method scenarios assert exact signed bounds,
-  lexical versus numeric conversions, retained decimal scale and typmod demand.
-  Full diagnostics, prefix suppression, held inputs and persistent recipes use
-  the same shared fixture contracts as the other item methods.
-- Numeric item methods assert exact abs/floor/ceiling, unconstrained number,
-  and double's numeric identity versus string 15-digit conversion. Encoded
-  strings, full diagnostics, sequence prefixes and retained recipes share the
-  same public driver, metadata, cancellation and replay contracts.
 - Native controls retain old output, replay actual stored recipes on the same
   and fresh Driver and PostgreSQL, then exercise future writes. Failed/canceled
   Restore leaves the prior dump unchanged.
@@ -49,13 +37,5 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses `fixture.Main(m
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Date/time formatting and template parsing: `RUN='^TestReferenceDatetimeFormatting'`
-- JSONPATH type, grammar and regex syntax: `RUN='^TestReferenceJSONPath(Representation|Composition|Consumers|Diagnostic|Grammar|Regex|Review|FeatureSmoke)'`
-- `@?`, `@@`: `RUN='^TestReferenceJSONBPathOps'`
-- `jsonb_path_query_array` and path navigation: `RUN='^TestReferenceJSONPathNavigate'`
-- `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
-- Timezone-aware JSONPath queries: `RUN='^TestReferenceJSONPathQueryTZ'`
-- JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
-- JSONPath integer/bigint/decimal methods: `RUN='^TestReferenceJSONPathIntegerDecimal'`
-- JSONPath numeric methods: `RUN='^TestReferenceJSONPathNumericMethods'`
-- JSONPath temporal methods: `RUN='^TestReferenceJSONPathDatetime'`
-- JSONPath arithmetic: `RUN='^TestReferenceJSONPathArithmetic'`
+- JSONPath families: `RUN='^TestReferenceJSONPath'`
+- JSONPath operators: `RUN='^TestReferenceJSONBPathOps'`

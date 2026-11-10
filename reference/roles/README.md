@@ -1,278 +1,44 @@
 # reference/roles
 
-Table-level authorization: ownership, REASSIGN OWNED, DROP OWNED and DROP ROLE;
-table and column GRANT/REVOKE; ALTER DEFAULT PRIVILEGES; predefined roles;
-`pg_has_role`/`row_security_active`; the
-`row_security` setting; and row security (policy DDL, table flags, policy
-combination, existing-row USING filtering and finalized INSERT/UPDATE proposed-row
-checks with atomic rejection).
-Related: non-table grants and large objects in
-`reference/object_grants`; `pg_roles`, `pg_user`, `pg_group`, `pg_default_acl`
-and ACL inquiry functions in `reference/catalog_privileges`; session identity forms in
-`reference/sessions`.
-Role identity, attributes, membership, trusted connectors, transactional
-lifecycle, rename and persisted-default scenarios live in
-`reference/object_address`. Shared role helpers belong to `reference/fixture`.
-
-The real logical-slot database lifecycle family uses
-`RUN='^TestReferenceDatabaseDropSlots$'` in both modes. It owns persistent
-inactive-slot removal, temporary active singular/plural refusal before FORCE
-termination, and independent active/inactive peer preservation. Stock
-`test_decoding` and the existing logical-WAL fixture supply real producers.
-
-
-Existing-row USING policies filter SELECT sources and UPDATE/DELETE targets before
-non-leakproof user expressions. FALSE or NULL silently suppresses rows; missing
-applicable policies default to denial. Ordinary ACL checks remain separate, and
-policy evaluation errors preserve their diagnostics rather than becoming hidden
-rows or proposed-row policy violations.
-
-Generic server directory listing scenarios own the nine selected signatures,
-typed strict empties, central EXECUTE and live inherited-role authority,
-lexical dirname restrictions, held-statement reauthorization and procedure ACL
-control replay. Physical native rejection and stock filesystem/slot outcomes
-have separate independent expectations; actual stock entries are unordered bags.
-
-Generic file-read scenarios cover all twelve read/binary/stat/tmpdir overloads,
-typed scalar and record metadata, scalar strict NULL erasure versus retained
-record/SRF admission, held parameter execution and live ACL controls. Native
-physical rejection and stock file contents have independently stated outcomes.
-The family uses `make check RUN='^TestReferenceGenericFileRead'`; the same shared
-builtin ACL cleanup and emitted-repair rules apply.
-Fixture row expectations use normalized strings for BYTEA payloads; the shared
-fixture still checks raw byte slices, and surface scenarios separately assert
-BYTEA scan metadata. Runtime file validation and physical-boundary errors retain
-the complete ERROR diagnostic, including both severity fields. Malformed-call
-scenarios distinguish impossible typed formals from UNKNOWN conversion, named
-notation grammar from signature lookup, and nonaggregate decorations from
-trailing-input syntax errors; all retain direct/prepared stages and positions.
-Predefined-capability boundaries check read-function EXECUTE denial both before
-and after server-file role grants; those roles grant path authority, not function
-execution. Session cancellation/termination are executable in both backends:
-the predefined-role scenario checks unknown-PID false/warning results and negative
-timeout diagnostics before and after capability grants, in both prepared modes.
-Actual live-target authority and teardown belong to `reference/sessions`.
-Remaining unavailable functions retain their binding-time boundaries.
-CLUSTER is an admitted MAINTAIN consumer on both backends: predefined-role
-scenarios assert full table/schema denial diagnostics, actual index selection
-after `pg_maintain`, preserved rows, and held-statement denial after revocation.
-It is not part of the remaining native unsupported-command inventory.
-`pg_stat_activity` is supported, not a remaining unavailable-capability boundary.
-The predefined scenarios now query a known real peer PID with typed metadata,
-public identity/application values and exact protected query/state redaction
-before monitoring grants, then the peer's known source under inherited pg_monitor.
-The existing settings scenario exercises this path on both native and PostgreSQL;
-only its genuine PG data_directory setting remains backend-specific.
-Selected migration proof uses
-`make check RUN='^TestReferencePredefined(UnavailableCapabilities|MonitoringSettings)$'`
-and the same command with `REFERENCE=1`; all other capability diagnostics remain.
-
-
-WAL summary scenarios own default PUBLIC execution, live held-statement ACL
-reauthorization and actual native control replay of typed views and raw routine
-ACLs. Authorization separates immutable child preflight failures from genuine
-volatile runtime errors after admission. The shared builtin cleanup preserves
-NULL versus genuine one-dimensional explicit-empty ACLs and removes grant
-dependencies before restoring the oracle's originals.
+Dual-mode scenarios for table authorization, ownership, default privileges,
+predefined roles, RLS and logical-slot lifecycle. Non-table grants belong to
+[object_grants](../object_grants/README.md#testing); role identity, attributes,
+membership and defaults to [object_address](../object_address/README.md#testing).
+Shared role helpers belong to `reference/fixture`.
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
-`fixture.WithLogicalWAL()`, starting both backends with `wal_level=logical`. The logical-decoding
-family uses `make check RUN='^TestReferenceLogicalDecoding'` for signatures,
-typed metadata, options, diagnostics, live authority and unchanged-state witnesses.
-Stock output scenarios use `RUN='^TestReferenceTestDecoding'` in native and
-`REFERENCE=1` selected checks. `tdCases` shares direct/prepared bodies and
-bounded slot/session cleanup; exact transcripts retain callback order and
-independently observed XIDs, LSNs and timestamp bounds. Live streaming uses a
-separate synchronous DML flush barrier, never sleeps or logical messages.
-Threshold tests assert whole nonempty blocks and change counts, not physical
-WAL-byte or segment-count equality. Native controls are an explicit phase.
-Rollback-only prepared scenarios retain genuine child staging with no surviving
-row effects through both finish kinds, ordinary/two-phase slots and buffered/
-actual-immediate streaming. Public cancellation has distinct witnesses: native
-pre-admission context errors and PostgreSQL server cancellation after exact
-decoder PID/query, active slot and cold `pg_attribute` descriptor-lock admission.
-The latter checks the full 57014 diagnostic, inactive slot, unchanged confirmation
-and recovery on the same direct/held decoder. Native partial-output/final-confirm
-ownership barriers belong to the composed owner tests, not the PostgreSQL claim.
-The replication-slot lifecycle family uses
-`make check RUN='^TestReferenceReplicationSlot'` for nine catalog declarations,
-strict scalar/record metadata, diagnostics, live effective-actor and EXECUTE
-authority, prepared/control ownership and temporary-slot lifecycle. Real-slot
-effects use independently asserted PostgreSQL branches with bounded cleanup,
-source/create and copy catalog positions, option resets, and dynamic flush/insert
-bounds for beyond-current physical advancement. Raw plugin lists preserve literal
-embedded quotes in unquoted elements while rejecting malformed quoted suffixes.
-Stock test_decoding logical creation and lifetime are shared positive scenarios;
-physical and absent pgoutput provider boundaries remain independently asserted.
-Plugin and transaction admission (`RUN='^TestReferenceReplicationSlotPluginAdmission$'`)
-agree in both modes.
-Logical-slot monitoring lifecycle uses `RUN='^TestReferencePGStatReplicationSlots'`
-in both modes: genuine logical inclusion, physical exclusion, unredacted reader
-fields and held prepared disappearance after drop; rejected physical creation
-does not publish a logical slot.
-Slot inventory lifecycle and feature composition use
-`RUN='^TestReferencePGReplicationSlots'` in both modes. Full metadata is public,
-without creator/database/statistics-role redaction; temporary active PID denotes
-its actual physical owner, not a network sender. Dynamic positions/timestamps
-are checked against real command results and stored state, never fixed LSNs.
-Role-grant actors, permission diagnostics and notice helpers are the fixture's
-`RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
-The CHECKPOINT family uses `make check RUN='^TestReferenceCheckpoint'` for exact
-syntax and diagnostics, live inherited current-user authority, held preparation,
-active/read-only and failed transactions, peer isolation and native controls.
-It independently expects PostgreSQL physical success and native physical
-rejection; it does not compare asynchronous global checkpoint counter deltas.
-The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.
-WAL summary ACL and control scenarios use `RUN='^TestReferenceWALSummary'`.
-Control-file live EXECUTE and stored-view/native-control scenarios use
-`RUN='^TestReferenceControlData'`, preserving original oracle builtin ACLs.
-File-list scenarios restore the original PostgreSQL builtin ACLs on every exit,
-after removing actor-owned grant dependencies and before cluster role teardown.
-Restricted actors never read protected log settings for helper expectations;
-the administrative backend pool supplies fixture configuration. Raw native
-procedure ACL repairs use emitted Dump statements through Restore, not live
-catalog UPDATE.
+`fixture.WithLogicalWAL()` for both backends.
 
-Type identity lifecycle reuses the existing OWNER/ACL authority, including real
-array and standalone-composite backing owners. Extension membership is not an
-identity-ALTER prohibition. Successor owners exercise the same ordinary lifecycle
-authority.
-
-- `fixture.RoleMembershipScenario` provides `Run`/`Exec`/`Actor` over one
-  notice-enabled pinned connection. `fixture.RoleMembershipCases` covers both
-  prepared modes and backends after registering role cleanup and creating LOGIN
-  roles. Family wrappers (`ownershipCases`, `predefinedCases`, `rlsBaseCases`,
-  `combinationCases`, `policySetup`) retain their existing setup; access inquiry
-  helpers use `fixture.AccessRole*`. Default privileges use local `dpScenario`.
-- Predefined-role ANALYZE consumers exercise the actual maintenance command:
-  missing MAINTAIN warns and skips successfully, `pg_maintain` admits collection
-  without granting SELECT or ownership, schema USAGE remains mandatory, and a
-  held ANALYZE rechecks authorization after membership revocation. Both direct
-  and prepared scenarios retain their independent PostgreSQL expectations.
-  Denied collection preserves the preceding relation estimate, including
-  PostgreSQL's population estimate already published by CREATE INDEX; native
-  index creation leaves that maintenance estimate unknown.
-- `ownershipCases` runs `DROP OWNED BY ... CASCADE` for every surviving
-  `ownershipRoles` entry and drops its nonpublic schemas under a bounded
-  context. Establish schema ownership with `CREATE SCHEMA ... AUTHORIZATION`;
-  drop nonpublic fixture schemas before roles on failure paths.
-- `ownershipTransactionCases` covers autocommit, SQL BEGIN and Go BeginTx with
-  direct and held ownership/bulk statements, earlier-private objects, peer
-  isolation and savepoint/end transitions. `ownershipRouteModes` runs
-  `sql-held-inside` and `go-stmt` prepared only: unprepared, they repeat
-  `sql-held-before` and `go-prepare`. For database OWNER, select the ordinary
-  CREATEDB session actor before BEGIN; use SET ROLE, not SET SESSION AUTHORIZATION,
-  inside the transaction.
-  Cleanup authority witnesses use actual ordinary-role SELECT/UPDATE operations
-  and savepoint recovery for expected denials. Independent surviving SELECT grants
-  separate RLS policy effects from ACL loss; PostgreSQL policy catalog assertions
-  supplement common behavior and exact canonical-descriptor units.
-- Dependency Detail lines have no PostgreSQL ordering contract: compare them as
-  bags with exact multiplicities (`ownershipFailureDetailBag`,
-  `ownershipNoticesDetailBag`) and keep every other diagnostic field exact.
-- Default-privilege identities come from querying `pg_default_acl` on each
-  backend (`role_ownership_defaults_helpers_test.go`): positive uint32 OIDs,
-  exact counts and stability, never fixed values.
-- Known oracle defect: in `TestReferenceRoleOwnershipDefaultCreatorRecipientUnion`
-  PostgreSQL fails owner-first baseline-only cleanup with XX000 `could not find
-  tuple for default ACL <oid>`, while native cleans up atomically. Its
-  witness-specific creator-only `DROP OWNED` cleanup runs before the shared
-  helper on every path, so the defect cannot mask assertion failures.
-- A PostgreSQL held statement denied at planning can stay denied after
-  BYPASSRLS or inherited-owner grants; native held execution always checks
-  current authority. Specify each backend's held outcome independently.
-- The subscription role-purpose and boundary smoke witnesses run direct and
-  prepared routes on both backends: missing `pg_create_subscription` and missing
-  database CREATE produce exact execution-time denials without a leaked row.
-  With both privileges, disconnected, slot-less CREATE stores the actor owner,
-  declared publications and disabled state and emits the exact warning; duplicate
-  CREATE leaves that metadata intact. Native connected CREATE instead reports
-  the explicit publisher-connection boundary, never a fabricated socket error.
-  Sentinel rows survive failures. Cleanup registered before each scenario drops
-  the subscription and revokes database CREATE before role teardown.
-- lib/pq reports COPY denial on the outside-transaction prepared route as an
-  ordinary driver error, not a SQLSTATE.
-- `ALTER POLICY IF EXISTS ... RENAME` is accepted but does not skip: a missing
-  policy still raises 42704. Do not reuse DROP IF EXISTS notice expectations.
-- Frame names matched by tests: lock-wait observers in
-  `rls_policy_lifecycle_test.go` and `rls_combination_latest_test.go` match the
-  native `(*relationRequest).wait` frame plus their own workers
-  `policyLockExecute` and `combinationMutation`. Update them when renaming.
-- Transactional privilege cases use SQL BEGIN and Go BeginTx, direct and held
-  utilities/readers, private owner versus peer observations, commit/rollback,
-  savepoint suffix restoration, creator-only future defaults and atomic object
-  creation. Scope does not expand role lifecycle/membership, generic ownership,
-  ALTER SYSTEM or SQL PREPARE. Protocol cases live in `reference/sessions`;
-  non-table families and lock/concurrent-writer cases live in
-  `reference/object_grants`.
-
-Native control witnesses preserve materialized table/column ACLs, raw grantor
-and grant-option state, data and actor authority across Dump/Restore. Default
-privilege descriptors still reject Dump before output; arbitrary GRANT/REVOKE
-and ALTER DEFAULT PRIVILEGES remain outside Restore admission and fail atomically.
-Named registered catalog tables and provider views share the table/column ACL
-scenarios: direct and prepared revoke, retained-reader rechecks, option-only
-removal, independent grant origins, per-ACL cascades, atomic refusal and full
-warning vectors. Catalog cleanup restores shared ACLs before dropping actors.
-Backing-source credentials and function EXECUTE remain independently protected.
-Transactional controls retain committed-only capture and stale-publication
-fences, then prove a committed grant survives replacement with its roles intact.
-
-Policy metadata witnesses read physical `pg_policy` and both `pg_get_expr`
-signatures through shared direct/prepared helpers. They preserve raw role order,
-duplicates and absent CHECK separately from effective RLS checks. Known-OID
-metadata remains readable independently of target/schema execution privileges.
-The authorization witness explicitly revokes PUBLIC schema USAGE before testing
-unrelated actors: native bootstrap grants it, while the oracle fixture's rebuilt
-public does not. Exact provider/sequence qualification follows current captured
-namespace visibility; this is independent of PUBLIC metadata availability.
-Transaction peers use scalar/raw-tree observations while ALTER owns its relation
-lock, and exact display before/after lock release. Native control phases retain
-actual Dump fidelity/replay assertions alongside common logical metadata.
-
-The `pg_policies` view family asserts all eight typed columns, sorted distinct
-NAME-array targets, independently absent USING/CHECK, current-identity display,
-held-statement freshness and view-level SELECT authorization. It deliberately
-does not filter definitions by target-table or provider privileges. Metadata
-reads have independent sequence/data no-execution witnesses; native control
-phases check full rows and descriptors across actual replacement and failed
-staged Restore.
-
+- `RoleMembershipScenario` and `RoleMembershipCases` own notice-enabled pinned
+  actors; family wrappers retain their own setup. Inquiry helpers use
+  `fixture.AccessRole*`; default privileges use local `dpScenario`.
+- Register bounded schema/object cleanup before role teardown. Ownership cleanup
+  runs DROP OWNED for surviving actors and drops nonpublic schemas after handles
+  close. Restore shared catalog/builtin ACLs on every exit, removing grant
+  dependencies before repairing raw ACLs.
+- Query generated identities independently; compare dependency Detail lines as
+  bags with exact multiplicity while keeping every other diagnostic field exact.
+- PostgreSQL held plans may retain planning-time permission results; native held
+  execution checks current authority. Specify outcomes independently.
+- Logical native controls preserve data and raw grantor/options, not live
+  replication workers or physical WAL. Restore admission is distinct from
+  ordinary SQL authorization; rejected controls remain atomic.
+- Stock logical decoding uses real producers and bounded slot/session cleanup.
+  Dynamic XIDs/LSNs/timestamps are relational or clock-bracketed expectations,
+  never fixed physical values. Streaming synchronization uses observed work,
+  not elapsed sleeps.
+- File and physical-facility scenarios keep native capability rejection separate
+  from actual PostgreSQL outcomes. Restricted actors do not inspect protected
+  settings merely to construct helper expectations.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- Ownership, REASSIGN/DROP OWNED, DROP ROLE: `RUN='^TestReferenceRoleOwnership'`
-- Table and column GRANT: `RUN='^TestReferenceRoleGrant'`
-- Table and column REVOKE: `RUN='^TestReferenceRoleRevoke'`
-- Default privileges: `RUN='^TestReferenceRoleDefaultPrivileges'`
-- Transactional ACL/default creation, delegation, controls and held execution:
-  `RUN='^TestReferenceTransactionalPrivileges(Creation|Defaults|Savepoints|Delegation|Prepared|Controls)$'`
-- Private publication/lineage and cancellation invariants:
-  `RUN='^TestTransactionalPrivileges'`
+- Ownership: `RUN='^TestReferenceRoleOwnership'`
+- Table grants: `RUN='^TestReferenceRole(Grant|Revoke|DefaultPrivileges)'`
 - Predefined roles: `RUN='^TestReferencePredefined'`
-- Migrated ANALYZE predefined-role consumers:
-  `RUN='^TestReferencePredefined(UnavailableCapabilities|Maintain|MaintainFeatureSmoke)$'`
-  requires both native mode and `REFERENCE=1`.
-- Migrated subscription predefined-role consumers:
-  `RUN='^TestReferencePredefined(UnavailableCapabilities|BoundaryFeatureSmoke)$'`
-  requires both native mode and `REFERENCE=1`; comprehensive subscription metadata,
-  options, transitions and controls remain owned by `reference/catalogs`.
-- `pg_has_role`, `row_security_active`: `RUN='^TestReferenceAccessRole'`
-- `row_security` setting: `RUN='^TestReferenceRowSecurity'`
-- Policy DDL: `RUN='^TestReferenceRLSPolicy'`
-- Transactional policy definitions and existing RLS consumers: `RUN='^TestReferenceTransactionalPolicies(Routes|Retention|Savepoints|Diagnostics|Prepared|Dependencies|Locks|Controls)$'`
-- Policy catalog metadata, definitions, frozen expression display and authorization:
-  `RUN='^TestReferencePGPolicy'`
-- Policy view rows, definitions, authorization, lifecycle and native controls:
-  `RUN='^TestReferencePGPolicies'`
-- Table RLS flags, default deny, BYPASSRLS: `RUN='^TestReferenceRLSBase'`
-- Policy applicability and combination: `RUN='^TestReferenceRLSCombination'`
-- Existing-row USING filtering: `RUN='^TestReferenceRLSFilter'`
-- Proposed-row checks, transformations and statement atomicity: `RUN='^TestReferenceRLSCheck'`
-
-- Grant and ownership consumer regressions:
-  `RUN='^TestReferenceRole(InputPrecedence|NamespaceLookup|LaterDependent|DependencyAddress|PublicGrantOptions)'`
-- Engine units use the family names without `Reference`, for example
-  `make check RUN='^TestRLSPolicy'` or `make check RUN='^TestDefaultPrivileges'`.
+- RLS: `RUN='^TestReference(RLS|RLSPolicy|RowSecurity|PGPolicy|PGPolicies)'`
+- Transactional authority: `RUN='^TestReferenceTransactional(Privileges|Policies)'`
+- Logical decoding: `RUN='^TestReference(LogicalDecoding|TestDecoding|ReplicationSlot)'`
+- Physical file boundaries: `RUN='^TestReferenceGenericFile'`

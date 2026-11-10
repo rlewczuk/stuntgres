@@ -1,67 +1,35 @@
 # internal/engine/indexcmds
 
-The index statement executors
-([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE
-INDEX with its CONCURRENTLY phases, ALTER INDEX, DROP INDEX and REINDEX. The
-decisions are [`index`](../index/README.md)'s; this package orchestrates them
-over core's runtime.
+Index statement orchestration over core and `index` decisions. It imports core
+and tablecmds' shared family hosts, never the root. Composition dispatches here;
+partitioncmds may reuse it through the declared family layering.
 
 ## Layering
 
-It imports [`core`](../core/README.md), [`tablecmds`](../tablecmds/README.md)
-(the `TableHost` family host, and `RenameRelationLocked` for ALTER INDEX
-RENAME) and the decision packages, never the root. The root composition
-imports it; by rule 6 `partitioncmds` may.
-
-Stays in core: maintenance admission (the scope's index maintenance grant
-plan), unique and exclusion probing, index publication and root candidates,
-the build wait registry (`Engine.IndexWaits`, read by `InspectIndex`), and the
-index runtime that `statementHost` reaches.
+Core keeps maintenance admission, unique/exclusion runtime, root publication and
+wait registries. Index owns typed binding/build/maintenance decisions. This
+package owns utility phases, short lock windows and stage lifetime.
 
 ## Entry points
 
-Dispatch (`core.Statements.Execute`): `ExecuteCreateIndex` and
-`ExecuteIndexMaintenance` are entered with nothing held. They take
-`Engine.Mu` in short windows, stage and publish through the ordinary catalog
-stage, and release it around lock waits and provider validation.
-Active simulated routine initialization also suspends this window at the same
-predicate/expression completion seam through the stage-owned core helper;
-constant definition work cannot run under the engine mutex or borrow a missing
-initializer. The helper readmits exact predecessors before CREATE continues,
-while the ordinary stage publication retains its independent final fences.
-DROP retains the admitted reference path before unlocked effects. Explicit
-SQL targets alone receive ORIGINAL; expanded partition indexes still all
-participate in admission, retirement and dependency traversal. Index-driven
-backing-constraint retirement uses the shared projection owner and marks only
-the actual retired constraint NORMAL.
+`ExecuteCreateIndex` and `ExecuteIndexMaintenance` enter with nothing held.
+Resolve/stage under Engine.Mu, release it for waits/provider/expression work,
+then recheck original identity and authority before continuing. Final stage
+publication retains independent descriptor, storage and cancellation fences.
+Explicit targets and expanded dependency closure retain distinct provenance.
 
 ## CONCURRENTLY
 
-After the not-ready index is published, `index_concurrent.go` waits for the
-writers that hold the parent (`waitIndexWriters`), builds and publishes the
-ready root, waits for writers again, rebuilds the root under a fresh
-snapshot and publishes it, waits for the snapshots older than that
-snapshot's xmin (`waitOlderIndexSnapshots`), and publishes the index valid.
-Each publication rechecks authority and the phase under `Engine.Mu` and
-retries after a catalog conflict. Each wait freezes its cohort and registers
-it in `Engine.IndexWaits` in one critical section, and clears it on every
-return.
-
-Each detached concurrent build activates its local current statement context
-after snapshot capture unlocks. Expression keys may demand providers; direct-key
-builds do not manufacture provider admission. Phase publication continues to use
-raw operation authority and the existing exact descriptor/storage fences.
+The concurrent build publishes explicit readiness/validity phases, with frozen
+writer/snapshot cohorts between them. Each phase rechecks current authority and
+its admitted predecessor; waits run unlocked and registry entries clear on every
+exit. Detached builds activate only their current invocation context after
+capture unlocks. Runtime grants and immutable root generation are not retained
+by the definition itself.
 
 ## Testing
 
-Tests are external (`package indexcmds_test`) and run on a composed engine:
-the root's `engine.New` and the [`enginetest`](../enginetest/README.md)
-helpers. `export_test.go` exports the internals they call; add a name there
-only when the test cannot assert through SQL or the exported API.
-
-```sh
-make check RUN='^Test(BtreeIndex|HashIndex|ExpressionIndex|UniqueIndex|IndexClauses|IndexDefault)'  # CREATE INDEX builds and clauses
-make check RUN='^Test(IndexMaintenance|DomainCheckIndex)'  # ALTER INDEX, DROP INDEX, REINDEX
-make check RUN='^Test(ConcurrentIndex|TransactionalIndex|Exclusion)'  # CONCURRENTLY waits, transactional DDL, exclusion builds
-make check RACE=1 RUN='^Test(ConcurrentIndex|IndexMaintenanceExactLockModes|TransactionalIndexLocks)'  # snapshot cohorts, lock waits
-```
+External `indexcmds_test` tests use a composed engine and `enginetest` helpers.
+Test-only accessors belong in `export_test.go` only when exported APIs cannot
+assert the contract. Public SQL belongs to reference index packages under
+[docs/TESTING.md](../../../docs/TESTING.md).

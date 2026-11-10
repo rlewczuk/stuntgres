@@ -14,8 +14,9 @@ fixtures and the oracle-first workflow are in [TESTING.md](TESTING.md).
    may supplement it.
 3. **Implement** the smallest correct change by extending existing seams (binders,
    catalogs, storage, codecs); do not add parallel paths or compatibility shims.
-4. **Refactor** with the tests passing. Update the owning package README if its
-   contract changed, and add a brief `CHANGES.md` entry for consumer-visible changes.
+4. **Refactor** with the tests passing. Update the owning document only if its
+   reusable contract changed. Put change details in the commit body, following
+   [AGENTS.md](../AGENTS.md#documentation-rules), not in documentation entries.
 5. **Verify.** Run the selected tests in both modes, then `make quickcheck`. Rebase
    on the current integration tip and rerun if the tip advanced while you verified.
 

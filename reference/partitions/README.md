@@ -1,13 +1,11 @@
 # reference/partitions
 
-Declarative partitioning: RANGE/LIST/HASH definitions, DML routing,
-ATTACH/DETACH, pruning (including constraint exclusion over inheritance trees),
-partitioned UNIQUE/PRIMARY KEY and exclusion constraints, inherited partition
-CHECK/NOT NULL constraints, hierarchy column rename, and partition-source row locking. Related families: table
-core, constraints, foreign keys and foreign tables in [reference/tables](../tables/README.md); inheritance,
-typed tables and LIKE in [reference/inheritance](../inheritance/README.md);
-partitioned indexes in `reference/indexes`; ALTER TABLE actions in
-`reference/alter`.
+Dual-mode scenarios for declarative partition definitions, routing, hierarchy
+maintenance, constraints and source locking. Table core belongs to
+[tables](../tables/README.md#testing), inheritance/typed/LIKE families to
+[inheritance](../inheritance/README.md#testing), index definitions to
+[indexes](../indexes/README.md#testing), and table actions to
+[alter](../alter/README.md#testing).
 
 ## Testing
 
@@ -27,33 +25,20 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   Exclusion-concurrency timeout probes use the same separate-borrower lifecycle;
   their direct route stays direct and their prepared route holds the INSERT before
   the blocker and timer. The unarmed peer retains the complete recovery checks.
-- Partition row-lock queries retain typed populated and fully pruned results in
-  both modes. Actual local/foreign leaf contention and transaction-end release
-  use the shared hierarchy scenarios in `reference/tables`.
-- Query results do not prove that pruned branches or ATTACH validation scans
-  were skipped. Engine units assert that natively; on PostgreSQL, ATTACH scan
-  elision is read from `pg_stat_user_tables.seq_scan` on the same session after
-  `pg_stat_force_next_flush()` and `pg_stat_clear_snapshot()`, calibrated against
-  an ATTACH without proof (`partition_attach_proof_test.go`).
+- Query results alone do not prove pruning or scan elision. Keep physical
+  execution observations separate from public result assertions.
 - Concurrent-detach scenarios use the fixture's committed pending-edge and
   virtual-completion observers, not ordinary DETACH's parent-AX fairness probe.
   Held statements are prepared before admission; every cancellation is joined
   before inspecting the retained graph. Native replacement/replay controls stay
   explicit phases of the same shared SQL scenario.
-- Hierarchy-rename pending scenarios reuse the committed-edge fixture, prepare
-  held utilities before the marker, and hold AS only on omitted branches/leaves
-  to prove lock exclusion. Inspect divergent names through catalogs, then restore
-  parent names before nested pending reads and FINALIZE. Restore/replay consumers
-  execute future routing and dependent expressions on each destination.
-- Catalog control scenarios retain eager cursors across replacement; held
-  persistent `regclass` literals must reject the retired catalog lifetime before
-  a fresh Prepare reads restored descriptors, as specified in
-  [the driver contract](../../docs/DRIVER.md#statements-and-results).
+- Retained rows and held statements follow the shared
+  [driver lifetime contract](../../docs/DRIVER.md#statements-and-results).
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - RANGE partitions: `RUN='^TestReferenceRangePartition'`
-- <a id="list-partition-definitions"></a>LIST partitions: `RUN='^TestReferenceListPartition'`
+- LIST partitions: `RUN='^TestReferenceListPartition'`
 - HASH partitions: `RUN='^TestReferenceHashPartition'`
 - Partition definition introspection: `RUN='^TestReferenceDeparsePartition'`
 - Partition key catalog: `RUN='^TestReferencePGPartitionedTable'`
@@ -62,9 +47,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - DETACH PARTITION: `RUN='^TestReferencePartitionDetach'`
 - Partition pruning: `RUN='^TestReferencePartitionPruning'`
 - Hierarchy column rename: `RUN='^TestReferencePartitionRenameColumn'`
-- <a id="partitioned-constraints--selected-proof"></a>Partitioned UNIQUE/PRIMARY KEY: `RUN='^TestReferencePartitionConstraints'`
+- Partitioned UNIQUE/PRIMARY KEY: `RUN='^TestReferencePartitionConstraints'`
 - Partitioned exclusion constraints: `RUN='^TestReferencePartitionExclusion'`
 - Constraint timing propagation: `RUN='^TestReferenceDeferredConstraintPropagation'`
-- <a id="inherited-partition-constraints"></a>Inherited partition CHECK/NOT NULL: `RUN='^TestReferencePartitionInherited'`
+- Inherited partition constraints: `RUN='^TestReferencePartitionInherited'`
 
 Engine and parser units: `make check RUN='^Test(PartitionPruning|RangePartition|HashPartition|ListPartition|PartitionAttach|PartitionDetach|PartitionConstraints)'`.

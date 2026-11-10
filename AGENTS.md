@@ -72,8 +72,8 @@ seams, binders and storage paths; do not build parallel implementations.
 - **Parser.** State and options are per call; keep source positions and parameter
   indices in the AST; consume the entire input. Never execute a valid prefix and
   ignore the suffix.
-- **Behavior changes.** Update callers and the owning docs, and remove obsolete
-  paths instead of adding shims.
+- **Behavior changes.** Update callers and any affected reusable documentation
+  contracts, and remove obsolete paths instead of adding shims.
 - **Prepared values.** Retain only owned immutable typed artifacts, never graphs,
   frames, borrowed scratch or authority. Preserve separate analysis and complete
   fold-planning publications; dependency purposes must not suppress analysis.
@@ -89,16 +89,25 @@ seams, binders and storage paths; do not build parallel implementations.
 
 ## Documentation rules
 
-- Do NOT write any change notes to any file, commit log is good enough.
+- Change information belongs in Git commit messages. Do not maintain `CHANGELOG.md`,
+  `CHANGES.md` or change-history entries in any other file. Creating or editing
+  documentation solely to record changes is forbidden.
+- Keep the established commit subject, including the part ID and one-line
+  description for catalog work. Follow it with a blank line and a few `-` bullet
+  points describing the concrete changes made. Use this format for checkpoints
+  and the final squash commit; summarize actual changes, not planned work.
 - `README.md` is consumer-facing only: what the project is, usage, server, building.
   Never add notes about individual statements, functions or system views to it.
-- A package `README.md` states the current contract: responsibility, layering,
-  ownership, invariants, lock order and entry points. Its `## Testing` covers
-  package-specific helpers, rules and one reusable selector per test family, never
-  per-feature smoke or proof lists. Shared test policy belongs only in TESTING.md.
+- Package `README.md` files contain only highly reusable contracts: public seams,
+  responsibility, layering, ownership, crucial design decisions, invariants and
+  lock order. Omit feature inventories, individual SQL cases, implementation
+  trivia and historical notes. `## Testing` covers package-specific helpers and
+  one reusable selector per test family, never per-feature smoke or proof lists.
+  Shared test policy belongs only in TESTING.md.
 - Do not restate PostgreSQL documentation or list differences from PostgreSQL; a
   difference is a bug to fix, not a documented limit.
-- When behavior changes, edit the owning document in place and keep it concise.
+- Edit the owning document in place only when its reusable contract needs updating;
+  a code change alone does not require a documentation edit.
 
 ## Commands
 

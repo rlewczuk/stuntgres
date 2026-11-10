@@ -1,17 +1,11 @@
 # reference/temporal_types
 
-Dual-mode tests for the DATE, TIME, TIMESTAMP (without time zone) and INTERVAL
-types: input forms and civil bounds, modifiers and precision, diagnostics and
-statement atomicity, binding and raw metadata, ordering and comparison, clocks,
-notices, retained cursors, cancellation, and native Dump/Reset/Restore with
-PostgreSQL replay of the emitted SQL. Date/time functions, time zones and
-INTERVAL arithmetic are in [reference/datetime](../datetime/README.md#testing);
-temporal ranges are in [reference/ranges_text_search](../ranges_text_search/README.md#testing); timestamp
-series are in [reference/numeric](../numeric/README.md#testing).
+Dual-mode scenarios for scalar temporal and BYTEA codecs and consumers.
+Date/time functions and zones belong to [datetime](../datetime/README.md#testing),
+temporal ranges to [ranges_text_search](../ranges_text_search/README.md#testing),
+and series to [numeric](../numeric/README.md#testing).
 
-Scalar value codecs also include BYTEA input/output/settings, binary hashing,
-concatenation/length/trim, slicing/overlay/position, byte/bit access/reverse and
-`encode`/`decode`/`convert*`. BIT/VARBIT string values and operations live in
+BYTEA codecs and binary consumers live here. BIT/VARBIT belongs to
 [strings](../strings/README.md#testing); JSON codecs remain in
 [binary_json_arrays](../binary_json_arrays/README.md#testing).
 
@@ -27,17 +21,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 - lib/pq may decode a zero-offset civil value with an unnamed fixed `Location`
   instead of `time.UTC`. Compare the instant, civil fields and precision, never
   `Location` identity.
-- A Go DATE bind at year-zero February 29 is February 29 BC natively but
-  March 1 BC through lib/pq (its BC formatting). Encode both expectations.
 - Prepared and transaction clock tests synchronize on a bounded, strict clock
   advance, never on sleeps.
-- Typed TIMESTAMP setting-call arguments validate literal input before ordinary
-  function applicability; no implicit TIMESTAMP-to-TEXT cast is introduced.
-  Direct execution and preparation retain complete diagnostics and positions.
-- `TestReferenceTimestampDiagnosticsAndAtomicity` creates its fixture inside each
-  input subtest, before any backend work, so every input owns a full 30-second
-  scenario. The backend child owns its assertions and never calls a parent-bound
-  `Fatal`/`FailNow`.
 - `date_oracle_test.go` and `time_dates_test.go` carry the `reference` build tag
   (PostgreSQL-only complements); only `REFERENCE=1` runs them.
 

@@ -129,8 +129,8 @@ with physical dependency ordering, never transient recursion state.
 ## Proof contract
 
 Public acceptance is owned by the nine `TestReferenceQueryRecursiveCTE*` definitions
-in `reference/query_core/`; selected commands and standalone-smoke argv are in its
-[Testing section](../../reference/query_core/README.md#recursive-cte-verification).
+in `reference/query_core/`; reusable family entry points are in its
+[Testing section](../../reference/query_core/README.md#testing).
 Private parser/engine function units supplement, never replace, those shared SQL
 scenarios. Root owns generation, dual-mode proof, quickcheck, smoke, review and
 integration. Design/readiness claims are not verification evidence.

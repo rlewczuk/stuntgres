@@ -1,10 +1,7 @@
 # reference/types
 
-Dual-mode tests for composite types (declarations, field expressions, ALTER TYPE
-attributes); enums (values, ALTER TYPE, support functions); the `citext`
-extension type; ACL values (`aclitem`, `makeaclitem`, `acldefault`,
-`aclexplode`); internal quoted CHAR; TID; catalog integer/OID vectors; BOOLEAN
-diagnostics and aggregates; and scalar comparison operators and null/distinct predicates.
+Dual-mode scenarios for composite, enum and scalar utility types, installed citext,
+ACL values, catalog vectors and comparison consumers.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
 (domains, `information_schema` domains, type identity lifecycle and
@@ -80,48 +77,12 @@ Rules:
 
 ### Family selectors
 
-- Composite types (all): `RUN='^TestReferenceComposite'`
-- Composite field expressions: `RUN='^TestReferenceCompositeExpr'`
-- ALTER TYPE attributes: `RUN='^TestReferenceCompositeAlter'`
-- Enums (all): `RUN='^TestReferenceEnum'`
-- ALTER TYPE for enums: `RUN='^TestReferenceEnumAlter'`
-- Enum support functions: `RUN='^TestReferenceEnumFunctions'`
-- <a id="citext-storage-and-value-round-trips"></a>`citext` storage, scalar
-  comparisons, pattern operators, regexp scalar/set and string scalar overloads, binding, collation
-  demand, diagnostics, catalogs and controls: `RUN='^TestReferenceCitext'`.
-  Scenarios specify fixed Boolean vectors
-  and original spelling independently, reuse held statements, and replay emitted
-  stored view/CHECK SQL through native controls and the pinned oracle. Operator
-  selectivity references use exact schema-qualified regproc identities without
-  requiring lookup-only estimators to be callable pg_proc rows.
-- Citext regexp wrappers: `RUN='^TestReferenceCitextRegexp'`. Independently
-  specified captures/replacements/splits distinguish SQL NULL, null captures and
-  empty strings, retain original case, and exercise explicit `c`, named formals,
-  held recovery, zipped/LATERAL sets, exact declaration metadata and caller ACLs.
-  Stored scalar and set views, CHECK/default consumers, displaced-driver imports
-  and actual emitted SQL replay share the existing public control fixture.
-  Review regressions independently assert row-dependent scalar error provenance,
-  CHECK body collation with NULL/invalid inputs, and current renamed-wrapper
-  diagnostics through held/stored calls, native controls and actual emitted replay:
-  `RUN='^TestReferenceCitextRegexp(Provenance|BodyCollation|Renamed)$'`.
-  Retained original SQL reports undefined-function lookup after rename; separately
-  rebound held calls and stored identities report the current invocation name.
-- Citext string scalars: `RUN='^TestReferenceCitextString'`. Shared direct,
-  prepared and held scenarios specify literal search, replacement escapes,
-  array-style field bounds, character positions and ordered translation.
-  Qualified/mixed-TEXT controls, exact metadata/diagnostics and current-caller
-  ACLs accompany stored consumers, retained readers and emitted SQL replay.
-  `RUN='^TestReferenceCitextStringFilterDiagnostics$'` separately checks malformed
-  FILTER inputs before namespace/overload errors, written operand errors before
-  FILTER, scalar decoration errors before implicit selected-formal conversion,
-  and selected aggregate FILTER ownership across nested calls/error recovery.
-- `aclitem`: `RUN='^TestReferenceACLItem'`
-- ACL construction and expansion: `RUN='^TestReferenceACLValues'`
-- TID: `RUN='^TestReferenceTID'`. Controls also check typed direct/prepared ctid
-  reads, distinct valid physical identities and lookup by a captured physical TID,
-  independently of stored user TID values.
-- Pure LSN difference calls, metadata, diagnostics and stored recipes: `RUN='^TestReferencePGLSNDiff'`
-- Internal quoted CHAR: `RUN='^TestReferenceInternalChar'`
-- Catalog integer/OID vectors: `RUN='^TestReferenceCatalogVectors'`
-- BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`
-- Comparison operators, null/distinct predicates: `RUN='^TestReferenceCompare(Null|Ops)'`
+- Composites: `RUN='^TestReferenceComposite'`
+- Enums: `RUN='^TestReferenceEnum'`
+- Citext: `RUN='^TestReferenceCitext'`
+- ACL values: `RUN='^TestReferenceACL(Item|Values)'`
+- TID: `RUN='^TestReferenceTID'`
+- Internal CHAR: `RUN='^TestReferenceInternalChar'`
+- Catalog vectors: `RUN='^TestReferenceCatalogVectors'`
+- Boolean: `RUN='^TestReferenceBoolean'`
+- Comparison predicates: `RUN='^TestReferenceCompare(Null|Ops)'`

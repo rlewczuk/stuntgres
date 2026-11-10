@@ -509,7 +509,7 @@ Unrelated relation/column/type/namespace/default-privilege restrictions remain.
 Read errors, cancellation or late invalid identity/owner/ACL replay publish
 nothing; writer failures remain ordinary I/O failures.
 
-The [shared routine ALTER proof](../reference/query_core/README.md#routine-alter-proof)
-checks repeated native replay, a fresh independent Driver, retained results and
-the actual emitted SQL on pinned PostgreSQL. These controls are native logical
-replacement, not PostgreSQL physical persistence.
+The shared routine ALTER scenarios in `reference/query_core` check repeated
+native replay, a fresh independent Driver, retained results and actual emitted
+SQL on pinned PostgreSQL; see the [family testing guide](../reference/query_core/README.md#testing).
+These controls are native logical replacement, not PostgreSQL physical persistence.

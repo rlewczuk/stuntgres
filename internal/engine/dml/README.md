@@ -1,497 +1,69 @@
 # internal/engine/dml
 
-The write executors (INSERT, ON CONFLICT DO UPDATE, COPY FROM, UPDATE, DELETE,
-MERGE, foreign and logical view-trigger DML), unique and exclusion probing, the staging loops, FK
-enforcement and actions over `FinishHost`, and the pure pieces they use (ON
-CONFLICT arbitration, the INSERT write overlay, RETURNING, inheritance targets,
-TRUNCATE and FK action records, COPY insertion batching).
-
-Layer L13 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports `access`,
-`analyze` (payload types and pure functions only), `authorization`, `catalog`,
-`copyfmt`, `exec`, `expr`, `fdw`, `ids`, `index`, `lock`, `partition`, `plan`,
-`session` (the operation's COPY input state), `storage`, `stored`, `table`, `view`,
-`visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. Nothing
-below it imports it; it never imports the engine and never builds a binder.
+Mutation executors and command-local write algorithms over captured typed inputs.
+Core owns admission, source capture, write stages and final row/catalog/index
+publication. Decisions and records from lower packages are reused rather than
+introducing another transaction path.
 
 ## Hosts
 
-`Host` (`host.go`) embeds `exec.Host`, `index.WriteHost` and `fdw.WriteRuntime`
-and adds command, stage, row-lock, presentation and row/statement trigger capabilities.
-The engine's `statementHost` implements them (`statement_host_dml.go`,
-`statement_host_stage.go`, `statement_host_latest_row.go`, `statement_host_trigger.go`).
-
-DELETE accepts an effective runtime context in `DeleteInput`, just as the other
-bound write inputs do. Core supplies its local unlocked execution context.
-Probes, staging revalidation and RI actions carry that same context explicitly;
-they never reconstruct execution permission from the host. INSERT admission takes
-an explicit context independently of its optional evaluator: ordinary insertion
-and DO NOTHING do not require row-expression evaluation. Provider admission uses
-that effective context while existing row grants, staging and publication remain
-the sole write authorities.
-
-Database read statistics follow real target fetches as well as query Stages.
-`MutationPhysicalRow` uses the source-owned sequential-fetch boundary before
-UPDATE/DELETE predicates (including USING/FROM); MERGE's actual repeated target
-scan uses that same boundary, including a source-empty BY SOURCE scan. Candidate
-metadata replay and later action retries do not masquerade as another scan.
-Source.Close drains performed work even on error/cancellation. Counts-off paths
-add no per-row map/allocation or clock; enabled timing measures actual captured
-version access. Foreign/materialized rows do not impersonate local heap fetches.
-Mutation I/U/D still come only from accepted storage staging and the existing
-ledger, never from scan cardinality or final affected rows.
-
-Optional analyzed execution measures literal/default INSERT input at original
-row production, before triggers/conflicts/admission: suppression and DO NOTHING
-do not erase reached input or create writes. MERGE's membership owner measures
-each entered target pass and genuine sequential fetch, plus each emitted pair.
-An empty source enters a target pass only for BY SOURCE; metadata replay and
-action/EPQ retries add no initial scan or pair emission. The context carries
-that accepted command's fixed role set; active timing excludes later action
-waits. These are source/candidate measurements, independent of accepted writes,
-affected counts and the no-RETURNING command's zero emitted rows.
-UPDATE/DELETE record the real target-fetch, candidate-frame and initial
-predicate-survivor boundaries before action waits. CURRENT OF has its own actual
-position lookup; it does not claim that only one physical tuple was examined.
-Foreign identity fetches and logical view-output producers use those same roles
-at their real production owners, without extra provider calls or base-access
-charges for intermediate view rows.
-
-
-COPY decoding obtains the current selected effective child through
-`Host.CopyInputContext`, reusing its invocation projection until the actual child
-changes. Defaults, domain input and generated rows share that context; decoder
-masking never replaces the raw final publication authority. Key/predicate probes
-reuse their supplied context without per-row activation or context allocation.
-
-`CopyRelationKind` owns COPY target-kind diagnostics for both directions.
-Builtin catalog sources marked `CatalogView` use the same view rejection and
-directional hints as stored views; non-view catalog relations remain distinct.
-Frontend stream capability admission stays in core, before target execution.
-
-- `Statement`: the active command, target, private rows, snapshot, unique
-  journal, query authority, scopes, lock ticket, WHERE CURRENT OF row,
-  disclosure environment and `Operation`. It never locks or waits and is read
-  at call time.
-- `Stage`: `Active` (checked before any candidate validation),
-  `ReadmitRevalidation` (recaptures write authority under `Engine.Mu`, then
-  readmits programs unlocked after a stale binding) and the write windows
-  `PrepareReplacement`, `StageInsert`, `StageReplacement`,
-  `AppendAcceptedInsert` and `Delete`. Acceptance takes Owner then Engine
-  mutexes. Replacement/deletion grant inspection and changed repair-key
-  readmission run outside both mutexes; the final exact-key check and accepted
-  action publication share the same Engine window.
-  A partition UPDATE brackets its physical movement with BeginUpdateMove and
-  EndUpdateMove. The host combines accepted OLD/NEW image work as one UPDATE,
-  or preserves only the accepted deletion when destination insertion is vetoed;
-  nested trigger commands own separate lexical image state.
-  `StageInsertAttempt` records immutable pre-index insertion evidence without
-  publishing a table effect. Non-speculative INSERT candidates carry that exact
-  event through batch/revalidation/RETURNING transfer; failed uniqueness keeps
-  the real attempted event, never a marker inferred from its diagnostic.
-- `RowLocks`: `AcquireRow`, `AcquireUpdateRow` and `AcquirePartitionLock` wait
-  with the caller holding nothing; `LatestRow` captures its canonical current
-  version, readmits a genuine successor unlocked, then rechecks the publication.
-  MERGE prefers an own target version; otherwise stable snapshots reject
-  committed updates or deletions beyond their frontier before selecting actions.
-  Read-committed successor rechecks retain the captured source occurrence.
-  Requests retain actual VersionID and follow only committed/own physical
-  successor links, reset to self by repair. Mutation deduplication and conflict
-  cardinality key exact version/header identities, not every same-RowID sibling.
-  Latest-row results also retain the actual validated vector ordinal, or -1
-  for a historical/additional version. Single-row UPDATE and conflict replacement
-  windows pass this hint without allocating a parallel vector; acceptance still
-  validates exact VersionID and falls back canonically after movement.
-  The insert overlay records both accepted and consumed original headers while
-  its affected-row count still advances once per accepted action.
-  Grants carry actual RowVersion, including RI row grants; a zero RowVersion is
-  relation-only admission. Events retain the actually admitted resource.
-  `PhysicalRowLock` accepts only row-lock modes and publishes on that existing
-  grant without another wait. Proposals emit no speculative updating event:
-  actual Stage acceptance owns the updater and real successor/deletion event.
-  Genuine preceding lock-only work and old updater history survive retries.
-  Demanded raw xmax remains immutable presentation, separate from candidate
-  full-XID/end provenance. Qualification borrows the captured source header;
-  current-row rechecks and RETURNING finalize detached scalars after real event
-  flushing, without manager calls from expressions.
-- `Presentation`: `RowDetail`, `SchemaName`, `CaptureRegclassOutput`.
-- `BeforeStatement` is relevance-gated by logical relation/event metadata before
-  defaults, source consumption, row iteration or foreign participant effects.
-  Core marks the first query-owned relation/event opportunity before mode,
-  lexical UPDATE OF or WHEN filtering. Conflict UPDATE announces INSERT then
-  UPDATE; MERGE announces each declared action kind in INSERT/UPDATE/DELETE
-  order. Parent DML owns its statement boundary independently of physical leaves.
-  The host invokes callbacks unlocked; no absent/irrelevant metadata path calls
-  it or allocates capture/fired state.
-- `BeforeRow`: captures physical relation trigger provenance under the engine
-  mutex, then evaluates WHEN and PL unlocked in the same statement stage.
-  UPDATE OF captures physical lexical target attributes once per command; when
-  a BEFORE UPDATE row hook exists, PostgreSQL's conservative generated-column
-  recomputation also includes every generated attribute in that firing vector.
-  Ordinary non-generated OF columns still require lexical SET membership.
-  Final generation updates both physical storage and named RETURNING frames.
-  Producers invoke it once after defaults/latest OLD admission and before
-  generation, proposal checks and output. Suppression skips the operation and
-  its counts; DELETE ignores non-NULL returned contents. Accepted INSERT rows
-  use incremental staging when triggers require same-statement visibility.
-  Partition capture records applicable physical INSERT chains once over its
-  admitted target subtree. Without RETURNING or such a chain, INSERT retains
-  batch ownership and allocates no incremental output; leaf-only INSERT chains
-  require accepted prefixes even when the named parent has no trigger.
-  Foreign trigger inserts use the existing participant row by row, making each
-  accepted insertion available before the next BEFORE invocation without
-  introducing another transaction or changing participant rollback guarantees.
-- `AfterRow` ingests an accepted physical image after successful staging and
-  before RETURNING. Physical ROW metadata or an explicitly registered logical
-  transition segment demands ingestion; an unnamed leaf statement definition
-  does not. Irrelevant metadata retains the no-hook/no-allocation path.
-  Hierarchy producers separately call demand-gated `AfterTransition` after
-  acceptance when the named target differs from the physical leaf, projecting
-  through the admitted layout. That path neither fires ROW triggers nor announces
-  a new producer. Routed batches, incremental inserts and both DELETE paths share
-  this attribution; child statement opportunities are not ancestor broadcasts.
-  Collection is independent of ROW WHEN and trigger count; WHEN qualifies row
-  invocations on completed generated values. `AfterStatement` registers logical
-  target/event independently of row count. Successful producers report exhaustion
-  through `CompleteAfterStatement`, where core checks current mode before WHEN.
-  Core qualifies exhausted modifiers immediately;
-  a suspended RETURNING source retains candidates until consumer EOF or auxiliary
-  exhaustion. Repeated target/event completions replace prior decisions, including FALSE.
-  Conflict UPDATE registers and qualifies its AFTER statement opportunity before
-  INSERT, including an empty UPDATE image set. MERGE registers and qualifies each
-  declared action in DELETE, UPDATE, INSERT order, independently of accepted rows;
-  actual row actions alone populate each event-specific transition segment.
-  Physical movement emits DELETE and INSERT row events while the named command
-  captures logical UPDATE OLD at accepted deletion and NEW at accepted insertion.
-  A destination INSERT veto retains the deletion and OLD-only UPDATE set; source
-  veto captures neither side. Explicit timing/level filters keep AFTER definitions
-  out of BEFORE generation and suppression decisions.
-- Logical INSTEAD OF producers reuse the immediate host chain with explicit
-  logical admission. They freeze complete OLD/source occurrences without heap
-  identities or deduplication, evaluate simultaneous assignments against the
-  original frame, and count each non-NULL handled occurrence independently of
-  nested body counts. Replacement NEW feeds the chain and typed RETURNING;
-  DELETE retains original OLD. Suppression does not compensate prior effects.
-  Accepted INSERT/UPDATE replacement rows pass the shared view CHECK OPTION
-  evaluator for automatic layers above the trigger endpoint before RETURNING
-  and count publication. NULL suppression skips these checks, not prior effects.
-  The target arrives already selected and frozen by the stored-query bridge;
-  producers project its outputs without selecting its visibility mapping twice.
-  Statement BEFORE admission, AFTER registration/completion and the shared journal
-  remain independent of handled-row counts.
-
-`FinishHost` adds `ForeignKeys` and the segment-exposure callback
-`ExposeAfterStatement`. Mutating RI commands register statements even
-for zero matches and qualify each producer at exhaustion. Their AFTER bodies
-remain in the caller's query frame. Unexposed same-target/event statement sets
-supersede earlier ones; a pending ROW transition consumer can expose its segment
-after RI exhaustion and internal-trigger unwind, before the next action. Only the
-next accepted image rotates that frozen set and creates a successor statement
-opportunity. Helper SQL owns independent nested frames. Each admitted action/check
-borrows the paired internal trigger scope for defaults, child BEFORE bodies and
-producer qualification; transition exposure follows that scope's exit.
-Post-action validation does not manufacture a second invocation.
-Final FK checks capture physical parent/child inventories only after an eligible
-row check demands them, reusing that immutable capture within the job. Unchanged
-parent keys and unrelated retained deferred exclusions do not demand private
-shadow maps, row grants or another comparison pass.
-The completion allocation witness compares two actual private rows in each lane:
-distinct keys with immediate timing versus a conflicting pair retained deferred.
-It keeps the original one-event-vector allowance and later real violation check.
-`Staged` never locks; the job, authority and
-row-image captures and the internal action windows each lock once and never
-wait; `GrantForeignKey` waits with the caller holding nothing, then locks to
-revalidate; `SwapForeignActionAuthority` swaps the running action's authority
-slot. `Authority` is the statement authority the FK runtime checks and
-evaluates with (`ActingAs` gives the referencing table owner's); the engine's
-`*AuthorizationView` implements it and is also an `exec.Context`'s
-`RoutineAuthority`.
-RI execution uses the FK descriptor's actual event slot: DELETE/UPDATE parent
-actions use 0/1, INSERT/UPDATE child checks use 2/3. Effective replication role
-gates each slot independently, including final parent checks, so a disabled
-action is not undone by an unconditional later check. Old/Next transition
-identity determines the event even for updates of transaction-local inserts.
-Trigger-mode eligibility is captured in the immutable row event before settlement. Suppression
-vectors are shared within an unchanged relation/catalog/effective-role capture,
-not mutated when settings or definitions change; all-enabled captures remain nil.
-Vectors are sorted once by constraint identity when captured and searched by
-binary lookup, rather than rescanned for each FK/slot during settlement.
-Unenforced FKs contribute neither child checks nor parent actions or effect
-admission. NOT VALID remains independently enforced. Held action jobs include
-enforcement and actual trigger identities in definition readmission; mode and
-replication-role policy apply only to existing enforced implementation slots.
-Deferred child and NO ACTION checks enlist eligible concrete events into the
-common index-owned constraint timing vector before statement transitions retire.
-Child UPDATE excludes NULL-exempt new keys and typed unchanged keys with an
-actual committed predecessor; prior own updates/inserts still require checks.
-MATCH FULL partial NULL remains an obligation. INSERT retains its check event
-even for NULL-exempt keys. Parent UPDATE/DELETE excludes old keys containing NULL.
-Captured trigger eligibility, original row/version/key references and acting
-principal survive later commands, modes and roles; no bound FK job or command
-frame is retained. Admission never prunes earlier events after repair or deletion.
-Due work rebinds current providers and skips superseded or
-deleted child incarnations. RESTRICT and CASCADE/SET actions remain immediate;
-their generated writes enter the same ordinary row/index/FK pipeline.
-Check-side stable isolation additionally probes the original supporting unique
-root after a current miss, distinguishing serialization from an absent parent.
-All provider comparisons and waits run unlocked through the host.
-Reached trigger-body statements, routine helpers and source reads retain the
-referencing-table owner's RI authority through description, prepared analysis
-and execution, including live role recapture after unlocked provider preflight.
-Each recapture checks current ACLs as that owner; neither the initiator nor
-trigger-function ownership supplies body privileges.
-SET DEFAULT actions evaluate the actual referencing-table recipe as its current
-owner and restore the initiating authority on every exit. Default preparation
-retains consumed original calls even when immutable folding erases their nodes.
-Readmission after a row or unique wait and at final publication rechecks those
-calls as the child owner without replaying default or CHECK truth; failure
-publishes neither staged rows nor counts.
-COPY uses its importing caller, never the target owner, through the same staging
-and final-publication fences. Input conversion/CHECK diagnostics own the active
-row text; buffered insertion retains only each candidate's origin line, so a
-post-wait admission failure has line context without raw input.
+`Host` embeds `exec.Host`, `index.WriteHost` and `fdw.WriteRuntime` and adds
+command, stage, row-lock, disclosure and trigger capabilities. `FinishHost` adds
+constraint settlement and statement-effect exposure. Core implements both on the
+current statement; no host call borrows a finished scope.
 
 ## Command state
 
-`Command` (`command.go`) is the active command's DML state grouped by owner
-(`Indexes`, `Insert`, `Partition`, `InheritedTargets`, `ViewWrite`, `RLS`), plus
-target refs, storage, capture source, the INSERT write overlay and insertion
-groups. Partition routing capture is shared by INSERT/COPY/UPDATE; only physical
-mutation leaves enter a data view. The engine embeds the command by value in its
-per-command mutation, so writable CTEs, rules and SQL routines swap it whole.
-AFTER queues deliberately do not belong to this swapped command: core owns them
-by query effect identity, shared across writable CTEs and separate for nested SQL.
-`Insert.CopyFrom` points at the single `CopyFromState`; ordinary INSERT has none.
-
-`InsertInput.DefaultOccurrence` and `UpdateInput.DefaultOccurrence` carry the
-immutable original statement/expansion key from preparation into fresh
-query-backed evaluators. INSERT query assembly requires this key explicitly;
-foreign INSERT takes it from its admitted evaluator, while COPY and direct
-assemblers without an accepted command pass a zero key. Default origins supply
-only their own lane subkeys, never a replacement statement identity. VALUES and
-conflict UPDATE retain or borrow the producer's existing evaluator. These paths
-retain no preparation context, host or permission decision.
+`Command` owns target/source frames, insert/conflict state, indexes, partition and
+inherited targets, view-write lowering and RLS for one actual command. Prepared
+bindings keep typed recipes and original occurrences, never candidates, trigger
+frames or mutable arbiter state. Runtime contexts come from the current unlocked
+invocation and are forwarded through scans, predicates, projection and COPY pulls.
 
 ## Entry points
 
-| Area | Files | Entry points |
-| --- | --- | --- |
-| INSERT | `insert*.go` | `ExecuteInsert` (captured `InsertInput`), `AssembleInsertRows` (any cursor: INSERT ... SELECT, COPY), `AdmitInsertRow`, `ApplyInsertBatch` |
-| ON CONFLICT | `insert_conflict*.go`, `insert_write_overlay.go` | `InsertConflictState`, `NormalizeConflictPredicate`, `InsertWriteOverlay`, `AdmitInsertConflictRow`, the DO UPDATE action |
-| UPDATE | `update*.go`, `row_security.go` | `ExecuteUpdate`, `ValidateMutationRow`, `MutationMatches`, `EvaluateUpdateAssignments` (shared with DO UPDATE and foreign DML) |
-| DELETE, MERGE | `delete*.go`, `merge*.go` | `ExecuteDelete`, `ExecuteMerge`, `AssembleMergeRows`, `StageMergeRows`, `SelectMergeArm` |
-| Foreign DML | `foreign.go`, `foreign_prologue.go` | `ExecuteForeign`, `ForeignCommandPrologue` |
-| Probing | `unique.go`, `exclusion.go`, `index_candidates.go` | `ProbeUniqueRow`, `ClaimUniqueRow`, `ProbeExclusion` (also SET CONSTRAINTS' deferred recheck), `ValidateIndexCandidates` |
-| Staging | `stage.go`, `partition_insert.go` | `ApplyValidated`, `ReplaceRows`, `ApplyInsertValidated` (each leaf group in first-use order) |
-| Preflight | `*_preflight.go`, `insert_conflict_update.go` | `PreflightUpdate`, `PreflightMerge`, `PreflightConflictUpdate`, `PreflightReturning`, called from the engine's `execute_bound.go` |
-| RETURNING | `returning.go`, `insert_returning.go` | `InsertReturningOutput`, `MergeReturningOutput`, `ProjectReturning` |
-| COPY FROM | `copy*.go` | `CopyCursor`, `CopyBinaryCursor`, `CopyInsertionState`; codecs are in [`copyfmt`](../copyfmt/README.md) |
-| FK | `foreign_action*.go`, `foreign_key*.go` | `PrepareForeignActions`, `SettleForeignActions`, `CheckForeignKeys`, `ForeignKeyReach` |
-| TRUNCATE | `truncate*.go` | `TruncateScope`, `CheckTruncate`, `GuardedCatalogMutationError`, `TruncateGraph.CheckCurrent` |
-| Prologue decisions | `latest_row.go`, `default_fold.go`, `cte_completion.go`, `row_diagnostic.go` | `LatestUpdateRow`/`LatestDeleteRow`/`LatestMergeRow`, `FoldDefault`, `CompleteCTEMutation`, `RowDiagnosticDetail` |
-| Target admission | `target_admission.go` | `TargetAdmission`, the `table.TargetEntry` of single-table SELECT, COPY and DML |
-
-Static PL capture may attach `CaptureCardinality` to the existing active
-`Command`. RETURNING producers call `CapturedRow` only after successful complete
-projection; its second row signals the structured private error. Command swaps
-isolate nested writes and writable-CTE auxiliaries. Ordinary SQL has no counter
-and retains its normal output and affected-count semantics.
-
-Foreign DML exports the current imported parameter frame before modification
-planning, using an invocation-local request snapshot. Selected planning,
-EXPLAIN ANALYZE properties, Begin and row callbacks share those values; there is
-no second importer or expression evaluation. The real input source still owns
-scan cleanup, and ordinary statement Finish alone publishes or aborts effects.
-The planning-only source view does not own a scan lifetime: the selected
-modification keeps its detached request but uses the original input source.
-UPDATE/DELETE identity scans register there and close exactly once, including
-modifying CTE commands and error exits.
-
-Prologue decisions run over values the root captures in its own window.
-Package-internal helpers keep lower-case names.
+Write entry points consume captured inputs, use shared insertion/update/deletion
+loops, and return results to the existing statement completion owner. COPY
+cursors own decoding/value/error context while `copyfmt` owns framing. Foreign
+DML reuses enlisted participants and immutable request snapshots.
 
 ## Execution order
 
-- Executors run a captured input with the caller holding nothing. UPDATE and
-  DELETE freeze their candidates (DELETE ... USING its target/source pairs)
-  before the first row wait; MERGE completes its source and evaluates ON before
-  any action wait. Per candidate they take the row lock, reread the latest
-  version, recheck the predicate if the row moved, then evaluate, validate,
-  claim unique keys and stage. MERGE stages its actions in action order.
-- Retained routine/rule query sources use the existing `view.FreezeWriteSources`
-  bridge after raw-source selection and before opening their immutable plans.
-  MERGE applies this to its actual `Binding.QuerySources` even when the target's
-  layout is unchanged. Its input cleanup follows the returned bridge/bundle head,
-  including early errors, rather than closing only the pre-bridge source.
-  Existing membership and `Outcome.finishSources` finalization still run before
-  input/target cleanup, preserving foreign producer errors and admission authority.
-  Nil/identical source layouts keep the bridge's no-allocation fast path.
-  Foreign INSERT/UPDATE/DELETE owns the same returned head after the engine
-  hands off captured inputs; planning/begin failures close the original input.
-  Foreign INSERT borrows its command invocation for query-project assembly, so
-  closing that reader cannot finish sources before checks and RETURNING. The
-  exported `EvaluateInsertQuery` remains consuming for ordinary INSERT callers.
-- `ApplyValidated` and `ReplaceRows` own the work around the `Stage` windows.
-  After a stale unique binding they run `ReadmitRevalidation`, reprobe every row
-  (or readmit DO NOTHING) and retry. Physical RETURNING is supplied only after
-  actual admission: incremental INSERT returns its exact accepted RowVersion;
-  replacement/routed batches borrow optional caller-owned Accepted slots filled
-  before AFTER triggers. DELETE reads its exact admitted end header. Projection
-  never guesses the newest RowID head or the last tuple staged by a trigger.
-- Tuple proposal changes are distinct from stale index bindings:
-  `ReplacementStageResult.RecheckIndex` identifies the first failed predecessor
-  in a wholly unaccepted window; `ReplaceRows` returns its internal tuple control
-  and index to the producing executor. UPDATE demands the initial RHS before
-  genuine BEFORE prelocking, while ordinary grant admission keeps its existing
-  boundary. Eligible FROM pairs demand SET once before target deduplication;
-  an own accepted successor is an actual predecessor, not external EPQ that
-  repeats the frozen source targetlist. Late UPDATE/DELETE retries selected
-  qualification/projection below completed BEFORE, without replaying it.
-  ON CONFLICT retains VALUES/EXCLUDED/BEFORE INSERT across unique discovery and
-  skips completed UPDATE BEFORE on late retry. RI keeps its original command
-  snapshot and ordinary isolation checks. Count/AFTER/RETURNING follow acceptance.
-- MERGE owns its distinct ON/class/WHEN/action/prologue recheck in the existing
-  noncopyable, execution-private `MergeRows` allocation. Source completion still
-  precedes target production; the explicit Assemble/Stage boundary remains.
-  Initial changed-version follow-chain reads acquire the all-arm strong grant
-  before reclassification; resource identity equality does not upgrade mode.
-  Deleted BY SOURCE targets preserve the genuine NULL-source NOT MATCHED
-  opportunity and its actual defaults/constraints.
-  Rare indexed replay replaces only an unaccepted failed occurrence, retaining
-  unrelated pending RHS/RETURNING and accepted prefixes. Immutable materialized
-  source identities/raw captures outlive cursor close; no cursor is retained.
-  `StageMergeRows` clears its producer on every terminal exit; callers abandoning
-  an assembled result before Stage call `ReleaseProducer` without closing their
-  separately owned State/inputs or completed RETURNING.
-- Both INSERT row paths check `RowSecurity.CheckProposal` after generation and
-  routing and before constraints; UPDATE checks NEW between generation and
-  constraints. OLD policy guards (`MutationMatches`) precede user predicates and
-  are re-evaluated after refreshed-row waits. The shared RI validator does not
-  apply caller RLS.
-- Routed and inherited NEW projection uses the destination's admitted
-  physical-to-named layout and copies finalized values by index into a private
-  buffer, never into scratch still borrowed by OLD evaluation or RETURNING. No
-  row matches columns by name or builds a second layout.
-- Partition UPDATE runs the source BEFORE UPDATE chain before source generations
-  and membership selection. Staying rows use source constraints and `ReplaceRows`;
-  departing rows route only within the named target. Their source BEFORE DELETE
-  chain precedes deletion; destination BEFORE INSERT sees that private deletion.
-  A DELETE veto preserves OLD. An INSERT veto leaves the deletion but contributes
-  no UPDATE count or RETURNING row. Destination replacements cannot reroute and
-  must pass generation, row-policy and row-constraint checks before selected-leaf
-  membership checks, then view and index checks. A table CHECK violation wins
-  over an invalid partition key in both ordinary and trigger-modified rows.
-  A move takes a delete-strength grant and passes the original captured deletion
-  identity to `Delete`, which refreshes the current predecessor internally.
-  `ApplyValidated` stages the fresh destination identity in the same write stage;
-  INSERT/COPY groups are not UPDATE batches. Only Finish publishes accepted effects.
-  Committed movement end markers distinguish concurrent movement from ordinary
-  deletion without following a destination row.
-- COPY FROM runs omitted defaults before rejection/limit admission; the shared
-  post-default stage rejects or filters before generation, routing and
-  constraints. Reached DEFAULT markers execute exactly once, in COPY-list order.
+Executors enter with nothing held. They freeze admitted source/candidate ownership
+before mutation, preserve native predicate/RHS/trigger/constraint demand order,
+and wait through Host capabilities. Post-wait acceptance checks the exact
+physical version/storage and current authority, not RowID or equal values alone.
+
+Accepted predecessor/successor effects retain command identity. Nested completion
+settles its causal actions/checks to a fixed point without replaying completed
+actions; root completion drains remaining work. Failed stages and enclosing
+savepoint/exception rollback restore private roots through core's checkpoint.
 
 ## Invariants
 
-- The package holds no engine state and no mutex. It waits only through `Host`
-  methods (`ClaimUniqueKey`, `WaitTransaction`, the row locks) with the caller
-  holding nothing; executors run after `Engine.Mu` is released.
-- No pointer to a per-row stack value (a probe candidate, a one-row batch array)
-  crosses a `Host` method: through the interface it escapes to the heap for
-  every row. Pass a copy and apply the result here (`PublishExclusion`,
-  `WriteCandidate.RecordExclusion`).
-- Messages, details, SQLSTATEs and the first-error choice are compatibility
-  contracts, including cardinality errors and COPY's line context. COPY never
-  flattens an already-contextual primary error or lets pending cancellation
-  replace it, and keeps the 57014/FATAL mapping through `CopyCommandError`.
-- A failure-only `RowDetail` copies the binding, so only the error path
-  allocates. The host suppresses failing-row values under metadata-only RLS
-  eligibility. RI NOT NULL/CHECK Detail under FORCE stays owner-visible only in
-  the validated child-owner settlement context; FK key disclosure keeps its own
-  RLS privacy checks.
-- The FK runtime runs from root or bounded nested-command completion, with the
-  caller holding nothing; all waits go through `GrantForeignKey`. Accepted
-  predecessor/successor events retain command ownership and independent action/
-  check progress. Settlement follows newly appended causal events to a fixed
-  point; completed actions are not replayed. Candidate checks select exact final
-  child VersionIDs and parent old images, with exact event-old predecessor
-  lookup for unchanged-key suppression. Supporting-index probes retain actual
-  private writes but do not infer index membership from repaired heap payloads.
-  Stable action composition retains matching exact versions and follows only
-  their captured current header successor chains, stopping at self-link. Fresh
-  same-RowID siblings outside those chains remain independent candidates, with
-  canonical grants and latest-row snapshot checks before predicate/mutation.
-  `ActingAs` copies authority once per job/action, never per row.
-- `TruncateGraph.Base` is the original admitted frozen descriptor version, never
-  promoted to a later baseline. `Checked` separately records a complete successful
-  catalog preflight on a fresh fence value; `ReceiptBase` freezes the committed
-  base version that projected it and `ReceiptMark` the journal descriptor-edit
-  position at certification. All three are replaced together only on a fresh
-  fence value after a complete successful preflight. `ReconcileDescriptors`
-  chooses `ReconcileExact` only within the committed catalog lineage, when the
-  effective receipt matches current, or `ReconcileDelta` over the journal edits
-  after `ReceiptMark` when the
-  receipt, committed base and current read have the same valid owner/domain/epoch,
-  the base backing, cached projection and edit history authenticate, and no edit
-  changes or removes a namespace's `Temporary` authority, and otherwise the
-  whole-inventory `ReconcileFull` fallback. A namespace addition or a replacement
-  preserving `Temporary` stays in the delta. `CheckCurrent` always checks
-  committed RESTART generator bindings first, then runs the RESTART own-change
-  loop and the ordinary graph loop over that one reconciliation source. Original
-  `Base.Get` exemptions, the journal-own sequence exception and private
-  sequence-ownership rules remain independent.
+- No package-owned engine state or mutex. All waits and callbacks run unlocked.
+- Pass per-row values across host methods by value; pointers to stack probes or
+  one-row arrays must not escape through an interface on every row.
+- Error order, SQLSTATE, detail disclosure and COPY line/context behavior are
+  compatibility contracts. Failure-only diagnostic rendering may allocate;
+  ordinary row processing reuses buffers and state.
+- RLS SQL authority, disclosure eligibility and physical target identity remain
+  separate; a recipe or cached selection never grants current access.
+- Unique/exclusion/FK checks use actual private writes and exact physical
+  versions. Source capture and later checked current versions remain distinct;
+  fresh same-RowID siblings are not inferred successors.
+- Graph/preflight receipts authenticate their original catalog lineage and
+  touched descriptors. Final publication checks remain independent of shortcuts.
 
 ## What stays in the engine
 
-- Statement dispatch, source capture under `Engine.Mu`, `WriteStage` with the
-  `Stage` windows and row publication, writable-CTE orchestration, and the
-  locked prologues that turn an `Outcome` into a `Result`
-  (`executeInsertLocked`, `execute_bound.go`, `executeForeignCommandLocked`).
-- The COPY protocol: `copyProtocol`, input capture, the default loop around
-  `FoldDefault`, `copyIO` and COPY TO output.
-- Host windows: row lock waits, `LatestRow` with its lock and epoch checks, and
-  the authority capture behind `RowDiagnosticDetail`.
-- Shared command-completion order: due exclusion events, `SettleForeignActions`,
-  exclusion events again when an action added one, then `CheckForeignKeys`
-  unless only catalog roots were projected. The engine selects command ownership
-  and root publication; the FK row/grant bodies and action admission are shared
-  with ALTER TABLE and CREATE TABLE.
-- TRUNCATE execution and `truncateGraphFence` (fence kind order in
-  `catalog_fence.go`).
+Statement dispatch, captured data views, owner locks, stage windows, writable-CTE
+orchestration, row/index installation and transaction/trigger effect lifetime.
+No executor installs committed roots independently of Finish.
 
 ## Testing
 
-Physical target-header demand and nested RETURNING capture use
-`RUN='^TestReturningSystemAttribute'`.
-
-Real pre-index attempt, rollback/exception and historic-schema ownership use
-`make check RUN='^TestLogicalStream'` in `core/enginetests/logical`.
-
-Canonical latest-row identity, validated ordinals, genuine successor positions,
-immutable captures and allocation-free known lookups use
-`RUN='^TestLatestRowPhysicalHints$'`.
-
-Unit tests here cover the ON CONFLICT predicate proofs, target admission,
-`CompleteCTEMutation`, COPY filter row admission and the routed RLS proposal
-layout. Other DML units need an engine and live in `internal/engine/core`
-(INSERT, UPDATE, DELETE, MERGE, TRUNCATE and COPY statements) or
-`internal/engine`, naming the code as `dml.X`: host seams (`statement_host_dml_test.go`,
-`statement_host_foreign_key_test.go`), executors, probing, FK runtime, COPY and
-cancellation. Allocation guards: `BenchmarkInsertConflictCommittedOmissions`,
-`BenchmarkInsertConflictUpdateDistinctStage`, `BenchmarkUpdateCoreSparse` and
-`TestUpdateCoreSparseAllocation`. Public behavior lives in
-[`reference/dml`](../../../reference/dml/README.md#testing).
-
-Frame names matched by tests: range/list publication tests cancel at
-`dml.ApplyInsertValidated`; partition UPDATE publication cancels at
-`dml.ApplyValidated` after source deletion. Renaming these breaks the probes.
-
-```sh
-make check RUN='^Test(InsertConflict(Predicate|Truth)|DMLTargetAdmission$$|CTEDMLInvocationOwnership$$)'
-make check RUN='^TestStatementHost'
-make check RUN='^Test(UpdateCore|UpdateFrom|UpdateRow|MergeNothing|InsertConflictUpdate|InsertReturning)'
-make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
-make check RACE=1 RUN='^Test(Range|List)PartitionPublication'
-make check RACE=1 RUN='^TestPartitionRouting(Capture|Publication|LatestRow)'
-make check RUN='^Test(ForeignActions|ForeignKey)'
-make check RUN='^Test(RLSRoutedProposalLayout|CopyFilter(RowAdmission|InputProvenance|FinishVeto)|ProtocolCopyCancellationContext)$$'
-```
+Pure mutation decisions/cursor units live here; composed host and lifecycle tests
+live in core and its `enginetests/writes`. Public SQL belongs to reference
+packages. Assert accepted versions, roots and failed publication separately from
+SQL outcomes; see [docs/TESTING.md](../../../docs/TESTING.md).

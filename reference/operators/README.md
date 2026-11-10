@@ -1,451 +1,50 @@
 # reference/operators
 
-Dual-mode tests for user-defined operators (CREATE/ALTER/DROP OPERATOR, shells
-and commutator/negator links, option forms and validation order, resolution
-precedence and polymorphic selection, comparison consumers, catalog rows,
-dependencies and native round trips), routine parameter binding (named and mixed
-notation, defaults, VARIADIC, OUT/INOUT, named-path selection against builtins)
-and CREATE CAST definitions. This package also owns
-`TestReferenceRegOperatorExternalBoundary`; the other operator OID alias
-(`regoperator`) scenarios are in
-[reference/type_resolution](../type_resolution/README.md#testing). Scalar
-comparison, BETWEEN and conditional expressions are in
-[reference/query_core](../query_core/README.md#testing) and
-[reference/types](../types/README.md#testing); explicit casts and the
-comparison resolution matrix are in `reference/type_resolution`.
-BEFORE row/statement, AFTER row/statement and view INSTEAD OF row trigger scenarios cover private PL frames,
-ordered chains, query completion, zero-row events, TRUNCATE, permissions,
-physical mutation producers and native post-data replay. The shared
-`triggerScenario` helper follows the ordinary configured-backend loop.
-Builtin trigger scenarios use the same helper for representation-sensitive
-suppression, explicit and row-configured vector sources, continuous positions,
-lexical UPDATE targets, current mappings, complete diagnostics and builtin catalog
-identities. Raw TSVECTOR RETURNING checks retain descriptors on suppressed rows;
-system-attribute diagnostics, constrained-domain replacement and declared binary
-coercibility distinguish builtin tuple operations from ordinary SQL assignment.
-Persistence retains original writers across native replacement rounds, including
-literal configuration rename/name reuse, and replays actual emitted SQL on
-PostgreSQL; external C ABI, heap/TOAST layout,
-WAL and process loading are not native logical-control operations.
-Installed autoinc scenarios cover demanded textual sequence binding, exact INT4
-tuple replacement, duplicate-target semantics, allocation/rollback and authority,
-retained direct/prepared metadata and logical-control replay.
-Trigger-depth scenarios retain live queries across nested user/RI invocation,
-exception unwind and native consumer replay. They distinguish WHEN/default
-evaluation, actual bodies and queued AFTER execution using ordered phase keys.
-Queued AFTER function replacement is covered for ROW and STATEMENT firing through
-direct and prepared commands: an earlier trigger replaces a later function before
-its first invocation, with exact current-body audits and atomic rollback of a
-failing replacement, its audit writes and the outer mutation.
-Persistence checks execute restored INSERT/UPDATE/DELETE/TRUNCATE definitions
-with exact audit values and metadata. Retained history distinguishes an old ROW
-clone from a later attached leaf without one across two replay rounds.
-PostgreSQL replay checks ordinary SQL firing; native-only phases check reverse
-ROW replacement exactly once, dependency retirement and failed-import preservation
-of live data, eager results and held writers.
-Transition-relation scenarios exercise query-owned accepted image bags, complete
-ROW/STATEMENT visibility, empty typed sets, actual-event grouping, RI exposure
-rotation and invocation-private SQL aliases. Hierarchy witnesses distinguish
-named-target projection from physical ROW attribution, including routed movement
-and its separately accepted OLD/NEW sides. Correlated outer joins distinguish
-absent whole rows from present all-null tuples. RI witnesses separate qualification
-authority/depth from exposed-body identity, diagnostics and atomic failure recovery.
-Alias tests retain ordinary CTE,
-qualification, nested-routine and independent-scan semantics, reject writes and
-materialized-view dependencies, and assert complete diagnostics and catalog
-metadata. Ordinary VIEW analysis uses the catalog namespace, while untargeted
-locking scans still read transition values; an explicit locking OF target
-rejects the transition relation.
-The same definitions drive two native replacement rounds and unchanged-stream
-PostgreSQL replay, preserving original parameterized I/U/D handles and eager
-results across successful and failed imports. Native controls remain distinct
-from PostgreSQL physical tuplestore, backend-memory and storage mechanisms.
-Lifetime witnesses combine supported routine/relation/column rename with
-dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
-the original name must not retarget an installed trigger, including two native
-replacement rounds and unchanged-stream PostgreSQL replay.
-Trigger definition and lifecycle scenarios cover autocommit, SQL and Go
-transactions through direct and held handles, private firing and savepoint
-recovery, ownership/notices, automatic extension retirement and stable partition
-clones. Lock witnesses cover descendant admission, cancellation and owner end;
-native-control phases check committed-only Dump, replacement fencing and
-unchanged-stream PostgreSQL replay.
-Trigger protocol scenarios use the real server fixture for simple messages,
-separate quiet Parse/Describe and Bind/Describe phases, utility Execute and
-server-backed Go transactions. Held DML observes private and committed trigger
-changes with exact completion/Ready states and atomic message rollback.
-Generated partition CREATE/ATTACH boundaries are asserted explicitly; movement
-semantics use nongenerated partitions, while ordinary-table Ordering covers
-generation after BEFORE transformation.
-Implicit TG type cases use exact overloads under shadow types; WHEN identity
-cases combine overload competition, live column/table rename, two replay rounds,
-portable PostgreSQL replay and one retained DML handle. RI authority cases
-distinguish initiator, referencing owner and function owner through independently
-granted helper/read permissions, including UPDATE and DELETE cascade rollback.
-`PartitionReplace` distinguishes explicit parent replacement from ordinary CREATE
-and ATTACH conflicts, including failed replacement preservation.
-`GeneratedUpdateOf` checks conservative generated-column firing with a
-column-specific BEFORE hook alone and with an earlier broad hook, using exact
-direct/prepared final values rather than runtime changed-value inference.
-
-Compiled host-routine scenarios share independently specified object/null,
-authority, failure and cancellation outcomes with actual PL/Python scalar and
-hstore dict programs on the pinned oracle. Native setup explicitly registers real
-compiled Go programs and directional primitive/map/default converters; it does not
-interpret Python. Both backends use actual routine TRANSFORM opt-in. The retained
-`RoutineTransforms` cohort starts with genuine registered bootstrap pairs;
-`TestReferenceRoutineTransformDefinition` independently covers SQL CREATE,
-OR REPLACE and DROP, full catalog/dependency identity, signature/ACL diagnostics,
-protocol phases, transaction/cancellation/concurrency and native logical replay.
-The definition metadata/protocol boundary uses genuine shipped
-`pg_catalog.dsimple_init(internal) RETURNS internal`, not a lookup-only optimizer
-support identity. Its dictionary initialization capability does not authorize
-host conversion; pinned builtin dependencies are omitted, and an explicitly
-selected unavailable host direction must still reject invocation.
-The genuine four-INTERNAL-argument `dsimple_lexize` declaration supplies the arity
-boundary without inventing aggregate transition support. Language-default
-witnesses distinguish implicit untrusted USAGE from routine admission and
-GRANT/REVOKE, plus explicit ACLs and grant options. Pure stored-default consumers
-carry explicit SQL stability promises; failure/cancel programs retain their
-ordinary contracts. Native destination SQL assertions use the recording pool
-paired to that connector, while Dump/Restore retain the raw control pool.
-Smoke cascade consumers use parsed SQL-standard RETURN bodies for genuine
-zero-argument/support dependencies. Quoted PL wrappers retain their lawful
-deferred lifetime and are asserted separately; they are explicitly retired
-before standalone recreation. Direction-replacement Python reads `args[0]` into
-a fresh local so real default string parsing never shadows a named SQL argument.
-The direction-replacement scenario separately asserts released PL/Python's
-cached converters and rebuilds them using an identical function declaration
-on PostgreSQL only, retaining the SAME held statement. Native omission and
-restoration must take effect without routine redefinition; see the source and
-observed release difference in [POSTGRES_REGRESSION.md](../../docs/POSTGRES_REGRESSION.md#plpython-retains-transform-converters-until-its-procedure-cache-rebuilds).
-Standalone replay provisions only actually missing destination roles and checks
-their non-superuser/NOINHERIT attributes, since source Reset preserves roles;
-schema grants and all actual ACL controls remain explicit.
-Mutation cancellation compares every portable57014 field and fixes the exact
-pg_transform update/delete action, varying only anchored physical coordinates.
-Released C/PLPython oracle aliases are value-preserving: the SAME program/held
-query returns a8+c3 across mixed-ID replacement. The separate native semantic
-phase uses actual scaling/projection callbacks and the SAME program/held query
-changes to a71+c3+zout. No changed Python program substitutes for that witness.
-The `TestReferenceRoutineTransforms` definitions independently cover ordered and
-normalized declarations, same-program defaults versus maps, directional fallback,
-single-output CALL, privileges, full diagnostics/phase, reassociation, dependencies,
-NULLs, rollback/cancellation, retained values and fresh-Driver native replay.
-Public Dump/Reset/Restore and ordinary Go ABI errors stay explicit native
-boundaries, not fictional PostgreSQL mechanisms. Primitive witnesses include ordered
-multiargument frames, range/text rejection, raw metadata, held-handle recovery and
-fresh-Driver replay. Compatible ordinary aggregate support consumes the same
-compiled scalar definition. Registration, carrier corruption, reentry,
-retained-object ownership and native logical-control phases remain distinct from
-the shared Python bodies.
-
-`TestReferenceRoutineHostCheckedDefaultReplay` installs genuine hstore in
-`host_types` and checks a host NULLIF default's implicit equality environment,
-explicit versus omitted caller ownership, default entry-list conversion, ACLs,
-and direct/SAME-held execution. An old INOUT assignment cast to text and a fresh
-function-backed implicit cast produce independently expected canonical versus
-`new:` results. Native controls inspect real declaration windows and replay
-twice through matching fresh Drivers, retaining held handles across replacement.
-`TestHostCheckedDefaultExpressionOwnership` in the private core suite supplements
-this public witness with genuine installed layouts, shared visitor receipts and
-actual cross-catalog RoutineRemap/RebindRoutineDefinitions ownership assertions.
-
-Primitive error witnesses keep language conversion behavior distinct from the Go
-carrier boundary: the pinned PL/Python text converter truncates returned embedded
-NUL text, whereas the native typed carrier rejects NUL and invalid UTF8 before
-publication. Recoverable conversion errors use malformed numeric text and a
-surrogate Unicode result. A Python class whose `__str__` raised an exception
-terminated the oracle backend during discovery; that upstream crash is retained
-in verification evidence, not rerun or presented as a recoverable SQL diagnostic
-or a native-runtime failure.
-
+Dual-mode scenarios for user operators, routine parameter binding, cast
+definitions, PL/pgSQL, DML triggers and registered host routines. Explicit builtin
+casts and alias inputs belong to [type_resolution](../type_resolution/README.md#testing);
+SQL routine/query lifecycle to [query_core](../query_core/README.md#testing);
+trigger catalogs and event triggers to [triggers](../triggers/README.md#testing).
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` opts into
-`fixture.WithHostPython()` provider provisioning for the genuine oracle cohort.
+`fixture.WithHostPython()` for genuine PL/Python oracle consumers.
 
-- Helpers: `user_operator_execution_test.go` (`userOperatorScenario`,
-  `userOperatorExec`, `userOperatorValue`, `userOperatorError`),
-  `routine_parameters_helpers_test.go` (`parametersScenario` and the `parameters*`
-  held/metadata/error/replay helpers), and the cast-definition constants and
-  helpers `castDefinitionSource`, `castDefinitionScore`, `castDefinitionEdge`,
-  `castDefinitionCleanup`, `castDefinitionFrozenReplayChecks` and
-  `castDefinitionReplaySQL`, which stay private to this package.
-- Host helpers: `hostScenario`/`hostNativeScenario`, `hostFunction`, `hostBag`,
-  `hostMetadata` and the distinct SQL/Python diagnostic versus native ABI error
-  helpers. Primitive scenarios use `hostPrimitiveDefinition`,
-  `hostPrimitiveScenario`, `hostPrimitiveFunction` and `hostPrimitiveMetadata`;
-  their registration has no hstore bootstrap dependency. The definition returns
-  fresh slices and supplies checked integer programs and actual bool/int64/string
-  conversions. Aggregate scenarios register that same definition through the
-  ordinary configured fixture. Use `make check RUN='^TestReferenceRoutineHost'` and the same selector
-  with `REFERENCE=1`; selected native concurrency controls also use `RACE=1`.
-  Fresh registration/replay controls use `hostNativePools`: the raw pool owns
-  public Dump/Restore operations, while SQL assertions and held statements use
-  the recorded backend over that same connector. Carry that backend's recorder
-  through nested replay checks; never reuse the source fixture's recorder for
-  an independent Driver.
-- Trigger helpers: `triggerScenario`/`triggerDDLScenario` own configured-backend
-  loops, `triggerSetup` and `triggerDDLChain` provide shared definitions, and
-  `triggerRows`, `triggerDDLHeld`, `triggerDDLError` and `triggerDDLX` assert
-  metadata, actual retained-handle execution, diagnostics and extension edges.
-- BEFORE statement scenarios use `beforeStatementRoutes` to retain actual prepared
-  handles alongside direct execution; select the family with
-  `make check RUN='^TestReferenceTriggerBeforeStatement'` (and `REFERENCE=1`).
-  The foreign participant half of `ViewForeign` lives in `reference/tables`.
-- Transition families reuse `afterRoutes`/`afterStep`, `triggerScenario`,
-  `parametersReplay` and fixture lock workers/observers. `transitionSetup`,
-  `transitionAudit`, `transitionCounts` and `transitionMetadata` share the actual
-  definitions and independent expectations across value, replay and smoke cases.
-  Select the family with `make check RUN='^TestReferenceTriggerTransition'`
-  and the same selector with `REFERENCE=1`.
-- Trigger protocol helpers use `fixture.NewServerFixture` for process, backend
-  and credential ownership. The local `triggerProtocolWire` uses public pgconn
-  startup/authentication and typed pgproto3 messages; each received message is
-  encoded into owned bytes before another receive can reuse its flyweight fields.
-  Keep these helpers test-focused, without importing the sessions-private harness.
-  Accepted DEFAULT snapshot scenarios reuse this same real server/protocol owner:
-  Bind precedes replacement, SQL keeps its predecessor, and bounded PL uses its
-  current provider without changing original prepared arguments. Their advisory
-  barrier observes the actual Execute request before a peer commit; imported
-  cuts independently check unread/empty tables and exclude source-private rows.
-  Mixed written calls, exporting arguments, hidden defaults and body calls keep
-  their own modes and manifests. No embedded Prepare substitutes for prior Bind.
-- `fixture/regoperator.go` (`RegOperatorRows`, `Metadata`, `DiagnosticRoutes`,
-  `Error`, `Literal`, `Context`) is shared with `reference/type_resolution`; after
-  changing it, run both packages' alias selectors.
-- Casts are schema-less global objects that the `public` reset does not remove.
-  A test that creates a cast between builtin types first asserts the pair is
-  absent, registers pair cleanup before CREATE CAST, and drops pairs separately
-  with fresh bounded contexts even after failed assertions (dependent casts
-  before their adapter functions). Replay phases remove these pairs before the
-  next backend phase.
-  `DeclaredTypeNameAuthority` uses the same cleanup and held-statement seams to
-  distinguish function-method CAST from binary/INOUT typename shortcuts,
-  including consulted enum/domain base pairs and existing backend lifetimes.
-- Cast transaction cases reuse those declarations with `SequenceCoreConn` and
-  `HeldStatement` across autocommit, SQL BEGIN and Go BeginTx. Couple actual
-  explicit/assignment/implicit coercion to directed-pair/function metadata,
-  owner-private types, peer cache isolation and exact rollback restoration.
-  Declaration authority is separate from current routine EXECUTE at use.
-  Conflict workers use shared lock observers and joined cleanup; the function
-  retirement witness pairs a private cast creator with an autocommit waiter.
-  Native controls restore through unwrapped pools and keep replacement-fenced
-  old handles distinct from fresh same-owner recovery.
-- Retained aggregate binary lifecycle tests publish immutable source Dump bytes
-  only after the source subtest and its cleanup succeed. Fresh-native and
-  PostgreSQL replay consume those original bytes unchanged. A separate native
-  replay owner restores the source, dumps its own state, then resets and restores
-  that same engine from its own emitted Dump. The semantic lifecycle and full
-  final assertions stay shared across owners.
-- Never drop a released `pg_cast` row; declare an absent pair instead.
-- On PostgreSQL the reset `public` schema (a plain CREATE SCHEMA) has no PUBLIC
-  USAGE grant: authority cases GRANT schema USAGE to their reader explicitly.
-- `TestReferenceUserOperatorRoutineAuthorization` uses authenticated raw login pools
-  and checks their rows directly; those pools produce no middleware recordings.
-- `TestReferenceCastDefinitionForeignDefaults` uses a metadata-only wrapper
-  (`NO HANDLER NO VALIDATOR`) and server, registers no native foreign provider,
-  and cleans global wrapper/schema state with fresh bounded contexts.
+- Family-local scenario, value, diagnostic, held-statement and replay helpers
+  share the configured backend loop. `plpgsqlScenario` owns PL consumers;
+  `triggerScenario`/`triggerDDLScenario` own DML-trigger setup and execution.
+- Native host programs are explicitly registered compiled Go with real
+  directional converters, not a Python interpreter. Shared oracle programs use
+  actual PL/Python and TRANSFORM opt-in. Keep SQL/language diagnostics separate
+  from native Go ABI/carrier errors.
+- Raw native pools own public controls; SQL assertions use recorded pools over
+  the same connector with their own recorder, including independent destinations.
+- Trigger wire consumers use `fixture.NewServerFixture` and public pgconn/pgproto3.
+  Copy received flyweight fields before the next receive. Keep Parse/Describe,
+  Bind and Execute observations distinct; embedded Prepare is not prior wire Bind.
+- Casts between builtin types are schema-less global state. Assert an absent
+  pair, register fresh bounded pair cleanup before CREATE, and drop dependent
+  casts before adapter functions. Never drop a released `pg_cast` seed.
+- Retained replay consumes actual immutable source Dump bytes only after source
+  cleanup succeeds. Each replay owner uses its own recorded executor.
+- Native logical controls do not serialize C ABI, heap/TOAST layout, WAL, physical
+  tuplestores, process loading or live session resources.
+- Grant reader schema USAGE explicitly after PostgreSQL's public-schema reset.
+  Shared regoperator helpers have one owner in `fixture/regoperator.go`.
+- Unordered PL query sources assert multiplicities, not traversal order. Active
+  cancellation must observe real execution, cancel and join before handle cleanup.
 
-Add `REFERENCE=1` for the oracle.
+Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- User-defined operators: `RUN='^TestReferenceUserOperator'`
-- Transactional routine/operator/aggregate protocol: `RUN='^TestReferenceTransactionalRoutine(sProtocol|ReplacementPortal|DefaultDemand|DefaultArguments|UpdateDefaults|DefaultOwnerTransfer|QuotedDefault|CurrentProviderModes)$'`.
-  Typed wire scenarios reuse `triggerProtocol*` helpers; the database/sql route
-  matrix lives in [query_core](../query_core/README.md#testing), not a second operator fixture.
-  Replacement portal cases keep Parse/Describe/Bind before DDL: accepted standard
-  and quoted SQL DEFAULTs remain5 while PL DEFAULTs use current9; new Bind uses9
-  for both. Separate CHECK/FK actions use current authority. Commit/rollback and
-  protocol results are asserted independently.
-  Volatile sequence defaults distinguish original accepted recipes from cached
-  results: Bind and empty-source execution do not advance the sequence, while
-  demanded old and genuinely fresh bindings execute their respective bodies.
-  Folded, named, nested and sibling arguments exercise actual prepared-call
-  invocation separately from original source-path ownership. Owner transfer
-  includes current SECURITY DEFINER identity. Revoke/regrant consumers use actual
-  runtime calls, with a configured invoker and a definer body; a plain SQL body
-  may instead be inlined during Bind and is retained as a separate transfer
-  positive, not evidence of runtime ACL demand.
-  UPDATE and conflict-UPDATE distinguish assignment origins, multiple DEFAULTs and
-  current CHECK enforcement. Mixed SQL/PL cases distinguish per-occurrence body
-  modes with folded/named/variadic inputs, nested/sibling calls, Execute-time
-  volatile demand, current SECURITY DEFINER owner and revoke/regrant atomicity.
-- Operator option forms and checkpoints: `RUN='^TestReferenceUserOperator(Option|CreationCheckpoints|ParameterCheckpoints)'`
-- Comparison consumers of custom operators: `RUN='^TestReferenceUserOperatorComparisonConsumer'`
-- Polymorphic operator selection: `RUN='^TestReferenceUserOperatorPolymorphic'`
-- `regoperator` external boundary: `RUN='^TestReferenceRegOperatorExternalBoundary$'`
-- <a id="routine-parameter-binding"></a>Routine parameter binding: `RUN='^TestReferenceRoutineParameters'`
-- Routine declaration-default attribute capture: `RUN='^TestReferenceRoutineDefaultAttribute'`
-- <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
-- Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
-- Row-level triggers: `RUN='^TestReferenceTriggerCore'`
-- Builtin trigger functions: `RUN='^TestReferenceTriggerBuiltins'`
-- Installed autoinc trigger helper: `RUN='^TestReferenceAutoinc'`
-- AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
-- Deferred constraint-trigger timing, transaction boundaries, catalogs and replay:
-  `RUN='^TestReferenceTriggerDeferred'`
-- View INSTEAD OF triggers: `RUN='^TestReferenceTriggerInstead'`
-- Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
-- Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`
-- Live trigger nesting and consumers: `RUN='^TestReferenceTriggerDepth'`.
+- User operators: `RUN='^TestReferenceUserOperator'`
+- Routine parameters: `RUN='^TestReferenceRoutineParameters'`
+- Cast definitions: `RUN='^TestReferenceCastDefinition'`
+- DML triggers: `RUN='^TestReferenceTrigger'`
+- PL/pgSQL: `RUN='^TestReferencePLpgSQL'`
+- Host routines: `RUN='^TestReferenceRoutineHost'`
+- Transforms: `RUN='^TestReferenceRoutineTransform'`
+- Transactional wire routines: `RUN='^TestReferenceTransactionalRoutine'`
 
-### PL/pgSQL core
-
-Shared dual-mode cases cover lexical slots/aliases, all-formal `$n`, declarations,
-fieldwise rows/RECORD, non-NULL VOID, lazy binding/full parsing, language USAGE
-versus EXECUTE, stored consumers and two native/unchanged-PostgreSQL replay rounds.
-Conditional scenarios additionally cover ordered IF/ELSIF/ELSEIF and CASE
-branches, PL Boolean conversion, once-only simple searches, full diagnostics,
-statement atomicity and stored callers with two unchanged-stream replay rounds.
-Provenance cases include postorder datum numbering, syntactic record-field and
-qualified-callee identity, scalar-shadow and competing record/label namespaces,
-procedural delimiter depth and token-accurate comment boundaries.
-Parameter-dependent WHEN failures retain execution-only context, contrasting
-with constant-folding failures. Native cleanup-provider units also exercise
-simple CASE WHEN through called PL and SQL wrappers without admitting OTHERS
-after fatal cleanup failure.
-Loop scenarios reuse the same direct/prepared, held and replay helpers for bounded
-iteration, nested label transfers, reached condition evaluation, complete
-diagnostics, protected effects and actively admitted cancellation. WHILE cases
-also assert pre-entry/reevaluated NULL/false termination, volatile condition
-counts and original held handles across native replacement rounds.
-Integer-range scenarios additionally cover private INT4 names, entry-time bounds,
-positive steps, inclusive overflow-safe traversal, labels/FOUND and retained
-handles/native replay. Family selector: `RUN='^TestReferencePLpgSQLIntegerFor'`.
-RAISE/ASSERT scenarios reuse the PL value/complete-diagnostic helpers and the
-shared notice-enabled fixture. They cover ordered operands, lazy assertions,
-effective settings, held calls and stored callers through unchanged replay.
-Nested successful notices compare complete ordered records through PL and
-non-inline SQL callers, including direct, fresh-prepared and original-held
-execution, source-versus-body FOR ownership, and subsequent context-leak probes.
-Family selector: `RUN='^TestReferencePLpgSQL(Raise|Assert)'`.
-Diagnostics cases share `RUN='^TestReferencePLpgSQLDiagnostics'`, including
-direct/prepared status, current versus caught context, exact error fields and
-held-handle/native-control lifetime through the existing fixture.
-
-```sh
-make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$'
-make check RUN='^TestReferencePLpgSQLCore(Blocks|Parameters|Declarations|RowsRecords|Returns|LazyBinding|LanguageAuthority|Persistence|CompositeNull|RecordClear|CompositeDomain|CopiedCollation|InvocationCollation|FormalNamespace)$' REFERENCE=1
-make check RUN='^TestPLpgSQL(ParserFullConsumption|FormalSlots|FrameLifetime|FrameInputCollation|CheckedCallCollation|RowAssignment|CompositeAssignmentAtomicity|DiagnosticIdentity|ProcedureReturn|HandlerAuthority|RemapOnce|DepthUnwind|LocalUsageReplacement|LocalUsageEquivalence|FormalNamespaceCompiler|FormalNamespaceValidation)$' RACE=1
-make check RUN='^TestSQLRoutineDumpEventsUseResolver$'
-```
-
-```sh
-make check RUN='^TestReferencePLpgSQLConditional(If|Conversion|SearchedCase|SimpleCase|Nested|Diagnostics|Atomicity|Persistence|ReviewProvenance)$'
-make check RUN='^TestReferencePLpgSQLLoop(Bounded|Continue|Conditions|Labels|Diagnostics|HiddenLabel|Atomicity|Cancellation|Persistence)$'
-make check RUN='^TestReferencePLpgSQLWhile(Entry|Conditions|Control|Diagnostics|Atomicity|Cancellation|Persistence)$'
-```
-
-Static query-result loops reuse `plpgsqlScenario`, direct/prepared value and
-complete-diagnostic helpers. Shared scenarios assert ordered duplicate rows,
-ordinal/private target shapes, shaped empty rows, control transfers, tuple-source
-effects, demand-sensitive CTEs, admitted cancellation and held/native replay.
-Unordered sources assert counts and multiplicities, never traversal order.
-
-```sh
-make check RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Diagnostics|Lifecycle|Sources)$'
-make check REFERENCE=1 RUN='^TestReferencePLpgSQLQueryLoops(Ordered|Targets|Empty|Control|Diagnostics|Lifecycle|Sources)$'
-```
-
-Array-loop scenarios share the same fixture and exact value/diagnostic helpers,
-with ordered elements, bounded trailing slices, sequential list assignments,
-domain identity, private control/FOUND and original-held/replay witnesses.
-Family selector: `RUN='^TestReferencePLpgSQLForeach'`; add `REFERENCE=1` for the oracle.
-
-Embedded SQL/PERFORM/PL CALL scenarios share the same value, complete-diagnostic,
-metadata and lifecycle helpers, including held handles and native replay.
-Family selector: `RUN='^TestReferencePLpgSQLSQLExecution'`; add `REFERENCE=1`
-for the pinned oracle.
-
-### PL/pgSQL exception blocks
-
-The exception family reuses `plpgsqlScenario`, value/complete-diagnostic helpers
-and the shared fixture. It covers protected rollback, matching/rethrow, intrinsic
-scope, exact diagnostics, transaction/DO visibility, held/replay lifetimes and
-command-owned immediate constraint completion. SQL DML helpers are called from
-existing procedural assignment expressions.
-`UtilityPublication` independently exercises direct/prepared SELECT and DO with a
-SET helper inside the handler: protected put2 disappears, put1/put3/put4 commit,
-and a peer sees exactly `[1,3,4]`. Each invocation has its own scenario.
-`CallDiagnostics` asserts complete portable records through called PL and an
-explicitly non-inline SQL wrapper at whole/element assignment, RETURN and initializer sites,
-using direct and fresh-prepared routes. The SQL wrapper exercises its actual
-statement-2 diagnostic boundary, not SQL-function inlining.
-Native supplements exercise fatal modification cleanup across called PL and SQL
-wrappers, completion-flag unwind and installed-root cancellation fences, forged
-handler queries, and retained per-destination relevance with catalog invalidation.
-
-Family selector: `RUN='^TestReferencePLpgSQLException'`; add `REFERENCE=1` for
-the pinned oracle. Supplemental parser/program/checkpoint/participant/command
-units use `RUN='^TestPLException'` with `RACE=1`.
-
-### PL/pgSQL assignment
-
-Shared assignment cases cover coercion selection, ordered field/subscript
-targets, bounds, diagnostics, cardinality, evaluation order and held/native-control lifecycle.
-
-```sh
-make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnostics|Order|Lifecycle|Cardinality)$'
-make check RUN='^TestReferencePLpgSQLAssignment(Coercion|Targets|Bounds|Diagnostics|Order|Lifecycle|Cardinality)$' REFERENCE=1
-make check RUN='^TestPLpgSQL(Assignment(Atomicity|TargetValidation|TargetUsage|BoundsOrder|PlanningOrigin|Parser)|RowAssignment|CompositeAssignmentAtomicity)$' RACE=1
-```
-
-### PL/pgSQL static capture
-
-Static SELECT/DML RETURNING INTO scenarios reuse `plpgsqlScenario` and the
-shared PL value/complete-diagnostic helpers. They cover STRICT cardinality,
-ordinal RECORD/row/list movement, shaped empty records, FOUND publication,
-sequential partial assignment, protected mutation rollback and retained handles
-through two native replacement rounds. Demand witnesses distinguish one-row
-SELECT from second-row STRICT/DML detection, including projection-error
-precedence, no third mutation proposal and nested command isolation.
-
-Family selector: `RUN='^TestReferencePLpgSQLSelectInto'`;
-add `REFERENCE=1` for the pinned oracle. Supplemental parser, checked-program
-and producer units use `RUN='^TestPLpgSQLSelectInto(Parser|Validation|Runtime)$'`.
-
-Dynamic SQL scenarios share the PL helpers for data-only typed USING, computed
-identifiers, complete SELECT/DML consumption, INTO cardinality, dynamic set
-results, phased diagnostics, closed USING parameter bounds, caught and uncaught
-same-held-handle recovery, and native replay. Family
-selector: `RUN='^TestReferencePLpgSQLDynamicSQL'`; add `REFERENCE=1` for the
-pinned oracle.
-
-The diagnostics Status, Context and Lifecycle definitions also exercise supported
-dynamic commands: complete final-command SELECT/DML counts (separate from INTO
-cardinality), publication before late INTO errors, preserved ordinary EXECUTE
-FOUND, instruction-local RETURN QUERY counts, and no success publication after
-execution failure. Exact live stacks distinguish command/USING operand calls from
-computed SQL execution's SQL statement frame and retain the suspended PL action;
-actual cancellation checks recovery through direct and original-held handles.
-
-Row-valued set appends, diagnostics and held-invocation lifecycle reuse the
-shared PL helpers with `RUN='^TestReferencePLpgSQLReturnNext'`.
-Run `make check RUN='^TestReferencePLpgSQLDiagnostics(Status|Context|Lifecycle)$'`
-in both native and `REFERENCE=1` modes.
-
-Static diagnostics Context witnesses cover SELECT INTO's exact redacted spelling
-(suffix, interior and multiline UTF8/comment forms), PERFORM's SELECT-head
-translation, SQL-wrapper ancestry, and restoration after completion or failure.
-Capture/cursor status witnesses retain late conversion/cardinality boundaries:
-completed query frames are absent from those errors while status and target
-semantics remain unchanged. Private live-owner coverage observes actual static
-producer Begin/Next/End alongside dynamic execution and operand owners.
-
-The host-runtime native controls additionally distinguish real supplied FROM,
-handler, program, TO and SQL-carrier failures from Python's complete diagnostic
-records. They assert rollback of prior statement effects and settings, recovery
-through the original held handle, and actual cancellation before normal COMMIT:
-absence/original-callable assertions precede any explicit cleanup rollback.
-Persistence includes two fresh-driver round trips preserving missing/default
-directions, an alias predating a dropped direction (no pair) versus one created
-after it (the current surviving TO-only pair), renamed/retired registered
-providers, and atomic rejection of corrupt native absence boundaries.
-
-Host HSTORE metadata checks select computed expressions (including zero-row and
-strict-null projections). Like the existing hstore metadata family, both native
-and PostgreSQL report unknown computed nullability (`false,false`); declared
-table/view column nullability remains a separate contract. Type name, scan/raw
-carrier, labels, length and decimal metadata retain their exact backend checks.
+Known release-specific PL/Python converter lifetime differences are documented in
+[POSTGRES_REGRESSION.md](../../docs/POSTGRES_REGRESSION.md#plpython-retains-transform-converters-until-its-procedure-cache-rebuilds).

@@ -1,200 +1,35 @@
 # reference/alter
 
-ALTER TABLE actions: ADD/DROP COLUMN (including column REFERENCES), ADD CONSTRAINT
-(including NOT VALID, replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritance
-recursion and action-list members), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
-(including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE,
-SET ACCESS METHOD, clustering preferences, OID-removal compatibility syntax and
-constraint rename, plus standalone query-compatible CLUSTER simulation and
-foreign-key callers of DROP COLUMN and SET SCHEMA.
-CHECK/FK declaration enforcement, FK enforcement toggles and atomic CHECK
-replacement share exact flags, diagnostics, historical scans, logical trigger
-lifecycle, dependencies, locking and native persistence scenarios. Physical
-PostgreSQL pages, WAL/crash durability and the internal PostgreSQL trigger
-executor are outside the logical engine/API contract.
-ALTER CONSTRAINT scenarios cover guarded bare requests, persistent FK timing
-and enforcement, NN inheritability's direct-child localization versus recursive
-construction, exact diagnostics, current authority, atomic failures, held
-metadata/DML, deterministic cancellation and native replay. Invalid
-noninheritable NN replay uses a real atomic post-data declaration, not a
-privileged catalog UPDATE.
-Column statistics scenarios cover nullable targets, ordered distinctness options
-with SQL-integer semantic coercion and preserved quoted/Float spelling,
-exact subnormal acceptance versus ERANGE, whole-list transformation precedence,
-ANALYZE/planner refresh, measured MCV ceilings, actual inherited consumption,
-hierarchy locality, transactional ownership, cancellation, held consumers and
-native logical replay through public APIs.
-Transactional table/schema integration covers CREATE/ALTER/DROP lifecycle,
-private catalog/dependency visibility and atomic DDL/DML publication, savepoints,
-held prepared consumers, utility boundaries, conflict scheduling and native
-controls. Dependency, grouped and mixed TEMP/permanent DROP routes retain both
-SQL and Go controls, direct and held execution, and commit/rollback outcomes;
-schema-drop admission retains captured names and identities across waits.
-Related families: CHECK, NOT NULL and standalone table DDL in `reference/tables`;
-identity, defaults and `SET/DROP EXPRESSION` in `reference/sequences`;
-query-derived table creation in `reference/query_core`; wire-protocol routes in
-`reference/sessions`; standalone catalog and transaction families in
-`reference/catalogs` (and its sibling catalog packages) and `reference/locking_transactions`.
+Dual-mode scenarios for ALTER TABLE and transactional schema lifecycle.
+Standalone table definitions belong to [tables](../tables/README.md#testing);
+identity/default/generated columns to [sequences](../sequences/README.md#testing);
+wire routes to [sessions](../sessions/README.md#testing).
+Physical PostgreSQL pages and WAL/crash durability are outside the logical API contract.
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
+Family-local scenario, catalog snapshot and control helpers remain in
+`*_helpers_test.go`.
 
-The `unreadview` child package owns the shared direct/held transaction family for
-replacement types beneath frozen unread ordinary-view source layouts. Run it with
-`make check RUN='^TestReferenceAlterTypeUnreadView'` (and `REFERENCE=1` for the oracle).
-
-- Scenario helpers: `addConstraintScenario` and the catalog/backing/Dump
-  snapshot helpers (`alter_add_constraint_helpers_test.go`),
-  reused by column REFERENCES and validation scenarios with held commands, full
-  historical diagnostics, hierarchy validity/provenance, lock admission and native controls;
-  `alterTablespaceScenario` (`alter_tablespace_helpers_test.go`),
-  `constraintRenameScenario` (`constraint_rename_helpers_test.go`),
-  `referenceDDLNativeDump`/`referenceDDLPositionError`
-  (`alter_ddl_controls_helpers_test.go`) and `referenceSchemaSequenceState`
-  (`alter_schema_helpers_test.go`).
-- Access-method scenarios own database-global AM cleanup as well as pinned
-  sessions. Emitted-SQL replay on PostgreSQL deliberately leaves native snapshot
-  comments uninterpreted: assert unpopulated MVs before normal REFRESH of the
-  originally populated recipe. Native Restore instead preserves captured rows
-  and population flags without REFRESH. Replay cleanup runs on failure too,
-  before the next backend setup.
-- `dcrScenario` and `dcr*` helpers (`alter_drop_column_routine_helpers_test.go`)
-  share notice-enabled direct/held routine dependency scenarios, exact attribute
-  edge bags and native-control phases. Each column action owns its notice group;
-  failure of a later action does not erase an already reported group.
-  Precision retains a held survivor call across leading/trailing and depended
-  column compaction. The survivor has both a body and a default edge to the
-  remaining attribute: omitted/default calls still return 8, explicit 17 returns
-  25, and both physical dependency rows remain. The shared cascade survivor
-  assertions carry this witness through transaction/savepoint and native-control
-  phases without changing the retired closure or notice expectations.
-  `TestReferenceAlterDropColumnRoutineOwnedSequence` independently covers the
-  sequence-only body/view path for both an ordinary OWNED BY/default sequence
-  and an identity sequence. Direct/held RESTRICT preserves full identity/edge
-  bags and stable attributes after leading compaction; rollback/commit CASCADE
-  retires the recursive closure once while other-attribute and other-table
-  sequence owners survive. Discover its full diagnostics/notices first with
-  `make check REFERENCE=1 RUN='^TestReferenceAlterDropColumnRoutineOwnedSequence$'`,
-  then run the same selector natively before review.
-- `alterTypeIdentityOldRows` (`alter_type_identity_savepoints_test.go`) checks a
-  retained pre-ALTER cursor (metadata, scan, exhaustion, `Rows.Err`, Close); it is
-  shared by `alter_type_identity_test.go` and
-  `alter_type_identity_source_routes_test.go`.
-- `*SourceConsumerRoutes` tests rerun a Context test's corpus through plain
-  `database/sql` methods (`Step.NonContext`). Both consume the same expected
-  cases (for example `alter_type_source_cases_test.go`); change them together.
-- `atsPhysical` (`alter_tablespace_physical_test.go`) prepares real tablespaces
-  on the oracle: it creates their directories through `fixture.Container.Exec`,
-  registers cleanup (drop, then `rmdir`), and only then creates the tablespaces.
-- Transactional schema helpers stay with their lifecycle/control/concurrency
-  scenarios: `transactionalSchemaRun`, catalog closure and rollback-route helpers,
-  authority/notice/read-only assertions, physical identity and pending-lock
-  observers, no-retarget, abandonment and failed-Restore witnesses. Restore
-  reader failures reuse `addConstraintFailedReader`. Each serial route owns its
-  scenario and schema/role cleanup; workers register cancellation and bounded
-  joins before handles close. Assertions precede backend comparison.
-- Clustering scenarios assert complete malformed-index/trailing-input diagnostics
-  and direct/Prepare error stages, with unchanged preference and ordered data.
-  Mixed inheritance failures combine recursive column work, root-only clustering
-  and OID compatibility with descendant CHECK validation; both execution routes
-  retain root/child columns, rows, constraints and complete index/preference bags.
-  Native Restore rejects unqualified, conditional, ONLY, multi-action, clear and
-  OID preference replay forms, preserving the destination dump preimage,
-  sentinel, temporary rows and held permanent/temporary row snapshots per case.
-- Standalone clustering uses shared public direct/fresh/held scenarios and
-  deterministic real heap-lock/routine gates. Real remembered preferences,
-  ordered values and necessary targeted rebuilding of changed index recipes
-  supplement private unchanged-heap/root and atomicity witnesses; SQL never
-  assumes unordered heap traversal or physical reorganization. Native control
-  phases retain eager rows and replay the remembered ALTER preference rather
-  than maintenance execution history.
-  Unpopulated materialized views validate the selected index but skip maintenance:
-  direct/fresh/held commands preserve population and preference, including after
-  REFRESH WITH NO DATA. Supported hash and partial B-tree diagnostics precede
-  that skip. Exact heap-lock inventories cover named release, bare retirement,
-  preservation of earlier heap grants and absence of sibling waits, with full
-  diagnostic fields. PostgreSQL's physical selected-index retention/planner
-  waits are outside the native simulation contract, not shared test assertions.
-  Combined method-before-predicate eligibility is an owning private-stage check
-  over genuine descriptor facts, not a claim of partial-hash CREATE support.
-  Progress scenarios hold two genuinely changed SQL-expression recipes through
-  public advisory locks without assuming index traversal order. Direct/fresh/held
-  commands and direct/held/fresh reads independently assert admitted identity,
-  actual rebuilding phases, stable bounded completed index counts, success,
-  cancellation/failure atomicity, fresh role disclosure and read-only diagnostics.
-  Native absent heap/index-scan work is exact zero; PostgreSQL's actual heap rewrite
-  and additional unchanged-index rebuild are specified independently. Native
-  control phases preserve eager results and keep live progress out of replay.
-  Live grant/revoke visibility checks retain the native worker's admission-time
-  publication authority fence: changed authority rejects publication with the
-  exact ordinary error and unchanged storage/preferences. A second real gated
-  command under stable authority separately proves successful publication and
-  terminal cleanup. Cancellation retains the complete reached SQL function
-  diagnostic on every command route; retained control rows assert their exact
-  projection metadata as well as values across Reset/Restore.
+- Each serial route owns its scenario and schema/role cleanup. Workers register
+  cancellation and bounded joins before handles close.
+- `*SourceConsumerRoutes` exercises plain `database/sql` methods using the same
+  corpus as its Context companion; keep both routes together.
+- PostgreSQL tablespaces need real container-owned directories: register drop
+  and directory cleanup before creating them.
+- Database-global access methods require cleanup independently of schema reset.
+- PostgreSQL replay ignores native materialized-view snapshot comments. Assert
+  unpopulated state before explicit REFRESH; native Restore retains captured
+  rows and population flags. Cleanup runs after failed replay too.
+- Maintenance SQL results do not prove physical reorganization or index traversal.
+  Keep logical state/replay assertions separate from physical-engine witnesses.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- ADD COLUMN: `RUN='^TestReferenceAlterAddColumn'`
-- ADD CONSTRAINT: `RUN='^TestReferenceAlterAddConstraint'`
-- VALIDATE CONSTRAINT: `RUN='^TestReferenceAlterValidateConstraint'`
-- Column statistics: `RUN='^TestReferenceAlterStatistics'`
-- Constraint enforcement: `RUN='^TestReferenceConstraintEnforcement'`
-  Review counterexamples are independently selected by the same prefix:
-  `QueuedHistory`, `UnattachedDiagnostics`, `PropertyOrder`, `GeneratedNames`,
-  `DropNotNullNames` and `UsingIndexDiagnostics`.
-  They cover final-disabled historical obligations, utility attribute errors and
-  IF NOT EXISTS skipping, supported nondeferred property orders, and authentic
-  generated-name collision/ordering/locking outcomes. Run each changed definition
-  in native and `REFERENCE=1` modes.
-- Deferred constraint ALTER admission, FK event eligibility and timing: `RUN='^TestReferenceDeferred(ForeignKey(Alter|EventEligibility)|ConstraintAlterSafety)'`
-- Constraint modes: `RUN='^TestReferenceAlterConstraint'`
-- SET/DROP DEFAULT: `RUN='^TestReferenceAlterDefault'`
-- DROP COLUMN: `RUN='^TestReferenceAlterDropColumn'`
-- DROP COLUMN routine dependency closure, identity, rollback, admission and controls:
-  `RUN='^TestReferenceAlterDropColumnRoutine'`
-- Identity options: `RUN='^TestReferenceAlterIdentity'`
-- SET/DROP NOT NULL: `RUN='^TestReferenceAlterNullability'`
-- RENAME: `RUN='^TestReference(Smoke)?AlterRename'`
-- SET SCHEMA: `RUN='^TestReference(Smoke)?AlterSchema'`
-- SET TABLESPACE: `RUN='^TestReferenceAlterTablespace'`
-- Logged/unlogged identity: `RUN='^TestReferenceAlterPersistence'`
-- Relation access methods: `RUN='^TestReferenceAlterAccessMethod'`
-- Clustering preferences: `RUN='^TestReferenceAlterCluster'`
-- Heap clustering: `RUN='^TestReferenceCluster'`
-  The maintenance-environment family also reads full `pg_index` structural
-  flags and expression presence before execution and after success, failure and
-  cancellation, without committing a failed operation's recipe refresh.
-  `TestReferenceClusterMaintenanceEnvironment` exercises actual selected/sibling
-  routine work under MAINTAIN-only ownership, conflicting caller search paths,
-  security restrictions, and setting/identity restoration on success, error and
-  cancellation. `TestReferenceClusterPrivateDeletions` composes SQL/driver
-  transactions and direct/held CLUSTER with inserted/deleted/reinserted unique
-  keys, updated/deleted replacements and deleted pre-capture own rows. Routine
-  B-tree/hash/BRIN/partial siblings, rollback, exact rows/counts and explicit
-  native control roundtrips remain part of the shared scenarios.
-  Existing-index volatility scenarios distinguish new-index IMMUTABLE admission
-  from rebuilding selected expression, sibling expression and partial-predicate
-  indexes after same-identity STABLE/VOLATILE changes. They cover held metadata,
-  SQL/driver commit and rollback, exact rows/flags, later DML and native controls.
-  Declaration scenarios retain strict CREATE and refreshed-source LIKE
-  expression and plain-key UNIQUE/nonunique predicate admission with full
-  diagnostics and no leaked destination descriptors. Repeated volatility changes
-  retain routine identity and exact typed values, including return to IMMUTABLE
-  before successful copying. Plain-key partition UNIQUE synthesis, compatible
-  existing-child reuse, explicit UNIQUE index ATTACH and LIKE UNIQUE/PK are
-  positive controls. Virtual-parent current-program constructor coverage is
-  private: a partition root has no heap for CLUSTER to refresh, and tests do not
-  waive stale stored-program validation.
-- Column TYPE: `RUN='^TestReference(Smoke)?AlterType'`
-- Constraint rename: `RUN='^TestReferenceConstraintRename'`
-- Foreign-key callers: `RUN='^TestReferenceForeignKey[A-Za-z]*Caller$'`
-- Transaction-private ALTER chains/actions: `RUN='^TestReferenceTransactionalSchema(Alter|Actions)$'`
-- Transaction-private lifecycle and rollback: `RUN='^TestReferenceTransactionalSchema(Flyway|Lifecycle|Savepoints)$'`
-- Dependency closure and DROP routes: `RUN='^TestReferenceTransactionalSchema(Dependencies|DependencyDropRoutes)$'`
-- Diagnostics, utility boundaries and held consumers: `RUN='^TestReferenceTransactionalSchema(Diagnostics|UtilityBoundaries|Prepared)$'`
-- DDL conflict scheduling and captured admission: `RUN='^TestReferenceTransactionalSchema(Locks|NamespaceConflicts|QuotedNameConflicts|CompanionConflicts|DropAdmission)$'`
-- Native controls and physical lifecycle: `RUN='^TestReferenceTransactionalSchemaNativeControls$'`
-
-Engine and parser units: `make check RUN='^TestAlter(AddColumnReferences|AddConstraint|ValidateConstraint|Tablespace)'`.
+- ALTER actions: `RUN='^TestReferenceAlter'`
+- Transactional schemas: `RUN='^TestReferenceTransactionalSchema'`
+- Constraint modes/enforcement: `RUN='^TestReferenceConstraint'`
+- Clustering: `RUN='^TestReferenceCluster'`
+- The `unreadview` child package owns frozen unread-view source-layout scenarios:
+  `RUN='^TestReferenceAlterTypeUnreadView'`.

@@ -253,9 +253,9 @@ schema origins or granting authority to foreign retained references.
 
 ## Proof ownership
 
-The owning [reference contract](../../reference/query_core/README.md#ordered-sql-routine-bodies)
-lists the actual selected tests, independent values/metadata/diagnostics and
-feature-smoke expectations. The root runs generation/formatting, selected native
+The owning [reference testing guide](../../reference/query_core/README.md#testing)
+provides reusable family entry points; executable tests specify independent
+values, metadata, diagnostics and smoke expectations. The root runs generation/formatting, selected native
 and real modes, targeted race checks, whole-project quickcheck and standalone
 public API smoke. These descriptions are implementation contracts, not passing
 verification claims.

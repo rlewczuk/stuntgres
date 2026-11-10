@@ -43,9 +43,8 @@ or `server stopped`; no goroutine starts before successful method Start.
   are valid and admit no network identities. `Account` has `Username`, plaintext
   `Password`, and database grant slice `Databases`. Prepare validates and hashes
   once through the shared PBKDF2 owner, then drops its retained plaintext copy.
-  The existing UTF-8/name/password/grant constraints, duplicate-user rejection,
-  secure userfile checks and randomized constant-time unknown-user verifier apply.
-  Production PBKDF2-SHA256 cost is 600000 (16-byte salt, 32-byte key).
+  Userfile validation and unknown-user verification belong to the shared
+  `internal/serverauth` owner.
 - Every served database owns a fresh engine and independent catalog/roles. An
   admitted account is a database-local `SUPERUSER LOGIN`; SQL-created roles do not
   become network accounts. No existing Driver/cluster injection is provided.
@@ -55,20 +54,19 @@ or `server stopped`; no goroutine starts before successful method Start.
 - `LogWriter` receives operational/SQL JSONL; nil is quiet `io.Discard`. `LogDir`
   opens append-only 0600 `server.log`/`error.log` in a 0700 directory, optionally
   mirrored to LogWriter. No default stdout, global logger or process state changes.
-- `Verbose` admits the existing DEBUG records. `QueryLog` enables exact command-cycle
+- `Verbose` admits DEBUG records. `QueryLog` enables exact command-cycle
   capture; it requires LogDir or `QueryLogWriter`. QueryLogWriter without QueryLog,
   or combined with LogDir, is an error. Directory `query.log` never mirrors to
   LogWriter. Caller writers are never closed; only server-opened files are owned.
   Shared non-thread-safe writers across separate Servers need caller synchronization.
-- `References` is the existing repeatable `DB=postgres[ql]://...` syntax, requires
+- `References` uses repeatable `DB=postgres[ql]://...` declarations, requires
   QueryLog, and must name served databases. The shared parser preserves duplicate
   rejection/redaction and libpq passfile precedence. There is no eager reference
   connection. `ReferenceTimeout` zero means 30s; negative is rejected (the CLI
-  separately rejects explicit `0s`). Reference records retain the CLI query-log
+  separately rejects explicit `0s`). Reference records use the CLI query-log
   contract, comparisons and failure behavior.
-- Startup authentication remains cleartext, without TLS. Use loopback or a protected
-  network; non-loopback TCP logs the unchanged warning. No new authentication,
-  startup-GUC or Unix-socket semantics are added.
+- Startup authentication is cleartext, without TLS. Use loopback or a protected
+  network; non-loopback TCP logs a warning.
 
 ### Connections and cancellation
 
@@ -143,118 +141,51 @@ leaf with no I/O/logging/other lock under it. Client finish joins reader, passiv
 watcher, end watcher, reference reader and native session cleanup; the public owner
 also joins accept, parent/core watcher and lifecycle completion before Done.
 
-## Contract
+## Protocol and execution boundaries
 
 - Protocol 3.0, 3.1 and 3.2 share one session authority; newer 3.x minors
-  negotiate 3.2. Cancel keys are 4 bytes (3.0/3.1) or 32 opaque bytes (3.2),
-  compared in constant time; a cancel never stays pending for a later command.
-- One dispatcher owns the serialized writer and the normal/extended/COPY/recovery
-  states. The reader keeps two reusable buffers and one queued message; announced
-  lengths never trigger body-sized allocations.
-- Engine operations are fresh per extended command, never held across idle
-  frontend waits. Prepared names, portals, codecs and transaction publication are
-  engine-owned; wire names share SQL PREPARE/EXECUTE/DEALLOCATE authority.
-- COPY streams synchronously through unlocked engine callbacks, with no extra
-  worker or queue; input publication waits for the terminal protocol outcome.
-- Notifications use a nonblocking engine poll/wake and drain only at TxIdle.
-- Session ID 1 is reserved for bootstrap; network session IDs equal wire PIDs
-  and SQL `pg_backend_pid()` (2 through signed-int4 capacity). Exhaustion rejects
-  admission without wrapping or registering a replacement identity.
-- CancelRequest and SQL cancellation share session.UserCancelCause; COPY enriches
-  an owned clone. Physical termination is independent of the first context cause
-  and wakes pending frontend/COPY input before waiting for engine lease cleanup.
-  The end watcher only arms a one-shot socket write deadline, never writes bytes.
-  The serial writer joins that arm before installing a bounded one-second FATAL
-  budget. Failed/partial writes remain terminal; bufio errors are never reset,
-  retried or followed by a fabricated fatal frame.
-- Normal-protocol C-string fields (including case-sensitive statement/portal
-  names) decode through the admitted `client_encoding` pair before later
-  framing, lookup or mutation. Invalid input raises recoverable 22021.
-  Textual output fields convert before message lengths are published.
-  Bind diagnostics add a text-value suffix only after client decoding has
-  succeeded and canonical type input begins; conversion failures retain the
-  parameter location without pretending that type input received a value.
-  Startup/authentication diagnostics remain raw until session admission;
-  startup application names undergo original NAME clipping with the UTF8 database
-  length rule, then sanitize each non-ASCII/control byte as `\xNN`. Their typed
-  captured defaults are never clipped again after ASCII expansion.
-- Client encodings use actual visible bidirectional default conversion
-  providers, not a transport-only whitelist. UTF8 and SQL_ASCII need no
-  provider; MULE_INTERNAL remains an unsupported SET/startup conversion.
-  Native Go APIs remain Unicode. Binary framing, numeric/bytea/internal-CHAR
-  payloads and cancel keys stay opaque; textual binary leaves convert.
-- COPY text/CSV decodes incrementally before record framing and encodes each
-  output attribute before multibyte-aware escaping. Explicit `ENCODING`
-  selects the file encoding independently of the session; COPY TO selecting the
-  active encoding reuses its admitted outgoing capability, while COPY FROM and
-  different output encodings resolve current directional defaults.
-  Binary COPY keeps its framing and uses the session for textual leaves.
-  Failed notifications produce a fatal diagnostic rather than a partial A
-  frame. Idle delivery precedes ParameterStatus and ReadyForQuery.
-  End-of-command notices remain fallible before statement Finish; actual writes
-  use the active unlocked owner reservation, retaining conversion rollback and
-  terminal transport-failure cleanup for simple, extended and FunctionCall
-  commands. A top-level DO block's RAISE notices are sent and flushed as each
-  RAISE completes (`CopyProtocolHooks.Notices`); a socket failure aborts the
-  block. Diagnostics retain the failing command's encoding before unwind;
-  FunctionCall reports recoverable errors at its own ReadyForQuery boundary.
-- Dual-backend forwarding (`reference_forward.go`): the dispatcher owns the
-  reference write side, waiting and record assembly, and forwards each
-  message where the capture records it; one reader goroutine per connection
-  owns decoding. The forwarder mutex is a leaf lock (no I/O, logging or other
-  lock under it). Cancel forwarding reads only the immutable session key
-  after releasing `server.mu`. A failure closes the reference so a late
-  response is never attributed to a later cycle.
-- Prepared SQL errors keep the immutable original source and typed,
-  format-aware parameter context for logging.
-- Simple commands attach their complete frontend SQL to the admitted operation.
-  Extended Bind and every Execute/resume attach the original prepared source;
-  nested SQL EXECUTE and FETCH keep the outer frontend command's source.
-- XML text/binary values use the shared genuine codecs. Actual typed output
-  attaches an ephemeral warning sink while the command is active; all simple
-  result rows are consumed before Finish. Logging/metadata are quiet, and
-  committed warnings precede a later conversion error. Wire text converts once
-  through admitted client authority; XML binary send owns its declaration.
+  negotiate 3.2. Cancel keys are opaque and instance-local; cancellation targets
+  an active command, never a later one.
+- One dispatcher owns serialized output and normal/extended/COPY/recovery state.
+  The reader has bounded reusable buffering; announced message lengths never
+  cause body-sized allocations.
+- Engine operations are fresh per extended command and are not retained over
+  idle frontend waits. Prepared names, portals, codecs and transaction
+  publication are engine-owned.
+- COPY streams through unlocked engine callbacks. Input publication waits for
+  the terminal protocol outcome; notification delivery waits for an idle
+  transaction boundary.
+- CancelRequest and SQL cancellation share the engine's cancellation cause.
+  Physical termination independently wakes frontend/COPY waits before lease
+  cleanup. Only the serial writer emits terminal frames; partial/failed writes
+  remain terminal and are never retried or followed by fabricated output.
+- Client encodings use captured engine conversion authority and shared typed
+  codecs, not a transport-only registry. Decode before name lookup or mutation;
+  encode textual output before publishing lengths. Binary framing and opaque
+  payloads remain bytes. Startup diagnostics precede session admission and do
+  not borrow later runtime authority.
+- The admitted operation retains original frontend SQL and typed parameter
+  context for diagnostics/logging. Nested execution does not substitute a
+  different frontend source.
+- Dual-backend forwarding has one dispatcher-owned write side and one reference
+  reader per connection. Failures close the reference so late responses cannot
+  be attributed to a later cycle.
+- Monitoring records an accepted disconnect cause before generic cleanup.
+  Decoded normal termination and protocol decisions take precedence over
+  provisional transport observations; output failure cannot overwrite an
+  already accepted fatal/administrative cause.
 
-## Monitoring
-
-Database monitoring preserves the real client disconnect cause before generic
-cancellation/cleanup. A fully decoded frontend Terminate reserves normal close
-and stops the bounded reader after publishing that message. The passive FIN
-watcher is a provisional transport observation, not an accepted statistics cause;
-generic InvalidConnection teardown joins the reader so decoded normal/protocol
-decisions win before fallback abandonment. If closure prevents decoding a full
-Terminate, the actual server decision is transport retirement. Recognizable
-protocol FATAL reserves fatal before output; native timeout/admin requests already
-own fatal/killed. Failed FATAL output and subsequent EOF cannot overwrite an
-accepted cause. Existing diagnostics, bounded buffers and terminal-write budgets
-are unchanged. Public real-wire proof:
-`make check RUN='^TestReferenceStatDatabaseWire$'`, also with `REFERENCE=1`.
-Each managed database owns its own engine, catalog and roles. Monitoring a
-secondary wire database therefore requires an observer attached to that same
-engine; its catalog is not part of an unrelated managed database's inventory.
-The wire proof checks actual connection/catalog/view identities and accounts for
-the genuine provisioning and observer sessions before exact client deltas.
+Each managed database has an independent engine, catalog and roles. Monitoring
+must use an observer attached to the database being observed.
 
 ## Testing
 
 Follow [docs/TESTING.md](../docs/TESTING.md). Private byte/codec/log/persistence,
 startup/transport and lifecycle ownership units live here. Public native-client
 SQL/lifecycle observations are dual-mode tests in
-[reference/sessions](../reference/sessions/README.md); existing subprocess fixtures
-and all their server tests retain their original transport.
+[reference/sessions](../reference/sessions/README.md).
 
-```sh
-make check RUN='^TestServer(ProtocolFraming|ProtocolCancellation|PreparedLogValues|StartupParameters)$'
-make check RUN='^TestServer(Framing|Logging|QueryLogDecode|QueryLogDiff|PersistenceFiles|ReferenceCore|ReferencePassfile|ReferenceSCRAM)$'
-make check RUN='^(TestClientEncoding(Stream|StartupNameCapture|NoticeOwnership|NoticeStreaming)|TestXMLServerActiveOutput)$'
-make check RUN='^(TestSessionActivityWire(Transport|IdentityCapacity)|TestSessionSignalTerminalWriter)$'
-make check RUN='^TestEmbeddedServer(Config|Startup|Logs)$'
-make check RACE=1 RUN='^TestEmbeddedServer(Lifecycle|Pipe)$'
-make check RUN='^TestServerUsers(Ownership)?$'
-make check RUN='^TestServerReferenceParser$'
-```
-
-Run every new embedded public selector with `REFERENCE=1` (PostgreSQL18.6) and
-without it; `TestReferenceEmbeddedServer(Clients|Copy|Notifications|Cancellation|Isolation|Shutdown|Logging)`
-is the separate in-process family. Production has no pgx/pq/cobra/viper imports.
+Reusable selectors: `RUN='^TestServer'` for wire/adapter units and
+`RUN='^TestEmbeddedServer'` for embedded configuration/lifecycle units. Use
+`RACE=1` for lifecycle and pipe ownership. Public embedded-client scenarios use
+the dual-mode `RUN='^TestReferenceEmbeddedServer'` family.

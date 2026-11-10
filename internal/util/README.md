@@ -5,23 +5,13 @@ probe of allocation-budget tests. The package depends only on the standard
 library and on nothing else in this module, so any package may use it. Put a
 structure here only when it is independent of SQL and engine concepts.
 
-`ExecutionPause` is a SQL-independent, context-scoped one-shot work suspension,
-keyed by an opaque work-point string. Attachment carries a request only.
-`ActivateExecutionPause` grants detached execution permission;
-`DeactivateExecutionPause` strips that permission at metadata/binding reentry
-without losing the request. Unconfigured activation returns the original
-context, including nil for an absent optional evaluation context; deactivation
-also preserves nil. Neither supplies a Background context or cancellation
-authority. `ExecutionCheckpoint` still requires a non-nil effective operation
-context; it allocates nothing and starts no goroutine.
-A private mutex linearizes first entry with early Resume; it is released before
-waiting on Resume or the effective context's Done. The pause never owns or
-replaces cancellation, deadlines, causes or context values. Callers must hold
-no runtime locks when activating work that may reach a checkpoint.
-`HasExecutionPause` observes only attachment, without activating or invoking
-anything. Runtime owners use it to release their own reservations even when
-no application workload policy is attached; checkpoints never perform owner
-callbacks or obtain catalog/publication authority.
+`ExecutionPause` is a SQL-independent, context-scoped one-shot suspension.
+Attachment is inert; runtime owners activate only known-unlocked work and strip
+activation at metadata/binding reentry. `ExecutionCheckpoint` waits on Resume or
+the effective context without replacing cancellation, deadlines, causes or
+values. The pause mutex is released before waiting; checkpoints do not invoke
+owner callbacks or grant catalog/publication authority. Disabled execution
+preserves the caller's optional context and allocates nothing.
 
 
 ## PersistentMap
@@ -45,9 +35,6 @@ hash map: a CHAMP-style hash array mapped trie with 32-way bitmap nodes.
   start. Iteration order is unspecified. It is stable for one version within a
   process, and the hash seed is chosen per process, so no order can be relied
   on across runs.
-  `Every(predicate)` walks the same retained version directly, without an
-  iterator adapter. It calls the predicate synchronously, stops on the first
-  false result, and returns true for an empty map without calling it.
 - **Keys.** Keys are compared with `==` and hashed with
   `hash/maphash.Comparable`, the runtime's map hasher. Hashing allocates nothing
   for keys made of numbers, strings, and arrays or structs of them. A key that

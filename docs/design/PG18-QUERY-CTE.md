@@ -198,5 +198,5 @@ pre-evaluate arbitrary predicates.
 The root generates the checked-in parser and runs selected native and pinned modes,
 units/race, the session's standalone public Go smoke, Docker-free whole-project
 quickcheck, review and post-integration finalcheck. This document describes design
-and test definitions, not unobserved verification success. Exact selected commands
-and smoke lifecycle are documented in [TESTING](../../reference/query_core/README.md#select-cte-verification).
+and test definitions, not unobserved verification success. Reusable family entry
+points are documented in the [testing guide](../../reference/query_core/README.md#testing).

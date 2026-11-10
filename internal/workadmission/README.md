@@ -5,18 +5,12 @@ admission. `With` attaches an inert policy using ordinary context values; nil
 shadows and disables an inherited policy. Only a known-unlocked runtime owner may
 `Activate` a local execution context. Operation/command and binder contexts stay
 inert; the exact caller source remains cancellation-classification authority,
-never an admission site. `Rebase` transfers only an active workload callable
-when the executor selects a different effective runtime context: the selected
-context alone owns cancellation, deadline, cause and unrelated values.
-`Suspend` shadows only activation at an existing nested binding boundary, leaving
-the policy available for a later local runtime activation. `Request` gives the
-unlocked runtime owner the inert application policy for its external-work handoff
-and post-grant readmission, without an intermediate context or per-quantum allocation.
-Active capability identity is a private pointer, never equality on arbitrary
-caller context interfaces, which may have uncomparable dynamic types.
-`ActivateRuntime` installs the core owner's callable separately from the original
-inert request policy. Suspending a supplied callback context for a new operation
-therefore cannot resurrect a completed scope's runtime wrapper.
+never an admission site. `Rebase` carries an active callable to the executor's
+selected context without replacing its cancellation, deadline, cause or values.
+`Suspend` disables activation at nested binding boundaries while leaving the
+inert policy available for later runtime work. `Request` exposes that policy to
+the unlocked runtime owner; `ActivateRuntime` installs its runtime callable
+separately, so a completed scope cannot be resurrected through a borrowed context.
 
 `Admit` checks the effective context before calling the policy and after a nil
 grant. A refusal is returned unchanged. It does not manufacture SQL diagnostics,
@@ -38,26 +32,6 @@ policies. Plans, descriptions and immutable values do not own policies.
 Classes describe selected executed work, not exact callback counts, uniform CPU,
 memory or time units, or complete query accounting. Cached work need not consume
 credit. Provider owners preserve cancellation and lazy/error/NULL precedence.
-
-- Pattern normalize/match: at most 4096 character/matcher loop iterations.
-- JSON array count, object expand, text strip nulls and record expand: scanner
-  token steps; text strip copying additionally uses at most 4096 source bytes.
-- The same strip class covers one JSONB decoded node/container traversal frame
-  step, including examining/skipping children and closing/unwinding containers,
-  or a prefix-copy chunk of at most `jsonbWorkChunk` existing entries.
-- JSONB containment: traversal frame steps; object/array expansion: one present
-  member/element; existence: search candidates; path delete: path/copy steps;
-  pretty: structural node and bounded copy steps; record populate: field/frame
-  steps. A structural step does not bound scalar string length.
-- Array transform: one element after child arguments have completed.
-- Calendar arithmetic: one nonzero month/day stage after existing precedence.
-- Encoding conversion: at most 4096 bytes per pass.
-- Password bcrypt: one fixed-state round; password SHA: bounded hash-byte writes,
-  not a variable-length complete round.
-- Aggregate input: one support/input initialization before child materialization.
-- Recursive union: one producer row/round step.
-- TSVector conversion: one token dispatch after immutable catalog capture, not
-  document parsing or universal full-text CPU accounting.
 
 ## Testing
 

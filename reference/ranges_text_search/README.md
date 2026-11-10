@@ -24,109 +24,19 @@ ranges is in [reference/dml](../dml/README.md#testing).
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
-`fixture.Main(m)`. Each family keeps its helpers in `<family>_helpers_test.go`;
-these are shared across families:
-- `fts_query_functions_helpers_test.go` owns the shared query-utility callback
-  and direct/new-prepared scalar routes. Query utilities reuse the FTS scalar
-  quoting and native logical-control helpers; diagnostics assert complete
-  phase-specific records, and held SQL rules use one pinned session.
-- Vector utilities reuse the query utility scenario/scalar helpers and scalar
-  quoting; their held routes retain typed selector and weight operands across
-  executions. Select this family with
-  `make check RUN='^TestReferenceFTSVectorFunctions'`.
-- Array construction/current-configuration scenarios reuse the fixture's pinned
-  sessions, held statements, scalar metadata and retained-row helpers. Expected
-  lexemes and routine facts are independent; generated configuration identities
-  are relational. Native logical-control/cancellation phases retain the same SQL
-  witnesses and replay the actual emitted SQL. Select this family with
-  `make check RUN='^TestReferenceFTSArrayConfig'`.
-- JSON text-search conversions reuse the configuration scenario and constructor
-  metadata helper. Direct, fresh-prepared and held typed operands cover filters,
-  source-preserving JSON traversal, lazy configuration demand and diagnostics;
-  exact JSONB positions use arrays or single-key objects, never a portable
-  multi-key object order. Select with `make check RUN='^TestReferenceFTSJSON'`.
-- `fts_rank_helpers_test.go` shares normal direct/fresh/held rank and headline
-  routes, complete diagnostics and metadata. Expected REAL binary32 bits and
-  raw headline strings come from PostgreSQL18 source and pinned18.6 observations,
-  never native-generated goldens. Both drivers expose REAL as float64; pq parses
-  shortest decimal text while native widens binary32 exactly, so recovered bits
-  are asserted independently. Unbounded TEXT Length is (MaxInt64,true) on both.
-  Computed nullability remains (false,false). Stored-view projections explicitly
-  assert native (true,true), pq (false,false), through the same direct/fresh/held
-  reader and post-EOF/Close metadata checks. Headline collation scenarios use
-  surrounding comparisons and stored `pg_attribute.attcollation` to distinguish
-  document/options-derived collation from unchanged highlighting bytes.
-  Cancellation distinguishes ordinary pre-canceled context errors from admitted
-  PostgreSQL57014 diagnostics; no sleep race or invented adapter SQLSTATE.
-  Native headline selection/output admission observes the actual
-  `fts.markHeadlineFragments`/`fts.renderHeadlineWords` frame on the active worker,
-  then waits for the corresponding request-scoped host pause before canceling
-  and joining. Sampling alone does not reserve worker lifetime. Selection uses
-  one real matching cover plus a long nonmatching source to bound discovery
-  before the first marked fragment; render work retains the full source.
-  PostgreSQL proves active-statement cancellation, not internal stage entry.
-- Unaccent filtering reuses the configuration scenario and metadata helper:
-  real ordered chains distinguish changed/unrecognized tokens, stopwords,
-  terminal filters, positions and renamed dictionary identity on direct/held
-  routes. Select with `make check RUN='^TestReferenceUnaccentDictionaryFiltering$'`.
-- `range_helpers_test.go`: `rangeSelect` checks the public any-scan and the
-  middleware stream before normalization (a nil nullable slice asserts unknown
-  nullability, a non-nil one declared nullability) and maps multirange type names
-  to lib/pq's blank names. `fixture.RangeConsumeHeld` also serves INET and UUID stored-row
-  tests.
-- `uuid_generation_shift_test.go`: the independent calendar oracle resolves each
-  nonzero month/day stage in the fixture's UTC or Denver zone before elapsed
-  time. Public Go offset-period enumeration implements the release's
-  [fold/gap interpretation](https://www.postgresql.org/docs/18/datetime-invalid-input.html),
-  rather than relying on `time.Date`'s ambiguous-time choice. Zero calendar
-  fields do not reconstruct the instant. Fixed literal vectors independently
-  check the helper and direct/prepared SQL arithmetic on both backends, including
-  both repeated-hour occurrences, gap normalization, month clamping and stage
-  ordering. The held postgres-style day-plus-time literal keeps its Prepare-time
-  interval meaning and Execute-time Denver calendar arithmetic, rather than
-  flattening its day into 24 elapsed hours. Live UUID shift checks retain their
-  existing two-second brackets.
-- `range_type_helpers_test.go`: custom family scenarios assert raw custom-OID
-  transport independently of type-name spelling and share one backend callback.
-- `range_type_constructor*_test.go`: generated two/three-bound and
-  zero/single/variadic companion constructors, current routine metadata and
-  internal ownership, atomic routine-name collision, actual comparator errors,
-  raw FLOAT4 endpoint payloads and symbolic alias endpoint identity. Shared
-  SQL checks also consume native same/fresh-engine Restore and actual dump SQL
-  replayed against PostgreSQL; raw32 uses the existing xid/real binary casts.
-  Custom-family cast admission is identified by the actual range definition;
-  it does not widen existing builtin-range explicit-cast gates or diagnostics.
-  The pg_operator polymorphic identity scenario shares custom-range CREATE,
-  storage and containment success assertions across both backends.
-- `range_type_*remedy*`, companion ACL, schema retirement, recipe-collision,
-  alias-ordering, ownership and generated-cast scenarios cover the full family
-  lifecycle. Companion grants reject independently; real type-use checks and
-  privilege inquiries prove range/array/multirange delegation. Explicit range
-  ACLs retain exact grantor/grantee provenance through emitted catalog repairs
-  and native replacement, alongside baseline family roundtrips.
-  Alias collision fixtures match both TEMP namespace allocations, assert actual
-  object identities and preserve finite bounds and multirange ordering.
-  Dangling-numeric witnesses derive their sentinels from the source catalog:
-  unrelated namespace collisions must retain feasible noncolliding endpoints;
-  only a genuinely impossible destination assignment rejects atomically. Routine
-  owner scenarios alter each generated signature independently, retain the other
-  four bootstrap owners and all five INTERNAL dependencies, and preserve current
-  constructor owner and EXECUTE ACL through same/fresh-engine Restore and actual
-  dump SQL replay on PostgreSQL. Direct/prepared calls and retained readers remain
-  usable; genuine constructor signature validation is not relaxed. Companion ACL
-  repair follows private CREATE and final type identity/owner restoration before
-  nonowner table consumers.
-  Select the shared scenarios with
-  `make check RUN='^TestReferenceRangeType(CompanionACL|SchemaRetirement|RestoreRecipeCollisions|AliasOrdering|AliasNumericAnchor|UnrelatedCollisionFeasible|ConstructorOwnerPortability|Ownership|GeneratedCast)'`,
-  then repeat with `REFERENCE=1`. Ordinary symbolic and large-numeric
-  emitted streams replay on pinned PostgreSQL, not hand-written substitutes.
-  The unsatisfiable numeric stream proves actual PG source validity and native
-  atomic rejection, not unconditional portability across PG allocator frontiers.
-- `range_control_helpers_test.go`: `rangeControlCycle`, the native control cycle
-  (same/fresh-Driver Dump/Reset/Restore, PostgreSQL replay of the emitted SQL,
-  deterministic redump, failed staged replacement, retained readers) used by the
-  date, timestamp and timestamptz range, RangeInspect, RangeMore and
-  RangeOperator (`operatorControlCycle`) controls.
+`fixture.Main(m)`. Each family keeps its helpers in `<family>_helpers_test.go`.
+- Family-local range and FTS helpers own scalar/raw transport, metadata and
+  complete phase-specific diagnostics. Shared pinned sessions, held statements
+  and retained-row helpers remain in the fixture.
+- `rangeSelect` checks raw/public and middleware streams before normalization.
+  A nil nullable slice means unknown nullability; nonnil means declared
+  nullability. `fixture.RangeConsumeHeld` also serves INET and UUID consumers.
+- `rangeControlCycle` shares same/fresh-Driver replacement, deterministic redump,
+  failed replacement and actual emitted-SQL PostgreSQL replay.
+- FTS rank REAL results require independent recovered binary32 bits: pq parses
+  shortest-decimal text while native widens binary32 exactly.
+- Active cancellation distinguishes actual provider entry from completed-output
+  gates. Sampling alone does not hold worker lifetime; cancel/join before cleanup.
 
 Client quirks:
 
@@ -168,145 +78,14 @@ COPY test in reference/dml.
 
 ### Family selectors
 
-- INT4RANGE/INT8RANGE: `RUN='^TestReferenceIntegerRange'`
-- NUMRANGE: `RUN='^TestReferenceNumericRange'`
-- DATERANGE: `RUN='^TestReferenceDateRange'`
-- TSRANGE: `RUN='^TestReferenceTimestampRange'`
-- TSTZRANGE: `RUN='^TestReferenceTimestamptzRange'`
+- Builtin ranges: `RUN='^TestReference(Integer|Numeric|Date|Timestamp|Timestamptz)Range'`
 - Multiranges: `RUN='^TestReferenceMultirange'`
-- Custom range definitions and companions: `RUN='^TestReferenceRangeType'`
-- Custom family constructors and exact endpoint replay:
-  `RUN='^TestReferenceRangeType(Constructors|ConstructorDiagnostics|ConstructorFloat4|ConstructorAliases)$'`
-- Range operators: `RUN='^TestReferenceRangeOperator'`
-- <a id="range-inspection-selected-proof"></a>Range inspection: `RUN='^TestReferenceRangeInspect'`
-- `multirange(anyrange)`, `unnest(anymultirange)`: `RUN='^TestReferenceRangeMore'`
-- Text search types: `RUN='^TestReferenceFTSTypes'`
-- Text search operators: `RUN='^TestReferenceFTSOps'`
-- Text search matching: `RUN='^TestReferenceFTSMatch'`; typed positional/Boolean
-  matrices and text conversions share direct, fresh-prepared and held routes,
-  with live default configuration on one borrowed session.
-- Text search ranking: `RUN='^TestReferenceFTSRank'`; headlines:
-  `RUN='^TestReferenceFTSHeadline'`. Every definition runs in normal dual mode;
-  add `REFERENCE=1` for pinned PostgreSQL. Actual feature smoke is
-  `make check RUN='^TestReferenceFTSRankFeatureSmoke$'` and the identical command
-  with `REFERENCE=1`, including exact REAL/TEXT/metadata, live defaults and held
-  error/recovery observations. Selected twelve declarations also belong to the
-  authoritative pg_proc/information_schema full-bag inventories.
-- Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
-- Text search configuration debugging: `RUN='^TestReferenceFTSDebug'`.
-  Shared inspection helpers assert fixed record metadata, original parser tokens,
-  ordered real dictionary mappings and full phase-specific diagnostics.
-  Declaration-body scenarios inspect actual SQL-standard definitions through
-  direct, fresh-prepared and held metadata inquiries without executing the body.
-- Text search query statistics: `RUN='^TestReferenceFTSStat'`.
-  Actual nested SQL, retained position/weight counts and prepared private-data
-  visibility share independently specified direct, fresh and held routes.
-  Read-only admission distinguishes derived/stored executable row marks from
-  unused locking CTEs under a real conflicting tuple holder; complete Exec/Query
-  diagnostics and held-statement recovery use the same independent contract.
-- Text search conversion: `RUN='^TestReferenceFTSConvert'`; shared configuration
-  callbacks own pinned-session settings, typed metadata and held statements.
-  Exact diagnostics distinguish input/coercion from constructor execution;
-  notice phases distinguish first-only immutable folds from stable/runtime calls.
-- Text-search settings: `RUN='^TestReferenceTextSearchSetting'`; an independently
-  specified overload inventory shares pinned-session direct, fresh-prepared and
-  held constant/parameter routes. Configuration lifetime, session restoration,
-  eager omitted JSON identity, lazy explicit acquisition, typed NULL metadata
-  and complete phase-specific diagnostics reuse the conversion/inspection helpers.
-- Text search document parser: `RUN='^TestReferenceFTSParser'`
-  Parser definition lifecycle, checked callback execution, diagnostics, privileges,
-  dependencies and native replacement/replay share `RUN='^TestReferenceFTSParserDDL'`.
-- English Snowball configuration mappings and seed replay:
-  `RUN='^TestReferenceFTSSnowball'`.
-  Mapping proofs join actual parser aliases to catalog mappings and specify
-  the six English and thirteen simple aliases independently of numeric ordering.
-- Arabic Snowball configuration, six-column debug metadata and seed replay:
-  `RUN='^TestReferenceFTSArabicSnowball'`. All six word aliases, including ASCII,
-  select Arabic; the thirteen simple aliases remain independently specified.
-- Armenian Snowball configuration, ordered dictionary chains, typed debug
-  identities and seed replay: `RUN='^TestReferenceFTSArmenianSnowball'`.
-  All six word aliases use Armenian, including ASCII; English remaps and
-  simple-first chains have separate independently specified vector goldens.
-- Catalan Snowball's nineteen token mappings, ASCII and accented output, typed
-  debug/vector results, first-recognizer chains and emitted seed/configuration
-  replay: `RUN='^TestReferenceFTSCatalanSnowball'`. The stock dictionary has no
-  stoplist; explicit English stops retain positions in the resulting vector.
-- Basque Snowball configuration, ASCII/non-ASCII mapping identity, typed debug,
-  first-recognizer and explicit-stopword chains, copied configuration isolation
-  and seed replay: `RUN='^TestReferenceFTSBasqueSnowball'`. The independent
-  nineteen-alias inventory joins actual parser declarations to catalog mappings.
-  The independent vector for `etxeak etxeko RATS` is
-  `'etxe':1 'etxeko':2 'rats':3`: selected noun `eko` fails RV without retrying
-  shorter `ko`. Run the selector in native and `REFERENCE=1` modes; the controls
-  require the actual native-emitted stream, not a backend-only replay substitute.
-- Danish Snowball configuration mappings, typed debug/vector results, ordered
-  dictionary chains, copied configurations and owned seed replay:
-  `RUN='^TestReferenceFTSDanishSnowball'`. Six word aliases use Danish, including
-  ASCII; stopwords terminate chains while preserving document positions.
-- Dutch Snowball configuration mappings, typed debug/vector results, ordered
-  dictionary chains, copied configurations and owned seed replay:
-  `RUN='^TestReferenceFTSDutchSnowball'`. All six word aliases use Dutch, including
-  ASCII; the thirteen simple aliases and stopword positions are independently specified.
-- Estonian Snowball configuration mappings, typed vector/debug results, ordered
-  dictionary chains, copied configurations and owned seed replay:
-  `RUN='^TestReferenceFTSEstonianSnowball'`. All six word aliases use Estonian,
-  including ASCII, with no English fallback or stock stoplist; the thirteen
-  simple aliases and explicit-stopword positions are independently specified.
-- German Snowball configuration mappings, typed vector/debug results, ordered
-  recognizer/stop chains, COPY isolation and owned dictionary/configuration seed
-  replay: `RUN='^TestReferenceFTSGermanSnowball'`. All six word aliases, including
-  ASCII, use German; thirteen others use simple. The 231 stock stops preserve
-  document-position gaps. Native same/reset/fresh-driver controls retain recursive
-  REGCONFIG captures, exact redump and temporary OID collisions; PostgreSQL must
-  execute the actual native-emitted SQL.
-- Greek configuration mappings, typed vector/debug results, ordered chains,
-  COPY isolation and owned seed replay: `RUN='^TestReferenceFTSGreekSnowball'`.
-  Six word aliases, including ASCII, select Greek without an English fallback
-  or stock stoplist; thirteen others select simple. Native replacement retains
-  recursive REGCONFIG references and temporary collisions; PostgreSQL executes
-  the actual native-emitted SQL.
-- Hindi split mappings, typed vector/debug results, ordered recognizer/stop
-  chains, COPY isolation and owned seed replay:
-  `RUN='^TestReferenceFTSHindiSnowball'`. ASCII aliases select the actual English
-  dictionary; non-ASCII word aliases select Hindi; thirteen others select simple.
-  THE RATS कमल yields `'rat':2 'कमल':3`, unlike direct Hindi RATS→rats.
-  Same/reset/fresh controls preserve recursive REGCONFIG values and temporary
-  collisions; PostgreSQL replay consumes actual native-emitted SQL.
-- Finnish Snowball mappings, typed vector/debug results, first-recognizer chains,
-  copied configurations and owned seed replay: `RUN='^TestReferenceFTSFinnishSnowball'`.
-  All six word aliases use Finnish; thirteen use simple. Stopwords retain positions
-  and terminate chains; replay consumes actual native-emitted SQL.
-- French Snowball configuration maps, typed vector/debug results, first-recognizer
-  and stopword chains, copied configurations and actual emitted seed replay:
-  `RUN='^TestReferenceFTSFrenchSnowball'`. All six word aliases select French;
-  independent stopword positions and recursive REGCONFIG carriers retain identity.
-- Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
-  helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
-  assertions. Diagnostics keep complete records and literal, bound-input and
-  runtime-cast phases distinct; unique-key details use independently queried
-  catalog identities. Held conversion separates runtime mapping changes from
-  warmed immutable all-constant results. Native control phases exercise actual
-  emitted SQL, same/fresh Driver replacement, retained readers, current owner/
-  dictionary edges, seed reset/replay and exact retained temporary-class collisions.
-- Thesaurus scenarios: `RUN='^TestReferenceThesaurus'`; shared setup owns the
-  pinned connection and real dictionary/configuration DDL. Phrase/rule tables
-  specify independent vectors and use direct and retained/fresh prepared routes.
-  Fixture resources, not synthetic SQL normalizers, supply rule ordering,
-  normalization and malformed input.
-  Exact data diagnostics retain physical-line Context and independent English
-  fields; prepared lifetimes distinguish operand identity from logical normalizer
-  refresh. Boundary/reset/filter, authority, cancellation and native replay cases
-  share public assertions, with explicit native-only replacement phases.
-  Prepared cases distinguish retained all-literal folds from fresh literals and
-  runtime parameters: normalizer rejection fails only current acquisition, while
-  accepted constants retain their original typed results across option changes.
-  Authority cases also distinguish initialized same-physical-session calls from
-  new physical connections after source namespace revocation, then invalidate
-  executable inputs and assert rejection/regrant recovery on both lifetimes.
-  Controls distinguish a retired producer's accepted replay namespace from a
-  consumer's different same-name normalizer, exercise current recreated identity
-  ordering, replay actual emitted SQL, and reject new unauthorized destination
-  sessions. Combined malformed-resource diagnostics precede later option/source
-  errors and retain the complete physical-file Context without publication.
-- UUID (excluding `uuid-ossp`): `RUN='^TestReferenceUUID([A-NP-Z]|Or)'`
-- <a id="uuid-extraction-selected-proof"></a>UUID extraction: `RUN='^TestReferenceUUIDExtract'`
+- Custom families: `RUN='^TestReferenceRangeType'`
+- Range operators/inspection: `RUN='^TestReferenceRange(Operator|Inspect|More)'`
+- Text search: `RUN='^TestReferenceFTS'`
+- Text-search settings: `RUN='^TestReferenceTextSearchSetting'`
+- Thesaurus: `RUN='^TestReferenceThesaurus'`
+- UUID: `RUN='^TestReferenceUUID([A-NP-Z]|Or)'`
+
+Text-search resources are real fixture files. Replay requires the actual native
+emitted SQL; PostgreSQL-only discovery cannot supply that stream.

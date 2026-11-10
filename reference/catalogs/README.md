@@ -1,29 +1,15 @@
 # reference/catalogs
 
-`pg_catalog` relation and type catalogs: `pg_class`, `pg_attribute`, `pg_attrdef`,
-shared `pg_subscription` identity and projection-aware sensitive-column access,
-database-local `pg_subscription_rel` shape, stored owner/PUBLIC ACL and capture lifetime,
-`pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, partition-navigation
-inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
-`pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, `pg_config`, `pg_file_settings`, `pg_proc`, catalog foreign keys, and catalog controls migrated
-from the root package. The other catalog packages:
-namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
-aggregate, access-method, collation, language, transform, text-search,
-large-object and comment catalogs in `reference/catalog_objects`; role, database
-and ACL catalogs, tablespaces, VACUUM, size functions and the information_schema
-grant, key, constraint and SQL metadata views in `reference/catalog_privileges`;
-the remaining `information_schema` views in `reference/information_schema`;
-extensions, LOAD, pgcrypto, uuid-ossp, fuzzystrmatch and encoding conversions in
-`reference/extensions`. Related: object-address functions in
-`reference/object_address`; access-method and operator-class DDL in
-`reference/indexes`; reg* alias input in `reference/type_resolution`; timezone
-views in `reference/datetime`; sequence DDL in `reference/sequences`;
-large-object functions in `reference/object_grants`; uuid-ossp binary COPY in
-`reference/dml`. Relation inheritance links (`pg_inherits`), extended-statistics
-catalogs and relation-owned statistics belong to
-[reference/inheritance](../inheritance/README.md); executable-trigger catalogs
-(`pg_trigger`) belong to [reference/triggers](../triggers/README.md).
+Dual-mode scenarios for relation/type catalogs, catalog dependencies and
+database-local or shared metadata lifetimes. Neighboring owners:
+
+- [catalog_objects](../catalog_objects/README.md): schema-object catalogs.
+- [catalog_privileges](../catalog_privileges/README.md): role/database/ACL catalogs
+  and maintenance utilities.
+- [information_schema](../information_schema/README.md): object metadata views.
+- [extensions](../extensions/README.md): extension registry and loadable-code boundaries.
+- [inheritance](../inheritance/README.md): inheritance links and optimizer statistics.
+- [triggers](../triggers/README.md): executable/event-trigger catalogs.
 
 ## Testing
 
@@ -34,473 +20,6 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
-Replication-slot inventory scenarios use
-`make check RUN='^TestReferencePGReplicationSlots'` (also with `REFERENCE=1`).
-Catalog shape, nominal links, genuine join definitions and independent live
-view/column SELECT and backing EXECUTE gates share complete diagnostics and
-native no-state control roundtrips. Positive logical lifecycle and feature smoke
-belong to `reference/roles`, which starts both backends with logical WAL; this
-package keeps `wal_level=replica`, where every logical decoding operation fails
-first (`RUN='^TestReferenceLogicalSlotWALLevel$'`).
-Each pre-canceled inventory probe returns its borrower before independent health
-reads. Native requires ordinary cancellation with no rows; pq can instead finish
-a typed empty result or report the exact server user-request cancellation
-diagnostic, including during row draining/close. Unrelated transport errors fail.
-Control witnesses compare exact relation/column ACLs and separately executable
-ordinary outsiders, explicit grantees and column-only readers. Native phases
-exercise the actual Dump→Reset→Restore path for raw absence, explicit empty,
-ordinary-default-equivalent, reordered-seed and column-only authority, as well
-as omission of the exact canonical seed; stable redumps alone are not proof.
-
-Replication-origin status scenarios use
-`make check RUN='^TestReferencePGReplicationOriginStatus(ShapeIdentity|RowsProgress|Transactions|SessionProgress|Privileges|Diagnostics|Controls|FeatureSmoke)$'`
-(also with `REFERENCE=1`). The shared bodies assert allocated-slot presence,
-exact unsigned remote progress, orphan-name NULL, native unset local WAL position,
-and actual PostgreSQL assigned-write local positions. Raw metadata, canonical
-view/routine identity, current independent SELECT/EXECUTE authority, held
-revocation and complete diagnostics precede native replay/retention witnesses.
-Cluster origins and physical owners are cleaned independently of public schema,
-including bounded numeric orphan-slot reclamation after registration rollback.
-Retained pq rows use a dedicated connection until fully consumed; native eager
-retention is not permission to issue SQL over an unread streaming connection.
-LIMIT0 requires backing EXECUTE independently of whether it emits rows.
-
-Publication-table membership scenarios use
-`make check RUN='^TestReferencePGPublicationTables(ShapeProjection|MembershipLifecycle|VisibilityDiagnostics|NativeControls|FeatureSmoke)$'`
-(also with `REFERENCE=1`). The five dedicated families assert raw five-column
-metadata and physical-order `name[]`/filter projection, immediate held membership
-and transaction visibility, per-publication overlap deduplication, released
-eligibility and complete English diagnostics. Represented-table SELECT and schema
-USAGE do not redact this public view; its own current SELECT ACL still applies.
-Native controls retain actual rows across Dump/Reset/Restore and check ordinary
-pre-canceled reads. The genuine feature smoke composes local metadata changes,
-rollback, failed temporary membership and unchanged local data, not replication
-transport. Existing publication presentation tests own the partition/generated/
-empty-projection matrix rather than duplicating it in these families.
-
-Table-I/O scenarios use `make check RUN='^TestReferencePGStatio(All|Sys|User)Tables'`
-(also with `REFERENCE=1`). ALL, SYS and USER share eleven-column metadata,
-exact identity/optional-counter NULL semantics, publication and transaction
-Readers. Independent kind/namespace bags and nonzero arithmetic precede
-same-snapshot named ALL/USER eleven-cell equality and SYS exclusion. The family
-covers current own-view ACLs without underlying redaction, read-only diagnostics,
-held execution settings, actual retained eager Rows and native replacement
-lifetimes. Internal category-qualified fixtures distinguish heap/index facts
-from conflicting IO/generic-index decoys and prove rejected rows demand nothing.
-USER counter, privilege and Reader scenarios first publish setup tuples, then
-retire dedicated workload pools and await positive heap deltas through bounded,
-independent none-mode readers. They compare full current/retained vectors and
-nonzero admin/actor rows under stable cuts; PostgreSQL physical magnitudes are
-not compared with native exact logical counts.
-
-Replication-origin session scenarios use
-`make check RUN='^TestReferenceReplicationOriginSession'` (also with `REFERENCE=1`).
-Pinned actors retain physical ownership across transaction/savepoint boundaries;
-cleanup resets them before dropping shared origins. Pool return and actual
-physical pool close are separate witnesses. Native phases cover replacement invalidation,
-retained peer/private subscription owners and rejected-control atomicity; supplied
-timestamp history and prepared finishers belong to `reference/locking_transactions`.
-Active DROP witnesses separate read-only rejection (accumulated `0/10`, pending
-`0/90`, then an unreconfigured write) from genuine assigned-write error abort.
-Controls join the same peer SQL subscription DROP after reset or physical close,
-and independently cancel an observed wait while preserving its owner and slot.
-Independent progress-allocation probes exercise the ten-slot boundary: nine fit
-beside a retained owner, while ten fit after the resumed DROP. A further probe
-must fail without allocation and succeeds only after freeing an occupied probe.
-
-Backend-memory scenarios use `make check RUN='^TestReferenceBackendMemory'`
-and the same selector with `REFERENCE=1`. Shared bodies independently assert
-PostgreSQL one-capture topology/allocator invariants and native selected-own-layout
-bytes with NULL unsupported counters. Real held statements, SQL and named/unnamed
-wire definitions, current-session ACLs, metadata, native controls, diagnostics
-and admitted cancellation exercise the view and genuinely callable record SRF.
-`TestReferenceBackendMemoryTemporaryControls` stores actual named view rows and
-arrays in populated TEMP columns, asserts the shared PostgreSQL/native storage
-contract, then exercises native Reset, repeated Restore and failed staged Restore
-while retaining old eager values/metadata. Select it independently with
-`RUN='^TestReferenceBackendMemoryTemporaryControls$'` (also with `REFERENCE=1`
-and `RACE=1`); it is included in the family prefix above.
-The standalone `TestReferenceBackendMemoryFeatureSmoke` reuses this populated
-TEMP setup/storage proof and performs its native edited-authority Restore while
-the same physical owner and row/array consumer remain live, checking unchanged
-stored values, nominal identities, fresh view/SRF captures and fixed root bytes.
-
-Session-monitoring scenarios use `make check RUN='^TestReferencePGStatGSSAPI'`
-and the same selector with `REFERENCE=1`. Real login connectors and physical
-retirement distinguish raw transaction membership from current execution
-authority; typed metadata, full write/COPY diagnostics, immutable retained rows
-and native replacement controls share the public dual-mode bodies.
-Snapshot scenarios exercise both first-consumer orders with activity, real peer
-XID/xmin authority, retained cuts after peer completion, clear/end refresh and
-current-role rechecks through direct and prepared reads. Metadata relationships
-use each backend's observed identities; only native inventory IDs are fixed.
-
-Materialized-view summary scenarios use `make check RUN='^TestReferencePGMatviews'`
-and the same selector with `REFERENCE=1` for pinned PostgreSQL. They assert full
-typed rows across index history, catalog admission, public metadata visibility
-and database boundaries; owning view scenarios cover population, identity,
-transaction frontiers and native-control round trips.
-
-Identity-file scenarios use `make check RUN='^TestReferencePGIdentFileMappings'`
-and the same selector with `REFERENCE=1`: Rows, Includes, Privileges, Diagnostics,
-Freshness, StartupSQL, Lifecycle, Controls, Smoke, PathResolution, PhysicalLines
-and IncludeFailures. They read literal actual
-files in both modes, assert independently constructed provenance/diagnostics and
-preserve held results across file edits. The shared fixture saves/restores real
-oracle bytes/owner/mode. Native-only phases cover destination startup authority,
-symbolic table/column/routine ACL replay, Reset and failed/canceled Restore.
-Includes separately witnesses advancing backslash continuations and the
-last-backslash progress guard: a following blank physical line preserves the
-remaining backslash, while a new backslash advances the buffer and is removed.
-PathResolution preserves absolute noncanonical provenance and checks actual
-symlink-plus-`..` file selection for include and `@` expansion. PhysicalLines
-checks repeated trailing CR, CR exposed in an accumulated continuation, unquoted
-CR field separation and quoted CR preservation. IncludeFailures uses actual
-mode-000 files to distinguish directory discovery from multiple open failures,
-retains successful numbered rows, and tests optional EACCES and depth-ten/eleven
-behavior without mocking or skipping. Its independently expected directory
-diagnostic follows PostgreSQL's retained error state: A_bad/B_good/C_bad emits
-A, A, C, not a deduplicated failure list.
-`TestReferencePGIdentFileMappingsSmoke` is the feature smoke (not `smoke/`).
-API-only registration uses `make check RUN='^TestIdentFileStartupAPI$'`; selected
-Lifecycle/Controls plus that API test may add `RACE=1`.
-
-HBA diagnostic scenarios use `make check RUN='^TestReferencePGHBAFileRules'`
-and the same selector with `REFERENCE=1` (real pinned PostgreSQL first).
-Paired `HBARuleSet` declarations provide genuine PostgreSQL bytes and separately
-authored simulated `HBARule` facts through public `Driver.SetHBARules`; no
-fixture parser, native HBA file, network mechanism or authentication reload exists.
-Independent expectations retain canonical valid/error rows, parsed warnings,
-numbered artifacts, exact eleven-field metadata, current view/used-column/routine
-ACLs, binding/read-only diagnostics and detached retained results.
-View/used-column SELECT remains required for a proven-false filter; once admitted,
-that filter returns typed zero rows without opening the backing routine. Constant
-projection without that filter independently requires routine EXECUTE, including
-after clearing all rules.
-
-Explicit native phases in the shared Rows/Freshness/Controls/FeatureSmoke definitions
-additionally cover arbitrary NULL/empty/zero facts, nil versus empty arrays, late installation,
-caller ownership, direct/held/SQL-prepared freshness, clear/reinstall, complete
-concurrent batches, Driver/logical-database scope and destination-only native
-controls. Controls retains raw absent routine ACL/PUBLIC authority and exact
-canonical Dump repair through rounds 0/1/2, historical ACLs and Reset seed rights.
-Dump excludes all diagnostic labels and secrets. Physical parser/options/LDAP/
-RADIUS/include/address echo suites were removed with the superseded native
-parser, not replaced by fake exceptions. Ident retains its genuine file behavior.
-Pure API/ownership tests use `TestHBARules`; race proof may select Freshness with
-`RACE=1`. `TestReferencePGHBAFileRulesFeatureSmoke` is the feature smoke.
-
-File-settings scenarios use `make check RUN='^TestReferencePGFileSettings'`
-(also with `REFERENCE=1`). Native-control lifecycle proof retains empty-result
-descriptors while separately exercising unpruned direct, new-prepared and held
-reads after Restore, with independent view/function revocation. Column-only
-SELECT plus EXECUTE is dumped, reset and restored without whole-view SELECT;
-exact `attacl`, projected/predicate/order admission and later revocation are
-checked alongside immutable initial ACL history.
-
-Build-configuration scenarios use `make check RUN='^TestReferencePGConfig'`
-(add `REFERENCE=1` for pinned PostgreSQL). Independent backend-specific inventories
-cover exact build identity/settings, populated/empty TEXT metadata, analysis
-diagnostics and view/routine declaration ownership. Current SELECT and backing
-EXECUTE grants/revokes are tested independently, including held statements,
-column grants and immutable raw initial ACLs. Native-only phases cover retained
-rows, cancellation, isolated/reopened pools and atomic Dump/Reset/Restore with
-default, granted, column-only and explicit empty authority.
-
-Security-label scenarios use `make check RUN='^TestReferencePgSeclabel'`
-(add `REFERENCE=1` for pinned PostgreSQL). The original seven permanent definitions
-cover Metadata, Diagnostics, Providers, Authorization, Transactions, Lifecycle and
-Smoke; Events additionally covers target-dependent command-start precedence.
-Independent expectations cover exact empty five-column catalog metadata,
-complete target grammar, decoded provider spelling, execution-time 22023,
-read-only 25006 before provider resolution, failed-transaction 25P02 and ordinary
-relation/column SELECT ACLs even at EOF. Direct and real prepared routes share
-the scenarios; native-only control phases exercise Dump/Reset/Restore and retained
-metadata, while PostgreSQL uses real SQL object lifecycle.
-The Events scenario independently observes command-start notices before 22023,
-start-trigger veto before provider resolution, absent command-end execution,
-excluded shared/event-trigger targets, eligible subscription targets, callback
-write rollback, and read-only/failed-state refusal before callbacks.
-Bootstrap catalog ownership is checked relative to pg_class: the oracle's
-bootstrap role is named stuntgres, whereas native bootstrap is postgres.
-These catalog-boundary fixtures leave label providers inactive. They do not
-claim successful assignment, relabeling, provider veto or provider-backed
-storage behavior: arbitrary, dummy and selinux names, including NULL removal,
-reject in that inactive mode. Native controls do not activate a provider or
-manufacture labels. The separately registered deterministic simulation and its
-successful `selinux` lifecycle, MAC, subject and control scenarios belong to
-[`reference/extensions`](../extensions/README.md); those active native phases
-are not presented as a real PostgreSQL SELinux oracle.
-
-Security-label **view** scenarios use the distinct plural family
-`make check RUN='^TestReferencePGSeclabels(Metadata|Shape|ProviderBoundary|Authorization|Diagnostics|Transactions|NativeControls|Definitions|FeatureSmoke)$'`
-and the same command with `REFERENCE=1` (pinned PostgreSQL18.6).
-The eight nullable descriptors and symbolic view/composite/array links are
-independent of native initialized OIDs. Direct/prepared/held empty reads,
-provider rebinding, retained descriptors, information_schema classification,
-owner/PUBLIC ACL semantics, column-only grants and held revocation are covered.
-No target-object/provider row filter is invented; backing SELECT denial is
-separate from owner-authorized view access. Provider-first full 22023 diagnostics
-leave both catalogs/view and real sentinel data/comments unchanged. View writes
-assert complete UNION-specific 55000 Detail/Hint even with empty input; savepoint
-and read-only tests check full 25P02/25006 recovery. Both modes retain the held
-view query through target rename, real column drop with the relation retained,
-and table replacement. After column drop, exact view descriptors/emptiness,
-view/backing counts, provider-first errors for the removed column and surviving
-sentinel values are asserted. Native-only phases retain actual descriptors and
-held queries through Dump/Reset/Restore and cancellation.
-Full default display is grounded in REL_18_6 `rules.out`'s released regression
-expectation; full pretty display is source-derived and checked against the same
-pinned oracle, including search_path shadows and quote_all_identifiers.
-The actual new-feature smoke is `RUN='^TestReferencePGSeclabelsFeatureSmoke$'`
-in both modes. No genuine native provider exists, so positive set/change/remove
-and populated label visibility are capability-inapplicable, not claimed passed.
-
-
-Encoding-name and parser-keyword scenarios use `RUN='^TestReferenceEncodingKeywords'`.
-Their independent release inventories cover all canonical encodings/aliases and
-the complete keyword bag. Shared direct/prepared bodies cover typed metadata,
-routine declarations, diagnostics, invocation-local cursors, cancellation,
-mutation atomicity and symbolic native-control replay.
-
-Ordinary selected-provider decoration diagnostics use
-`RUN='^TestReferenceSelectedFunctionFilterDiagnostics$'`. Shared direct/prepared
-cases assert complete FILTER errors before any scalar result, including predicate
-analysis, failed cursor/statement publication and same-connection recovery.
-
-Subscription lifecycle scenarios exercise disconnected definitions, options and
-connection syntax, ordered remote publications, metadata-only desired enabled
-state, role dependencies, transactions, real blocked cancellation, shared
-cross-database visibility and native replacement. Renamed implicit-slot control
-scenarios retain uppercase, UTF8 and literal `none` spelling through repeated
-origins, final-name cycles and staging-name collisions, checking every stored
-field and owner/database linkage across canonical rounds and failed replay.
-Select the family with
-`make check RUN='^TestReferenceSubscription'` (add `REFERENCE=1` for PostgreSQL).
-Publisher connections, remote slot changes/removal, workers and synchronization
-are separate external mechanisms, never inferred from stored enabled metadata.
-
-Replication-origin scenarios independently assert explicit standalone and
-subscription-created identity, typed five-function declarations/results, exact
-diagnostics/strictness and mutable routine ACLs. Initial privileges retain the
-actual initdb bootstrap grantor, independently of the fixture's later login role,
-and stay unchanged through grants/revokes. Admitted cancellation validates the
-complete PostgreSQL index-insertion context with only physical coordinates
-variable; native context cancellation claims no physical tuple.
-Identity journals and immediate unsigned progress have separate rollback witnesses,
-including executed advances surviving later expression and caught exception failures.
-The denied runtime-NULL witness reads a granted, public-qualified table independently
-of session-role search paths. Native controls prove coherent deterministic canonical
-logical replay/remint, raw absent/empty/granted routine ACL repair and rejected
-widened repairs, retained rows, stale replacement fences and preserved peer
-progress/pending exclusions, private peer savepoint/commit survival and atomic
-retained/imported capacity admission including allocated zero. Held statements
-recapture current state. Select the family with
-`make check RUN='^TestReferenceReplicationOrigin'` (add `REFERENCE=1`).
-
-Shared-label scenarios independently specify the exact empty `pg_shseclabel`
-shape, fixed relation/rowtype identities, reciprocal allocated array, ordinary
-PUBLIC/current held-statement ACLs, full missing-column/provider diagnostics and
-failed-transaction recovery. Shared-target commands include string/empty/escaped
-providers and NULL removal attempts; ordinary DDL/comments never populate labels.
-Native controls preserve real sentinel data and captured metadata across
-Dump/Reset/Restore. These scenarios leave the provider inactive; real native
-provider ABI/loading and kernel SELinux enforcement remain external. Explicit
-simulated MAC coverage lives in `reference/extensions`. Select `make check RUN='^TestReferencePGShseclabel'`
-and the same command with `REFERENCE=1`; feature smoke uses the exact
-`TestReferencePGShseclabelFeatureSmoke` name.
-
-Subscription scenarios cover the exact eighteen-column empty schema, shared
-relation and reciprocal row/array identities, explicit owner-only table ACL,
-PUBLIC column grants, current delegated/inherited authority and complete
-diagnostics on direct, fresh and held prepared routes. Native controls retain
-captured metadata and restore a real sentinel without populating subscriptions. Select the family with
-`make check RUN='^TestReferencePGSubscription'` (add `REFERENCE=1`).
-
-The populated `TestReferenceSubscription` family additionally checks secret-bearing
-conninfo under owner access, explicit column grants and inherited grants, reusing
-the same prepared query across revoke and native Reset/Restore. Ownership commands
-are retained across owner and membership changes; prepared execution also covers
-pre-canceled and pre-expired contexts. Shared-catalog scenarios admit real
-same-name CREATE and cross-database REASSIGN-versus-local-ALTER waits before
-releasing holders, with bounded joins. Native REASSIGN recaptures the definition
-after object-lock admission and preserves the committed ALTER plus new owner.
-PostgreSQL 18.6's owner handler instead waits on the catalog tuple's transaction
-and reports `XX000: tuple concurrently updated`; the scenario checks that full
-diagnostic, committed ALTER and retained original ownership/dependency without
-retrying REASSIGN. This difference follows the released
-[`AlterSubscriptionOwner_internal`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/commands/subscriptioncmds.c)
-and [`simple_heap_update`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/access/heap/heapam.c)
-paths, not an object-lock parity claim. Native-only control phases replace the
-selected database while retaining a live peer subscription, advance that peer
-behind a gated Restore reader, and check all stored fields, reminted local
-identity, retained peer identities and both owner dependencies. Gated owner
-rename/recreation and cancellation reject publication without changing the
-sentinel. Core units separately target the actual prepared-generation final
-cancellation and stale-catalog fences with populated subscriptions.
-Subscription-relation scenarios check the four-column empty schema, database-local
-identity, reciprocal row/array ownership, exact stored owner/PUBLIC privileges
-and current held-statement admission through revoke/grant transitions. Native
-controls roundtrip a real sentinel while preserving captured metadata without
-creating mappings. Select this family with
-`make check RUN='^TestReferencePGSubscriptionRel'` (add `REFERENCE=1`).
-
-Publication-namespace scenarios assert the exact three-OID database-local catalog,
-reciprocal types, stored ACLs, current held-statement admission, transactional
-catalog/ACL roots and native replacement. Ordinary schema/table DDL never creates
-publication memberships. Select with
-`make check RUN='^TestReferencePGPublicationNamespace'` (add `REFERENCE=1`).
-
-Dedicated relation-edge scenarios (`pg_publication_rel*_test.go`) retain the
-existing fourteen publication-command families unchanged. They independently
-specify PostgreSQL 18.6's five fields (`oid`, `prpubid`, `prrelid`, `prqual`,
-`prattrs`), raw driver cell types and metadata on empty, populated, limited,
-prepared and retained reads. Many-to-many relationships resolve actual
-publication/table identities; generated OIDs are not cross-backend constants.
-The stable attribute vector includes dropped-column holes, uses zero-based
-subscripts, and distinguishes an omitted list from an explicit all-column list.
-Filters retain genuine opaque `pg_node_tree` carriers with independently
-specified `pg_get_expr` semantics. Native BoundTree encoding is not claimed to
-equal PostgreSQL nodeToString bytes; raw bytes are checked only within a backend.
-
-Rewrite scenarios (`pg_rewrite*_test.go`) independently assert all eight
-attributes, C-collated nonnullable tree declarations, actual owning identities,
-ordered commands, conditional namespaces, builtin declaration ownership,
-replacement/mode/rename stability, executable effects, dependency rewiring and
-drop/rollback. Retained raw trees are compared only within each backend.
-Native builtin trees are parsed declaration metadata, never counterfeit checked
-views. Controls replay actual native dumps and assert failed/canceled restore
-atomicity. Scalar `pg_get_expr` diagnostics are asserted before missing-relation
-lookup, including action-query rejection and OLD/NEW range-slot distinctions.
-Absent qualification nodes render as empty TEXT, independently of strict
-SQL-NULL inputs. View aliases are asserted through relation result descriptors.
-Native actions retain their genuine defining-query output names; PostgreSQL's
-ordinary-view target entries carry declared aliases while its materialized-view
-query retains defining-query names. Raw structural expectations distinguish these
-owners instead of equating backend bytes. Replay refreshes materialized views
-before asserting their data and proves refresh leaves rewrite trees unchanged.
-The qualification subquery matrix labels zero/existing/missing relation contexts
-and both pretty overloads separately: parent namespace presence, not pretty,
-determines child qualification. It includes child-local `old` aliases, outer
-OLD/NEW, nested correlation, rename/current names and real nonmatch→match effects.
-Additional lexical-owner witnesses deliberately separate a NULL child value from
-a positive event value, require local OLD on INSERT/local NEW on DELETE to bind
-their real source, and cover scalar, whole-row and outer-child alias scopes.
-Their zero-context inquiries and nonmatch→match effects complement the exact
-context/pretty SQL matrix rather than masking binding with display substitutions.
-Actual whole-row CREATE RULE owners distinguish OLD/NEW and non-NULL records
-with NULL members; no unrelated scalar presentation is swapped into a fixture.
-Selected declaration witnesses use identical caller-written SQL under two
-schemas with independently expected sum3 versus max2, fresh Prepare after the
-path change, original bound declaration addresses, window dependencies, real
-rule effects and predecessor retention. Mutation-CTE variants retain actual
-aggregate/window/subquery roots, target/RETURNING fields, conflict and MERGE
-owners through the existing checked modifier visitor. No raw-byte equality
-between PostgreSQL and native is claimed.
-Assignment-target witnesses select a volatile callable only in the destination
-bound: independent first-versus-second array writes, stable rule identity,
-dependency rewiring/drop, retained predecessor and current renamed rule display.
-They cover ordinary/CTE partial INSERT, UPDATE, conflict UPDATE, slices, scalar
-subqueries, nested composite members and supported CTE MERGE matched UPDATE.
-The adjacent assignment-default matrix independently checks supplied, reordered,
-explicit SQL NULL and partial values against a conflicting sink default, omitted
-columns, identity-discard inputs and single/multirow explicit event DEFAULT
-through direct/prepared routes. Genuine captured-rule producer units require
-executable default recipes rather than nil sentinels and preserve original rows.
-Separate stored-action cases execute reordered `(v,id) VALUES(DEFAULT,7)`,
-mixed DEFAULT/supplied rows, no-column-default typed NULL and supplied NULL.
-They assert event counts/rows and held predecessor identity rather than only
-calling a private producer. Additional witnesses cover volatile sequence
-defaults exactly once per requested row, identity discard without double
-generation, real default failure atomicity, and current default replacement
-through a held prepared event. Native units inspect actual composed output
-usages, copied/default versus shared/supplied rows, and the genuine default
-manifest's isolation from unrelated caller provenance.
-MERGE partial INSERT remains the native `0A000` boundary (`MERGE partial insertion
-targets are unsupported`), not a successful dual-mode fixture or new capability.
-Genuine-owner units also distinguish usages, logical associations, nested steps,
-dimension/bound order and cancellation without mutating installed predecessors.
-The smoke selector includes successful qualification sublinks, the selected
-aggregate and LHS-only callable/index-effect transitions, plus a real stored
-INSERT-action DEFAULT producing `(id=7,v=101)`; it is not a schema-only check.
-Select the rewrite family with `make check RUN='^TestReferencePGRewrite'`;
-add `REFERENCE=1` for the pinned oracle.
-
-Raw rows represent explicit edges, not synthesized schema/all-table or partition
-child coverage. Broader ordinary-inheritance command expansion remains covered by
-`TestReferencePublicationInheritancePartitions`. Lifecycle coverage exercises
-ADD/DROP/SET, peer isolation, savepoint/full rollback, committed visibility,
-failed multi-table ADD atomicity, table/publication drops, captured predecessor
-rows and actual native Dump/Reset/Restore. Current catalog ACLs govern direct,
-newly prepared and already-held execution even for zero-row/count projections;
-catalog SELECT does not require ownership or SELECT on the published table.
-Complete diagnostic records cover permission, duplicate/missing membership,
-unknown column and invalid OID errors. Local negative/NULL sentinel rows remain
-unfiltered: this is catalog metadata, not simulated replication.
-
-Run both selected modes before review/integration:
-
-- `make check RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges)$'`
-- `make check REFERENCE=1 RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges)$'`
-- `make check RUN='^TestReferencePGPublicationRelFeatureSmoke$'`
-- `make check REFERENCE=1 RUN='^TestReferencePGPublicationRelFeatureSmoke$'`
-
-The distinct feature smoke checks five-field raw metadata, stable vector/filter
-payloads, unchanged local data, rollback, exact duplicate rejection with unchanged
-edge identity, and native replacement. For oracle-first discovery use
-`make check REFERENCE=1 RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges|FeatureSmoke)$/^postgres$'`;
-this does not replace complete selected dual-mode proof.
-
-Publication command scenarios (`publication_*_test.go`) populate the existing
-`pg_publication` and `pg_publication_namespace` producers and observe actual
-effective membership through `pg_publication_tables`. Existing empty-source
-ownership and ACL scenarios remain unchanged. The contract is metadata-only:
-local DML is never filtered, and these scenarios do not claim WAL delivery.
-
-Run each selected group both natively and with `REFERENCE=1`:
-
-- `make check RUN='^TestReferencePublication(DefinitionOptions|Membership|InheritancePartitions)$'`
-- `make check RUN='^TestReferencePublication(ColumnsGenerated|Filters|DeferredIdentity)$'`
-- `make check RUN='^TestReferencePublication(Privileges|Dependencies|Transactions)$'`
-- `make check RUN='^TestReferencePublication(NativeControls|Smoke)$'`
-- `make check RUN='^TestReferencePublicationInquiry$'`: intrinsic relation
-  publishability (including NULL/missing/retired OIDs) and variadic publication
-  table inquiry. Direct/prepared witnesses assert real owner OID relationships,
-  typed empty SRF shape, column/filter/generated policies, schema/ALL dynamic
-  membership, array bounds/dimensions/multiplicity, full diagnostics and
-  combined partition via-root suppression.
-- `make check RUN='^TestReferencePublicationTablePresentation$'`: direct
-  presented-relation column/filter metadata across cross-schema ancestry and
-  overlapping via-root mappings in both relation/mapping allocation orders;
-  NULL empty projections and generated/ordinary-column transitions. Both the
-  view and executable inquiry have independent direct/prepared expectations.
-
-The self-contained feature smoke is
-`make check RUN='^TestReferencePublicationSmoke$'` (also with `REFERENCE=1`):
-real definitions, populated catalogs, retained column/filter metadata, deferred
-zero-row DELETE rejection, transaction rollback and native logical roundtrip.
-The controls scenario additionally replays actual emitted bytes on an independent
-native destination and, in real mode, PostgreSQL; checks canonical redump,
-retained rows and held statements; and rejects late-invalid/canceled replacement
-without changing the sentinel or publication state.
-
-Transactions include direct and prepared publication ADD cancellation after a
-strict candidate-table lock admission witness, with canceled workers joined
-before releasing resources and no mapping or option publication. PostgreSQL uses
-server cancellation and a complete `57014` record; native pre-cancellation also
-checks ordinary context errors. lib/pq pre-canceled utility results are not
-constrained, as required by the shared testing policy.
-
-For oracle-first discovery before native implementation, select the existing
-`postgres` subtest rather than adding a backend filter. Ordinary families use
-`RUN='^TestReferencePublication(DefinitionOptions|Membership|InheritancePartitions|ColumnsGenerated|Filters|Privileges|Dependencies|Transactions|NativeControls|Smoke)$$/^postgres$'`.
-The per-case identity matrix has an extra level:
-`RUN='^TestReferencePublicationDeferredIdentity$$/./^postgres$'`.
-These discovery selectors do not replace selected full dual-mode proof.
-
-
-Type identity scenarios retain attribute privilege identities across rename and
-retire obsolete lookup names.
 
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
@@ -512,8 +31,6 @@ retire obsolete lookup names.
   from native output: literal REL_18 catalog tuples in the inventories. Admitting
   a type changes the shared TSV and every consumer, including
   `TestReferencePGTypeAdmission`.
-  Pseudo-type declaration identities and their canonical companions are a finite
-  metadata inventory; catalog presence grants no storage or codec authority.
 - Native inventory reads stay unfiltered, so extra native rows fail; PostgreSQL
   reads restrict to the supported candidate identities, because the oracle
   legitimately has more rows. Never assert whole-cluster row-count parity.
@@ -526,10 +43,9 @@ retire obsolete lookup names.
   an allocator; Reset/Restore may reuse numeric OIDs. Bootstrap role 10 is
   `postgres` natively and `stuntgres` on the oracle (`objectACLOwner`); other
   roles use their queried identities.
-- Catalog bags are database-wide: scope them with scenario-unique names, and
-  filter by OID or name in the first join or a derived relation, so the
-  30-second scenario budget never depends on optimizer pushdown. Unordered
-  scans are bags.
+- Scope database-wide bags with scenario-unique names and filter before joining,
+  so bounded scenario work does not depend on optimizer pushdown. Unordered scans
+  are bags.
 - State outside `public` survives the reset and needs its own cleanup:
   extensions (`pgcryptoCase` drops the extension, its schema and owner role),
   cast declarations between builtin types (pair-owned cleanup), database owner
@@ -543,10 +59,8 @@ retire obsolete lookup names.
   Register `RoleReferenceCleanup`, then `DatabaseReferenceCleanup`, then the
   scenario, appending names before creation attempts. Teardown closes selected
   pools and workers before standalone PostgreSQL DROP DATABASE, then role cleanup.
-- Pristine builtin expectations (`TestReferencePGNamespaceBuiltins` and the
-  first-use TEMP transaction witness) read the oracle through `fixture.DSN` with
-  the database path `/postgres`, read-only, never the reset fixture's rebuilt
-  `public`.
+- Read pristine builtin expectations through the read-only `fixture.DSN` database
+  path `/postgres`, not the reset fixture's rebuilt `public`.
 - PostgreSQL TEMP retirement: close the owner's lease and pool, then wait on a
   real exit barrier (an advisory lock the owner held,
   `fixture.ExtensionTempExitBarrier`, or its backend leaving
@@ -557,10 +71,7 @@ retire obsolete lookup names.
   native-emitted Dump bytes unchanged and fail if the dump is empty; never
   substitute handwritten SQL. Prove replay through restored values and
   identities, not dump spelling (quoting, deparse formatting).
-- Native Dump preserves supported raw relation, column, routine, namespace,
-  type, parameter and tablespace ACLs, preserving ordered grantor/options and
-  sparse parameter identities by destination name.
-  Provision every named owner, grantor and grantee before logical Restore.
+- Provision every named owner, grantor and grantee before logical Restore.
 - Keep password setup out of recorders and failure output.
 - Client quirks: drain and close a PostgreSQL cursor before issuing another
   command on its physical connection; pq parses FLOAT4 shortest-decimal text
@@ -571,94 +82,18 @@ retire obsolete lookup names.
   versus native int64 and normalize exact uint32 identities without changing
   the expected OID column types or values.
 
-The `pg_proc_*` family reads all 30 PostgreSQL 18 columns in released attribute
-order, including raw direct/prepared/held and empty-result metadata. Released
-builtin expectations are independent of native descriptors; user matrices check
-input-only overload identities separately from all-argument modes/names and
-their array bounds. Owner, namespace, language and generated type references use
-independent catalog identities. Metadata reads neither execute routine bodies
-or defaults nor require support callbacks or other absent runtime facilities.
-Routine lifecycle assertions retain old unread rows and descriptors while a
-held query sees replacements, movement, ownership/ACL changes and rollback.
-The full-shape check distinguishes pq's FLOAT4 `ScanType` (`float32`) from
-its actual exported `float64` values and the native `float64` scan descriptor.
-It likewise checks pq's INT2 `int16` scan descriptor versus native `int64`.
-Raw OID results retain their OID column type and byte-versus-int64 assertions;
-family expected rows follow the existing `PGAttributeCheck` decimal-text
-adaptation for pq rather than casting catalog SQL to another type.
-The sequence side-effect witness explicitly consumes its defaulted input:
-an unused SQL parameter need not evaluate its supplied/default expression.
-
-Tree carriers are an explicit representation boundary, not fake PostgreSQL
-serialization parity: PostgreSQL returns nodeToString trees; native returns
-immutable structural expression lists and checked routine programs. Tests inspect
-both actual raw carriers independently, retain genuine defaults/body presence,
-and require exact semantic `pg_get_expr` default text and real omitted-argument
-execution. Quoted SQL/PL source has no SQL-standard body tree. Library provenance
-is read from the owning declaration, not inferred from a public routine name.
-Native Go callbacks retain the native-only `prolang=0` sentinel, empty source and
-NULL binary; actual public registration proves reads never invoke a callback.
-This phase has no PostgreSQL equivalent. Native controls replay nonempty actual
-Dump bytes unchanged on PostgreSQL and verify logical routine/type relationships,
-properties and invocation, rather than pinning allocator-generated OIDs.
-
-`TestReferencePGProcDependencies` distinguishes immutable declaration acquisition
-from current executable-dependency admission. Direct, prepared and held probes
-read consumer/default metadata and unrelated builtin rows after callee attribute
-changes/replacement/rename. Semantic default deparse follows the current callee
-name, while retained raw body/default trees remain immutable.
-
-Installed metadata has separate bounded acceptance families: the 14 released
-citext SQL-standard bodies and six admitted earthdistance bodies are installed
-with quoted, nondefault schemas, including a separately placed cube dependency.
-Exact overload membership, source/language/binary/body presence and concrete
-raw structures are independently checked on each backend. PostgreSQL function
-references are resolved through `regprocedure`, not pinned generated OIDs;
-native recipes retain concrete function/parameter/CASE/subscript syntax and
-the actual quoted dependency schema. Existing executable overloads corroborate
-the declarations. The library matrix covers every changed C-library owner,
-including `_int` and differing public/source names, after actual native restore
-and unchanged-byte PostgreSQL replay. Installed controls retain these facts
-through SQL and C routine rename/schema movement, snapshots and logical replay.
-
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- Relations and attributes: `RUN='^TestReferencePgClass'`, `RUN='^TestReferencePGAttribute'`, `RUN='^TestReferenceAttrdef'`
-- Types, enums, ranges: `RUN='^TestReferencePGType'`, `RUN='^TestReferencePGEnum'`, `RUN='^TestReferencePGRange'`
-- Routine declarations and metadata: `RUN='^TestReferencePGProc'`; smoke:
-  `RUN='^TestReferencePGProcFeatureSmoke$'`. Shape, released inventory,
-  declarations/properties/visibility and lifecycle/controls/diagnostics are
-  separate selected proof families; run each changed family natively and with
-  `REFERENCE=1`. Private producer-offset/immutability tests remain lower-owner
-  units; public SQL assertions belong here, not internal enginetests.
-  Review-remedy selections:
-  `RUN='^TestReferencePGProc(Dependencies|InstalledBodies|InstalledLibraries|InstalledControls)$'`.
+- Relations and attributes: `RUN='^TestReference(PgClass|PGAttribute|Attrdef)'`
+- Types: `RUN='^TestReferencePG(Type|Enum|Range)'`
+- Routines: `RUN='^TestReferencePGProc'`
 - Dependencies: `RUN='^TestReferencePGDepend'`
-  `TestReferencePGDependExpressionEdges` includes ordinary view `tableoid`
-  references in both modes: the rule's internal view edge and the source table's
-  normal `-6` attribute edge, without a redundant whole-table reference.
-- Constraints and partition navigation: `RUN='^TestReferencePGConstraint'`, `RUN='^TestReferencePartitionInfo'`
-- Table, view and index summaries: `RUN='^TestReferencePGTableViews'`, `RUN='^TestReferencePGIndexes'`
-  (`TestReferencePGTableViewsBuiltins` lives in `reference/information_schema`)
-- Rule summaries: `RUN='^TestReferencePGRules'`
-- `pg_sequence`, `pg_sequences`: `RUN='^TestReferencePGSequence'`
-- Sequence I/O statistics: `RUN='^TestReferencePGStatio(All|Sys|User)Sequences'`, in
-  native and `REFERENCE=1` modes. All/sys/user membership, PUBLIC visibility,
-  exact read-only diagnostics and five-column metadata share the provider;
-  the user witness is the complementary predicate over all. Logical arithmetic
-  and native controls are explicit native phases; PostgreSQL physical counters
-  are required to be nonnegative, not equal to simulated counts. Positive system
-  descriptor and exclusion-before-reader proofs live in composed engine units.
-  Session/database events share the same physical writer and publication throttle.
-  A first sequence encounter need not be its first eligible batch: retained-owner
-  positives await bounded ordinary/idle-retry publication with unchanged exact
-  logical counts. Paired all/user snapshots begin only after publication is
-  independently observed; clear-snapshot and forced flush are not synchronization.
-- Shared-memory allocation projections: `RUN='^TestReferencePGShmem'`
-- Wait-event definitions: `RUN='^TestReferencePGWaitEvents'`
-- Catalog foreign keys, `pg_get_userbyid`: `RUN='^TestReferenceCatalogRelations'`
-- Catalog and control scenarios migrated from the root package:
-  `RUN='^TestReference(CatalogCore|CatalogControls|Control(Failed|Snapshot)|TransactionNativeControls|Smoke)'`
-  (the `Smoke` scenarios live in `reference/catalog_objects`)
-- Engine units use the family names without `Reference`, for example
-  `make check RUN='^TestPGDepend'` or `make check RUN='^TestPGOperator'`.
+- Constraints: `RUN='^TestReferencePGConstraint'`
+- Publications: `RUN='^TestReference(PGPublication|Publication)'`
+- Subscriptions: `RUN='^TestReference(PGSubscription|Subscription)'`
+- Replication origins: `RUN='^TestReference(PGReplicationOrigin|ReplicationOrigin)'`
+
+Tree carriers are a representation boundary: PostgreSQL returns nodeToString
+trees; native returns immutable structural expressions and checked programs.
+Inspect raw carriers independently and assert semantic deparse/execution separately.
+Catalog metadata does not authorize storage, codecs or executable callbacks.

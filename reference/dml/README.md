@@ -1,35 +1,15 @@
 # reference/dml
 
-Data modification: INSERT (VALUES, SELECT, implicit short column lists,
-RETURNING, ON CONFLICT DO NOTHING/DO UPDATE), UPDATE (core, FROM, RETURNING,
-row-valued assignments), DELETE (core, USING, RETURNING), positioned
-`WHERE CURRENT OF` UPDATE/DELETE, data-modifying CTEs, MERGE (all action kinds,
-RETURNING), TRUNCATE (including RESTART IDENTITY), result-column nullability and
-COPY (text, CSV, binary, WHERE/ON_ERROR filtering). Related families: COPY into
-virtual generated columns (`GeneratedVirtualCopy*`) lives here to reuse
-`copyTextScenario` but belongs to the sequences `GeneratedVirtual` family;
-sequence and identity semantics in `reference/sequences`; row locking in
-`reference/locking_transactions`.
-
-Column expressions use the same explicit namespace rules as queries: target,
-source and RETURNING visibility belong to their statement clause, not to the
-number of written name components. Aliases hide base names; qualification does
-not grant read privileges or expose an INSERT producer's destination.
-MERGE system-column scenarios distinguish physical WHEN restrictions from legal
-ON/action projections, tableoid conditions, nested SELECT environments and
-same-named ordinary derived columns.
+Dual-mode scenarios for data modification and streaming COPY.
+Sequence/identity semantics belong to [sequences](../sequences/README.md#testing);
+row locking to [locking_transactions](../locking_transactions/README.md#testing).
+COPY into virtual generated columns lives here to reuse the COPY transport.
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options.
 COPY transports and notice connections are documented in the
 [fixture README](../fixture/README.md).
-INSERT RETURNING observes final BEFORE replacement rows and omits suppressed
-rows from both output and affected counts. Shared trigger cases cover expression
-and conditional PL row replacement and suppression.
-ON CONFLICT witnesses use the same deferrable UNIQUE/PK definitions on both
-backends: selected arbiters fail when a row is demanded, while empty producers
-retain their ordinary no-row behavior.
 
 - COPY helpers: `copyTextScenario` (`copy_text_helpers_test.go`) borrows a pinned
   connection per backend (native `p.Native` with the public `CopyFrom`/`CopyTo`;
@@ -43,9 +23,6 @@ retain their ordinary no-row behavior.
 - COPY input and expected output bytes (binary frames, CSV/text payloads) are
   written by hand, never captured from native output. Query user type OIDs from
   the catalog (`regtype::bigint`) instead of hard-coding them.
-  Binary `ENCODING` is admitted for both FROM and TO; it does not transcode
-  binary framing or numeric/bytea payloads. Textual binary leaves use the
-  session client encoding rather than the file-option override.
 - Other scenario helpers: `mergeInsertScenario` (`merge_insert_matching_test.go`,
   shared by the MERGE families), `truncateScenario`
   (`truncate_helpers_test.go`), `truncateRestartScenario`
@@ -54,14 +31,6 @@ retain their ordinary no-row behavior.
   (`delete_using_helpers_test.go`), `resultNullabilityPairs`
   (`result_nullability_helpers_test.go`) and `referenceInsertShortMetadata`
   (`insert_implicit_short_helpers_test.go`).
-- Marker replay reuses `truncateRestartScenario` for Direct/Held routes.
-  `truncateMarkerRoutes` holds both prepared handles across repetitions and
-  savepoint recovery; `truncateMarkerPairs` executes separate TRUNCATE/INSERT
-  commands with counts 0/1. `truncateMarkerRow` fully consumes exact cardinality
-  and independently checks INT8/BOOL transport and backend-specific nullability.
-  Private-DDL replay retains CREATE/ALTER changes before/between markers.
-  Lifetime cases release PostgreSQL's reader transaction before AX admission;
-  native-only retained eager Rows remain genuinely live across publication.
 - Raw cells differ by client: pq returns NUMERIC and UUID as bytes (native:
   strings); pgx returns DATE as `time.Time` (native: string), XID as `int64`,
   an unregistered enum's type name as its decimal OID, and binary TIMESTAMPTZ in
@@ -71,61 +40,23 @@ retain their ordinary no-row behavior.
 - To prove an expression is not evaluated, read the faulting operand (for example
   a zero denominator) from a table: PostgreSQL may fold constant VALUES
   expressions while planning.
-- MERGE matched-action order is unspecified, and source ORDER BY does not order
-  an equality join; ordered witnesses need a non-equality join condition.
 - COPY cancellation and timeouts on PostgreSQL: observe the backend in
   `ClientRead` (and a true `pg_cancel_backend` result, or server
   `clock_timestamp()` passing `query_start`/`xact_start` plus the timeout), then
   release and join the blocked reader so COPY can drain. Release a complete
   record (for CSV, the closing quote) so malformed input cannot outrank the
   interrupt. Canceling the client context while sending EOF races autocommit.
-  Native lifecycle phases assert the ordinary positive signed-int4 backend
-  identity independently; physical server observation/cancel functions remain
-  excluded there, while real native Operation units cover interruption.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- <a id="result-nullability"></a>Result-column nullability: `RUN='^TestReferenceResultNullability'`
-- Qualified column consumers: `RUN='^TestReferenceThreePart'`
-- INSERT ... SELECT: `RUN='^TestReference(Smoke)?InsertSelect'`
-- Implicit short INSERT: `RUN='^TestReferenceInsertImplicitShort'`
-- INSERT RETURNING: `RUN='^TestReferenceInsertReturning'`
-- <a id="insert-conflict-omission-acceptance"></a><a id="insert-conflict-update-acceptance"></a>INSERT ON CONFLICT: `RUN='^TestReferenceInsertConflict'`
-- UPDATE core: `RUN='^TestReferenceUpdateCore'`
-- UPDATE FROM: `RUN='^TestReferenceUpdateFrom'`
-- UPDATE RETURNING: `RUN='^TestReferenceUpdateReturning'`
-- Row-valued UPDATE assignments: `RUN='^TestReferenceUpdateRow'`
-- DELETE core: `RUN='^TestReferenceDeleteCore'`
-- DELETE USING: `RUN='^TestReferenceDeleteUsing'`
-- DELETE RETURNING (with series and FK callers): `RUN='^TestReference[A-Za-z]*DeleteReturning'`
-- Positioned UPDATE/DELETE: `RUN='^TestReference[A-Za-z]+CurrentOf'`
-  `TestReferenceUpdateCurrentOfVersionsAndArbitration` preserves the predecessor,
-  isolation and four cursor-lock lanes and adds NO KEY UPDATE peer-recheck
-  schedules: actual blocked admission and owner commit before peer invocation,
-  each with direct/fresh/held owner × peer routes. Held handles are reused after
-  warmup rollback on the same pinned sessions. Private
-  `TestUpdateCurrentOfPeerCommitRecheck` separately fixes the snapshot-selection /
-  first-target-capture gap and inspects stable RowID, latest predecessor Base and
-  private replacement publication; public ordering alone does not prove that gap.
+- INSERT: `RUN='^TestReferenceInsert'`
+- UPDATE: `RUN='^TestReferenceUpdate'`
+- DELETE: `RUN='^TestReferenceDelete'`
+- MERGE: `RUN='^TestReferenceMerge'`
 - Data-modifying CTEs: `RUN='^TestReferenceCTEDML'`
-- MERGE INSERT: `RUN='^TestReferenceMergeInsert'`
-- MERGE matched UPDATE: `RUN='^TestReferenceMergeUpdate'`
-- MERGE BY SOURCE UPDATE: `RUN='^TestReferenceMergeSourceUpdate'`
-- MERGE DELETE: `RUN='^TestReferenceMergeDelete'`
-- MERGE DO NOTHING: `RUN='^TestReferenceMergeNothing'`
-- MERGE RETURNING: `RUN='^TestReferenceMergeReturning'`
-- TRUNCATE (including RESTART IDENTITY): `RUN='^TestReferenceTruncate'`
-- Marker replay/rollback/savepoints/Rows lifetime:
-  `RUN='^TestReferenceTruncateMarker(Replay|Rollback|Savepoints|RowsLifetime)$'`.
-- <a id="copy-text-selected-proof"></a>COPY text: `RUN='^TestReferenceCopyText'`
-- COPY CSV: `RUN='^TestReferenceCopyCSV'`
-- COPY binary: `RUN='^TestReferenceCopyBinary'`
-- Legacy binary COPY: `RUN='^TestReferenceCopyLegacyBinary(RoundTrip|Columns|Diagnostics|Atomicity)$'`
-- <a id="copy-filtering-and-conversion-error-policy"></a>COPY WHERE and ON_ERROR: `RUN='^TestReferenceCopyFilter'`
-- <a id="installed-uuid-ossp-binary-copy"></a>uuid-ossp binary COPY: `RUN='^TestReferenceUUIDOsspCopyBinary$'`
+- TRUNCATE: `RUN='^TestReferenceTruncate'`
+- COPY: `RUN='^TestReferenceCopy'`
+- Result metadata: `RUN='^TestReferenceResultNullability'`
 
-Binary range transport over the COPY stream:
-`make check RUN='^TestReference(DateRangeBinary|TimestampRangeComposition|TimestamptzRangeBinaryComposition)$'`
-(`TimestampRangeComposition` also runs its `reference/ranges_text_search` namesake). COPY into
-TEMP namespaces: `make check RUN='^TestReferencePGNamespaceCopyStoragePrecedence$'`.
-Engine and parser units: `make check RUN='^Test(Merge|InsertConflict|InsertReturning|UpdateRow|CTEDML|Truncate|Copy|DeleteCurrentOf|UpdateCurrentOf|DeleteUsing)'`.
+Private engine units establish physical index use and exact lock scheduling;
+public result rows alone do not prove either.

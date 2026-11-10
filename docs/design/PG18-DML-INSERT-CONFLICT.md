@@ -153,6 +153,6 @@ sentinel identity/data, no remaining tickets/grants/requests/key buckets and rea
 regranted publication. They do not fabricate public GRANT or PostgreSQL parity.
 No build, test or formatter was run by the implementer. Root must generate/format,
 run ordinary quickcheck plus both complete reference modes, feature smokes and
-focused races before review/integration. Commands and deadlines are recorded in
-[TESTING](../../reference/dml/README.md#insert-conflict-omission-acceptance). Finalcheck is
-post-integration, under a single1800-second deadline; failures are separate remedies.
+focused races before review/integration. Reusable family entry points are in
+the [DML testing guide](../../reference/dml/README.md#testing); command deadlines
+are in AGENTS.md. Finalcheck is post-integration; failures are separate remedies.

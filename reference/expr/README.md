@@ -1,8 +1,6 @@
 # reference/expr
 
-Dual-mode tests for `ARRAY(SELECT ...)` subquery expressions: values, wire
-metadata, column naming, DML consumers, diagnostics, extended-protocol
-parameters and stored view/rule deparse round-trips.
+Dual-mode scenarios for `ARRAY(subquery)` expressions and their public consumers.
 
 Related families: scalar and `EXISTS` subqueries in
 [query_core](../query_core/README.md#testing); array constructors, subscripts,
@@ -10,8 +8,6 @@ Related families: scalar and `EXISTS` subqueries in
 `UPDATE`/`INSERT` consumers in [dml](../dml/README.md#testing); stored view
 definition replay in [views](../views/README.md#testing).
 
-`ARRAY[...]` constructors and `unnest` are out of scope here: they already have
-coverage and this family exercises only the `ARRAY(subquery)` form.
 
 ## Testing
 

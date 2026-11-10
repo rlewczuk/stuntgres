@@ -1,14 +1,9 @@
 # reference/sequences
 
-Sequences and value-producing columns: CREATE/ALTER/DROP SEQUENCE, `nextval`/
-`currval`/`setval` and their REGCLASS inputs, sequence ownership, prepared
-sequence statements, TEMP sequence namespaces; serial and identity columns and
-serial/identity inquiry; column DEFAULT expressions; STORED and VIRTUAL generated
-columns, including `ADD COLUMN` and `ALTER COLUMN ... SET/DROP EXPRESSION`;
-temporary tables. Related
-families: `random()` in `reference/numeric`; COPY into virtual generated columns
-in `reference/dml`; inheritance row-lock rechecks of generated columns in
-`reference/locking_transactions`.
+Dual-mode scenarios for sequences, defaults, serial/identity/generated columns
+and temporary tables. Virtual generated-column COPY consumers live in
+[dml](../dml/README.md#testing) to reuse streaming transports; hierarchy row-lock
+rechecks belong to [locking_transactions](../locking_transactions/README.md#testing).
 
 ## Testing
 
@@ -22,14 +17,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   `identityReferenceCase` (`identity_test.go`) and `defaultConsumerReference*`
   (`default_consumer_test.go`). TEMP sequence and temporary-table scenarios use
   `fixture.TempReferenceSession`.
-- Sequence physical fields are backend-specific: native `log_cnt` is 0, while
-  PostgreSQL reports WAL/cache-dependent values. Assert each independently.
+- Physical sequence measurements use independent backend expectations, not parity.
 - Lock-queue witnesses use the captured relation OID and actual blocker PID, not
   hard-coded names or timing.
 - pq returns raw REGCLASS and VOID cells as bytes (native: strings); a VOID result
   is non-NULL and empty.
-- Never name a file `*_windows_test.go`: Go builds it only on Windows (hence
-  `generated_virtual_window_identity_test.go`).
+- Never name a file `*_windows_test.go`: Go builds it only on Windows.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 

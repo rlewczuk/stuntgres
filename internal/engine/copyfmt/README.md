@@ -1,90 +1,31 @@
 # internal/engine/copyfmt
 
-The COPY data formats: option parsing, FORCE binding, text and CSV reading
-and writing, and binary framing. It is plain Go over a reader or writer and
-parsed options; it knows nothing of the statement, session or transaction
-running the COPY.
-
-The package sits at layer L4 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports only `catalog`, `parser`, `sqltype`, `sqlstate` and the standard
-library. It holds no state beyond one reader's buffers, no mutex and no engine
-callback.
-The name is not `copy`, which would shadow the builtin in every importing
-file.
+COPY formats: option parsing, FORCE binding, text/CSV reading and writing, and
+binary framing. The package consumes readers/writers and parsed options; it owns
+no statement, session, transaction, mutex or engine callback.
 
 ## What it owns
 
-- **Options** (`options.go`): `ParseOptions` validates a `parser.Copy`'s
-  options in PostgreSQL's order and applies the format defaults into
-  `Options` (`Format` is `Text`, `CSV` or `Binary`; `Header` is 0, 1 or
-  2 for MATCH). Error SQLSTATEs, texts and positions match PostgreSQL 18.
-  `OnError` defaults to STOP, `LogVerbosity` to default, and zero
-  `RejectLimit` means unlimited. Only positive bigint limits with IGNORE are
-  admitted; binary accepts STOP only. These are plain values, never callbacks.
-  `ENCODING` is a recognized name/ID; core supplies a plain immutable directional
-  capability, reusing the active outgoing pair for same-encoding COPY TO.
-  Scalar option extraction precedes mode, byte-length and cross-option checks;
-  QUOTE/ESCAPE lengths cannot eclipse a non-CSV mode error. The stock file_fdw
-  validator reuses this parser with absent source positions and string-valued
-  options, preserving COPY's distinct numeric HEADER nodes and FORCE lists.
-  Extraction diagnostics omit the Position field for absent locations rather
-  than reporting zero; ordinary SQL COPY retains its real token positions.
-- **FORCE binding** (`force.go`): `Options.BindForces` turns
-  FORCE_QUOTE/FORCE_NULL/FORCE_NOT_NULL into per-field flags, read with
-  `Forced`. Relation COPY resolves names through `ResolveColumns`, the same
-  column-list resolution the root binder uses (unknown, repeated and
-  generated columns); query COPY matches the result schema. It reads
-  `catalog.Relation`/`catalog.Column` so the relation errors keep their
-  text without building a name list per statement.
-- **Text and CSV** (`line_reader.go`, `csv.go`): `LineReader` frames
-  records (LF/CR/CRLF consistency, the `\.` end marker in text, CSV quote
-  parity), splits and decodes fields, recognizes NULL and DEFAULT markers
-  against the `[]Target` built once per statement, checks the HEADER line
-  (including MATCH) and applies the CSV FORCE null flags (`FieldNull`).
-  `LineError` builds its 22P04 errors. Output: `AppendText`, `AppendCSV`.
-  `ContextValue` truncates a value quoted in a diagnostic.
-  DEFAULT fields retain decoded marker bytes for errors during immediate
-  selected-default evaluation; recognition does not erase diagnostic input.
-- **Binary** (`binary_reader.go`): `BinaryReader` checks the file header
-  (`ReadHeader`, `BinarySignature`), and frames tuples (`Row`: field count,
-  `-1` trailer, data after the trailer) and fields (`Field`: length word,
-  size limits, payload).
-- **COPY TO writers** (`writer.go`, `binary_writer.go`): `WriteRows`
-  encodes the rows of a `RowSource` (`Next` into a value slice,
-  `OutputEnvironment`) to an `io.Writer`, one `Write` per line or tuple
-  (a short write is `io.ErrShortWrite`). Text and CSV write the HEADER
-  line first and use `AppendText`/`AppendCSV`; binary writes the file
-  header, the tuples and the `-1` trailer, and with `checkSend` resolves
-  the send providers before the signature.
-  Text/CSV converts each attribute before escaping and skips complete
-  multibyte characters when looking for delimiter, quote or backslash bytes.
-  NULL equality is decided on the original server text. A nonempty NULL
-  marker converts at writer startup, before headers/rows, including zero rows;
-  errors preserve earlier complete writes, never publish a partial row.
+- `ParseOptions` validates ordered syntax into plain `Options` and shared format
+  defaults. Scalar extraction, cross-option validation and positioned diagnostics
+  follow the compatibility contract. Other consumers reuse this parser rather
+  than implementing another COPY option grammar.
+- `BindForces` resolves FORCE lists to per-field flags. Relation column resolution
+  preserves actual catalog identity and query COPY uses the result schema.
+- `LineReader` frames records, decodes fields and NULL/DEFAULT markers, and checks
+  headers. `AppendText`/`AppendCSV` share output escaping; diagnostics preserve
+  original field context independently of later value conversion.
+- `BinaryReader` validates headers and tuple/field framing.
+- `WriteRows` consumes a `RowSource` with the supplied output environment, reusing
+  one values vector/output buffer. Short writes fail with `io.ErrShortWrite`.
+  Conversion precedes escaping; failures preserve complete prior writes, not a
+  partial row.
 
 ## What stays outside
 
-- **Protocol** (root `copy_admission.go`, `protocol_copy*.go`,
-  `CopyBoundary`, `StatementScope.Copy`/`copyProtocol`): reservation, the
-  wire hooks, releasing admission around every read and write
-  (`copyReader`/`copyWriter` wrap the `io.Reader` this package receives),
-  and cancellation. Wire-input checks (`CopyInput`,
-  `PendingProtocolUserCancel`, `PendingCopyInputError`) stay in the
-  cursors' `Next`, never in the codec.
-  Core wraps text/CSV input in the incremental conversion reader before
-  `LineReader`, preserving character tails and combined-map lookahead across
-  arbitrary reads. A FROM default must exist before CopyInResponse (including
-  binary mode). TO reuses admitted outgoing authority when the file encoding
-  equals the active encoding; a different TO encoding may fail after
-  CopyOutResponse when the NULL marker, header or actual nonempty field first
-  requires it. Binary framing ignores file conversion, while textual binary
-  leaves use the session pair.
-- **Execution**: binding the target and producing the output rows in the
-  root (`copy.go`; `copy_text.go`'s `copyOutput` passes them to `WriteRows`
-  through `copyWriter` and re-checks the statement after the last row);
-  converting fields to values, the "COPY t, line N" context and insertion in
-  `dml` (`copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`).
+Core owns protocol admission, conversion capabilities, cancellation and unlocked
+I/O wrappers. DML owns input value conversion, insertion and COPY statement/line
+context. The codec never checks wire state or acquires statement authority.
 
 ## Invariants
 
@@ -102,16 +43,6 @@ file.
 
 ## Testing
 
-Unit tests: option parsing (`options_test.go`), CSV framing, fields and output
-(`csv_test.go`), text escapes (`line_reader_test.go`), context truncation
-(`context_test.go`), the COPY TO writers (`writer_test.go`) and the
-filter/error options and DEFAULT marker bytes. The root cursor, protocol and
-cancellation units are `^Test(Copy|ProtocolCopy)` in `internal/engine` and
-`internal/engine/core`.
-
-```sh
-make check RUN='^TestCopy(CSV|BinaryOptions|TextEscapeUnits|WriteRows|Filter(Options|MarkerBytes))'
-```
-
-Public behavior is in the `^TestReferenceCopy` families of
+Pure option/framing/codec/writer units live here. Core and DML tests exercise
+cursor/protocol/cancellation integration; public behavior belongs in
 [reference/dml](../../../reference/dml/README.md#testing).

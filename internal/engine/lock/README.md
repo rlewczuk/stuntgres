@@ -1,426 +1,62 @@
 # internal/engine/lock
 
-The heavyweight lock manager. It sits at layer L2 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture) and
-imports only `ids`, `sqlstate` and the standard library. It never imports the
-engine.
-
-`RetireDomain` is terminal database lifetime, not replacement's epoch `Fence`.
-After canonical session/resource drain it retires exact-domain transaction and
-persistent tickets, waiters, resources and multixact backing. The domain retains
-a terminal admission tombstone so stale registration and AdmitDomain cannot
-resurrect it. Peer domains and the shared role/database utility issuer remain
-alive. Notifications run after manager metadata unlock; no host callbacks or
-terminal joins occur under the manager mutex.
-
+Heavyweight lock manager below catalog/runtime layers. It depends on identity,
+scalar and diagnostic facilities, never core, catalog or sessions.
 
 ## What it owns
 
-`Manager` holds heavyweight lock state for one cluster's admitted databases:
+`Manager` owns registered transaction/session tickets, typed resources/modes,
+holder/wait queues, deadlock detection, grant journals/checkpoints, unique-key
+claims, tuple/MultiXact state and immutable inspection snapshots.
 
-- **Tickets.** One `Ticket` per registered transaction (`Register`) and one
-  persistent ticket per session for session-level advisory locks and its narrow
-  startup database RowExclusive grant (`RegisterSession`). The startup grant ends after
-  physical reservation; admission transfers its ticket to session initialization.
-  A ticket journals every resource it holds or waits on.
-  Detached catalog session tokens are never eligible for either ticket kind,
-  even when their domain and displayed ID match a registered physical session.
-  Its transaction ID, phase and completion state are atomic mirrors that the
-  engine publishes (`MirrorFullXID`, `MirrorCompletion`). A prepared ticket is
-  detached from its session (`DetachPrepared`).
-  The admitted command's statistics-counts policy is atomically mirrored on the
-  ticket and captured by each actual wait. Only a genuine hard-cycle victim,
-  after final timeout/cancellation arbitration retains that exact deadlock
-  diagnostic, adds a ticket-owned occurrence. The core owner consumes it once
-  outside manager metadata; soft reorder, user-raised 40P01, cancellation and
-  lock timeout are not database deadlocks. No engine/session callback runs under
-  `Manager.mu`. Selected proof: `make check RUN='^TestStatDatabaseDeadlockDecision$'`
-  (also `RACE=1`).
-  The runtime cycle witness retains complete two-edge Detail with actual
-  ticket/resource identities, the released Hint and empty unrelated fields.
-  Either actual participant may anchor the cycle: the witness accepts only the
-  two exact rotations, not missing, duplicated or unrelated edges. Timeout
-  helpers requiring empty Detail/Hint are not deadlock assertions.
-- **Resources and modes.** A `Resource` is a real relation, type, namespace,
-  collation, conversion, statistics, cast, transform, procedure, language, text-search parser/template/dictionary/configuration,
-  access method, operator family/class or shared role/database (`ids.ObjectRef`),
-  an exact catalog destination binding (`Name`),
-  a role attribute tuple claim (`RoleTuple`), a logical row (`Row`), an interned
-  unique key (`PinUniqueKey`), transaction completion (`CompletionOf`) or a
-  database-scoped advisory key (`Database`, `Kind`, `High`, `Low`). Local resources
-  must match their ticket's database domain and epoch; shared role/database
-  objects and exact database destination names use the cluster's stable role
-  domain. Schema and shared-object names use the zero namespace
-  address, never a synthetic OID. All ordinary resources share one ticket,
-  checkpoint and deadlock graph across databases. `Mode` uses PostgreSQL's table
-  and row names; modes accumulate as bits and owners never conflict with
-  themselves. Advisory grants are counted (`Hold.Shared`, `Hold.Exclusive`).
-  Procedure/operator names include exact input signatures, including zero-arity
-  procedures and NONE operator operands. Family/class names include their exact
-  SQL method signature; method names are global and member names identify actual
-  family/pair/slot keys. Other name classes forbid signatures.
-  Cast and transform names share canonical nonzero uint32 decimal pair syntax,
-  with zero namespace and no signature: source/target type for casts, SQL
-  type/language for transforms. Ordered endpoints and catalog class remain
-  independent keys; malformed numbers, namespaces and ticket epochs are rejected.
-  There is no default-class absence lock. Procedures, transforms, languages, text-search parser/template/dictionary/configuration and
-  nonpinned method/family/class providers use ordinary AS/AX object grants, not
-  relation aliases. The engine acquires and waits outside `Engine.Mu`, then
-  rechecks original identities;
-  definition DROP holds AX before capturing its complete dependent closure.
-  Catalog ACL writer claims use a real catalog-object address; default ACL
-  claims use the actual creator ID, namespace/global scope and default class.
-  Their distinct resource kinds share this manager's queues and ticket
-  checkpoints, cancellation, end and epoch fencing. Internal exclusive claim
-  mode is not a relation AX lock; named grants separately acquire relation AS.
-  `DefaultACLWriter` encodes the creator in High/Low only for that distinct
-  kind; `DefaultCreator` decodes it. The class fits beside Kind in existing
-  padding. Keep Resource within its original compact layout and below Go's
-  indirect map-key threshold; ordinary immediate/reentrant grants must remain
-  zero-allocation, as the existing lock/timeout tests require.
-  `TupleResource` constructs exact tuple keys. Its zero anchor/stamp pair is
-  the unchanged ordinary relation/RowID key. `RepairedTupleResource` stores
-  the actual anchor VersionID in Row and full repair stamp in High/Low, with
-  no additional resource fields or registry. Only tuple modes accept that
-  discriminator; unrelated relation/name/advisory/catalog claims are unchanged.
-  Persisted role-default writers use `RoleSettingResource` in the shared role
-  domain: the full database address (zero for ALL) and principal ID in `High`
-  identify one exact row, with no extra resource fields or registry. Principal
-  retirement protection precedes this writer; grants live on the same transaction
-  ticket and restore through ordinary checkpoints. These internal claims project
-  blocker XIDs, never fabricated physical object tags.
-  Subscription object and database-discriminated name claims use the same
-  stable cluster domain, so cross-database REASSIGN and local ALTER arbitrate
-  on the actual shared object identity. The core adapter retains its original
-  local reference for post-wait catalog/epoch validation; object lock records
-  expose the shared database-zero tag.
-  Ordinary tablespace object grants likewise use the stable cluster domain and
-  existing AS/AX modes. Their shared object tag has class1213, the actual
-  tablespace OID, subobject zero and database zero. Original local domain/epoch
-  validation survives the adapter; distinct local catalog ACL writer resources
-  are not remapped. This admits real builtin/renamed metadata locks, not physical
-  CREATE TABLESPACE or a new label capability.
-  Parameter canonical-name writers (including absent first grants) and retained
-  parameter ACL-address claims also use the stable cluster domain. Parameter
-  names have zero namespace and no signature. The adapter retains original local
-  epoch and immutable parameter predecessor/incarnation fences across waits.
-  These internal claims expose real blocker XIDs through existing inquiry,
-  never synthetic physical tuple or index records.
-  Replication-origin name writers likewise use the stable cluster domain, zero
-  namespace and no signature. Their exact TEXT key may be empty; this exception
-  does not admit empty SQL identifier names. They share ordinary transaction
-  queues and expose blocker XIDs, not physical index tuples. Origin object
-  grants use real class6000 IDs 1..65534 in that same shared domain, with AS/AX
-  modes and database-zero object tags, never relation aliases. Subscription
-  retirement and standalone retirement use this single object authority.
-  Persistent tickets accept no ordinary object resource except an exact shared
-  database RowExclusive startup request. It has no invented transaction
-  provenance; cancellation and once-only narrow release use its real ticket.
-  Immediate admission, queued validity, inquiry and narrow release share the same
-  exact resource/mode gate, including the configured shared domain and epoch.
-  Transactional database objects admit only AccessShare, RowExclusive, Share
-  and AccessExclusive. Source-copy Share grants are compatible with other copies
-  and ACL AccessShare, but exclude startup RowExclusive; startup writers remain
-  mutually compatible. Utility AX excludes every database mode, and exact
-  destination-name grants remain transactional. Other shared object classes
-  retain their AS/AX-only mode inventory.
-- **Queues and waits.** `StartAcquire` grants at once or returns the queued
-  `Request`, which the caller waits on (`Wait`) after releasing its own
-  locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,
-  the caller's source context and the session request's provenance. Each queued
-  acquisition gets its own fresh lock-timeout deadline; immediate grants are
-  untimed. `WaitError` decides a wait's outcome from absolute SQL deadlines, not
-  from callback scheduling: the earlier deadline wins and an exact tie favors the
-  lock timeout. Queue settlement checks the deadline before granting, so a late
-  release fails rather than extending the timeout. `TimeoutSlot` lets the
-  session observe a pending SQL timeout without the manager mutex. Only the
-  manager grants or removes requests.
-- **Deadlock detection.** Every new wait runs detection over the live queues.
-  Cancellation and deadlines are normalized before graph decisions. Soft cycles
-  are resolved by reordering queues when a proposal removes every cycle;
-  otherwise one request gets `40P01` with an exact witness.
-- **Savepoints and unique-key candidates.** `Checkpoint`/`Restore` and the
-  unique-key variants restore held contributions, never pending requests.
-  `BeginUniqueDelta`, `RestoreUniqueDelta` and `EndUniqueDelta` journal the
-  claims of one conflict-update candidate. `UniqueJournal` binds the
-  manager to one ticket for these (`Checkpoint`, `Restore`, `BeginDelta`,
-  `EndDelta`, `RestoreDelta`); the engine's DML code uses it.
-- **MultiXact history.** The manager owns database-partitioned immutable records,
-  nonzero modular counters and associations with exact row versions
-  (`PhysicalEvents`, `MultiXactMembers`, `MultiAge`).
-  Arbitration uses the admitted tuple `Resource`; physical history adds
-  `VersionID`, so a successor with a surviving genuine original locker copies
-  the predecessor's original raw xmax ID and full member set, including ended
-  or mixed-mode members. No surviving original locker means an empty successor
-  header, not ownership inherited from an ended raw member or the new action.
-  Ending an owner retires effective contributions, not retained raw physical
-  headers. A batch is prepared completely before any counter or history change
-  is published.
-  Member-set reuse is a transaction-local LRU of
-  at most 256 IDs, filled by creation and by member inquiry, never universal
-  interning. Same-XID strength merges keep action versus lock kind.
-  Savepoints restore status contributions separately from grant modes; grant
-  intersection only bounds a stale checkpoint and never invents provenance.
-  Inherited singleton tuple headers are separately KEYSHR|LOCK_ONLY, without
-  rewriting immutable original membership. A subsequent genuine lock changes
-  the effective header; checkpoints preserve earlier inherited provenance.
-  Successor assignment retains the updater's original per-mode contribution
-  mask before singleton promotion clears predecessor modes. Only those saved
-  contributions can survive on its successor; matching owner pointers cannot
-  resurrect an action retained solely in an immutable rolled-back raw bag.
-  Rewinding an updating contribution marks that exact raw updater revoked,
-  independently of its owner's later top-level commit. A subsequent genuine
-  physical event may replace that invalid updater while preserving prior
-  captures and immutable MultiXact history. A valid committed updater remains
-  authoritative and still rejects a second updater on the same physical tuple.
-  A prior singleton FOR UPDATE followed by a non-key UPDATE remains an
-  `Update` action, while a fresh non-key UPDATE is `No Key Update`.
-  A genuine own lock-only event before an action supplies inheritable raw xmax;
-  repeated action events retain that original prelock and contribution mask
-  through accepted successor assignment. An action without a preceding raw
-  lock-only header does not manufacture its own XID on an otherwise empty
-  successor. Runtime must emit actual pretrigger locks before invoking BEFORE.
-- **Inquiries.** `BlockingPids` (for `pg_blocking_pids`), `PGLocks` (the
-  manager's half of `pg_locks`, as owned `Record` values) and the grant queries
-  the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
-  `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`,
-  `RelationHolders`, `AppendRelationNameClaims`). `RelationHolders` freezes a
-  specified conflict-mode cohort without acquiring or queuing that mode.
-  `RetireDetachPhase` captures the AX-conflicting cohort and releases the
-  completed utility phase's SUE relation grants in one manager critical section;
-  the transaction ticket, completion resource and unrelated grants remain live.
-  Namespace, procedure, transform, language, text-search parser/template/dictionary/configuration, access-method,
-  family/class and shared role/database holds project as real object tags;
-  shared objects have SQL database zero. Exact name and
-  role-tuple claims are internal, not physical
-  object tags; pending claims project the actual blocker XID. Their queues join
-  blocking inquiry and the same deadlock graph without exposing peer local locks.
-  Catalog/default ACL claims likewise emit no invented relation, object or
-  advisory holder tags. Their pending projection follows real blocker XIDs
-  through the existing transaction dependency path.
-  Cross-database blocking discovery includes a positive public startup PID only
-  through its genuine persistent ticket, current pending request/journal and
-  exact shared database RowExclusive resource. It needs no transaction owner.
-  Cancellation or grant removes that wait from both inquiries. Private startup
-  owners and unrelated cross-database advisory/local waits remain invisible;
-  prepared blockers retain their zero-PID projection.
-  Generated ordinary index naming snapshots only other owners' granted relation
-  names for the exact namespace/domain/epoch into caller-owned scratch. Pending
-  requests alone reserve no generated name. Capture takes only manager metadata,
-  outside engine/session mutexes, and creates no second reservation registry.
-- **pgrowlocks capture.** `Pgrowlocks` accepts only an MVCC-selected prefix of
-  exact ObjectRef/RowID/VersionID identities. It applies current HTSU-style
-  eligibility separately from raw membership, preserves full aligned bags,
-  excludes pending requests and projects current top-level PID ownership
-  (ended/detached owners are zero). The output contains owned scalars only,
-  never tickets or queues. Capture assigns nothing, settles nothing and runs
-  no callbacks. The engine releases Engine.Mu before entering this manager.
-  `StartAcquireRelation` records a caller-owned `RelationContribution`, released
-  by `ReleaseRelation` after its request is terminal. Scoped AccessShare, Share,
-  RowExclusive and AccessExclusive ownership is counted separately from idempotent
-  ordinary grants; their union supplies conflict and inquiry modes. The physical
-  visibility-map truncator owns an independent scoped AccessExclusive contribution,
-  not a transaction-long lock or a substitute reservation. Cleanup preserves ordinary
-  same-mode grants acquired before or during verification and other nested
-  scopes. Savepoint checkpoints never promote active scoped contributions into
-  ordinary ownership. Canceled upgrades do not remove an earlier hold; retired
-  ticket and entry identities fence delayed cleanup from a replacement grant.
-  GIN physical cleanup uses the dedicated RowExclusive slot without retaining
-  a transaction grant. Only these four single relation modes are admitted;
-  composites and other modes remain invalid. Ownership, checkpoint and queued
-  cancellation/generation witnesses include genuine RowExclusive conflicts and
-  compatible peer writers:
-
-  ```sh
-  make check RUN='^TestRelationContribution(Ownership|Checkpoint|QueueGeneration|Modes)$'
-  make check RACE=1 RUN='^TestRelationContribution(Ownership|Checkpoint|QueueGeneration|Modes)$'
-  ```
-
-Engine type mutation resource order is source TypeExclusive, actual composite
-backing AX when required, then typed-table closure AX. Schema moves retain source
-type authority without adding backing AX; scalar sources never fabricate a
-relation resource. These are ordinary ticket contributions, restored by savepoint
-checkpoints and released at owner end.
-
-Definition admission uses real `pg_collation` relation ShareRowExclusive for
-the protected phase of collation CREATE, AccessExclusive on mutated/retired
-definition objects, and AccessShare on actual declaration providers. Namespace,
-option, FROM and provider-specific preparation and serial same-encoding
-duplicate/skip checks precede ShareRowExclusive; cross-encoding shadow checks,
-remaining provider loading/version work and insertion follow it. Exact-key
-insertion races retain `23505`, including IF NOT EXISTS. Definition addresses are
-sorted by class/OID and deduplicated. Collation/conversion names use their real namespace;
-cast names use the zero namespace and canonical directed endpoint key. Language
-names likewise use global zero-namespace keys, and language declaration consumers
-use ordinary AS grants against ALTER/DROP AX grants. No conversion DEFAULT-pair
-lock is manufactured. These contributions share ordinary savepoint, cancellation,
-owner-end and replacement lifetimes. Object holds project
-as object tags; internal destination claims expose only actual blocker XIDs.
-Publication names likewise use local zero-namespace keys. Publication definition
-AS/AX grants retain the ticket's own database domain and epoch, and project as
-non-shared class6104 object locks; mapping edges have no independent lock owner.
-Large-object metadata resources likewise use existing local AS/AX object grants,
-with the ticket's exact database domain/epoch and whole nonzero object address.
-They are distinct from same-OID relations and catalog ACL writer resources.
-Canonical engine authority remains `LargeObjectClassID` (2995,
-`pg_largeobject_metadata`); only `pg_locks` presentation translates its class
-to 2613 (`LargeObjectRelationId`), as selected by REL_18_6 `objectaddress.c`.
-The resulting ordinary object tag retains the actual OID, subobject zero and
-current database, never shared database zero or a fabricated relation tag.
-Queues, canceled upgrades, checkpoints, owner end and epoch fencing use the
-unchanged ordinary resource lifecycle. Generic SECURITY LABEL still rejects the
-provider class after the real object lock and fresh ordinary owner check;
-admitting this lock grants no large-object label capability.
-`TestLargeObjectObjectLocks` pins local admission, canonical2995/public2613
-capture, independent relation/ACL identity and cancellation/checkpoint/fence
-cleanup. `TestReplicationOriginStateObjectLocks` includes shared tablespace
-AS readers and a cross-database AX waiter with actual blocker/owner records;
-database-only RX/Share admission retains the same exact shared-resource authority.
-`TestDatabaseSharedObjectModeCompatibility` checks each permitted database mode
-pair and its genuine cross-database grant/wait provenance.
-`TestPGLocksResourceRecords` pins both exact public tags. The composed generic
-label owner tests in `schemacmds` exercise these through actual SQL execution;
-TYPE/DOMAIN continue to use existing TypeExclusive, not widened type admission.
-
-ALTER retains its original target even for no-op actions, independently of DROP
-roots. After the exact object grant, current authority must still identify that
-original name/address/namespace; a search-path fallback is never locked or adopted.
-Native replacement failure clears explicit-transaction savepoints and requires
-full rollback before starting a fresh transaction on the same physical owner.
-
-
-`CaptureTupleMaintenance` samples exact admitted-resource/VersionID raw xmax
-facts into caller-owned detached scratch (`Present`, `Xmax`, `Multi`), alongside
-effective `Active` ownership and `NewestFullXID` from actual retained member
-owners. Any unknown member provenance yields full-XID zero conservatively;
-raw XID/MultiXact IDs never supply full transaction identity. Maintenance callers
-combine these detached facts with their captured successful VACUUM cutoff.
-The same manager-private raw-header helper feeds pgrowlocks before eligibility
-filtering.
-Ended/aborted raw headers remain represented even when pgrowlocks emits no row;
-savepoint rollback removes contributions without erasing raw aborted headers.
-Capture never assigns XIDs, advances MultiXact counters, settles queues or
-changes contributions/history. Callers hold no Engine/owner mutex; the method
-takes Manager.mu only. Epoch fencing retires the corresponding physical history.
+`StartAcquire` atomically grants or enqueues a request; waiting and terminal
+completion belong to that exact request generation. Savepoint checkpoints restore
+ticket contributions, not a second engine undo journal. Scoped relation
+contributions are independent of transaction-wide holds and release only their
+own grant. Domain retirement is terminal lifetime, distinct from epoch fencing.
 
 ## Mutex ownership and lock order
 
-`Manager.mu` guards every map, queue, journal and counter above. Engine code
-reaches it only through `Manager` methods; no method runs a caller callback
-under it.
+`Manager.mu` guards manager maps, queues, journals and counters. Clients use
+methods rather than touching state. No method runs a callback under it.
+The manager mutex is innermost and never acquired under `Engine.Mu` or a session/
+settings/registry mutex. Metadata capture and post-wait readmission are separate
+engine windows; manager waits run outside all metadata locks.
 
-- `mu` is innermost. It may be taken while the engine holds `replacementMu`
-  (admission reservation) or a `session.TransactionOwner.Mu` (savepoint
-  checkpoint and restore, finish).
-- It is never taken while holding `Engine.Mu`, `Session.Mu`,
-  `SettingsStore.Mu` or `Engine.sessionMu`. Callers release `Engine.Mu`
-  before calling the manager.
-- While `mu` is held, no other mutex is taken, no callback runs and nothing
-  blocks. Unique-key comparers run outside it (`PinUniqueKey` releases `mu`
-  around every comparison).
+Surrounding runtime order takes replacement/transaction-owner locks before
+Engine, then Session/settings/local registry locks. Multi-owner capture discovers
+pointers under the registry lock, releases it, then locks distinct owners in stable
+order before Engine and revalidates the cohort. It never waits for peer admission
+or completion while retaining the cohort.
 
-For reference, the surrounding engine order takes `replacementMu` and
-`TransactionOwner.Mu` before `Engine.Mu`, and `Engine.Mu` before `Session.Mu`,
-`SettingsStore.Mu` and `Engine.sessionMu`; `Session.Mu` comes before
-`Engine.sessionMu`. Session code reaches the engine only through
-`session.Host`: `Unregister` runs under `Session.Mu`, removes registration under
-`Engine.sessionMu`, drains the leaf statistics provider, and releases physical
-admission. `EndMaintenance` runs without session/admission/owner locks, outside
-every `SessionResource` callback, and may take metadata locks. Unconditional
-post-resource `DrainStatistics` cancels and joins callbacks outside locks.
-`StatisticsReadyLocked` runs under `Session.Mu` but only
-tries admission/owner mutexes without waiting, then takes the leaf provider lock.
-It cannot wait in the inverse owner/session order. `NewOperation` only allocates
-and takes no lock. The session-layer mutexes are exported fields of
-`session` types (`Session.Mu`, `TransactionOwner.Mu` and `Admission`,
-`SettingsStore.Mu`). The LISTEN/NOTIFY registry and listener fields
-(`session.NotificationRegistry`, `session.NotificationListener`) belong to
-`Engine.Mu`; only root code takes it around their `…Locked` methods, and the
-root `notificationSessionEnd` resource callback takes it to end a listener.
-
-For coherent physical statistics capture, discovery copies session owner
-pointers under `Engine.sessionMu` and releases it before taking any owner
-mutex. Distinct owners are locked in ascending session-token order, including
-the caller, then `Engine.Mu` is taken. Cohort changes require releasing all
-locks before rediscovery. This never takes peer Admission, awaits transaction
-completion, or acquires a lock-manager mutex under `Engine.Mu`.
-Shared session journals coallocate a leaf projection-cache mutex. Engine-locked
-`PrivateRead`/invalidation and detached `Journal.Clone` cache capture take that
-leaf last; while held, they acquire no owner/engine mutex and invoke no slot or
-provider callback. Direct cache-field access remains engine-serialized.
-
-
-Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
-readable without `mu`; the engine updates them under `Engine.Mu`, which is why
-`PGLocks` samples each ticket's XID once per capture.
+Ticket atomics expose assigned XID/completion state without manager locking;
+their engine-side updates still follow the owning publication protocol.
 
 ## Cancellation and teardown
 
-- A request becomes terminal exactly once, under `mu`: granted, failed by
-  deadline, canceled by its context or source, ended with its ticket
-  (`ErrOwnerEnded`), fenced (`ids.ErrCatalogReplaced`) or chosen as a deadlock
-  victim. The same step stops its lock timer and context callback and retires
-  its timeout slot.
-- Waiters are notified only after `mu` is released. A queued request waits on
-  its done channel with no mutex held.
-- `End` releases a ticket's grants and terminates its pending requests,
-  including session requests that carry its transaction as provenance.
-  `Fence(databaseDomain, epoch)` retires only that database's older tickets,
-  resources and physical history, including its shared-role contributions.
-  Peer database owners and holds survive. Both operations settle affected queues,
-  granting eligible waiters and waking ended owners.
-- Engine transaction tickets end through the engine's `endLockOwner`, which
-  first retires engine-held exclusion state.
+Requests become terminal exactly once under `mu`: grant, deadline/cancel, ticket
+end or replacement fence. A terminal cannot consume a later request generation's
+grant. Teardown releases actual owned contributions and wakes waiters through the
+same queues. Cancellation and fatal diagnostics retain their designated owner;
+SQLSTATE text is not evidence of a manager event.
 
 ## Diagnostics
 
-`inspect.go` is a deliberate seam for tests and tooling. Each method takes only
-`mu`, runs no callbacks and returns owned values that share only immutable
-identity (ticket and request pointers, interned key values):
-
-- `Inspect` returns a `Snapshot` of registrations, per-resource holders and
-  waiters, ticket journals, unique-key buckets and MultiXact state.
-- `ExpireWait` ends a queued request with the outcome its deadlines give at a
-  chosen instant; `ExpireLockTimeout` ends it with the lock-timeout outcome.
-  Both use the terminal path a firing timer uses.
-- `Request.Terminal`, `Request.Released` (terminal, timer and callback
-  disarmed) and `MutexHeld` let tests observe lifecycle without the mutex.
-
-**Frame names matched by tests.** The defining type of `Request` is
-`relationRequest`, and `Wait` blocks in `(*relationRequest).wait`: the reference
-suite recognizes a parked lock wait by that frame. Keep both names.
+Inspection is a deliberate owned-value seam for tests/tooling. Snapshots borrow
+no mutable manager maps or request state and never acquire engine authority.
+Blocking/wait projection consumes actual registrations and queues, not inferred
+SQL text or process state.
 
 ## What stays in the engine
 
-Query lock admission, `LOCK TABLE` statement handling and relation scopes
-(they combine locks with the catalog), the `pg_locks` projection and engine
-adapters for advisory and blocking-inquiry SQL, predicate-lock (SSI) records,
-safe-snapshot blocking, the exclusion projection registry instance,
-unique-key pins, and XID assignment. The registry type
-(`index.ExclusionRegistry`) and the unique key the pins lock
-(`index.UniqueKeyValues`, `index.UniqueKeyHash`) are
-[`index`](../index/README.md) code. The advisory/blocking immutable nodes
-and family bind/evaluation recipes live in `functions`; engine adapters retain
-resource construction, ticket choice and lock ordering.
+Catalog-qualified relation/type/object admission, statement scopes, transaction
+completion, visibility and `pg_locks` projection. The manager arbitrates resources;
+it does not validate catalog authority or execute SQL.
 
 ## Testing
 
-Unit tests run on `lockFixture` (`fixture_test.go`), which mints tickets and
-resources from an `ids.Domain` without an engine; drive deadlines with
-`ExpireWait` and explicit instants, never sleeps. Run them with the race
-detector. Engine tests that need an engine live in `internal/engine/core` (relation
-locks, waits and deadlocks) or `internal/engine` and read lock state only
-through the diagnostic seam.
-Publication name/definition resource admission and object-tag ownership use
-`RUN='^TestPublicationDefinitionLockResources$'`.
-Exact visibility maintenance facts use `RUN='^TestPgvisibility'`, also with `RACE=1`.
-Tuple resource identity, raw capture and repaired lineage owner tests use
-`RUN='^TestPgsurgeryFreezeTuple(Resource|History|PretriggerInheritance|Renewal|EndedLocker|MaintenanceProvenance)$'`, also with `RACE=1`.
-
-
-```sh
-make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'
-make check RACE=1 RUN='^TestTransactionalSchemaLockResources$'
-make check RACE=1 RUN='^(TestDictionaryLockResources|TestTransactionalDefinitionLockResources)$'
-make check RUN='^TestPgrowlocks'   # pgrowlocks capture through a real engine
-```
+Pure fixtures mint tickets/resources from an `ids.Domain` without an engine.
+Tests observe the exact queued request and use deterministic deadline/virtual-time
+controls rather than sleeps. Join every worker and assert on the test goroutine.
+Core tests cover real scope/admission/publication integration; public SQL remains
+in reference locking/session packages.

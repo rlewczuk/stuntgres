@@ -1,15 +1,11 @@
 # reference/type_resolution
 
-Dual-mode tests for type and operator resolution: the comparison-operator
-resolution matrix (pairs, BETWEEN triples, DISTINCT, null/truth predicates,
-consumers, structural and stored routes), explicit casts, NAME/OID values and
-the type core, diagnostic field records, the OID alias types (`regclass`,
-`regcollation`, `regnamespace`, `regconfig`, `regdictionary`, `regrole`,
-`regoperator`, `regproc`/`regprocedure`, `regtype`) and `xid`/`cid`/`xid8`.
-User-defined operators and `TestReferenceRegOperatorExternalBoundary` are in
-[reference/operators](../operators/README.md#testing); `pg_cast` is in
-[reference/catalog_objects](../catalog_objects/README.md#testing) and other catalog
-inventories are in [reference/catalogs](../catalogs/README.md#testing).
+Dual-mode scenarios for type/operator resolution, explicit casts, identifier and
+OID-alias values, input diagnostics and text-search dictionary providers.
+User-defined operators and cast declarations belong to
+[operators](../operators/README.md#testing); catalog rows to
+[catalog_objects](../catalog_objects/README.md#testing) and
+[catalogs](../catalogs/README.md#testing).
 
 ## Testing
 
@@ -17,442 +13,64 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` passes an explicit
 text-search file manifest to `fixture.Main(m)`. `name_external_test.go` and `diagnostics_postgres_test.go`
 carry the `reference` build tag (PostgreSQL-only complements).
 
-### Nullable registry lookups
+### Independent inventories
 
-`TestReferenceRegLookupCollRoleValues`, `Binding`, `Diagnostics`, `Lifecycle`,
-`Stored` and `Smoke` share independent direct, fresh-prepared and held TEXT
-expectations for `to_regcollation` and `to_regrole`. They assert raw alias codecs
-and metadata, strict/missing/producer-soft NULL versus hard errors, complete
-diagnostics, quoted and numeric identities, effective collation paths and
-runtime identity after rename/drop/recreation. Stored callable views/defaults
-remain expressions, including role lookup without a regrole constant dependency.
-Native control phases consume actual Dump bytes through Reset/Restore and retain
-already-open rows; real mode also replays the emitted SQL on PostgreSQL. No
-registry-lookup state or role DDL serialization is introduced.
-Select this family with
-`make check RUN='^TestReferenceRegLookupCollRole(Values|Binding|Diagnostics|Lifecycle|Stored|Smoke)$'`
-and repeat with `REFERENCE=1`.
+[comparison-ledger.md](comparison-ledger.md) records the evidence method and
+inventory; `comparison_facts_test.go` encodes released facts. Cast and alias
+inventories likewise use independent expected data, never native output.
 
-`TestReferenceRegLookupCallableValues`, `TestReferenceRegLookupCallableBinding`,
-`TestReferenceRegLookupCallableDiagnostics`,
-`TestReferenceRegLookupCallableParserPrecedence`,
-`TestReferenceRegLookupCallableLifecycle`, `TestReferenceRegLookupCallableStored`
-and `TestReferenceRegLookupCallableSmoke` cover the four callable TEXT signatures
-`to_regproc`, `to_regprocedure`, `to_regoper` and `to_regoperator`. Definitions
-live in `reglookup_callable_values_test.go`, `reglookup_callable_binding_test.go`,
-`reglookup_callable_diagnostics_test.go`, `reglookup_callable_lifecycle_test.go`
-and `reglookup_callable_stored_test.go`.
+Comparison Matrix/Between/PredicateErrors are sharded by semantic suffix.
+Each shard runs separately; a shared-helper change affects every calling shard.
+Scenario windows and bounded projections keep work within original deadlines.
 
-Independent expectations include fixed builtin OIDs, exact alias descriptors and
-raw transport, numeric zero/max-OID versus NULL, signature overload identity and
-name-only ambiguity as NULL (with throwing-cast controls). Direct, fresh and held
-TEXT routes preserve complete hard diagnostics and recover for later valid input.
-The public operand101 regression requires hard type errors before the shared
-argument limit. Lifecycle witnesses distinguish same-signature path masking from
-overloads, TEMP operand types from targets, schema USAGE from target EXECUTE,
-and current identities after rename/move/drop/recreation. Native-only phases
-consume actual Dump bytes through Reset/Restore and a fresh engine, retain
-finished rows/metadata, preserve state after failed Restore, then replay exactly
-the emitted SQL on PostgreSQL. Stored TEXT calls remain runtime expressions;
-stateless builtins require no separate serialization.
+Runtime cast coverage uses provider, direct-edge and generic-rule families,
+not Cartesian products of every route. Keep typed storage, executable codecs
+and metadata-only companions distinct; catalog presence grants no carrier API.
 
-Run these selected groups, repeating each with `REFERENCE=1`:
+### Identity and resource ownership
 
-```sh
-make check RUN='^TestReferenceRegLookupCallable(Values|Binding|Diagnostics|ParserPrecedence)$'
-make check RUN='^TestReferenceRegLookupCallable(Lifecycle|Stored)$'
-make check RUN='^TestReferenceRegLookupCallableSmoke$'
-```
+- Generated OIDs are backend-relative. A dropped numeric OID can be reminted;
+  retained bits may then have a different symbolic spelling.
+- lib/pq raw OID/alias cells and type-name coverage differ from native. Assert
+  transport before normalization; a missing pq name is not missing type identity.
+- Do not issue SQL on an unread PostgreSQL streaming connection. Mutate behind
+  retained rows through a separate physical owner.
+- Forced Restore displacement retains an actual owner-held TEMP object;
+  ordinary permanent destination spacers are discarded by replacement.
+- Catalog probes bind independent identities before reciprocal joins and batch
+  OID checks once per checkpoint, refreshing after replacement.
+- Native replay consumes actual emitted SQL, so PostgreSQL-only discovery cannot
+  supply the stream. Concrete-type lifetime fences remain separate from
+  same-lifetime rename and current runtime resolution.
+- Shared regoperator adapters have one owner in `fixture/regoperator.go`.
+  Identity evidence and released TSV inventories live in `docs/design/`.
 
-The last selector is the feature smoke: four fixed alias values/OIDs,
-ambiguous/missing/strict NULL, held hard-error recovery and real native stored
-round-trip/default/view checks with emitted PostgreSQL replay.
+### Dictionary fixtures
 
-### Input validity diagnostics
+The text-search manifest supplies identical real released resource bytes to
+native registration and oracle installation. Ispell provenance/license is in
+[testdata/ispell](testdata/ispell/README.md); malformed resources are explicit
+manifest bytes, not production sample matchers or host-file fallbacks.
 
-`TestReferenceInputValidityValues`, `NullRecords`, `Typmods`, `HardErrors`,
-`Binding`, `Lifecycle` and `Smoke` share independent direct/prepared public SQL
-expectations in both modes. They cover BOOL/RECORD/TEXT metadata, strict NULL
-versus successful all-null records, typmod-aware conversion, message/detail/hint
-and SQLSTATE, declaration/setup and hard producer boundaries, domain checks,
-transactions, held target changes, statement atomicity and native stored replay.
-Scalar FROM uses the common typed scalar-once cursor, including one expanded
-four-NULL row for strict NULL error-info. Named `value`/`type_name` arguments
-belong only to error-info; named boolean calls must fail. Retained view rows
-use the established BOOL/TEXT metadata contract (unbounded TEXT length), not
-REGTYPE-specific length assumptions.
-Select the family with
-`make check RUN='^TestReferenceInputValidity(Values|NullRecords|Typmods|HardErrors|Binding|Lifecycle|Smoke)$'`
-and repeat with `REFERENCE=1`. The bounded feature smoke selector is
-`make check RUN='^TestReferenceInputValiditySmoke$'` (also with `REFERENCE=1`).
-
-### Comparison matrix
-
-- [comparison-ledger.md](comparison-ledger.md) records the evidence method and
-  inventory; `comparison_facts_test.go` encodes the released facts. Never derive
-  an expectation from native output.
-- `Matrix`, `Between` and `PredicateErrors` are sharded by the suffixes
-  `Numeric`, `Strings`, `Temporal`, `Identifiers`, `BinaryNetwork`,
-  `NegativeSpace`, `Ranges` and `Arrays`. Run each shard selector on its own
-  (`RUN='^TestReferenceComparisonMatrixNumeric$'`); after changing a shared helper,
-  run every calling shard, not a representative one.
-- `comparison_negative_plan_test.go` is a pure plan that witnesses each empty pair
-  (no released operator) once per route with a rotating spelling, form and filter.
-  Each family asserts full rotation coverage before allocating a fixture.
-  Admitted and partially admitted pairs execute every combination.
-- Sizing: Matrix, Between and PredicateErrors own one scenario per left identity;
-  Consumers uses windows of two right identities because PostgreSQL reruns the
-  catalog node-tree source in every correlated route. Batched projections hold
-  at most 32 expressions. Successful checkpoints run directly once and through
-  the same held statement twice (`comparisonCheckpointRoutes`); analysis denials
-  fail at execute directly and at Prepare when prepared.
-- `comparisonFiniteValue`/`comparisonFiniteValueFrom` return plain columns (the
-  fixture stores NULL at id 0). Only arrays, CHAR, `pg_node_tree`, VOID,
-  node-peer strings, BPCHAR and BIT keep an outer NULL-gating CASE (the last two
-  for their default typmods). `comparisonFiniteCharSource` binds the catalog
-  CHAR values once per query through a singleton derived source; a batch acquires
-  it before its first bound CHAR expression.
-- Expected BETWEEN truth comes from independent endpoint comparisons under SQL
-  three-valued logic.
-- Stored-constructor scenarios distinguish member, whole-value and unused-CTE
-  dependencies through container removal, exact RESTRICT diagnostics and CASCADE
-  retirement of retained types, companions and views.
-
-### Cast coverage
-
-The cast inventory and released directional facts are independent expected data.
-Runtime families use deterministic provider, direct-edge, generic-rule and
-diagnostic witnesses rather than Cartesian route products. `DirectEdges` batches
-typed column conversions by source and input; family `Matrix` and `Functions`
-definitions cover distinct codecs and actual signatures. Focused cases retain
-context, sizing, domains, shapes, environments, atomicity and lifecycle behavior.
-`ProtocolRoles` shares one real server fixture for nonstorage/input roles.
-Scalar RECORD cases retain genuine result metadata for lawful typename
-shortcuts and distinguish anonymous-composite input errors from missing
-functions. UNKNOWN cases retain final TEXT and inferred parameter metadata;
-VOID protocol cases distinguish non-NULL empty output from SQL NULL.
-The three concrete statistics types have separate `castImplementedNullOnlyTypes`
-roles: typed NULL storage, parameters and casts, with exact rejection of all
-non-NULL text input. They have no fabricated non-NULL seed or collector source
-in the Cartesian inventory. Select the bounded role scenario with
-`RUN='^TestReferenceCastImplementedInternalRoles$'` in both modes.
-The SERVICE_CERTIFICATES public and server regressions retain all five arguments,
-repeated/NULL/error frames and protocol metadata independently of matrix sizing.
-Focused review regressions retain numeric-leading temporal callable resolution
-versus precision literals (`NumericTemporalCalls`) and actual installed citext
-default rendering across schema rename, old-name shadowing and native replay
-(`InstalledCastRendering`). `DeclaredTypeNameAuthority` lives in
-`reference/operators` to reuse declared builtin-pair cleanup; it distinguishes
-function, binary and INOUT authority and preserves the established explicit
-PostgreSQL-held/native-reanalysis lifetime expectations.
-Its stored binary typename view retains the selected method after the current
-pair is replaced by INOUT; this is not a fresh-call or dumped-row surrogate.
-
-The canonical array-compatible `int2vector` and `oidvector` types belong to
-`Identifiers`, both with literal seed/output `1 2 3`. Their typed storage,
-parameter and text input/output routes participate in `Inventory` and
-`MatrixIdentifiers`; `FunctionsIdentifiers` retains only actual released
-callable signatures. Vector companions `_int2vector` (1006) and `_oidvector`
-(1013) remain metadata-only; their presence does not grant companion codecs.
-REGCONFIG[] (3735) and REGDICTIONARY[] (3770) are executable companion roles
-in the array cast inventory, including typed storage, parameters and recursive
-element coercions. Their expected element spellings distinguish zero OID `-`
-from SQL NULL.
-The `MatrixIdentifiers/oidvector_codec` public control also checks literal
-nonempty/empty/SQL-NULL casts before Normalize: native strings, pinned lib/pq
-bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
-
-### OID aliases and identifiers
-
-- Normalized `oid` cells are int64 natively and strings through lib/pq. lib/pq
-  reports an empty `DatabaseTypeName` for REGCOLLATION and XID8; assert raw codecs
-  independently of the name.
-- lib/pq cannot run another query on a connection with an open result stream:
-  mutate rows behind a retained cursor through a second connection.
-- A dropped OID can be reminted for a new referent, changing the symbolic spelling
-  of retained bits; never reserve OIDs or suppress live output.
-- Restore discards ordinary target tables, so allocator-displacement witnesses
-  keep an owner-held TEMP object (sequence, namespace or rowtype) alive on the
-  target; persistent domains supply user TypeClassID remapping witnesses.
-- Replay phases need the full dual-mode selection: a `/postgres` selector cannot
-  supply the native emitted stream.
-- `TestReferenceRegProcPreparedAuthority` distinguishes a held accepted
-  REGPROCEDURE literal from fresh/held frame and runtime TEXT input. Genuine
-  extension DROP and same-signature reinstall preserve the held literal's old
-  OID; fresh input resolves the replacement. True path/role invalidation still
-  re-inputs with full diagnostics and later recovery. The source distinction
-  between name data, actual calls and stored-definition dependencies is recorded
-  in [the REL_18_6 lifetime evidence](../../docs/design/regproc-pg18-oracle.md#rel_18_6-accepted-literal-versus-callable-lifetime).
-  Run `make check RUN='^TestReferenceRegProcPreparedAuthority$'` natively and with
-  `REFERENCE=1` as the bounded feature smoke; add `RACE=1` for native race proof.
-- RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem/basque_stem/catalan_stem/danish_stem/dutch_stem, standalone dictionary definitions and
-  installed unaccent identities through `pg_ts_dict`; alias rows use the local
-  `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
-  scenarios independently check typed TEXT[] output, ordered options, current
-  ownership, dependencies, prepared invalidation and emitted native-control SQL.
-  Installed member rename/schema changes retain actual identities, template and
-  extension dependencies. Native controls preserve explicit admitted Rules and
-  owners, including builtin/member name cycles, then replay the actual emitted
-  SQL on PostgreSQL. Missing Rules is rejected atomically. Restore collision
-  witnesses retain a temporary dictionary at the exact imported dictionary OID
-  and check its identity and lexization as imported rows/defaults/views relocate.
-  Warmed all-constant lexize statements retain their accepted value independently
-  of fresh constant plans and current parameterized-token calls.
-  Explicit unaccent scenarios additionally assert typed TEXT results, strict
-  input phases, exact dictionary callback selection and binary defaults/CHECKs/
-  views through native replacement and actual emitted PostgreSQL replay.
-  Dictionary TEXT arguments retain the [shared typed-nil byte adapter contract](../strings/README.md):
-  typed-nil bytes and ordinary nil are SQL NULL on both backends. Nonnil empty
-  bytes and empty strings produce genuine empty arrays on both. This boundary
-  never changes function selection; direct and held routes retain each contrast.
-  Snowball cancellation retains native ordinary-context DDL/direct/prepared
-  rejection and full Dump preservation. Shared direct/held routes gate on the
-  actual parameterized Snowball result, observe the exact advisory waiter and
-  blocker independently, then cancel and join before checking dictionary state
-  and subsequent lexization on the same physical owner. PostgreSQL requires the
-  complete user-request `57014` diagnostic; this witnesses admitted SQL after
-  lexization, not interruption inside a particular stemmer instruction. Held
-  statements close before interrupted borrowers return to the fixture.
-  Synonym scenarios use the shipped `synonym_sample` data, distinguish default
-  and sensitive lookup, and retain dictionary-origin prefix flags through query
-  conversion while projecting spelling alone in TEXT[] and TSVECTOR. They cover
-  ordered duplicate options, held constants versus runtime parameters, actual
-  emitted controls, retained same-class TEMP collisions and output-gated
-  cancellation. Numeric-OID parameters preserve captured dictionary identity;
-  a stale named literal is resolved again after rename or schema movement.
-- Regtype catalog probes restrict a derived left operand before the reciprocal
-  `pg_type` self-join and batch expectation OID probes once per catalog
-  checkpoint, refreshed after catalog replacement; never use LIMIT, cached OIDs
-  or expectation-derived catalog data. REGTYPE/array transport is checked through
-  `Step.CheckRaw`.
-- `TestReferenceRegtypeArrayDisplacementMixedReplay` gives each phase a fresh
-  30-second context rooted in `t.Context()` through a shallow local Pair view
-  (`regtypeDisplacementPhase`); `...ArrayDisplacementControls` gives each of its
-  five kind lifecycles its own fixture. Their invalid late Restore must fail with
-  22P02 while the context is still live.
-- Identity evidence: [regtype](../../docs/design/regtype-pg18-oracle.md),
-  [regproc](../../docs/design/regproc-pg18-oracle.md) and
-  [regoperator](../../docs/design/regoperator-pg18-oracle.md) (with their
-  `.tsv` inventories in `docs/design/`). `fixture/regoperator.go` is shared with
-  `reference/operators`.
+Source namespace/owner/option repair is registered before seed mutation and
+restores captured identities before teardown. Output-gated cancellation proves
+admitted SQL after lexization, not interruption inside a particular stemmer.
+Native controls preserve symbolic resources and replay actual emitted bytes.
 
 ### Selectors
 
-Add `REFERENCE=1` for the oracle.
+Use `make check RUN='...'`, adding `REFERENCE=1` for the oracle.
 
-Dictionary definitions and lexization: `RUN='^TestReferenceDictionary'`.
-Ispell dictionaries and explicit resource lifetimes: `RUN='^TestReferenceIspell'`.
-The shared manifest registers and installs the same released bytes, including
-the default MySpell affix file paired with `ispell_sample.dict`. Provenance and
-license are in `testdata/ispell`; malformed fixtures are explicit manifest bytes.
-Malformed-reader regressions: `RUN='^TestReferenceIspellMalformedReaders$'`.
-These distinguish initialization-time and deferred long-flag demand, required
-MySpell compound operands, and permissive legacy-format ignored lines.
-Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(Identity|Controls)$'`.
-Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
-English Snowball morphology, options, identities and native lifecycle:
-`RUN='^TestReferenceSnowball'`.
-Arabic Snowball morphology, normalization/byte boundaries, language-only stock
-identity, explicit English stopwords, full diagnostics and native replay:
-`RUN='^TestReferenceArabicSnowball'`. The fixed corpus is independently derived
-from REL_18_6; held constants and live parameters distinguish provider changes.
-Armenian Snowball morphology (all 191 released suffix witnesses), region/byte
-boundaries, language-only stock identity, explicit English stops and native
-dictionary/seed replay: `RUN='^TestReferenceArmenianSnowball'`. Corpus goldens
-trace the released ending→verb→adjective→noun order independently of production.
-Basque Snowball release-source morphology (423 full-pipeline rule witnesses),
-original-region/cursor protections, UTF8 byte boundaries, language-only stock
-identity, explicit English stops, diagnostics and dictionary/seed replay:
-`RUN='^TestReferenceBasqueSnowball'`. Corpus expectations are literal independent
-data; direct and retained statements share the public dictionary fixture. Replay
-requires the native producer as well as PostgreSQL; backend-only discovery
-cannot replace proof of the actual emitted stream.
-The pinned oracle keeps `etxeko`: longest noun `eko` begins before RV and cannot
-fall back to `ko`. It stems `aurka` to `aur` because verb `ka` runs before noun
-protection. New cross-routine literals additionally keep protected tails while
-later noun/adjective phases process their prefixes. Select unit/provider and
-ownership witnesses with `make check RUN='^TestSnowballBasque'`; add `RACE=1`
-for invocation-local scratch and immutable runtime ownership proof.
-Danish Snowball morphology, original-region/stage-order boundaries, independently
-specified stopwords, resource isolation, typed prepared ownership and native replay:
-`RUN='^TestReferenceDanishSnowball'`. Replay consumes actual native-emitted bytes.
-Dutch historical Porter morphology, fixed suffix/region/accent boundaries,
-101 literal stopwords, resource isolation, typed prepared ownership and native replay:
-`RUN='^TestReferenceDutchSnowball'`. Edited-stock replay consumes actual native bytes.
-Estonian release morphology, original-R1 and stage-order boundaries, language-only
-stock defaults, explicit stopwords, typed prepared ownership, admitted cancellation
-and native dictionary/seed replay: `RUN='^TestReferenceEstonianSnowball'`.
-Literal expectations are independent of provider tables; replay consumes actual
-native-emitted SQL. Private kernel/provider and publication ownership witnesses
-share `RUN='^TestSnowballEstonian'`.
-German REL_18_6 morphology, natural-R1/R2 and suffix guards, C-case/transliteration,
-231 literal stops, resource isolation, complete diagnostics, typed prepared
-ownership, admitted output-gated cancellation and actual native dictionary/seed
-replay: `RUN='^TestReferenceGermanSnowball'`. The fixed corpus includes independent
-Snowball vocabulary/output pairs and release-negative -et/apostrophe witnesses.
-Private kernel/resources, seed authority, rejected publication and accepted-fold
-ownership: `RUN='^TestSnowballGerman'`. Actual emitted replay requires both backends;
-PG-only discovery cannot replace it. Feature smoke:
-`RUN='^TestReferenceGermanSnowballFeatureSmoke$'`.
-Greek released morphology, finite normalization and suffix/exception boundaries,
-language-only stock defaults, explicit English stops, full diagnostics, retained
-typed folds and admitted cancellation share `RUN='^TestReferenceGreekSnowball'`.
-Native dictionary/seed lifecycle consumes actual emitted SQL on PostgreSQL,
-preserving absent versus explicit-empty options and recursive dictionary values.
-Private seed authority, publication fences and accepted-fold backing use the
-existing `RUN='^TestSnowball'` family.
-Hungarian release morphology covers all nine ordered stages, original-R1 and
-longest-suffix rejection, C-case/accent and original-byte boundaries, the full
-released stoplist, resource isolation, typed direct/held inputs, stock identities
-and all nineteen configuration mappings. Options, ownership, retained constants,
-output-gated cancellation and dictionary/configuration carrier replay share
-`RUN='^TestReferenceHungarianSnowball'`. Expected corpus data is independent of
-production tables; native-control replay consumes the actual emitted SQL and
-requires both backends rather than PG-only discovery.
-Seed-cycle replay repairs canonical names and the original dictionary/configuration
-owners captured by identity, so emitted native ownership does not leak into the
-shared PostgreSQL stock catalog.
-Indonesian release morphology covers measure/pipeline boundaries, prefix and
-suffix among fallbacks, C-case/accent and original-byte boundaries. Its stock
-dictionary is Language-only, has no stoplist, and owns all six word mappings
-including ASCII. Explicit English stops, typed direct/held inputs, full
-diagnostics, retained constants, publication/cancellation and actual emitted
-dictionary/configuration carrier replay share `RUN='^TestReferenceIndonesianSnowball'`.
-Private kernel/provider, accepted-fold ownership, publication fences and seed
-replay use the existing `RUN='^TestSnowball'` family.
-
-Hindi's 132 literal release suffix witnesses, conditional fallback/protected-rune
-boundaries, language-only stock defaults, explicit English127 stopwords, typed
-prepared ownership, complete diagnostics, admitted cancellation and actual native
-dictionary/seed replay share `RUN='^TestReferenceHindiSnowball'`.
-The dictionary never applies English rules: RATS becomes rats, while the stock
-configuration uses English for ASCII. Feature smoke is in the same family;
-private kernel/provider/authority/publication proofs use `RUN='^TestSnowballHindi'`.
-Irish's single initial mutation, fixed UTF8 regions and ordered suffix stages,
-resource-free stock provider, optional English stoplist, complete diagnostics,
-typed prepared ownership, admitted cancellation and actual native seed/carrier
-replay share `RUN='^TestReferenceIrishSnowball'`. All nineteen stock mappings use
-Irish or simple, never an English backup. Private rules, immutable resources,
-seed authority, publication fences and accepted folds use `RUN='^TestSnowballIrish'`.
-Irish stock-cycle cleanup resolves original objects by OID, restores their captured
-owners as well as names, and checks the original options and mapping bags before
-fixture teardown. Mapping repair also tolerates an interrupted mutation sequence.
-Italian's released prelude, fixed UTF8 regions, complete pronoun/standard/verb
-rules, 279 independent stopwords and no-elision boundaries share
-`RUN='^TestReferenceItalianSnowball'` with options, typed direct/prepared values,
-stock identities/maps, output-gated cancellation and actual native-emitted
-dictionary/configuration replay. Private kernel/resources, seed authority,
-publication fences, accepted-fold ownership and seed replay use
-`RUN='^TestSnowballItalian'`.
-Norwegian released morphology, original-region and once-only phase boundaries,
-176 independently specified stopwords, ASCII-only case and byte limits, typed
-direct/held inputs, complete diagnostics and actual seed/carrier replay share
-`RUN='^TestReferenceNorwegianSnowball'`. Admitted direct/prepared cancellation
-is gated by parameterized Norwegian output on both backends. Private rules,
-immutable resource backing and canonical seed replay use `RUN='^TestSnowballNorwegian'`.
-Portuguese released prelude/postlude, fixed RV/R1/R2, standard and verb suffix
-actions, exact stopword spellings, C-case/accent and original-byte boundaries,
-typed direct/held values, stock identities/maps, diagnostics and atomic changes
-share `RUN='^TestReferencePortugueseSnowball'`. Output-gated cancellation requires
-actual Portuguese lexization on both backends. Dictionary/configuration and
-edited-stock lifecycle scenarios replay actual native-emitted SQL. Private rules,
-immutable resource backing and canonical seed replay use `RUN='^TestSnowballPortuguese'`.
-Yiddish released ligature/final-letter/niked normalization, fixed byte regions,
-all finite suffix actions, no-stock-list behavior, typed direct/held results,
-stock identities/mappings, option diagnostics and atomic lifecycle scenarios
-share `RUN='^TestReferenceYiddishSnowball'`. Output-gated cancellation depends
-on actual Yiddish lexization; replay checks execute actual native-emitted SQL.
-Private byte-rule boundaries, resource backing, seed authority, publication,
-prepared ownership and canonical replay use `RUN='^TestSnowballYiddish'`.
-Nepali's ordered three-category rules, contextual marks, virama retention,
-304 independent stopwords, UTF8 byte boundaries and own-language ASCII mappings
-share `RUN='^TestReferenceNepaliSnowball'` with typed direct/held calls, complete
-diagnostics, cancellation and actual emitted seed/carrier replay. Private rules,
-resource authority, publication fences, accepted-fold backing and replay use
-`RUN='^TestSnowballNepali'`. Stream replay requires both backends.
-Porter's optional, non-seeded Snowball provider scenarios share
-`RUN='^TestReferencePorterSnowball'`: historical morphology, explicit English
-stoplists, genuine custom mappings, typed direct/held results, ordered
-diagnostics, immutable prepared behavior, actual emitted replay and native
-control atomicity. Admitted cancellation gates on Porter-specific output;
-no scenario assumes a stock Porter dictionary, configuration or resource.
-Romanian's released cedilla/prelude, fixed UTF8 regions and phase-aware suffix
-boundaries, language-only stock defaults, optional English stoplist, typed held
-values, complete diagnostics and actual native-emitted seed/carrier replay use
-`RUN='^TestReferenceRomanianSnowball'`. Admitted direct/prepared cancellation
-requires real parameterized Romanian output. Private rules, immutable resources,
-seed authority, publication fences, fold ownership and canonical replay use
-`RUN='^TestSnowballRomanian'`.
-Spanish release morphology, exact stopwords, C-case and byte boundaries, typed
-direct/held execution, stock maps, diagnostics, atomicity and native-emitted
-replay share `RUN='^TestReferenceSpanishSnowball'`. Output-gated cancellation
-requires actual Spanish output on both backends. Private rules, resource
-ownership, seed replay and composed publication use `RUN='^TestSnowballSpanish'`.
-Swedish released tail-deletion rules, original codepoint/R1 and byte boundaries,
-114 independent stopwords, typed direct/held values, stock identities/maps,
-complete diagnostics, atomic changes and output-gated cancellation share
-`RUN='^TestReferenceSwedishSnowball'`. Native lifecycle replays the actual emitted
-dictionary/configuration SQL, preserving removed and explicit-empty resources.
-Private rules/resources and canonical seed replay use `RUN='^TestSnowballSwedish'`;
-accepted-fold backing and publication fences share `RUN='^TestSnowball(PreparedOwnership|Publication)$'`.
-Tamil's full released prefix/ending/common/case/plural/command/tense phases,
-codepoint gates, independent historical morphology and original-byte boundaries,
-language-only stock defaults, explicit English stops, typed prepared values and
-admitted output-gated cancellation share `RUN='^TestReferenceTamilSnowball'`.
-Native seed/carrier replay consumes actual emitted SQL on PostgreSQL, including
-absent versus explicit-empty options. Private stage literals, resource backing,
-seed authority, publication fences and accepted folds use `RUN='^TestSnowballTamil'`.
-Serbian lowercase-Cyrillic transliteration, overlapping prelude passes, fixed
-byte-based p1 and complete released 130/2035/26 rule stages, historical literal
-corpus, absent stock stoplist and explicit English127, typed direct/held values,
-all nineteen stock mappings, exact diagnostics and atomic changes share
-`RUN='^TestReferenceSerbianSnowball'`. Admitted cancellation gates on actual
-Serbian lexization. Controls replay actual native-emitted SQL in PostgreSQL and
-cover relocation, stock seed cycles and nested reference carriers. Private
-independent exhaustive stage witnesses, resource and prepared ownership,
-rejected publication and seed replay use `RUN='^TestSnowballSerbian'`.
-Finnish release morphology, fixed-region/stage boundaries, 235 literal stopword
-inputs, resource isolation, typed prepared ownership and native dictionary/seed
-replay: `RUN='^TestReferenceFinnishSnowball'`. Replay consumes actual native SQL;
-private stage/resource/authority/publication proofs share `RUN='^TestSnowballFinnish'`.
-Catalan Snowball morphology, original byte-region and normalization boundaries,
-language-only stock identity, optional English stops, full diagnostics, admitted
-output-gated cancellation and owned dictionary/seed replay:
-`RUN='^TestReferenceCatalanSnowball'`. Expectations are independently traced from
-REL_18_6, not computed from provider tables. Replay requires the native producer.
-French released morphology, case/elision/byte boundaries, all 155 independent
-stopwords, resource isolation, typed prepared output, full diagnostics, admitted
-cancellation and actual emitted dictionary/seed replay:
-`RUN='^TestReferenceFrenchSnowball'`.
-Stock synonym data, options, conversion, authority and native lifecycle:
-`RUN='^TestReferenceSynonym'`.
-Default unaccent caller resolution after dictionary/routine DDL:
-`RUN='^TestReferenceDictionaryUnaccentCaller$'`.
-Explicit dictionary selection, rules, diagnostics and native ownership/replay:
-`RUN='^TestReferenceUnaccentDictionary'`.
-
-- Comparison shards (each alone): `RUN='^TestReferenceComparison{Matrix,Between,PredicateErrors}<Suffix>$'`
-- Distinct, null/truth, consumers: `RUN='^TestReferenceComparison(Distinct|Null|Consumer|BatchSelection)'`
-- Structural, record and row comparisons: `RUN='^TestReferenceComparison(Composite|Row|Record|Structural|Nested|NodeTree|Deferred|Cycle|DomainArray)'`
-- Conversions, boundaries, diagnostics: `RUN='^TestReferenceComparison(Core|Catalog|Unknown|Boundaries|Diagnostic|PredicateSyntax|Anyarray|InstalledQueryInt)'`
-- Comparison lifecycle and stored routes: `RUN='^TestReferenceComparison(PreparedLifecycle|Stored)'`
+- Comparison shard template: `RUN='^TestReferenceComparison{Matrix,Between,PredicateErrors}<Suffix>$'`
+  Expand to one exact name, such as `^TestReferenceComparisonBetweenStrings$`.
+- Other comparisons: `RUN='^TestReferenceComparison'`
 - Explicit casts: `RUN='^TestReferenceCastExplicit'`
-- Cast families (expand to one suffix): `RUN='^TestReferenceCastImplemented(Matrix|Functions)Numeric$'`
-- Cast rules and lifecycle: `RUN='^TestReferenceCastImplemented(Contexts|GenericShapes|Typmods|UnknownParameters|Metadata|Environments|Consumers|Lifecycle)$'`
-- Cast protocol and reported INSERT: `RUN='^TestReferenceCastImplemented(ProtocolRoles|ServiceCertificatesSmoke)$'`
-- Cast review regressions: `RUN='^TestReferenceCastImplemented(DeclaredTypeNameAuthority|NumericTemporalCalls|InstalledCastRendering)$'`
-- NAME, OID, type core: `RUN='^TestReference(Name[A-Z]|OID|TypeCore)'`
-- Diagnostic field records: `RUN='^TestReference(ErrorFields|ConditionalErrorFields|PermissionAndCancellationFields)'`
-- `regclass`: `RUN='^TestReferenceRegclass'`
-- `regcollation`, `regnamespace`: `RUN='^TestReferenceReg(Collation|Namespace|ObjectBoundary)'`
-- `regconfig`, `regdictionary`: `RUN='^TestReferenceRegTS'`
-- `regrole`: `RUN='^TestReferenceRegrole'`
-- <a id="operator-oid-aliases"></a>`regoperator`: `RUN='^TestReferenceRegOperator'`
-- `regproc`, `regprocedure`: `RUN='^TestReferenceRegProc'`
-- `regtype`: `RUN='^TestReferenceRegtype'`
-- `xid`, `cid`, `xid8`: `RUN='^TestReferenceXID'`. The smoke scenario checks typed
-  direct/prepared xmin reads against the actual inserting transaction's XID,
-  including empty-result metadata and a rebound system-column predicate.
-
-The shard row is a template: expand it to one exact name, for example
-`RUN='^TestReferenceComparisonBetweenStrings$'`.
+- Cast families: `RUN='^TestReferenceCastImplemented'`
+- Registry lookups: `RUN='^TestReferenceRegLookup'`
+- OID aliases: `RUN='^TestReferenceReg'`
+- Input validity: `RUN='^TestReferenceInputValidity'`
+- Dictionaries: `RUN='^TestReferenceDictionary'`
+- Ispell: `RUN='^TestReferenceIspell'`
+- Snowball family template: `RUN='^TestReference<Language>Snowball'`
+  English uses `RUN='^TestReferenceSnowball'`.
+- Synonym/unaccent: `RUN='^TestReference(Synonym|UnaccentDictionary)'`

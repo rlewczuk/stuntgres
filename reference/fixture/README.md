@@ -17,9 +17,6 @@ tuple descriptors and cells are copied before borrowed pgconn buffers advance.
 `LastRequestIdentity` exposes captured caller/mapping authority without retaining
 conninfo or credential options. `Activity` is a supplementary real-wire I/O
 observation, not a substitute for Execute-after-close errors and PID disappearance.
-`OpenCalls` separately observes callback entry, including rejection by genuine
-host parsing before dialing. Numeric-admission tests use it to distinguish
-engine-side validation from a provider Open that merely returns no wire.
 
 `external_sql_auth.go` wraps the existing connection after TLS with a passive,
 bounded backend-frame observer. It retains header/auth-code state only and stops
@@ -28,8 +25,6 @@ cleartext, MD5 and SASL/SCRAM exchanges report `password`, `md5` and
 `scram-sha-256`; AuthenticationOk without a challenge reports `none` (no observed
 password exchange), not inferred password use. Incomplete/unsupported exchanges
 remain `unknown`. No password, challenge, SASL payload or trace is copied/logged.
-`TestExternalSQLProviderAuthObservation` exercises fragmented frames and failure
-states; actual SCRAM/trust tests remain necessary.
 
 `ExternalSQLTrustAuthentication` and `ExternalSQLPasswordAuthentication` reuse
 the auth-file owner for real role-scoped rules in the disposable oracle, restore
@@ -87,11 +82,7 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   every nested value, metadata and cleanup callback; a source recorder cannot
   prove consumed rows or recorded cursor closure on an independent destination.
   `RawBackend` selects codec assertions; it does not install recording middleware.
-  `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`),
-  regtype (`_REGTYPE`) and transaction-ID (`_XID`) arrays, as native strings and pq byte slices before
-  normalization; scalar `CHAR` remains a string on both backends.
-  Scalar `XID` retains a nonnil byte slice on both backends; exact unsigned
-  decimal payloads are compared after the raw transport assertion.
+  `AssertRawValue` checks native and oracle transport before normalization.
 - Before and after each case, the reset borrows the admin pool's one idle session
   and runs standalone `ROLLBACK`, then standalone `DISCARD ALL` (it cannot run in a
   transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on
@@ -129,12 +120,6 @@ license (provenance is retained beside the embed declaration).
 `stuntgres_thes_*.ths` are project-owned deterministic rule and malformed-data
 inputs. Each fixture copy must remain byte-identical to its production resource
 in `internal/engine/functions/`; neither side derives rules from SQL results.
-`stuntgres_thes_placeholder.ths` contains only a one-stopword-placeholder rule,
-so zero/one/two-stopword tests cannot accidentally pass via the stock fixture's
-separate zero-placeholder rule. The comments and colon-RHS files are accepted
-reader inputs; bad_end and empty_rhs retain genuine physical-line diagnostics.
-The unrecognized-substitute fixture uses `? : alpha` with genuine simple
-English stopwords and Accept=false to reach replacement normalization.
 
 
 ## Startup options
@@ -197,10 +182,6 @@ not implicitly register native providers.
   image change, alternate server, host installation or silent provider skip is
   permitted. All provisioning shares the existing three-minute startup context;
   network/authentication/hash/dependency errors fail startup.
-  Scenarios explicitly install `hstore`, `plpython3u` and `hstore_plpython3u`;
-  genuine Python dict programs opt into the released hstore transform. Programs
-  without that opt-in and genuine one-direction pairs exercise PL/Python's
-  separate string/input defaults, not hypothetical Go-host defaults.
 - `WithTextSearchFiles(files...)` copies a manifest of public `TextSearchFile`
   values before startup. The existing container lifecycle discovers its actual
   `pg_config --sharedir`, validates names/duplicates through public registration,
@@ -300,12 +281,10 @@ production dependency is involved.
   helpers shared with [datetime_formatting](../datetime_formatting/README.md#testing).
   These helpers preserve caller-provided goldens and all direct, prepared, held,
   native-control and actual emitted-SQL replay routes; no fixture learns goldens.
-  `output_gate_shared.go` owns `OutputGateCancel`/`OutputGatePID`: actual output
-  length maps to advisory keys 2/67108864; admission requires the worker wait,
-  blocker, holder grant and optional earlier small grant before cancellation.
+  `output_gate_shared.go` owns `OutputGateCancel`/`OutputGatePID`: admission
+  requires the actual worker wait, blocker and holder grant before cancellation.
   Every exit joins workers and removes requests/grants before borrower cleanup.
-  This proves cancellation after output exists, not inside a provider. Reusable
-  consumer selectors live in the linked owning READMEs.
+  This proves cancellation after output exists, not inside a provider.
 
 - **Scenarios.** `NewScenarioWithDriverConfig(t, configure)` runs
   `configure(*stuntgres.Driver)` before the first connector, for embedding
@@ -399,19 +378,14 @@ production dependency is involved.
   stack text or overridden `Context.Err` selects resource admission. Completion
   before entry fails, and cancellation must publish neither cursor nor result.
   PostgreSQL retains actual PID/query admission and `pg_cancel_backend`, with
-  the complete independently expected 57014 diagnostic. Admission deadline is
-  15 s; every exit cancels and joins before statements and connections close.
+  complete independently expected diagnostics. Admission is bounded; every exit
+  cancels and joins before statements and connections close.
   `SleepActiveCancel` and `BinaryConversionActiveCancelAfter` retain their actual
   wait/progress paths, including live-stack observation natively and actual
   server query/wait events on PostgreSQL. Their stack samples exclude creation
   metadata and wait 1 ms after a miss so observation cannot monopolize progress.
   See [cooperative work admission](../../docs/DRIVER.md#cooperative-work-admission)
   for the useful public host-control contract and semantic class quanta.
-  The distinct closed `ExecutionPause` capability is exercised by
-  `^TestReferenceFixtureExecutionPause(Context|Authority)$`: a genuine matching
-  checkpoint suspends its effective child until Resume or cancellation; the
-  independent complete live provider/worker stack establishes frame authority.
-  These tests do not replace work-credit policy admission or change its helper.
   - `BinaryConversionActiveCancelWithContext`, `SleepActiveCancelWithContext`
     and `PLpgSQLLoopActiveCancel` accept an independently observed PostgreSQL
     diagnostic Context without changing native admission or cancellation.
@@ -425,16 +399,6 @@ production dependency is involved.
   - `BinaryConversionActiveCancelAfter` runs a progress callback after admission
     and before cancellation, on the supplied context and a different connection;
     consumers assert a real progress transition, not a timer.
-  - The fixture's `^TestReferenceFixtureProviderPoll(Context|Authority)$` family
-    exercises real direct/held SQL consumers: context values/deadlines/causes,
-    cancellation, wrong-class grants, operand precedence and refusal atomicity.
-    `^TestReferenceWorkAdmission` covers finite shared workload credits, resume,
-    independent concurrent requests, completed-policy isolation and effective
-    statement/session timeout contexts. Native controls are explicit phases in
-    the same dual-mode bodies; PostgreSQL retains independent rows/diagnostics.
-    The fatal-timeout oracle uses a named prepared `pgconn` request on the same
-    pinned server to inspect complete FATAL diagnostics; pq's held-statement
-    boundary exposes `sql.ErrConnDone`, which is not a diagnostic substitute.
   - `SQLCursorCancelDemand(t, p, conn, query)` cancels an admitted oracle query and
     checks the complete diagnostic (cursor FETCH, HOLD COMMIT, SQL-prepared writes).
 - **Schema and role scopes.** `WithPublicSchemaOwner(t, pair, backend, owner,
@@ -509,26 +473,12 @@ production dependency is involved.
   with the same queue observation and joined-worker lifetime. Object queues include
   captured class/OID/subobject identity; no name-derived replacement is accepted.
   `DefinitionActiveCancel` cancels only after this admission and joins before
-  returning. Its final explicit diagnostic callback is nil for the original
-  `DefinitionIndexWaitDiagnostic`, which checks all portable error fields and
-  varies only physical heap coordinates in anchored index-insertion Context.
-  Transform update/delete cancellation supplies an exact action/relation grammar
-  and every other57014 field; native cancellation remains ordinary without
-  fabricated physical Context. Consumers include conversion/cast transaction
-  conflicts, FTS parser lifecycle, deferred constraints and transform mutation.
+  returning. Its diagnostic callback can select the owning operation's complete
+  PostgreSQL Context while native cancellation retains ordinary context errors.
   `DefinitionIdentityRows` captures every exposed catalog field and
   `DefinitionIdentityEqual` compares the full identity/settings rows.
-  `DefinitionAlterIdentity` shares collation/conversion original-target cases:
-  observe the original AX wait, commit a holder rename/schema move or roll it
-  back, then assert full OID/settings/dependency preservation and healthy reuse.
-  After holder commit PostgreSQL may alter the search-path fallback; native
-  instead returns ordinary `ErrCatalogReplaced` without SQLSTATE and leaves that
-  fallback untouched. Native recovery fully rolls back, opens a fresh transaction
-  and savepoint on the same physical owner, and exercises qualified ALTER;
-  PostgreSQL and holder-rollback success paths retain rollback-to-savepoint.
-  Collation CREATE admission cases distinguish pre-SRX semantic errors and
-  same-encoding duplicate/skip completion from protected cross-encoding checks
-  and concurrent exact-key `23505`, including IF NOT EXISTS.
+  `DefinitionAlterIdentity` shares original-target lock scheduling and recovery
+  across collation/conversion consumers without introducing a second harness.
 - **Native extension controls.** `CatalogExtensionOwnerDirective` selects exactly
   one emitted v3 logical cohort by provider and final presence, returning its
   byte range and decoded payload. Stock `plpgsql` and absent older same-name
@@ -562,11 +512,6 @@ make check RUN='^TestReferenceFixture'
 make check REFERENCE=1 RUN='^TestReferenceFixture'
 ```
 
-Identity-file mutation controls are exercised by every
-`TestReferencePGIdentFileMappings` scenario in `reference/catalogs`; run
-`make check RUN='^TestReferencePGIdentFileMappings'` and the same command with
-`REFERENCE=1`. This includes real file restoration/ownership and exact backend
-paths, not a mock or a view-derived expectation.
 
 A change to central fixture code (step runner, `HeldStatement`, reset, pool
 ownership) affects every package: run `make check RUN='^TestReference'` and the

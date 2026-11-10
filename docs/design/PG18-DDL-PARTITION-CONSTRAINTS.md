@@ -318,10 +318,10 @@ Names above identify executable assertions, not a claim that all groups have pas
 The root owns selected native/real/race proof and independent review. Root reported
 actual standalone native smoke and actual unmodified emitted PostgreSQL18.0 UTF8/C
 replay passing (tests27), then authorized this documentation cutover. Source is
-local://partition-constraints-smoke.go; launch and selected proof instructions are
-in [TESTING](../../reference/partitions/README.md#partitioned-constraints--selected-proof). The smoke checks
-row/metadata/backing/ancestry/kind/validity/dependency/duplicate and healthy-write
-observations on both sides, not merely acceptance of emitted SQL.
+local://partition-constraints-smoke.go. The [partition-family testing guide](../../reference/partitions/README.md#testing)
+provides reusable entry points; smoke checks row/metadata/backing/ancestry/kind/
+validity/dependency/duplicate and healthy-write observations on both sides, not
+merely acceptance of emitted SQL.
 
 ## Partitioned exclusion cutover
 

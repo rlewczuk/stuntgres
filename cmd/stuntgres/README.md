@@ -4,8 +4,6 @@ The thin command/process adapter for [pgserver](../../pgserver/README.md).
 It owns option resolution, PID/daemon/readiness controls, lifecycle signals and
 terminal password prompts; pgserver owns the wire engine and its lifecycle.
 
-
-
 ## Operation
 
 Commands (`./stuntgres --help` lists every option and long alias):
@@ -45,10 +43,9 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   re-executes as a Linux daemon and waits for readiness. `-p` selects the PID file
   (default `./stuntgres.pid`). `dump` (or SIGUSR1) requests an asynchronous dump;
   `stop` waits for connections to close, open transactions to roll back and a
-  final dump. Shutdown cancels every connection's current command before any
-  session ends, so a lock waiter cannot acquire a lock released by another
-  session's rollback and commit. PID, daemon and signal controls are Linux-specific; foreground
-  serving is portable.
+  final dump. Shutdown cancels current commands before any session rollback.
+  PID, daemon and signal controls are Linux-specific; foreground serving is
+  portable.
 - **Dumps.** Each database is written atomically as a 0600
   `<database>--<UTC YYYYMMDDhhmmss>.sql` native SQL dump; earlier files are kept.
   `-r` (requires `-d`) restores the newest file for every database before
@@ -98,8 +95,7 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   record of that connection ends `response_ref` with a synthesized FATAL
   ErrorResponse (`08001` login, `08006` lost or timed out). Reference output
   received while idle is written with the next idle record, or as its own
-  record before the next cycle. Other databases work as
-  before.
+  record before the next cycle.
 
 - Command parsing (cobra) and option resolution (viper) build fresh instances per
   invocation; `parseCLI` only resolves and validates, `runCLI` acts.
@@ -109,24 +105,17 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). Public SQL, wire-client and
 server-lifecycle scenarios live in [reference/sessions](../../reference/sessions/README.md).
-Core byte/log/persistence units now live in [pgserver](../../pgserver/README.md#testing);
-verifier/security/atomic-userfile units live in `internal/serverauth`, and
-reference URL grammar belongs to `internal/serverref`.
+Byte/log/persistence units live in [pgserver](../../pgserver/README.md#testing);
+verifier/security/atomic-userfile units in `internal/serverauth`, and reference
+URL grammar units in `internal/serverref`.
 
-- `process_socket_test.go` (`linux && !noservertests`) retains the real TCP
-  lifecycle (`TestServerPIDSocketLifecycle`) and subprocess entry
-  `TestServerSocketProcessHelper`; `noservertests` excludes it only from `race`.
-  Process launches use a 10-second context and 5-second readiness bound with
-  owned kill/join cleanup.
-- `TestServerStartupOrdering` exercises actual log/userfile/restore/PID/listener
-  failures and post-start readiness abort, without a mock core.
-- Build tag `stuntgres_reduced_kdf` in `internal/serverauth/password_cost_reduced.go`
-  lowers PBKDF2 to 4096 for the existing subprocess reference fixture build.
-  Production uses 600000 (`internal/serverauth/password_cost.go`); the tag follows
-  imports when the fixture builds `./cmd/stuntgres`.
+Process tests use real TCP/subprocess entry points with bounded readiness and
+owned kill/join cleanup. The `linux && !noservertests` build constraint keeps
+platform-specific process tests separate. Fixture subprocess builds use the
+`stuntgres_reduced_kdf` tag; production retains the full password-verification
+cost.
 
-```sh
-make check RUN='^TestServer(CLI.*|PID|StartupFailure|StartupOrdering|PIDSocketLifecycle)$'
-make check RUN='^TestServerReferenceOptions$'
-make check RUN='^TestServerUsers(PasswordPrompts|TTYSignals)$'
-```
+Reusable CLI/process selector:
+`make check RUN='^TestServer(CLI.*|PID|StartupFailure|StartupOrdering|PIDSocketLifecycle)$'`.
+Reference option units use `RUN='^TestServerReferenceOptions$'`; password/terminal
+ownership uses `RUN='^TestServerUsers(PasswordPrompts|TTYSignals)$'`.

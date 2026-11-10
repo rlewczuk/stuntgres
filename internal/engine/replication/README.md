@@ -1,19 +1,13 @@
 # internal/engine/replication
 
-Pure argument validation shared by subscription metadata and replication-slot
-SQL runtime. `ValidateSlotName` validates bytes and owns released diagnostics;
-callers own input conversion (NAME clips before lifecycle validation, subscription
-text does not). `PluginAllowed` scans an entire exact SplitGUCList spelling,
-without identifier folding, clipping or accepting a match before malformed syntax.
-Only an initial double quote starts quoted-element grammar; embedded quotes in
-unquoted elements are literal bytes.
+Pure shared replication argument validation. `ValidateSlotName` owns byte/name
+diagnostics; callers own SQL type conversion. `PluginAllowed` validates the whole
+exact configured list before accepting membership, without identifier folding.
 
-This package owns no catalog, session, locks, provider, slot registry or stream.
-Core owns live authorization, settings and the slot registry; `engine/logical`
-owns the change stream and the output-plugin seam.
+The package owns no catalog, session, lock, provider, registry or stream. Core
+owns live authorization/settings/slots; `logical` owns change events and plugins.
 
 ## Testing
 
-`make check RUN='^(TestReplicationPluginAllowlist|TestSubscriptionSlotValidation)$'`
-covers pure syntax and shared name validation. Public SQL lives in
-`reference/roles` under `TestReferenceReplicationSlot` and runs in both modes.
+Pure syntax/name units live here. Public replication SQL belongs to the owning
+reference packages; unavailable runtime facilities are not simulated by fixtures.

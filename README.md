@@ -20,22 +20,6 @@ restored for every test.
   pgxpool and pgconn clients in-process, without TCP if desired.
   The `cmd/stuntgres` executable serves `psql` and other external clients.
 
-`pg_catalog.pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
-expose the 30 PostgreSQL 18 typed fields through the shared cumulative statistics
-provider. SYS selects pg_catalog/information_schema and the case-sensitive
-pg_toast namespace prefix; USER selects the complement, including TEMP.
-Sequential counters follow actual
-source demand before filtering; attached indexes aggregate scans, last scan and
-heap fetches, preserving no-index NULL versus untouched-index zero. Cumulative
-tuple attempts can include rolled-back inserts, while ANALYZE/VACUUM counts and
-times change only on completed work. Parent privileges do not redact these
-statistics; the view retains its own SELECT ACL and is read-only.
-HOT/newpage are zero logical optimization estimates, live/dead are logical
-version estimates, and elapsed totals are milliseconds; no automatic worker or
-physical HOT/page engine is implied. Runtime history is not serialized by Dump.
-See [statistics scenarios](reference/statistics/README.md#cumulative-table-statistics)
-for the independent acceptance contract and reusable family selectors.
-
 ## Installation
 
 The module path is `stuntgres`. Until it is published under a public path,
@@ -45,13 +29,6 @@ clone the repository next to your project and point your module at it:
 git clone https://github.com/rlewczuk/stuntgres.git ../stuntgres
 go mod edit -require=stuntgres@v0.0.0 -replace=stuntgres=../stuntgres
 ```
-
-GIN indexes retain genuine main and deferred fastupdate postings.
-`gin_clean_pending_list(regclass)` transfers pending work without changing matches;
-its nullable INT8 result estimates ceil(pending token-posting incidences/128),
-not physical PostgreSQL pages. Disabling fastupdate preserves existing pending
-work. Cleanup survives SQL rollback, and native Dump/Restore preserves the split.
-See the [driver guide](docs/DRIVER.md) for details.
 
 ## A first test
 
@@ -268,20 +245,6 @@ make quickcheck                    # full suite without Docker
 make generate                      # regenerate the parser and Unicode tables
 ```
 
-The durable activity-monitoring smoke selector is
-`RUN='^TestReferencePGStatActivityFeatureSmoke$'` in both native and `REFERENCE=1`
-modes; see [reference/session_state](reference/session_state/README.md) for the
-complete metadata, lifecycle, current joined-role identity, privilege, snapshot
-ownership and signal proof inventory.
-
-Replication monitoring exposes the typed, read-only `pg_stat_replication` view.
-With no actual native WAL senders it is empty, not a simulated worker; physical
-replication and replication startup remain unsupported. The smoke selector is
-`RUN='^TestReferencePGStatReplicationFeatureSmoke$'` in native and `REFERENCE=1`
-modes. See the same session-state guide for metadata, lifecycle, read-only and
-rejected-startup coverage and the distinct PostgreSQL privilege gates; empty
-native results do not constitute positive sender-field filtering evidence.
-
 Most tests are *reference tests*: one test body runs against stuntgres and against
 real PostgreSQL 18, and both must give the same results. New features and bug
 fixes start with such a test whose expectations come from PostgreSQL; then the
@@ -293,7 +256,6 @@ Where to start:
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): workflow, make targets, generated code.
 - [docs/TESTING.md](docs/TESTING.md): how to write and place tests.
 - Each package's `README.md`: its responsibility and contract.
-- [CHANGES.md](CHANGES.md): change history.
 
 ## Support
 

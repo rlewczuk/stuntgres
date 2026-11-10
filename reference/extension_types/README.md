@@ -1,144 +1,26 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `seg`, `query_int`, `intbig_gkey`, `lquery`, `ltree`, `ltxtquery`,
-`ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
-Seg scenarios include the eight installed BOOL predicates, metadata-sensitive
-equality, normal selected-expression dependencies and drop protection distinct
-from extension membership. Native controls preserve genuine nondefault member
-owners and EXECUTE ACLs, including nullable-column admission, alongside exact
-native replay and canonical emitted-SQL replay of stored consumers.
-DROP diagnostics retain the released first-reached DFS dependency parent: fresh
-installation has operator-after-procedure-after-type identity order; selective
-native remint instead follows current identities through the exhaustive genuine
-provider dependencies, without requiring an order-preserving identity map.
-`hstore` is in [reference/extension_hstore](../extension_hstore/README.md#testing);
-`cube` and `earth` are in [reference/extension_cube](../extension_cube/README.md#testing).
-
-Other type families: [reference/domain_types](../domain_types/README.md#testing)
-(domains, `information_schema` domains, type identity lifecycle and
-transactional types);
-[reference/geometry_network](../geometry_network/README.md#testing) (geometry
-and network address types);
-[reference/ranges_text_search](../ranges_text_search/README.md#testing) (ranges,
-multiranges, text search and UUID);
-[reference/types](../types/README.md#testing) (composite types, enums, `citext`,
-ACL values, TID, BOOLEAN and comparisons).
-
-`TestReferenceExtensionOwnershipPrerequisites` retains actual cube/earthdistance
-prerequisites, distinct nominal types and extension/schema dependency restrictions.
-Its cohort scenario lawfully detaches genuine old objects, retires their original
-extensions and installs a new same-named cube: earth must still use the original
-cube type, not the new installation's same-spelled type. Shared SQL precedes
-native same/independent Dump/Reset/Restore and no-phantom assertions. Each
-destination uses its own recorded SQL pool and recorder, separate from its raw
-control pool, so consumed-value and cursor-close evidence comes from that engine.
-Run the
-definition with both `make check RUN='^TestReferenceExtensionOwnershipPrerequisites$'`
-and the same command with `REFERENCE=1`.
+Dual-mode scenarios for installed ISN, ltree, intarray, seg and lo type families.
+Separate owners are [hstore](../extension_hstore/README.md#testing) and
+[cube/earth](../extension_cube/README.md#testing). Mutable membership belongs to
+[extension_ownership](../extension_ownership/README.md#testing).
 
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
-`fixture.Main(m)`. Each family keeps its helpers in `<family>_helpers_test.go`;
-these are shared across families:
-- `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
-  transport, exact diagnostics and metadata checks for installed ISN scalar roles.
-  ISBN helpers share relational manifest identity and owner-record mutation
-  checks across all eight roles. ISSN and ISSN13 expectations preserve invalid markers and
-  nonzero issue digits, including full-number serialization in native controls.
-  ISSN13 always displays the long form, independently of ISSN short output.
-  Held scalar-literal ownership witnesses reuse `issnOutput` for the documented
-  release-specific short display while retaining complete native marked issue
-  values across membership mutation, type generations and native controls.
-  UPC expectations retain compact twelve-digit values and markers natively;
-  independently specified PostgreSQL short display cropping never masks native
-  marker loss. Typed EAN13 conversions witness the retained packed flag.
-  The reusable family selector is
-  `RUN='^TestReference(Ean13|Isbn|Ismn|Issn|Upc)'`; controls retain readers across replacement,
-  validate whole-script diagnostic positions and rollback with identical failing
-  SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
-  Relational identity witnesses filter catalog inputs to the installed
-  scalar/companion/codec and relevant dependency edges before joining. Keep
-  reciprocal links, overload signatures, ownership, membership and exact result
-  metadata assertions; unrelated builtin catalog populations must not multiply
-  the work of each repeated lifecycle check.
-  ISBN13 and ISMN controls use `isn_controls_phases_test.go`: statement
-  atomicity/recreation, same-engine replacement, displaced fresh-engine
-  replacement and each failed replacement run as serial independent scenarios.
-  Each failure seeds its own actual dump, frozen identity graph and retained
-  cursor; complete diagnostics, values, metadata, identity and deterministic
-  redump assertions remain per case. No fixture deadline spans the failure matrix.
-  The ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC failure leaves run the full
-  verify (values, metadata and `isbnIdentity`) once, after the failed Restore.
-  The roundtrip and `fresh_driver` phases verify the source and the successful
-  replacement; a leaf does not repeat those passes.
-- `lo_helpers_test.go`: shared installed-domain scenarios reuse the fixture's OID
-  raw-value adapter. Logical lo identity is independent of physical OID result
-  metadata, including NULL/empty results and declared nullability. Numeric
-  values, text canonicalization, direct/held binds, complete diagnostics and
-  statement atomicity have independent expectations. Native control phases
-  preserve values and retained metadata across same/fresh-engine replacement,
-  replay actual emitted SQL on PostgreSQL and exercise extension recreation.
-  Same-engine replacement, fresh-engine replacement, malformed owner-metadata
-  rejection and recreation run as serial subtests, each with its own bounded
-  scenario and independently seeded rows. Failed public Restore preserves the
-  incumbent identities, rows, metadata, retained reader and deterministic dump.
-  The reusable family selector is `RUN='^TestReferenceLo'`.
-  Opt-in lo_manage coverage owns direct/prepared/held BEFORE and AFTER row cleanup,
-  exact firing diagnostics, transaction/statement rollback, role authority,
-  target-column identities, shared-reference hazards and native trigger/control replay.
-  Its reusable selector is `RUN='^TestReferenceLoManage'`.
-- `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
-  assertions. The family covers empty versus NULL paths, UTF8/C label admission,
-  count/length diagnostic precedence, held binds, statement atomicity and native
-  replacement with retained readers. All three scalar roles are consumers of the same
-  extension during lifecycle tests. The reusable selector is `RUN='^TestReferenceLtree'`.
-  Comparison fixtures independently specify label traversal order, strict NULLs,
-  equality consumers and typed B-tree/hash key mutation. Exact catalog and
-  diagnostic records accompany retained stored comparisons through replacement,
-  failed Restore and actual emitted-SQL replay. Populated stored sorting uses a
-  limiting inner order to distinguish comparator execution from empty/NULL-only
-  binding and from an outer result order. Comparison helpers share
-  `RUN='^TestReferenceLtreeComparison'`.
-- `ltree_arrays_helpers_test.go` owns mixed BOOL/installed-text array result
-  contracts, including both nullability values for computed and declared stored
-  columns. Retained descriptors are checked after consumption/close and native
-  replacement, including empty readers. Array overloads, matching, diagnostics,
-  prepared authority and actual emitted-SQL replay share `RUN='^TestReferenceLtreeArray'`.
-- Scalar hierarchy fixtures independently specify inclusive path relationships,
-  Boolean metadata, overload/privilege diagnostics and restored stored consumers.
-  Both direct `ltree_isparent`/`ltree_risparent` calls and `@>`/`<@` operators
-  retain their existing direct, prepared and held witnesses. The ownership
-  scenarios in `reference/extension_ownership_ltree` additionally retain genuine detached and
-  foreign members after origin retirement through destination-recorded controls.
-  The reusable selector is `RUN='^TestReferenceLtreeHierarchy'`.
- - Path utilities share `RUN='^TestReferenceLtreePath'`: independently specified
-   slices, whole-label index, conversion, proper-ancestor scalar/array LCA and the
-   three typed concatenations use direct, fresh and held routes. Metadata and full
-   diagnostics distinguish empty paths from SQL NULL and operation failures from
-   input conversion. Stored nonconstant consumers and repeated LCA arguments survive
-   relocated/renamed providers, native replacement and actual emitted-SQL replay.
-- Scalar positional-match fixtures reuse array BOOL metadata helpers and independently
-  specify ordered matching, query alternatives, diagnostics and stored-consumer
-  replacement. Controls install the provider directly in its schema and rename
-  that namespace after storing view, CHECK and DEFAULT expressions; direct and
-  prepared reads assert the stored results before renaming it back for native
-  replacement and emitted-SQL replay.
-  Mutation witnesses retain an UPDATE with TEXT parameters and cast only after a
-  row-dependent CASE. Swapped malformed branches exercise either row traversal
-  order; successful candidates change their original values. Each runtime-cast
-  failure asserts the complete diagnostic with empty Context and unchanged rows,
-  then the same held UPDATE recovers with exactly two independently expected
-  changes. Typed-parameter rejection remains a separate input-boundary assertion.
-  Their reusable selector is `RUN='^TestReferenceLtreeLquery'`.
-- Scalar label-query fixtures retain mixed formal roles through Boolean matching,
-  diagnostics, prepared reuse, presentation changes and native replacement.
-  Presentation witnesses check public view definitions and independently expected
-  first-dump cast chains before and after two native replacement cycles, then
-  replay the actual emitted SQL on PostgreSQL. Row-dependent TEXT conversion
-  failures and domain NOT NULL diagnostics distinguish retained conversions and
-  domain checks from result-only equality; successful reuse restores the seed.
-  The reusable selector is `RUN='^TestReferenceLtreeLtxtquery'`.
+`fixture.Main(m)`. Each family keeps its helpers in `<family>_helpers_test.go`.
+- Family-local helpers own installed scalar transport, metadata and complete
+  diagnostics. Shared lifecycle/control assertions use the fixture's recording
+  and public native-control seams.
+- Bound catalog inputs to actual installed scalar/companion/codec identities
+  before joining. Repeated lifecycle checks must not multiply unrelated catalogs.
+- Each serial control phase owns its bounded scenario, retained cursor and
+  genuine dump. Failed Restore preserves incumbent identities and values.
+- Every destination uses its own recorded SQL pool/recorder; raw pools are for
+  control operations. Register authorization/schema cleanup before replay.
+- Stored consumers retain genuine installed identity through rename or detachment.
+  Held concrete-type signatures obey the catalog-lifetime fence; builtin-signature
+  consumers reanalyze against current installed types.
 
 Client quirks:
 
@@ -174,39 +56,10 @@ Rules:
 
 ### Family selectors
 
-- `query_int`: `RUN='^TestReferenceQueryInt'`
-- Progressive intarray provider declarations, support-key NULL/rejecting I/O,
-  shared integer arrays, lifecycle and native controls:
-  `RUN='^TestReferenceIntarrayProvider'`. Expected inventories select genuine
-  provider-owned declarations, not leaf-owned module routines or index classes.
-  Full diagnostics and raw/metadata accessors retain independent PostgreSQL
-  expectations; native controls also replay their actual emitted SQL.
-  Companion array I/O checks use the shared fixed OIDs 750/751 and canonical
-  regproc names. Complete pg_proc metadata checks cover the four owned intarray
-  routines; this does not claim a complete shared builtin pg_proc inventory.
-  Identity verifiers require the expected installation/source owner explicitly:
-  transport metadata never determines ownership of a replayed dump. Replay
-  registers bounded unconditional authorization/schema cleanup before executing
-  SQL, so failed assertions cannot pollute the next backend's fresh setup.
-- Selected intarray set predicates and bag/set operations, including all ten
-  executable backers, ten operators and six genuine metadata-only estimators:
-  `RUN='^TestReferenceIntarraySet'`. Direct/fresh/held calls, exact diagnostics,
-  stored consumers, presentation changes and destination-recorded native
-  controls share independent expectations. Operators are schema-qualified so
-  builtin polymorphic array overloads cannot stand in for the installed provider.
-- Selected intarray count, first-index, subarray overloads, singleton construction
-  and unary/binary # use `RUN='^TestReferenceIntarraySlice'`. Direct/prepared/held
-  transport, full diagnostics, original identity lifetimes and actual native
-  control/replay behavior share independent release expectations.
-- Installed intarray sorting overloads and adjacent-only uniqueness use
-  `RUN='^TestReferenceIntarraySort'`. Independent values, complete diagnostics,
-  catalog declarations and stored authority share direct/prepared/held routes;
-  native controls retain readers and replay actual emitted SQL on PostgreSQL.
-  Failed replacement uses literal INSERT payloads reaching stored sort/uniq
-  CHECK expressions, preserving Restore's scalar admission boundary.
-- `seg`: `RUN='^TestReferenceSeg'`
-- `lquery` declarations, canonical text codecs, assignment, metadata and controls:
-  `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,
-  normalize modifier flags and quantifier bounds, and assert complete diagnostics
-  independently of native formatting. Controls retain rows and metadata across
-  replacement and replay actual emitted SQL on PostgreSQL.
+Use `make check RUN='...'`, adding `REFERENCE=1` for the oracle.
+
+- ISN types: `RUN='^TestReference(Ean13|Isbn|Ismn|Issn|Upc)'`
+- Ltree types: `RUN='^TestReference(Ltree|Lquery|Ltxtquery)'`
+- Intarray: `RUN='^TestReference(QueryInt|Intarray)'`
+- Seg: `RUN='^TestReferenceSeg'`
+- Lo: `RUN='^TestReferenceLo'`

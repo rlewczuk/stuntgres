@@ -26,32 +26,9 @@ these are shared across families:
   check BOX/POINT/LSEG raw cells before normalization; LSEG (`lsegScenario`),
   POINT, LINE, PATH and POLYGON tests reuse them. After changing it, rerun the
   Box, Point, Lseg, Line, Path and Polygon families.
-  Geometry relations reuse `geometryRelationScenario`, `geometryRelationWitness`
-  and this raw adapter for direct/new-prepared/reused-held execution, NULL/empty
-  metadata and stored consumers. Distance/candidate expectations are exact;
-  epsilon comparisons must not hide endpoint-order differences. Native control
-  phases execute actual emitted SQL on PostgreSQL and retain deterministic dumps.
-  `TestReferenceGeometryRelationClosingEdge` keeps exact horizontal/vertical
-  closing-anchor distances1 for POINT/POLYGON and0.75 for radius0.25
-  CIRCLE/POLYGON, in both operand orders. `TestReferenceGeometryRelationInvalidUnknown`
-  retains same-type LSEG inference and exact22P02/character8 input failure for
-  `'(1,1)' ## lseg '[(0,0),(2,0)]'` on direct analysis and Prepare.
-  Geometry positions reuse the same witnesses for all32 signatures, including
-  vertical corresponding-edge extent predicates, touching BOX aliases versus
-  strict POINT aliases, polygon raw bounds versus fuzzy positions, and complete
-  overload diagnostics. Shared stored generated/CHECK/view expressions retain
-  non-NULL vertical computation through replay and new writes. The shared-spelling
-  cases retain shift, range, network and custom-operator selection.
-  Alignment uses the same fixture/raw adapter for unary and binary LINE/LSEG
-  execution, physical columns, overload diagnostics and stored replay. Sameness
-  witnesses distinguish corner-local NaNs and vertex sequence matching from
-  area-based comparison. Select this family with
-  `make check RUN='^TestReferenceGeometry(Alignment|SamenessArea)'`.
-  Geometric transforms reuse this adapter through `geometry_transform_helpers_test.go`
-  for POINT/BOX/PATH/CIRCLE raw results and metadata. Independent value, numeric-edge,
-  corner, concatenation, diagnostic and stored-replay witnesses share direct,
-  prepared and retained-statement routes. Select them with
-  `make check RUN='^TestReferenceGeometryTransform'`.
+  Shared geometry witnesses reuse the raw adapter for direct, fresh-prepared and
+  held execution. Exact distances and candidate values must not be hidden by a
+  global epsilon comparator. Native controls replay actual emitted SQL.
 - `geometry_measure_helpers_test.go`: shared measurement scenarios check raw
   cells and metadata before normalization, with explicit per-column nullability
   provenance. The GeometryMeasure, GeometryMeasureBoxLine and
@@ -75,10 +52,6 @@ Client quirks:
   `driver.ErrBadConn`, and require full rows only on clean EOF. Native
   pre-cancellation returns `context.Canceled` without a cursor. Cache
   `ColumnTypes` while the cursor is open to check descriptors after EOF/Close.
-- PostgreSQL moves a repeatedly executed held statement to a generic plan that
-  folds all-constant immutable calls, so that route keeps succeeding after
-  EXECUTE revocation. Encode this only for the same-held PostgreSQL route
-  (`pgWarmConstant` in `inet_format_authorization_test.go`).
 
 Rules:
 
@@ -88,46 +61,16 @@ Rules:
   Compare allocated OIDs through relationships, never numerically across backends.
 - While a DROP waits for its AccessExclusiveLock, observe it through catalog
   queries; a new reader of the table would queue behind the DROP.
-- `polygon(circle)` coordinates have recorded backend-specific last-bit spellings
-  (`geometryConversionCPGCircle`); `geometryConversionCCoordinates` also checks
-  each coordinate within relative 1e-14 with exact sign and nonfinite category.
 - A new or changed builtin type, operator, opclass or extension also changes the
   inventories in reference/catalogs, reference/catalog_objects and
   reference/extensions: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
 
-Path measurement scenarios cover all eight `isclosed/isopen/pclose/popen(path)`,
-`length(path/lseg)` and `npoints(path/polygon)` signatures. Closing/reopening a
-triangle preserves coordinates and counts while lengths change 9→12→9 and areas
-NULL→6→NULL. Coverage includes strict NULL and degenerate/nonfinite inputs,
-diagnostics, direct/prepared/same-held calls, BOOL/INT4/PATH/FLOAT8 metadata before
-Next (including empty/all-NULL results), and retained text/bytea/bit/varbit length
-selection. Fixed-signature scalar VARIADIC syntax remains callable; scalar OVER
-reaches the function diagnostic rather than a parser error.
-
-Stored default/generated/CHECK/view/SQL-wrapper consumers and native controls
-exercise same/fresh-Driver Restore, actual dump SQL replay on PostgreSQL and new
-writes after replacement. Literal and typed-NULL calls retain all eight selected
-overloads, including FLOAT8 LSEG length and unambiguous POLYGON point counts.
 
 ### Family selectors
 
-- <a id="point-oracle-first-contract"></a>POINT: `RUN='^TestReferencePoint'`
-- <a id="lseg-oracle-first-contract"></a>LSEG: `RUN='^TestReferenceLseg[A-NP-Z]'`
-- LINE: `RUN='^TestReferenceLine'`
-- <a id="box-scalar-contract"></a>BOX: `RUN='^TestReferenceBox'`
-- PATH: `RUN='^TestReferencePath'`
-- POLYGON: `RUN='^TestReferencePolygon'`
-- <a id="circle-scalar-contract"></a>CIRCLE: `RUN='^TestReferenceCircle'`
-- <a id="geometric-measurement-oracle-contract"></a>Geometry measurement functions: `RUN='^TestReferenceGeometryMeasure'`
-- <a id="geometric-relation-operator-oracle-contract"></a>Geometry relations: `RUN='^TestReferenceGeometryRelation'`
-- Geometry positions: `RUN='^TestReferenceGeometryPosition'`
-- <a id="geometric-constructor-conversion-contract"></a>Geometry constructors and conversions: `RUN='^TestReferenceGeometryConversion'`
-- INET/CIDR (all): `RUN='^TestReferenceINET'`
-- INET operators, mask, formatting, subnet: `RUN='^TestReferenceINET(Operator|Mask|Format|Subnet)'`
-- MACADDR: `RUN='^TestReferenceMACADDR[A-Z]'`
-- MACADDR8: `RUN='^TestReferenceMACADDR8'`
-- <a id="mac-address-operations"></a>MAC bitwise operators, truncation and modified EUI-64:
-  `RUN='^TestReferenceMACOperations'`. See the
-  [MAC contract](../../internal/sqltype/README.md#mac-address-operations).
+- Geometry scalars: `RUN='^TestReference(Point|Lseg|Line|Box|Path|Polygon|Circle)'`
+- Geometry consumers: `RUN='^TestReferenceGeometry'`
+- INET/CIDR: `RUN='^TestReferenceINET'`
+- MAC types: `RUN='^TestReferenceMAC'`

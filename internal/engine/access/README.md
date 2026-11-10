@@ -1,302 +1,66 @@
 # internal/engine/access
 
-Authorization enforcement on catalog objects. It sits above `catalog` (layer
-L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture))
-and imports `catalog`, `authorization`, `ids`, `parser`, `sqlstate`, `sqltype`
-and the standard library. It never imports the engine. The role graph and ACL
-algorithms it applies live in [`authorization`](../authorization/README.md).
-
-Database-qualified persisted defaults use immutable exact-address scopes.
-`RoleSettings.WithoutDatabase` removes only the retired incarnation's rows,
-preserving unrelated row backing and `RoleRecord.WithSettings` principal lineage.
-Database retirement co-publishes that root with shared descriptor removal; stale
-database-qualified journals retain predecessor fences. Trusted connector login
-uses cluster principal authority, independently of a retired default descriptor.
-
-
-Language descriptors use the ordinary owner/ACL/class-mask and paired role
-authority. Implicit PUBLIC USAGE applies to both trusted and untrusted languages,
-distinct from explicit empty ACL and never implying a grant option. Routine-body
-admission separately requires superuser for untrusted languages; GRANT/REVOKE
-restrictions likewise remain separate. Existing calls check routine EXECUTE.
-Explicit empty ACL revokes even an owner's ordinary use, while ownership retains
-implicit grant authority; never infer ordinary privilege from a grant option.
-Language ACL entries participate in the same principal dependencies and cleanup.
-Bulk ownership roots include ordinary and genuinely installed procedural languages;
-only intrinsic language identities 12–14 are excluded. Extension membership
-remains an independent retirement restriction, not a root-classification rule.
-No parallel language-permission table or cached grant decision exists.
-
-Registered sepgsql simulation adds independent default-deny mandatory checks
-through the same captured `View`, not a second ACL implementation. SQL ownership,
-superuser, view-owner and RI actor selection do not replace the actual physical
-simulated subject. A passed ACL therefore cannot grant MAC, nor can a simulated
-allow grant SQL privileges. Relation, selected column/system attribute, schema,
-view expansion and row-lock demands come from their semantic owners, not from
-catalog COW or a sweep of unrelated columns. Exact ALTER/drop hooks separately
-choose source object class, stable signed attribute and permission mask.
-Genuine whole-row Vars retain a semantic bit separately from expanded column
-indices: released inherited checks expand every actual child's live user
-columns, including additional child columns. Qualified `alias.*` remains
-ordinary per-column demand. Child name mapping borrows the original selection
-without allocating a remapped slice per descendant; view-owner SQL authority
-does not replace the physical MAC subject.
-Rowmarks keep ordinary UPDATE permission on any live column (including an
-unprojected column) separate from the selected-column SELECT request. An empty
-rowmark column set is not whole-table UPDATE and never introduces all-column
-SELECT. After SQL ACL admission, actual tables demand `db_table:lock`, not table
-or column UPDATE; logical views demand `db_view:expand`, with their reached
-sources retaining the lock demand. Exact negative system-column MAC and genuine
-whole-row expansion remain independent of this no-column locking request.
-This follows released PostgreSQL 18.6
-[`ExecCheckPermissionsModified`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/executor/execMain.c)
-and [`sepgsql_dml_privileges`](https://github.com/postgres/postgres/blob/REL_18_6/contrib/sepgsql/dml.c).
-
-
-Actual-phase observations retain policy, physical subject/lexical frame, exact
-object reference, consulted label including absence, and the committed object
-and label predecessors. Publication validates those predecessors, not a returned
-caller's current subject or the command's own next label. Successful own
-publication advances only predecessor lineage. No subject/allow receipt is
-stored in a retained routine program, catalog descriptor or native snapshot.
-
+Authorization enforcement over catalog objects, above `catalog` and
+[`authorization`](../authorization/README.md). The latter owns pure role and ACL
+algorithms; this package applies them to captured descriptors. It never imports
+the engine and adds no mutex or engine callback.
 
 ## What it holds
 
-- **`View`** (`view.go`): the immutable captured pair. It holds the catalog
-  owner (`*catalog.Owner`, which identifies the engine), the `catalog.Read`
-  and its paired read, the role publication record (`RoleRecord`), the
-  `authorization.Read`, the committed database predecessor, the effective and
-  session `RoleState`, the session authorization revision and
-  `MissingCurrent`. Fields are exported so the engine can re-target copies of
-  a view (a substituted catalog, an elevated current user); the captured
-  roots themselves are never written.
-  - Checks: `Effective`, `Check`, `CanUse`, `CheckCreate` and `CheckColumns`,
-    each taking an `Environment`. `Object` resolves a reference.
-    Catalog views use the same effective ACL and column authority as stored
-    views. ACL denial diagnostics use the view noun for their SQL `CatalogView`
-    kind independently of virtual-source dispatch. Source production never
-    substitutes original authentication for current authority.
-    Routine EXECUTE denials distinguish procedures using canonical `RoutineKind`,
-    not the shared `ProcedureObject` class or the presence of a SQL body.
-    Generic routine ownership denials retain the function noun used by
-    CREATE OR REPLACE; statement-specific callers supply their own nouns.
-    Extension ownership denials use the canonical extension kind; extensions
-    have an owner but no grantable ACL privileges.
-    Dictionary ownership denials use the canonical text-search dictionary noun,
-    including ordinary COMMENT checks; names or extension membership never
-    substitute a relation kind or change the underlying owner authority.
-    A utility may borrow its parsed object name for the immediate ownership
-    check; rendering occurs only on denial, after ordinary authority checks.
-    This diagnostic context never replaces the checked object reference.
-  - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
-    captured publication, `Recapture` binds a substituted catalog to the same
-    role root.
-  - Inquiries: `RelationPrivilege` receives a runtime-resolved existing
-    relation/valid attribute and ordinary/option alternatives. It follows the
-    inheritable role closure, preserves relation-kind absent ACL defaults and
-    implicit owner options, and scans only live positive columns for any-column
-    checks. Requested rights are not clipped to grant-admission class masks.
-  - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global access
-    methods have no owner, ACL or grant mask; owner metadata therefore carries
-    no fabricated grants. Genuine type/language conversion pairs likewise have
-    no owner or ACL. `ValidateACL` classifies them with the other ownerless
-    descriptors, while their catalog providers validate structural, handler and
-    referenced-object authority. Owning descriptors reject every zero or foreign principal.
-    Publication relation/schema mappings likewise have no independent principal,
-    ACL, grant mask or role dependency; their providers validate real endpoints.
-    The publication itself retains normal owner validation and role dependencies.
-    `PublicationDatabaseCreate` retains normal current/recipient database CREATE
-    authorization with the utility family's unquoted database diagnostic.
-    Generic ownership and physical connection diagnostics are unchanged.
-- **`Environment`**: the two session inputs of the checks.
-  `TemporaryNamespace()` returns the session's own TEMP namespace, and
-  `ReferencePath()` returns the search path that qualifies type names in
-  diagnostics. Both are read at call time, never captured, and only when a
-  check needs them (a TEMP namespace, a type denial). Keep it exactly two
-  methods wide: it is not a service locator.
-- **Roles** (`roles.go`): `RoleRecord` pairs the principal graph, immutable
-  `Settings` root and complete-record revision. `Advance` retains both roots;
-  `WithRoot` preserves settings and creates fresh graph lineage; `WithSettings`
-  preserves graph lineage. `SameAuthority` compares only principal authority,
-  never complete-record equality or settings predecessors. Exact `Stamp`
-  validation remains distinct from compatible-root merges.
-- **Persisted defaults** (`role_settings.go`): `RoleSettings` owns persistent
-  scope rows keyed by actual database addresses and principal references; zero
-  means ALL. `WithRow` copies caller input and shares unchanged rows. `Lookup`
-  and deterministic `Rows` lend read-only backing. Empty rows are absent.
-  `MergeRoleSettings` merges disjoint exact row predecessors and rejects a
-  conflicting or canceled merge; `WithoutRoles` performs atomic retirement
-  cleanup without changing retained roots.
-- **Role store** (`role_store.go`): `RoleStore`, the engine's role state:
-  the principal `Domain`, the `ACLAuthority`, the committed `Published`
-  record and the principal, revision and membership-row OID allocators. It has no mutex; the
-  engine mutex guards every field and mutating methods carry the `Locked`
-  suffix. Cluster runtimes share one pointer-stable store, because
-  `catalog.Owner.Principals`, `catalog.Owner.ACLAuthority` and
-  `Root.Reprovenance` keep pointers into it, so it is never copied (a
-  `noCopy` guard lets `go vet` report copies).
-  - Publication: `Published` changes only through `PublishLocked`, the
-    frontiers only through `InstallPrincipalFrontierLocked`,
-    `InstallRevisionFrontierLocked`, `AdvanceRevisionFrontierLocked` and
-    `InstallMembershipFrontierLocked`. The existing engine lock serializes
-    accepted-operation membership reservations, including private journals.
-    IDs observed before commit survive merge; rollback leaves nonreusable gaps.
-    Pure speculative candidates and reads never reserve identities.
-  - Reads: `Read` and `PublishedRead`, the store-checked `RoleRead`.
-  - Replacement (`role_remap.go`, `aclitem_import.go`): `PrincipalMapper`
-    and `PrincipalRemap` map a source's principals by name with
-    target-incarnation fences, reading the destination `*catalog.Store`
-    at each mapping; `ACLItemImporter` reowns typed aclitem values from the
-    source store's ACL authority; `ValidateReplacementACLsLocked` checks a
-    replacement's ACLs against the committed roles. `CaptureLocked` and
-    `InstallCapture` copy the committed graph, principal frontier and membership
-    OID frontier into a private Restore stage's domain, deliberately omitting
-    persisted defaults. Destination defaults remain cluster authority, not replay
-    input or imported state. `PrincipalRemap` takes the seeded-operator predicate
-    as a value.
-- **Ownership** (`ownership.go`): `OwnershipSuccessor`,
-  `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
-  `OwnershipRoleOperand`, which share the `current_user`/`session_user`
-  string protocol, `OwnershipRoot`, the bulk-root rule of REASSIGN and
-  DROP OWNED, and `ForeignOwnershipEligibility`, the owner change rule of
-  foreign-data wrappers and servers that ALTER SERVER (`fdw`) and REASSIGN
-  OWNED (`role`) share.
-  `EventTriggerOwnershipEligibility` shares owner-first, target-superuser
-  validation and its complete diagnostic between ALTER EVENT TRIGGER and
-  REASSIGN OWNED. Callers own same-owner bypass; this rule does not impose
-  generic SET ROLE or namespace CREATE checks.
-- **Owned objects** (`owned.go`): `OwnedRoots`, `OwnershipRelationLocks`,
-  `OwnedPolicies` and `OwnedMembershipCandidate`, the pure parts of
-  REASSIGN and DROP OWNED. `OwnershipRoot` and `OwnedRoots` take the
-  seeded-operator predicate as a value (`routine.OperatorSeeded` in the
-  engine), because `routine` imports `access`.
-  `OwnershipRelationLocks` merges actual policy-deletion containing relations from
-  its optional source map into the sorted/deduplicated root lock list. It expands
-  companions only for ownership roots, not these surviving policy tables; PUBLIC
-  or any nonselected target prevents deletion. Other callers pass nil.
-- **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
-  TEMP capability boundary of non-table creation and namespace moves,
-  `CheckTemporaryStorageAccess`, which rejects another session's stored TEMP
-  relation or sequence before storage admission, `OwnTemporaryNamespace`, which
-  matches a namespace against the session's TEMP namespace address, and
-  `AdjustRelationCreationPersistence`, the persistence of a relation created
-  in a namespace, which reads the `Environment` only for a TEMP namespace.
-- **Row security** (`rls.go`, `rls_selection.go`): metadata-only
-  `RowSecurityApplies`/setting guard, role-aware `SelectRowSecurity` returning
-  immutable payload groups (`RLSSelection`, `RLSGroup`, `RLSClause`),
-  `SameRLSSelection`, which the engine's fence uses to detect a changed
-  selection after role changes, and `RowSecurityPrincipal` over view layers. `AdjacentRowSecurityGroups`,
-  `AdjacentRowSecurityProposal` and `AdjacentRLSDisposition` are exclusively
-  MERGE/ON CONFLICT action capability gates, never ordinary row evaluators.
-- **Row-security actions** (`rls_actions.go`): `RowSecurityActions`,
-  `RowSecurityFlags` and `RowSecurityKind`, the ALTER TABLE ENABLE, DISABLE,
-  FORCE and NO FORCE ROW LEVEL SECURITY rules. `RowSecurityKind` takes the
-  diagnostic for the other relation kinds as a value
-  (`analyze.TableKindError` in the engine), because `analyze` imports
-  `access`.
-- **Role dependencies** (`role_dependencies.go`): `RoleDependency`,
-  `DescriptorRoleDependencies`, `DefaultRoleDependencies` and
-  `InitialRoleDependencies`. A nil collector stops at the first dependency.
-  Initial ACL references use kind `i`, include historical owners and every
-  grantor/grantee, and deduplicate each role/full object address; the current
-  ACL collector's owner exclusion must not be applied to historical snapshots.
-  Replacement ACL validation includes this inventory against destination role
-  authority, independently of current descriptor ACLs.
-  `VisitDescriptorRoleDependencies` and `VisitDefaultRoleDependencies` expose
-  the same classification to core's shared-dependency capture without building
-  retirement descriptions. Default records carry their real class826/OID
-  address. Visitors retain policy occurrences; consumers deduplicate ACLs per
-  address/principal/flavor, not across distinct columns or databases.
-- **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
-  `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
-  (`database_connect.go`) is the CONNECT check of physical session start.
-- **SQL inquiries** (`object_inquiry.go`): `ObjectPrivilege` accepts a raw actor
-  OID and independent ordinary/grant-option ANY masks. Missing actors still
-  receive PUBLIC rights; live superusers bypass missing object OIDs. Other
-  actors receive an absent result for a missing object. Type checks delegate
-  array then multirange authority; absent database/type/routine/language ACLs
-  retain inquiry defaults, while explicit-empty ACLs do not. Schema checks
-  include predefined data roles and physical-session TEMP authority, with
-  CREATE contingent on the queried actor's database TEMP right. These rules
-  do not broaden admission or change database attachment authority.
-  The core special-inquiry boundary establishes large-object existence before
-  this evaluator's superuser shortcut, using the active LO frontier unless the
-  ordinary mask includes UPDATE. Missing parameter ACL identities instead
-  produce false for non-superusers, without requiring a setting provider.
-
-`access` keeps its own `SQLError`. Type and identifier names in its messages
-come from the `catalog` diagnostic name helpers it shares with the engine.
+- **`View`** is an immutable paired capture of catalog ownership, catalog and role
+  reads, publication predecessors, and effective/session role state. `Check`,
+  `CanUse`, `CheckCreate`, `CheckColumns` and `Effective` consume this capture;
+  `Ref`, `Stamp` and `Recapture` preserve its provenance. Retargeting copies a
+  view, never mutates its roots.
+- **`Environment`** supplies only `TemporaryNamespace` and `ReferencePath` at check
+  time. Keep it a narrow diagnostic/TEMP boundary, not a service locator.
+- **`RoleRecord`** pairs principal and persisted-settings roots with publication
+  lineage. Principal authority equality is distinct from complete-record and
+  exact-stamp equality. Settings-only changes preserve graph lineage.
+- **`RoleSettings`** owns immutable rows keyed by actual database addresses and
+  principal references. Input is copied, unchanged rows are shared, and merges
+  require exact row predecessors. Retirement removes only the retired scope.
+- **`RoleStore`** holds principal authority, committed records and allocator
+  frontiers. It is pointer-stable and never copied; the engine mutex protects
+  every field and `Locked` mutation. Accepted reservations survive merge and
+  rollback leaves nonreusable gaps; speculative reads/candidates reserve nothing.
+- **Replacement helpers** map principals and ACL values into genuine destination
+  authority. Private Restore captures omit persisted defaults: those remain
+  destination cluster state.
+- **Ownership, namespace and dependency helpers** provide shared decisions for
+  role/ownership DDL, TEMP access, cleanup and catalog dependency capture.
+- **Row-security selection** returns immutable policy groups. Metadata selection
+  and action capability checks are separate from runtime row evaluation.
+- **SQL privilege inquiries** accept raw SQL actor OIDs and preserve their
+  inquiry-specific missing-object/actor semantics; these do not widen admission.
 
 ## Invariants
 
-- Privilege decisions, SQLSTATEs, messages and grantor selection match
-  PostgreSQL 18; the reference suite is the oracle.
-- A view is paired with its exact `catalog.Read`. There is no cached ACL
-  decision. A view rejects references and catalogs its owner does not back,
-  stale epochs and an unpaired role read, before any superuser shortcut.
-  Zero, foreign and stale principals are rejected first by admission checks;
-  the raw-OID SQL inquiry boundary deliberately accepts nonexistent actors.
-- Absent and empty ACLs stay distinct.
-- No mutex and no engine callback: callers hold whatever lock their reads
-  need (`DatabaseRights` on live roots needs the engine mutex).
+- Validate owner, domain, epoch, paired reads and principal provenance before
+  admission shortcuts. A view accepts only references backed by its owner and
+  exact catalog capture. Raw-OID SQL inquiry is a distinct boundary.
+- There is no cached ACL decision. Absent and explicit-empty ACLs are distinct;
+  ownership, ordinary use and grant authority are separate.
+- Mandatory simulation checks are independent of SQL ACLs. Physical subject and
+  lexical frame are not replaced by view-owner, superuser or RI SQL authority.
+  Publication validates actual observed predecessors, not a retained allow token.
+- Stable attributes, dense evaluation slots and whole-row demands remain distinct.
+  Semantic consumers own privilege demands; catalog copying does not infer them.
+- Callers supply required locking. Checks over live roots need the engine mutex;
+  captured immutable roots are never written.
+- Diagnostics and privilege/grantor decisions follow PostgreSQL compatibility.
 
 ## What stays in the engine
 
-- `AuthorizationView`: statement-level authority that embeds `View` and adds
-  the session, settings, definition reader and path inputs. It holds no
-  engine: one constructor gives it a pointer to the engine's
-  `AuthorityInputs` (the engine's domain for path references and the TEMP
-  token check, the settings registry for the boot `search_path`, and
-  the published storage that `StorageLocked` reads under the engine mutex),
-  and statement identity checks compare the view's catalog owner. Its `Check`,
-  `CanUse`, `CheckCreate`, `Effective` and `CheckColumns` are entry points
-  that pass the view itself as the `Environment`. It implements
-  `analyze.Privileges` for the binding walkers.
-- View capture (`authorizationLocked`, `statementAuthorizationLocked`,
-  `OperationAuthorization`), `Engine.RoleStore` (the cluster's `*RoleStore`),
-  the session role overlays (`sessionRolesLocked`,
-  `installOperationRolesLocked`, `preparedActorLocked`) and the catalog
-  authority fences.
-- The lock windows, staging and publication of role DDL, GRANT/REVOKE,
-  ALTER DEFAULT PRIVILEGES and the ownership statements. Their decisions are
-  in [`role`](../role/README.md), which calls this package over the captured
-  `View`.
-- Search path resolution (functions over `AuthorizationView`) and
-  `temporaryNamespace` and RLS configuration. The binding and rule-program
-  `row_security` walkers, which call `access` for each object, are
-  `view.CheckRowSecurityBinding` and `view.CheckRowSecurityRuleProgram`; the
-  stored-view source walker is `view.CheckRowSecuritySource`.
-  The binding walkers (`CheckBinding`, `CheckQuerySources`) are in
-  `analyze`; the walkers over view definitions and view writes
-  (`CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`) are
-  in [`view`](../view/README.md), over the captured `View` and the
-  engine's `AuthorizationView` as the `Environment`.
+`AuthorizationView` adds statement/session/settings/path inputs and implements
+binding privileges plus `Environment`. Core owns capture, role overlays and
+publication fences. Statement families own lock windows, staging and publication;
+[`role`](../role/README.md) owns role/ACL DDL decisions. Binding and stored-view
+walkers belong to [`analyze`](../analyze/README.md) and [`view`](../view/README.md).
 
 ## Testing
 
-The package tests build a catalog owner, a seeded role root and a current
-database without an engine, and pin the view's owner, pairing and epoch
-rejection, `RoleRead`'s owner and domain checks, the lazy TEMP environment,
-`RowSecurityPrincipal`, the role store's read fences, allocators and Restore
-capture, the row-security setting guard, DROP OWNED policy
-cleanup, the `RowSecurityKind` fallback, the TEMP namespace helpers and the
-ownerless ACL validation of access methods and casts. Routine denial checks pin
-canonical function/window/procedure kinds independently of a SQL body, while
-preserving generic replacement-ownership wording. Engine unit tests exercise
-the checks through `AuthorizationView`.
-System-read versus ordinary-column authority uses `RUN='^TestQueryTableOIDAdmission'`.
-Publication mapping versus owning-definition ACL classification uses
-`RUN='^TestPublicationMappingOwnerlessACL$'`.
-Canonical role-dependency visitor and default-address invariants use
-`RUN='^Test(RoleDependencyVisitor|DefaultACLDependencyAddress)'`.
-
-
-```sh
-make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|RoleStore|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|RoutineDenialKind|TemporaryNamespaceOnly))'
-make check RUN='^Test(AccessView|RoleStore|DatabaseTemporaryCapturedRights|DataTypePrivilegesCapture|ObjectACLAddressLookup|RLS|Ownership|RoleOwnership|DropOwned|ReassignOwned)'
-make check RUN='^TestReference(AccessRole|ForeignActionsAuthorization|SchemaAuthorization$$|TypedTableAuthorization$$)'
-```
-
-Access-method publication and control witnesses are in the
-[access-method suite](../../../reference/indexes/README.md#access-method-definitions).
+Package units build a catalog owner and paired role roots without an engine.
+Composed tests exercise `AuthorizationView` and publication in core. Public SQL
+behavior belongs to the reference suite; see
+[docs/TESTING.md](../../../docs/TESTING.md).

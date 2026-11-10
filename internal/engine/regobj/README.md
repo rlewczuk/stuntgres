@@ -1,372 +1,44 @@
 # internal/engine/regobj
 
-Catalog objects and typed values as SQL text, and the way back: the
-object-identifier types, type declarations, typed literals, `aclitem` I/O,
-object identity and the catalog inquiries over them.
-
-## Imports
-
-Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`, `expr`,
-`extension`, `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`,
-`parser`, `sqlstate`, `sqltype` and the standard library, never the engine,
-`stored` or an upper feature. Only the upper features, `stored` and the engine
-import it.
+Catalog identity and typed values as SQL text and back: reg-object input/output,
+type declarations/literals, ACL values, address/identity inquiries, prepared
+literal capture and destination remapping. It sits above analysis and below
+stored definitions, never imports core, and owns no engine state or mutex.
 
 ## What it owns
 
-- **reg\* spellings and output** (`reg*_output.go`): `ClassSpelling`,
-  `ProcSpelling`, `RoutineSpelling`, `TypeSpelling`, `OperatorSpelling`,
-  `TextSearchSpelling`, `ObjectSpelling`, `WriteRoutineArguments`; the
-  catalog-backed formatters `ClassOutput`, `RoutineOutput`, `TypeOutput`
-  (`View`, `Path`) and `RoleOutput`; output capture into `exec.FinalRows`
-  (`Capture{Class,Proc,Operator,TextSearch,Object,Role,ACLItem}OutputValue`);
-  `RoleContextFormatter`. `CaptureRowsOutput` (`rows_output.go`) runs them
-  over every flat, anonymous and selected-source value of a result, with the
-  collation path as a callback read on the first non-NULL regcollation
-  value. `SpellingCache` (`spelling_cache.go`) is a statement's regproc,
-  regprocedure, operator and text-search spellings by OID, filled on first
-  use; the caller passes the inquiry catalog and path on every call.
-  Diagnostic `WriteRoutineArguments` accepts a transient definition reader so
-  CREATE validation sees staged argument types without cloning a catalog.
-- **Raw type inquiries** (`type_format.go`): `FormatType` renders canonical SQL
-  names and raw typmods over a supplied catalog and type path, keeping absent
-  modifiers distinct from explicit -1. This is not declaration validation or
-  REGTYPE's missing-OID output. `BaseType` follows each immediate domain link
-  through that same catalog, returning not-found for a missing link.
-  Logical UNKNOWN cast naming authenticates every ordered no-op target against
-  the current definition/catalog descriptor generation. This metadata-only
-  check cannot grant a pseudo codec or turn an outer no-op into a second IO cast.
-- **Prepared reg\* literal analysis** (`regtype_analysis.go`): `Analysis`,
-  the cell a prepared statement holds for its reg\* constants (`Constants`,
-  the role, database and lookup paths they were resolved under), with
-  `NewAnalysis`, `Valid`, `ForReanalysis`, `Invalidate` and
-  `RetireConfigurations`. They run over an `Observation`
-  (the engine's catalog domain, the session's database name, the
-  statement's `access.View` and its environment) and `LookupPaths`, the type
-  and collation path callbacks, read only when the constants need them. The
-  callbacks are a separate parameter so they do not escape with the
-  environment.
-  REGCONFIG and REGDICTIONARY occurrences retain their original immutable typed
-  OID and operand provenance separately from current executable observations.
-  Reanalysis projects eligible text-search aliases into a private input slice;
-  other aliases retain their ordinary retirement policy. Eligibility requires
-  the same domain, epoch, role, database, effective path and existing namespace
-  generation, with current source-qualified namespace authority. Configuration
-  rename, move, mapping edits or deletion do not retarget the original OID;
-  no permission check is added on its current destination namespace. Real
-  namespace publication retires source captures even if the effective path is
-  unchanged. An absent original has no current dependencies and remains an
-  actual typed value for the runtime's missing-object diagnostic.
-  `TextSearchInput.ObserveDictionary` records actual template/helpers and the
-  currently resolved thesaurus logical-normalizer inputs without initializing
-  an alias. The normalizer is re-resolved separately from the original operand;
-  missing/denied inputs invalidate successful analysis observations. Actual
-  initialization supplies unpositioned semantic diagnostics; an unchanged
-  session-initialized dictionary retains its own independent permission lifetime.
-- **reg\* input helpers** (`regclass_input.go`, `regrole_input.go`,
-  `regoperator_groups.go`, `regproc_lookup.go`): `ClassNumeric`,
-  `ClassQualifiedName`, `RoleInput`, `AccessRoleID` (the role argument of the
-  ACL inquiry functions), `CollectOperatorGroups`, `VisibleOperators`,
-  `SelectRoutine`, `SelectExactRoutine`, `RoutineIdentityByOID`,
-  `RoutineDescriptorOwner`.
-  Routine selection excludes TEMP namespaces only for unqualified `Path`
-  selection; explicit `Qualified` selection can resolve TEMP routines through
-  the existing namespace authority checks. `RoutineSpelling` and function
-  visibility still select over `Path` and do not make TEMP targets unqualified
-  or visible. Both name-only and exact-signature selectors share this boundary.
-  `TextSearchInput` (`regts_input.go`) shares captured name parsing and namespace
-  authority across configuration consumers. `ResolveRegconfig` preserves
-  missing-schema input errors; `ResolveDefaultConfig` instead demands semantic
-  namespace existence. `ResolveTriggerConfig` also requires explicit schema
-  qualification. These modes share catalog lookup, not error provenance.
-  Exact selection reads represented descriptors first. Its released fallback
-  suppresses stale aliases when that identity's current name, namespace or
-  signature has changed, then continues the normal namespace path. Genuinely
-  absent release identities remain lookup-only, not executable descriptors.
-  Intagg's canonical state/final procedure descriptors use their own current
-  namespace for exact and bare-name selection, not the aggregate's namespace.
-  Their genuine INTERNAL argument/result signatures do not admit an unknown
-  literal or cast as an INTERNAL datum. Moving
-  only the aggregate does not move its helpers. Live helper output retains its
-  qualified spelling outside that namespace's path; numeric output is for
-  unknown or retired identities, not a substitute for a missing live namespace.
-  Prepared name/signature literals retain the selected OID as data, not a
-  procedure-revision operand or execution permission. Exact-signature input
-  captures each parsed type operand in source order (including repeats), with
-  qualified namespace authority. Referent-only alteration/drop/recreation does
-  not retire that accepted constant; genuine path/role or signature-type
-  invalidation still follows the shared analysis lifecycle. Stored definitions
-  separately record real routine references through `WalkRoutineReferencesAt`,
-  including each canonical helper's own descriptor, never the aggregate as a
-  substitute. Actual calls retain their separate routine/support manifests.
-- **Captured input resolvers** (`reg*_input.go`, `captured_input_target.go`,
-  `input_authority.go`): `ClassInput`, `TypeInput`, `OperatorInput`,
-  `RoutineInput`, `TextSearchInput` and `ObjectInput`, built by `New*Input` over
-  an `InputCapture` (an `Authority`, the lookup path, and the session's
-  database, token and TEMP namespace at capture). `Authority` is the
-  statement's `access.View`, its `access.Environment` and the cooking DDL
-  definition overlay (nil otherwise); resolvers check USAGE with
-  `View.CanUse(Environment, ref)` and read names through the
-  `catalog.Definition*At` readers. `TypeInput.ResolveParsedTypeName` serves
-  already-parsed type syntax. The `Retarget*` methods implement the `analyze`
-  retarget interfaces, and `DetachCursorInput` rebinds a cursor's resolvers to
-  its execution authority.
-  `ClassInput.ResolveRelationName` retains regclass input's `42P01` relation
-  diagnostic even when an explicit schema is absent. Relation-open callers use
-  `ResolveRelationOpenName` for explicit-schema existence (`3F000`) instead.
-  Both share parsing, captured paths, TEMP selection and schema USAGE (`42501`);
-  neither textual-name entry point gives numeric text an OID shortcut.
-  `CaptureEvaluationInput` instead closes parallel evaluator inputs over their
-  immutable captured authority and an evaluator-private notice sink, removing
-  identifier-observation sinks and live cursor-host notice fallback. It also
-  specializes `ACLItemInput`, retaining Roles, exact ACLAuthority and copied
-  literal/parameter provenance while clearing Op and binding the private sink.
-  Actual ACL INITCOND warning input is not protected by the SQL routine gate.
-  It copies resolver values, never catalog/plan graphs; ordinary cursor rebinding
-  and ordinary operation notice delivery remain live and unchanged.
-  `TypeInput.ResolveInputUsage` parses a SQL declaration and returns the actual
-  catalog descriptor plus encoded typmod (including array element typmods).
-  It implements `sqltype.RegtypeUsageResolver` for nullable typmod lookup and
-  data-validity declaration setup, sharing resolution/modifier validation with
-  OID-facing REGTYPE and parsed callers. It intentionally rejects REGTYPE's
-  numeric-OID/dash value shortcuts. Keyword char/character/bit defaults survive
-  alias normalization and arrays; generic, quoted and qualified names do not
-  acquire those defaults. Domains retain their own declaration typmod, not a
-  base constraint. Setup errors stay outside data-validity conversion recovery;
-  nullable lookup recovers only direct producer-soft destination failures.
-  `ClassInput.ResolveRelationName` shares qualified relation parsing, captured
-  paths and schema USAGE checks with regclass input, but numeric strings and
-  `-` remain names. Installed autoinc demands this path only for NULL/zero keys;
-  ordinary regclass numeric/dash input retains its existing shortcuts.
-  `TextSearchInput.ResolveTextParser` uses that same captured, TEMP-free path
-  for parser names, with explicit namespace USAGE checked before lookup.
-  Parser names remain TEXT inputs; no regparser type or parser-owner ACL is
-  introduced. Both seeded and user parsers resolve current descriptor/name keys
-  and retain actual dependency revisions when requested. Configurations capture
-  their actual parser revision alongside dictionary observations.
-  REGCONFIG and REGDICTIONARY resolve actual descriptor identities, capture
-  operand revisions and retain visibility-sensitive output spellings. Their
-  persistence walkers recurse through arrays, domains, composites and ranges;
-  native replacement remaps actual configuration identities rather than names.
-- **Dump spellings, stored-value walkers and remap** (`regclass_dump.go`,
-  `reg*_persistence.go`): `DumpOperatorOutput`, `DumpTextSearchOutput`,
-  `DumpAliasOutput`; `OperatorLiteral`, `RoutineLiteral`;
-  `Walk{Routine,Operator,TextSearch}References(At)`, `ClassReplayReferences`;
-  `Remap{Class,Routine,Operator,TextSearch,Alias}Datum`;
-  `DomainInvalidDumpEvents` (`domain_invalid_dump.go`), the dump graph events of
-  NOT VALID domain CHECKs over a `dump.Resolver` (here, not in `typedef`,
-  because it walks `ClassReplayReferences` and `regobj` imports `typedef`).
-- **Type declarations and literals** (`catalog_literal.go`): `TypeDeclaration(At)`,
-  `ColumnDeclaration`, `Literal`, `LiteralWithACL(At)`, `ConstantLiteral`.
-  Declaration rendering accepts canonical nominal-only domain/array metadata
-  only with exact catalog-owned provider pointers and reciprocal companions.
-  This does not admit those usages as executable codecs or stored values.
-  Deep constructor literals reuse `float4_dump.go` for exact raw FLOAT4 and
-  negative-circle leaves, and for XML-element arrays (`IsXMLArray`), whose text
-  would reparse leaves under the destination `xmloption`; XML leaves render
-  through their owner, and a bare NULL rank-one seed leaf gets its element
-  type. Custom ranges and companions use
-  genuine type-owned calls from `range_constructor_literal.go`, recursively
-  rendering finite endpoints and normalized members through the same leaf
-  renderer. Reference discovery, output capture and remap also visit these
-  typed endpoints.
-  `ConstructorArrayTargetBounds`
-  and `ConstructorBoundedInputContext` preserve non-one-based array dimensions
-  through ordinary INSERT targets without native-only sidecars. That authority
-  addresses only the literal's root array; its domain wrappers emit no source
-  CAST because the destination applies them at the real bounds. Recursive
-  ROW fields and array elements never inherit it. Nested rank-one constructor
-  arrays retain their own bounds through closed qualified `array_fill`/`array_cat`
-  SQL; non-one-based multidimensional nested arrays need their own bounded INSERT
-  target. Captured BOX/CIRCLE/PATH/POINT/LINE/LSEG/POLYGON literals retain explicit
-  owning-type annotations, including NULL. Stored query rendering uses captured
-  source AST literals through `ConstantLiteral`, independently of expression
-  providers' display/replay channels. Bare text could reselect a geometric
-  overload or typename input shortcut, select `length(text)` instead of
-  `length(lseg)`, or lose the `npoints(path)`/`npoints(polygon)` overload on replay.
-- **Search-path visibility of named objects** (`namespace_visibility.go`,
-  `visibility_inquiry.go`): `NamedObjectVisible`, `NamedObjectVisibleAt`,
-  `CollationCandidate`,
-  `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which answers
-  the `pg_*_is_visible` and collation-version inquiries over the statement's
-  visibility snapshot (catalog, relation path, TEMP-filtered path). Function
-  visibility selects the exact input signature through `RoutineIdentityByOID`
-  and `SelectExactRoutine`, including lookup-only released identities and genuine
-  canonical installed aggregate-helper descriptors. Operators use ordered operand keys;
-  classes and families use access-method-qualified descriptor keys. All four use
-  the captured TEMP-free path, without target permission checks or live session
-  lookup. These are name-visibility rules, not MVCC visibility.
-  The explicit-reader variant uses the same exact descriptor name/signature key
-  over unpublished definitions and is never retained in a formatting cache.
-- **`aclitem` I/O** (`aclitem_*.go`, `acl_empty.go`): `ACLItemInput`,
-  `ACLItemOutput`, `ACLItemValidationOutput`, `ACLItemContextFormatter`,
-  `ACLItemOutputContext`, `PreflightACLItemValue`, `ContainsEmptyACL`.
-- **Object identity** (`object_identity.go`): `pg_identify_object`,
-  `pg_describe_object` and `pg_get_object_address` through
-  `IdentifyAddress`/`ObjectIdentity`, and the input helpers `ObjectInputArray`,
-  `ObjectInputClass`, `ObjectListLength`, `ObjectAddressTextArray`,
-  `ObjectAttributeName`, `ObjectRelationKind`, `OwnedAddressByName`. Rule
-  identity is read through `(*catalog.Relation).VisitRules`. Ordinary and
-  persistent foreign-key triggers share the canonical owned-relation renderer;
-  `catalog.ForeignKeyTriggerFacts` supplies RI names and actual trigger relations,
-  including action triggers on the referenced table.
-  Trigger-owned constraints use their distinct inline class2606 identity and
-  independent conname in address lookup and dropped-object descriptions.
-  Cast identity uses actual catalog descriptor endpoints, with fixed builtin
-  metadata only as a fallback; qualified endpoint identities and path-sensitive
-  descriptions share the canonical type renderer. Casts remain ownerless, with
-  no schema/simple name or temporary status.
-  Subscription descriptions use the raw stored name, independently of quoted SQL
-  identity/name fields; address components retain the decoded database-local name.
-  User mappings resolve their mapped principal through the supplied authorization
-  snapshot and their server through the catalog descriptor. PUBLIC uses `public`;
-  identities quote the role but retain the raw server name, while address arrays
-  carry the raw role and server separately. Storage keys and diagnostic cached
-  names never supply identity, schema or simple-name fields.
-  `DroppedAddress` (`dropped_identity.go`) shares that renderer and owner lookup,
-  capturing a plain immutable `catalog.DroppedObject` before deletion. Its
-  nullable schema/simple names are raw identifiers, separate from inquiry
-  spellings. The canonical identity APIs take the executing physical session
-  token explicitly: only its non-toast TEMP namespace renders as `pg_temp`.
-  Peer TEMP and own temporary-toast namespaces retain their physical names,
-  including raw DDL schema metadata; detached readers pass the zero token.
-  Temporary routine/operator identity text retains its physical namespace name
-  even for the owner, independently of canonical schema/address components.
-  Forward and inverse routine kinds read the exact represented `Procedure`
-  descriptor first (aggregate/procedure, otherwise function). Only unrepresented
-  identities use released kind facts; an aggregate helper's dependency owner
-  never supplies the helper's kind.
-  Rules retain NULL schema/name and false temporary status even when their
-  rendered identity names a temporary owner. Deletion provenance remains the
-  caller's responsibility.
-- **Object address inquiries** (`object_address_lookup.go`,
-  `identify_values.go`): `AddressLookup.Lookup` answers `pg_get_object_address`
-  over the comment catalog and roles and an `InputCapture` of the deparse
-  authority and reference path; two root capabilities complete it, `Namespace`
-  (the function-lookup selection of a two-part name, called only after the
-  schema is known to exist) and `Notice` (parser notices and type-modifier
-  warnings, in order). `IdentifyValues` builds the `pg_identify_object`,
-  `pg_identify_object_as_address` and `pg_describe_object` results.
-  Access-method lookup/identity and family/class descriptions use the captured
-  global descriptor authority, including quoted custom method names. Handler
-  identity metadata is separate from executable native capability.
-  Routine input arrays mean exact input signatures, including zero inputs, not
-  bare-name overload selection. Raw name cells remain raw dotted diagnostic
-  names; argument cells are parsed SQL types rendered canonically. Sequential
-  syntax/NULL validation precedes the 100-input routine cap, which precedes
-  semantic type and namespace lookup. Missing zero-input aggregates use `(*)`.
-  Cast lookup consults the current indexed source/target descriptor before fixed
-  released cast metadata. Text-search configurations (class3602) share the
-  namespace/name descriptor path with templates and dictionaries. Saved address
-  arrays resolve against the executing catalog, not a previous prepared reader.
-- **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
-  `obj_description`, `col_description` and `shobj_description` over the
-  comment catalog and roles; an empty text is NULL. Local extension and procedure
-  lookups use exact `pg_extension` and `pg_proc` class identities and read the
-  descriptor's current text without a released-description fallback. Shared
-  inquiries never consume this local text.
+Captured resolvers consume exact catalog/role/definition/path inputs. Shared
+spellings and literal renderers preserve canonical SQL, quoting and selected
+identity; stored-value walkers/remappers authenticate genuine destination types
+and principals. Inquiries project actual descriptors rather than infer identity
+from presentation text or same-number objects.
 
 ## Soft and hard input errors
 
-Fresh-input recoverability is producer-owned: `sqlstate.SoftInputError` marks
-only the bounded alias input's own name/missing/ambiguity/signature failures.
-Type grammar and modifier helpers use `HardInputError`; ACL, cancellation,
-structural-name and unrelated callback failures keep hard authority. Ordinary
-STOP diagnostics, including missing-schema errors, are the same on both paths;
-no SQLSTATE-family rule or cause-unwrapping decides recovery.
+Recoverability is producer-owned. `SoftInputError` marks only the input boundary's
+own recoverable lookup/grammar errors; SQLSTATE alone is insufficient. Context,
+provider, authority and unrelated runtime failures remain hard. Notice routing
+uses the current execution operation rather than retaining capture-time runtime.
 
 ## Invariants
 
-- Output, input and dump spellings, diagnostics and remap results are
-  byte-stable because dumps and stored values replay them: seeded operators by
-  OID and user operators by signature (`OperatorLiteral`), `RoutineLiteral`, the
-  numeric OIDs of the dump outputs, `PreflightACLItemValue`, the identity
-  strings and every `Remap*Datum` result.
-- Every function reads only the `catalog.Read`, `authorization.Read`,
-  definition reader and path its caller passes. Nothing here caches a
-  permission decision or a catalog snapshot. A captured resolver keeps the
-  authority its constructor captured; it never reads live session state.
-- Type-name notices and type-modifier warnings go to the operation of the
-  current execution, never of the capture: a resolver bound to an
-  `exec.Authority` asserts `Host.(NoticeHost)` at each call and emits nothing
-  when the host takes no notices; otherwise it emits to the captured operation.
-- No mutex; nothing takes `Engine.Mu`. Callers that need the engine lock
-  (`Engine.capture*`) hold it themselves, and the callbacks they pass
-  (`CaptureRowsOutput`'s collation path, `LookupPaths`) run under it.
+- Reads/resolvers use only their explicit immutable capture and path. They do not
+  resample live session state or cache permission decisions.
+- Names/numbers are presentation or lookup inputs, never provenance authority.
+  Identity, address and typed datum mapping retain their separate contracts.
+- Input/output/dump spellings, diagnostics and remap results are compatibility
+  contracts because stored values and native scripts replay them.
+- Callers own locking, including callbacks passed into capture helpers. Nothing
+  here acquires Engine.Mu; unlocked core wrappers own live lookup and readmission.
 
 ## What stays in the engine
 
-- The statement caches and formatters: `presentationCaches` and the
-  `StatementScope.Format*` methods behind `exec.Host`, keyed by `exec` keys and
-  filled through the spellings above.
-- The constructors that read engine state: `Engine.captureRegclassOutput`,
-  `Engine.CaptureACLItemInput`, `Engine.captureRegObjectRowsValueLocked`,
-  `Engine.regclassLocked`, the `Engine.capture*Input` methods and
-  `captureRegObjectsOnPath` with the `inputCapture` helper (which drops the
-  session and settings from the captured `AuthorizationView`), and the
-  `analyze.Host` resolver forwarders.
-- `statementHost.TypeNameNotice`, the `NoticeHost` implementation.
-- The inquiry host adapters (`object_address.go`, `comment_inquiry.go`,
-  `visibility_inquiry.go`): snapshot checks, `admitInquiryBody`, the
-  `addressLookup` builder (its `Namespace` is `analyze.LookupNamespaces` over the
-  deparse authority, which reads the engine's TEMP ownership and domain), the
-  `Engine.Mu` `pg_import_system_collations` branch and
-  `captureVisibilitySnapshotLocked`.
-- `deparse_function.go`: only the missing-snapshot check and the
-  `table.DeparseInputs` builder. The `pg_get_*def`, `pg_get_expr` and
-  `pg_get_serial_sequence` bodies render in `table.Deparse`, because they use
-  `stored` and `index`, which import `regobj`.
-- `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
-  prepared-statement regtype analysis cell is statement state, not SQL text.
-- `principal_remap.go` (the Restore stage and publication; see the
-  [`control` README](../control/README.md)). The aclitem importer is
-  `access.RoleStore.ACLItemImporter`, the Dump ACL preflight is
-  `control.PreflightACLItems` and the scalar renderer is
-  `stored.ScalarRenderer`.
+Statement formatter caches, current authority/notice adapters, prepared analysis
+cells, lock windows, replacement staging and atomic publication.
 
 ## Testing
 
-The captured relation-name context boundary uses
-`RUN='^TestClassInputRelationLookupContexts'`: the same authority and names retain
-regclass's missing-relation diagnostic versus relation-open's missing-schema
-diagnostic without changing parsing, path selection or numeric input shortcuts.
-
-Package units (captured-input retargeting, notice routing, address lookup cuts,
-dropped identity projection, collation selection, CBOX and path-measurement
-literal transport) run without an engine. Unit tests that need an `Engine` live
-in `internal/engine/core`
-(`TestObjectAddress*`, `TestCommentInquiry*`, `TestACLItem*`) and
-`internal/engine` (`TestVisibilityInquiry*`, `TestRegTS*`, `TestRegOperator*`,
-`TestRegrole*`, `TestRegclass*`, `TestRegObjectAlias*`). Public scenarios live in
-[reference/type_resolution](../../../reference/type_resolution/README.md#testing)
-(reg\* types), [reference/object_address](../../../reference/object_address/README.md#testing)
-and [reference/types](../../../reference/types/README.md#testing) (`aclitem`).
-Input-origin changes must keep the direct, parameter and runtime presentation
-groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
-Raw type formatting and immediate-base traversal units live in `enginetests`
-and use `RUN='^TestTypeDescribe(Formatter|BaseType)$'`; shared public scenarios
-live in `reference/domain_types`.
-Declaration usage and modifier ownership units use
-`RUN='^TestRegLookupRelTypeInputUsage$'`.
-These units capture statement authority through `enginetest.ExpressionBinder`;
-catalog-only formatter fixtures cannot perform qualified-name USAGE checks.
-Composed named-only sequence resolution units use
-`RUN='^TestAutoincTextSequenceNames$'` in `enginetests`.
-Qualified-versus-unqualified TEMP routine selection uses the real session/catalog
-unit `RUN='^TestRoutineQualifiedTemporarySelection$'` in
-`internal/engine/core/enginetests/types`. Keep
-`TestRoutinePathCandidateMasking`, `TestVisibilityExecutionTemporaryCapture`,
-the public `TestReferenceRegLookupCallableLifecycle` and
-`TestReferenceVisibilityExecutionPathAuthorization` selected for preservation;
-explicit qualification does not alter unqualified output or nonrelation visibility.
-
-```sh
-make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
-make check RUN='^TestAddressLookupRoutine(KindsAndRetainedAuthority|ReleasedAndHelperFallback|ArgumentCapPrecedence|SyntaxNullBeforeCap)$'
-make check RACE=1 RUN='^Test(AddressLookup|DroppedIdentity|ObjectAddress)'
-make check RUN='^TestGeometryMeasurePathLiteralTransport$'
-make check RUN='^TestAnalysis(ConfigProjection|ConfigEnvironmentRetirement|PathsOnDemand)$'
-make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'
-make check RUN='^TestReference(ObjectAddress|ACLItem)'
-```
+Pure resolver/literal/remap units use small genuine catalog captures. Engine
+fixtures test live capture, prepared generation and replacement ownership;
+public SQL remains in reference packages under
+[docs/TESTING.md](../../../docs/TESTING.md).

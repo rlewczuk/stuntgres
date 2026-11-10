@@ -1,23 +1,12 @@
 # reference/sessions
 
-Public driver and session behavior: direct/prepared parameters, rows and metadata,
-cancellation and closed objects, physical sessions, notices, identifiers, session
-identity, `search_path` and namespace identity, version and Unicode inquiries,
-LISTEN/NOTIFY session messages, SQL backend cancellation and termination,
-`pg_locks`, `pg_blocking_pids`, transaction status and commit timestamps with
-tracking off, primary-mode recovery inquiries and typed physical-registry and
-WAL-summary source admission, prepared-statement rebind, DISCARD,
-SQL PREPARE/EXECUTE, the `stuntgres/dual` mirroring connector, and the
-wire-protocol server (`server_*_test.go`) against a real `cmd/stuntgres`
-subprocess, plus the public in-process `pgserver` API
-(`embedded_server_*_test.go`). Related families live elsewhere: settings,
-timeouts, the physical-session adapter and direct-message batches in
-[session_state](../session_state/README.md); SQL cursors and `pg_cursors` in
-[cursors](../cursors/README.md); transaction control, commit timestamps with
-tracking on and PREPARE TRANSACTION restrictions in
-[locking_transactions](../locking_transactions/README.md); wire framing and
-transport mechanics in [pgserver](../../pgserver/README.md#testing); CLI and
-process mechanics in [cmd/stuntgres](../../cmd/stuntgres/README.md#testing).
+Dual-mode scenarios for public driver/session APIs, SQL prepared statements,
+notifications, session identity and real wire-server behavior.
+Settings/timeouts/batches belong to [session_state](../session_state/README.md#testing);
+SQL cursors to [cursors](../cursors/README.md#testing); transaction controls to
+[locking_transactions](../locking_transactions/README.md#testing).
+Wire framing belongs to [pgserver](../../pgserver/README.md#testing), and CLI/process
+mechanics to [cmd/stuntgres](../../cmd/stuntgres/README.md#testing).
 
 ## Testing
 
@@ -36,19 +25,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   in `embedded_server_wire_helpers_test.go`, packet/row helpers in
   `embedded_server_extended_helpers_test.go` and JSONL golden/dump helpers in
   `embedded_server_log_helpers_test.go`.
-  Session signaling family: `RUN='^TestReferenceSessionSignal'`.
-  Self-signaling Query witnesses use `sessionSignalSelfQuery` to consume all rows
-  and the terminal outcome. Native eager diagnostics and pq streaming/retirement
-  errors have different adapter phases. Self-termination also uses
-  `sessionSignalSelfFatalProtocol` on the existing pinned oracle to retain exact
-  FATAL fields through public pgconn; transport errors never substitute for that
-  proof. Each termination route owns a disposable physical connection.
-  Active termination repeats the real uncommitted-write/relation-wait witness
-  with pgconn to retain its full FATAL independently of pq's Exec retirement
-  sentinel. Cancellation prepares held statements outside explicit transactions,
-  before acquiring the competing lock, so admission observes Execute rather than
-  blocked metadata capture. Termination privilege targets use dedicated
-  authenticated pools that cannot recycle an unobserved dead idle socket.
+  Signaling helpers retain complete FATAL diagnostics through public pgconn,
+  independently of pq transport-retirement sentinels. Termination routes own
+  disposable physical connections; prepare held commands before taking blockers.
 - **Server tests.** `fixture.NewServerFixture(t)` builds and launches a real
   `cmd/stuntgres` subprocess ([fixture README](../fixture/README.md#helpers)).
   Client witnesses run real `psql -X -w -At` with a private `PGPASSFILE`; a
@@ -71,45 +50,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   through `regtype`; never copy them into byte goldens.
 - Change the effective `search_path` in wire scenarios with named extended SET
   traffic: a simple-Query SET destroys PostgreSQL's unnamed statement.
-- Omitted-default INSERT query witnesses reuse `serverWire` and the extended
-  message builders. Keep Parse/Describe/Sync separate from Bind/Execute/Sync;
-  no simple Query may intervene for an unnamed statement. Bind and Execute share
-  a Sync group, and held statements, rows and physical connections follow the
-  existing session cleanup order.
-- Transactional COMMENT uses the raw named-statement Parse/Describe/Bind/Execute
-  helpers for every shipped kind, not adapter Prepare as a Describe substitute.
-  Assert quiet analysis, exact COMMENT completion and Ready states, private
-  owner/committed peer text, savepoint recovery, held reuse and simple-message
-  rollback. Shared metadata/lifecycle coverage lives in
-  [catalog_objects](../catalog_objects/README.md#testing).
-- Transactional view definitions use actual simple-query messages and named
-  Parse/Describe/Bind/Execute traffic, plus server-backed Go BeginTx. Ordinary
-  utility preparation stays quiet; materialized creation retains source
-  analysis. Check command counts, Ready states, private peer invisibility,
-  held-reader freshness and rollback/savepoint recovery through the same server.
-- Transactional domain/composite/type utilities reuse those raw helpers for
-  simple messages and held named Parse/Describe(S), Bind/Describe(P)/Execute.
-  Assert effect-free preparation, utility NoData/tags, private owner effects,
-  peer invisibility, bound consumers and error/savepoint/readiness recovery.
-- Collation/conversion/cast utilities reuse the raw wire helpers and
-  `transactionalTypesCommandTag`. Separate Parse/statement Describe and
-  Bind/portal Describe from Execute to assert quiet phases, exact utility tags,
-  private real consumers, peer invisibility and savepoint/error recovery.
-  Named statements survive idle Sync; portals do not, so autocommit execution
-  binds in its executing cycle. Server-backed Go BeginTx uses held handles.
-- Transactional rewrite rules reuse the named wire and command-tag helpers.
-  Parse/Describe must be quiet and effect-free even for utilities whose target
-  will be created later. Execute proves real action rows, held DML freshness,
-  I/T/E readiness, message atomicity and healthy recovery; Go BeginTx witnesses
-  run over the actual server transport.
-- Procedure transaction-control wire scenarios distinguish preparation retention
-  from preceding completed/suspended Execute, single/multi-Q crossover and Sync.
-  Reuse the named builders, complete error fields and independent peer visibility.
-  Family selector: `RUN='^TestReferenceServerPLpgSQLTxControl'`.
-- Dictionary constant wire scenarios warm a named definition before option ALTER,
-  then repeat Bind on that definition while fresh definitions and runtime tokens
-  observe current options. Check TEXT[] RowDescription, raw NULL versus empty
-  arrays, rejected-ALTER atomicity and idle readiness through the same helpers.
+- Keep Parse/statement Describe, Bind/portal Describe and Execute observations
+  separate. Utility analysis stays quiet/effect-free; real Execute establishes
+  publication, command tags, readiness and atomicity.
+  A simple Query destroys PostgreSQL's unnamed statement; unnamed Bind/Execute
+  must share the executing Sync group. Named statements survive idle Sync,
+  portals do not. Server-backed Go transactions use actual held handles.
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
@@ -137,36 +83,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `WaitForNotification` inside one bounded `sql.Conn.Raw` callback on PostgreSQL;
   the raw connection never escapes the callback
   ([driver contract](../../docs/DRIVER.md#notices-and-notifications)).
-  Stock tcn scenarios share these receivers and prove discarded events with a
-  later committed marker, rather than a timeout-based absence probe. Restored
-  provider/trigger bindings fire against an independent native engine.
-- Notification-info inquiries pin middleware-wrapped `backend.DB` connections
-  through `notificationInfoConn`, including cross-database and independently
-  restored pools, so SQL result assertions retain fixture recording. Only native
-  controls use the separate raw pool; these scenarios do not receive notifications.
 - Drain and close a PostgreSQL cursor before issuing another command on its
   physical connection. Native controls use `p.Native`/`p.NativeConnector`, never
   the middleware-wrapped pool.
-  Control-script atomicity distinguishes enabled CREATE result diagnostics from
-  reached SQL-body invocation errors. Deferred definitions are forced through
-  actual INSERT/default evaluation before asserting rejected replacement.
-  Written scalar calls outside Restore admission remain ordinary errors without
-  SQLSTATE; they are not substitutes for reached default-execution failures.
-- Capture-lifetime changes must not repin the composite-shape and
-  enum-rename/native-control expectations that prepared-rebind scenarios share.
-  The rebind contract is in the [engine README](../../internal/engine/README.md).
-- Backup-control metadata distinguishes stored view columns from computed
-  results: native views report known nullable columns, while computed results
-  and pq columns report unknown nullability. Native-control fixtures retain raw
-  NULL and raw empty ACL replay; stock explicit-empty ACLs use ordinary REVOKE
-  or the one-dimensional `acldefault('c',0)` construction, not a raw `'{}'`
-  cast. Cleanup repairs malformed stock ACL dimensions before ordinary REVOKE,
-  preserving valid grants until dependency-aware revocation completes.
-  Backup diagnostics and feature smoke also demand `22012` before scalar NULL
-  for `abs(1/$n::integer)` with a zero denominator, and full PG_LSN NULL metadata
-  for denominator2. Both literal and parameter NULL labels use direct, actual
-  prepared and held routes, plus one retained statement across `0 → 2 → 0`;
-  no generic-plan setting or prepare-phase error replaces execution evidence.
 - `TestReferenceFixtures`, `TestReferenceIdentifierKeywordInventory`,
   `TestReferenceNotices(Payload|Severity|Permission)` and
   `TestReferenceSessionIdentity(Trust|SessionAuthorityAndMembership)` carry the
@@ -175,69 +94,17 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-- Qualified columns across held and wire transports: `RUN='^TestReferenceThreePart'`
-
-- Driver basics: parameters, rows, metadata, cancellation, Dump round trip: `RUN='^TestReference(DirectAndPrepared|RowsMetadata|TypedValues|CancellationTransactions|NativeCursor|Driver(Canceled|Rows)|DumpRoundTrip|DatabaseIdentity|ConcurrentInserts|ReferencesNulls)'`
-- Session lifecycle and physical isolation: `RUN='^TestReferenceSession(DiagnosticsAndPreparedLiveValue|PhysicalIsolationReuseAndReplacement)?$'`
+- Driver basics: `RUN='^TestReference(DirectAndPrepared|RowsMetadata|TypedValues|CancellationTransactions|NativeCursor|Driver(Canceled|Rows)|DumpRoundTrip)'`
+- Session lifecycle: `RUN='^TestReferenceSession'`
 - Notices: `RUN='^TestReferenceNotices'`
-- Identifiers and keywords: `RUN='^TestReferenceIdentifier'`
-- Session identity (roles, session authorization): `RUN='^TestReferenceSessionIdentity'`
-- `search_path` and qualified providers: `RUN='^TestReferenceSearchPath'`
-- Schema and TEMP namespace identity: `RUN='^TestReferenceNamespaceIdentity'`
-- Version and Unicode inquiries: `RUN='^TestReferenceVersionInformation'`
-- LISTEN/NOTIFY session messages: `RUN='^TestReferenceSessionMessages'`
-- Stock triggered change notifications: `RUN='^TestReferenceTcn'`
-- Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
-- Recovery inquiries and physical registry admission: `RUN='^TestReferenceRecoveryInfo'`
-- Logical-message signatures, strictness, live ACLs and physical demand: `RUN='^TestReferenceReplicationMessages'`
-- WAL summary signatures, metadata and physical demand: `RUN='^TestReferenceWALSummary'`
-- Control-file signatures, metadata, diagnostics and physical demand: `RUN='^TestReferenceControlData'`
-- `pg_locks`: `RUN='^TestReferenceViewLocks'`
-- `pg_blocking_pids`: `RUN='^TestReferenceBlockingPids'`
-- Transaction status and commit timestamps, tracking off: `RUN='^TestReference(TransactionIdentityStatusDefaultTracking|CommitTime(Disabled|SpecialIDs|Resolution))'`
-- Native controls inside transactions: `RUN='^TestReferenceControlTransactions'`
-- Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|Fold|QueryRevalidates)'`
-- DISCARD: `RUN='^TestReferenceDiscard'`
-- SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
-- Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol|TransactionalRulesProtocol|TransactionalCollationConversionCastProtocol)'`
-- Embedded clients and COPY: `RUN='^TestReferenceEmbeddedServer(Clients|Copy)$'`
-- Embedded notifications and cancellation: `RUN='^TestReferenceEmbeddedServer(Notifications|Cancellation)$'`
-- Embedded isolation, persistence and logs: `RUN='^TestReferenceEmbeddedServer(Isolation|Shutdown|Logging)$'`
-  Run each selector with and without `REFERENCE=1`; lifecycle race coverage uses
-  `RACE=1 RUN='^TestReferenceEmbeddedServer(Cancellation|Isolation|Shutdown)$'`
-  in both modes.
-- Wire extended protocol and portals: `RUN='^TestReferenceServer(Extended|Portal|Unnamed|FailedPortal|WrappedPortal)'`
-- Wire INSERT query defaults and parameter lifetimes: `RUN='^TestReferenceServerInsertSelectDefaultParams'`
-- Wire transactional comments: `RUN='^TestReferenceTransactionalCommentProtocol$'`
-- Wire transactional view/materialized definitions: `RUN='^TestReferenceTransactionalViewsProtocol$'`
-- Wire transactional materialized refresh: `RUN='^TestReferenceTransactionalMaterializedRefreshProtocol$'`
-- Wire transactional domain/composite/type lifecycle: `RUN='^TestReferenceTransactionalTypesProtocol$'`
-- Wire transactional policy definitions: `RUN='^TestReferenceTransactionalPoliciesProtocol$'`
-- Wire transactional rewrite-rule definitions: `RUN='^TestReferenceTransactionalRulesProtocol$'`
-- Wire transactional collation/conversion/cast definitions: `RUN='^TestReferenceTransactionalCollationConversionCastProtocol$'`
-- Wire COPY: `RUN='^TestReferenceServer(Copy|PreparedCopy)'`
-- Legacy binary COPY wire/client matrix: `RUN='^TestReferenceServerCopyLegacyBinary(PGX|Prepared|Transactions|Atomicity)?$'`
-- Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
-- Wire notifications: `RUN='^TestReferenceServerNotifications'`
-- Wire logs (error, server and query logs): `RUN='^TestReferenceServer(Logs|PreparedLogs|QueryLog)$$'`
-- Dual-backend query log: `RUN='^TestReferenceServerDualQueryLog$$'`
-- Dual connector (`stuntgres/dual`): `RUN='^TestReferenceDualConnector'`
+- Identifiers: `RUN='^TestReferenceIdentifier'`
+- Namespace/search path: `RUN='^TestReference(SearchPath|NamespaceIdentity)'`
+- Prepared rebind: `RUN='^TestReferencePrepared(Rebind|Fold|QueryRevalidates)'`
+- SQL prepared commands: `RUN='^TestReferenceSQLPrepared'`
+- Server protocol: `RUN='^TestReferenceServer'`
+- Embedded server: `RUN='^TestReferenceEmbeddedServer'`
+- Dual connector: `RUN='^TestReferenceDualConnector'`
 
-- `make check RUN='^TestReferenceStatDatabaseWire$'` and the same with
-  `REFERENCE=1` exercise actual server/frontend lifetime, not synthetic session
-  ending requests. The untagged scenario uses pq's public physical Dialer seam
-  for normal Terminate, abrupt socket EOF, recognized invalid-message FATAL,
-  native idle-session timeout and administrator termination. A separate observer
-  attaches to the same managed secondary database: native managed databases have
-  independent engines/catalogs, not one shared inventory. Each real client
-  independently asserts `current_database() = 'server_second'` and the matching
-  `pg_database.oid`/`pg_stat_database.datid` identity. The settled baseline includes
-  the real observer, setup and native provisioning sessions; measured client
-  session/category/live deltas remain exact. The scenario checks actual English
-  FATAL diagnostics and terminal EOF without a second authentication/framing
-  fixture or RequestEnd mock. Embedded database-view scenarios separately cover
-  cross-database observers within one actual cluster.
-  The normal-close witness sends the actual Terminate frame and keeps transport
-  open until server EOF before retiring pq's handle. This proves decoded normal
-  termination rather than racing a client FIN against frontend decoding.
-
+Protocol statistics witnesses observe actual frontend/session retirement, not
+synthetic end requests. For normal Terminate, keep transport open until server
+EOF before retiring the client handle; a client FIN race does not prove decoding.

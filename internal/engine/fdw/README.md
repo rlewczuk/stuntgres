@@ -1,474 +1,59 @@
 # internal/engine/fdw
 
-Foreign data wrappers: the definitions the driver registers, the registry of
-installed wrappers, validators and value codecs, foreign option transforms,
-the foreign write protocol, the foreign transaction participants and the
-decisions and helpers of WRAPPER, SERVER, USER MAPPING, IMPORT FOREIGN SCHEMA,
-GRANT and foreign-table DDL.
-
-The package is an upper feature at layer L12 of
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
-imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
-`ids`, `lock`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`, `settings`,
-`sqlstate`, `sqltype`, `table` (CREATE FOREIGN TABLE stages through
-`table.StageCreateTable`) and the standard library, and never the engine,
-`dml` or another upper feature. `table` never imports it. The engine and the
-driver import it.
-The shared table creation pass receives the final foreign relation kind, so it
-does not select a physical table access method or consume the table-AM default.
-The foreign owner completes its existing kind/server payload before validation.
-Direct and imported declarations share the ordinary logical column, expression,
-identity and hierarchy stages under one relation/rowtype identity. Foreign
-descriptors do not create local heap storage or turn declared CHECK/NOT NULL
-assumptions into remote validation scans.
+Foreign-data registration, options/codecs, DDL decisions, immutable request
+metadata, modification protocol and transaction participants below core. The
+package does not own network transport, engine publication or session cleanup.
 
 ## What it owns
 
-- **Public definitions** (`api.go`): `WrapperDefinition`,
-  `ValidatorDefinition`, `ImportRequest`, `ColumnDefinition`,
-  `TableDefinition` and `SchemaImporter`. The driver exposes them under their
-  public names (`stuntgres.ForeignDataWrapperDefinition` and so on).
-- **Registration** (`registry.go`): `ValidateWrapper` and `ValidateValidator`
-  check a definition before the driver records it (`FunctionName` defaults
-  the schema to `public`); their errors carry the engine's
-  `RegistrationError` prefix. `Registry` holds the installed definitions, the
-  auto-installed namespaces and the value codecs.
-  Immutable ordered `ProcedureTokens` supply destination installation authority
-  for bootstrap and replacement. SQL DROP does not unregister a driver's
-  capability; a foreign source cannot supply its callback. Tokens are selected
-  while constructing a private candidate, never by runtime name fallback.
-  Core installation records each genuine handler/validator descriptor in both
-  the exact name/signature map and the copy-on-write procedure-name index, so
-  ordinary utility admission resolves the same capability identity. Handlers
-  retain their empty input signature; validators retain `text[], oid`.
-  Replacement rebinds imported tokens (`RebindReplacementProviders`) before
-  the single strict source-principal graph memo is constructed. That first
-  authentication uses the candidate's source-owned catalog view, not the
-  destination principal domain; configured callbacks still come only from the
-  destination registry. After principal remapping, replacement authenticates
-  again against the destination-owned view. Historical original carriers use
-  that same scoped source-to-destination token map; retained destination TEMP
-  authority stays separate.
-  An optional `ExternalProvider` binding resolves to an immutable authentic
-  Driver registration before engine publication. Captured ForeignQuerySource
-  handler tokens carry this binding through base/composite execution; no current
-  OID/name or wrapper-interface equality grants it. EnlistForeign populates the
-  execution-only opener after planning, even for nontransactional scans.
-  External-bound callback contexts carry exact operation/physical-owner authority;
-  planning requests remain nil. Staging definitions retain the binding without
-  opening it. Native replay uses strict original-handler/provider/version
-  prerequisites and rejects missing or same-name unbound destination capability.
-  Physical handle ownership belongs to `remote`, below existing SQL transaction
-  and cursor settlement, not this registry or catalog descriptors.
-  The registry retains explicit dblink and postgres_fdw bindings in one immutable
-  definition set. Reset, database construction and RestoreStage copy both without
-  Open or a second registry. Replay distinguishes handler, dblink and postgres_fdw
-  prerequisite kinds. Each persistent stock origin requires a canonical marker:
-  matching destination Name/Version or explicit unbound source identity.
-  Missing/partial/unknown/duplicate markers cannot silently drop authority.
-- **Options** (`options.go`): `TransformOptions` applies ordered ADD/SET/DROP
-  operations to a private copy, then validates surviving names.
-- **Row identity** (`identity.go`): `IdentitySet`, the keyed membership of
-  foreign row identities, and `IdentityComparable`.
-- **Write protocol** (`modify.go`): `Modification` drives a provider's
-  Begin/Exec/End callbacks through a `WriteRuntime` (participant enlistment,
-  modification tracking and value environments; the engine's `statementHost`
-  implements it); `PlanModification` (the operation check and the wrapper's
-  row identity and planning callbacks; the caller has released the
-  replacement read), `ModifyAdmission`, `OperationSupported` and the TRUNCATE
-  group record `TruncateGroup` (`GroupTruncate` groups the selected foreign
-  tables by server in first-seen order; `SetTransaction` gives a group and
-  its tables the server's participant transaction).
-  EXPLAIN ANALYZE observes the selected modification token and targets without
-  rediscovery. `PlanModification` checks observation presence before constructing
-  the optional `CallbackRequest` defensive copy; actual callbacks retain separate
-  mutable column/parameter/target backing, while opaque Private identity is kept.
-- **Metadata capability** (`updatability.go`): `UpdatableEvents` resolves the
-  captured handler and inspects its actual UPDATE/DELETE interfaces. It does
-  not require write row-identity support or call planning, scan, transaction
-  or modification callbacks; it is safe in an immutable metadata capture.
-- **Transaction participants** (`transaction.go`): `Transaction` is the
-  owner's FDW state (`Participant`, `Enlist`, `Retire`, `TakeCleanup`,
-  `Commit`, `Pending`, `Savepoint`); `Participant`, `ParticipantKey`,
-  `Rollback`, `MarkName` and `CapabilityError`. `BeginParticipant` is a new
-  participant's provider handshake: capability checks, Begin and the replay
-  of the owner's open savepoint marks, rolling the transaction back on any
-  later failure. `EndStatements` ends the statement in each open participant;
-  a failed release closes and rolls back that participant once.
-- **DDL helpers** (`ddl.go`, `import.go`, `table.go`, `scan.go`): object
-  lookup (`Find`, `Class`, `ObjectRef`; the class test is
-  `ids.IsForeignCatalogClass`, and the command tag and grant-kind test are
-  `session.ForeignDDLTag` and `session.ForeignGrantKind`),
-  mapping and ownership authority over an `access.View` (`MappedRole`,
-  `MappingAuthority`, `MappingDiagnostic`, `FindMapping`, `MappingFor`; the owner change rule
-  is `access.ForeignOwnershipEligibility`, shared with REASSIGN OWNED),
-  validator jobs (`Validation`, `ValidatorJob`, `RunValidations`) retain the
-  captured procedure and owned ordered options. Registered native validators
-  run directly; ordinary SQL/PL validators use the owning statement's mandatory
-  `ValidationRuntime`, with a non-NULL text[] and the option catalog's OID.
-  Non-NULL results are ignored and NULL results rejected.
-  Catalog-selected invocation omits only explicit-call EXECUTE admission, not
-  current descriptor validation, caller body privileges or the shared routine
-  SECURITY DEFINER/configuration and unwind. No owner is impersonated.
-  The common runtime entry retains or opens the private statement journal for
-  actual SQL invocation on every caller, including table ALTER and IMPORT;
-  root Finish owns metadata and transactional routine writes together.
-  Empty jobs and native callbacks do not require that SQL journal admission.
-  No label lookup supplies executable authority.
-  Authenticated stock file_fdw validation also uses `ValidationRuntime`, before
-  its SQL-only branch: current inherited file/program authority is captured by
-  core, then `file_options.go` performs pure ordered validation through shared
-  COPY options. Direct arrays preserve omitted versus empty values. Neither
-  parsing nor catalog publication opens a source or retains caller authority.
-  Only its authenticated handler omits generic user mapping admission; the
-  ordinary handler factory still runs before the explicit external-execution
-  boundary. It has no importer and never supplies foreign rows.
-  Stock postgres_fdw also captures current invocation superuser and installed
-  extension facts in core, then validates through `postgres_options.go` outside
-  locks. It reuses settings number/identifier-list parsing and exact ordered
-  option storage; direct arrays preserve NULL-prepass/omitted-argument semantics.
-  Only its transport keywords reach the host. Genuine scan resources belong to
-  remote.Owner and the existing transaction coordinator, never these options.
-  Table creation retains raw immutable column syntax and stable attribute
-  identities. `PrepareColumnValidation` transforms and resolves one column only
-  after table validation and preceding column phases succeed. Its installation
-  payload is separate from the callback's mutable copy. Table validation precedes
-  foreign metadata; column validation precedes installation of its own options.
-  IMPORT helpers (`HandlerFor`, `ImportExpression`, `ImportedOptions`,
-  `ImportError`), foreign-table syntax checks (`CheckTableDeclaration`,
-  `TableSyntax`, `AlterAdmission`) and scan requests (`ScanRequest`,
-  `RequiredAttributes`).
-  `AlterAdmission` and the owning `TargetAdmission` entry share one pure-options
-  classifier. Only nonempty table/column OPTIONS retain the original foreign
-  command through ordinary ACCESS EXCLUSIVE/owner/IF EXISTS admission, without
-  appearing as an empty structural ALTER on partition leaves. Mixed, default,
-  owner and structural forms keep their ordinary projections and boundaries.
-  Actual foreign kind, locked reference, server/wrapper and current validator
-  checks remain in the executor; pending detach remains a normal ALTER refusal.
-  `TestFDWTableOptionAdmission` covers this original-node path, immutable syntax,
-  prepare/noisy/mixed/default/empty negatives and the pending-detach boundary.
-  Constraint admission distinguishes primary, unique, foreign-key and exclusion
-  declarations with their retained source positions; identity, LIKE logical
-  fields and hierarchy metadata use the shared table stages.
-  `AnalyzeRequest` shares scan request construction but deliberately omits mapping
-  resolution/options during optional capability negotiation. Supported acquisition
-  then receives `ScanRequest` under the foreign table owner, exact role before
-  PUBLIC. Plain EXPLAIN uses `PlanModification` only: never Modification.Begin
-  or any writing participant. Optional explain properties are owned single-line
-  values; private plans and credentials are never engine-stringified.
-- **DDL decisions** (`host.go`, `stage.go`, `stage_drop.go`, `handler.go`,
-  `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
-  `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus
-  `RemoveObject` and the utility `ResolveRelation`; `tablecmds.TableHost`
-  implements it.
-  - `StageDDL` stages CREATE, ALTER and DROP of wrappers, servers and user
-    mappings in this order: actor, owner operand, wrapper superuser gate, the
-    foreign-table route, then the drop or definition path with its IF [NOT]
-    EXISTS notices, source-ordered HANDLER/VALIDATOR resolution (including
-    execution-time redundant-clause errors), options, rename, ownership
-    change and the two ALTER WRAPPER warnings. It returns the validator jobs
-    and the dropped roots.
-  - `StageTable` stages CREATE FOREIGN TABLE (namespace and CREATE, name
-    conflict, server USAGE, declaration checks, `table.StageCreateTable`, the
-    foreign definition with table options and an empty column map, one table
-    validator job and ordered raw configured-column schedules) and DROP FOREIGN
-    TABLE (IF EXISTS notices, kind and owner checks, removal); wrong-kind ordinary
-    table targets include the corrective DROP TABLE hint. IMPORT stages each
-    table through it too.
-    `StageTableUsing` admits the same declaration/options path with the shared
-    partition constructor supplied by schemacmds; bounds finish before validators.
-  - ALTER FOREIGN TABLE's decisions are `AlterTarget` (resolution, IF EXISTS
-    notice, kind, admission reference and owner), `AlterBases` (server and
-    wrapper as observed dependencies), `AlterCandidate` (the working copy),
-    `AlterColumn`, `AlterOptions` and `CheckAddedColumn`. Ordinary actions and
-    defaults run through shared tablecmds stages; option jobs follow on the latest
-    private predecessor, under the same enclosing statement publication.
-  - `PlanImport` captures IMPORT FOREIGN SCHEMA metadata, the real handler
-    selection and diagnostic-only SQL wrapper name, and records the server,
-    wrapper, handler and local schema as observed dependencies. Execution first
-    obtains and unwinds that handler's real method factory, then checked-tests
-    optional `SchemaImporter` support. A denied factory wins over capability
-    rejection; an allowed no-importer returns the exact `HV00P` diagnostic with
-    the captured SQL wrapper spelling, including aliases and renames.
-    `ImportRequest.MappingPresent` distinguishes an absent mapping from a
-    selected zero-option mapping; `FindMapping` selects exact user before PUBLIC
-    from captured authorization. Only a selected mapping is an observed descriptor.
-    Importers own mapping requirements and must reject absence before any
-    mapping-dependent I/O; strict access requests retain `MappingFor` and its
-    missing-mapping diagnostic. Request options own their backing; import options
-    preserve ordered duplicate occurrences for provider policy.
-    `ImportSelected` applies LIMIT TO/EXCEPT and `ImportedTable` builds each
-    table's CREATE FOREIGN TABLE through the same logical declaration stages.
-    The caller uses the same private construction schedule for direct CREATE
-    and each imported definition, completing it before processing the next.
-    Later validators see completed earlier definitions and column options.
-    Discovery dependencies remain independently fenced even for empty imports.
-    All metadata and transactional effects stay private until enclosing Finish;
-    any later failure rolls them back without intermediate committed publication.
-    A caught PL exception restores its private catalog/effect suffix and exact
-    construction-token membership/progress through the existing exception mark.
-    Outer construction remains live; failed nested construction cannot leak a
-    pending guard into a successfully handled enclosing command.
-    The imported-definition boundary owns one `ImportError` annotation for all
-    staging, construction and validator failures; direct CREATE is unannotated.
-  - `PlanGrant` is GRANT and REVOKE on wrappers and servers as a pure plan
-    over an `access.View`: it returns the `GrantChange`s in statement order
-    and the warnings, which come back even with a later error so the engine
-    emits them first.
-- **Logical persistence** (`dump.go`): `DumpObject`, `DumpProcedure` and
-  `DumpOptions` render captured identities/options; `DumpTable` attaches foreign
-  completion metadata to the shared shape declaration rendered by `control`.
-  The single shared constructor preserves retired slots and trailing highwater,
-  with column options addressed by original stable attributes, not live slots.
-  Foreign capture contains metadata only, never heap rows or a visibility frontier.
-  Foreign inheritance and partition declarations retain parent graph edges;
-  partition members share the compact PARTITION OF versus separate CREATE/ATTACH
-  decision, installing column options exactly once for the chosen constructor.
-  Owned identity sequences use ordinary sequence declaration/state completion.
-  Foreign CHECK validity and declared column options remain metadata rather than
-  scans or serialized source rows. Selected inherited force options use control's
-  fresh-constructor/live-column completion pair and the normal owner/validator
-  executor; this adds no general wrapped ALTER replay capability.
-  - Foreign tables never use storage/row collection. Declaration references
-    distinguish the actual procedure descriptor: `DumpProcedure` validates only
-    native prerequisites, which require compatible destination registrations,
-    never serialized code. Ordinary SQL/PL validators use the normal routine
-    graph to replay their signature, body, result and dependencies without a
-    native registration, preceding their wrappers and executing genuinely during
-    atomic replay. Replacement only rebinds genuine native tokens to the
-    destination registry; it does not convert ordinary routines into callbacks.
-  - Mapping credentials are emitted as stored (sensitive host output).
-    Wrapper/server and foreign relation/column raw ACLs replay exactly through
-    `control`'s bounded generated catalog repairs.
-  - Replay uses bootstrap CREATE, ordinary owner transfers and named raw ACL
-    repair, and runs authentic option validators but never IMPORT, scan or
-    modify callbacks.
-  - Typed import parsing diagnostics keep definition-fragment positions
-    rather than inventing offsets into the original IMPORT. Repeated IMPORT
-    options stay ordered provider inputs, separate from stored-object option
-    uniqueness.
+Public wrapper/validator definitions and the immutable installed Registry;
+ordered option transforms; row-identity membership; modification and participant
+state; DDL/import decisions; logical dump prerequisites. Public optional scan,
+planning, rowmark, sampling and explain records live in `catalog`.
 
-Optional `catalog.ForeignParallelScanProvider` does not change registry or
-persistence ownership. Executable capability is discovered on the registered
-wrapper; `exec.ForeignExecution` owns runtime shared/partition states. Owner
-enrollment and statement startup stay leader-only before concurrent partition
-Iterate. SQL/MED Dump/Restore never invokes or serializes runtime coordination.
-Child-path reparameterization remains the explicit foreign-hierarchy boundary,
-not a no-op private-state callback or correlated ReScan alias.
-
-Optional `catalog.ForeignAsyncScanProvider` likewise adds no registry or
-persistence state. Its resource-free selected-path capability admits requests
-only under eligible append frontiers. `ForeignExecution` owns each live request;
-the existing source owner signals every request before joining any and then Ends
-scans. Finite cursor motions settle requests into owned source rows before
-detaching authority. Provider options remain opaque catalog data, including a
-provider's own async capability policy; Dump/Restore never starts requests.
-
+Metadata selection and handler invocation are distinct. The selected genuine
+procedure/ref authorizes only its declared capability. Actual provider demand
+borrows current live host authority; it is not initialized by Prepare or an
+undemanded capture. Names and handler metadata alone grant no invocation.
 
 ## Foreign row marks and refetch
 
-The public optional interfaces live in `catalog/foreign_row_lock_api.go` and are
-aliased by the driver. `ForeignRowMarkProvider.GetForeignRowMarkType` selects
-`ForeignRowMarkPlan{Type, Identity}` without acquiring resources. Missing selection
-defaults to `ForeignRowMarkCopy`: preserve the captured tuple during local
-concurrent-update recheck, **not** promise a remote lock. This COPY strategy is
-unrelated to SQL COPY. `ForeignRowMarkReference` instead refreshes the original
-identity without locking when local recheck needs it. The KeyShare, Share,
-NoKeyUpdate and Update mark types require actual provider locks.
+Identity and rowmark requests retain source-owned immutable identity separately
+from SQL strength/wait policy and local projected slots. Refetch uses the actual
+enlisted transaction and full declared tuple; the executor owns import, latest-
+row rechecks and predicate/RHS semantics. Provider participation lasts through
+SQL transaction settlement, not just result/scan close.
 
-`ForeignRowMarkRequest` embeds `ForeignRequest`, with separate SQL `Strength`
-and `WaitPolicy`; the selected plan is `ForeignRequest.RowMark`. REFERENCE and
-locking require `ForeignIdentityScan` and `ForeignRowRefetcher`; locking also
-requires the genuine rollback-capable transaction handshake, not write methods.
-The engine keeps identities aligned with original source occurrences, separate
-from visible tuples and local heap RowIDs. An identity must re-identify the
-original logical row throughout execution, never a replacement reusing its visible
-key. Providers must detect version changes using genuine source information.
-Identity arity/value/comparability validation and copied byte-cell ownership use
-the existing foreign identity contract. Returned buffers survive until the next
-callback; captured identities survive scan End/ReScan.
-
-`RefetchForeignRow` uses the scan's enlisted `Transaction` and returns a full
-declared tuple in `ForeignRefetchResult{Row, Present, Updated}`. Missing or skipped
-rows have `Present=false`, unlike present empty/all-NULL tuples. Errors veto all
-fields; uncertain version comparison must set `Updated=true`. Replacement cells
-pass normal import/type/domain checks before local predicate/join/projection/RLS
-requalification. Optional `ForeignScanRechecker.RecheckForeignScan` evaluates
-provider conditions against the actual tuple, without replacing it or bypassing
-local recheck. COPY keeps the captured sibling tuple; REFERENCE refreshes only
-when local rechecking needs it. No relation rescan or synthetic local lock
-substitutes for refetch. Identity-demanding scans remain serial and retain the
-existing no-join/upper-pushdown boundary.
-
-Execution-only `ForeignRequest.Characteristics` is a
-`ForeignTransactionCharacteristics` capture of the SQL owner's resolved
-`Isolation`, `ReadOnly` and `Deferrable`; planning has neither live characteristics
-nor transaction. These describe local requested modes, not a universal remote
-isolation policy. Enrollment, scan and refetch share the same participant, and
-later statements do not reopen/reconfigure it. Providers must apply or reject
-access/deferrability characteristics honestly.
-
-The genuine SQL reference provider in
-`reference/tables/fdw_row_lock_provider_test.go` uses source-owned
-`(rid, generation, captured revision)` identity. Refetch locates `rid/generation`
-in the same `sql.Tx`, reads actual revision and full tuple, and issues real
-FOR KEY SHARE/SHARE/NO KEY UPDATE/UPDATE with NOWAIT/SKIP LOCKED when requested.
-Mutations explicitly advance revision; reinsertion uses a new generation, so a
-recycled visible key cannot identify the original row. This is a fixture contract,
-not an engine-generated version or a general provider identity encoding.
-The shared SQL writer maps local non-SERIALIZABLE modes to real REPEATABLE READ,
-SERIALIZABLE to real SERIALIZABLE, ReadOnly to transaction options and Deferrable
-to actual SQL. Its separate late-isolation policy maps local RC/RU to real READ
-COMMITTED for replacement/requalification witnesses.
-This native access/deferrability propagation is deliberately not postgres_fdw
-parity: PostgreSQL 18 propagates isolation but not local READ ONLY or DEFERRABLE.
-Those remote characteristics follow source/session defaults (both off in the
-reference fixture).
-
-PostgreSQL 18 `postgres_fdw` uses early locking, remote REPEATABLE READ unless local
-SERIALIZABLE, stronger SHARE for KEY SHARE and UPDATE for NO KEY UPDATE, and does
-not propagate NOWAIT/SKIP LOCKED. Its source conflicts can therefore wait even
-when the foreign SQL contains those clauses. Native late-lock NOWAIT (`55P03`),
-SKIP omission and READ COMMITTED replacement outcomes are deliberately distinct
-from that oracle's blocking/serialization outcomes. See
-[PostgreSQL FDW row locking](https://www.postgresql.org/docs/18/fdw-row-locking.html)
-and [postgres_fdw](https://www.postgresql.org/docs/18/postgres-fdw.html).
-
-Scan End, Rows.Close and Stmt.Close close resources, not the explicit
-participant. Successful statement savepoint release retains real locks until
-COMMIT/ROLLBACK; later ordinary reads do not release them. Implicit eager query
-completion settles the transaction before buffered rows are consumed. Savepoint
-rollback delegates genuine suffix restoration/lock release to the participant.
-Blocked calls use the operation context; End and rollback detach cancellation.
-Failed refetch/recheck/import/projection/End rolls back the statement suffix
-before any successful result/count; normal explicit-owner abort rules remain.
-SQL-origin diagnostics are preserved, ordinary Go errors remain ordinary, and
-neither retry nor error-to-absence conversion is allowed.
-
-Foreign participation refuses PREPARE TRANSACTION with `0A000`,
-`cannot PREPARE a transaction that has operated on foreign tables`, without
-remote preparation or GID publication. Remote-first commit is not distributed
-atomic commit: an earlier provider can remain committed after a later failure,
-and a failed commit can have unknown outcome. No compensation is promised.
-Dump/Restore retains declarations/options and stored locking SQL only, never
-identities, buffers, active scans, transactions or locks. Dump does not settle a
-live owner; destination execution binds its registered provider and obtains new
-transactions/locks.
+Execution requests capture the SQL owner's resolved transaction characteristics.
+They are invocation values, not provider/session configuration handles. Foreign
+participation explicitly refuses unsupported prepared-transaction semantics
+rather than synthesizing a remote prepare/commit guarantee.
 
 ## Invariants
 
-- **Handler admission.** `HandlerFor` requires the caller's typed effective
-  relation-kind policy and rejects foreign restriction before resolving or entering
-  a handler. Scans, modifications, all-target TRUNCATE preflight, capability and
-  ANALYZE inquiries, IMPORT and executable source ACL fences share this boundary.
-  `RelationHandler` performs metadata-only relation lookup; metadata DDL and
-  validators remain independent. No provider receives a settings store.
-- **Actual handler factory.** Metadata selection is not invocation.
-  `exec.ForeignHandlerSelection` keeps the selected immutable procedure and its
-  original catalog reference. Actual scan/composite/async planning, modification,
-  COPY, routed insertion, TRUNCATE, EXPLAIN, IMPORT and ANALYZE demand borrows
-  the live owner to invoke the selected handler with direct false-execute
-  authority. `ForeignHandlerMethods` returns its real registered static native
-  method table inside that lexical boundary; the boundary ends before any
-  provider method, including estimate, paths, sample acquisition or teardown.
-  A captured but never demanded source does not invoke a factory. Cached
-  source method authority and detached request metadata retain no session,
-  scope or callback closure. Missing live invocation authority rejects rather
-  than borrowing a closed evaluator's former host. Raw provider methods are
-  not separate pg_proc routines and receive no invented execute/entry events.
-  The sepgsql simulation is query compatibility, not real SELinux enforcement.
-- **No locks, no callbacks under locks.** The package adds no mutex.
-  `Engine.Mu` guards the `Registry`; the transaction owner's mutex and
-  admission guard a `Transaction`. Functions that call application code
-  (`RunValidations`, including its SQL invocation, the `Modification` and
-  `Transaction` methods, `Rollback`) run only after the engine released
-  `Engine.Mu` and `replacementMu`. Rollback uses `context.WithoutCancel`.
-- **Commit order.** `Transaction.Commit` commits each open participant once.
-  A failed Commit has an unknown outcome: it is never retried, and the other
-  participants roll back.
-- **Publication.** The `Registry` is written only while the engine installs
-  definitions, before it is reachable. Afterwards its namespace map is
-  replaced whole (`AdoptNamespaces`) in the same Restore publication as the
-  catalog state, never mutated.
-- **Errors.** Messages, SQLSTATEs, details and hints are compatibility
-  contracts.
+- No package-owned mutex. `Engine.Mu` guards Registry installation; admission and
+  owner locking serialize a Transaction. Application validators, modifications,
+  participant callbacks and rollback run outside Engine/replacement locks.
+- Handler admission checks current typed relation-kind restrictions before
+  invoking a provider. Metadata-only lookup/DDL is a separate capability.
+- Requests, cached source methods and private plans retain no session, operation,
+  settings store or invocation grant.
+- Commit each open participant once. Failed Commit has unknown outcome: never
+  retry it; roll back remaining participants. Rollback survives cancellation.
+- Published registration is immutable. Restore replaces namespace mappings whole
+  in the same publication as catalog roots.
+- Messages, SQLSTATEs, details/hints and callback error identity are contracts.
 
 ## What stays in the engine
 
-The DDL orchestration is [`schemacmds`](../schemacmds/README.md)'s, because it
-holds `Engine.Mu`, begins and discards stages, releases `replacementMu` before
-callbacks and publishes:
-
-- `ExecuteForeignDDL` (DROP dependents, validations, publication) and
-  `stageForeignLocked` (a wrapper over `StageDDL` on `TableHost`);
-- `executeForeignImport` (the importer callback, the per-table relock,
-  re-authorization and epoch check, provider acquisition);
-- `ExecuteForeignGrant` (the journal clone, emitting the warnings and
-  `CatalogChangeLocked` per change);
-- `executeForeignTableAlter` (the OWNER, RENAME and SET SCHEMA routes to the
-  shared relation executors, the stage, the phased action loop with its
-  context checks and lock windows, the table candidates through the
-  `tablecmds` ALTER candidates, DROP COLUMN, whose candidate waits on locks,
-  the CHECK capture and rebind, OIDs, validations and publication).
-
-Core keeps:
-
-- `InstallForeignDefinitions` and `RegistrationError`;
-- scan capture (`captureForeignSourceLocked`) and participant enlistment
-  (`enlistForeign`, `TouchForeignScan`), which need the statement scope:
-  `enlistForeign` keeps the replacement-read release, the two `owner.Mu`
-  validate and enlist windows around `BeginParticipant` and the statement's
-  participant record; `finishForeignStatements` keeps the release and clears
-  the slot around `EndStatements`;
-- the commit and savepoint call sites, and the scope slot
-  `foreignTableScope`, which holds engine cursors.
-
-Foreign INSERT, UPDATE and DELETE execution is `dml.ExecuteForeign`; its
-locked prologue (`executeForeignCommandLocked`), foreign TRUNCATE (the source
-captures under `Engine.Mu` and the participant admission around
-`GroupTruncate`) and COPY FROM stay in the engine.
+`schemacmds` owns DDL locks/stages and unlocked provider validation. Core owns
+registration adapters, scan capture, current authority, enlistment, savepoint/
+transaction coordination and physical resource cleanup. DML owns foreign writes;
+`remote` owns authentic physical-session external SQL handles.
 
 ## Testing
 
-`^TestFDW` runs this package's units (modify identity, option transforms,
-definition validation, IMPORT selection, ALTER candidates, participant
-handshake and statement end, TRUNCATE grouping) and the engine's FDW units,
-which need an `Engine`: `TestFDWStageTable` and `TestFDWLateDependency*` live
-in `internal/engine/schemacmds`, and the parallel foreign scan units
-(`TestFDWParallel*`), `TestForeignScanStatementAdmission` and
-`transaction_extension_test.go` in `internal/engine/core`. Add `RACE=1` for the
-participant and real gateway/source-admission units.
-Stock option/recipe/binding/local-type/owner/publication units use
-`RUN='^TestPostgresFDW(Options|Recipe|Binding|LocalTypes|Owner|Publication)$'`.
-The corresponding public provider family uses `RUN='^TestReferencePostgresFDW'`
-in both modes; genuine physical phases require `REFERENCE=1`.
-
-```sh
-make check RUN='^(TestFDW|TestOwnerExtension|TestForeignScanStatementAdmission)'
-```
-
-Public behavior: `^TestReferenceFDW` (wrappers, servers, mappings, IMPORT,
-foreign tables, foreign DML), `^TestReferenceObjectGrant` (the GRANT warnings
-`PlanGrant` shares through `authorization.GrantWarning`),
-`^TestReferenceTruncate` (foreign TRUNCATE's server grouping and participant
-admission) and `^TestReferenceDumpRoundTrip$`.
-
-Destination-owned registration lifecycle proof:
-`make check RUN='^TestRestoreForeignProvider'`.
-Public Reset/callback observations use
-`make check RUN='^TestReferenceFDWNativeControls$'` in native and `REFERENCE=1`
-modes; replacement does not invoke application callbacks to reconstruct tokens.
-
-Foreign row-mark/public real-source proof uses `^TestReferenceFDWRowLock`;
-native and `REFERENCE=1` modes have independent late-lock versus postgres_fdw
-expectations. A focused ownership/refetch smoke is:
-
-```sh
-make check RUN='^TestReferenceFDWRowLockSmoke$'
-make check REFERENCE=1 RUN='^TestReferenceFDWRowLockSmoke$'
-```
-
-It must observe an actual source waiter, unaffected nonconflicting rows,
-explicit-lock retention after result close and release at rollback, not just
-callback counts. `^TestForeignRowMark` selects structural callback-contract
-coverage; it supplements rather than replaces real two-session source effects.
+Pure definition, options, identity and protocol units live here. Composed core/
+family tests cover real participants and publication. Public foreign SQL and
+real transport behavior live in `reference/tables`; an unavailable remote
+facility is not replaced with a canned or embedded result.

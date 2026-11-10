@@ -1,25 +1,10 @@
 # query_outer — query sources and outer composition
 
-Public database/sql reference scenarios cover outer-join composition, metadata,
-restriction placement, diagnostics, persistence and source lifecycle. SQL routine
-result sources share the same query composition and fixture entry points.
-Polymorphic routine outputs reuse these owners for declaration-preserving OUT,
-INOUT, TABLE and SETOF specialization, including duplicate rows, typed NULLs,
-held argument frames and native emitted-script replay.
-
-`JSON_TABLE` relational FROM sources belong here, including nested rows,
-PASSING, path/policy authority, diagnostics, stored definitions, cancellation and
-native replay. Scalar SQL/JSON query functions remain in
-[binary_json_arrays](../binary_json_arrays/README.md#sqljson-query-functions);
-JSONPath evaluation is in [datetime_formatting](../datetime_formatting/README.md#testing).
-
-`XMLTABLE` relational-source scenarios also belong here: namespace selection,
-typed XPath results, missing/default/nullability demand, initialization ordering,
-implicit lateral composition, live authority, atomicity, cancellation, stored
-definitions/native replay, and complete direct/prepared diagnostics.
-`xpath` and `xpath_exists` share those XPath, namespace, XML-array and stored/native
-lifecycle scenarios. Scalar XML predicates remain in
-[strings](../strings/README.md#testing).
+Dual-mode scenarios for outer-join composition, relational SQL routine results
+and XML/JSON table sources. Scalar SQL/JSON belongs to
+[binary_json_arrays](../binary_json_arrays/README.md#testing), JSONPath to
+[datetime_formatting](../datetime_formatting/README.md#testing), and scalar XML
+predicates to [strings](../strings/README.md#testing).
 
 ## Testing
 
@@ -33,259 +18,24 @@ row is read, including empty sets. `resultsError` checks the complete diagnostic
 and prepare/execute boundary. Local native replay helpers call the public controls
 on the fixture's unwrapped native pool; emitted SQL is replayed unchanged on the
 oracle, without a second fixture implementation or cross-package helper imports.
-`resultsBothMetadata` supplies explicit per-column native adapter profiles for
-catalog casts, stored catalog fields and null-extended lateral outputs.
-`resultsCountBoth` checks COUNT's known-nonnullable native result. These profiles
-do not change pq expectations or omit any metadata accessor.
+`resultsBothMetadata` supplies explicit per-column native adapter profiles.
+Profiles are caller choices rather than SQL-text inference, and do not change
+pq expectations or omit metadata accessors.
 
-XPath scenarios use `RUN='^TestReferenceXMLXPath'` in native and real-reference
-modes. Node-set witnesses compare bags or singleton selections, not portable
-traversal order. Retained folds pair setting-sensitive public lifetimes with
-actual private owner, generation and immutable-backing assertions.
+Routine inventory facts come from released catalog/contrib sources.
 
-Attribute scenarios use `attributesSettingBoth` for direct setting-call TEXT
-results, with explicit known-nullable native metadata and unchanged pq unknown
-nullability. `attributesTextBoth` keeps computed nullability unknown for wrappers,
-identity casts and user-routine results; profiles are selected by the caller, not
-by inspecting SQL text.
-`TestReferenceRoutineAttributesStrictPlanExecuteDemand` distinguishes planner-known
-literal/custom-bound NULL elimination from generic parameter invocation demand for
-both SQL and PL/pgSQL routines. Direct and same-held consumers check live EXECUTE
-revocation/regrant, exact admission diagnostics and genuine body effects. Run its
-anchored selector with `REFERENCE=1` first, then native.
+XML node output is literal serialization, not normalized equivalence.
+Node sets use bags or singleton selections, not portable traversal order.
+Shared JSON table setup/runners and replay have one owner in
+`reference/fixture`; family-local helpers do not duplicate that harness.
 
-Routine formal-catalog scenarios read the complete represented non-IN builtin
-roster and explicit all-IN counterexamples through direct and prepared queries.
-Declaration expectations come from released catalog/contrib sources. Installed
-owners, canonical aggregate signatures and generated constructor relationships
-reuse the native replay helpers; generated identities are checked within each
-owner, not pinned to another backend's allocation sequence. Raw formal-array
-checks retain oid[] and internal "char"[] metadata even for NULL values.
-The complete represented builtin `pg_proc` inventory includes all twelve
-statistics I/O declarations, including non-callable INTERNAL receive metadata,
-and all generic-file read/binary/stat/tmpdir overloads. Twelve metadata-only RI
-trigger functions retain their released volatile classification and defaults.
-The twelve scalar comparison estimators likewise expose genuine strict STABLE,
-parallel-safe INTERNAL metadata without scalar execution providers.
-Release-owned TSV facts preserve exact membership and all 28 projected fields,
-including tmpdir's explicit cost 10 and row estimate 20.
-The two `pow` overloads (1346/1738) retain the same released metadata as their
-`power` counterparts except for OID and name, in that complete inventory.
-The WAL view's metadata-only backing declaration1136 contributes its five ordered
-OUT fields, including NUMERIC bytes, non-strict STABLE/parallel-restricted scalar
-RECORD metadata, zero inputs and rows0 to that same strict full inventory.
-The metadata-only file-settings backing routine (OID 3329) contributes its seven
-released OUT fields, strict VOLATILE/parallel-safe declaration, row estimate 1000 and exact
-internal source `show_all_file_settings`, without acquiring a callable provider.
-The identity-file backing routine (OID 6250) contributes its seven named OUT
-fields, strict VOLATILE/parallel-safe SETOF record declaration, row estimate
-1000 and internal source `pg_ident_file_mappings`. It remains metadata-only;
-the complete membership and 28-field direct/prepared inventory include it,
-as does the shared builtin routine-deparse inventory.
-HBA diagnostics adds OID 3401 with eleven named OUT fields (including three
-TEXT[] outputs), strict VOLATILE/parallel-safe SETOF record, cost 1, rows 1000
-and internal source `pg_hba_file_rules`. It also remains metadata-only and is
-included in the complete membership and 28-field inventory.
-The fourteen XML mapping declarations (2923–2930 and 2933–2938) retain explicit
-cost 100, strict XML results and named all-IN formals. Table/schema/database
-functions are STABLE/parallel-restricted; query and cursor functions are
-VOLATILE/parallel-unsafe. Exact membership and all 28 direct/prepared metadata
-projections include them.
-The nine database/relation size overloads retain their released strict volatile
-metadata; the one-argument SQL wrapper has a declaration body and retained
-released cost 1, as do the internal implementations.
-The four zero-input session-activity declarations retain their exact released
-identities, result types, strictness, volatility and parallel-safety metadata.
-The zero-input trigger-depth declaration retains OID3163, INT4 result and its
-released strict, STABLE, parallel-restricted internal-function metadata.
-The two rewrite inquiries retain their fixed zero-input STABLE, strict,
-parallel-restricted scalar identities; only OID4566 declares a named OUT `oid`.
-Settings flags and option expansion retain released STABLE/strict declarations,
-unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
-MCV item inspection adds callable OID3427, its named pg_mcv_list input and
-five fixed OUT fields, strict STABLE/parallel-safe record-set metadata,
-row estimate 1000 and internal source `pg_stats_ext_mcvlist_items`.
-The complete membership bag and all direct/prepared property projections
-include this released declaration.
-Legacy backend identity adds callable OIDs1936–1939 and1391–1393 to the same
-complete membership bag and all28 direct/prepared property projections. The
-strict STABLE/restricted declarations have cost1, no names/defaults/OUT fields,
-and only zero-input1936 returns a set (INT4, rows100); the six unnamed INT4
-scalar inputs have rows0 and their exact released result types.
-The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
-signatures, their modern implementation symbols, strictness, volatility and
-parallel-safety declarations; snapshot member expansion has row estimate 50.
-The four zero-input control-data functions retain scalar RECORD results and
-their exact ordered OUT types/names (18/4/5/12 members for
-checkpoint/system/recovery/init), without inventing input or set-returning slots.
-The three pure WAL-name declarations retain fixed OIDs2850/2851/6213, their
-strict parallel-safe scalar signatures, exact OUT order/names and immutable/
-stable volatility in complete membership and all 28 property projections.
-The two input-validity declarations add released OIDs6210/6211 with exact
-strict/STABLE/parallel-safe scalar metadata. Only error-info has named inputs
-and four TEXT OUT fields; the boolean formals are unnamed. Membership and all
-28 direct/prepared property assertions include both records.
-The nullable registry lookups retain released OIDs4093/4195, one unnamed TEXT
-input, REGROLE/REGCOLLATION results and strict/STABLE/parallel-safe scalar
-metadata in complete membership and all 28 direct/prepared projections.
-The four function/operator/opclass/opfamily visibility inquiries retain released
-OIDs 2081/2082/2083/3829, strict STABLE parallel-safe OID-to-BOOL signatures and
-cost 10 in the exact inventory and all projected metadata fields.
-The physical compression inquiry retains OID2121, its one-any strict/STABLE/
-parallel-safe TEXT signature, cost 1 and internal implementation symbol.
-The AIO view's metadata-only backing declaration retains released OID6399,
-strict VOLATILE/parallel-restricted RECORD set metadata, fifteen OUT fields,
-cost 1 and row estimate 100 without acquiring a callable provider.
-The build-configuration view's metadata-only backing declaration retains
-OID3400, strict STABLE/parallel-restricted RECORD set metadata, two OUT TEXT
-fields, cost 1 and row estimate 23, likewise without a callable provider.
-The replication-origin status backing declaration6014 contributes non-strict
-VOLATILE/parallel-restricted SETOF RECORD metadata, no inputs, four ordered OUT
-fields, cost 1 and rows 100. Complete membership, all 28 property projections and
-the shared nonaggregate routine-deparse inventory include it without granting
-callable provider capability.
-Slot inventory backing declaration3781 contributes non-strict STABLE,
-parallel-safe SETOF RECORD metadata, zero inputs, twenty OUT fields, cost1
-and rows10 to those same strict inventories, without callable capability.
-Its exact four-inquiry deparse witness retains all twenty OUT formals in both
-argument strings despite zero inputs, SETOF record, and STABLE/PARALLEL SAFE/
-ROWS10 definition attributes; the internal default cost1 emits no COST clause.
-Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
-The two session-signaling declarations add released OIDs2096/2171 with strict,
-VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`
-inputs and a trailing default. Exact membership and every direct/prepared
-property projection include both executable owners.
-Replication statistics reset retains released OIDs6170/6232, unnamed TEXT/OID
-inputs and non-strict VOLATILE/parallel-safe VOID results. Exact membership and
-all 28 direct/prepared property projections include both executable declarations.
-Current-backend block inquiries add released OIDs3044/3045, one unnamed OID
-input and strict VOLATILE/parallel-restricted scalar INT8 results. Both exact
-membership and all 28 direct/prepared property projections include them.
-The transaction-local function view adds released metadata-only getter identities
-3046/3047/3048: one unnamed OID input, strict VOLATILE/parallel-restricted scalar
-INT8/FLOAT8/FLOAT8 results, cost1 and no OUT/default/set metadata. The complete
-membership and all 28 direct/prepared projection fields cover these actual ACL
-descriptors without granting public getter execution.
-Shared, SLRU and backend statistics reset add OIDs3775/2307/6387 to the same
-28-field inventory. Shared/SLRU have named TEXT `target` and one NULL default;
-backend has an unnamed strict INT4 PID and no default. All three retain scalar
-VOID, VOLATILE/parallel-safe metadata and their released internal symbols.
-Relation statistics restore/clear adds released OIDs6362/6397, non-strict
-VOLATILE/parallel-unsafe BOOL/VOID signatures, kwargs and two text input names,
-and restore's `{v}` modes with NULL all-argument types. Membership and complete
-property projections include both records.
-The rule and trigger definition functions add four independently released
-`REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
-stable, parallel-safe defaults and internal implementation names. Membership
-and complete direct/prepared property batches migrate together.
-The two one-OID partition inquiries retain released records 3352/3408, including
-strict/STABLE/parallel-safe scalar TEXT metadata and unnamed input formals.
-The four one-OID routine declaration inquiries add independent released records
-2098/2162/2165/2232. `TestReferenceRoutineDeparse` covers typed signatures,
-defaults versus identity arguments, modes/results, builtin/aggregate distinctions,
-public diagnostics, captured presentation and native-control replay. Select each
-changed definition in both native and pinned real PostgreSQL modes; the
-`FeatureSmoke` definition exercises returned DDL and native replay end to end.
-`StandardBodies` checks all sixty-two represented builtin/installed SQL-standard
-definitions against independent pinned PostgreSQL strings under both identifier
-policies, then exercises installed rename, path masking and native fresh-driver
-remapping. Inquiries never execute the body, including unavailable native math.
-`InternalMetadata` checks all four inquiries for the twenty-six parser, vector
-I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory is backed by actual descriptors,
-including GIN handler333, ten genuine internal extraction/consistency support
-declarations and callable strict volatile
-parallel-unsafe `gin_clean_pending_list(regclass)` OID3789. Metadata ownership
-for internal support routines grants no scalar
-C ABI execution. The ten nullable lookup records retain one unnamed TEXT input,
-their exact alias or INT4 typmod results and strict STABLE/parallel-safe
-scalar declarations.
-The callable backend-memory record SRF2282 adds its ten named OUT fields,
-strict VOLATILE/parallel-restricted declaration, cost 1 and row estimate 100.
-The two builtin bit-string comparators (1596 `bitcmp`, 1672 `varbitcmp`)
-retain complete independent 28-field facts and shared routine-deparse coverage.
-Both use the released internal source `bitcmp`, cost 1, leakproof and strict
-IMMUTABLE/parallel-safe declarations, and two unnamed inputs.
-The four metadata-only bgwriter declarations2772/2773/2859/3075 retain zero-input
-strict STABLE/parallel-restricted scalar signatures, INT8 or TIMESTAMPTZ results,
-cost 1 and no OUT fields or defaults. Complete membership, all 28 metadata fields
-and shared builtin routine deparsing include these actual descriptors without
-granting public getter execution.
-The eleven metadata-only checkpointer declarations retain the same strict
-STABLE/parallel-restricted zero-input contract: eight INT8 counters, two FLOAT8
-times and a TIMESTAMPTZ reset. Exact membership and all 28 released metadata
-fields remain independently specified, including internal source symbols,
-cost1, absent OUT/default fields and scalar row estimates.
-Large-object descriptor OIDs952–955 retain strict VOLATILE/parallel-unsafe scalar signatures,
-unnamed inputs and the released internal implementation symbols. XML aggregate
-OID2901 has one unnamed XML formal, an XML result, non-strict IMMUTABLE/
-parallel-safe metadata and `aggregate_dummy` implementation identity.
-Builtin routine deparsing presents its XML arguments/result and rejects its
-function definition as an aggregate. The XML
-predicate records independently pin OIDs 2614/3051/3052/3053, strict scalar BOOL
-results with TEXT/XML input signatures, internal symbols and parallel-safe metadata.
-Only the unsuffixed validator is STABLE; the remaining three are IMMUTABLE.
-The four XPath records retain OIDs 2931/2932/3049/3050, strict IMMUTABLE,
-parallel-safe XML[]/BOOL signatures and their released internal/SQL language
-distinction. Two-argument SQL wrappers retain cost 1 and real declaration bodies.
-The encoding conversion and keyword routines retain independent release facts for
-OIDs 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.
-`TemporarySources` checks masked own-session TEMP qualification against exact
-pinned definitions, with direct, fresh-prepared and held calls under both
-identifier policies on the same borrowed physical connection.
+Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
-Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
-`proceduresHeld` with declaration-owned output metadata checked before iteration.
-CALL TEXT descriptors use `resultsTextMetadata`'s unbounded length for both
-adapters; sequence state uses the existing known-nonnullable native profile.
-`proceduresDefaultCountsCheck` checks bounded canonical declaration defaults
-through direct/prepared queries and the same native replay phases.
-Their SQL and PL bodies modify real rows; native control phases retain two
-roundtrips, independent Driver ownership and unchanged emitted-SQL oracle replay.
-PL CALL writable-destination copyback is not part of these standalone consumers.
-Quoted SQL output-shape replay checks separate stored declarations from reached
-function or CALL execution and same-held recovery. Checked bodies still reject
-invalid shapes during loading. Native Restore DEFAULT INSERTs reach function
-errors atomically; top-level CALL retains its separate Restore admission boundary.
-
-```sh
-make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))'
-make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))' REFERENCE=1
-make check RUN='^TestReferenceRoutineProcedures'
-make check RUN='^TestReferenceRoutineProcedures' REFERENCE=1
-make check RUN='^TestReferenceQueryOuterJoin'
-make check RUN='^TestReferenceQueryOuterJoin' REFERENCE=1
-```
-- `JSON_TABLE` relational sources: `RUN='^TestReferenceJSONTable'`
-- `XMLTABLE` relational sources: `RUN='^TestReferenceXMLTable'`
-
-XMLTABLE scenarios reuse `resultsScenario` for physical-session ownership and
-`fixture.SQLJSONBoth`/`fixture.SQLJSONDiagnostic` for direct and fresh-prepared
-steps. XML node serialization expectations are literal content, not normalized
-XML equivalence; diagnostic expectations include absent fields and phase.
-Node-result cases distinguish single/coalesced CDATA from escaped ordinary text,
-including mixed node sequences and delimiter splitting; scalar text cases retain
-their string-value/cardinality rules. CDATA byte expectations follow independently
-inspected release serialization rules, not output generated by the native engine.
-Session-sensitive DATE cases use `fixture.DateExpected`/`DateRunStep` for the
-independently specified native-string versus pq-time.Time transport contract.
-Failed-Restore expression traversal uses INSERT VALUES scalar subqueries, the
-existing admitted replay lane, rather than broadening Restore query sources.
-Stored DEFAULT namespaces keep their original declaration kind through actual
-`pg_get_viewdef` recreation: NULL documents remain typed empty, while non-NULL
-documents preserve successful preparation followed by the complete deferred
-`0A000` diagnostic. The NULL-document case also exercises actual native
-Dump/Reset/Restore, fresh destinations and retained result metadata.
-Stored-render controls retain bare XMLTABLE sources, alias collisions, explicit
-alias/column lists and nested captures, plus a quote-sensitive standalone XML
-constant. Native recreates all returned definitions and exercises actual replay.
-Both backends roundtrip a genuinely renamed derived-wrapper column; PostgreSQL's
-direct XMLTABLE alias-list omission instead has an explicit diagnostic assertion,
-not a skipped witness. See the bounded
-[upstream defect](../../docs/POSTGRES_REGRESSION.md#xmltable-view-definitions-lose-alias-column-renames).
-
-JSON_TABLE helpers stay in `json_table_helpers_test.go`; shared setup/runners and
-native-control replay use `fixture.JSONTableScenario`, `SQLJSONBoth`,
-`SQLJSONDiagnostic`, `SQLJSONQueryOne` and `JSONPathNavigateReplay` with its
-single-owner replay/metadata closure. Cancellation uses the existing provider
-admission helpers; retained native controls replay actual emitted SQL on the oracle.
+- Outer joins: `RUN='^TestReferenceQueryOuterJoin'`
+- Routine results: `RUN='^TestReferenceRoutineResults'`
+- Procedures: `RUN='^TestReferenceRoutineProcedures'`
+- Routine attributes: `RUN='^TestReferenceRoutineAttributes'`
+- Routine inventories: `RUN='^TestReferencePGProcBuiltinInventory$'`
+- Routine deparse: `RUN='^TestReferenceRoutineDeparse'`
+- JSON tables: `RUN='^TestReferenceJSONTable'`
+- XML tables and XPath: `RUN='^TestReferenceXML(Table|XPath)'`

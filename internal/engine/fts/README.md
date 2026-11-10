@@ -1,233 +1,53 @@
 # Immutable FTS scalar values and algebra
 
-`fts` is a stateless leaf **below `internal/sqltype`**, despite its directory
-under `internal/engine`. It imports only the standard library, `sqlstate` and
-`util`; `util` is used narrowly for the existing execution-checkpoint protocol.
-It owns immutable decoded vector lexemes/positions and query operator arenas,
-FTS quoting, grammar, canonical text and released byte/count checks, and the
-stateless default document tokenizer, frequency/cover-density ranking and raw
-headline selection/rendering. It does not own SQL descriptors, NULL, source
-positions, portal context, notices, catalogs, sessions, dictionaries or indexes.
-
-`Vector.AccumulateStatistics` reads private retained positions into an
-invocation-owned `Statistics` map. It neither copies/exposes positions nor
-reconstructs vectors from rendered text. Weight masks count stored positions;
-stripped lexemes count once only with mask zero. Source vectors remain immutable
-on success and cancellation.
+`fts` is a stateless leaf below `internal/sqltype`, despite its engine directory.
+It uses only standard/scalar diagnostic facilities, never catalog, sessions,
+dictionaries or engine authority. Core owns configured normalization/acquisition.
 
 ## Parsing and rendering
 
-Parse functions check cancellation and consume all input. Vector/query payload
-fields remain private. Their `String` returns cached canonical text without
-decoding/allocation; `Equal` compares structure, not SQL comparison semantics.
-Query association survives even when canonical text erases redundant AND/OR
-parentheses. Query parsing/rendering/comparison are iterative. Each parenthesis
-frame retains the released 32 pending-operator limit; there is no 32768-node or
-Go/C-stack-depth limit.
+Parsers check cancellation and consume all input. Vector/query payloads are
+private immutable values; canonical text is presentation, not execution storage.
+Document tokens borrow exact immutable input substrings; parser frames, lookahead,
+normalization counters and output construction are invocation-private.
 
-`InputText` reuses the same cancellation-aware renderer with every operator node
-parenthesized, preserving association for logical serialization. Unary frames
-let generated NOT chains exceed 32 nodes without exceeding the per-frame parser
-limit on replay. `String` stays canonical. Lossless text is computed only when
-needed by SQLLiteral, never for SELECT, with no extra cache.
-
-The composed normalization owner in core streams recognized lexical results
-through a caller-owned position counter. Recognized empty stopwords advance it,
-including trailing stops; unrecognized tokens do not. Scalar document consumers
-initialize zero, while multi-source trigger consumers retain one counter across
-separate parses, without joining source buffers or reparsing rendered vectors.
-
-`ConvertQuery` reuses strict operand grammar with a borrowed document-normalizer
-callback, or builds plain, phrase and forgiving web modes directly into the same
-owned arena. Each normalized operand drops stopped edge padding, retains internal
-position gaps and contributes one placeholder if entirely stopped. Grammatical
-stopword nodes survive complete syntax validation; iterative cleanup propagates
-independent left/right phrase widths before rendering once. Constructor limits
-apply to emitted lexemes/storage, while raw `ParseQuery` bounds its input operands.
-Web empty quoted spans remain operands, including for notice classification;
-contextual OR uses input-cursor boundaries and lookahead rather than token equality.
-`LexicalResult`/`LexicalPosition` are catalog-free data: recognition, ordered
-lexemes, prefix and variant grouping. Query expansion combines source and
-dictionary prefixes, ANDs one variant and ORs alternatives. No dictionary
-registration, synonym resource or configuration authority belongs here.
-Recognized-token position assignment and dictionary-chain continuation belong to
-the composed conversion owner in core. This leaf consumes rich lexical positions
-without selecting dictionaries, initializing runtimes or emitting notices.
-
-### Document tokenization
-
-`ParseDocument(ctx, text)` returns ordered `DocumentToken{ID, Text}` values.
-Tokens share exact immutable input substrings; whole URLs and hyphenated words
-intentionally overlap their subsequently emitted components. The ordered action
-tables and stack interpreter own tentative recognition, fallback and replay,
-including XML/script/style handling. UTF8 classification follows the C locale:
-all non-ASCII characters are alphabetic, not Unicode space/digit classes.
-
-Parser state, tentative frames, lookahead and output are invocation-private.
-Lookahead uses the same interpreter and shared cancellation budget; nesting is
-bounded by the host/path state graph, not input depth. Cancellation checks occur
-within long tokens and across backtracking/replay, with no partial result on
-error. Document tokens have no vector/query lexeme-size limit. Category SQL
-descriptors and parser-name resolution belong to callers, not this leaf.
-`DocumentTypes` owns the same token-ID ordered alias/description inventory used
-by parser metadata and configuration validation. `VectorBuilder` transfers
-invocation-owned lexeme/position entries directly into canonical immutable
-vectors; it never renders and reparses vector input to construct a result.
-`ParserRuntime` copies checked callback identities without retaining a catalog.
-Parsing admits only the actual stock START/GETTOKEN/END combination; descriptor
-enumeration independently admits the stock LEXTYPES identity. Unused HEADLINE
-does not gate either operation. A different signature-compatible identity fails
-the affected native operation explicitly rather than producing default/empty
-output. Catalog owners certify SQL signatures before constructing this value.
-
+Borrowed normalizer callbacks supply lexical results without granting catalog
+lookup or callback lifetime authority. Typed continuation metadata stays separate
+from SQL array presentation and logical word positions.
 
 ## Limits
 
-Vector positions model the pinned 64-bit release's decimal conversion: signed64
-saturation, signed32 narrowing, upper clamp and fourteen-bit masking. They do
-not use Go integer-overflow rejection. Positions are sorted/deduplicated, with
-highest weights except the released early cutoff at the 256th distinct position.
-Vector raw token starts and final aligned storage allow 1048575 bytes; query
-text-input operand starts (counting each preceding operand's NUL) must be below
-1048575. Decoded words allow 2046 bytes. Allocation-size arithmetic uses the
-released 12-byte query item/8-byte header and MaxAllocSize, not Go object layout.
-
-Vector canonicalization checks cancellation during lexeme/position sorting and
-duplicate-position reduction, not only lexing. Stable ordering preserves the
-released first-weight cutoff behavior. Sorts use bounded 128-item library runs
-and cancellation-aware merges, with checks at most 256 copied/scanned items
-apart. Small or already ordered inputs need no scratch allocation; larger
-unordered inputs share one half-sized merge buffer per sort. Repeated positions
-have no input-count cap.
+Released word, position, storage and grammar limits are compatibility contracts.
+Long scans, sorting, reduction and tree construction poll cancellation throughout,
+not only at entry. Failed construction publishes no partial immutable value.
 
 ## Algebra
 
-Query AND/OR/NOT/phrase operations copy and relocate immutable postorder arenas,
-share word strings and retain association/repetition without text re-input.
-Generated operands serialize right-first and permit a start of exactly 1048575,
-rejecting larger starts independently of input limits. Generated trees do not
-inherit the text parser's pending-operator bound. Phrase validates 0–16384 before
-empty identities. Contains uses an operation-local exact lexeme set, ignoring
-Boolean structure, flags and multiplicity; it owns no SQL NULL semantics.
-
-Vector Concat scans the global left position maximum, counts the exact merged
-lexeme capacity and performs a linear merge. Immutable unmodified strings/position
-slices are shared; shifted/merged positions have independent exact ownership.
-Left positions win, then shifted right positions append until 256/16383, retaining
-the first saturated weight rather than input max-weight merging. Final aligned
-storage is checked before rendering. Operation scans/copies/rendering check
-cancellation at bounded intervals, return no partial result and never mutate inputs.
-
-Vector utilities transform the private canonical entries without reparsing text.
-Exact selector lookup shares immutable strings and unchanged position slices;
-only changed positions and the output entry buffer are owned anew. Weight parsing
-consumes an already converted internal byte and emits hard operation errors.
-Selector scans, transformations and extraction check cancellation at bounded
-intervals; no partial values or execution context escape an operation.
-
-`ArrayVector` is the positionless counterpart of `VectorBuilder`: flattened
-as-is strings become private lexeme entries without tokenization or vector-text
-reparsing. NULL, empty and overlong elements fail in storage order before the
-shared byte-sort/deduplication and surviving-total size check. Source strings
-remain immutable, positions stay absent, and cancellation during extraction,
-sorting, merging or rendering publishes no partial vector. These are hard
-function errors rather than recoverable text-input failures.
-
-`Vector.Match` reads immutable vector entries and query arenas directly using an
-iterative, short-circuit Boolean evaluator. It consumes the canonical arena's
-value nodes and right-child unary nodes without translating their layout.
-Phrase subtrees merge match ends with wide widths and finite/complement sets.
-Generated ends retain released uint16 storage and parent fourteen-bit position
-extraction, separately from width arithmetic, without saturation or reordering.
-An empty positional intersection retains its calculated width through NOT;
-early AND/phrase failures have no calculated parent width, and OR clears failed
-child widths before alignment. Stripped positions remain internal uncertainty,
-resolved to false at the outer phrase boundary. Prefix candidates
-filter weights before merging positions. Scratch belongs to one invocation,
-never vector storage or a cache; searches, traversal, sorting and merges check
-cancellation without mutating inputs. Merge checkpoints count iterations,
-independent of one- or two-cursor advancement; completed merges and matches
-check cancellation before publishing results. SQL strict NULL and configured
-text conversion belong to callers.
+Operations traverse immutable vector entries/query arenas directly, without SQL
+text round trips. Builders own new backing and may share unchanged immutable
+strings/positions. Evaluation/ranking/rewrite scratch is private to each call;
+matching never stores mutable state in a shared value or recursive runtime host.
 
 ### Ranking and headlines
 
-`Vector.Rank` consumes immutable positions and query nodes directly. Frequency
-ranking collects released right-first operands and uses a rank-private
-`qsort_arg` translation before lexeme-only deduplication. Equality swaps select
-an observable surviving prefix flag; a stable or generic Go sort is not
-equivalent at the insertion/median/ninther thresholds. Only owned indices move.
-Ranking preserves binary32 intermediate stores. Root AND/phrase uses positional
-pairs, not a preliminary Boolean match; earlier prefix operands retain the
-last matching vector entry. Cover density enforces masks and finds minimal
-forward/backward covers over positioned entries, with harmonic weights, noise
-and extent-midpoint distances. Normalization bits execute in numerical order;
-frequency uses log2 for bit1, density uses the natural logarithm. Arrays, strict
-NULL, REAL descriptors and weight diagnostics belong to `sqltype`.
-
-`HeadlineBuilder` receives original parser tokens and raw-token/lexical-position
-associations from the configured walk. It transfers invocation-owned storage
-to an immutable `HeadlineDocument`; it never normalizes one raw word at a time.
-Phrase replacements retain their whole consumed raw span, including separators.
-`ParseHeadlineOptions` owns the released deflist grammar and option precedence,
-borrowing only the existing SQL INT4 input codec through a callback. Option
-names use released ASCII byte case comparison under UTF8/C, not Unicode
-normalization; unknown-option diagnostics retain the original key spelling. Selection
-uses Boolean/phrase location covers, released endpoint categories and fragment
-priority/stretch/overlap rules; chosen fragments render in document order.
-`renderHeadlineWords` emits the already selected invocation-owned words with one
-builder and no intermediate token copy. Rendering preserves raw text and caller
-markers without HTML sanitization, checking cancellation per word and at completion.
-The existing context-scoped host backpressure protocol admits
-`text_search.headline.select` once after the first genuinely chosen fragment is
-marked, and `text_search.headline.render` once after the first emitted byte.
-Fallback/no-fragment selection and zero-byte output do not admit their
-respective points. Small nonempty documents need no minimum work quantum.
-Checkpoint waits hold no runtime locks, and the unconfigured path allocates no
-pause state or intermediate output.
-Parser HEADLINE capability is checked independently of parsing and token types:
-zero is unsupported, stock3720 is native, other callbacks fail explicitly.
-All scratch is invocation-local, and cancellation returns no partial score,
-headline, token association or selection.
-
+Ranking consumes retained positions/query structure. Headline construction uses
+original token/position associations from the configured walk rather than
+retokenizing or renormalizing display text. Returned results own their storage.
 
 ## Query inspection and rewriting
 
-`NodeCount` reads the immutable arena length. `IndexableTree` reduces NOT
-subtrees to TRUE without Boolean simplification or rewrite ordering.
-`RewriteWorkspace` owns transient indexed nodes and right-first child spans;
-AND/OR flattening, signed legacy-CRC ordering, multiset matching and binary
-reconstruction are iterative and cancellation-aware. Direct rewriting protects
-inserted roots from the same rule. SQL consumers use `ApplyRule` to clear that
-protection and normalize between rows. `Empty` reads the current root in O(1)
-without mutation or reconstruction; `Finish` emits one immutable arena and
-canonical text. Empty substitutes delete; SQL NULL remains outside this package.
-No transformation reparses rendered text.
-
+Inspection and rewrite helpers consume the same typed immutable representation.
+Changed results construct new values; no operation retains an evaluation context,
+dictionary capability or catalog reference.
 
 ## Error authority
 
-Owned input lexer/position/operand errors and released text-input word/storage
-limits carry the shared `sqlstate` soft-input origin, allowing COPY/JSONB
-conversion seams to recover without class-wide 42601/54000 rules. Cancellation
-and the defensive `XX000 tsquery stack too small` path retain hard authority. The
-parser does not catch arbitrary errors or own command-level recovery; CHECK
-expression execution is made hard by the scoped domain adapter. The shared
-vector-size diagnostic is unmarked; only the two parser size checks attach soft
-origin. Algebra's Concat size failure retains its own hard operation authority.
+Input producers mark only their own recoverable lexer/grammar/limit errors with
+`sqlstate` soft-input origin. Cancellation and unrelated runtime errors remain
+hard errors; consumers must not infer recoverability from SQLSTATE alone.
 
 ## Testing
 
-Package units cover canonicalization, grammar, limits, algebra and document
-tokenization, including literal released regression rows and boundary/fallback
-cases. FTS typed values, operators and dump live in `sqltype`, `functions` and
-`dump` units. Cancellation units use deterministic interior boundaries in sorting,
-duplicate reduction, long document tokens, lookahead and replay, never elapsed time.
-Builder kernel units live in `enginetests/` and use deterministic context
-boundaries while observing immutable results through the public leaf API. Public SQL
-scenarios live in [reference/ranges_text_search](../../../reference/ranges_text_search/README.md#testing).
-
-```sh
-make check RUN='^TestFTS'            # FTS units across packages; add RACE=1 for cancellation
-make check RUN='^TestReferenceFTS'   # public scenarios; add REFERENCE=1 for the oracle
-```
+Pure grammar, immutable algebra, limits and cancellation units live here.
+Configured dictionary/runtime ownership belongs to core/tsearch tests; public
+SQL lives in the text-search reference packages.

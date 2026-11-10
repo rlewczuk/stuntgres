@@ -1,139 +1,47 @@
 # internal/engine/viewcmds
 
-The view, rule, policy and trigger statement executors
-([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE
-[OR REPLACE] VIEW, TEMP views included; ALTER and DROP [MATERIALIZED] VIEW;
-REFRESH MATERIALIZED VIEW, ordinary and CONCURRENTLY; CREATE, ALTER and DROP
-RULE, POLICY and TRIGGER; the materialized view snapshot import of a native
-Restore; and the `ViewHost` family host. The decisions are
-[`view`](../view/README.md)'s; this package orchestrates them over core's
-runtime.
+View, rule, policy, trigger and materialized-refresh statement orchestration.
+`view` owns decisions; core owns firing, rule/DML runtime and atomic publication.
 
 ## Layering
 
-It imports [`core`](../core/README.md),
-[`tablecmds`](../tablecmds/README.md) (`TableHost`,
-`SkipMissingRelationLocked`, and `RenameRelationLocked` and
-`AlterSchemaLocked` for ALTER VIEW RENAME and SET SCHEMA),
-[`typecmds`](../typecmds/README.md) (`CaptureDomainReplay`, for snapshot rows
-paired with a native domain replay record) and the decision packages, never
-the root. In production only the root composition imports it; no family
-may (rule 6).
-
-Stays in core: rule programs (rule expansion and execution, which runs DML),
-the RLS runtime, trigger firing, CREATE MATERIALIZED VIEW and matview
-population on the bound path, view creation preparation and view source
-opening, ALTER VIEW OWNER TO (`ExecuteRelationOwnership`), trigger clone
-synchronization in `ValidateCatalogStage`, and the view lock waits:
-`StatementScope.AcquireBoundViewRelationModes` and `AcquireRelationTarget`,
-whose unexported bodies keep the frames that read-only reference fixtures
-match.
+Imports core, tablecmds' shared hosts and the declared typecmds replay seam,
+never the root. Composition is its production caller; other families do not
+import it. Core retains source opening, row generation, RLS, trigger execution,
+clone synchronization and relation ownership publication.
 
 ## Entry points
 
-- Dispatch (`core.Statements.Execute`): `ExecuteCreateView`,
-  `ExecuteAlterView`, `ExecuteDropView`, `ExecuteRule`, `ExecutePolicy` and
-  `ExecuteTrigger` are entered with nothing held. They authorize and decide
-  under `Engine.Mu` (the `view` decisions never wait), release it for lock
-  waits and provider validation, recheck what they resolved, and stage,
-  validate and publish one catalog stage. RULE interleaves unlocked provider
-  admission with the binding of each action, fencing every provider consumed
-  so far; RULE, POLICY and TRIGGER publish through one relation-change path,
-  whose IF EXISTS skip ends in a fenced NOTICE.
-- Dispatch (`core.Statements.ExecuteLocked`): `RefreshMaterializedLocked` is
-  a lock-domain continuation: entered with `Engine.Mu` held and the view
-  admitted, it releases it on every return. Rows are produced as the view
-  owner, with the caller's catalog authority withheld, and the replacement is
-  staged against the admitted storage. Successful completion reports the actual
-  population query count through `Result.UtilityRows`, before concurrent
-  reconciliation; API affected rows and the uncounted REFRESH tag remain zero.
-  The exact owned destination storage and attached-index construction survive
-  canonical publication, which allocates fresh native heap/index locators through
-  locator-only descriptor clones. Concurrent read-history lineage remains
-  independently preserved; private refresh does not publish cache occupancy.
-- Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
-  view rows into the private Restore engine in one publication; it admits
-  only the trusted bootstrap import authority.
-  Its successful result carries each target's actual allocated row/version
-  identities in parsed/expanded snapshot row order. Native GIN split replay uses
-  this mapping after import; allocation frontiers and equal row values are never
-  relational identity. Empty and unpopulated snapshots return explicit empty
-  target mappings without changing population or typed replay authority.
-  `CaptureRestoredTriggerClone` captures a paired child CREATE's actual identity;
-  `CheckRestoredTriggerCloneCreate` rejects subsequent same-target replacement,
-  including OID-preserving replacement, without rejecting dependency-only ALTERs.
-  `ImportTriggerCloneLinks` validates direct membership, names, row/statement
-  kinds and imported owners before one checked native parent-link publication.
-- For tests that import one snapshot row, here and in `schemacmds`:
-  `ImportMaterializedSnapshotRow`.
+Utility dispatch enters with nothing held. Resolve/decide under Engine.Mu,
+release it for waits/provider/executable work, then recheck original authority
+and targets before staging. Rule actions retain every consumed provider fence
+through interleaved binding and unlocked admission.
 
-Materialized snapshot row execution activates its supplied current invocation
-after description/capture unlocks; import capture itself remains dormant.
-Concurrent refresh key reconciliation uses only the eligible direct-column keys,
-not arbitrary predicate/expression recipes, and preserves ordinary cancellation.
-The index owner separately preserves GIN placement through exact retained Values
-provenance, keeping duplicate occurrences separate and routing new refresh rows
-by effective fastupdate. This structural posting transport runs after the real
-typed index builder, not by executing predicate/key/token extraction twice.
-Genuine concurrent refresh preserves the compatible read-history family, while
-ordinary refresh constructs a fresh storage header without `RetainedOrigin`,
-`TruncateBoundary` or materialized/TRUNCATE lineage tokens. Native controls that
-model an ordinary incarnation by copying row/root contents must clear all four
-provenance fields: clearing only the concurrent-refresh token accidentally models
-a compatible-family successor rather than a destructive replacement.
-`TestMaterializedRefreshConcurrentSnapshots/reject_ordinary_incarnation` retains
-the exact catalog-replaced rejection and checks both unanchored replacement and
-still-anchored predecessor.
+`RefreshMaterializedLocked` enters with Engine.Mu held and the view admitted,
+and releases it on return. Rows execute as the view owner, not the caller.
+Source capture, destination storage and index roots retain exact generation and
+incarnation fences. Concurrent reconciliation reuses genuine eligible keys and
+compatible lineage; ordinary refresh owns a destructive successor.
 
-SnapshotPhase establishes retained transaction roots, not an already-captured
-statement view. `TestMaterializedRefreshConcurrentSnapshots` distinguishes first
-demand from an actual AcquireDataView before replacement. New SQL reads allow
-valid current rename/owner/equal-valued layout changes only with identical View,
-RowType and TableMethod plus actual row shape/family/equal boundary; ordinary
-SQL name/schema/ACL admission remains independent. Synthetic zero-owner/invalid-
-namespace controls are strict captured-view/source negatives, not promises of
-SQL validity. Captured negatives retain their exact original view/root/frontier
-without releasing it or recapturing QuerySources. First-demand structural and
-column/attribute-value changes still reject; unchanged captured authority and
-equal-valued backing have their own positive controls. The existing
-ReaderAdmission alias/source/publication contract remains strict and separate.
+Native snapshot/clone import runs on the authenticated isolated stage. Actual
+destination identities are captured from production, not inferred from allocator
+order or equal values. Final repair validates current owners, definitions and
+membership before one checked publication; ordinary SQL gets no replay authority.
 
-`ViewHost{tablecmds.TableHost}` (`view_host.go`, `policy_expression.go`)
-implements `view.Host` and `view.StageHost`; only these executors build it.
-The decisions made before a stage exists get a host with no stage.
+`ViewHost{tablecmds.TableHost}` implements view Host/StageHost. Only this family
+builds it; decisions before a stage exists use a host without a stage.
 
 ## Triggers
 
-Trigger definitions and lifecycle utilities publish immutable relation
-payloads through the ordinary catalog stage and transaction journal.
-Definitions, dependencies and row effects commit together or restore at
-rollback and savepoints. CREATE and REPLACE admit ShareRowExclusive on the
-root and descendants; rename admits AccessExclusive before mutation.
-Addressed DROP and extension metadata use the generic AccessShare target
-admission; `view.PlanTrigger` then decides the change under `Engine.Mu`.
-Clone synchronization (`view.SynchronizeTriggersLocked`, called from core's
-`ValidateCatalogStage`) preserves exact Parent/OID identity and fails a
-descendant name collision before publication. Extension retirement uses the
-shared dependency closure, including the partition-owner deletion guard;
-CASCADE does not grant upward partition deletion authority.
+Immutable definitions, dependencies and row effects share the normal journal and
+commit/savepoint boundary. Definition locks and clone synchronization use actual
+root/descendant identities; collisions fail before publication. Dependency
+CASCADE grants no upward partition deletion authority. Core owns invocation
+frames and balanced routine environments, not this DDL executor.
 
 ## Testing
 
-Tests are external (`package viewcmds_test`) and run on a composed engine:
-the root's `engine.New`, `Reset`, `Dump` and `Restore` and the
-[`enginetest`](../enginetest/README.md) helpers. `export_test.go` exports the
-internals they call; add a name there only when the test cannot assert
-through SQL or the exported API. Trigger DDL units live in
-[`schemacmds`](../schemacmds/README.md#testing), since they stage extensions
-directly. Public SQL lives in
-[reference/views](../../../reference/views/README.md#testing), RLS policies
-in [reference/roles](../../../reference/roles/README.md#testing) and trigger
-DDL in [reference/operators](../../../reference/operators/README.md#testing).
-
-```sh
-make check RUN='^TestMaterialized'                         # matview capture, ALTER, REFRESH, snapshot import
-make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'  # concurrent refresh admission and publication races
-make check RUN='^TestView'                                 # view DDL, replacement, lifecycle, the ViewHost seam
-make check RUN='^Test(RLSPolicy|RuleView|RuleNamed|RuleInference)'  # policy and rule DDL, dumps
-make check RUN='^TestVacuumMetadata'                       # VACUUM statistics of materialized views
-```
+External `viewcmds_test` tests use composed engines, controls and `enginetest`.
+Schema-staged trigger fixtures stay with schemacmds; core tests cover firing and
+retained producer ownership. Public SQL belongs to reference view/role/operator
+packages under [docs/TESTING.md](../../../docs/TESTING.md).

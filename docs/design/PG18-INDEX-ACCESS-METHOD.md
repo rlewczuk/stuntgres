@@ -170,7 +170,7 @@ HeapOperations independently tests real version/frontier/end/private-overlay
 liveness, concrete source selection, immutable roots and genuine handler
 validation. ExclusionDescriptorPrecedence stages actual btree exclusion backing/
 class/support under custom native gin/brin names, preserving unresolved/kind errors.
-The owning [reference README](../../reference/indexes/README.md#access-method-definitions)
-is authoritative for the complete current selector inventory and smoke expectations.
+The owning [reference README](../../reference/indexes/README.md#testing) provides
+reusable family entry points; executable tests own individual smoke expectations.
 Query correctness is not a claim that the optimizer chose an index; ordinary
 B-tree queries retain their existing scan/filter/sort behavior.

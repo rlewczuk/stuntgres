@@ -1768,8 +1768,8 @@ Affected original Go/SQL prepared source reanalyzes: an old spelling may fail
 42883, and recreating it legitimately binds the replacement. Hard stored calls
 instead retain checked callee identity with current owner/EXECUTE checks.
 Returned Rows retain captured values/metadata across these changes. See the
-[routine contract](../internal/engine/routine/README.md#routine-alter-contract)
-and [selected proof](../reference/query_core/README.md#routine-alter-proof).
+[routine contract](../internal/engine/routine/README.md)
+and [query-family testing guide](../reference/query_core/README.md#testing).
 
 ### Go values
 
@@ -2273,8 +2273,8 @@ simulations through the same SQL registry. Startup-only and sighup parameters
 reject individual live changes with 55P02; the eight user-context settings retain
 ordinary SET/LOCAL, rollback/savepoint and captured-default semantics. Restricted
 reads use the same effective-user authority and aggregate omission described
-above. The [settings owner contract](../internal/engine/settings/README.md#connection-and-authentication-settings)
-lists the names, simulated build labels and metadata/presentation rules.
+above. The [settings owner contract](../internal/engine/settings/README.md)
+describes registry ownership and metadata/presentation boundaries.
 
 These values do not configure listeners, connection admission, kernel sockets,
 TLS/SSL, authentication timers, password hashing/storage, MD5 warnings,
@@ -2288,7 +2288,7 @@ connection settings.
 
 ## Replication settings
 
-The [replication family](../internal/engine/settings/README.md#replication-settings)
+The [replication family](../internal/engine/settings/README.md)
 uses the same typed SQL registry. `wal_sender_timeout` is user-settable and
 `output_plugin_libraries` requires effective superuser or parameter SET authority.
 The other 24 settings reject individual live changes with55P02 according to
@@ -2483,7 +2483,7 @@ never an unknown/redacted sentinel. No native physical-work formula is used.
 
 ## Resource settings
 
-The [44 resource settings](../internal/engine/settings/README.md#resource-settings)
+The [44 resource settings](../internal/engine/settings/README.md)
 share typed SHOW/current_setting, pg_settings and ordinary session actions.
 All roles can read them. Postmaster and sighup settings reject individual changes
 with55P02 before parsing, even with parameter SET permission:
@@ -2526,7 +2526,7 @@ Logical Reset/Dump/Restore neither clear nor serialize live resource settings.
 
 ## WAL settings
 
-The [40 WAL settings](../internal/engine/settings/README.md#wal-settings) expose
+The [40 WAL settings](../internal/engine/settings/README.md) expose
 typed session configuration and exact catalog metadata to every role. The
 seven mutable settings are `commit_delay`, `commit_siblings`,
 `synchronous_commit`, `wal_compression`, `wal_init_zero`, `wal_recycle` and
@@ -2569,7 +2569,7 @@ never serializes or clears these session settings.
 
 ## Preset options
 
-The [20 preset settings](../internal/engine/settings/README.md#preset-options)
+The [20 preset settings](../internal/engine/settings/README.md)
 share the ordinary registry, SHOW/current_setting and typed `pg_settings`
 projection. All roles can read them. Their context is `internal`: SET, SET
 DEFAULT, RESET and `set_config` (including NULL reset and LOCAL) fail with

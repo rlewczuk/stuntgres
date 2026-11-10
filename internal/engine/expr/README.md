@@ -1,12 +1,5 @@
 # internal/engine/expr
 
-XML capture distinguishes parse, serialize and document-predicate syntax.
-`CaptureOperands.XMLSources` and `RenderArg.XMLSource` delegate peeling of each
-opener-owned assignment conversion to the existing coercion structure. Modes,
-negation and resolved serializer target Usage remain checked node/presentation
-data, not raw type-name or routine authority. XMLEXISTS uses normal function
-capture for both operands; special SQL syntax lowers to that same qualified call.
-
 The expression contract shared by the engine and `internal/engine/functions`:
 types and small pure helpers, including invocation-private cursor handles. It has
 no shared state and no mutex. Layer L2 of
@@ -164,23 +157,6 @@ switch's generic behavior.
   closed-DEFAULT admission. A node may refuse, defer to its children through the
   caller's predicate, or be transparent; inspection never evaluates or mutates.
 
-### Adopted switches
-
-The lexical walk (`plan.ExpressionChildren`), join legality
-(`plan.JoinExpressionSides`), planned volatility, generated admission
-(`plan.GenerationImmutable`, `plan.GenerationHasTableOID`,
-`table.ValidateGenerationPlan`), conditional planning
-(`exec.simplifyConditionalNode`), retag (`stored.MapExpressionReader`), remap
-(`stored.RemapScalar`), node-tree output (`plan.AppendBoundTree`), deparse
-(`stored/deparse_rendering.go`), stored scalar SQL
-(`stored/scalar_rendering.go`), grouping identity, the grouping rewrite and
-aggregate occurrence (`analyze` `sameGroupExpressionIn`, `RewriteGroup`,
-`AggregateOccurrence`), preflight (`exec/preflight_composite.go`), index key
-display (`index.PGIndexFunctionExpression`) and the closed-DEFAULT checks
-(`analyze/default_closure.go`). Remaining explicit cases: `Timezone` (value
-before zone) in the walk, grouping and aggregate occurrence, and the UUID
-closed-DEFAULT check's calendar calls.
-
 ## Closed function sources
 
 `Source.SourceAdmission` answers FROM admission and set cardinality
@@ -219,19 +195,7 @@ use `expr` names directly (no aliases) and evaluate without type parameters.
 
 ## Testing
 
-Unit tests here pin the helpers: property merging, intrinsic rules, `InfoOf`,
-positioned errors, `Walk`/`Map`/`MapSubstituted`, capture operands and source
-cursors. Hook implementations are tested in `functions`
-([README](../functions/README.md#testing)) and the engine; public behavior in
-`reference/` (result nullability in
-[reference/dml](../../../reference/dml/README.md#testing)).
-Routine tuple/frame/owned-source lifetime units use
-`RUN='^TestSQLRoutineSetOwnership$'`, also with `RACE=1`.
-
-```sh
-make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition|WalkVisitsPreOrderAndSkipsNil|Map(Unchanged|Changed|Propagates|Substituted)|SubstitutePrefersTheHook|CaptureOperands|SourceCursor(ScalarPresence|OwnedLifetime))'
-make check RUN='^Test(ResultNullability(Engine|Functions|Identity|CatalogInquiry)|CatalogInquiry(GroupProperties|RetainedVolatility|IntrinsicVolatility))$$'
-make check RUN='^TestConditionalDefaultClosure'
-make check RUN='^Test(SQLJSONProtocol|JSONPredicateProtocol|SQLJSONRendererBoundaries|SQLJSONReturningOwnershipRebind)$$'
-make check RUN='^TestReferenceResultNullability'   # add REFERENCE=1 for the oracle
-```
+Pure property, traversal, reconstruction, capture and cursor units live here.
+Hook implementations are tested with their node owners; composed binding,
+storage and execution checks live with those layers. Public SQL stays in the
+reference suite under [docs/TESTING.md](../../../docs/TESTING.md).

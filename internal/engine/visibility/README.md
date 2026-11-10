@@ -1,271 +1,52 @@
 # internal/engine/visibility
 
-Transaction identity, commit order, commit timestamps, snapshot data views
-and the serializable (SSI) tracker. The package imports only `catalog`,
-`ids`, `lock` (for `*lock.Ticket` identity), `storage`, `sqltype`, `sqlstate` and the
-standard library. It never imports the root engine. Layering is in
-[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
+Transaction identities, commit ordering/timestamps, snapshot data views,
+repeatable-read conflict decisions and serializable tracking below core.
+It never owns catalog admission or a session/transaction state machine.
 
 ## What it owns
 
-- **`Registry`**, held by value as `Engine.Visibility` and never replaced
-  whole. It contains the commit frontier (`CommitSeq`); writer ordering
-  identities (visibility XIDs) and per-incarnation `Entry` records; the
-  canonical full-XID allocator with its `History` and `LowIDs`; the TxRef
-  diagnostic counter; commit timestamps; and the serializable `Tracker`.
-  `NewRegistry(track)` starts canonical assignment after the special XIDs.
-  Its maps are allocated on first use, so a zero `Engine{}` still works.
-- **Snapshot data:** `View`, the handle a statement reads through, and
-  `Data`, its immutable payload: the frontier, the catalog read, captured
-  storage `Generation`s, end roots, own writes and the private deletion
-  overlay. `Root` retains one relation's immutable version/end headers and
-  original supporting unique index descriptor/root pointers for stable FK checks.
-- **The ordinary heap operation authority:** zero-state concrete
-  `HeapOperations` owns the single `LiveVersion` implementation over real
-  `storage.RowVersion`, frontier, end roots and `PrivateDeletes` overlays.
-  `ResolveTableAccess` selects it only for the finite Heap capability.
-  `ResolveHeapAccess` binds from a captured access method descriptor and its
-  installed, provider-validated handler (OID 3); it never infers registration
-  from a signature or marker. `visibility.LiveVersion` is the ordinary-heap
-  API and forwards to the same implementation. Source capture/reselection and
-  catalog replacement bind each physical relation's represented method once
-  outside row loops. Source reselection uses that source reference's same captured
-  catalog; inheritance and partition leaves never borrow their virtual root's
-  default. Genuine heap aliases share the existing concrete heap implementation.
-  PostgreSQL native handler ABI loading, extension binaries, page rewrites and
-  physical WAL remain external mechanisms, not alternate successful no-ops.
-  `PrivateDeletes` retains one ordinary row slot plus supplementary exact-version
-  collision facts. `Lookup(RowID, VersionID)` checks an exact selected Version
-  before genuine nonzero Base lineage; a row match alone never ends a sibling.
-  `All`, `Len`, `Clone` and unpublished `Set`/`Delete` cover both maps with one
-  fact per Version. Selected and Base repair-admission stamps are
-  distinct, so a pre-repair successor cannot hide a newly restored predecessor.
-  `PrivateDeletes.Ends(RowVersion)` owns that effective private-end predicate for
-  heap liveness, conflict and RI consumers; `Lookup` is raw presence only.
-  Captured committed physical ends apply to normal ancestors too; stable fetch
-  keeps concurrent-update diagnostic precedence before a later physical end.
-- **Repeatable-read fetch conflicts:** `RepeatableConflict` (`repeatable.go`),
-  the 40001 "concurrent update"/"concurrent delete" rule for a row fetched
-  under a stable snapshot, over its frontier and the end markers. Repaired heads
-  check their committed physical end before the ordinary zero-birth own-write
-  exemption: a retained aborted tuple can remain Born 0 after repair, so zero
-  birth alone does not prove caller ownership. The repaired header overrides
-  stale pre-repair end markers; ordinary committed heads retain concurrent-update
-  diagnostic precedence over later deletion. Fresh snapshots do not conflict.
-  The DML latest-row readers and the FK action admission call this rule.
-- **Write-set merges** (`write_set.go`): `MergePrivateRows`, `MergeDeletions`
-  and `PrepareOwnWrites` combine a statement's staged private rows and
-  deletions with the transaction's earlier ones. They never mutate either
-  input or write into a prefix an earlier view retains; insert-only merges
-  append, and `PrepareOwnWrites` sizes the vector headers and capacity before
-  the final preflight writes the tails.
-- **SSI evidence:** `SerializableTx` nodes, `SerializableWrite` events and
-  rw-conflict edges, finalization order, safe-snapshot candidates
-  (`SafeSnapshotBlocker`) and SIRead holders (`PredicateLockHolder`, for
-  `pg_locks`).
+`Registry` is held by value on Engine and never replaced whole. It owns canonical
+commit/XID frontiers, live/completed identity records, retained snapshot evidence
+and SSI graph state. `View` captures immutable relation/version roots and
+visibility frontier; write-set merges operate over explicit private/committed
+versions and end roots.
 
 ## Contract
 
-- **One lock authority.** The registry has no mutex. The caller holds
-  `Engine.Mu` for every read and write, including the getters, so commit
-  ordering and publication stay atomic with the catalog and storage.
-  Mutating methods carry the `Locked` suffix or say that the caller holds
-  `Engine.Mu`.
-- **Lock order.** Registry methods never take another mutex, never block and
-  never call back into the engine. They touch only ticket atomics
-  (`MirrorFullXID`, `MirrorCompletion`, `OwnershipEnded`, `AssignedFullXID`),
-  never `lock.Manager` state, so the manager mutex is never taken under
-  `Engine.Mu`. The full order is in
-  [lock/README.md](../lock/README.md#mutex-ownership-and-lock-order).
-- **One isolation owner.** Transaction isolation has one owner,
-  `session.TransactionOwner`. Never cache an owner on prepared statements or
-  add a second settings or lock authority. Current-characteristic routes
-  validate the owner first. A healthy CHAIN keeps the final modes; abort
-  restores the entry defaults before overrides apply, and an aborted CHAIN
-  carries the restored modes. Every chain clears snapshot state.
-- **Fences stay in the engine.** Registry methods never read the catalog.
-  Engine wrappers check the `TxRef` domain and catalog epoch first:
-  `visibilityWriteLocked`, `visibilitySnapshotLocked`,
-  `transactionAgeLocked`, `assignTransactionXIDLocked` and
-  `enrollSerializableLocked`.
-- **Counters.** The counters are private. `CommitSeq` and
-  `AdvanceCommitSeqLocked` (one step) serve publication. Each publishing
-  caller checks exhaustion first, with its own diagnostic, before entering its
-  no-failure region. `SetCommitSeqLocked`, `SetLastAssignedXIDLocked` and
-  `SetDiagnosticTxLocked` are seeding seams for tests only.
-- **XID assignment.** Full XIDs are monotonic. Low 32-bit values below 3 are
-  skipped (`NextFullXID`). An assignment never reuses the low 32 bits of a
-  transaction that is still in progress; the `LowIDs` index makes that check
-  constant-time, including the gap between publication and manager release.
-  An exact atomic full-XID mirror on the ticket keeps an old status from
-  following a later index phase with the same low bits. Sparse retained
-  status and optional timestamp reservations index the full identity. With
-  tracking off, no timestamp map is allocated.
-  Actual savepoint/exception generations draw child IDs from the same allocator.
-  `PreflightXIDsLocked` checks an entire lazy ancestor stack before assignment.
-  Child History entries retain canonical parent links, not extra lock/MVCC/SSI
-  owners. Status and low-alias liveness follow parent completion authority;
-  subtree abort includes released descendants, and committed children inherit
-  the top transaction's timestamp/origin reservation.
-  Each Entry owns a fixed64 full-XID child cache. Assignment takes the explicit
-  top TxRef and appends only real children, in ancestor-before-child order.
-  RELEASE retains cached entries; subtree abort takes that same authority and
-  compacts only actually aborted cached members, zeroing the tail without
-  refilling from uncached survivors. Overflow is sticky until top completion;
-  new assignments may use freed slots. Commit-timestamp completion reloads the
-  cleared Entry instead of resurrecting a stale copy. Reads allocate no XIDs.
-- **Completion input.** `RecordCommitTimestampLocked` takes an explicit PostgreSQL
-  timestamp-microsecond value (including infinities) and numeric origin. Core owns
-  local stop-time selection and physical origin context/fallback persistence;
-  the registry reads neither sessions nor catalogs. Reserved history storage,
-  completion consumption and the last-committed cache publish once under Engine.Mu.
-  PREPARE and assigned abort/subabort may publish origin progress in core without
-  recording a committed timestamp here.
-- **Snapshots and retention.** Repeatable read and serializable acquire every
-  immutable relation root and end root (`Root`), the tuple frontier and the public
-  full-XID value together, including snapshot-requiring transaction analysis.
-  Supporting unique roots are captured at that same frontier, never reconstructed
-  from later definitions. Current roots decide RI integrity; an original match
-  after a current miss identifies isolation-specific serialization. The map and
-  its roots are immutable and are not added to unrelated RC/dynamic captures.
-  Ordinary RC execution acquires its pair after relation admission. Admitted
-  physical mutation targets retain their committed version/end roots in that
-  same engine-lock window: one target is inline, and only additional distinct
-  targets need a map. Later source capture uses those roots without an early
-  narrowed data view or read enrollment; current private overlays remain separate.
-  A peer replacement between pair selection and root consumption cannot erase
-  the command's frozen candidate, while row arbitration still reads live storage.
-  Utilities acquire an active pair at entry; roots obtained after their internal
-  waits are birth/end-filtered at that original frontier. Dynamic extensions keep their
-  base frontier; partition grant-time validation and private rewrites retain
-  their explicit visibility rules. Retention holds roots by pointer and never
-  copies row values. A `View` handle has its
-  own release authority: `Retain` returns an independent handle, `Release`
-  ends only its own handle, and a forged or copied handle can neither retain,
-  release nor read (`Data` panics; `Load` returns the raw pointer).
-- **VACUUM retention and freezing** (`maintenance.go`, `Registry` methods that
-  run under `Engine.Mu` and never allocate).
-  - `VacuumRetirementAllowedLocked` excludes the caller's own canonical
-    maintenance owner and gates current dead-head retirement on any other
-    same-epoch registered snapshot/builder/writer/live ticket, rechecking that
-    gate before installation. Detached owned roots survive compaction independently;
-    old headers, values and end maps are never mutated.
-  - The freezing cutoff (`VacuumCutoffLocked`) is the next canonical full XID
-    clamped by actual in-progress assigned full XIDs and the oldest retained
-    exported or imported public full-XID cut. Import adoption installs both
-    writer-order and full-XID horizons atomically; ending the exporter does not
-    release an importer's protection. Ordinary snapshots retain immutable roots,
-    not this additional freezing horizon: newer current headers may freeze,
-    while pg_visibility still checks every advertised CommitSeq frontier.
-    CommitSeq, writer order and public full XIDs are separate ordering domains;
-    special low-32 values are skipped by the canonical allocator. Ticket liveness
-    reads atomics only, never manager metadata under `Engine.Mu`.
-  - The same safe cutoff initializes empty relation incarnations
-    (`InitializeMaintenanceLocked`), because an already assigned older READ
-    COMMITTED publisher may later insert into a newly created relation.
-    Ordinary, prepared and rewrite publication also retain each real full-width
-    birth in its relation bound; no low-32 comparison or read-only-BEGIN
-    inference substitutes for canonical assignment.
-  - Database calculation also starts from that cutoff before minimizing
-    installed relation bounds, so future peer-created relations are protected
-    during a database-only pass. Exhaustion and unknown relation bounds keep
-    no-publication behavior.
-- **Runtime-selected inspection sources.** Before the first data capture, the
-  engine checks outer analyzed dependencies and executable stored-view source
-  manifests recursively for installed pgrowlocks or heap verification. Those
-  statements retain all-relation immutable prefixes in `Data.DynamicRoots` at
-  the same frontier as their ordinary sources. A later dynamic target uses
-  those prefixes locally, without replacing the outer view, resolving targets
-  early, merging stored routine ACL manifests, or weakening epoch, storage,
-  object and lexical admission fences. Prepared and nested stored routes share
-  this trigger; unrelated statements do not retain all-relation roots.
-- **SSI.** Edge failure follows PostgreSQL REL_18_0
-  `OnConflict_CheckForSerializationFailure`; finalized nodes are immune, and
-  prepared finalization orders conflicts without resolving the committed
-  outcome. Retained events hold identities, never row values. A tracker
-  cohort is cleared once it has no live participant.
-- **Safe snapshots.** `CaptureSerializableLocked` gives a DEFERRABLE read-only
-  node the overlapping read-write writers it must wait out. Resolution closes
-  the node's ready channel exactly once: when the last writer commits or
-  aborts, on `EndTransactionLocked`, on `FenceLocked`, or on
-  `AbandonSafeSnapshotLocked`. Abandonment also clears capture/ready evidence;
-  the engine withdraws registry advertisement and the owner's retained roots
-  and public snapshot. The engine's wait loop (`acquireSerializableSnapshot`)
-  calls `SafeSnapshotWait` and `SafeSnapshotOutcome` and waits with `Engine.Mu`
-  released. That loop also drops and retakes `replacementMu` while its caller
-  holds `session.TransactionOwner.Mu`; this package takes no part in that ordering.
-
-- **Public snapshots.** `CurrentSnapshotLocked` captures full transaction IDs
-  under `Engine.Mu`, with a latest-completed frontier distinct from writer
-  ordering and assignment. Self lowers xmin but is omitted from membership;
-  active peers below xmax include detached prepared owners. Completion history
-  wins over stale entry/ticket mirrors, and commit and abort both advance xmax.
-  The root captures this value and the tuple commit frontier under the same
-  admission lock. A stable SSI candidate owns both; rejecting or abandoning it
-  discards the whole pair, while accepting it preserves both across safe waits.
-- **Export advertisement.** Active writer-order xmin and full-XID xmin stay
-  distinct from tuple CommitSeq. Retained export minima survive command drop,
-  withdrawal and phase reset; newer exports cannot advance them. Ordinary RC
-  acquisition still chooses a fresh current cut, not the oldest export.
-  Imported owners advertise their retained cut after the source is gone.
-  Whole end/fence removes the incarnation's advertisements.
-- **Imported SSI.** `CaptureImportedSerializableLocked` initializes the existing
-  enrolled node with the supplied old data Frontier and the tracker's current
-  SnapshotOrder. It neither clones a source graph nor chooses fresh tuple data.
-  Read-only candidates derive their exemption/possible-writer population from
-  current nodes. The root rejects READ ONLY DEFERRABLE imports before mutation.
-  `TestSnapshotSyncSSIImportedFrontier` separates these ordering domains and
-  witnesses creator selection for a BaseBorn strictly between old/current cuts.
+- Registry reads/writes require caller-owned Engine.Mu, including pure-looking
+  accessors. Methods never take another mutex, block or call application code.
+- Transaction isolation has one owner in session/core. Catalog epoch and
+  transaction provenance fences remain core's responsibility; Registry never
+  looks up a catalog or authorizes a raw numeric identity.
+- Full XIDs are monotonic, skip reserved low values and are distinct from
+  CommitSeq. Read-only inquiry/snapshot capture does not invent assignment;
+  assigned ownership and completion transfer through the actual transaction.
+- Commit timestamps consume explicit completion time/origin from their real
+  owner, not a later sampled clock. Abort/subabort is not committed history.
+- Stable isolation retains admitted roots/frontier; ordinary RC selects its
+  execution pair after relation admission. Later physical capture applies that
+  same frontier, not a fresh snapshot. Retained roots/payloads remain immutable.
+- Tuple conflict/merge checks use actual version chains and canonical birth/end
+  facts. Same RowID or equal payloads do not prove successor ownership.
+- Snapshot/export advertisements and tuple-retention horizons have explicit
+  lifetime distinct from XID allocation and display. Maintenance never retires
+  versions needed by genuine retained readers or active/prepared owners.
+- SSI records real read/write evidence; safe read-only snapshots wait through
+  core's unlocked completion path and install only the accepted coherent pair.
+  Imported snapshot/SSI evidence retains genuine source lineage and does not
+  weaken local catalog, owner or publication checks.
 
 ## What stays in the engine
 
-The transaction owner's orchestration (the per-session state machine's
-transitions and its CHAIN and characteristic rules; the owner state itself is
-`session.TransactionOwner`), savepoints, publication of the catalog journal
-(the journal itself is `session.Journal`), prepared transactions (2PC),
-`StatementScope` and write staging. Also every entry point that combines
-visibility with the catalog, storage, locks or sessions:
-
-- `registerTransactionLocks`, the fence wrappers and `endStatementVisibility`;
-- `waitOlderIndexSnapshots` (CREATE INDEX CONCURRENTLY, in
-  [`indexcmds`](../indexcmds/README.md));
-- `AcquireDataView` and `captureDataViews*` (snapshot construction from
-  private storage);
-- `snapshotDataPhase` and `acquireSerializableSnapshot`;
-- the SSI eligibility and authority checks (`serializableReadLocked`,
-  `serializableWriteLocked`, `serializableEligibleLocked`) and rollback
-  reconciliation;
-- `endSerializableLocked` and `fenceSerializableLocked`, which also clear
-  index build waits;
-- the `pg_blocking_pids` and `pg_locks` projections.
-
-The SQL functions (`age`, `pg_current_xact_id*`, `pg_xact_status`, the
-commit-timestamp functions) stay in the engine. The publication sites
-interleave `commitSeq` advances with catalog and storage installation and stay
-inline (`catalog.go`, `transaction_publication.go`). Isolation levels are
-`session.Isolation` (`Stable` reports a transaction snapshot).
+Transaction admission and state transitions, lock registration/waits, captured
+catalog/role pairing, snapshot/data-view construction, completion, safe-snapshot
+waiting, epoch fencing and row/index publication. SQL inquiry recipes live in
+functions and borrow current runtime authority through core.
 
 ## Testing
 
-Package units cover the registry, XID assignment, live versions, views, safe
-snapshots, the SSI graph and write-set merges. Engine tests exercise the
-registry through sessions, publication and SQL functions; the
-transaction-identity units seed wrap, horizon and collision state.
-Exact sibling deletion/base lookup, clone ownership and repair-admission
-stamps use `RUN='^TestPrivateDeletes'`.
-Canonical child assignment, subtree status, timestamps, exhaustion and live-alias
-preflight use `make check RUN='^TestLogicalChild'`; composed savepoint/exception
-and session-ending proofs use `make check RUN='^TestLogicalStream'`.
-Exact fixed-cache content, sticky overflow and full-XID lifetime use
-`make check RUN='^TestBackendStateSubxactCache$'`, also with `RACE=1`.
-
-```sh
-make check RACE=1 RUN='^Test(LiveVersionOverlayAndEnds|NextFullXID|Registry(CommitSeq|XIDAssignment)|SafeSnapshot(Abandon|FenceWakes|Wait)|SerializableGraph|SerializablePrecommit|View(ForgedCopy|RetainRelease)|WriteSetMerges)'
-make check RUN='^Test(AccessMethodHeapOperations|Vacuum(SnapshotSafety|FreezeProvenance|ImportHorizons|PublicationFences))$$'
-make check RUN='^Test(TransactionIdentity(AgeArithmetic|Allocation|History|Completion|MultiHistory|GrantActions|Savepoint|Binding)|CommitTime(Assignment|Publication|Replacement|Expression))$$'
-make check RACE=1 RUN='^Test(Serializable|PreparedTransaction|TransactionIsolation|TransactionVisibility|BlockingPids|PGLocks)'
-```
-
-Public isolation, SSI, safe-snapshot, commit-timestamp, XID-function, 2PC and
-concurrent-visibility families are in
-[reference/locking_transactions](../../../reference/locking_transactions/README.md#testing).
+Pure Registry/view/conflict/SSI/merge units live here with controlled canonical
+frontiers. Composed core tests exercise real lock, transaction and snapshot
+ownership. Public isolation/visibility SQL belongs to reference packages under
+[docs/TESTING.md](../../../docs/TESTING.md).
